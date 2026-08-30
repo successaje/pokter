@@ -36,8 +36,46 @@ export interface ScanAgent {
   health_score: number | null;
   total_feedbacks: number;
   average_score: number;
+  /** Present on detail rows; list rows omit it. */
+  tags?: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A service endpoint the agent publishes, and which we can therefore probe. */
+export interface ScanService {
+  endpoint?: string | null;
+  version?: string | null;
+  skills?: unknown[] | null;
+}
+
+/**
+ * `GET /agents/{chainId}/{tokenId}`. Richer than a list row: it carries the
+ * publisher-declared `tags` we classify on, the service endpoints we probe, and
+ * 8004scan's own service-health breakdown.
+ */
+export interface ScanAgentDetail extends ScanAgent {
+  creator_address: string | null;
+  agent_type: string | null;
+  agent_wallet: string | null;
+  watch_count: number;
+  tags: string[] | null;
+  categories: string[] | null;
+  services: Record<string, ScanService> | null;
+  scores: {
+    quality?: number;
+    popularity?: number;
+    activity?: number;
+    wallet?: number;
+    freshness?: number;
+    metadata_completeness?: number;
+    health_score?: number | null;
+    breakdown?: {
+      version?: string;
+      algorithm?: string;
+      dimensions?: Record<string, unknown>;
+    } | null;
+  } | null;
 }
 
 export interface ScanPage<T> {

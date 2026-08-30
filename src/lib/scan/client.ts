@@ -1,6 +1,12 @@
 import 'server-only';
 
-import type { ChainId, ScanAgent, ScanFeedback, ScanPage } from './types';
+import type {
+  ChainId,
+  ScanAgent,
+  ScanAgentDetail,
+  ScanFeedback,
+  ScanPage,
+} from './types';
 
 const BASE_URL = process.env.SCAN_BASE_URL ?? 'https://api.8004scan.io/api/v1';
 
@@ -85,8 +91,16 @@ export function listAgents({
   });
 }
 
-export function getAgent(chainId: ChainId, tokenId: string): Promise<ScanAgent> {
-  return scanFetch<ScanAgent>(`/agents/${chainId}/${tokenId}`, {});
+/**
+ * Full agent record. Unlike a list row this includes `tags` (what we classify
+ * on), `services` (the endpoints we probe live), and 8004scan's own health
+ * breakdown, so the detail page never has to guess.
+ */
+export function getAgent(
+  chainId: ChainId,
+  tokenId: string,
+): Promise<ScanAgentDetail> {
+  return scanFetch<ScanAgentDetail>(`/agents/${chainId}/${tokenId}`, {});
 }
 
 /**
