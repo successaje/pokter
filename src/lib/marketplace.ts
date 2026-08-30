@@ -9,6 +9,9 @@ import { toAttestation, type Attestation } from '@/lib/proof/attestation';
 import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { getProbeStore } from '@/lib/history/store';
+import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
+import { toSweepAttestation } from '@/lib/history/attest';
 
 /**
  * Retrieval is deliberately hybrid.
@@ -169,10 +172,16 @@ export async function listMarketplace(
 export interface AgentDossier {
   agent: ScanAgentDetail;
   category: ReturnType<typeof classify>;
+  /** Third-party attestations read from chain. */
   attestations: Attestation[];
   proof: ProofSummary;
   live: LiveReading;
+  /** What our own scheduled sweeps have accumulated. */
+  record: TrackRecord;
 }
+
+/** How far back the detail page reads accumulated history. */
+const HISTORY_DAYS = 30;
 
 /**
  * Assemble the full evidence dossier for one agent: third-party attestations
@@ -196,11 +205,22 @@ export async function getDossier(
 
   const attestations = feedbackPage.items.map(toAttestation);
 
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+  const record = buildTrackRecord(
+    getProbeStore().historyFor(chainId, tokenId, since),
+  );
+
+  // Our accumulated sweeps count as evidence alongside third-party
+  // attestations, which is the point of measuring on a schedule: without it an
+  // agent nobody else has checked can never be anything but unproven.
+  const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
+
   return {
     agent,
     category: classify(agent),
     attestations,
-    proof: summariseProof(attestations),
+    proof: summariseProof(sweep ? [...attestations, sweep] : attestations),
     live,
+    record,
   };
 }

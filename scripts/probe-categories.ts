@@ -1,5 +1,5 @@
 /** Does the live BSC registry actually contain agents in our four categories? */
-import { classify, scoreCategories, CATEGORIES } from '../src/lib/agents/categories';
+import { classify, scoreCategories } from '../src/lib/agents/categories';
 import type { ScanAgent, ScanPage } from '../src/lib/scan/types';
 
 const QUERIES: Record<string, string> = {

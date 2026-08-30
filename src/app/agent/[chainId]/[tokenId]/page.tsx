@@ -8,6 +8,7 @@ import { VerdictBadge } from '@/components/VerdictBadge';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { LivePanel } from '@/components/LivePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
+import { TrackRecordPanel } from '@/components/TrackRecordPanel';
 import { HireGate } from '@/components/HireGate';
 
 // The live probe must be taken at request time, so this page is never cached.
@@ -45,7 +46,7 @@ export default async function AgentPage({
   const dossier = await getDossier(chainId, tokenId).catch(() => null);
   if (!dossier) notFound();
 
-  const { agent, category, attestations, proof, live } = dossier;
+  const { agent, category, attestations, proof, live, record } = dossier;
   const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
 
   return (
@@ -90,6 +91,13 @@ export default async function AgentPage({
           caption="Probed live when you loaded this page. This is our own measurement, not a claim by the agent."
         >
           <LivePanel live={live} />
+        </Section>
+
+        <Section
+          title="Track record"
+          caption="What our scheduled sweeps have accumulated over time, not a single sample."
+        >
+          <TrackRecordPanel record={record} />
         </Section>
 
         <Section

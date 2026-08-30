@@ -31,9 +31,19 @@ export interface ProofSummary {
   hirable: boolean;
 }
 
-/** Minimum evidence before we will call anything "proven". */
+/**
+ * Minimum evidence before we will call anything "proven".
+ *
+ * The bar is independence, not row count. Counting attestation rows made
+ * "proven" unreachable in practice: scheduled sweeps accumulate probes but
+ * aggregate into a single first-party attestation, so an agent watched for
+ * months by two measurers would still have been capped at "emerging". What
+ * matters is that more than one party checked it, over enough probes, across
+ * more than a single instant.
+ */
 const PROVEN_MIN_PROBES = 40;
-const PROVEN_MIN_ATTESTATIONS = 3;
+const PROVEN_MIN_MEASURERS = 2;
+const PROVEN_MIN_WINDOW_DAYS = 1;
 const PROVEN_MIN_SCORE = 0.9;
 const FAILING_MAX_SCORE = 0.5;
 
@@ -100,18 +110,32 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       ? 'failing'
       : score >= PROVEN_MIN_SCORE &&
           probes >= PROVEN_MIN_PROBES &&
-          usable.length >= PROVEN_MIN_ATTESTATIONS
+          measurers.length >= PROVEN_MIN_MEASURERS &&
+          (windowDays ?? 0) >= PROVEN_MIN_WINDOW_DAYS
         ? 'proven'
         : 'emerging';
 
-  const evidence = `${usable.length} attestation(s), ${probes} probe(s), ${measurers.length || 'no named'} measurer(s)`;
+  const evidence =
+    `${usable.length} attestation(s), ${probes} probe(s), ` +
+    `${measurers.length || 'no named'} measurer(s)` +
+    (windowDays ? `, over ${windowDays} day(s)` : '');
+
+  /** What is still missing before this could be called proven. */
+  const shortfalls = [
+    probes < PROVEN_MIN_PROBES && `${PROVEN_MIN_PROBES - probes} more probe(s)`,
+    measurers.length < PROVEN_MIN_MEASURERS &&
+      'a second independent measurer',
+    (windowDays ?? 0) < PROVEN_MIN_WINDOW_DAYS &&
+      'at least a day of observation',
+    score < PROVEN_MIN_SCORE && `a score above ${PROVEN_MIN_SCORE * 100}%`,
+  ].filter((s): s is string => Boolean(s));
 
   const rationale =
     verdict === 'failing'
       ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. This agent is failing its own measurers and is blocked from hire.`
       : verdict === 'proven'
         ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence} — enough independent evidence to clear the proven bar.`
-        : `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. Real, but below the evidence volume required to call it proven.`;
+        : `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
 
   return {
     ...base,

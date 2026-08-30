@@ -75,6 +75,43 @@ Clone farms are collapsed to one representative per identical description, and
 ranking prefers agents that publish a probeable endpoint — an agent you can watch
 is the entire point.
 
+## Scheduled probing
+
+A single page-load probe says whether an agent is up *right now*. Only repeated
+measurement can say whether it has **stayed** up — which is the claim the
+marketplace actually needs to make, and the reason the sweep exists.
+
+```bash
+npm run sweep     # one pass over the roster; appends to the probe history
+```
+
+Each sweep walks the union of what the marketplace lists and every agent we
+already hold history for — an agent that drops out of the listings keeps being
+measured, so its record cannot silently freeze on the way out. Results land in
+SQLite (`node:sqlite`, no native dependency) behind a `ProbeStore` interface, so
+a hosted database can be swapped in for deployment without touching anything
+above that boundary.
+
+Schedule it with the included launchd agent (`deploy/`) or, on Vercel, the cron
+in `vercel.json` hitting `POST /api/sweep` — that endpoint refuses to run
+without `SWEEP_SECRET`, since an open trigger would let anyone use the
+deployment to generate traffic against third-party agents.
+
+Accumulated history feeds straight into the verdict. Without it an agent nobody
+else has ever checked could only ever be `Unproven`; with it, Proving Ground can
+become the second measurer that makes a verdict possible.
+
+**What the record reports, and what it refuses to.** Observed time is floored —
+ten minutes of watching is zero days of watching, and rounding up would let an
+agent be called proven on the strength of a single afternoon. The panel shows
+longest observed outage alongside average uptime, because average uptime hides a
+blackout and a blackout is when a position gets liquidated.
+
+The `proven` bar measures independence rather than row count: enough probes,
+**more than one measurer**, and at least a day of real observation. Counting
+attestation rows instead made `proven` unreachable, since sweeps aggregate into a
+single first-party attestation no matter how long they run.
+
 ## Running it
 
 ```bash

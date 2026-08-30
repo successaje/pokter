@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs a probe sweep every 30 minutes so agents accumulate a real track record.
+
+  Install:
+    cp deploy/com.provingground.sweep.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.provingground.sweep.plist
+
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.provingground.sweep.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.provingground.sweep</string>
+
+  <key>WorkingDirectory</key>
+  <string>REPLACE_WITH_REPO_PATH</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>npm run sweep</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>StandardOutPath</key>
+  <string>REPLACE_WITH_REPO_PATH/data/sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>REPLACE_WITH_REPO_PATH/data/sweep.error.log</string>
+</dict>
+</plist>

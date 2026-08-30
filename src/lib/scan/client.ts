@@ -31,6 +31,15 @@ export class ScanError extends Error {
   }
 }
 
+/** How many times to wait out a rate limit before giving up. */
+const MAX_RATE_LIMIT_RETRIES = 3;
+/** Ceiling on how long we will wait for a limit window to reset. */
+const MAX_BACKOFF_MS = 65_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function scanFetch<T>(
   path: string,
   params: Record<string, string | number | boolean | undefined>,
@@ -41,23 +50,38 @@ async function scanFetch<T>(
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
-    },
-    next: { revalidate },
-  });
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(url, {
+      headers: {
+        accept: 'application/json',
+        ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
+      },
+      next: { revalidate },
+    });
 
-  if (!response.ok) {
+    if (response.ok) return (await response.json()) as T;
+
+    // The anonymous tier allows 30 requests a minute, which a sweep across the
+    // roster will exhaust. The response says when the window resets, so wait it
+    // out rather than failing a scheduled job that has time to spare.
+    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      const resetSeconds = Number(response.headers.get('x-ratelimit-reset'));
+      const waitMs = Math.min(
+        Number.isFinite(resetSeconds) && resetSeconds > 0
+          ? (resetSeconds + 1) * 1000
+          : 2 ** attempt * 5_000,
+        MAX_BACKOFF_MS,
+      );
+      await sleep(waitMs);
+      continue;
+    }
+
     throw new ScanError(
       response.status,
       path,
       `8004scan ${path} returned ${response.status} ${response.statusText}`,
     );
   }
-
-  return (await response.json()) as T;
 }
 
 export interface ListAgentsOptions {
