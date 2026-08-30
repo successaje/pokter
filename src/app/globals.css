@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
+/*
+ * Proving Ground reads as an instrument panel, not a storefront: dark ground,
+ * restrained accents, and colour reserved almost entirely for verdicts so that
+ * a green or red badge always means something.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07090d;
+  --surface: #0d1017;
+  --surface-raised: #131822;
+  --border: #1e2635;
+  --border-strong: #2b3648;
+  --foreground: #e8edf5;
+  --muted: #8b98ad;
+  --muted-dim: #5e6b80;
+
+  --proven: #3ddc97;
+  --emerging: #f0b429;
+  --failing: #f2544b;
+  --unproven: #6b7a91;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border-subtle: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-dim: var(--muted-dim);
+  --color-proven: var(--proven);
+  --color-emerging: var(--emerging);
+  --color-failing: var(--failing);
+  --color-unproven: var(--unproven);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Evidence figures are monospaced so numbers line up when scanned in a column. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono), ui-monospace, monospace;
 }
