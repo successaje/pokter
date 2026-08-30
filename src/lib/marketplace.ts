@@ -8,6 +8,7 @@ import type { Category } from '@/lib/agents/categories';
 import { toAttestation, type Attestation } from '@/lib/proof/attestation';
 import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
+import { mapWithConcurrency } from '@/lib/concurrency';
 
 /**
  * Retrieval is deliberately hybrid.
@@ -120,14 +121,16 @@ export async function listCategory(
 
   const empty = { items: [] as ScanAgent[], total: 0, limit: 0, offset: 0 };
 
-  const pages = await Promise.all([
-    ...queries.map((q) =>
-      searchAgents(q, { chainId, limit: 12 }).catch(() => empty),
+  const lookups: (() => Promise<typeof empty>)[] = [
+    ...queries.map((q) => () => searchAgents(q, { chainId, limit: 12 })),
+    ...KEYWORD_TERMS[category].map(
+      (term) => () => listAgents({ chainId, search: term, limit: 20 }),
     ),
-    ...KEYWORD_TERMS[category].map((term) =>
-      listAgents({ chainId, search: term, limit: 20 }).catch(() => empty),
-    ),
-  ]);
+  ];
+
+  const pages = await mapWithConcurrency(lookups, 3, (run) =>
+    run().catch(() => empty),
+  );
 
   const candidates = dedupe(pages.flatMap((p) => p.items));
 
@@ -153,13 +156,13 @@ export async function listCategory(
 export async function listMarketplace(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{ category: Category; listings: Listing[] }[]> {
-  const results = await Promise.all(
-    CATEGORIES.map(async ({ id }) => ({
-      category: id,
-      listings: await listCategory(id, options),
-    })),
-  );
-  return results;
+  // Categories are fetched two at a time rather than all four at once: each one
+  // fans out internally, and the product of the two fan-outs is what trips the
+  // rate limit.
+  return mapWithConcurrency(CATEGORIES, 2, async ({ id }) => ({
+    category: id,
+    listings: await listCategory(id, options),
+  }));
 }
 
 /** Everything the agent detail page needs to justify (or refuse) a hire. */

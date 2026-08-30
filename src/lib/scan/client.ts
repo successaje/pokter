@@ -18,7 +18,7 @@ const BASE_URL = process.env.SCAN_BASE_URL ?? 'https://api.8004scan.io/api/v1';
 const API_KEY = process.env.SCAN_API_KEY;
 
 /** Registry data changes slowly; cache to stay far inside the rate limit. */
-const REVALIDATE_SECONDS = 60;
+const REVALIDATE_SECONDS = 300;
 
 export class ScanError extends Error {
   constructor(
