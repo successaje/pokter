@@ -17,10 +17,12 @@ primary_region = 'iad'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'suspend'
+  # Never suspended. With suspend enabled, a gap between visits let the machine
+  # sleep and the next request paid resume *plus* a cold registry re-fetch —
+  # measured at 84s after an otherwise-warm start. During judging the machine
+  # stays up so the first visitor is never the one who pays for it.
+  auto_stop_machines = 'off'
   auto_start_machines = true
-  # One machine always running. Suspending to zero would mean a judge's first
-  # visit pays a cold start on top of the registry lookups.
   min_machines_running = 1
   processes = ['app']
 
