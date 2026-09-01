@@ -85,6 +85,28 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
           <p className="tabular text-4xl font-medium leading-none text-[color:var(--negative)] sm:text-5xl">
             {formatPercent(uptime, { decimals: 0 })}
           </p>
+
+          {/*
+            One mark per probe actually taken. Staggered so the failures land in
+            sequence rather than all at once — the point is that this was
+            checked repeatedly over time, not judged in a single glance.
+          */}
+          <ul
+            className="flex flex-wrap gap-1.5"
+            aria-label={`${record.totalAnswered} of ${record.totalProbes} probes answered`}
+          >
+            {Array.from({ length: Math.min(record.totalProbes, 40) }).map(
+              (_, index) => (
+                <li
+                  key={index}
+                  aria-hidden
+                  style={{ animationDelay: `${index * 45}ms` }}
+                  className="reveal size-2.5 rounded-[3px] border border-[color:var(--negative)]/45 bg-[color:var(--negative)]/25"
+                />
+              ),
+            )}
+          </ul>
+
           <p className="text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
             {record.totalAnswered} of {record.totalProbes} probes answered. Every
             request Pokter has made to this agent&apos;s declared endpoint has

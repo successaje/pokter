@@ -11,6 +11,7 @@ import { CategoryBlocks } from '@/components/home/CategoryBlocks';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Sponsors } from '@/components/brand/Sponsors';
+import { Reveal } from '@/components/motion/Reveal';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,17 +63,29 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <ClaimVsEvidence exhibit={exhibit} />
+      <Reveal>
+        <ClaimVsEvidence exhibit={exhibit} />
+      </Reveal>
 
-      <ObjectiveSelector />
+      <Reveal>
+        <ObjectiveSelector />
+      </Reveal>
 
-      <HowItWorks />
+      <Reveal>
+        <HowItWorks />
+      </Reveal>
 
-      <EcosystemPanel stats={stats} />
+      <Reveal>
+        <EcosystemPanel stats={stats} />
+      </Reveal>
 
-      <CategoryBlocks sections={sections} />
+      <Reveal>
+        <CategoryBlocks sections={sections} />
+      </Reveal>
 
-      <Sponsors />
+      <Reveal>
+        <Sponsors />
+      </Reveal>
     </div>
   );
 }

@@ -281,3 +281,41 @@ body {
   line-height: 0.98;
   font-weight: 620;
 }
+
+
+/*
+ * Scroll-driven entrance.
+ *
+ * Guarded by @supports so that a browser without scroll timelines renders the
+ * element plainly rather than leaving it at opacity 0 forever — the failure
+ * mode of every JavaScript reveal that does not load. The reduced-motion rule
+ * above collapses the duration, so the element simply appears.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-timeline: view();
+      /* Completes a little before the element is centred, so the motion is
+         finished by the time anyone is actually reading it. */
+      animation-range: entry 0% entry 42%;
+    }
+  }
+}
+
+/*
+ * Live indicator.
+ *
+ * The only looping animation in the product, and it earns that by carrying
+ * meaning: it marks data measured at request time, as opposed to the
+ * accumulated history shown everywhere else. A pulse on a static number would
+ * be decoration.
+ */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+.live-dot {
+  animation: live-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

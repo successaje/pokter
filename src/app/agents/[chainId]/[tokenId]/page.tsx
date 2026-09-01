@@ -98,7 +98,10 @@ export default async function AgentPage({
                   color: answeredNow ? 'var(--positive)' : 'var(--negative)',
                 }}
               >
-                <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                <span
+                  aria-hidden
+                  className={answeredNow ? 'live-dot size-1.5 rounded-full bg-current' : 'size-1.5 rounded-full bg-current'}
+                />
                 {answeredNow ? 'Live' : 'Not responding'}
               </span>
               <span className="mono text-[11px] text-[color:var(--text-faint)]">
