@@ -1,0 +1,50 @@
+# Pokter — BNB Chain agent marketplace.
+app = 'pokter'
+primary_region = 'iad'
+
+[build]
+
+[env]
+  PORT = '8080'
+  # Databases live on the mounted volume so probe history, sessions and jobs
+  # survive deploys. This is the reason for a volume rather than a stateless
+  # serverless deploy: the accumulated track record *is* the evidence layer.
+  PROBE_DB_PATH = '/data/probes.db'
+  SESSION_DB_PATH = '/data/sessions.db'
+  JOB_DB_PATH = '/data/jobs.db'
+  ALTANA_NETWORK = 'bnb-testnet'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  # One machine always running. Suspending to zero would mean a judge's first
+  # visit pays a cold start on top of the registry lookups.
+  min_machines_running = 1
+  processes = ['app']
+
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 40
+    hard_limit = 80
+
+[[vm]]
+  # Sweeps probe dozens of endpoints concurrently and the SQLite writes are
+  # synchronous, so the smallest shared CPU is not enough headroom.
+  size = 'shared-cpu-1x'
+  memory = '1gb'
+
+[mounts]
+  source = 'pokter_data'
+  destination = '/data'
+
+[checks]
+  [checks.health]
+    type = 'http'
+    port = 8080
+    method = 'GET'
+    path = '/api/hire'
+    interval = '30s'
+    timeout = '10s'
+    grace_period = '20s'

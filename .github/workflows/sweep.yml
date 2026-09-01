@@ -1,0 +1,40 @@
+name: Probe sweep
+
+# Keeps the deployed track record growing. Evidence that stops accumulating
+# stops being evidence — an agent's uptime claim is only as current as the last
+# time somebody checked.
+on:
+  schedule:
+    # Every two hours. Frequent enough that a day's outage cannot hide between
+    # samples, sparse enough to stay a good citizen toward third-party endpoints.
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger sweep
+        run: |
+          response=$(curl -sS -w '\n%{http_code}' --max-time 480 \
+            -X POST "https://pokter.fly.dev/api/sweep" \
+            -H "authorization: Bearer ${{ secrets.SWEEP_SECRET }}")
+
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+
+          echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Sweep failed with HTTP $status"
+            exit 1
+          fi
+
+          # A sweep that recorded nothing is a failed sweep, however it exited.
+          probes=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('probes',0))")
+          if [ "$probes" -eq 0 ]; then
+            echo "::error::Sweep recorded no probes"
+            exit 1
+          fi
+          echo "Recorded $probes probes"
