@@ -44,6 +44,8 @@ export interface ProbeStore {
   lastSweep(): SweepRecord | null;
   /** Aggregate counts for the ecosystem panel. */
   stats(): StoreStats;
+  /** The most recent probes taken, newest first, across all agents. */
+  recent(limit: number): ProbeRecord[];
 }
 
 /** What Pokter itself has measured, as opposed to what the registry reports. */
@@ -190,6 +192,13 @@ class SqliteProbeStore implements ProbeStore {
       .all() as unknown as { chain_id: number; token_id: string }[];
 
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  recent(limit: number): ProbeRecord[] {
+    const rows = this.db
+      .prepare('SELECT * FROM probes ORDER BY probed_at DESC LIMIT ?')
+      .all(limit) as unknown as ProbeRow[];
+    return rows.map(rowToProbe);
   }
 
   stats(): StoreStats {

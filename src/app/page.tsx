@@ -13,7 +13,10 @@ import { HowItWorks } from '@/components/home/HowItWorks';
 import { Sponsors } from '@/components/brand/Sponsors';
 import { Reveal } from '@/components/motion/Reveal';
 import { AgentDesk } from '@/components/home/AgentDesk';
-import { buildPipeline } from '@/lib/hero/pipeline';
+import { LiveProof } from '@/components/home/LiveProof';
+import { Philosophy } from '@/components/home/Philosophy';
+import { Transparency } from '@/components/home/Transparency';
+import { buildPipeline, recentProbes } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +27,14 @@ export const dynamic = 'force-dynamic';
  */
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
-/** Split for per-word motion; joined by real spaces so the sentence reads. */
-const HEADLINE = ['Choose', 'what', 'deserves', 'your', 'money.'];
+/**
+ * Split for per-word motion and broken deliberately across two lines, so the
+ * emphasis lands on "deserves" before the eye reaches "your money".
+ */
+const HEADLINE: string[][] = [
+  ['Choose', 'what', 'deserves'],
+  ['your', 'money.'],
+];
 
 export default async function HomePage() {
   const [stats, sections, exhibit, pipeline] = await Promise.all([
@@ -34,6 +43,8 @@ export default async function HomePage() {
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
     buildPipeline().catch(() => null),
   ]);
+
+  const probes = recentProbes(5);
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
@@ -55,16 +66,28 @@ export default async function HomePage() {
               accessible text as one run-on word, which is what a screen reader
               would announce.
             */}
-            <h1 className="display text-[2.9rem] leading-[0.95] sm:text-7xl lg:text-[5.2rem]">
-              {HEADLINE.map((word, index) => (
-                <span key={word}>
-                  <span
-                    className={word === 'deserves' ? 'word swash' : 'word'}
-                    style={{ animationDelay: `${index * 90}ms` }}
-                  >
-                    {word}
+            <h1 className="display text-[2.9rem] leading-[0.95] sm:text-6xl lg:text-[4.6rem]">
+              {HEADLINE.map((line, lineIndex) => (
+                <span key={lineIndex}>
+                  <span className="block">
+                  {line.map((word, wordIndex) => {
+                    const order = lineIndex * 3 + wordIndex;
+                    return (
+                      <span key={word}>
+                        <span
+                          className={word === 'deserves' ? 'word swash' : 'word'}
+                          style={{ animationDelay: `${order * 90}ms` }}
+                        >
+                          {word}
+                        </span>
+                        {wordIndex < line.length - 1 ? ' ' : ''}
+                      </span>
+                    );
+                  })}
                   </span>
-                  {index < HEADLINE.length - 1 ? ' ' : ''}
+                  {/* Separates the lines for readers; the block break handles
+                      it visually. */}
+                  {lineIndex < HEADLINE.length - 1 ? ' ' : ''}
                 </span>
               ))}
             </h1>
@@ -100,29 +123,72 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* THE SCALE — the number that makes the rest necessary. */}
+      <Reveal>
+        <EcosystemPanel stats={stats} />
+      </Reveal>
+
+      {/* THE PROBLEM — a real agent whose pitch outruns its evidence. */}
       <Reveal>
         <ClaimVsEvidence exhibit={exhibit} />
       </Reveal>
 
+      {/* LIVE PROOF — the check itself, verbatim. */}
+      <Reveal>
+        <LiveProof probes={probes} />
+      </Reveal>
+
+      {/* FOUR FINANCIAL WORLDS. */}
       <Reveal>
         <ObjectiveSelector />
       </Reveal>
 
+      {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}
       <Reveal>
         <HowItWorks />
-      </Reveal>
-
-      <Reveal>
-        <EcosystemPanel stats={stats} />
       </Reveal>
 
       <Reveal>
         <CategoryBlocks sections={sections} />
       </Reveal>
 
+      {/* THE STACK. */}
       <Reveal>
         <Sponsors />
       </Reveal>
+
+      {/* TRANSPARENCY — what worked and what fought back. */}
+      <Reveal>
+        <Transparency />
+      </Reveal>
+
+      {/* THE POSITION, then the way in. */}
+      <Reveal>
+        <Philosophy />
+      </Reveal>
+
+      <Reveal>
+        <section className="flex flex-col items-center gap-6 py-8 text-center">
+          <h2 className="display max-w-3xl text-3xl sm:text-5xl">
+            Choose what <span className="swash">deserves</span> your money.
+          </h2>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/discover"
+              className="rounded-[var(--radius)] bg-[color:var(--text)] px-5 py-2.5 text-[13px] font-medium text-[color:var(--bg)] transition-transform duration-150 hover:-translate-y-0.5"
+            >
+              Find an agent
+            </Link>
+            <Link
+              href="/agent-advantage"
+              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+            >
+              Does hiring one actually beat doing it yourself?
+            </Link>
+          </div>
+        </section>
+      </Reveal>
+
     </div>
   );
 }

@@ -277,3 +277,29 @@ function interleave(events: PipelineEvent[]): PipelineEvent[] {
 }
 
 export const STAGE_META = CATEGORY_BY_ID;
+
+/** One probe, as shown in the live-proof section. */
+export interface ProbeLine {
+  ok: boolean;
+  latencyMs: number | null;
+  detail: string;
+  at: string;
+  endpoint: string | null;
+}
+
+/**
+ * The most recent probes, for showing the check itself rather than describing
+ * it. These are transcripts, not samples: the latency and the response text are
+ * what the endpoint actually returned.
+ */
+export function recentProbes(limit = 5): ProbeLine[] {
+  return getProbeStore()
+    .recent(limit)
+    .map((probe) => ({
+      ok: probe.ok,
+      latencyMs: probe.latencyMs,
+      detail: probe.detail,
+      at: probe.probedAt,
+      endpoint: probe.endpoint,
+    }));
+}
