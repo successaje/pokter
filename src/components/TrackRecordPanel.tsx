@@ -22,7 +22,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
   if (record.totalProbes === 0) {
     return (
       <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
-        Proving Ground has not yet swept this agent, so it has no accumulated
+        Pokter has not yet swept this agent, so it has no accumulated
         record here. Only the live probe above speaks for it.
       </p>
     );

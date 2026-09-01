@@ -4,7 +4,7 @@ import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { AttestationMethod } from './attestation';
 
 /**
- * Proving Ground as a measurer.
+ * Pokter as a measurer.
  *
  * The BSC registry holds hundreds of thousands of agents and almost none carry
  * attestations, so a marketplace that only *reads* evidence would have nothing
@@ -155,7 +155,7 @@ export async function probeAgent(
   const target = probeTarget(agent);
 
   const method: AttestationMethod = {
-    measuredBy: 'Proving Ground',
+    measuredBy: 'Pokter',
     protocol: target?.protocol,
     windowDays: 0,
     vantage: 'single region',

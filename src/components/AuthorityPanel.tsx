@@ -67,7 +67,7 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
       </dl>
 
       <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-        Proving Ground never holds your funds and never signs on your behalf. Any
+        Pokter never holds your funds and never signs on your behalf. Any
         approval an agent needs is granted by you, in your own wallet, and can be
         revoked there.
       </p>

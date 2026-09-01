@@ -18,6 +18,8 @@ import { mapWithConcurrency } from '@/lib/concurrency';
 import { getProbeStore } from '@/lib/history/store';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
+import { computeScore } from '@/lib/score/engine';
+import type { PokterScore } from '@/lib/score/types';
 
 /**
  * Retrieval is deliberately hybrid.
@@ -184,6 +186,8 @@ export interface AgentDossier {
   live: LiveReading;
   /** What our own scheduled sweeps have accumulated. */
   record: TrackRecord;
+  /** The transparent evaluation shown on the detail page. */
+  score: PokterScore;
 }
 
 /** How far back the detail page reads accumulated history. */
@@ -221,13 +225,17 @@ export async function getDossier(
   // agent nobody else has checked can never be anything but unproven.
   const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
 
+  const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
+  const category = classify(agent);
+
   return {
     agent,
-    category: classify(agent),
+    category,
     attestations,
-    proof: summariseProof(sweep ? [...attestations, sweep] : attestations),
+    proof,
     live,
     record,
+    score: computeScore({ agent, category, proof, attestations, record, live }),
   };
 }
 

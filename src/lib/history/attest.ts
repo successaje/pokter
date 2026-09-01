@@ -9,7 +9,7 @@ export const SWEEP_DEFECTS = [
   'Single vantage point: an agent that geo-blocks or ASN-blocks this prober appears unreachable when it may be healthy.',
   'Liveness is not correctness: an agent that answers every probe may still trade badly.',
   'Sweeps sample periodically, so an outage shorter than the interval between sweeps can go unseen.',
-  'History only begins when Proving Ground first saw the agent; earlier behaviour is unknown to us.',
+  'History only begins when Pokter first saw the agent; earlier behaviour is unknown to us.',
 ];
 
 /**
@@ -41,13 +41,13 @@ export function toSweepAttestation(
     ratio: window.ratio,
     dimension: 'uptime',
     window: window.label,
-    measuredBy: 'Proving Ground',
+    measuredBy: 'Pokter',
     reasoning:
-      `Measured by Proving Ground from ${window.probes} probe(s) over ${window.label}: ` +
+      `Measured by Pokter from ${window.probes} probe(s) over ${window.label}: ` +
       `${(window.ratio * 100).toFixed(2)}%. A probe counts as answered only when the ` +
       `endpoint returns well-formed JSON; an HTTP 200 alone is not counted.`,
     method: {
-      measuredBy: 'Proving Ground',
+      measuredBy: 'Pokter',
       protocol: 'a2a',
       probes: window.probes,
       answered: window.answered,
