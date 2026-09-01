@@ -364,3 +364,34 @@ body {
   animation-play-state: paused;
   opacity: 1;
 }
+
+
+/*
+ * Pipeline motion.
+ *
+ * Stages settle in sequence and rejects peel off to the side, so the eye reads
+ * the narrowing as it happens. Both are one-shot: a hero that loops forever
+ * competes with the page for attention, and this one has said what it has to
+ * say within about four seconds.
+ */
+@keyframes stage-settle {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes reject-peel {
+  0% { opacity: 0; transform: translateX(-6px); }
+  35% { opacity: 1; transform: none; }
+  100% { opacity: 0.55; transform: translateX(6px); }
+}
+
+@keyframes capsule-clasp {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage-row { animation: stage-settle 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .reject-card { animation: reject-peel 900ms ease-out both; }
+  .capsule-chip { animation: capsule-clasp 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+}

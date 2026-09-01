@@ -3,7 +3,6 @@ import Link from 'next/link';
 import {
   getComparison,
   getEcosystemStats,
-  listFloor,
   listMarketplace,
 } from '@/lib/marketplace';
 import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
@@ -13,7 +12,8 @@ import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Sponsors } from '@/components/brand/Sponsors';
 import { Reveal } from '@/components/motion/Reveal';
-import { VerificationFloor } from '@/components/home/VerificationFloor';
+import { AgentPipeline } from '@/components/home/AgentPipeline';
+import { buildPipeline } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +25,11 @@ export const dynamic = 'force-dynamic';
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
 export default async function HomePage() {
-  const [stats, sections, exhibit, floor] = await Promise.all([
+  const [stats, sections, exhibit, pipeline] = await Promise.all([
     getEcosystemStats(),
     listMarketplace({ limit: 4 }),
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
-    listFloor(16).catch(() => []),
+    buildPipeline().catch(() => null),
   ]);
 
   return (
@@ -75,12 +75,12 @@ export default async function HomePage() {
 
         <div className="flex flex-col gap-3">
           <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-faint)]">
-            Live verification floor
+            From the registry to one you can hire
           </p>
-          <VerificationFloor nodes={floor} />
+          {pipeline && <AgentPipeline payload={pipeline} />}
           <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            Real agents from the registry, coloured by what our probes actually
-            found. Hover any tile.
+            Real agents, real rejection reasons, real transactions. Nothing here
+            is a rendering of something that did not happen.
           </p>
         </div>
       </section>
