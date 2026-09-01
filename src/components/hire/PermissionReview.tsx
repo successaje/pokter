@@ -4,8 +4,14 @@ import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import { shortAddress, shortHash } from '@/lib/ui/format';
-import type { PermissionSummary, SpendPeriod } from '@/lib/altana/permissions';
+import {
+  toSessionPermissions,
+  type PermissionSummary,
+  type SpendPeriod,
+} from '@/lib/altana/permissions';
 import type { GrantedSession } from '@/lib/altana/types';
+import { walletClient } from '@/lib/wallet/passkey';
+import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
 
 interface GrantResponse {
   session: GrantedSession;
@@ -41,32 +47,93 @@ export function PermissionReview({
   const [error, setError] = useState<string | null>(null);
   const [revoking, setRevoking] = useState(false);
 
+  const { wallet: passkeyWallet } = usePasskeyWallet();
+  const passkeySigner = usePasskeySigner();
+  const selfCustody = Boolean(passkeyWallet && passkeySigner);
+
+  /**
+   * Grant in the browser, signed by the passkey.
+   *
+   * The key never leaves the device, so this cannot run on the server. Once the
+   * grant is on-chain we tell the server about it purely so it can be listed —
+   * the authority lives in the KeyStore, not in our database.
+   */
+  const authorizeWithPasskey = async () => {
+    const client = walletClient();
+    const expiry = Math.floor(Date.now() / 1000) + expiryDays * 86_400;
+
+    const granted = await client.grantSession({
+      wallet: { address: passkeyWallet!.address },
+      signer: passkeySigner!,
+      permissions: toSessionPermissions({
+        category: agent.category,
+        spendCapBnb: spendCap,
+        period,
+        expiryDays,
+      }),
+      expiry,
+      register: true,
+    });
+
+    const response = await fetch('/api/altana/session/record', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: passkeyWallet!.address,
+        publicKey: granted.publicKey,
+        grantTxHash: granted.transactionHash ?? null,
+        agentChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        agentName: agent.name,
+        spendCapBnb: spendCap,
+        period,
+        expiresAt: new Date(expiry * 1000).toISOString(),
+      }),
+    });
+
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? 'Could not record the grant.');
+
+    return { session: body.session as GrantedSession, onChain: Boolean(granted.transactionHash) };
+  };
+
+  /** Fallback while no passkey wallet exists: Pokter's operator key signs. */
+  const authorizeWithOperatorKey = async () => {
+    const response = await fetch('/api/altana/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agentChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        agentName: agent.name,
+        category: agent.category,
+        spendCapBnb: spendCap,
+        period,
+        expiryDays,
+      }),
+    });
+
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? 'Grant failed.');
+    return body as GrantResponse;
+  };
+
   const authorize = async () => {
     setState('granting');
     setError(null);
 
     try {
-      const response = await fetch('/api/altana/session', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          agentChainId: agent.chainId,
-          agentTokenId: agent.tokenId,
-          agentName: agent.name,
-          category: agent.category,
-          spendCapBnb: spendCap,
-          period,
-          expiryDays,
-        }),
-      });
-
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? 'Grant failed.');
-
-      setResult(body as GrantResponse);
+      setResult(
+        selfCustody ? await authorizeWithPasskey() : await authorizeWithOperatorKey(),
+      );
       setState('granted');
     } catch (caught) {
-      setError((caught as Error).message);
+      const message = (caught as Error).message ?? 'Grant failed.';
+      setError(
+        /NotAllowed|abort/i.test(message)
+          ? 'The passkey prompt was dismissed, so nothing was granted.'
+          : message,
+      );
       setState('error');
     }
   };
@@ -238,6 +305,30 @@ export function PermissionReview({
           The permissions above are enforced by the Altana account contract, not
           by Pokter. Any call outside them reverts on-chain. The session expires
           on its own, and you can revoke it at any moment.
+        </p>
+
+        <p
+          className="rounded-[var(--radius)] border p-3 text-[11px] leading-relaxed"
+          style={{
+            borderColor: selfCustody
+              ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
+              : 'var(--border)',
+            background: selfCustody ? 'var(--positive-dim)' : 'var(--surface)',
+            color: selfCustody ? 'var(--positive)' : 'var(--text-muted)',
+          }}
+        >
+          {selfCustody ? (
+            <>
+              Signed by your passkey on this device. The key stays in your secure
+              enclave — Pokter never sees it and cannot sign for you.
+            </>
+          ) : (
+            <>
+              No passkey wallet connected, so Pokter&apos;s testnet operator key
+              will sign this grant. Create a passkey wallet from the header to
+              hold the session yourself.
+            </>
+          )}
         </p>
 
         {state !== 'granted' && (

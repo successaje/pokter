@@ -5,6 +5,7 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { wagmiConfig } from './config';
+import { PasskeyProvider } from '@/components/wallet/PasskeyProvider';
 
 /**
  * Wallet providers.
@@ -18,7 +19,9 @@ export function WalletProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <PasskeyProvider>{children}</PasskeyProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }
