@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/ui/cn';
 import { ConnectWallet } from './ConnectWallet';
 import { ThemeToggle } from './ThemeToggle';
+import { Wordmark } from '@/components/brand/Logo';
 
 /**
  * §11. Primary navigation.
@@ -28,11 +29,8 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[color:var(--bg)]/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-5 sm:px-8">
-        <Link
-          href="/"
-          className="text-sm font-semibold tracking-tight text-[color:var(--text)]"
-        >
-          Pokter
+        <Link href="/" className="text-[color:var(--text)]">
+          <Wordmark />
         </Link>
 
         <nav className="hidden flex-1 items-center gap-1 md:flex">

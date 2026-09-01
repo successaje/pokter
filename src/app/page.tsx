@@ -1,42 +1,48 @@
 import Link from 'next/link';
 
-import { getEcosystemStats, listMarketplace } from '@/lib/marketplace';
+import {
+  getComparison,
+  getEcosystemStats,
+  listMarketplace,
+} from '@/lib/marketplace';
 import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { CategoryBlocks } from '@/components/home/CategoryBlocks';
+import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
+import { HowItWorks } from '@/components/home/HowItWorks';
+import { Sponsors } from '@/components/brand/Sponsors';
 
-/**
- * Rendered per request rather than pre-built.
- *
- * Static generation ran each page in its own worker with no shared fetch cache,
- * so every page independently re-queried a rate-limited registry and the build
- * repeatedly blew past its 60s budget. Pre-rendering bought little anyway: this
- * data is live and revalidates every two minutes regardless.
- *
- * Responses are still cached at the fetch layer, so only the first request
- * after a revalidation window pays for the lookup. Setting SCAN_API_KEY lifts
- * the rate limit from 30 to 3,000 requests a minute and makes this moot.
- */
 export const dynamic = 'force-dynamic';
 
+/**
+ * The agent used as the claim-versus-evidence exhibit: a well-described
+ * liquidation-protection service whose endpoint has never answered a probe.
+ * Fetched live, and the section removes itself if that ever stops being true.
+ */
+const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
+
 export default async function HomePage() {
-  const [stats, sections] = await Promise.all([
+  const [stats, sections, exhibit] = await Promise.all([
     getEcosystemStats(),
     listMarketplace({ limit: 4 }),
+    getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
   ]);
 
   return (
-    <div className="flex flex-col gap-14">
-      <section className="flex flex-col gap-7 pt-8 sm:pt-14">
+    <div className="flex flex-col gap-20 sm:gap-28">
+      <section className="flex flex-col gap-7 pt-8 sm:pt-16">
         <div className="flex max-w-4xl flex-col gap-5">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+            The decision layer for autonomous finance
+          </p>
           <h1 className="display text-[2.5rem] sm:text-6xl lg:text-7xl">
-            Choose what{' '}
-            <span className="swash">deserves</span> your money.
+            Choose what <span className="swash">deserves</span> your money.
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
-            Compare autonomous financial agents using onchain activity,
-            reputation, performance, risk and live execution data — then hire
-            one with permissions you set and can revoke.
+            BNB Chain has hundreds of thousands of autonomous agents. Finding one
+            was never the hard part. Pokter turns onchain activity, attestations
+            and live execution data into evidence you can check — then lets you
+            hire with permissions you set and can revoke.
           </p>
         </div>
 
@@ -45,20 +51,28 @@ export default async function HomePage() {
             href="/discover"
             className="rounded-[var(--radius)] bg-[color:var(--text)] px-5 py-2.5 text-[13px] font-medium text-[color:var(--bg)] transition-transform duration-150 hover:-translate-y-0.5"
           >
-            Explore agents
+            Find an agent
           </Link>
           <Link
             href="/methodology"
             className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
           >
-            See how Pokter scores agents
+            How Pokter scores agents
           </Link>
         </div>
       </section>
 
+      <ClaimVsEvidence exhibit={exhibit} />
+
       <ObjectiveSelector />
+
+      <HowItWorks />
+
       <EcosystemPanel stats={stats} />
+
       <CategoryBlocks sections={sections} />
+
+      <Sponsors />
     </div>
   );
 }
