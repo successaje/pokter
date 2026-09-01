@@ -3,14 +3,15 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import Link from 'next/link';
 
 import './globals.css';
+import { Nav, MobileNav } from '@/components/shell/Nav';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Proving Ground — hire agents you have watched trade',
+  title: 'Pokter — Choose what deserves your money',
   description:
-    'A BNB Chain agent marketplace where every number is traced to an on-chain attestation, and unproven agents cannot be hired.',
+    'Compare autonomous financial agents on BNB Chain using onchain activity, reputation, performance, risk and live execution data.',
 };
 
 export default function RootLayout({
@@ -19,27 +20,33 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 sm:px-8">
-          <header className="flex items-center justify-between gap-4 border-b border-[color:var(--border)] py-5">
-            <Link href="/" className="flex items-baseline gap-2.5">
-              <span className="text-sm font-semibold tracking-tight">Proving Ground</span>
-              <span className="hidden text-[11px] text-[color:var(--muted-dim)] sm:inline">
-                BNB Agent Studio marketplace
+        <Nav />
+
+        <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-24 pt-8 sm:px-8 md:pb-16">
+          {children}
+        </main>
+
+        <footer className="border-t border-[color:var(--border)] px-5 py-8 sm:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3">
+            {/* §84. Visible, but not intrusive. */}
+            <p className="max-w-3xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              Pokter provides information and tooling for evaluating autonomous
+              financial agents. Historical performance is not a guarantee of
+              future results. You remain responsible for reviewing permissions
+              and risks before activating an agent.
+            </p>
+            <div className="flex gap-4 text-[11px] text-[color:var(--text-muted)]">
+              <Link href="/methodology" className="hover:text-[color:var(--text)]">
+                Methodology
+              </Link>
+              <span className="text-[color:var(--text-faint)]">
+                Agent data from the ERC-8004 registry via 8004scan
               </span>
-            </Link>
-            <span className="tabular rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--muted)]">
-              BSC mainnet · chain 56
-            </span>
-          </header>
+            </div>
+          </div>
+        </footer>
 
-          <main className="flex-1 py-8">{children}</main>
-
-          <footer className="border-t border-[color:var(--border)] py-6 text-[11px] leading-relaxed text-[color:var(--muted-dim)]">
-            Evidence is read from the ERC-8004 registry via 8004scan and measured
-            live by Proving Ground. Nothing here is investment advice, and a
-            passing record is not a promise about future trades.
-          </footer>
-        </div>
+        <MobileNav />
       </body>
     </html>
   );
