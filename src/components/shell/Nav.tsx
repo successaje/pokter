@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/ui/cn';
+import { ConnectWallet } from './ConnectWallet';
 
 /**
  * §11. Primary navigation.
@@ -58,12 +59,7 @@ export function Nav() {
           <span className="mono hidden rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:inline">
             BSC · 56
           </span>
-          <button
-            type="button"
-            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-          >
-            Connect wallet
-          </button>
+          <ConnectWallet />
         </div>
       </div>
     </header>

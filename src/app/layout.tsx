@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
+import { WalletProviders } from '@/lib/wallet/Providers';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
@@ -20,7 +21,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Nav />
+        <WalletProviders>
+          <Nav />
 
         <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-24 pt-8 sm:px-8 md:pb-16">
           {children}
@@ -46,7 +48,8 @@ export default function RootLayout({
           </div>
         </footer>
 
-        <MobileNav />
+          <MobileNav />
+        </WalletProviders>
       </body>
     </html>
   );

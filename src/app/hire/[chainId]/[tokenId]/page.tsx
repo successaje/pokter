@@ -1,17 +1,18 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import { getDossier } from '@/lib/marketplace';
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { summarise } from '@/lib/altana/permissions';
-import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
-import { PermissionReview } from '@/components/hire/PermissionReview';
-import { CommissionPanel } from '@/components/hire/CommissionPanel';
-import { providerChoicesFor } from '@/lib/erc8183/providers';
-import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
-import type { ChainId } from '@/lib/scan/types';
+import { getDossier } from "@/lib/marketplace";
+import { CATEGORY_BY_ID } from "@/lib/agents/categories";
+import { summarise } from "@/lib/altana/permissions";
+import { ALTANA_NETWORK, IS_TESTNET } from "@/lib/altana/client";
+import { PermissionReview } from "@/components/hire/PermissionReview";
+import { CommissionPanel } from "@/components/hire/CommissionPanel";
+import { WalletGate } from "@/components/hire/WalletGate";
+import { providerChoicesFor } from "@/lib/erc8183/providers";
+import { EvidenceBadge } from "@/components/ui/EvidenceBadge";
+import type { ChainId } from "@/lib/scan/types";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 /**
  * §30. The staged hire flow.
@@ -40,7 +41,9 @@ function Stage({
         </span>
         <div className="flex flex-col gap-0.5">
           <h2 className="text-sm font-medium tracking-tight">{title}</h2>
-          <p className="text-[11px] text-[color:var(--text-muted)]">{caption}</p>
+          <p className="text-[11px] text-[color:var(--text-muted)]">
+            {caption}
+          </p>
         </div>
       </div>
       {children}
@@ -61,12 +64,13 @@ export default async function HirePage({
   if (!dossier) notFound();
 
   const { agent, category, proof } = dossier;
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
-  const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
+  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, "");
+  const meta =
+    category === "unclassified" ? null : CATEGORY_BY_ID.get(category);
   const summary = summarise({
     category,
     spendCapBnb: 0.05,
-    period: 'week',
+    period: "week",
     expiryDays: 7,
   });
 
@@ -84,11 +88,13 @@ export default async function HirePage({
           Hire
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {agent.name}
+          </h1>
           <EvidenceBadge verdict={proof.verdict} size="md" />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          {meta?.label ?? 'Unclassified'} · Review exactly what this agent would
+          {meta?.label ?? "Unclassified"} · Review exactly what this agent would
           be allowed to do before you grant anything.
         </p>
       </header>
@@ -110,27 +116,40 @@ export default async function HirePage({
             work. Neither implies the other, so they are separate steps rather
             than one "activate" button.
           */}
-          <Stage index={1} title="Grant permission" caption="Scoped, capped and expiring authority over your wallet.">
-            <PermissionReview
-              summary={summary}
-              agent={{
-                chainId,
-                tokenId,
-                name: agent.name,
-                category: category === 'unclassified' ? 'health-factor' : category,
-              }}
-              explorerBase={explorerBase}
-              isTestnet={IS_TESTNET}
-            />
+          <Stage
+            index={1}
+            title="Grant permission"
+            caption="Scoped, capped and expiring authority over your wallet."
+          >
+            <WalletGate action="grant permission">
+              <PermissionReview
+                summary={summary}
+                agent={{
+                  chainId,
+                  tokenId,
+                  name: agent.name,
+                  category:
+                    category === "unclassified" ? "health-factor" : category,
+                }}
+                explorerBase={explorerBase}
+                isTestnet={IS_TESTNET}
+              />
+            </WalletGate>
           </Stage>
 
-          <Stage index={2} title="Commission work" caption="Escrow a budget for a specific task, released only on delivery.">
-            <CommissionPanel
-              agent={{ chainId, tokenId, name: agent.name }}
-              providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
-              escrowChainId={ALTANA_NETWORK.chainId}
-              explorerBase={explorerBase}
-            />
+          <Stage
+            index={2}
+            title="Commission work"
+            caption="Escrow a budget for a specific task, released only on delivery."
+          >
+            <WalletGate action="commission work">
+              <CommissionPanel
+                agent={{ chainId, tokenId, name: agent.name }}
+                providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
+                escrowChainId={ALTANA_NETWORK.chainId}
+                explorerBase={explorerBase}
+              />
+            </WalletGate>
           </Stage>
         </div>
       )}
