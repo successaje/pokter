@@ -32,9 +32,22 @@ export class ScanError extends Error {
 }
 
 /** How many times to wait out a rate limit before giving up. */
-const MAX_RATE_LIMIT_RETRIES = 3;
-/** Ceiling on how long we will wait for a limit window to reset. */
-const MAX_BACKOFF_MS = 65_000;
+const MAX_RATE_LIMIT_RETRIES = 2;
+
+/**
+ * Ceiling on how long we will wait for a rate-limit window to reset.
+ *
+ * Deliberately far below the 60s window the API reports. Waiting out a full
+ * window made a cold page load take 76 seconds, which is worse than rendering
+ * with fewer results: callers already treat a failed query as "no results from
+ * this query" rather than an error, so a page degrades to a smaller candidate
+ * set and the next request — by then inside a fresh window, and served from the
+ * fetch cache — is complete.
+ *
+ * Setting SCAN_API_KEY raises the limit from 30 to 3,000 requests a minute and
+ * makes this path essentially unreachable.
+ */
+const MAX_BACKOFF_MS = 8_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,14 +79,22 @@ async function scanFetch<T>(
     // out rather than failing a scheduled job that has time to spare.
     if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
       const resetSeconds = Number(response.headers.get('x-ratelimit-reset'));
-      const waitMs = Math.min(
+      const suggested =
         Number.isFinite(resetSeconds) && resetSeconds > 0
           ? (resetSeconds + 1) * 1000
-          : 2 ** attempt * 5_000,
-        MAX_BACKOFF_MS,
-      );
-      await sleep(waitMs);
+          : 2 ** attempt * 1_000;
+
+      await sleep(Math.min(suggested, MAX_BACKOFF_MS));
       continue;
+    }
+
+    if (response.status === 429) {
+      // Log rather than swallow: a page quietly rendering fewer agents because
+      // of rate limiting should be visible to whoever is running this.
+      console.warn(
+        `[8004scan] rate limited on ${path} after ${MAX_RATE_LIMIT_RETRIES} retries; ` +
+          'rendering with partial results. Set SCAN_API_KEY to raise the limit.',
+      );
     }
 
     throw new ScanError(

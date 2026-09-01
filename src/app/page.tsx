@@ -5,7 +5,19 @@ import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { CategoryBlocks } from '@/components/home/CategoryBlocks';
 
-export const revalidate = 120;
+/**
+ * Rendered per request rather than pre-built.
+ *
+ * Static generation ran each page in its own worker with no shared fetch cache,
+ * so every page independently re-queried a rate-limited registry and the build
+ * repeatedly blew past its 60s budget. Pre-rendering bought little anyway: this
+ * data is live and revalidates every two minutes regardless.
+ *
+ * Responses are still cached at the fetch layer, so only the first request
+ * after a revalidation window pays for the lookup. Setting SCAN_API_KEY lifts
+ * the rate limit from 30 to 3,000 requests a minute and makes this moot.
+ */
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const [stats, sections] = await Promise.all([

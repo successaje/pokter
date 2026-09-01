@@ -1,16 +1,23 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { listCategory } from '@/lib/marketplace';
 import { AgentCard } from '@/components/AgentCard';
 
-export const revalidate = 120;
-
-/** All four category routes are known at build time. */
-export function generateStaticParams() {
-  return CATEGORIES.map(({ id }) => ({ category: id }));
-}
+/**
+ * Rendered per request rather than pre-built.
+ *
+ * Static generation ran each page in its own worker with no shared fetch cache,
+ * so every page independently re-queried a rate-limited registry and the build
+ * repeatedly blew past its 60s budget. Pre-rendering bought little anyway: this
+ * data is live and revalidates every two minutes regardless.
+ *
+ * Responses are still cached at the fetch layer, so only the first request
+ * after a revalidation window pays for the lookup. Setting SCAN_API_KEY lifts
+ * the rate limit from 30 to 3,000 requests a minute and makes this moot.
+ */
+export const dynamic = 'force-dynamic';
 
 /**
  * §18. Category-specific metrics.
