@@ -2,14 +2,15 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import {
-  hireErc8183Agent,
   settleErc8183Job,
   getErc8183Job,
   getErc8183DeliverableUrl,
-  erc8183Addresses,
+  buildHireCalls,
 } from '@altananetwork/sdk';
 import { parseUnits, formatUnits, erc20Abi, createPublicClient, http } from 'viem';
 import type { Address } from 'viem';
+
+import { correctedErc8183Addresses } from './addresses';
 
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { getJobStore } from './store';
@@ -77,9 +78,29 @@ function publicClient() {
   });
 }
 
+const COMMERCE_ABI = [
+  {
+    type: 'function',
+    name: 'jobCounter',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+] as const;
+
+const POLICY_ABI = [
+  {
+    type: 'function',
+    name: 'disputeWindow',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint64' }],
+  },
+] as const;
+
 /** Current $U balance of the Pokter wallet, in whole tokens. */
 export async function paymentTokenBalance(wallet: Address): Promise<string> {
-  const { paymentToken } = erc8183Addresses(ALTANA_NETWORK.chainId);
+  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
   const balance = await publicClient().readContract({
     address: paymentToken,
     abi: erc20Abi,
@@ -108,26 +129,52 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     throw new InsufficientPaymentTokenError(held, String(input.budgetU));
   }
 
+  // Built here rather than via the SDK's hireErc8183Agent, which resolves its
+  // own (stale on testnet) policy address internally and offers no override.
+  const addresses = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  const rpc = publicClient();
+
+  const [disputeWindow, jobCounter] = await Promise.all([
+    rpc.readContract({
+      address: addresses.policy,
+      abi: POLICY_ABI,
+      functionName: 'disputeWindow',
+    }),
+    rpc.readContract({
+      address: addresses.commerce,
+      abi: COMMERCE_ABI,
+      functionName: 'jobCounter',
+    }),
+  ]);
+
+  // Job ids are 1-indexed and predicted from the counter. If another job lands
+  // in the same block the batch reverts harmlessly — registerJob is
+  // client-only — so the counter is re-read on retry rather than cached.
+  const jobId = jobCounter + 1n;
+  const expiredAt =
+    BigInt(Math.floor(Date.now() / 1000)) +
+    BigInt(disputeWindow) +
+    BigInt(input.deadlineSeconds ?? 1800);
+
+  const calls = buildHireCalls({
+    addresses,
+    jobId,
+    provider: input.provider,
+    description: input.task,
+    budget,
+    expiredAt,
+  });
+
   let result;
   try {
-    result = await hireErc8183Agent(
-      wallet,
-      signer,
-      {
-        provider: input.provider,
-        task: input.task,
-        budget,
-        deadlineSeconds: input.deadlineSeconds ?? 1800,
-      },
-      { network: ALTANA_NETWORK },
-    );
+    result = await client.execute({ wallet, signer, calls });
   } catch (error) {
     throw new Error(explainRevert((error as Error).message));
   }
 
   const job: HiredJob = {
     id: randomUUID(),
-    jobId: result.jobId.toString(),
+    jobId: jobId.toString(),
     chainId: ALTANA_NETWORK.chainId,
     isTestnet: IS_TESTNET,
     agentTokenId: input.agentTokenId,
@@ -135,7 +182,7 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     provider: input.provider,
     task: input.task,
     budgetRaw: budget.toString(),
-    expiredAt: new Date(Number(result.expiredAt) * 1000).toISOString(),
+    expiredAt: new Date(Number(expiredAt) * 1000).toISOString(),
     hiredAt: new Date().toISOString(),
     hireTxHash: result.transactionHash ?? null,
     status: 'FUNDED',
