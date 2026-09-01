@@ -10,12 +10,18 @@ const TONE: Record<PipelineEvent['kind'], { mark: string; color: string; dim: st
   blocked: { mark: '⚠', color: 'var(--negative)', dim: 'var(--negative-dim)' },
 };
 
-/** Where each card sits around the desk, and when it drifts in. */
+/**
+ * Where each card sits. Left and right columns alternate down the scene, kept
+ * clear of the illustration's centre so nothing covers the monitor or the
+ * agent. Six is the ceiling: past that the cards crowd each other at 375px.
+ */
 const SLOTS = [
-  'left-0 top-[6%] sm:top-[10%]',
-  'right-0 top-[22%]',
-  'left-0 bottom-[26%]',
-  'right-0 bottom-[8%]',
+  'left-0 top-[2%]',
+  'right-0 top-[14%]',
+  'left-0 top-[30%]',
+  'right-0 top-[44%]',
+  'left-0 bottom-[14%]',
+  'right-0 bottom-[2%]',
 ];
 
 /**
@@ -30,7 +36,7 @@ const SLOTS = [
  * illustration is drawn; the claims inside it are not.
  */
 export function AgentDesk({ events }: { events: PipelineEvent[] }) {
-  const cards = events.slice(0, 4);
+  const cards = events.slice(0, SLOTS.length);
 
   return (
     <div className="relative mx-auto w-full max-w-[520px] px-2 py-4">
@@ -119,11 +125,13 @@ export function AgentDesk({ events }: { events: PipelineEvent[] }) {
           <div
             key={`${event.title}-${index}`}
             style={{
-              animationDelay: `${index * 900}ms`,
+              // Staggered far enough apart that cards arrive as separate
+              // events rather than as one block appearing.
+              animationDelay: `${index * 1150}ms`,
               borderColor: tone.color,
               background: tone.dim,
             }}
-            className={`event-card absolute ${SLOTS[index]} flex max-w-[46%] items-center gap-2 rounded-[var(--radius)] border px-2.5 py-1.5 shadow-sm backdrop-blur-sm sm:max-w-[42%]`}
+            className={`event-card absolute ${SLOTS[index]} flex max-w-[44%] items-center gap-2 rounded-[var(--radius)] border px-2.5 py-1.5 shadow-sm backdrop-blur-sm sm:max-w-[40%]`}
           >
             {event.txHash ? (
               <a

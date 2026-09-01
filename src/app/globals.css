@@ -455,7 +455,8 @@ body {
   .sheet-2 { animation: sheet-shuffle 6.4s ease-in-out infinite reverse; transform-origin: 252px 124px; }
 
   /* Cards cycle so the scene keeps reporting rather than freezing. */
-  .event-card { animation: card-drift 7.2s ease-in-out infinite both; }
+  /* Long enough that six staggered cards all get their moment. */
+  .event-card { animation: card-drift 9.6s ease-in-out infinite both; }
 }
 
 .desk { color: var(--text-secondary); }

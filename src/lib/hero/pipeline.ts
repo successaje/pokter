@@ -142,7 +142,7 @@ export async function buildPipeline(): Promise<PipelinePayload> {
 
   return {
     stages,
-    events: recentEvents(),
+    events: recentEvents(agents),
     capsule: { spend: '0.05 BNB', expiry: '7 days', venue: 'PancakeSwap only' },
     survivor: best
       ? {
@@ -157,17 +157,64 @@ export async function buildPipeline(): Promise<PipelinePayload> {
 /**
  * Live events, drawn from what actually happened.
  *
+ * Per-agent rather than per-sweep. Summarising a sweep as one line threw away
+ * the interesting part — that specific agents answered everything, and specific
+ * others answered nothing — so each notable agent now produces its own event,
+ * which is also what makes running more sweeps visibly enrich the scene.
+ *
  * Notably absent: executed trades. No agent execution is attributable to
  * Pokter, so the ticker reports escrow being funded rather than inventing a
  * rebalance it never observed.
  */
-function recentEvents(): PipelineEvent[] {
+function recentEvents(
+  agents: Awaited<ReturnType<typeof listSearchable>>,
+): PipelineEvent[] {
   const events: PipelineEvent[] = [];
 
   const sessions = getSessionStore().all();
   const jobs = getJobStore().all();
   const probeStats = getProbeStore().stats();
-  const tracked = getProbeStore().trackedAgents();
+
+  // Agents holding up under repeated checking.
+  const solid = agents
+    .filter(
+      (a) => a.record.totalProbes >= 8 && a.record.totalAnswered === a.record.totalProbes,
+    )
+    .slice(0, 3);
+
+  for (const agent of solid) {
+    events.push({
+      kind: 'verified',
+      title: 'Agent verified',
+      detail: `${agent.listing.agent.name} · ${agent.record.totalProbes}/${agent.record.totalProbes} probes`,
+    });
+  }
+
+  // Agents that answer nothing. These matter more than the healthy ones.
+  const dead = agents
+    .filter((a) => a.record.totalProbes > 0 && a.record.totalAnswered === 0)
+    .slice(0, 2);
+
+  for (const agent of dead) {
+    events.push({
+      kind: 'blocked',
+      title: 'Hiring blocked',
+      detail: `${agent.listing.agent.name} · 0/${agent.record.totalProbes} probes`,
+    });
+  }
+
+  // Independent attestations, which are the scarcest signal we have.
+  const attested = agents
+    .filter((a) => a.listing.attestationCount > 0)
+    .slice(0, 2);
+
+  for (const agent of attested) {
+    events.push({
+      kind: 'evidence',
+      title: 'New evidence',
+      detail: `${agent.listing.agent.name} · ${agent.listing.attestationCount} attestation(s)`,
+    });
+  }
 
   for (const session of sessions.slice(0, 2)) {
     events.push(
@@ -199,16 +246,34 @@ function recentEvents(): PipelineEvent[] {
   events.push({
     kind: 'verified',
     title: 'Sweep completed',
-    detail: `${probeStats.probesAnswered}/${probeStats.probesTaken} probes answered`,
+    detail: `${probeStats.probesAnswered}/${probeStats.probesTaken} probes across ${probeStats.sweeps} sweeps`,
   });
 
-  events.push({
-    kind: 'evidence',
-    title: 'Agents monitored',
-    detail: `${tracked.length} under continuous measurement`,
-  });
+  // Interleave so the scene does not show three of the same kind in a row.
+  return interleave(events);
+}
 
-  return events;
+/** Spread events so adjacent cards differ in kind where possible. */
+function interleave(events: PipelineEvent[]): PipelineEvent[] {
+  const byKind = new Map<EventKind, PipelineEvent[]>();
+  for (const event of events) {
+    byKind.set(event.kind, [...(byKind.get(event.kind) ?? []), event]);
+  }
+
+  const ordered: PipelineEvent[] = [];
+  let remaining = events.length;
+
+  while (remaining > 0) {
+    for (const queue of byKind.values()) {
+      const next = queue.shift();
+      if (next) {
+        ordered.push(next);
+        remaining -= 1;
+      }
+    }
+  }
+
+  return ordered;
 }
 
 export const STAGE_META = CATEGORY_BY_ID;
