@@ -12,7 +12,7 @@ import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Sponsors } from '@/components/brand/Sponsors';
 import { Reveal } from '@/components/motion/Reveal';
-import { AgentPipeline } from '@/components/home/AgentPipeline';
+import { AgentDesk } from '@/components/home/AgentDesk';
 import { buildPipeline } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +23,9 @@ export const dynamic = 'force-dynamic';
  * Fetched live, and the section removes itself if that ever stops being true.
  */
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
+
+/** Split for per-word motion; joined by real spaces so the sentence reads. */
+const HEADLINE = ['Choose', 'what', 'deserves', 'your', 'money.'];
 
 export default async function HomePage() {
   const [stats, sections, exhibit, pipeline] = await Promise.all([
@@ -46,8 +49,24 @@ export default async function HomePage() {
             <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
               The decision layer for autonomous finance
             </p>
-            <h1 className="display text-[2.5rem] sm:text-6xl lg:text-[4.2rem]">
-              Choose what <span className="swash">deserves</span> your money.
+            {/*
+              Animated word by word. The spaces are real text nodes between the
+              spans, not CSS margins: margin spacing looks right but leaves the
+              accessible text as one run-on word, which is what a screen reader
+              would announce.
+            */}
+            <h1 className="display text-[2.9rem] leading-[0.95] sm:text-7xl lg:text-[5.2rem]">
+              {HEADLINE.map((word, index) => (
+                <span key={word}>
+                  <span
+                    className={word === 'deserves' ? 'word swash' : 'word'}
+                    style={{ animationDelay: `${index * 90}ms` }}
+                  >
+                    {word}
+                  </span>
+                  {index < HEADLINE.length - 1 ? ' ' : ''}
+                </span>
+              ))}
             </h1>
             <p className="max-w-xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
               BNB Chain has hundreds of thousands of autonomous agents. Finding
@@ -73,14 +92,10 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-faint)]">
-            From the registry to one you can hire
-          </p>
-          {pipeline && <AgentPipeline payload={pipeline} />}
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            Real agents, real rejection reasons, real transactions. Nothing here
-            is a rendering of something that did not happen.
+        <div className="flex flex-col gap-2">
+          {pipeline && <AgentDesk events={pipeline.events} />}
+          <p className="text-center text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+            Every card is a real event with a real transaction.
           </p>
         </div>
       </section>

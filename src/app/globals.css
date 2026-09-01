@@ -395,3 +395,78 @@ body {
   .reject-card { animation: reject-peel 900ms ease-out both; }
   .capsule-chip { animation: capsule-clasp 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 }
+
+
+/*
+ * The hero scene.
+ *
+ * Idle motion only: the agent breathes, the antenna marks that it is checking,
+ * the evidence bars fill and the verdict lands. Nothing travels far, because a
+ * hero that keeps moving competes with the page for attention. All of it is
+ * ornamental — the event cards carry the information, and they stay readable
+ * with motion disabled.
+ */
+@keyframes desk-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes antenna-check {
+  0%, 70%, 100% { opacity: 1; r: 4.5; }
+  82% { opacity: 0.35; r: 6; }
+}
+
+@keyframes bar-fill {
+  from { transform: scaleX(0.15); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes tick-land {
+  0%, 55% { opacity: 0; transform: scale(0.7); }
+  70% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sheet-shuffle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(-2deg); }
+}
+
+@keyframes card-drift {
+  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  14%, 86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desk-agent { animation: desk-breathe 4.2s ease-in-out infinite; }
+  .desk-monitor { animation: desk-breathe 4.2s ease-in-out infinite reverse; }
+  .antenna { animation: antenna-check 3.1s ease-in-out infinite; }
+
+  /* Bars grow from their left edge as the evidence is gathered. */
+  .bar { transform-origin: 98px center; animation: bar-fill 900ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .bar-1 { animation-delay: 260ms; }
+  .bar-2 { animation-delay: 420ms; }
+  .bar-3 { animation-delay: 580ms; }
+
+  .tick { transform-origin: 208px 78px; animation: tick-land 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  .sheet-1 { animation: sheet-shuffle 5.5s ease-in-out infinite; transform-origin: 68px 123px; }
+  .sheet-2 { animation: sheet-shuffle 6.4s ease-in-out infinite reverse; transform-origin: 252px 124px; }
+
+  /* Cards cycle so the scene keeps reporting rather than freezing. */
+  .event-card { animation: card-drift 7.2s ease-in-out infinite both; }
+}
+
+.desk { color: var(--text-secondary); }
+
+/* Per-word rise for the headline. */
+@keyframes word-rise {
+  from { opacity: 0; transform: translateY(0.4em); }
+  to { opacity: 1; transform: none; }
+}
+
+.word {
+  display: inline-block;
+  animation: word-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
