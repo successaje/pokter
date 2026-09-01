@@ -38,14 +38,18 @@ rebalancer grant carries the PancakeSwap Position Manager address, and the
 monitoring grant — whose allowlist is empty by design — does not. Calls outside
 the scope revert inside the Altana account contract.
 
-**A bug worth reporting upstream.** `@altananetwork/sdk@0.8.0` ships a stale
-OptimisticPolicy address for BSC testnet. Every ERC-8183 hire reverts with an
-undecodable `0xc94463e3` and then `0x32d53d69`, because an unregistered job
-cannot be funded. We isolated it by running the batch's five calls individually,
-ruled out funding, the documented jobId race, relay nonce artifacts and a
-platform outage, then found the correct address by diffing against
-`@bnbagent/sdk`. This breaks ERC-8183 hiring for every testnet buyer on that
-SDK; the full trace is in docs/integrations/erc8183.md.
+**A live bug in a sponsor SDK.** ERC-8183 hiring is currently broken on BSC
+testnet for every buyer using `@altananetwork/sdk@0.8.0` — still the published
+`latest`. It ships a stale OptimisticPolicy address for chain 97
+(`0x4F4678D4439feC812Ac7674Bb3Efb4C8f5Fb78A6`); the correct one, in the
+reference `@bnbagent/sdk`, is `0xd6a4217588F6B1F5657a92A3e94E6422aD771cEA`.
+Registration reverts `0xc94463e3` on the EvaluatorRouter, and funding then
+reverts `0x32d53d69`, because an unregistered job cannot be funded. We isolated
+it by running the batch's five calls individually and ruling out funding, the
+documented jobId race, relay nonce artifacts and a platform outage before
+diffing the two SDKs' address tables. Mainnet agrees between them; only chain 97
+diverges, so our override is scoped to it. Verified by registering and funding
+job #864 with the corrected address. Full trace in docs/integrations/erc8183.md.
 
 **TermiX Agent Advantage** (docs/termix-agent-advantage.md, and the
 /agent-advantage page): three tasks, each run through a live third-party agent
