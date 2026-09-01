@@ -53,55 +53,84 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * In-flight request coalescing.
+ *
+ * Next's fetch cache only helps once a response has arrived. Concurrent renders
+ * — several browser tabs, a reload during a slow load, or the dev server's own
+ * polling — all miss that empty cache together and each issue the same query.
+ * With semantic search taking 3-9s, a handful of simultaneous renders turn into
+ * dozens of identical vector queries that contend with each other and make the
+ * page slower the more people look at it.
+ *
+ * Keyed by resolved URL, so identical concurrent requests share one promise and
+ * the map is cleared as soon as it settles — this is a stampede guard, not a
+ * cache, and correctness still comes from the fetch layer's revalidation.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
 async function scanFetch<T>(
   path: string,
   params: Record<string, string | number | boolean | undefined>,
   revalidate = REVALIDATE_SECONDS,
 ): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) url.searchParams.set(key, String(value));
+  for (const [param, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(param, String(value));
   }
 
-  for (let attempt = 0; ; attempt += 1) {
-    const response = await fetch(url, {
-      headers: {
-        accept: 'application/json',
-        ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
-      },
-      next: { revalidate },
-    });
+  const key = url.toString();
+  const existing = inFlight.get(key);
+  if (existing) return existing as Promise<T>;
 
-    if (response.ok) return (await response.json()) as T;
+  const request = (async (): Promise<T> => {
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
+        },
+        next: { revalidate },
+      });
 
-    // The anonymous tier allows 30 requests a minute, which a sweep across the
-    // roster will exhaust. The response says when the window resets, so wait it
-    // out rather than failing a scheduled job that has time to spare.
-    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-      const resetSeconds = Number(response.headers.get('x-ratelimit-reset'));
-      const suggested =
-        Number.isFinite(resetSeconds) && resetSeconds > 0
-          ? (resetSeconds + 1) * 1000
-          : 2 ** attempt * 1_000;
+      if (response.ok) return (await response.json()) as T;
 
-      await sleep(Math.min(suggested, MAX_BACKOFF_MS));
-      continue;
-    }
+      // The response reports when the limit window resets, so a retry waits —
+      // but only briefly. See MAX_BACKOFF_MS for why waiting out the full
+      // window is worse than rendering with fewer results.
+      if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        const resetSeconds = Number(response.headers.get('x-ratelimit-reset'));
+        const suggested =
+          Number.isFinite(resetSeconds) && resetSeconds > 0
+            ? (resetSeconds + 1) * 1000
+            : 2 ** attempt * 1_000;
 
-    if (response.status === 429) {
-      // Log rather than swallow: a page quietly rendering fewer agents because
-      // of rate limiting should be visible to whoever is running this.
-      console.warn(
-        `[8004scan] rate limited on ${path} after ${MAX_RATE_LIMIT_RETRIES} retries; ` +
-          'rendering with partial results. Set SCAN_API_KEY to raise the limit.',
+        await sleep(Math.min(suggested, MAX_BACKOFF_MS));
+        continue;
+      }
+
+      if (response.status === 429) {
+        // Logged rather than swallowed: a page quietly rendering fewer agents
+        // because of rate limiting should be visible to whoever runs this.
+        console.warn(
+          `[8004scan] rate limited on ${path} after ${MAX_RATE_LIMIT_RETRIES} retries; ` +
+            'rendering with partial results. Set SCAN_API_KEY to raise the limit.',
+        );
+      }
+
+      throw new ScanError(
+        response.status,
+        path,
+        `8004scan ${path} returned ${response.status} ${response.statusText}`,
       );
     }
+  })();
 
-    throw new ScanError(
-      response.status,
-      path,
-      `8004scan ${path} returned ${response.status} ${response.statusText}`,
-    );
+  inFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    inFlight.delete(key);
   }
 }
 
@@ -168,11 +197,16 @@ export function searchAgents(
   query: string,
   { chainId, limit = 24 }: { chainId?: ChainId; limit?: number } = {},
 ): Promise<ScanPage<ScanAgent>> {
-  return scanFetch<ScanPage<ScanAgent>>('/agents/search/semantic', {
-    q: query,
-    chain_id: chainId,
-    limit,
-  });
+  // Cached far longer than other reads. Semantic search runs a vector query and
+  // measures 3-9s per call — an order of magnitude slower than keyword search —
+  // while the queries themselves are fixed strings whose results shift slowly.
+  // Paying that latency once an hour is the difference between a fast page and
+  // a thirty-second one.
+  return scanFetch<ScanPage<ScanAgent>>(
+    '/agents/search/semantic',
+    { q: query, chain_id: chainId, limit },
+    3600,
+  );
 }
 
 /**

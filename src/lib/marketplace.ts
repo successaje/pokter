@@ -127,7 +127,11 @@ export const listCategory = cache(async function listCategory(
     ),
   ];
 
-  const pages = await mapWithConcurrency(lookups, 3, (run) =>
+  // Concurrency was capped at 3 to stay inside the anonymous 30/min limit. With
+  // a key the ceiling is 600/min, and the real cost is now latency rather than
+  // quota — so the slow semantic queries run alongside each other instead of
+  // queueing behind one another.
+  const pages = await mapWithConcurrency(lookups, 6, (run) =>
     run().catch(() => empty),
   );
 
@@ -155,10 +159,10 @@ export const listCategory = cache(async function listCategory(
 export async function listMarketplace(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{ category: Category; listings: Listing[] }[]> {
-  // Categories are fetched two at a time rather than all four at once: each one
-  // fans out internally, and the product of the two fan-outs is what trips the
-  // rate limit.
-  return mapWithConcurrency(CATEGORIES, 2, async ({ id }) => ({
+  // All four categories at once. The inner fan-out is what used to trip the
+  // rate limit; with a key in place, serialising categories only adds the
+  // slowest semantic query's latency four times over.
+  return mapWithConcurrency(CATEGORIES, 4, async ({ id }) => ({
     category: id,
     listings: await listCategory(id, options),
   }));
