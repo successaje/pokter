@@ -27,27 +27,29 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-14">
-      <section className="flex flex-col gap-6 pt-6">
-        <div className="flex max-w-3xl flex-col gap-4">
-          <h1 className="text-3xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">
-            Choose what deserves your money.
+      <section className="flex flex-col gap-7 pt-8 sm:pt-14">
+        <div className="flex max-w-4xl flex-col gap-5">
+          <h1 className="display text-[2.5rem] sm:text-6xl lg:text-7xl">
+            Choose what{' '}
+            <span className="swash">deserves</span> your money.
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
             Compare autonomous financial agents using onchain activity,
-            reputation, performance, risk and live execution data.
+            reputation, performance, risk and live execution data — then hire
+            one with permissions you set and can revoke.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/discover"
-            className="rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90"
+            className="rounded-[var(--radius)] bg-[color:var(--text)] px-5 py-2.5 text-[13px] font-medium text-[color:var(--bg)] transition-transform duration-150 hover:-translate-y-0.5"
           >
             Explore agents
           </Link>
           <Link
             href="/methodology"
-            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
           >
             See how Pokter scores agents
           </Link>

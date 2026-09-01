@@ -46,6 +46,18 @@
 
   --radius: 8px;
   --radius-lg: 12px;
+
+  /*
+   * Brand highlight.
+   *
+   * Deliberately NOT a semantic colour. Colour in this product carries meaning
+   * — green healthy, amber caution, red failing — so a brand accent that
+   * reused any of those hues as *text* would make a warning ambiguous. This is
+   * a background swash sitting behind display type on the landing page only,
+   * never on a status, a metric or a control.
+   */
+  --brand-highlight: #f2d64b;
+  --brand-highlight-soft: rgba(242, 214, 75, 0.22);
 }
 
 @theme inline {
@@ -104,6 +116,9 @@
   --light-info: #1856c4;
   --light-info-dim: #eaf2fe;
   --light-neutral: #616b7a;
+
+  --light-brand-highlight: #ffe866;
+  --light-brand-highlight-soft: rgba(255, 232, 102, 0.55);
 }
 
 /* Applied only when light is actually in effect. */
@@ -128,6 +143,8 @@
   --info: var(--light-info);
   --info-dim: var(--light-info-dim);
   --neutral: var(--light-neutral);
+  --brand-highlight: var(--light-brand-highlight);
+  --brand-highlight-soft: var(--light-brand-highlight-soft);
 
   color-scheme: light;
 }
@@ -154,6 +171,8 @@
     --info: var(--light-info);
     --info-dim: var(--light-info-dim);
     --neutral: var(--light-neutral);
+    --brand-highlight: var(--light-brand-highlight);
+    --brand-highlight-soft: var(--light-brand-highlight-soft);
 
     color-scheme: light;
   }
@@ -232,4 +251,33 @@ body {
 
 .rise-in {
   animation: rise-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+
+/*
+ * Highlight swash.
+ *
+ * Sits behind the text baseline rather than over it, so the words keep their
+ * own contrast ratio and stay legible in both themes — a translucent overlay
+ * would drag light text toward the highlight colour and fail the ramp the rest
+ * of the system holds to.
+ */
+.swash {
+  position: relative;
+  display: inline;
+  background-image: linear-gradient(
+    to top,
+    var(--brand-highlight-soft) 0,
+    var(--brand-highlight-soft) 0.36em,
+    transparent 0.36em
+  );
+  background-repeat: no-repeat;
+  padding-inline: 0.06em;
+}
+
+/* Display type for the landing hero: tighter and heavier than body headings. */
+.display {
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  font-weight: 620;
 }

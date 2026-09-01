@@ -34,15 +34,16 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
   ];
 
   return (
-    <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-      <h2 className="border-b border-[color:var(--border)] px-5 py-3 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
+      <h2 className="border-b border-[color:var(--border-strong)] px-5 py-3 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
         BNB agent economy
       </h2>
 
+      {/* Oversized figures with hard dividers: the numbers are the argument. */}
       <dl className="grid divide-y divide-[color:var(--border)] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
         {figures.map((figure) => (
-          <div key={figure.label} className="flex flex-col gap-1 px-5 py-4">
-            <dt className="tabular text-2xl font-medium leading-none">
+          <div key={figure.label} className="flex flex-col gap-1.5 px-5 py-6">
+            <dt className="tabular text-3xl font-medium leading-none tracking-tight sm:text-4xl">
               {figure.value}
             </dt>
             <dd className="text-xs text-[color:var(--text-secondary)]">
