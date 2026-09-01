@@ -321,3 +321,27 @@ export async function getComparisons(keys: string[]): Promise<Comparison[]> {
 
   return results.filter((entry): entry is Comparison => entry !== null);
 }
+
+/**
+ * Every listed agent, joined to what Pokter has measured about it.
+ *
+ * Used by search, which filters across all categories at once rather than
+ * within one. The probe history comes from local storage, so enriching costs
+ * nothing beyond the category queries themselves.
+ */
+export async function listSearchable(
+  options: { chainId?: ChainId; limit?: number } = {},
+): Promise<{ listing: Listing; record: TrackRecord }[]> {
+  const sections = await listMarketplace(options);
+  const store = getProbeStore();
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+
+  return sections.flatMap(({ listings }) =>
+    listings.map((listing) => ({
+      listing,
+      record: buildTrackRecord(
+        store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
+      ),
+    })),
+  );
+}
