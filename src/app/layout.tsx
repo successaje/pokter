@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
+import { THEME_SCRIPT } from '@/components/shell/ThemeToggle';
 import { WalletProviders } from '@/lib/wallet/Providers';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -19,7 +20,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Runs before paint so the theme never flashes. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <WalletProviders>
           <Nav />

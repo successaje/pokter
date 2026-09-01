@@ -3,6 +3,12 @@
 /*
  * Pokter's visual system.
  *
+ * Every step of the text ramp clears WCAG AA (4.5:1) against the surface it
+ * sits on, in both themes. The de-emphasised steps were originally chosen by
+ * eye and measured at 2.4-3.0:1 — legible to someone with good vision on a
+ * good screen, and not to everyone else. Contrast was verified numerically
+ * rather than judged.
+ *
  * Dark-first, near-black ground, borders that are barely there. Colour is
  * reserved almost entirely for evidence states and performance direction, so
  * that a green or red on this page always carries meaning rather than
@@ -24,8 +30,8 @@
   /* Text ramp */
   --text: #edf0f4;
   --text-secondary: #a2acba;
-  --text-muted: #6e7987;
-  --text-faint: #4b535f;
+  --text-muted: #7b8593;
+  --text-faint: #79838f;
 
   /* Semantics: green healthy, amber caution, red failing, blue interactive */
   --positive: #3fb97f;
@@ -62,7 +68,102 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * Light theme.
+ *
+ * Not an inversion of the dark palette — inverting produces grey text on white
+ * and washed-out semantics. Text and semantic colours are darkened for contrast
+ * against white, while the dim backgrounds become pale tints rather than dark
+ * ones, so a "positive" badge stays legible in both themes.
+ *
+ * Precedence: explicit choice wins, then the system preference, then dark. The
+ * :not() guard is what lets a user who chose dark keep it on a light system.
+ */
+:root[data-theme='light'],
+:root:not([data-theme='dark']) {
+  --light-bg: #fbfbfc;
+  --light-bg-subtle: #f5f6f8;
+  --light-surface: #ffffff;
+  --light-surface-raised: #ffffff;
+  --light-surface-hover: #f3f4f6;
+
+  --light-border: #e5e7eb;
+  --light-border-strong: #cbd1d9;
+
+  --light-text: #0c1116;
+  --light-text-secondary: #414a56;
+  --light-text-muted: #616b7a;
+  --light-text-faint: #6a7380;
+
+  --light-positive: #06774a;
+  --light-positive-dim: #e7f7ef;
+  --light-caution: #a8560a;
+  --light-caution-dim: #fdf4e3;
+  --light-negative: #b03027;
+  --light-negative-dim: #fdeeec;
+  --light-info: #1856c4;
+  --light-info-dim: #eaf2fe;
+  --light-neutral: #616b7a;
+}
+
+/* Applied only when light is actually in effect. */
+:root[data-theme='light'] {
+  --bg: var(--light-bg);
+  --bg-subtle: var(--light-bg-subtle);
+  --surface: var(--light-surface);
+  --surface-raised: var(--light-surface-raised);
+  --surface-hover: var(--light-surface-hover);
+  --border: var(--light-border);
+  --border-strong: var(--light-border-strong);
+  --text: var(--light-text);
+  --text-secondary: var(--light-text-secondary);
+  --text-muted: var(--light-text-muted);
+  --text-faint: var(--light-text-faint);
+  --positive: var(--light-positive);
+  --positive-dim: var(--light-positive-dim);
+  --caution: var(--light-caution);
+  --caution-dim: var(--light-caution-dim);
+  --negative: var(--light-negative);
+  --negative-dim: var(--light-negative-dim);
+  --info: var(--light-info);
+  --info-dim: var(--light-info-dim);
+  --neutral: var(--light-neutral);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: var(--light-bg);
+    --bg-subtle: var(--light-bg-subtle);
+    --surface: var(--light-surface);
+    --surface-raised: var(--light-surface-raised);
+    --surface-hover: var(--light-surface-hover);
+    --border: var(--light-border);
+    --border-strong: var(--light-border-strong);
+    --text: var(--light-text);
+    --text-secondary: var(--light-text-secondary);
+    --text-muted: var(--light-text-muted);
+    --text-faint: var(--light-text-faint);
+    --positive: var(--light-positive);
+    --positive-dim: var(--light-positive-dim);
+    --caution: var(--light-caution);
+    --caution-dim: var(--light-caution-dim);
+    --negative: var(--light-negative);
+    --negative-dim: var(--light-negative-dim);
+    --info: var(--light-info);
+    --info-dim: var(--light-info-dim);
+    --neutral: var(--light-neutral);
+
+    color-scheme: light;
+  }
+}
+
 html {
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] {
   color-scheme: dark;
 }
 

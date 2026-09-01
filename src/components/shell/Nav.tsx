@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/ui/cn';
 import { ConnectWallet } from './ConnectWallet';
+import { ThemeToggle } from './ThemeToggle';
 
 /**
  * §11. Primary navigation.
@@ -59,6 +60,7 @@ export function Nav() {
           <span className="mono hidden rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:inline">
             BSC · 56
           </span>
+          <ThemeToggle />
           <ConnectWallet />
         </div>
       </div>
