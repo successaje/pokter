@@ -10,7 +10,7 @@ const BSCSCAN_TX = 'https://bscscan.com/tx/';
 export function EvidencePanel({ attestations }: { attestations: Attestation[] }) {
   if (attestations.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--muted-dim)]">
+      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
         No third-party measurer has published an attestation for this agent. That
         is not a low score — it means nobody independent has checked it yet.
       </p>
@@ -27,7 +27,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-xs font-medium">
               {attestation.measuredBy ?? 'Unnamed measurer'}
-              <span className="ml-2 font-normal text-[color:var(--muted-dim)]">
+              <span className="ml-2 font-normal text-[color:var(--text-faint)]">
                 {attestation.dimension}
                 {attestation.window ? ` · ${attestation.window}` : ''}
               </span>
@@ -40,7 +40,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           </div>
 
           {attestation.method && (
-            <p className="tabular mt-1.5 text-[11px] text-[color:var(--muted-dim)]">
+            <p className="tabular mt-1.5 text-[11px] text-[color:var(--text-faint)]">
               {attestation.method.answered ?? '?'}/{attestation.method.probes ?? '?'}{' '}
               probes answered
               {attestation.method.medianMs != null &&
@@ -50,7 +50,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           )}
 
           {attestation.reasoning && (
-            <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--muted)]">
+            <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
               {attestation.reasoning}
             </p>
           )}
@@ -60,7 +60,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
               href={`${BSCSCAN_TX}${attestation.transactionHash}`}
               target="_blank"
               rel="noreferrer noopener"
-              className="tabular mt-2 inline-block text-[11px] text-[color:var(--muted-dim)] underline decoration-dotted underline-offset-4 hover:text-[color:var(--foreground)]"
+              className="tabular mt-2 inline-block text-[11px] text-[color:var(--text-faint)] underline decoration-dotted underline-offset-4 hover:text-[color:var(--text)]"
             >
               {attestation.transactionHash.slice(0, 18)}…
               {attestation.blockNumber ? ` · block ${attestation.blockNumber}` : ''}

@@ -21,17 +21,17 @@ export function CategoryRail({
       <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-[color:var(--border)] pb-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-medium tracking-tight">{meta.label}</h2>
-          <p className="text-xs text-[color:var(--muted)]">{meta.blurb}</p>
+          <p className="text-xs text-[color:var(--text-muted)]">{meta.blurb}</p>
         </div>
-        <p className="tabular text-[11px] text-[color:var(--muted-dim)]">
+        <p className="tabular text-[11px] text-[color:var(--text-faint)]">
           {listings.length} listed · {proven} with a record
         </p>
       </header>
 
-      <p className="text-xs italic text-[color:var(--muted-dim)]">{meta.question}</p>
+      <p className="text-xs italic text-[color:var(--text-faint)]">{meta.question}</p>
 
       {listings.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--muted-dim)]">
+        <p className="rounded-xl border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-faint)]">
           No agent in the registry currently matches this category with enough
           confidence to list.
         </p>

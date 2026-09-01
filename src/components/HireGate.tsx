@@ -46,16 +46,16 @@ export function HireGate({
 
   if (blocked) {
     return (
-      <section className="flex flex-col gap-2 rounded-xl border border-[color:var(--failing)]/30 bg-[color:var(--failing)]/5 p-5">
-        <h2 className="text-sm font-medium text-[color:var(--failing)]">
+      <section className="flex flex-col gap-2 rounded-xl border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-5">
+        <h2 className="text-sm font-medium text-[color:var(--negative)]">
           Hiring is blocked
         </h2>
-        <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-[color:var(--muted)]">
+        <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-[color:var(--text-muted)]">
           {blockers.map((blocker) => (
             <li key={blocker}>{blocker}</li>
           ))}
         </ul>
-        <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted-dim)]">
+        <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-faint)]">
           This is not a judgement about whether {agentName} is good. It is a
           statement that nothing here can currently be verified, and Proving
           Ground will not hand your wallet to something it cannot check.
@@ -68,7 +68,7 @@ export function HireGate({
     <section className="flex flex-col gap-3 rounded-xl border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium">Ready to hire</h2>
-        <p className="text-xs leading-relaxed text-[color:var(--muted)]">
+        <p className="text-xs leading-relaxed text-[color:var(--text-muted)]">
           {agentName} answered {live.answered} of {live.probes.length} probes just
           now
           {proof.score !== null &&
@@ -79,12 +79,12 @@ export function HireGate({
         </p>
       </div>
 
-      <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[color:var(--muted)]">
+      <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[color:var(--text-muted)]">
         <input
           type="checkbox"
           checked={acknowledged}
           onChange={(event) => setAcknowledged(event.target.checked)}
-          className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--proven)]"
+          className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--positive)]"
         />
         I have read the evidence above, including how the measurers could be
         wrong.
@@ -93,12 +93,12 @@ export function HireGate({
       <button
         type="button"
         disabled={!acknowledged}
-        className="w-fit rounded-lg border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium transition enabled:bg-[color:var(--proven)] enabled:text-[#07090d] enabled:hover:opacity-90 disabled:cursor-not-allowed disabled:text-[color:var(--muted-dim)]"
+        className="w-fit rounded-lg border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium transition enabled:bg-[color:var(--positive)] enabled:text-[#07090d] enabled:hover:opacity-90 disabled:cursor-not-allowed disabled:text-[color:var(--text-faint)]"
       >
         Hire {agentName.length > 24 ? 'this agent' : agentName}
       </button>
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--muted-dim)]">
+      <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
         Hiring runs over ERC-8183 and is signed in your own wallet. Wallet
         connection is not wired up in this build, so this button does not yet
         move funds.

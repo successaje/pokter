@@ -55,10 +55,10 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
             key={item.label}
             className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 p-3.5"
           >
-            <dt className="text-xs text-[color:var(--muted)]">{item.label}</dt>
+            <dt className="text-xs text-[color:var(--text-muted)]">{item.label}</dt>
             <dd
               className="tabular max-w-full break-all text-right text-[11px]"
-              style={{ color: item.caution ? 'var(--emerging)' : 'var(--foreground)' }}
+              style={{ color: item.caution ? 'var(--caution)' : 'var(--text)' }}
             >
               {item.value}
             </dd>
@@ -66,7 +66,7 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
         ))}
       </dl>
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--muted-dim)]">
+      <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
         Proving Ground never holds your funds and never signs on your behalf. Any
         approval an agent needs is granted by you, in your own wallet, and can be
         revoked there.

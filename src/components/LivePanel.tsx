@@ -8,7 +8,7 @@ import type { LiveReading } from '@/lib/proof/prober';
 export function LivePanel({ live }: { live: LiveReading }) {
   if (live.protocol === 'none') {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--muted-dim)]">
+      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
         This agent publishes no reachable service endpoint, so there is nothing to
         watch. It cannot be probed, and it cannot be hired here.
       </p>
@@ -23,18 +23,18 @@ export function LivePanel({ live }: { live: LiveReading }) {
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-medium">
             {live.answered}/{live.probes.length} probes answered
-            <span className="ml-2 font-normal text-[color:var(--muted-dim)]">
+            <span className="ml-2 font-normal text-[color:var(--text-faint)]">
               over {live.protocol.toUpperCase()}
             </span>
           </span>
-          <span className="tabular text-[11px] text-[color:var(--muted-dim)]">
+          <span className="tabular text-[11px] text-[color:var(--text-faint)]">
             {live.medianMs != null ? `median ${live.medianMs}ms` : 'no successful response'}
           </span>
         </div>
         <span
           className="tabular text-sm"
           style={{
-            color: answeredAll ? 'var(--proven)' : live.answered === 0 ? 'var(--failing)' : 'var(--emerging)',
+            color: answeredAll ? 'var(--positive)' : live.answered === 0 ? 'var(--negative)' : 'var(--caution)',
           }}
         >
           {live.ratio === null ? '—' : `${(live.ratio * 100).toFixed(0)}%`}
@@ -45,14 +45,14 @@ export function LivePanel({ live }: { live: LiveReading }) {
         {live.probes.map((probe, index) => (
           <li
             key={`${probe.at}-${index}`}
-            className="tabular flex items-baseline gap-3 text-[11px] text-[color:var(--muted)]"
+            className="tabular flex items-baseline gap-3 text-[11px] text-[color:var(--text-muted)]"
           >
             <span
               aria-hidden
               className="mt-1 size-1.5 shrink-0 rounded-full"
-              style={{ background: probe.ok ? 'var(--proven)' : 'var(--failing)' }}
+              style={{ background: probe.ok ? 'var(--positive)' : 'var(--negative)' }}
             />
-            <span className="shrink-0 text-[color:var(--muted-dim)]">
+            <span className="shrink-0 text-[color:var(--text-faint)]">
               {probe.latencyMs != null ? `${probe.latencyMs}ms` : 'timeout'}
             </span>
             <span>{probe.detail}</span>
@@ -60,7 +60,7 @@ export function LivePanel({ live }: { live: LiveReading }) {
         ))}
       </ol>
 
-      <p className="tabular break-all text-[11px] text-[color:var(--muted-dim)]">
+      <p className="tabular break-all text-[11px] text-[color:var(--text-faint)]">
         {live.endpoint}
       </p>
     </div>

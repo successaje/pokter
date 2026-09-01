@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import type { Listing } from '@/lib/marketplace';
-import { VerdictBadge } from './VerdictBadge';
+import { EvidenceBadge } from './ui/EvidenceBadge';
 
 /**
  * List rows carry only a feedback count, not a full proof summary — computing
@@ -23,19 +23,19 @@ export function AgentCard({ listing }: { listing: Listing }) {
       className="group flex h-full flex-col gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-raised)]"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 break-words text-sm font-medium leading-snug text-[color:var(--foreground)] decoration-[color:var(--muted-dim)] underline-offset-4 group-hover:underline">
+        <h3 className="min-w-0 break-words text-sm font-medium leading-snug text-[color:var(--text)] decoration-[color:var(--text-faint)] underline-offset-4 group-hover:underline">
           {agent.name}
         </h3>
         <span className="shrink-0">
-          <VerdictBadge verdict={verdict} />
+          <EvidenceBadge verdict={verdict} />
         </span>
       </div>
 
-      <p className="line-clamp-3 text-xs leading-relaxed text-[color:var(--muted)]">
+      <p className="line-clamp-3 text-xs leading-relaxed text-[color:var(--text-muted)]">
         {agent.description?.trim() || 'No description published.'}
       </p>
 
-      <div className="mt-auto flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--muted-dim)]">
+      <div className="mt-auto flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
         <span className="tabular">
           {unproven
             ? 'No attestations'

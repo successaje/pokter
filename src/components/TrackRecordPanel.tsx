@@ -1,10 +1,10 @@
 import type { TrackRecord } from '@/lib/history/record';
 
 function ratioColor(ratio: number | null): string {
-  if (ratio === null) return 'var(--unproven)';
-  if (ratio >= 0.99) return 'var(--proven)';
-  if (ratio >= 0.5) return 'var(--emerging)';
-  return 'var(--failing)';
+  if (ratio === null) return 'var(--neutral)';
+  if (ratio >= 0.99) return 'var(--positive)';
+  if (ratio >= 0.5) return 'var(--caution)';
+  return 'var(--negative)';
 }
 
 function formatDuration(days: number): string {
@@ -21,7 +21,7 @@ function formatDuration(days: number): string {
 export function TrackRecordPanel({ record }: { record: TrackRecord }) {
   if (record.totalProbes === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--muted-dim)]">
+      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
         Proving Ground has not yet swept this agent, so it has no accumulated
         record here. Only the live probe above speaks for it.
       </p>
@@ -33,7 +33,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
       <dl className="grid grid-cols-3 divide-x divide-[color:var(--border)] rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)]">
         {record.windows.map((window) => (
           <div key={window.label} className="flex flex-col gap-1 p-3.5">
-            <dt className="text-[11px] text-[color:var(--muted-dim)]">
+            <dt className="text-[11px] text-[color:var(--text-faint)]">
               {window.label}
             </dt>
             <dd
@@ -42,7 +42,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
             >
               {window.ratio === null ? '—' : `${(window.ratio * 100).toFixed(0)}%`}
             </dd>
-            <dd className="tabular text-[11px] text-[color:var(--muted-dim)]">
+            <dd className="tabular text-[11px] text-[color:var(--text-faint)]">
               {window.probes === 0
                 ? 'no probes yet'
                 : `${window.answered}/${window.probes} answered`}
@@ -66,7 +66,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
             />
           ))}
         </div>
-        <p className="tabular text-[11px] text-[color:var(--muted-dim)]">
+        <p className="tabular text-[11px] text-[color:var(--text-faint)]">
           {record.days.length} day(s) of coverage · {record.totalAnswered}/
           {record.totalProbes} probes answered · watched for{' '}
           {formatDuration(record.observedDays)}
@@ -74,7 +74,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
       </div>
 
       {record.longestOutage && (
-        <p className="rounded-lg border border-[color:var(--failing)]/30 bg-[color:var(--failing)]/5 p-3 text-[11px] leading-relaxed text-[color:var(--muted)]">
+        <p className="rounded-lg border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
           Longest observed outage: {record.longestOutage.probes} consecutive failed
           probe(s), from {record.longestOutage.from.slice(0, 16).replace('T', ' ')} to{' '}
           {record.longestOutage.to.slice(0, 16).replace('T', ' ')} UTC. Average

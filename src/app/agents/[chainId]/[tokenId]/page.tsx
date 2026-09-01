@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { getDossier } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
-import { VerdictBadge } from '@/components/VerdictBadge';
+import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { LivePanel } from '@/components/LivePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
@@ -27,7 +27,7 @@ function Section({
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium tracking-tight">{title}</h2>
-        <p className="text-xs text-[color:var(--muted)]">{caption}</p>
+        <p className="text-xs text-[color:var(--text-muted)]">{caption}</p>
       </div>
       {children}
     </section>
@@ -52,8 +52,8 @@ export default async function AgentPage({
   return (
     <div className="flex flex-col gap-10">
       <Link
-        href="/"
-        className="text-xs text-[color:var(--muted-dim)] hover:text-[color:var(--foreground)]"
+        href="/agents"
+        className="text-xs text-[color:var(--text-faint)] hover:text-[color:var(--text)]"
       >
         ← All agents
       </Link>
@@ -64,16 +64,16 @@ export default async function AgentPage({
             <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
               {agent.name}
             </h1>
-            <p className="tabular text-[11px] text-[color:var(--muted-dim)]">
+            <p className="tabular text-[11px] text-[color:var(--text-faint)]">
               {meta ? meta.label : 'Unclassified'} · token #{agent.token_id} · chain{' '}
               {agent.chain_id}
             </p>
           </div>
-          <VerdictBadge verdict={proof.verdict} score={proof.score} size="lg" />
+          <EvidenceBadge verdict={proof.verdict} size="md" />
         </div>
 
         {agent.description && (
-          <p className="max-w-3xl text-sm leading-relaxed text-[color:var(--muted)]">
+          <p className="max-w-3xl text-sm leading-relaxed text-[color:var(--text-muted)]">
             {agent.description}
           </p>
         )}
@@ -119,7 +119,7 @@ export default async function AgentPage({
           caption="Defects disclosed by the measurers themselves, ours included."
         >
           {proof.disclosedDefects.length === 0 && live.method.knownDefects?.length === 0 ? (
-            <p className="text-xs text-[color:var(--muted-dim)]">
+            <p className="text-xs text-[color:var(--text-faint)]">
               No measurer has disclosed its limitations.
             </p>
           ) : (
@@ -132,7 +132,7 @@ export default async function AgentPage({
               ].map((defect) => (
                 <li
                   key={defect}
-                  className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--muted)]"
+                  className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
                 >
                   {defect}
                 </li>
