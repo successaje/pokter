@@ -116,9 +116,17 @@ function normalise(text: string): string {
  * available — an agent tagged `health-factor` is telling us its category
  * outright. Name and description are prose and treated as weaker evidence.
  */
-function corpusFor(agent: ClassifiableAgent): { tags: string; text: string } {
+function corpusFor(agent: ClassifiableAgent): {
+  tags: string;
+  name: string;
+  text: string;
+} {
   return {
     tags: normalise((agent.tags ?? []).join(' ')),
+    // The name is separated from the description because a publisher who calls
+    // their agent "BSC Grid Planner" is naming its category, while the same word
+    // buried in prose may be incidental.
+    name: normalise(agent.name),
     text: normalise(`${agent.name} ${agent.description ?? ''}`),
   };
 }
@@ -129,28 +137,35 @@ function corpusFor(agent: ClassifiableAgent): { tags: string; text: string } {
  * rebalances) and the UI should be able to say so.
  */
 export function scoreCategories(agent: ClassifiableAgent): CategoryScore[] {
-  const { tags, text } = corpusFor(agent);
+  const { tags, name, text } = corpusFor(agent);
 
   return CATEGORIES.map(({ id }) => {
     const { strong, weak } = SIGNALS[id];
 
     const tagStrong = strong.filter((term) => tags.includes(term));
     const tagWeak = weak.filter((term) => tags.includes(term));
+    const nameStrong = strong.filter((term) => name.includes(term));
+    const nameWeak = weak.filter((term) => name.includes(term));
     const textStrong = strong.filter((term) => text.includes(term));
     const textWeak = weak.filter((term) => text.includes(term));
 
-    // A declared tag is close to decisive on its own. Prose evidence
-    // accumulates but saturates, so keyword-stuffed descriptions cannot
-    // outrank an agent that simply says what it is.
+    // A declared tag is close to decisive. A term in the name is deliberate
+    // self-description and counts well above the same term in prose, which
+    // accumulates but saturates so keyword-stuffed descriptions cannot outrank
+    // an agent that simply says what it is.
     const confidence = Math.min(
       1,
       tagStrong.length * 0.9 +
         Math.min(tagWeak.length, 2) * 0.2 +
+        nameStrong.length * 0.7 +
+        Math.min(nameWeak.length, 2) * 0.35 +
         textStrong.length * 0.6 +
         Math.min(textWeak.length, 3) * 0.15,
     );
 
-    const matched = [...new Set([...tagStrong, ...tagWeak, ...textStrong, ...textWeak])];
+    const matched = [
+      ...new Set([...tagStrong, ...tagWeak, ...nameStrong, ...nameWeak, ...textStrong, ...textWeak]),
+    ];
     return { category: id, confidence, matched };
   })
     .filter((s) => s.confidence > 0)

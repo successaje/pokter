@@ -254,3 +254,66 @@ export async function getEcosystemStats(
     ...stats,
   };
 }
+
+/**
+ * A comparison entry: everything the compare table needs, without the live
+ * probe.
+ *
+ * Comparing four agents would otherwise mean twelve outbound requests and
+ * several seconds of latency for a sample that adds nothing — the accumulated
+ * track record is the better evidence, and the detail page is where a
+ * request-time probe belongs.
+ */
+export interface Comparison {
+  agent: ScanAgentDetail;
+  category: ReturnType<typeof classify>;
+  proof: ProofSummary;
+  record: TrackRecord;
+  score: PokterScore;
+}
+
+export async function getComparison(
+  chainId: ChainId,
+  tokenId: string,
+): Promise<Comparison> {
+  const agent = await getAgent(chainId, tokenId);
+
+  const feedbackPage = await listFeedbacks({
+    chainId,
+    agentId: agent.id,
+    limit: 50,
+  }).catch(() => ({ items: [], total: 0, limit: 0, offset: 0 }));
+
+  const attestations = feedbackPage.items.map(toAttestation);
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+  const record = buildTrackRecord(
+    getProbeStore().historyFor(chainId, tokenId, since),
+  );
+
+  const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
+  const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
+  const category = classify(agent);
+
+  return {
+    agent,
+    category,
+    proof,
+    record,
+    score: computeScore({ agent, category, proof, attestations, record }),
+  };
+}
+
+/** Resolve a set of "chainId:tokenId" keys, skipping any that cannot be read. */
+export async function getComparisons(keys: string[]): Promise<Comparison[]> {
+  const parsed = keys
+    .map((key) => key.split(':'))
+    .filter((parts): parts is [string, string] => parts.length === 2)
+    .map(([chainId, tokenId]) => ({ chainId: Number(chainId) as ChainId, tokenId }))
+    .filter((entry) => entry.chainId === 56 || entry.chainId === 97);
+
+  const results = await mapWithConcurrency(parsed, 3, (entry) =>
+    getComparison(entry.chainId, entry.tokenId).catch(() => null),
+  );
+
+  return results.filter((entry): entry is Comparison => entry !== null);
+}
