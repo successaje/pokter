@@ -2,7 +2,7 @@ import type { Attestation } from '@/lib/proof/attestation';
 import type { ProofSummary } from '@/lib/proof/engine';
 import type { TrackRecord } from '@/lib/history/record';
 import type { LiveReading } from '@/lib/proof/prober';
-import type { ScanAgentDetail } from '@/lib/scan/types';
+import type { ScanAgent, ScanAgentDetail } from '@/lib/scan/types';
 import type { Category } from '@/lib/agents/categories';
 import {
   DIMENSION_WEIGHTS,
@@ -18,12 +18,18 @@ import {
  * category, and nothing is inferred to fill a gap.
  */
 export interface ScoreInputs {
-  agent: ScanAgentDetail;
+  /** List rows are enough; the score reads no detail-only field. */
+  agent: ScanAgent | ScanAgentDetail;
   category: Category | 'unclassified';
   proof: ProofSummary;
   attestations: Attestation[];
   record: TrackRecord;
-  live: LiveReading;
+  /**
+   * The request-time probe, when one was taken. Omitted in list contexts, where
+   * probing every candidate would cost seconds per page for a sample that adds
+   * nothing to an accumulated record.
+   */
+  live?: LiveReading;
 }
 
 function unmeasured(
@@ -52,7 +58,7 @@ function scoreReliability({ record, live }: ScoreInputs): DimensionScore {
   const weight = DIMENSION_WEIGHTS.reliability;
   const observed = record.totalProbes;
 
-  if (observed === 0 && live.protocol === 'none') {
+  if (observed === 0 && live?.protocol === 'none') {
     return unmeasured(
       'reliability',
       'This agent publishes no endpoint we can reach, so its reliability has never been observed.',
@@ -63,7 +69,9 @@ function scoreReliability({ record, live }: ScoreInputs): DimensionScore {
     return unmeasured(
       'reliability',
       'Pokter has not yet accumulated probe history for this agent. The live check above is a single sample, which is not a reliability measurement.',
-      [{ label: 'Live probe', value: `${live.answered}/${live.probes.length} answered` }],
+      live
+        ? [{ label: 'Live probe', value: `${live.answered}/${live.probes.length} answered` }]
+        : [],
     );
   }
 
