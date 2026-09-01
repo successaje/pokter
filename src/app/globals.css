@@ -1,51 +1,111 @@
 @import "tailwindcss";
 
 /*
- * Proving Ground reads as an instrument panel, not a storefront: dark ground,
- * restrained accents, and colour reserved almost entirely for verdicts so that
- * a green or red badge always means something.
+ * Pokter's visual system.
+ *
+ * Dark-first, near-black ground, borders that are barely there. Colour is
+ * reserved almost entirely for evidence states and performance direction, so
+ * that a green or red on this page always carries meaning rather than
+ * decoration. Most of the interface stays neutral on purpose.
  */
 :root {
-  --background: #07090d;
-  --surface: #0d1017;
-  --surface-raised: #131822;
-  --border: #1e2635;
-  --border-strong: #2b3648;
-  --foreground: #e8edf5;
-  --muted: #8b98ad;
-  --muted-dim: #5e6b80;
+  /* Ground and surfaces */
+  --bg: #08090b;
+  --bg-subtle: #0b0d10;
+  --surface: #0f1114;
+  --surface-raised: #16191e;
+  --surface-hover: #1b1f25;
 
-  --proven: #3ddc97;
-  --emerging: #f0b429;
-  --failing: #f2544b;
-  --unproven: #6b7a91;
+  /* Borders, deliberately low contrast */
+  --border: #1c2027;
+  --border-strong: #2a3038;
+  --border-focus: #3d6fd9;
+
+  /* Text ramp */
+  --text: #edf0f4;
+  --text-secondary: #a2acba;
+  --text-muted: #6e7987;
+  --text-faint: #4b535f;
+
+  /* Semantics: green healthy, amber caution, red failing, blue interactive */
+  --positive: #3fb97f;
+  --positive-dim: #1d3d30;
+  --caution: #d9a441;
+  --caution-dim: #3b3021;
+  --negative: #e05a52;
+  --negative-dim: #3d2422;
+  --info: #4d84e2;
+  --info-dim: #1c2a41;
+  --neutral: #6e7987;
+
+  --radius: 8px;
+  --radius-lg: 12px;
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
   --color-border-subtle: var(--border);
   --color-border-strong: var(--border-strong);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-dim: var(--muted-dim);
-  --color-proven: var(--proven);
-  --color-emerging: var(--emerging);
-  --color-failing: var(--failing);
-  --color-unproven: var(--unproven);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-positive: var(--positive);
+  --color-caution: var(--caution);
+  --color-negative: var(--negative);
+  --color-info: var(--info);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
+html {
+  color-scheme: dark;
 }
 
-/* Evidence figures are monospaced so numbers line up when scanned in a column. */
+body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * Figures line up in columns when they share a width. Applied to every metric,
+ * score and percentage in the product.
+ */
 .tabular {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.mono {
   font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--info-dim);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* §93: motion is an enhancement, never a requirement for comprehension. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
