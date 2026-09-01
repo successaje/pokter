@@ -125,8 +125,35 @@ export async function revokeSession(id: string): Promise<GrantedSession> {
   };
 }
 
-export function listSessions(): GrantedSession[] {
-  return getSessionStore().all();
+/**
+ * Whether a session still carries authority.
+ *
+ * Computed in the data layer rather than during render: it depends on the
+ * current time, which makes it impure, and a component that recomputes it on
+ * every render can flip state unpredictably mid-paint.
+ */
+export type SessionState = 'active' | 'expired' | 'revoked';
+
+export function sessionState(session: GrantedSession): SessionState {
+  if (session.revokedAt) return 'revoked';
+  return Date.parse(session.expiresAt) <= Date.now() ? 'expired' : 'active';
+}
+
+export interface SessionView extends GrantedSession {
+  state: SessionState;
+  /** Milliseconds left at the moment this was read on the server. */
+  remainingMs: number;
+}
+
+export function listSessions(): SessionView[] {
+  const now = Date.now();
+  return getSessionStore()
+    .all()
+    .map((session) => ({
+      ...session,
+      state: sessionState(session),
+      remainingMs: Math.max(0, Date.parse(session.expiresAt) - now),
+    }));
 }
 
 /** Human-readable spend cap for display. */

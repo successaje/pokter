@@ -19,9 +19,7 @@ export default async function MyAgentsPage() {
   const sessions = listSessions();
   const jobs = listJobs();
 
-  const activeSessions = sessions.filter(
-    (s) => !s.revokedAt && Date.parse(s.expiresAt) > Date.now(),
-  ).length;
+  const activeSessions = sessions.filter((s) => s.state === 'active').length;
 
   return (
     <div className="flex flex-col gap-10 pt-6">

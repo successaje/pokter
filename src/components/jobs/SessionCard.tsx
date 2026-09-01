@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatEther } from 'viem';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
-import type { GrantedSession } from '@/lib/altana/types';
+import type { SessionView } from '@/lib/altana/session';
 
-function remaining(expiresAt: string): string {
-  const ms = Date.parse(expiresAt) - Date.now();
+const TICK_MS = 30_000;
+
+function remaining(ms: number): string {
   if (ms <= 0) return 'expired';
   const hours = Math.floor(ms / 3_600_000);
   if (hours < 24) return `${hours}h ${Math.floor((ms % 3_600_000) / 60_000)}m`;
@@ -24,15 +25,25 @@ export function SessionCard({
   session: initial,
   explorerBase,
 }: {
-  session: GrantedSession;
+  session: SessionView;
   explorerBase: string;
 }) {
   const [session, setSession] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The server sends how long was left when it rendered; the client only counts
+  // down from there. Reading the clock during render would be impure, and
+  // seeding from an effect would flash a stale value on first paint.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed((ms) => ms + TICK_MS), TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  const remainingMs = Math.max(0, session.remainingMs - elapsed);
   const revoked = Boolean(session.revokedAt);
-  const expired = Date.parse(session.expiresAt) <= Date.now();
+  const expired = session.state === 'expired' || remainingMs === 0;
   const active = !revoked && !expired;
 
   const revoke = async () => {
@@ -45,7 +56,11 @@ export function SessionCard({
       );
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? 'Revoke failed.');
-      setSession(body.session as GrantedSession);
+      setSession({
+        ...(body.session as SessionView),
+        state: 'revoked',
+        remainingMs: 0,
+      });
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -93,9 +108,7 @@ export function SessionCard({
             {revoked ? 'Revoked' : 'Expires in'}
           </dt>
           <dd className="tabular text-[13px]">
-            {revoked
-              ? session.revokedAt!.slice(0, 10)
-              : remaining(session.expiresAt)}
+            {revoked ? session.revokedAt!.slice(0, 10) : remaining(remainingMs)}
           </dd>
         </div>
       </dl>
