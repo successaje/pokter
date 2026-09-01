@@ -2,7 +2,13 @@ import { erc8183Addresses } from '@altananetwork/sdk';
 import { createPublicClient, http, formatUnits, formatEther, erc20Abi } from 'viem';
 import { bscTestnet } from 'viem/chains';
 
-const WALLET = '0xAe4473468F10b507AB410077FA266FD8c5Af2196' as const;
+import { privateKeyToAccount } from 'viem/accounts';
+
+// Derived from the configured admin key, so this always checks the wallet the
+// app would actually use rather than a hardcoded address that can go stale.
+const WALLET = privateKeyToAccount(
+  process.env.ALTANA_ADMIN_KEY as `0x${string}`,
+).address;
 const { paymentToken } = erc8183Addresses(97);
 
 const RPCS = [

@@ -35,6 +35,28 @@ export interface HireInput {
   deadlineSeconds?: number;
 }
 
+/**
+ * Revert selectors observed on BSC testnet, mapped to what they actually mean.
+ *
+ * The relay returns a bare selector with no reason string, which is unreadable
+ * in a UI and unactionable in a bug report. These two were isolated by running
+ * the batch's five calls individually against a job we created — see
+ * docs/integrations/erc8183.md for the full trace.
+ */
+const KNOWN_REVERTS: Record<string, string> = {
+  '0xc94463e3':
+    'The EvaluatorRouter rejected registerJob. This step binds the dispute policy to the job, and the current BSC testnet deployment reverts on it for every caller we tried.',
+  '0x32d53d69':
+    'The kernel rejected fund. Budget and $U allowance were both set correctly, so this follows from registerJob having failed — an unregistered job cannot be funded.',
+};
+
+function explainRevert(message: string): string {
+  for (const [selector, explanation] of Object.entries(KNOWN_REVERTS)) {
+    if (message.includes(selector)) return `${explanation} (revert ${selector})`;
+  }
+  return message;
+}
+
 export class InsufficientPaymentTokenError extends Error {
   constructor(
     readonly held: string,
@@ -86,17 +108,22 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     throw new InsufficientPaymentTokenError(held, String(input.budgetU));
   }
 
-  const result = await hireErc8183Agent(
-    wallet,
-    signer,
-    {
-      provider: input.provider,
-      task: input.task,
-      budget,
-      deadlineSeconds: input.deadlineSeconds ?? 1800,
-    },
-    { network: ALTANA_NETWORK },
-  );
+  let result;
+  try {
+    result = await hireErc8183Agent(
+      wallet,
+      signer,
+      {
+        provider: input.provider,
+        task: input.task,
+        budget,
+        deadlineSeconds: input.deadlineSeconds ?? 1800,
+      },
+      { network: ALTANA_NETWORK },
+    );
+  } catch (error) {
+    throw new Error(explainRevert((error as Error).message));
+  }
 
   const job: HiredJob = {
     id: randomUUID(),
