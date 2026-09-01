@@ -2,7 +2,7 @@ import 'server-only';
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 
 import type { HiredJob, JobStatusName } from './types';
 
@@ -137,10 +137,17 @@ class SqliteJobStore implements JobStore {
   }
 }
 
+/**
+ * Left as a relative path on purpose. `path.resolve` on an environment-derived
+ * value makes the bundler trace the entire project, and node:sqlite resolves
+ * relative paths against the working directory just as well.
+ */
+const DB_PATH = process.env.JOB_DB_PATH ?? './data/jobs.db';
+
 let cached: JobStore | null = null;
 
 export function getJobStore(): JobStore {
   if (cached) return cached;
-  cached = new SqliteJobStore(resolve(process.env.JOB_DB_PATH ?? './data/jobs.db'));
+  cached = new SqliteJobStore(DB_PATH);
   return cached;
 }

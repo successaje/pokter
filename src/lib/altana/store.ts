@@ -2,7 +2,7 @@ import 'server-only';
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 
 import type { GrantedSession } from './types';
 
@@ -153,12 +153,19 @@ class SqliteSessionStore implements SessionStore {
   }
 }
 
+/**
+ * Left as a relative path on purpose. `path.resolve` on an environment-derived
+ * value makes the bundler trace the entire project, and node:sqlite resolves
+ * relative paths against the working directory just as well.
+ */
+const DB_PATH = process.env.SESSION_DB_PATH ?? './data/sessions.db';
+
 let cached: SessionStore | null = null;
 
 export function getSessionStore(): SessionStore {
   if (cached) return cached;
   cached = new SqliteSessionStore(
-    resolve(process.env.SESSION_DB_PATH ?? './data/sessions.db'),
+    DB_PATH,
   );
   return cached;
 }

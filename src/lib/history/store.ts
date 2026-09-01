@@ -2,7 +2,7 @@ import 'server-only';
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 
 /** One recorded probe of one agent at one moment. */
 export interface ProbeRecord {
@@ -230,6 +230,13 @@ class SqliteProbeStore implements ProbeStore {
   }
 }
 
+/**
+ * Left as a relative path on purpose. `path.resolve` on an environment-derived
+ * value makes the bundler trace the entire project, and node:sqlite resolves
+ * relative paths against the working directory just as well.
+ */
+const DB_PATH = process.env.PROBE_DB_PATH ?? './data/probes.db';
+
 let cached: ProbeStore | null = null;
 
 /**
@@ -239,9 +246,6 @@ let cached: ProbeStore | null = null;
 export function getProbeStore(): ProbeStore {
   if (cached) return cached;
 
-  const path = resolve(
-    process.env.PROBE_DB_PATH ?? './data/probes.db',
-  );
-  cached = new SqliteProbeStore(path);
+  cached = new SqliteProbeStore(DB_PATH);
   return cached;
 }

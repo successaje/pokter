@@ -15,6 +15,8 @@ import { toAttestation, type Attestation } from '@/lib/proof/attestation';
 import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { cache } from 'react';
+
 import { getProbeStore } from '@/lib/history/store';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
@@ -38,24 +40,10 @@ const KEYWORD_TERMS: Record<Category, string[]> = {
 };
 
 const DISCOVERY_QUERIES: Record<Category, string[]> = {
-  rebalancing: [
-    'portfolio rebalancing agent maintaining target allocation',
-    'automated portfolio weight management on BNB Chain',
-  ],
-  'grid-trading': [
-    'grid trading bot buy low sell high ladder',
-    'automated range trading strategy on BSC',
-    'DCA bot placing staggered limit orders',
-    'market making bot quoting a spread on PancakeSwap',
-  ],
-  yield: [
-    'yield optimiser moving capital to the best APY',
-    'DeFi yield aggregator auto compounding vault',
-  ],
-  'health-factor': [
-    'health factor monitor preventing loan liquidation',
-    'Venus lending position liquidation protection',
-  ],
+  rebalancing: ['portfolio rebalancing agent maintaining target allocation'],
+  'grid-trading': ['grid trading bot buy low sell high ladder'],
+  yield: ['yield optimiser moving capital to the best APY'],
+  'health-factor': ['health factor monitor preventing loan liquidation'],
 };
 
 /** A marketplace listing: a registry agent plus what we can prove about it. */
@@ -124,7 +112,7 @@ function rank(listing: Listing): number {
  * where the median agent is unproven, having a record at all is the strongest
  * differentiator we can surface cheaply.
  */
-export async function listCategory(
+export const listCategory = cache(async function listCategory(
   category: Category,
   { chainId = BSC_MAINNET, limit = 8 }: { chainId?: ChainId; limit?: number } = {},
 ): Promise<Listing[]> {
@@ -161,7 +149,7 @@ export async function listCategory(
   return collapseClones(scored)
     .sort((a, b) => rank(b) - rank(a))
     .slice(0, limit);
-}
+});
 
 /** The full marketplace: every category, fetched in parallel, treated equally. */
 export async function listMarketplace(
