@@ -46,6 +46,9 @@ export default function RootLayout({
               <Link href="/methodology" className="hover:text-[color:var(--text)]">
                 Methodology
               </Link>
+              <Link href="/agent-advantage" className="hover:text-[color:var(--text)]">
+                Agent Advantage
+              </Link>
               <span className="text-[color:var(--text-faint)]">
                 Agent data from the ERC-8004 registry via 8004scan
               </span>

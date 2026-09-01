@@ -44,7 +44,9 @@ const symbols = await Promise.all(
 
 const targets = markets
   .map((address, i) => ({ address, symbol: symbols[i] as string | null }))
-  .filter((m) => m.symbol && WANTED.has(m.symbol));
+  .filter((m): m is { address: `0x${string}`; symbol: string } =>
+    m.symbol !== null && WANTED.has(m.symbol),
+  );
 step(`matched ${targets.length} target markets`);
 
 step('reading supplyRatePerBlock for each');
