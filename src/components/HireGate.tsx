@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import type { ProofSummary } from '@/lib/proof/engine';
@@ -17,10 +18,13 @@ export function HireGate({
   proof,
   live,
   agentName,
+  hireHref,
 }: {
   proof: ProofSummary;
   live: LiveReading;
   agentName: string;
+  /** Where Hire leads once both bars are cleared. */
+  hireHref: string;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -90,18 +94,26 @@ export function HireGate({
         wrong.
       </label>
 
-      <button
-        type="button"
-        disabled={!acknowledged}
-        className="w-fit rounded-lg border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium transition enabled:bg-[color:var(--positive)] enabled:text-[#07090d] enabled:hover:opacity-90 disabled:cursor-not-allowed disabled:text-[color:var(--text-faint)]"
-      >
-        Hire {agentName.length > 24 ? 'this agent' : agentName}
-      </button>
+      {acknowledged ? (
+        <Link
+          href={hireHref}
+          className="w-fit rounded-lg bg-[color:var(--positive)] px-4 py-2 text-xs font-medium text-[color:var(--bg)] transition hover:opacity-90"
+        >
+          Review permissions
+        </Link>
+      ) : (
+        <button
+          type="button"
+          disabled
+          className="w-fit cursor-not-allowed rounded-lg border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium text-[color:var(--text-faint)]"
+        >
+          Review permissions
+        </button>
+      )}
 
       <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-        Hiring runs over ERC-8183 and is signed in your own wallet. Wallet
-        connection is not wired up in this build, so this button does not yet
-        move funds.
+        Nothing is granted yet. The next screen shows exactly what this agent
+        would be allowed to call, and what it would be blocked from.
       </p>
     </section>
   );

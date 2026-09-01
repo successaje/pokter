@@ -83,7 +83,12 @@ export default async function AgentPage({
         </p>
       </header>
 
-      <HireGate proof={proof} live={live} agentName={agent.name} />
+      <HireGate
+        proof={proof}
+        live={live}
+        agentName={agent.name}
+        hireHref={`/hire/${agent.chain_id}/${agent.token_id}`}
+      />
 
       <div className="grid gap-10 lg:grid-cols-2">
         <Section
