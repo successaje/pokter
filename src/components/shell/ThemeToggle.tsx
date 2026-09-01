@@ -15,7 +15,13 @@ import { useSyncExternalStore } from 'react';
  */
 export type Theme = 'light' | 'dark' | 'system';
 
-const STORAGE_KEY = 'pokter.theme';
+/**
+ * The choice is kept in a cookie rather than localStorage so the server can
+ * read it and stamp `data-theme` during SSR. That removes the pre-paint
+ * inline script entirely: there is no flash to prevent, because the correct
+ * theme is in the first byte of HTML.
+ */
+const COOKIE_KEY = 'pokter-theme';
 
 const listeners = new Set<() => void>();
 
@@ -25,17 +31,19 @@ function emit(): void {
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  window.addEventListener('storage', emit);
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) window.removeEventListener('storage', emit);
   };
+}
+
+function readCookie(): Theme {
+  const match = document.cookie.match(/(?:^|;\s*)pokter-theme=(light|dark)/);
+  return match ? (match[1] as Theme) : 'system';
 }
 
 function getTheme(): Theme {
   try {
-    const value = window.localStorage.getItem(STORAGE_KEY);
-    return value === 'light' || value === 'dark' ? value : 'system';
+    return readCookie();
   } catch {
     return 'system';
   }
@@ -51,12 +59,11 @@ function applyTheme(theme: Theme): void {
   if (theme === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', theme);
 
-  try {
-    if (theme === 'system') window.localStorage.removeItem(STORAGE_KEY);
-    else window.localStorage.setItem(STORAGE_KEY, theme);
-  } catch {
-    // Not remembered across reloads; still applied for this session.
-  }
+  // A year, path-wide, Lax: a display preference, not a credential.
+  document.cookie =
+    theme === 'system'
+      ? `${COOKIE_KEY}=; path=/; max-age=0; samesite=lax`
+      : `${COOKIE_KEY}=${theme}; path=/; max-age=31536000; samesite=lax`;
 
   emit();
 }
@@ -100,10 +107,3 @@ export function ThemeToggle() {
     </div>
   );
 }
-
-/**
- * Applied before first paint, so a light-theme user never sees a dark flash.
- * Kept tiny and dependency-free because it runs synchronously in the document
- * head, and wrapped in try/catch because blocked site data throws on access.
- */
-export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;

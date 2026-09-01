@@ -319,3 +319,48 @@ body {
 .live-dot {
   animation: live-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+
+/*
+ * The verification floor.
+ *
+ * A sweep passes over the tiles and each tile brightens on a stagger, so the
+ * grid reads as being scanned rather than decorated. Both are motion-reduced
+ * away by the rule at the top of this file, and neither carries information
+ * that is unavailable without them — the tile colours and the legend say
+ * everything the animation does.
+ */
+@keyframes floor-sweep {
+  0% { transform: translateX(-120%); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+.floor-sweep {
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--brand-highlight-soft),
+    transparent
+  );
+  animation: floor-sweep 5.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes tile-check {
+  0%, 82%, 100% { opacity: 0.72; }
+  86% { opacity: 1; }
+}
+
+.floor-tile {
+  animation: tile-check 5.5s ease-in-out infinite;
+}
+
+.floor-tile:hover {
+  animation-play-state: paused;
+  opacity: 1;
+}

@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { cookies } from 'next/headers';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
 import { Footer } from '@/components/shell/Footer';
-import { THEME_SCRIPT } from '@/components/shell/ThemeToggle';
 import { WalletProviders } from '@/lib/wallet/Providers';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -16,15 +16,20 @@ export const metadata: Metadata = {
     'Compare autonomous financial agents on BNB Chain using onchain activity, reputation, performance, risk and live execution data.',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  /*
+   * The theme is stamped during SSR from a cookie, so the correct palette is
+   * in the first byte of HTML. No pre-paint script, therefore no flash and no
+   * script element for React to warn about. Absent the cookie the attribute is
+   * omitted and CSS falls back to the system preference.
+   */
+  const theme = (await cookies()).get('pokter-theme')?.value;
+  const explicit = theme === 'light' || theme === 'dark' ? theme : undefined;
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Runs before paint so the theme never flashes. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      </head>
+    <html lang="en" data-theme={explicit} suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <WalletProviders>
           <Nav />
