@@ -5,58 +5,20 @@ Current figures live at https://pokter.fly.dev
 
 ---
 
-## PROJECT DESCRIPTION
+## PROJECT DESCRIPTION — 800 character limit
 
-Pokter is the decision layer for autonomous finance on BNB Chain. It answers the
-question a marketplace leaves open: not "where are the agents?" but "which one
-deserves my money?"
+> In 800 characters or less, describe how your marketplace vision is
+> unique and what features you have optimized for.
 
-We started by measuring the ERC-8004 registry instead of assuming it. It holds
-297,000+ agents, and the state of it is worse than hard to search — the
-top-ranked agents by score carry zero attestations, whole stretches are
-bulk-minted clones sharing one description, and agents describing real
-strategies routinely publish dead endpoints. One advertising Venus liquidation
-protection, in convincing technical detail, has answered none of our probes.
+(739 characters)
 
-So Pokter separates what an agent claims from what has been observed about it,
-and refuses to rank what it cannot verify.
+Most marketplaces rank agents by what they claim. Pokter ranks by what has been observed, and refuses to rank what it cannot verify.
 
-It discovers agents across four categories using hybrid retrieval, decodes
-on-chain attestations into the measurer and methodology behind each figure, and
-— because so few agents carry attestations — probes them itself on a schedule,
-accumulating its own track record. It scores them on five weighted dimensions,
-two of which are permanently marked "not measured", because nobody publishes
-realised returns and we will not infer them from uptime. It recommends against
-your brief with a checkable reason for every rejection. Then it hires: a scoped
-Altana session with an allowlist, spend cap and expiry, registered on-chain and
-revocable, and an ERC-8183 job escrowed from the product itself.
+The BNB registry holds 297K agents, and its top-scored ones carry zero attestations. So we separate declared facts from measured ones: attestations decoded from chain to the measurer behind each figure, and agents nobody has checked probed by us on a schedule.
 
-Unproven agents are blocked from hire rather than ranked last with a filler
-score. Every number links to its source. The methodology page imports its
-thresholds from the code that enforces them, so it cannot describe a rule the
-product does not follow.
+Optimised for provenance — every number links to its source; honest absence — two of five score dimensions permanently read "not measured", because nobody publishes returns; and scoped delegation — an allowlist, spend cap and expiry, enforced on-chain and revocable.
 
-Pokter doesn't pretend to know what it can't know. We measure availability, we
-verify attestations, we track evidence, and we don't manufacture performance.
-
-Live: https://pokter.fly.dev
-
----
-
-## PROJECT DESCRIPTION — short variant (if the field is tight)
-
-Pokter is the decision layer for autonomous finance on BNB Chain. BNB Chain has
-297,000+ registered agents; the hard part was never finding one, it is knowing
-which deserves your capital.
-
-Pokter separates what an agent claims from what has been observed about it. It
-decodes on-chain attestations, probes agents itself on a schedule, scores them
-on five dimensions — two permanently marked "not measured" because nobody
-publishes returns — and blocks unproven agents from hire rather than ranking
-them last with a filler score. Then it hires: a scoped Altana session with an
-allowlist, spend cap and expiry, registered on-chain and revocable.
-
-Every number links to its source. Live at https://pokter.fly.dev
+Unproven agents are blocked from hire, not ranked last with a filler score.
 
 ---
 
