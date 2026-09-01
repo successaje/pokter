@@ -42,6 +42,16 @@ export interface ProbeStore {
   /** Agents we hold any history for, as `chainId:tokenId`. */
   trackedAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
+  /** Aggregate counts for the ecosystem panel. */
+  stats(): StoreStats;
+}
+
+/** What Pokter itself has measured, as opposed to what the registry reports. */
+export interface StoreStats {
+  agentsMonitored: number;
+  probesTaken: number;
+  probesAnswered: number;
+  sweeps: number;
 }
 
 const SCHEMA = `
@@ -180,6 +190,28 @@ class SqliteProbeStore implements ProbeStore {
       .all() as unknown as { chain_id: number; token_id: string }[];
 
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  stats(): StoreStats {
+    const probes = this.db
+      .prepare(
+        `SELECT COUNT(*) AS taken,
+                COALESCE(SUM(ok), 0) AS answered,
+                COUNT(DISTINCT chain_id || ':' || token_id) AS agents
+           FROM probes`,
+      )
+      .get() as unknown as { taken: number; answered: number; agents: number };
+
+    const sweeps = this.db
+      .prepare('SELECT COUNT(*) AS n FROM sweeps')
+      .get() as unknown as { n: number };
+
+    return {
+      agentsMonitored: probes.agents,
+      probesTaken: probes.taken,
+      probesAnswered: probes.answered,
+      sweeps: sweeps.n,
+    };
   }
 
   lastSweep(): SweepRecord | null {

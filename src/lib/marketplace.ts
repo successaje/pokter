@@ -1,6 +1,12 @@
 import 'server-only';
 
-import { getAgent, listAgents, listFeedbacks, searchAgents } from '@/lib/scan/client';
+import {
+  countAgents,
+  getAgent,
+  listAgents,
+  listFeedbacks,
+  searchAgents,
+} from '@/lib/scan/client';
 import type { ChainId, ScanAgent, ScanAgentDetail } from '@/lib/scan/types';
 import { BSC_MAINNET } from '@/lib/scan/types';
 import { classify, scoreCategories, CATEGORIES } from '@/lib/agents/categories';
@@ -222,5 +228,33 @@ export async function getDossier(
     proof: summariseProof(sweep ? [...attestations, sweep] : attestations),
     live,
     record,
+  };
+}
+
+/** §14. Live ecosystem figures. Every number here is counted, never estimated. */
+export interface EcosystemStats {
+  /** Agents in the ERC-8004 registry on this chain, per 8004scan. */
+  registered: number | null;
+  categories: number;
+  agentsMonitored: number;
+  probesTaken: number;
+  probesAnswered: number;
+  sweeps: number;
+}
+
+export async function getEcosystemStats(
+  chainId: ChainId = BSC_MAINNET,
+): Promise<EcosystemStats> {
+  const [page, stats] = await Promise.all([
+    countAgents(chainId).catch(() => null),
+    Promise.resolve(getProbeStore().stats()),
+  ]);
+
+  return {
+    // Null rather than zero when the registry is unreachable: "we could not
+    // read it" and "there are none" are different claims.
+    registered: page?.total ?? null,
+    categories: CATEGORIES.length,
+    ...stats,
   };
 }

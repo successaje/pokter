@@ -120,6 +120,17 @@ export function listAgents({
  * on), `services` (the endpoints we probe live), and 8004scan's own health
  * breakdown, so the detail page never has to guess.
  */
+/** Registry-wide totals, used for the ecosystem panel. Never estimated. */
+export function countAgents(chainId: ChainId): Promise<ScanPage<ScanAgent>> {
+  // The API returns the full match count alongside a page, so a single-item
+  // page is the cheapest way to read the total.
+  return scanFetch<ScanPage<ScanAgent>>(
+    '/agents',
+    { chain_id: chainId, limit: 1 },
+    900,
+  );
+}
+
 export function getAgent(
   chainId: ChainId,
   tokenId: string,
