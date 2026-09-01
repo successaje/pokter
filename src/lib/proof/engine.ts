@@ -41,11 +41,11 @@ export interface ProofSummary {
  * matters is that more than one party checked it, over enough probes, across
  * more than a single instant.
  */
-const PROVEN_MIN_PROBES = 40;
-const PROVEN_MIN_MEASURERS = 2;
-const PROVEN_MIN_WINDOW_DAYS = 1;
-const PROVEN_MIN_SCORE = 0.9;
-const FAILING_MAX_SCORE = 0.5;
+export const PROVEN_MIN_PROBES = 40;
+export const PROVEN_MIN_MEASURERS = 2;
+export const PROVEN_MIN_WINDOW_DAYS = 1;
+export const PROVEN_MIN_SCORE = 0.9;
+export const FAILING_MAX_SCORE = 0.5;
 
 /**
  * Weight an attestation by how much evidence backs it. A 72-probe reading is

@@ -7,21 +7,9 @@ import { toSweepAttestation } from '@/lib/history/attest';
 import { summariseProof } from '@/lib/proof/engine';
 import { computeScore } from '@/lib/score/engine';
 import { BSC_MAINNET } from '@/lib/scan/types';
-import type { Brief, Match, Recommendation, Rejection, RiskTolerance } from './types';
+import type { Brief, Match, Recommendation, Rejection } from './types';
+import { MIN_PROBES, MIN_UPTIME } from './thresholds';
 
-/** How much observed history each risk tolerance demands before recommending. */
-const MIN_UPTIME: Record<RiskTolerance, number> = {
-  low: 0.98,
-  medium: 0.9,
-  high: 0.7,
-};
-
-/** Minimum probes before an agent can be *recommended* rather than merely listed. */
-const MIN_PROBES: Record<RiskTolerance, number> = {
-  low: 20,
-  medium: 10,
-  high: 4,
-};
 
 const HISTORY_DAYS = 30;
 
