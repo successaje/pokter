@@ -8,6 +8,14 @@ activity, attestations, live execution data and scoped, revocable permissions.
 
 Built for the BNB Chain *Smart Money Era* hackathon.
 
+**Live:** https://pokter.fly.dev
+**Demo video:** _<paste the unlisted YouTube link here>_
+
+> The video is hosted rather than committed: a screen recording would outweigh
+> this entire repository many times over, and git keeps large blobs in history
+> permanently even after they are deleted.
+
+
 ## The problem
 
 The ERC-8004 registry on BSC holds **~296,000 agents**. Finding one is not the
