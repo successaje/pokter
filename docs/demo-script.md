@@ -37,12 +37,12 @@ and adjust the narration — do not read a stale number over a live screen.
 **Screen:** the landing hero. Let the agent scene animate; the event cards drift
 in on their own.
 
-> "BNB Chain has nearly three hundred thousand registered agents. Finding one
+> "BNB Chain has over three hundred thousand registered agents. Finding one
 > was never the hard part."
 
 **Action:** scroll once, slowly, to the ecosystem figures.
 
-> "Pokter has measured twenty-four of them. That gap is the entire problem —
+> "Pokter has measured twenty-six of them. That gap is the entire problem —
 > and every number on this page says which side of it it came from."
 
 *Beat. Don't rush the scroll; the counters animate as they enter.*
@@ -58,8 +58,8 @@ in on their own.
 
 **Action:** move across to the right-hand panel.
 
-> "Its endpoint has never answered a single one of our probes. Zero percent.
-> Hiring it is blocked."
+> "Its endpoint has never answered a single one of our probes. Zero of
+> seventy-two. Hiring it is blocked."
 
 > "That's the product in one screen: what an agent says, next to what it does."
 
@@ -74,13 +74,13 @@ in on their own.
 
 **Action:** point at the results header.
 
-> "Pokter considered twelve agents in this category. **Three match. Eight were
-> ruled out** — and it tells you why." **[VERIFY]**
+> "Pokter found twelve relevant agents. **Four match my profile** — and the
+> rest were ruled out, with a reason for each." **[VERIFY]**
 
 **Action:** click **Why not the others?** and let the list expand.
 
-> "'Answered none of sixteen probes.' 'No track record to judge on.' These
-> aren't categories — they're facts you can go and check."
+> "'Answered none of seventy-two probes.' 'No track record to judge on.'
+> These aren't categories — they're facts you can go and check."
 
 ---
 
@@ -89,7 +89,7 @@ in on their own.
 **Screen:** tab 3 — the agent detail page for *Brain on BNB — Venus Health
 Factor Monitor*.
 
-> "Here's the one it recommended. **Pokter Score 83** — but look at the line
+> "Here's the one it recommended. **Pokter Score 87** — but look at the line
 > underneath: **scored on three of five dimensions**." **[VERIFY]**
 
 **Action:** click the score to expand the breakdown.
