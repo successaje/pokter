@@ -16,6 +16,19 @@ Built for the BNB Chain *Smart Money Era* hackathon.
 > permanently even after they are deleted.
 
 
+### What we found while building this
+
+`@altananetwork/sdk@0.8.0` — still the published `latest` — ships a stale
+ERC-8183 policy address for BSC testnet, so job registration reverts
+`0xc94463e3` and hiring fails for **every buyer on chain 97**. We isolated it by
+running the batch's five calls individually, ruled out funding, the documented
+jobId race, relay nonce artifacts and a platform outage, then found the correct
+address by diffing against the reference `@bnbagent/sdk`.
+
+Reported upstream: [altananetwork/altana-sdk#84](https://github.com/altananetwork/altana-sdk/issues/84) ·
+full trace in [docs/integrations/erc8183.md](docs/integrations/erc8183.md)
+
+
 ## The problem
 
 The ERC-8004 registry on BSC holds **~296,000 agents**. Finding one is not the

@@ -51,7 +51,9 @@ it by running the batch's five calls individually and ruling out funding, the
 documented jobId race, relay nonce artifacts and a platform outage before
 diffing the two SDKs' address tables. Mainnet agrees between them; only chain 97
 diverges, so our override is scoped to it. Verified by registering and funding
-job #864 with the corrected address. Full trace in docs/integrations/erc8183.md.
+job #864 with the corrected address. Reported upstream at
+https://github.com/altananetwork/altana-sdk/issues/84 with repro steps and an
+offer to PR the fix; full trace in docs/integrations/erc8183.md.
 
 **TermiX Agent Advantage** (docs/termix-agent-advantage.md, and the
 /agent-advantage page): three tasks, each run through a live third-party agent

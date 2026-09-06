@@ -155,8 +155,15 @@ link.
 
 > "One more thing. Every integration is written up with what worked and what
 > fought back. The Altana SDK documents a wallet signer it doesn't implement.
-> The ERC-8183 SDK ships a stale policy address that made every hire revert
-> until we diffed it against the reference implementation and fixed it."
+> And it ships a stale ERC-8183 policy address for testnet — which means hiring
+> is broken right now for every buyer on the current SDK. We found it, fixed it,
+> and reported it upstream."
+
+**Action:** the ERC-8183 card carries a link — **Reported upstream ·
+altana-sdk#84**. Put the cursor on it for a beat so it is legible, but do not
+click through; the repository is not part of this take.
+
+> "That's the difference between noticing a bug and doing something about it."
 
 **Action:** scroll to the philosophy block. Let it land.
 

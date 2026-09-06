@@ -12,6 +12,8 @@ const OUTCOMES: {
   status: 'working' | 'partial';
   worked: string;
   didnt: string | null;
+  /** Where a finding was reported, when we did more than notice it. */
+  report?: { label: string; href: string };
 }[] = [
   {
     name: 'Altana sessions',
@@ -28,6 +30,10 @@ const OUTCOMES: {
       'Jobs created, registered, funded and escrowed from the product itself, in one atomic batch.',
     didnt:
       'The SDK ships a stale policy address for testnet. Every hire reverted with an undecodable selector until we diffed it against the reference implementation.',
+    report: {
+      label: 'Reported upstream · altana-sdk#84',
+      href: 'https://github.com/altananetwork/altana-sdk/issues/84',
+    },
   },
   {
     name: '8004scan',
@@ -106,6 +112,22 @@ export function Transparency() {
                 </span>
                 {outcome.didnt}
               </p>
+            )}
+
+            {/*
+              Where the finding was not just ours to work around. Noticing a
+              bug and reporting it are different things, and only the second
+              one helps the next person to hit it.
+            */}
+            {outcome.report && (
+              <Link
+                href={outcome.report.href}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-auto w-fit text-[11px] text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+              >
+                {outcome.report.label} ↗
+              </Link>
             )}
           </li>
         ))}
