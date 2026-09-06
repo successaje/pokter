@@ -14,7 +14,7 @@ Current figures live at https://pokter.fly.dev
 
 Most marketplaces rank agents by what they claim. Pokter ranks by what has been observed, and refuses to rank what it cannot verify.
 
-The BNB registry holds 297K agents, and its top-scored ones carry zero attestations. So we separate declared facts from measured ones: attestations decoded from chain to the measurer behind each figure, and agents nobody has checked probed by us on a schedule.
+The BNB registry holds 306K agents, and its top-scored ones carry zero attestations. So we separate declared facts from measured ones: attestations decoded from chain to the measurer behind each figure, and agents nobody has checked probed by us on a schedule.
 
 Optimised for provenance — every number links to its source; honest absence — two of five score dimensions permanently read "not measured", because nobody publishes returns; and scoped delegation — an allowlist, spend cap and expiry, enforced on-chain and revocable.
 
@@ -57,6 +57,18 @@ diverges, so our override is scoped to it. Verified by registering and funding
 job #864 with the corrected address. Reported upstream at
 https://github.com/altananetwork/altana-sdk/issues/84 with repro steps and an
 offer to PR the fix; full trace in docs/integrations/erc8183.md.
+
+**For PancakeSwap LPs, a tool rather than an integration.** `/pool-check` reads
+a live V3 pool — fee tier, current tick, and the liquidity actually sitting at
+that tick — and prices what running an agent costs on a position: pool fees,
+price impact against real liquidity, gas, and the agent's own fee. It reports a
+**break-even**: the improvement in fee capture the agent must deliver before
+hiring it leaves the LP better off. The cost is computed exactly because it can
+be; the benefit is refused because no agent publishes returns and nothing
+on-chain attributes fee capture to a rebalance. On a $25,000 position
+rebalancing eight times a month, the same agent must earn 1.70% on WBNB/USDT and
+9.20% on CAKE/WBNB — the difference that decides whether delegating is sensible
+at all.
 
 **TermiX Agent Advantage** (docs/termix-agent-advantage.md, and the
 /agent-advantage page): three tasks, each run through a live third-party agent
