@@ -6,12 +6,12 @@
  * Intended to be driven by cron / launchd on a schedule. Each run appends to the
  * probe history; the track record is whatever those runs accumulate.
  */
-import { runSweep } from '../src/lib/history/sweep';
+import { runSweep, SWEEP_PER_CATEGORY } from '../src/lib/history/sweep';
 
 async function main() {
   const startedAt = Date.now();
   const outcome = await runSweep({
-    perCategory: Number(process.env.SWEEP_PER_CATEGORY ?? 6),
+    perCategory: Number(process.env.SWEEP_PER_CATEGORY ?? SWEEP_PER_CATEGORY),
     samples: Number(process.env.SWEEP_SAMPLES ?? 2),
   });
 

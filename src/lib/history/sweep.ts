@@ -63,9 +63,20 @@ async function buildRoster(
  * right now; only a sweep repeated over days can say whether it has *stayed* up,
  * which is the claim the marketplace actually needs to make.
  */
+/**
+ * How many agents per category the sweep measures.
+ *
+ * Matched to what the category pages actually list. When this was six and the
+ * pages showed twelve, half of every category was displayed but never
+ * measured — including attested agents that were plainly live, which then read
+ * as having no track record. An agent the product is willing to show is an
+ * agent the product should be willing to check.
+ */
+export const SWEEP_PER_CATEGORY = 12;
+
 export async function runSweep({
   chainId = BSC_MAINNET,
-  perCategory = 6,
+  perCategory = SWEEP_PER_CATEGORY,
   samples = 2,
 }: SweepOptions = {}): Promise<SweepOutcome> {
   const store = getProbeStore();

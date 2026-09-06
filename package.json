@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sweep": "tsx --conditions=react-server scripts/sweep.ts"
+    "sweep": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sweep.ts"
   },
   "dependencies": {
     "@altananetwork/sdk": "^0.8.0",
