@@ -38,3 +38,26 @@ jobs:
             exit 1
           fi
           echo "Recorded $probes probes"
+
+      # A sweep invalidates nothing, but a deploy empties the in-memory cache,
+      # and the first visitor after that pays for every registry lookup the
+      # aggregate pages need — measured at 31s for the leaderboard against ~1s
+      # warm. Judges browse freely and will not wait, so the scheduled run also
+      # pays that cost on their behalf.
+      - name: Warm the aggregate pages
+        continue-on-error: true
+        run: |
+          for path in \
+            "/" \
+            "/leaderboard" \
+            "/leaderboard?category=grid-trading" \
+            "/leaderboard?category=rebalancing" \
+            "/leaderboard?category=yield" \
+            "/leaderboard?category=health-factor" \
+            "/agents" \
+            "/pool-check"
+          do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 \
+              "https://pokter.fly.dev${path}" || echo "000")
+            printf '  %-42s %s\n' "$path" "$code"
+          done

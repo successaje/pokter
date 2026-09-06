@@ -27,17 +27,25 @@ counts move on their own.
    - *Browser wallet on BSC testnet* — more predictable.
    - *Neither* — you can still narrate the permission panel, which is the part
      that matters. Do not pretend a grant happened.
-6. **Re-verify the four spoken numbers.** Load the landing page and
-   `/discover?objective=protect&capital=5000&risk=medium&horizon=30&run=1`, and
-   check them against the table below. If one has moved, change the narration —
-   never read a stale figure over a live screen.
+6. **Re-verify the spoken numbers.** Run:
 
-| Spoken in the script | Verified value |
+   ```bash
+   npm run figures
+   ```
+
+   It reads the deployed site and prints what is currently true. Sweeps run
+   every two hours, so anything written into a document — including the table
+   below — starts ageing immediately. The table is a snapshot, not a source.
+
+| Spoken in the script | Value on 2 Sep 2026 |
 | --- | --- |
-| "over three hundred thousand registered agents" | 305.8K |
-| "measured twenty-six of them" | 26 monitored |
+| registered agents | 306.4K |
+| agents monitored | 38 |
 | "twelve relevant agents, four match" | 12 found, 4 match |
 | "Pokter Score 87, three of five dimensions" | 87 / 100 |
+
+   If a figure has moved, change the narration. Never read a stale number over
+   a live screen — that is precisely the failure this product exists to prevent.
 
 7. **Open six tabs, in this order.** You should never type a URL on camera.
 
@@ -70,8 +78,9 @@ rushing the evidence section is not.
 | **Do** | Nothing for three seconds — let the agent scene animate and the event cards drift in on their own |
 | **Then** | One slow scroll to the ecosystem counters. They animate as they enter; if you scroll fast you will scrub past the animation and it looks static |
 
-The counters are the beat. Land on **305.8K registered / 26 monitored** and let
-the gap between those two numbers sit for a second before you speak over it.
+The counters are the beat. Land on the two of them — registered against
+monitored — and let the gap sit for a second before speaking over it. Check the
+current values with `npm run figures` first; they move every two hours.
 
 ### 0:22 – 0:45 · Don't trust the pitch · *tab 1*
 

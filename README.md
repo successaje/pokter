@@ -66,7 +66,7 @@ publishes them and inferring them from uptime would be fabrication.
 
 **We produce evidence, not just consume it.** Because so few agents carry
 attestations, Pokter measures agents itself: scheduled sweeps probe declared
-endpoints every two hours and accumulate a track record — **1,700+ probes** so
+endpoints every two hours and accumulate a track record — **2,000+ probes** so
 far — published in the same shape as third-party attestations, including the
 defects our own method has.
 
