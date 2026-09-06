@@ -47,7 +47,18 @@ counts move on their own.
    If a figure has moved, change the narration. Never read a stale number over
    a live screen — that is precisely the failure this product exists to prevent.
 
-7. **Open six tabs, in this order.** You should never type a URL on camera.
+7. **Grant one fresh session before you record.** `/my-agents` currently reads
+   *0 active permissions* — both existing sessions have expired or been revoked.
+   That is the system behaving correctly, but it makes a weak frame: the
+   permission beat is stronger when the page shows an **active** session with a
+   live spend cap and a running expiry, sitting beside the expired one and the
+   revoked one. That trio is the whole argument — permissions are granted
+   scoped, and they end.
+
+   Grant it from `/hire/56/302257` a few minutes before recording, and pick the
+   7-day expiry so it cannot lapse mid-take.
+
+8. **Open six tabs, in this order.** You should never type a URL on camera.
 
 ```
 1  https://pokter.fly.dev/
@@ -58,9 +69,9 @@ counts move on their own.
 6  https://pokter.fly.dev/my-agents
 ```
 
-8. **Load every tab once** so they are all warm, then return to tab 1 and scroll
+9. **Load every tab once** so they are all warm, then return to tab 1 and scroll
    back to the top.
-9. **Keep BscScan open in a seventh tab** on `0x62a590ae…`, the session grant,
+10. **Keep BscScan open in a seventh tab** on `0x62a590ae…`, the session grant,
    in case a judge asks you to prove a transaction live.
 
 ---
