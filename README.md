@@ -100,6 +100,11 @@ Everything below is on BSC testnet and independently verifiable.
 | ERC-8183 job hired end-to-end from the product | [`0x40b9fe98…`](https://testnet.bscscan.com/tx/0x40b9fe982b9af6542342c7cea3fbefeabb913e868aadbe15ca153de9ea9e87a8) |
 | Escrow funded | [`0x711855b9…`](https://testnet.bscscan.com/tx/0x711855b98171278e47e51e891d454dc9ef1def728c58e837466ba20085cc7599) |
 
+The same account in the **[Altana Keystore explorer](https://testnet.altana.network/account/0xAe4473468F10b507AB410077FA266FD8c5Af2196)** — one root
+key active, three session keys expired or revoked. The lifecycle is the point:
+sessions are issued scoped, and they end, either by expiry or because someone
+revoked them.
+
 **The permission scoping is enforced on-chain, not in our UI.** We granted two
 sessions with deliberately different scopes and diffed the calldata: the
 rebalancer grant carries the PancakeSwap Position Manager address; the
