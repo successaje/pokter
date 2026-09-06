@@ -20,6 +20,7 @@ const PRIMARY = [
   { href: '/agents', label: 'Agents' },
   { href: '/compare', label: 'Compare' },
   { href: '/leaderboard', label: 'Rankings' },
+  { href: '/pool-check', label: 'Pool check' },
   { href: '/my-agents', label: 'My agents' },
 ];
 

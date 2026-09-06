@@ -10,6 +10,7 @@ const COLUMNS: { heading: string; links: { label: string; href: string; external
       { label: 'All agents', href: '/agents' },
       { label: 'Compare', href: '/compare' },
       { label: 'Rankings', href: '/leaderboard' },
+      { label: 'Pool check', href: '/pool-check' },
       { label: 'My agents', href: '/my-agents' },
     ],
   },

@@ -117,9 +117,15 @@ where the true figure is 2.84%**, wrong by 6.67× with no error to warn them.
 The agent got it right. We also state that our manual baseline was run by an AI
 assistant rather than a human, so the comparison is machine-to-machine.
 
-**PancakeSwap.** Router and Position Manager are the allowlisted execution
-venues in the permission model, verified to hold bytecode on both chains rather
-than trusted from documentation.
+**PancakeSwap.** Beyond allowlisting the Router and Position Manager as
+execution venues, `/pool-check` gives LPs something they cannot get elsewhere:
+what an agent would cost on their actual position, priced against live V3 pool
+state, expressed as the break-even improvement in fee capture the agent has to
+deliver. The cost side is computed exactly because it can be; the benefit is
+refused because no agent publishes returns. On a $25,000 position rebalancing
+eight times a month, the same agent must earn 1.70% on WBNB/USDT and 9.20% on
+CAKE/WBNB — the kind of difference that decides whether delegating is sensible
+at all.
 
 **8004scan.** The discovery and reputation backbone. Server-side only, key never
 reaching the browser, cached and rate-limited, with in-flight request

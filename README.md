@@ -118,6 +118,28 @@ comparison, including the task the agent lost, is in
 [`docs/termix-agent-advantage.md`](docs/termix-agent-advantage.md) and on
 [`/agent-advantage`](https://pokter.fly.dev/agent-advantage).
 
+## For PancakeSwap liquidity providers
+
+`/pool-check` answers a question an LP has before delegating a
+concentrated-liquidity position: **will this agent pay for itself?**
+
+It reads the V3 pool live — fee tier, current tick, and the liquidity actually
+sitting at that tick — and prices what running an agent would cost: pool fees,
+price impact against real liquidity, gas, and the agent's own per-job fee. The
+output is a **break-even**: the improvement in fee capture the agent must deliver
+before hiring it leaves the LP better off.
+
+The asymmetry is the point. The cost is computable, so it is computed exactly.
+The benefit is not — no agent publishes realised returns, and nothing on-chain
+attributes fee capture to a rebalance decision — so it is not guessed. A
+break-even is the honest form of the question, and unlike a forecast it is
+something an LP can hold an agent to after a month.
+
+The same agent on a $25,000 position rebalancing eight times a month needs
+**1.70%** on WBNB/USDT and **9.20%** on CAKE/WBNB: a thinner pool and a five-times
+wider fee tier change the answer completely, which is exactly what an LP needs to
+know before delegating.
+
 ## Architecture
 
 ```
