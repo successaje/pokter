@@ -32,24 +32,68 @@ and adjust the narration — do not read a stale number over a live screen.
 
 ---
 
-## 0:00 – 0:22 · The problem
+## 0:00 – 0:20 · Cold open · *animated, no product*
 
-**Screen:** the landing hero. Let the agent scene animate; the event cards drift
-in on their own.
+The only twenty seconds that are not screen recording. It exists to make the
+scale legible before the app has to explain anything, and it ends on the
+sentence the product is named for.
 
-> "BNB Chain has over three hundred thousand registered agents. Finding one
-> was never the hard part."
+**Beat 1 (0:00 – 0:07).** A field of small agent cards fills the frame, far too
+many to count. A counter runs up to **306,000**.
 
-**Action:** scroll once, slowly, to the ecosystem figures.
+> "BNB Chain has three hundred and six thousand registered agents."
 
-> "Pokter has measured twenty-six of them. That gap is the entire problem —
-> and every number on this page says which side of it it came from."
+**Beat 2 (0:07 – 0:14).** Cards begin falling away in waves, each wave labelled
+as it goes: `no endpoint`, `never answered`, `no evidence`, `bulk-minted clone`.
+The field thins fast. This is the whole argument — the narrowing is the product.
 
-*Beat. Don't rush the scroll; the counters animate as they enter.*
+> "Almost none of them can be checked."
+
+**Beat 3 (0:14 – 0:20).** A handful remain, and settle. The counter beneath them
+reads **38 measured**.
+
+> "Pokter measures the ones that can."
+
+Then cut straight to the live site. No logo card, no title sequence — the cut
+from the animation to the real product is the point, and a title slide would
+blunt it.
+
+**Producing it.** Two honest options:
+
+1. **Screen-record the landing page instead.** The hero already animates: the
+   agent scene, the drifting event cards, the pipeline. It costs nothing, it is
+   real product, and it cannot look worse than it does in the browser.
+2. **Build it as a page and record that**, so it inherits the design system and
+   the numbers come from the same source as everything else.
+
+Do not hand-animate this in a video editor unless you are quick at it. It is the
+highest-effort, lowest-scoring part of the take, and a rough animation in front
+of a strong demo reads worse than no animation at all.
 
 ---
 
-## 0:22 – 0:45 · Don't trust the pitch
+## 0:20 – 0:32 · The landing
+
+**Screen:** the landing hero, live. Let the agent scene animate for two seconds
+before speaking — the event cards drift in on their own, and they are real
+events, not decoration.
+
+The cold open already gave the numbers. Do not repeat them here; this beat
+exists to show that the thing in the animation is an actual product.
+
+> "That is this. Every figure on the page carries where it came from — measured,
+> attested, or merely declared — and it will never let you confuse the three."
+
+**Action:** one slow scroll to the ecosystem figures, then stop. The counters
+animate as they enter, so scrolling fast scrubs past the animation and it reads
+as static.
+
+*Twelve seconds is tight. If you overrun here, take it out of Compare, not out
+of the evidence beat.*
+
+---
+
+## 0:32 – 0:52 · Don't trust the pitch
 
 **Screen:** scroll to **THE PROBLEM** — the claim-versus-evidence panel.
 
@@ -65,7 +109,7 @@ in on their own.
 
 ---
 
-## 0:45 – 1:10 · The brief
+## 0:52 – 1:15 · The brief
 
 **Screen:** tab 2 — `/discover` with the brief already filled.
 
@@ -84,7 +128,7 @@ in on their own.
 
 ---
 
-## 1:10 – 1:45 · The evidence
+## 1:15 – 1:50 · The evidence
 
 **Screen:** tab 3 — the agent detail page for *Brain on BNB — Venus Health
 Factor Monitor*.
@@ -112,7 +156,7 @@ link.
 
 ---
 
-## 1:45 – 2:05 · Compare
+## 1:50 – 2:08 · Compare
 
 **Screen:** tab 4 — three agents side by side.
 
@@ -126,7 +170,7 @@ link.
 
 ---
 
-## 2:05 – 2:35 · The permission
+## 2:08 – 2:35 · The permission
 
 **Screen:** tab 5 — the hire flow.
 
@@ -149,7 +193,7 @@ link.
 
 ---
 
-## 2:35 – 3:00 · The position
+## 2:35 – 2:50 · The position
 
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
@@ -164,6 +208,10 @@ altana-sdk#84**. Put the cursor on it for a beat so it is legible, but do not
 click through; the repository is not part of this take.
 
 > "That's the difference between noticing a bug and doing something about it."
+
+---
+
+## 2:50 – 3:00 · Close
 
 **Action:** scroll to the philosophy block. Let it land.
 
