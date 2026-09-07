@@ -29,7 +29,7 @@ function parseBrief(params: Record<string, string | string[] | undefined>): Brie
 
 async function Results({ brief }: { brief: Brief }) {
   const result = await recommend(brief);
-  const matchCount = (result.recommended ? 1 : 0) + result.alternatives.length;
+  const matchCount = result.matched;
 
   return (
     <div className="flex flex-col gap-8">
@@ -41,8 +41,21 @@ async function Results({ brief }: { brief: Brief }) {
         <p className="text-sm text-[color:var(--text-secondary)]">
           {matchCount === 0
             ? 'None currently have enough evidence to recommend at this risk tolerance.'
-            : `${matchCount} match your profile.`}
+            : `${matchCount} match your profile, ${result.rejected.length} ruled out.`}
         </p>
+        {/*
+          The surplus is stated rather than dropped. Only the leading few
+          alternatives are rendered, and an agent that cleared every filter but
+          fell outside that cut has not been ruled out — saying so is the
+          difference between a shortlist and a silent truncation.
+        */}
+        {result.recommended && matchCount > result.alternatives.length + 1 && (
+          <p className="text-[11px] text-[color:var(--text-faint)]">
+            Showing the {result.alternatives.length + 1} strongest.{' '}
+            {matchCount - result.alternatives.length - 1} more cleared every
+            filter and are not listed here.
+          </p>
+        )}
       </div>
 
       {result.recommended ? (
@@ -65,6 +78,8 @@ async function Results({ brief }: { brief: Brief }) {
         </div>
       )}
 
+      <WhyNot rejected={result.rejected} />
+
       {result.alternatives.length > 0 && (
         <div className="flex flex-col gap-4">
           <h3 className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
@@ -78,7 +93,6 @@ async function Results({ brief }: { brief: Brief }) {
         </div>
       )}
 
-      <WhyNot rejected={result.rejected} />
 
       {/* §82 / §98. State the blind spots rather than implying there are none. */}
       <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">

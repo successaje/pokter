@@ -40,6 +40,14 @@ export interface Recommendation {
   recommended: Match | null;
   alternatives: Match[];
   rejected: Rejection[];
+  /**
+   * How many agents cleared every filter, which is not the same as how many
+   * are displayed. `alternatives` is capped so the page stays readable, and
+   * without this the surplus would vanish silently — neither recommended, nor
+   * shown, nor ruled out.
+   */
+  matched: number;
+  rejected_count?: never;
   /** Total candidates considered before filtering. */
   considered: number;
   /**

@@ -188,8 +188,10 @@ export async function recommend(brief: Brief): Promise<Recommendation> {
   return {
     brief,
     recommended: matches[0] ?? null,
+    // Capped for readability, not because the rest failed anything.
     alternatives: matches.slice(1, 4),
     rejected,
+    matched: matches.length,
     considered: candidates.length,
     limitations: limitationsFor(brief),
   };
