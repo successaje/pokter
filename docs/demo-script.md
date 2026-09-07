@@ -32,70 +32,36 @@ and adjust the narration — do not read a stale number over a live screen.
 
 ---
 
-## 0:00 – 0:20 · Cold open · *animated, no product*
+## 0:00 – 0:22 · The opening · *no animation*
 
-The only twenty seconds that are not screen recording. It exists to make the
-scale legible before the app has to explain anything, and it ends on the
-sentence the product is named for.
+There is no animated cold open. A rough animation in front of a strong demo
+sets an expectation the demo then has to climb out of, and the landing page
+already does the same work with real footage: the hero animates, the event
+cards drift in on their own, and the counters run as they enter.
 
-**Beat 1 (0:00 – 0:07).** A field of small agent cards fills the frame, far too
-many to count. A counter runs up to **306,000**.
+**Screen:** the landing hero. Let it move for two full seconds before speaking.
 
-> "BNB Chain has three hundred and six thousand registered agents."
+> "BNB Chain has three hundred and seven thousand registered agents."
 
-**Beat 2 (0:07 – 0:14).** Cards begin falling away in waves, each wave labelled
-as it goes: `no endpoint`, `never answered`, `no evidence`, `bulk-minted clone`.
-The field thins fast. This is the whole argument — the narrowing is the product.
+**Action:** begin one slow scroll toward the ecosystem counters. Slow enough
+that they animate rather than scrub past.
 
-> "Almost none of them can be checked."
+> "Finding one was never the hard part. Pokter has measured thirty-nine of them.
+> That gap is the whole problem."
 
-**Beat 3 (0:14 – 0:20).** A handful remain, and settle. The counter beneath them
-reads **38 measured**.
+**Action:** stop on the counters and hold.
 
-> "Pokter measures the ones that can."
-
-Then cut straight to the live site. No logo card, no title sequence — the cut
-from the animation to the real product is the point, and a title slide would
-blunt it.
-
-**Producing it.** Two honest options:
-
-1. **Screen-record the landing page instead.** The hero already animates: the
-   agent scene, the drifting event cards, the pipeline. It costs nothing, it is
-   real product, and it cannot look worse than it does in the browser.
-2. **Build it as a page and record that**, so it inherits the design system and
-   the numbers come from the same source as everything else.
-
-Do not hand-animate this in a video editor unless you are quick at it. It is the
-highest-effort, lowest-scoring part of the take, and a rough animation in front
-of a strong demo reads worse than no animation at all.
-
----
-
-## 0:20 – 0:30 · The landing
-
-**Screen:** the landing hero, live. Let the agent scene animate for two seconds
-before speaking — the event cards drift in on their own, and they are real
-events, not decoration.
-
-The cold open already gave the numbers. Do not repeat them here; this beat
-exists to show that the thing in the animation is an actual product.
-
-> "That is this. Every figure on the page carries where it came from — measured,
+> "Because every figure on this page carries where it came from — measured,
 > attested, or merely declared — and it will never let you confuse the three.
 > The identities and the attestations come from 8004scan, which is what makes
 > three hundred thousand agents addressable in the first place."
 
-**Action:** one slow scroll to the ecosystem figures, then stop. The counters
-animate as they enter, so scrolling fast scrubs past the animation and it reads
-as static.
-
-*Twelve seconds is tight. If you overrun here, take it out of Compare, not out
-of the evidence beat.*
+*The two counters sitting side by side are the argument. Do not talk over the
+moment they land.*
 
 ---
 
-## 0:30 – 0:50 · Don't trust the pitch
+## 0:22 – 0:42 · Don't trust the pitch
 
 **Screen:** scroll to **THE PROBLEM** — the claim-versus-evidence panel.
 
@@ -111,7 +77,7 @@ of the evidence beat.*
 
 ---
 
-## 0:50 – 1:12 · The brief
+## 0:42 – 1:04 · The brief
 
 **Screen:** tab 2 — `/discover` with the brief already filled.
 
@@ -130,7 +96,7 @@ of the evidence beat.*
 
 ---
 
-## 1:12 – 1:45 · The evidence
+## 1:04 – 1:37 · The evidence
 
 **Screen:** tab 3 — the agent detail page for *Brain on BNB — Venus Health
 Factor Monitor*.
@@ -158,7 +124,7 @@ link.
 
 ---
 
-## 1:45 – 1:55 · Compare
+## 1:37 – 1:47 · Compare
 
 **Screen:** tab 4 — three agents side by side.
 
@@ -172,7 +138,7 @@ link.
 
 ---
 
-## 1:55 – 2:10 · What it costs · *tab 7 — `/pool-check`*
+## 1:47 – 2:02 · What it costs · *tab 7 — `/pool-check`*
 
 **Screen:** `/pool-check`, WBNB/USDT selected.
 
@@ -196,7 +162,7 @@ number moving five-fold is the argument.*
 
 ---
 
-## 2:10 – 2:42 · The permission
+## 2:02 – 2:34 · The permission
 
 **Screen:** tab 5 — the hire flow.
 
@@ -246,7 +212,7 @@ confidence.*
 
 ---
 
-## 2:42 – 3:00 · The escrow · *same page, stage 2*
+## 2:34 – 2:52 · The escrow · *same page, stage 2*
 
 **Screen:** scroll down to **Commission work** — still the hire page, wallet
 still connected.
@@ -275,7 +241,7 @@ believes the rest of the screen.*
 
 ---
 
-## 3:00 – 3:12 · The position
+## 2:52 – 3:04 · The position
 
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
@@ -293,7 +259,7 @@ click through; the repository is not part of this take.
 
 ---
 
-## 3:12 – 3:24 · Close
+## 3:04 – 3:16 · Close
 
 **Action:** hold for a beat before the closing lines.
 

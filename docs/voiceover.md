@@ -1,7 +1,12 @@
 # Pokter — voiceover
 
-Read this against the cut you recorded. Roughly 420 words, which lands near
-3:20 at a normal speaking pace.
+Read this against the cut you recorded. Roughly 400 words, which lands near
+3:05 at a normal speaking pace.
+
+**There is no animated cold open.** It opens on the landing page instead, whose
+hero already animates and whose counters carry the same two numbers the
+animation was going to state. Real product doing the job, and one less thing
+that can look cheap.
 
 **Delivery.** Slow down rather than speed up. Every gap marked *(pause)* is
 doing work — especially the ones over transactions confirming, where silence
@@ -14,27 +19,28 @@ them with `npm run figures`.
 
 ---
 
-## Cold open — over the animation
+## Opening — over the landing page
+
+*No animation. The hero already moves: the agent scene animates, the event cards
+drift in on their own, and the counters run as they enter. That is real product
+doing the job a title sequence was going to fake.*
+
+*Open on the hero. Let it move for two full seconds before speaking.*
 
 > BNB Chain has three hundred and seven thousand registered agents.
 >
-> *(pause, as the field starts going dark)*
+> *(pause — begin the slow scroll toward the counters)*
 >
-> Almost none of them can be checked.
+> Finding one was never the hard part.
 >
-> *(pause, on the survivors)*
+> *(the counters land — registered against monitored)*
 >
-> Pokter measures the ones that can.
-
-*(silence into the cut — let the first frame of the real site land with no
-narration over it)*
-
----
-
-## The landing
-
-> Every figure on this page carries where it came from. Measured, attested, or
-> merely declared — and it will never let you confuse the three.
+> Pokter has measured thirty-nine of them. That gap is the whole problem.
+>
+> *(pause — let the two numbers sit together)*
+>
+> Because every figure on this page carries where it came from. Measured,
+> attested, or merely declared — and it will never let you confuse the three.
 >
 > The identities and the attestations come from 8004scan, which is what makes
 > three hundred thousand agents addressable in the first place.

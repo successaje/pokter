@@ -1,5 +1,10 @@
 # Cold open — prompts for an AI video generator
 
+> **Not used.** The final cut opens on the landing page instead — its hero
+> already animates and its counters carry the same two numbers. Kept because
+> the concept is sound and may be worth revisiting for a launch film; it is not
+> part of the hackathon submission.
+
 Twenty seconds, three shots, no dialogue. Paste each shot separately: most
 generators cap a clip at 5–10 seconds, so this is built to be stitched.
 

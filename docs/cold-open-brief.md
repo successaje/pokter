@@ -1,5 +1,10 @@
 # Cold open — one brief for an AI animator
 
+> **Not used.** The final cut opens on the landing page instead — its hero
+> already animates and its counters carry the same two numbers. Kept because
+> the concept is sound and may be worth revisiting for a launch film; it is not
+> part of the hackathon submission.
+
 Twenty seconds, no dialogue in the animation itself (voiceover is laid over it).
 Hand this whole page over. Shot-by-shot prompts for clip-based generators are in
 [cold-open-prompt.md](cold-open-prompt.md) — use those if your tool only takes
