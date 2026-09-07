@@ -172,12 +172,16 @@ registry, so we have no way to tell it a job is waiting. Nothing has been
 delivered, and the job status track shows exactly that rather than a completion
 we cannot evidence.
 
-**A browser wallet cannot sign a session grant.** `@altananetwork/sdk@0.8.0`
-documents `signerFromInjected` but neither exports nor implements it, and
-browser wallets no longer expose the raw digest that signing a session key
-requires. So MetaMask and friends can identify you, but not authorise on your
-behalf — in that case Pokter's operator key signs, and the interface says so on
-the button you are about to press.
+**A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships no injected-wallet signer. In 0.8.0 a doc comment
+in `internal/signer.d.ts` said the SDK ships three signers and named
+`signerFromInjected` — "MetaMask / Rabby / any EIP-1193 provider" — but it was
+never exported or implemented. 0.9.0 removed the comment; the gap itself
+remains. Browser wallets also no longer expose the raw digest that the SDK's
+`Signer.signDigest` needs, so this may not be implementable as the interface
+stands. So
+MetaMask and friends can identify you, but not authorise on your behalf — in
+that case Pokter's operator key signs, and the interface says so on the button
+you are about to press.
 
 The passkey path is the real answer and it does work: the key is created in
 your device's secure enclave, never leaves it, and Pokter cannot sign for you.

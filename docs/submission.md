@@ -168,9 +168,10 @@ category.
 - **Funded jobs sit at `FUNDED`.** Escrow is on-chain and visible, but the
   seller runtime has no poller and its endpoint is not discoverable in the
   registry, so we cannot notify it.
-- **The visitor's wallet does not sign.** `@altananetwork/sdk@0.8.0` documents
-  `signerFromInjected` but neither exports nor implements it — and browser
-  wallets no longer expose the raw digest signing a session needs. We built the
+- **The visitor's wallet does not sign.** The SDK ships no injected-wallet
+  signer. 0.8.0 carried a doc comment naming `signerFromInjected` that was
+  never implemented; 0.9.0 removed the comment and the gap remains. Browser
+  wallets also no longer expose the raw digest `Signer.signDigest` needs. We built the
   passkey path, which does give real custody, and the interface states which key
   signed.
 - **Performance and risk are never scored.** Nobody publishes the data.

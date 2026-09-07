@@ -92,9 +92,11 @@ machine-to-machine, and we say so rather than inventing a human figure.
 - Funded ERC-8183 jobs sit at FUNDED. Escrow is on-chain and visible, but the
   seller runtime has no poller and its endpoint is not discoverable in the
   registry, so we cannot notify it.
-- The visitor's browser wallet does not sign session grants. The Altana SDK
-  documents `signerFromInjected` but neither exports nor implements it, and
-  browser wallets no longer expose the raw digest signing a session requires. We
+- The visitor's browser wallet does not sign session grants. The SDK ships no
+  injected-wallet signer: 0.8.0 carried a doc comment naming
+  `signerFromInjected` that was never implemented, 0.9.0 removed the comment,
+  and the gap remains. Browser wallets also no longer expose the raw digest
+  `Signer.signDigest` needs. We
   built the WebAuthn passkey path, which does give real custody, and the
   interface always states which key signed.
 - Performance and risk are never scored, because nobody publishes the data.

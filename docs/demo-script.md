@@ -246,7 +246,7 @@ believes the rest of the screen.*
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
 > "One more thing. Every integration is written up with what worked and what
-> fought back. The Altana SDK documents a wallet signer it doesn't implement.
+> fought back. The Altana SDK ships no browser-wallet signer at all.
 > And hiring failed on a stale policy address that decoded to nothing — we
 > isolated it, fixed it, and reported it. The maintainers had already patched it
 > days earlier, so we upgraded and deleted our workaround. That correction is on
