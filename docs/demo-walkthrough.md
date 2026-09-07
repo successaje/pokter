@@ -21,7 +21,14 @@ counts move on their own.
    video; light reads better if it will be projected. Do not switch mid-take.
 4. **Silence everything.** Notifications, calendar alerts, Slack. A banner
    across a permission screen is the one frame you cannot cut around.
-5. **Decide the wallet path now.**
+5. **You no longer need a wallet to show the permission model.** The review —
+   the can-call and cannot-call lists, the spend cap, the expiry, and the line
+   about the account contract enforcing it — renders for everyone. Only the
+   button that signs is held back. So the permission beat works with no wallet
+   at all, and the button reading *Connect a wallet to authorize* is itself
+   honest on camera.
+
+   Connect one only if you want to sign live. Decide which:
    - *Passkey* — stronger story, real device custody, but the biometric prompt
      is a system dialog you cannot script. Rehearse it once.
    - *Browser wallet on BSC testnet* — more predictable.

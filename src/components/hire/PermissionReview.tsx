@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCommitLock } from '@/components/hire/WalletGate';
 
 import { cn } from '@/lib/ui/cn';
 import { shortAddress, shortHash } from '@/lib/ui/format';
@@ -36,6 +37,7 @@ export function PermissionReview({
   explorerBase: string;
   isTestnet: boolean;
 }) {
+  const { locked, reason } = useCommitLock();
   const [spendCap, setSpendCap] = useState(0.05);
   const [period, setPeriod] = useState<SpendPeriod>('week');
   const [expiryDays, setExpiryDays] = useState(7);
@@ -335,10 +337,15 @@ export function PermissionReview({
           <button
             type="button"
             onClick={authorize}
-            disabled={state === 'granting'}
+            disabled={state === 'granting' || locked}
+            title={reason ?? undefined}
             className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {state === 'granting' ? 'Registering session…' : 'Authorize agent'}
+            {state === 'granting'
+              ? 'Registering session…'
+              : locked
+                ? 'Connect a wallet to authorize'
+                : 'Authorize agent'}
           </button>
         )}
 

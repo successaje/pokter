@@ -203,7 +203,9 @@ number moving five-fold is the argument.*
 > "Now the part that decides whether any of this matters. Before anything is
 > granted, this is what the agent would be allowed to do."
 
-**Action:** rest on the **Can call / Cannot call** panel.
+**Action:** rest on the **Can call / Cannot call** panel. No wallet is needed
+for any of this — the review renders for everyone, and only the signing button
+is held back.
 
 > "Allowlisted contracts, a spend cap, an expiry. And the 'cannot' list is as
 > prominent as the 'can' — it can't touch arbitrary contracts, can't move your

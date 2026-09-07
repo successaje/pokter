@@ -6,6 +6,7 @@ import { cn } from '@/lib/ui/cn';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
+import { useCommitLock } from '@/components/hire/WalletGate';
 
 /**
  * A provider the escrow can actually reach.
@@ -35,6 +36,7 @@ export function CommissionPanel({
   escrowChainId: number;
   explorerBase: string;
 }) {
+  const { locked, reason } = useCommitLock();
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable)?.address ?? providers[0]?.address ?? '',
   );
@@ -202,10 +204,17 @@ export function CommissionPanel({
         <button
           type="button"
           onClick={commission}
-          disabled={state === 'hiring' || !providerAddress || task.trim().length === 0}
+          disabled={
+            state === 'hiring' || locked || !providerAddress || task.trim().length === 0
+          }
+          title={reason ?? undefined}
           className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {state === 'hiring' ? 'Funding escrow…' : `Commission for ${budget} $U`}
+          {state === 'hiring'
+            ? 'Funding escrow…'
+            : locked
+              ? 'Connect a wallet to commission'
+              : `Commission for ${budget} $U`}
         </button>
       )}
 
