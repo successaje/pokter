@@ -86,8 +86,9 @@ defects our own method has.
 | Altana scoped sessions — grant, register, revoke | **Verified on-chain** |
 | ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain** |
 | Passkey wallets (WebAuthn, user-held) | Working |
-| Agent delivery after funding | **Not working** — see below |
-| Session grants signed by the visitor's wallet | **Not working** — see below |
+| Session grants signed by the visitor's own key | Working **via passkey**; browser wallets cannot |
+| Agent delivery after funding | **Not working** — [why](#what-does-not-work) |
+| Performance and risk scoring | **Never** — [why](#what-does-not-work) |
 
 ## Evidence
 
@@ -147,6 +148,38 @@ The same agent on a $25,000 position rebalancing eight times a month needs
 **1.70%** on WBNB/USDT and **9.20%** on CAKE/WBNB: a thinner pool and a five-times
 wider fee tier change the answer completely, which is exactly what an LP needs to
 know before delegating.
+
+## What does not work
+
+Three things, stated here rather than discovered.
+
+**Funded jobs stop at `FUNDED`.** The escrow is real, on-chain and visible, and
+the money is held by the ERC-8183 kernel rather than by us. But the seller's
+runtime has no poller and its endpoint is not discoverable through the
+registry, so we have no way to tell it a job is waiting. Nothing has been
+delivered, and the job status track shows exactly that rather than a completion
+we cannot evidence.
+
+**A browser wallet cannot sign a session grant.** `@altananetwork/sdk@0.8.0`
+documents `signerFromInjected` but neither exports nor implements it, and
+browser wallets no longer expose the raw digest that signing a session key
+requires. So MetaMask and friends can identify you, but not authorise on your
+behalf — in that case Pokter's operator key signs, and the interface says so on
+the button you are about to press.
+
+The passkey path is the real answer and it does work: the key is created in
+your device's secure enclave, never leaves it, and Pokter cannot sign for you.
+The permission panel always states which key signed, because a permission model
+that is vague about who holds the key is not one.
+
+**Performance and risk are never scored.** Not a gap we intend to close — no
+agent publishes realised returns, and nothing on-chain attributes profit or
+loss to a specific agent's decision. Both dimensions read *not measured*
+permanently, and the Pokter Score rescales across what is left rather than
+quietly filling them in.
+
+Each is written up with the exact error in
+[`docs/integrations/`](docs/integrations/).
 
 ## Architecture
 
