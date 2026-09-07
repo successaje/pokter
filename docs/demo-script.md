@@ -196,7 +196,7 @@ number moving five-fold is the argument.*
 
 ---
 
-## 2:13 – 2:38 · The permission
+## 2:13 – 2:42 · The permission
 
 **Screen:** tab 5 — the hire flow.
 
@@ -218,14 +218,35 @@ is held back.
 > trusting. A permission model your marketplace can override is not a
 > permission model."
 
-**Action:** switch to `/my-agents`, click a grant transaction.
+**Action:** stay on this page and press **Authorize agent**. Do not navigate
+away — the whole lifecycle happens here.
 
-> "Here's a session we granted, on BSC testnet, and here it is on BscScan.
-> Revoked from the same screen — also a transaction."
+> "So let's actually do it."
+
+*Wait for it. If you are signing with a passkey, the biometric prompt appears
+now; let it be visible rather than cutting around it. Registration takes a few
+seconds.*
+
+**Action:** the panel resolves in place to **Agent activated**, with the session
+key, the wallet, the expiry and the grant transaction.
+
+> "That's a real session, on BSC testnet, registered in the Altana Keystore.
+> There's the transaction."
+
+**Action:** press **Revoke access**, still without leaving the page.
+
+> "And because a permission you cannot withdraw is not a permission — revoked.
+> Also a transaction. Granted and ended, in front of you, in about twenty
+> seconds."
+
+*This is the most convincing twenty seconds in the video: two real state
+changes on a public chain, on camera, with no cuts. Do not rush it and do not
+narrate over the waiting — silence while a transaction confirms reads as
+confidence.*
 
 ---
 
-## 2:38 – 2:52 · The position
+## 2:42 – 2:54 · The position
 
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
@@ -243,7 +264,7 @@ click through; the repository is not part of this take.
 
 ---
 
-## 2:52 – 3:05 · Close
+## 2:54 – 3:06 · Close
 
 **Action:** hold for a beat before the closing lines.
 

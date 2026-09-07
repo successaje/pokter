@@ -28,7 +28,25 @@ counts move on their own.
    at all, and the button reading *Connect a wallet to authorize* is itself
    honest on camera.
 
-   Connect one only if you want to sign live. Decide which:
+   **You said you want to sign live, so connect one — and the choice matters
+   on camera.** The panel states which key signed, and it is not the same
+   sentence in both cases:
+
+   - **Passkey wallet** — the panel reads *"Signed by your passkey on this
+     device. The key stays in your secure enclave — Pokter never sees it and
+     cannot sign for you."* That is the sentence you want on screen while
+     arguing that users stay in control.
+   - **Browser wallet** — it reads *"No passkey wallet connected, so Pokter's
+     testnet operator key will sign this grant."* Honest, and fine, but it is a
+     weaker frame in the exact beat where you are claiming the user holds the
+     authority.
+
+   A browser wallet is the more predictable path; a passkey is the stronger
+   story and the one that matches the narration. If you take the passkey route,
+   rehearse it once — the biometric prompt is a system dialog you cannot script
+   around, and it is better on camera than cut around.
+
+   Decide which:
    - *Passkey* — stronger story, real device custody, but the biometric prompt
      is a system dialog you cannot script. Rehearse it once.
    - *Browser wallet on BSC testnet* — more predictable.
@@ -171,9 +189,14 @@ never in.*
 The "cannot" list is the differentiator; give it as much time as the "can" list.
 Say plainly that the Altana account contract enforces this, not Pokter.
 
-If you granted a session live, this is where it lands. If you did not, narrate
-the panel and move to `/my-agents` for the transactions already there. Both are
-honest. Do not imply a grant you did not make.
+The whole lifecycle resolves in place — granted, session key, expiry, grant
+transaction, then revoked with its own transaction. There is no need to visit
+`/my-agents` at all; leaving the page would break the effect, which depends on
+the viewer seeing two real state changes without a cut.
+
+`/my-agents` stays in the tab list as a fallback. If the live grant fails on
+camera, go there and show the sessions and jobs already on chain rather than
+retrying — and say what happened. Do not imply a grant you did not make.
 
 ### 2:35 – 3:00 · The position · *tab 1*
 
