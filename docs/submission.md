@@ -82,7 +82,10 @@ Everything below is on BSC testnet and verifiable.
 | Session revoked | [`0x9eaf149e…`](https://testnet.bscscan.com/tx/0x9eaf149e9e9cdd14e7fb192a699d8b62b1d06d3c7239b8e2f50eb8de12a9eae6) |
 | ERC-8183 job hired end-to-end from the product | [`0x40b9fe98…`](https://testnet.bscscan.com/tx/0x40b9fe982b9af6542342c7cea3fbefeabb913e868aadbe15ca153de9ea9e87a8) |
 | Escrow funded | [`0x711855b9…`](https://testnet.bscscan.com/tx/0x711855b98171278e47e51e891d454dc9ef1def728c58e837466ba20085cc7599) |
-| The account in the Altana Keystore explorer | [1 root key active, 3 sessions expired or revoked](https://testnet.altana.network/account/0xAe4473468F10b507AB410077FA266FD8c5Af2196) |
+| Live session granted from the product | [`0x62b049db…`](https://testnet.bscscan.com/tx/0x62b049db108673c41bbe8a9d9cebbdffb1e06451db3ba2db31c88a035a1233bd) |
+| Live job hired and escrowed | [`0x93385d57…`](https://testnet.bscscan.com/tx/0x93385d5708964b0b6257b24b38ee00149fc53112445030d7227d43a6d90f9ac5) |
+| Altana Keystore explorer, active | [root + session key both live](https://testnet.altana.network/account/0x60eF148485C2a5119fa52CA13c52E9fd98F28e87) |
+| Altana Keystore explorer, ended | [3 sessions expired or revoked](https://testnet.altana.network/account/0xAe4473468F10b507AB410077FA266FD8c5Af2196) |
 
 **The permission scoping is enforced on-chain, not in our UI.** We granted two
 sessions with deliberately different scopes and diffed the calldata: the

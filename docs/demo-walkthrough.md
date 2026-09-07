@@ -47,16 +47,19 @@ counts move on their own.
    If a figure has moved, change the narration. Never read a stale number over
    a live screen — that is precisely the failure this product exists to prevent.
 
-7. **Grant one fresh session before you record.** `/my-agents` currently reads
-   *0 active permissions* — both existing sessions have expired or been revoked.
-   That is the system behaving correctly, but it makes a weak frame: the
-   permission beat is stronger when the page shows an **active** session with a
-   live spend cap and a running expiry, sitting beside the expired one and the
-   revoked one. That trio is the whole argument — permissions are granted
-   scoped, and they end.
+7. **Check `/my-agents` still reads *1 active permission*.** A live session was
+   granted on 7 September with a seven-day expiry, so it covers the start of
+   judging — and the page now shows **Active beside Expired beside Revoked**,
+   which is the entire Altana argument in one screen: sessions are granted
+   scoped, and they end, either on their own or because someone ended them.
 
-   Grant it from `/hire/56/302257` a few minutes before recording, and pick the
-   7-day expiry so it cannot lapse mid-take.
+   If the count reads zero, the session has lapsed. Grant another from
+   `/hire/56/302257` with the 7-day expiry before recording.
+
+   **Jobs expire in about an hour**, so the newest one will read as expired by
+   the time you record. That is honest and fine — the escrow transaction is the
+   claim, not the countdown — but if you want a live one on screen, commission
+   a fresh job from the hire page just before the take.
 
 8. **Open six tabs, in this order.** You should never type a URL on camera.
 
@@ -67,6 +70,7 @@ counts move on their own.
 4  https://pokter.fly.dev/compare?agents=56:302257,56:304494,56:302258
 5  https://pokter.fly.dev/hire/56/302257
 6  https://pokter.fly.dev/my-agents
+7  https://pokter.fly.dev/pool-check
 ```
 
 9. **Load every tab once** so they are all warm, then return to tab 1 and scroll

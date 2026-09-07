@@ -72,7 +72,7 @@ of a strong demo reads worse than no animation at all.
 
 ---
 
-## 0:20 – 0:32 · The landing
+## 0:20 – 0:30 · The landing
 
 **Screen:** the landing hero, live. Let the agent scene animate for two seconds
 before speaking — the event cards drift in on their own, and they are real
@@ -82,7 +82,9 @@ The cold open already gave the numbers. Do not repeat them here; this beat
 exists to show that the thing in the animation is an actual product.
 
 > "That is this. Every figure on the page carries where it came from — measured,
-> attested, or merely declared — and it will never let you confuse the three."
+> attested, or merely declared — and it will never let you confuse the three.
+> The identities and the attestations come from 8004scan, which is what makes
+> three hundred thousand agents addressable in the first place."
 
 **Action:** one slow scroll to the ecosystem figures, then stop. The counters
 animate as they enter, so scrolling fast scrubs past the animation and it reads
@@ -93,7 +95,7 @@ of the evidence beat.*
 
 ---
 
-## 0:32 – 0:52 · Don't trust the pitch
+## 0:30 – 0:50 · Don't trust the pitch
 
 **Screen:** scroll to **THE PROBLEM** — the claim-versus-evidence panel.
 
@@ -109,7 +111,7 @@ of the evidence beat.*
 
 ---
 
-## 0:52 – 1:15 · The brief
+## 0:50 – 1:12 · The brief
 
 **Screen:** tab 2 — `/discover` with the brief already filled.
 
@@ -128,7 +130,7 @@ of the evidence beat.*
 
 ---
 
-## 1:15 – 1:50 · The evidence
+## 1:12 – 1:45 · The evidence
 
 **Screen:** tab 3 — the agent detail page for *Brain on BNB — Venus Health
 Factor Monitor*.
@@ -156,7 +158,7 @@ link.
 
 ---
 
-## 1:50 – 2:08 · Compare
+## 1:45 – 1:58 · Compare
 
 **Screen:** tab 4 — three agents side by side.
 
@@ -170,7 +172,31 @@ link.
 
 ---
 
-## 2:08 – 2:35 · The permission
+## 1:58 – 2:13 · What it costs · *tab 7 — `/pool-check`*
+
+**Screen:** `/pool-check`, WBNB/USDT selected.
+
+> "Before you hand a PancakeSwap position to anyone, there is a question nobody
+> answers for you: will this agent pay for itself?"
+
+**Action:** point at the break-even figure, then switch the pool to CAKE/WBNB
+and let the number jump.
+
+> "This reads the live V3 pool — the fee tier, and the liquidity actually
+> sitting at the current tick — and prices what running an agent costs you.
+> Same agent, same position: it needs to earn one-point-seven percent on
+> WBNB/USDT, and nine-point-two on CAKE/WBNB."
+
+> "And notice what it will not do. It never tells you the agent *will* make that
+> back, because nobody publishes agent returns. It gives you the bar, and you
+> hold the agent to it."
+
+*The pool switch is the beat. Do it slowly enough that the jump registers — one
+number moving five-fold is the argument.*
+
+---
+
+## 2:13 – 2:38 · The permission
 
 **Screen:** tab 5 — the hire flow.
 
@@ -183,8 +209,12 @@ link.
 > prominent as the 'can' — it can't touch arbitrary contracts, can't move your
 > tokens, can't extend its own permissions."
 
-> "This is enforced by the Altana account contract, not by us. A call outside
-> it reverts on chain. Pokter couldn't weaken it if it wanted to."
+> "And this is the part I want to be precise about: none of it is enforced by
+> Pokter. It is enforced by the Altana account contract. The allowlist, the
+> spend cap, the expiry — a call outside them reverts on chain. Pokter could
+> not weaken this if it wanted to, and that is exactly why it is worth
+> trusting. A permission model your marketplace can override is not a
+> permission model."
 
 **Action:** switch to `/my-agents`, click a grant transaction.
 
@@ -193,7 +223,7 @@ link.
 
 ---
 
-## 2:35 – 2:50 · The position
+## 2:38 – 2:52 · The position
 
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
@@ -211,7 +241,14 @@ click through; the repository is not part of this take.
 
 ---
 
-## 2:50 – 3:00 · Close
+## 2:52 – 3:05 · Close
+
+**Action:** hold for a beat before the closing lines.
+
+> "This matters more than a directory. We are about to let software move real
+> money on real chains, on our behalf, while we sleep. The thing standing
+> between that being useful and that being a disaster is whether anyone can
+> tell a good agent from a convincing one. Right now, mostly, they can't."
 
 **Action:** scroll to the philosophy block. Let it land.
 
