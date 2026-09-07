@@ -194,9 +194,22 @@ transaction, then revoked with its own transaction. There is no need to visit
 `/my-agents` at all; leaving the page would break the effect, which depends on
 the viewer seeing two real state changes without a cut.
 
-`/my-agents` stays in the tab list as a fallback. If the live grant fails on
-camera, go there and show the sessions and jobs already on chain rather than
-retrying — and say what happened. Do not imply a grant you did not make.
+Then stage 2 on the same page: commissioning funds an ERC-8183 escrow and
+resolves in place with the job number, a progress track and the transaction.
+The track stops at **FUNDED** because the seller has no poller — say so rather
+than skipping past it. Naming your own unfinished edge is what makes the rest
+of the screen believable.
+
+**Two costs to know before you press it.** Each commission spends 0.1 $U and
+gas from the operator wallet, which held 39.6 $U at last check — plenty, but
+not unlimited across rehearsals. And a job expires about an hour after it is
+created, so one commissioned during a practice run will read as expired later;
+commission fresh on the real take.
+
+`/my-agents` stays in the tab list as a fallback. If the live grant or the
+commission fails on camera, go there and show the sessions and jobs already on
+chain rather than retrying — and say what happened. Do not imply a grant you
+did not make.
 
 ### 2:35 – 3:00 · The position · *tab 1*
 

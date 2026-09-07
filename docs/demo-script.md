@@ -158,7 +158,7 @@ link.
 
 ---
 
-## 1:45 – 1:58 · Compare
+## 1:45 – 1:55 · Compare
 
 **Screen:** tab 4 — three agents side by side.
 
@@ -172,7 +172,7 @@ link.
 
 ---
 
-## 1:58 – 2:13 · What it costs · *tab 7 — `/pool-check`*
+## 1:55 – 2:10 · What it costs · *tab 7 — `/pool-check`*
 
 **Screen:** `/pool-check`, WBNB/USDT selected.
 
@@ -196,7 +196,7 @@ number moving five-fold is the argument.*
 
 ---
 
-## 2:13 – 2:42 · The permission
+## 2:10 – 2:42 · The permission
 
 **Screen:** tab 5 — the hire flow.
 
@@ -246,7 +246,36 @@ confidence.*
 
 ---
 
-## 2:42 – 2:54 · The position
+## 2:42 – 3:00 · The escrow · *same page, stage 2*
+
+**Screen:** scroll down to **Commission work** — still the hire page, wallet
+still connected.
+
+> "A permission lets an agent act. This is the other half: paying it for a
+> specific piece of work."
+
+**Action:** press **Commission for 0.1 $U** and wait.
+
+> "That funds an ERC-8183 escrow on BNB Chain. The money is held by the kernel,
+> not by the agent and not by us, and it only releases when work is delivered."
+
+**Action:** the panel resolves in place — job number, the progress track, and
+the hire transaction.
+
+> "There's the job, there's the transaction — and look where it stops. Funded.
+> The seller's runtime has no poller, so nothing has come back yet, and we show
+> you that rather than a finished result we don't have."
+
+> "Which is the same rule as everything else here. If it hasn't happened, we
+> don't claim it has."
+
+*The track stopping two stages short is the point, not a gap to apologise for.
+Say it plainly and move on — a judge who sees you name your own unfinished edge
+believes the rest of the screen.*
+
+---
+
+## 3:00 – 3:12 · The position
 
 **Screen:** back to the landing page, scroll to **TRANSPARENCY**.
 
@@ -264,7 +293,7 @@ click through; the repository is not part of this take.
 
 ---
 
-## 2:54 – 3:06 · Close
+## 3:12 – 3:24 · Close
 
 **Action:** hold for a beat before the closing lines.
 
