@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getDossier } from "@/lib/marketplace";
+import { loadDossier } from "@/lib/marketplace";
+import { RegistryUnreachable } from "@/components/ui/RegistryUnreachable";
 import { CATEGORY_BY_ID } from "@/lib/agents/categories";
 import { summarise } from "@/lib/altana/permissions";
 import { ALTANA_NETWORK, IS_TESTNET } from "@/lib/altana/client";
@@ -60,8 +61,13 @@ export default async function HirePage({
   const chainId = Number(rawChainId) as ChainId;
   if (chainId !== 56 && chainId !== 97) notFound();
 
-  const dossier = await getDossier(chainId, tokenId).catch(() => null);
-  if (!dossier) notFound();
+  /* Absent and unreachable are different answers. See loadDossier. */
+  const result = await loadDossier(chainId, tokenId);
+  if (result.state === 'missing') notFound();
+  if (result.state === 'unreachable') {
+    return <RegistryUnreachable chainId={chainId} tokenId={tokenId} />;
+  }
+  const dossier = result.dossier;
 
   const { agent, category, proof } = dossier;
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, "");

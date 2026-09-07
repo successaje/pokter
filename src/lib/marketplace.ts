@@ -21,6 +21,7 @@ import { getProbeStore } from '@/lib/history/store';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
+import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
 
 /**
@@ -346,3 +347,31 @@ export async function listSearchable(
   );
 }
 
+
+
+/**
+ * A dossier lookup that distinguishes absent from unreachable.
+ *
+ * `getDossier` throwing means one of several things, and the pages that call it
+ * were treating all of them as "not found" — so a rate limit or a cold-cache
+ * timeout told visitors an agent did not exist. Only a genuine 404 from the
+ * registry means that.
+ */
+export type DossierResult =
+  | { state: 'ok'; dossier: AgentDossier }
+  | { state: 'missing' }
+  | { state: 'unreachable' };
+
+export async function loadDossier(
+  chainId: ChainId,
+  tokenId: string,
+): Promise<DossierResult> {
+  try {
+    return { state: 'ok', dossier: await getDossier(chainId, tokenId) };
+  } catch (error) {
+    if (error instanceof ScanError && error.status === 404) {
+      return { state: 'missing' };
+    }
+    return { state: 'unreachable' };
+  }
+}

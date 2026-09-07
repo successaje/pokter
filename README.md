@@ -184,6 +184,13 @@ your device's secure enclave, never leaves it, and Pokter cannot sign for you.
 The permission panel always states which key signed, because a permission model
 that is vague about who holds the key is not one.
 
+**Session signers do not survive a restart.** Granting produces an ephemeral
+key held in process memory, and SDK 0.9.0 warns that losing it makes the
+authorization unusable. It does not bite here — Pokter never acts as an agent,
+and revocation targets the registered public key, so a restart cannot strand a
+live permission. It would matter the day Pokter executes on a user's behalf,
+and at that point the key needs real secret storage rather than a Map.
+
 **Performance and risk are never scored.** Not a gap we intend to close — no
 agent publishes realised returns, and nothing on-chain attributes profit or
 loss to a specific agent's decision. Both dimensions read *not measured*

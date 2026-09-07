@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { getDossier } from '@/lib/marketplace';
+import { loadDossier } from '@/lib/marketplace';
+import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import type { ChainId } from '@/lib/scan/types';
 
@@ -55,8 +56,12 @@ export default async function AgentPage({
   const chainId = Number(rawChainId) as ChainId;
   if (chainId !== 56 && chainId !== 97) notFound();
 
-  const dossier = await getDossier(chainId, tokenId).catch(() => null);
-  if (!dossier) notFound();
+  const result = await loadDossier(chainId, tokenId);
+  if (result.state === 'missing') notFound();
+  if (result.state === 'unreachable') {
+    return <RegistryUnreachable chainId={chainId} tokenId={tokenId} />;
+  }
+  const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
   const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);

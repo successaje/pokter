@@ -28,6 +28,21 @@ import type { GrantedSession } from './types';
  * hidden; a production deployment would hand the signer to the agent process at
  * grant time instead.
  */
+/*
+ * Session signers, held only for the life of this process.
+ *
+ * SDK 0.9.0 warns that a signer generated this way is unrecoverable if lost,
+ * and that the authorization it backs then becomes unusable. That warning does
+ * not bite here, and it is worth writing down why rather than rediscovering it.
+ *
+ * Pokter never acts *as* an agent. It grants a scoped session, registers it,
+ * and revokes it — and `revokeSession` targets the registered public key rather
+ * than the signer, so a restart cannot strand a live permission. Nothing else
+ * reads this map; it exists so a signer is not garbage collected mid-request.
+ *
+ * The day Pokter executes on a user's behalf, this becomes a real secret that
+ * needs real storage, and the SDK's advice applies in full.
+ */
 const liveSigners = new Map<string, unknown>();
 
 export interface GrantInput extends PermissionRequest {
