@@ -1,9 +1,7 @@
-import Link from 'next/link';
-
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { getComparisons, listMarketplace, type Listing } from '@/lib/marketplace';
 import { CompareTable } from '@/components/compare/CompareTable';
-import { cn } from '@/lib/ui/cn';
+import { AgentPicker, type PickerOption } from '@/components/compare/AgentPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +18,6 @@ function parseSelection(raw: string | string[] | undefined): string[] {
   return [...new Set(value.split(',').filter(Boolean))].slice(0, MAX_AGENTS);
 }
 
-/** The URL after toggling one agent in or out of the selection. */
-function toggleHref(selected: string[], key: string): string {
-  const next = selected.includes(key)
-    ? selected.filter((entry) => entry !== key)
-    : [...selected, key].slice(0, MAX_AGENTS);
-
-  return next.length === 0 ? '/compare' : `/compare?agents=${next.join(',')}`;
-}
-
 export default async function ComparePage({
   searchParams,
 }: {
@@ -42,7 +31,6 @@ export default async function ComparePage({
     getComparisons(selected),
   ]);
 
-  const full = selected.length >= MAX_AGENTS;
 
   return (
     <div className="flex flex-col gap-10 pt-6">
@@ -65,65 +53,24 @@ export default async function ComparePage({
         <CompareTable entries={entries} />
       )}
 
-      <section className="flex flex-col gap-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[color:var(--border)] pb-3">
-          <h2 className="text-base font-medium tracking-tight">Choose agents</h2>
-          <p className="text-[11px] text-[color:var(--text-faint)]">
-            {selected.length} of {MAX_AGENTS} selected
-            {full && ' · deselect one to swap'}
-          </p>
-        </div>
-
-        {sections.map(({ category, listings }) => {
+      <AgentPicker
+        options={sections.flatMap(({ category, listings }) => {
           const meta = CATEGORY_BY_ID.get(category);
-          if (!meta || listings.length === 0) return null;
-
-          return (
-            <div key={category} className="flex flex-col gap-2.5">
-              <h3 className="text-xs text-[color:var(--text-muted)]">
-                {meta.label}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {listings.map((listing) => {
-                  const key = keyFor(listing);
-                  const isSelected = selected.includes(key);
-                  // A full selection still allows deselecting, never adding.
-                  const disabled = full && !isSelected;
-
-                  return disabled ? (
-                    <span
-                      key={key}
-                      aria-disabled
-                      className="cursor-not-allowed rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2 text-[12px] text-[color:var(--text-faint)] opacity-50"
-                    >
-                      {listing.agent.name}
-                    </span>
-                  ) : (
-                    <Link
-                      key={key}
-                      href={toggleHref(selected, key)}
-                      scroll={false}
-                      className={cn(
-                        'rounded-[var(--radius)] border px-3 py-2 text-[12px] transition-colors',
-                        isSelected
-                          ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] text-[color:var(--text)]'
-                          : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',
-                      )}
-                    >
-                      {isSelected && (
-                        <span aria-hidden className="mr-1.5 text-[color:var(--positive)]">
-                          ✓
-                        </span>
-                      )}
-                      {listing.agent.name}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          );
+          return meta
+            ? listings.map(
+                (listing): PickerOption => ({
+                  key: keyFor(listing),
+                  name: listing.agent.name,
+                  category,
+                  categoryLabel: meta.label,
+                }),
+              )
+            : [];
         })}
-      </section>
+        selected={selected}
+        max={MAX_AGENTS}
+      />
+
     </div>
   );
 }
