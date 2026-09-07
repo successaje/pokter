@@ -183,11 +183,14 @@ doing the job a title sequence was going to fake.*
 > One more thing. Every integration is written up with what worked and what
 > fought back.
 >
-> The Altana SDK ships a stale ERC-8183 policy address for testnet — which means
-> hiring is broken right now for every buyer on the current version. We found
-> it, worked around it, and reported it upstream.
+> Hiring failed for us with an error code that decodes to nothing. We ruled out
+> funding, a documented race, relay artifacts and an outage, then found it by
+> diffing two SDKs' address tables — the policy address for testnet was stale.
 >
-> That's the difference between noticing a bug and doing something about it.
+> We shipped a fix, reported it upstream, and it turned out the maintainers had
+> already patched it days earlier. So we upgraded and removed our workaround.
+>
+> That's the honest version, and it's the one on the page.
 
 ---
 

@@ -29,9 +29,9 @@ const OUTCOMES: {
     worked:
       'Jobs created, registered, funded and escrowed from the product itself, in one atomic batch.',
     didnt:
-      'The SDK ships a stale policy address for testnet. Every hire reverted with an undecodable selector until we diffed it against the reference implementation.',
+      'SDK 0.8.0 shipped a stale policy address, so every hire reverted with an undecodable selector until we diffed it against the reference implementation. We reported it — and the maintainers had already fixed it in 0.9.0 the day before. We upgraded; our workaround is now inert.',
     report: {
-      label: 'Reported upstream · altana-sdk#84',
+      label: 'Reported, and already fixed · altana-sdk#84',
       href: 'https://github.com/altananetwork/altana-sdk/issues/84',
     },
   },

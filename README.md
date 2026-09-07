@@ -19,19 +19,31 @@ Built for the BNB Chain *Smart Money Era* hackathon.
 > committed: a screen recording would outweigh this entire repository many times
 > over, and git keeps large blobs in history permanently even after deletion.
 
-### What we found while building this
+### What we found while building this, and how it ended
 
-`@altananetwork/sdk@0.8.0` — still the published `latest` — ships a stale
-ERC-8183 policy address for BSC testnet, so job registration reverts
-`0xc94463e3` and hiring fails for **every buyer on chain 97**. We isolated it by
-running the batch's five calls individually, ruled out funding, the documented
-jobId race, relay nonce artifacts and a platform outage, then found the correct
-address by diffing against the reference `@bnbagent/sdk`.
+Hiring failed against `@altananetwork/sdk@0.8.0` with `0xc94463e3`, a selector
+neither the SDK ABIs nor 4byte could decode. We isolated it by running the
+batch's five calls individually, ruled out funding, the documented jobId race,
+relay nonce artifacts and a platform outage, then found it by diffing the
+address tables of two SDKs: the ERC-8183 policy address for BSC testnet was
+stale. We pinned the correct value and reported it upstream.
 
-Reported upstream: [altananetwork/altana-sdk#84](https://github.com/altananetwork/altana-sdk/issues/84) ·
-full trace in [docs/integrations/erc8183.md](docs/integrations/erc8183.md)
+**The maintainers had already fixed it.** Released in
+[`0.9.0`](https://www.npmjs.com/package/@altananetwork/sdk/v/0.9.0) on 2
+September 2026, a day after we hit it, and our report was closed as a duplicate
+of [#53](https://github.com/altananetwork/altana-sdk/issues/53). We had checked
+that 0.8.0 was `latest` when we filed; it had stopped being `latest` by the time
+anyone read it.
 
----
+So we upgraded to 0.9.0 and our workaround is now inert — `hasPolicyOverride`
+compares against the SDK at runtime and reports false, because nothing diverges
+any more. Verified independently: on the testnet router, `policyWhitelist`
+returns `false` for the old address and `true` for the new one, and
+`0xc94463e3` is `PolicyNotWhitelisted()`.
+
+The diagnosis was right and the conclusion was out of date. Both are recorded
+here, because a project that argues numbers should carry their provenance does
+not get to quietly delete the one it got wrong.
 
 ## The problem
 

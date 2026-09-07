@@ -47,20 +47,23 @@ rebalancer grant carries the PancakeSwap Position Manager address, and the
 monitoring grant — whose allowlist is empty by design — does not. Calls outside
 the scope revert inside the Altana account contract.
 
-**A live bug in a sponsor SDK.** ERC-8183 hiring is currently broken on BSC
-testnet for every buyer using `@altananetwork/sdk@0.8.0` — still the published
-`latest`. It ships a stale OptimisticPolicy address for chain 97
-(`0x4F4678D4439feC812Ac7674Bb3Efb4C8f5Fb78A6`); the correct one, in the
-reference `@bnbagent/sdk`, is `0xd6a4217588F6B1F5657a92A3e94E6422aD771cEA`.
-Registration reverts `0xc94463e3` on the EvaluatorRouter, and funding then
-reverts `0x32d53d69`, because an unregistered job cannot be funded. We isolated
-it by running the batch's five calls individually and ruling out funding, the
-documented jobId race, relay nonce artifacts and a platform outage before
-diffing the two SDKs' address tables. Mainnet agrees between them; only chain 97
-diverges, so our override is scoped to it. Verified by registering and funding
-job #864 with the corrected address. Reported upstream at
-https://github.com/altananetwork/altana-sdk/issues/84 with repro steps and an
-offer to PR the fix; full trace in docs/integrations/erc8183.md.
+**A bug we found, reported, and were beaten to.** ERC-8183 hiring failed on
+`@altananetwork/sdk@0.8.0` with `0xc94463e3` — a selector nothing could decode.
+We isolated it by running the batch's five calls individually, ruled out
+funding, the documented jobId race, relay nonce artifacts and a platform
+outage, then found it by diffing two SDKs' address tables: the testnet policy
+address was stale. We pinned the correct one and filed upstream.
+
+The maintainers had already fixed it, in 0.9.0, released the day after we hit
+it; our report was closed as a duplicate. We have upgraded, and our workaround
+is now inert by design — it compares against the SDK at runtime and reports no
+divergence. Independently verified on the testnet router: `policyWhitelist` is
+`false` for the old address and `true` for the new, and `0xc94463e3` decodes to
+`PolicyNotWhitelisted()`.
+
+We are including this having got the conclusion wrong rather than despite it.
+The debugging was sound; the claim that it was still broken was not, and the
+correction is in the README and on the site.
 
 **For PancakeSwap LPs, a tool rather than an integration.** `/pool-check` reads
 a live V3 pool — fee tier, current tick, and the liquidity actually sitting at
