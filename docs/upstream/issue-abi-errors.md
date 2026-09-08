@@ -1,6 +1,9 @@
 # Draft issue — exported ABIs carry no error fragments
 
 Not filed. Verified against `@altananetwork/sdk@0.9.0` (current `latest`).
+Checked against every open and closed issue in the repo — nobody has raised
+this. #84 and #81 both mention an undecodable selector as a *symptom*; #72 is
+the relay layer, not contract ABIs.
 
 ---
 
@@ -42,6 +45,12 @@ import { erc8183Addresses } from '@altananetwork/sdk';
 **Suggested fix.** Include the `error` entries from each contract's compiled ABI
 in the exported ones. It is additive, costs nothing at runtime, and applies to
 every revert path rather than any single bug.
+
+**Related, but not the same.** #84 and #81 both hit an undecodable selector as
+a symptom of the policy-address bug — in #81 the reporter had to keccak-verify
+`PolicyNotWhitelisted()` by hand to identify it. That is two people
+independently doing manual selector recovery for an error the ABI could have
+named. #72 covers opaque *relay* errors, which is a separate layer.
 
 Happy to open a PR if useful — I would follow CONTRIBUTING.md and verify by
 simulating a call against a non-whitelisted policy on chain 97, checking that

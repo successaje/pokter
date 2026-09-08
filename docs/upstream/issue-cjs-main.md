@@ -1,6 +1,8 @@
 # Draft issue — `main` advertises CJS support the package does not have
 
 Not filed. Verified against `@altananetwork/sdk@0.9.0` (current `latest`).
+Checked against every open and closed issue in the repo — no mention of
+`require`, `exports`, CJS or `ERR_PACKAGE_PATH_NOT_EXPORTED`.
 
 ---
 
