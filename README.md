@@ -11,7 +11,7 @@ Built for the BNB Chain *Smart Money Era* hackathon.
 | | |
 | --- | --- |
 | **Live app** | https://pokter.fly.dev |
-| **Demo video** | _<paste the link here>_ |
+| **Demo video** | https://youtu.be/KyuKia6RL9s |
 | **Submission** | [docs/submission.md](docs/submission.md) |
 
 > The submission form has no field for a demo video, so this README is where it

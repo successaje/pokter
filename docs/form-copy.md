@@ -26,7 +26,7 @@ Unproven agents are blocked from hire, not ranked last with a filler score.
 
 **Live:** https://pokter.fly.dev
 **Source:** https://github.com/successaje/pokter
-**Demo video:** <paste the unlisted YouTube link here>
+**Demo video:** https://youtu.be/KyuKia6RL9s (5:33)
 
 **On-chain evidence (BSC testnet, all verifiable):**
 - Altana session granted + registered in KeyStore: `0x62a590ae974dd86ee0576c0ce2339afa97902430ac49fb4937de817a7f86019a`

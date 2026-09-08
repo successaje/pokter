@@ -1,6 +1,7 @@
 # Pokter — submission
 
 **Live:** https://pokter.fly.dev · **Source:** https://github.com/successaje/pokter
+**Demo video:** https://youtu.be/KyuKia6RL9s
 **Track:** Main — BNB Agent Studio Marketplace
 **Also entering:** Altana · TermiX · PancakeSwap · 8004scan
 
