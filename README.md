@@ -12,7 +12,6 @@ Built for the BNB Chain *Smart Money Era* hackathon.
 | --- | --- |
 | **Live app** | https://pokter.fly.dev |
 | **Demo video** | https://youtu.be/KyuKia6RL9s |
-| **Submission** | [docs/submission.md](docs/submission.md) |
 
 > The submission form has no field for a demo video, so this README is where it
 > lives — please do not look for it elsewhere. The file is linked rather than
@@ -44,6 +43,27 @@ returns `false` for the old address and `true` for the new one, and
 The diagnosis was right and the conclusion was out of date. Both are recorded
 here, because a project that argues numbers should carry their provenance does
 not get to quietly delete the one it got wrong.
+
+**Two findings from the same investigation are still open**, each verified
+against `0.9.0` and checked against every existing issue before filing:
+
+- [**#87**](https://github.com/altananetwork/altana-sdk/issues/87) — the
+  exported ABIs carry 40 function fragments and **zero** error fragments, so no
+  custom error from any of these contracts is decodable by viem or ethers. That
+  is the real reason `0xc94463e3` cost an afternoon, and it applies to every
+  revert path rather than one address. The reporter of
+  [#81](https://github.com/altananetwork/altana-sdk/issues/81) had to
+  keccak-verify the same selector by hand.
+- [**#88**](https://github.com/altananetwork/altana-sdk/issues/88) —
+  `package.json` declares `main` while `exports` has no `require` condition, so
+  `require('@altananetwork/sdk')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED` against
+  a package that appears to advertise CJS support.
+
+We offered to PR both. A third candidate — browser-wallet signing — we did not
+file: it is already tracked in
+[#63](https://github.com/altananetwork/altana-sdk/issues/63), which explains it
+better than we could. An Altana wallet is an EIP-7702 account, so the admin
+authority needs signatures extension wallets deliberately withhold.
 
 ## The problem
 

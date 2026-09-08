@@ -47,3 +47,19 @@ next-env.d.ts
 *.mp4
 *.mov
 *.avi
+
+# Working documents for the submission itself — the form answers, the demo
+# script, the voiceover, the upload copy, the upstream issue drafts. They are
+# how the submission was made, not part of what is being submitted, and a
+# public repo carrying its own pitch notes reads oddly.
+#
+# Kept on disk deliberately: several are still needed to finish submitting.
+docs/submission.md
+docs/youtube.md
+docs/form-copy.md
+docs/voiceover.md
+docs/demo-script.md
+docs/demo-walkthrough.md
+docs/cold-open-brief.md
+docs/cold-open-prompt.md
+docs/upstream/
