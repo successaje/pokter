@@ -146,6 +146,27 @@ between them they show the whole lifecycle:
 That sessions *end* is the point. They are issued scoped and they stop, either
 on their own or because somebody stopped them.
 
+### The allowlist was tested, not just claimed
+
+Saying "a call outside the allowlist reverts" is worth nothing unless somebody
+tries it. [`scripts/prove-enforcement.mts`](scripts/prove-enforcement.mts)
+grants a session scoped to a single contract and then makes two calls through
+it — identical calldata, zero value, only the target differs:
+
+| Call | Target | Result |
+| --- | --- | --- |
+| In scope | PancakeSwap V3 Router | **Accepted** — [`0x6e8cb539…`](https://testnet.bscscan.com/tx/0x6e8cb539c9c3cef423) |
+| Out of scope | an address never granted | **Rejected** — `UnauthorizedCall` |
+
+The rejection comes from the Altana account contract's validator, not from
+Pokter. The session, the calldata and the signer were the same in both cases.
+
+The script refuses to call it a pass unless the in-scope call actually
+succeeded. An earlier run had both calls fail on a type error in the caller,
+which would have read as the allowlist working while proving nothing — the
+same mistake this product exists to prevent, so the test now has to distinguish
+the two failure modes.
+
 **The permission scoping is enforced on-chain, not in our UI.** We granted two
 sessions with deliberately different scopes and diffed the calldata: the
 rebalancer grant carries the PancakeSwap Position Manager address; the
