@@ -22,6 +22,8 @@ interface GrantResponse {
   onChain: boolean;
 }
 
+const MIN_GRANT_GAS = parseEther('0.002');
+
 /**
  * §31 / §96. What the agent may do, what it may not, and what it costs you.
  *
@@ -65,6 +67,12 @@ export function PermissionReview({
    */
   const authorizeWithPasskey = async () => {
     const client = walletClient();
+    const balance = await client.balances({ wallet: passkeyWallet!.address });
+    if (balance.native < MIN_GRANT_GAS) {
+      throw new Error(
+        `Your passkey wallet needs at least 0.002 tBNB for the on-chain KeyStore write. Fund ${passkeyWallet!.address} from the BNB testnet faucet, then try again.`,
+      );
+    }
     const expiry = Math.floor(Date.now() / 1000) + expiryDays * 86_400;
 
     const granted = await client.grantSession({
@@ -116,6 +124,8 @@ export function PermissionReview({
       setError(
         /NotAllowed|abort/i.test(message)
           ? 'The passkey prompt was dismissed, so nothing was granted.'
+          : /Reason:\s*0x[\s\S]*Details:\s*0x/i.test(message)
+            ? `The on-chain write reverted without a reason. The usual cause is an unfunded passkey wallet. Fund ${passkeyWallet?.address ?? 'your passkey wallet'} with tBNB and try again.`
           : message,
       );
       setState('error');
@@ -351,6 +361,16 @@ export function PermissionReview({
             <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
               {error}
             </p>
+            {/tBNB|unfunded passkey wallet/i.test(error) && (
+              <a
+                href="https://www.bnbchain.org/en/testnet-faucet"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+              >
+                Open the official BNB testnet faucet ↗
+              </a>
+            )}
           </div>
         )}
 

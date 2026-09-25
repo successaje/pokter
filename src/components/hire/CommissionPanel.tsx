@@ -8,8 +8,9 @@ import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
 import { useCommitLock } from '@/components/hire/WalletGate';
 import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { parseUnits } from 'viem';
 
@@ -29,6 +30,8 @@ export interface ProviderChoice {
   note: string;
   reachable: boolean;
 }
+
+const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
 export function CommissionPanel({
   agent,
@@ -75,13 +78,31 @@ export function CommissionPanel({
         throw new Error('The task must be at most 4096 bytes.');
       }
 
+      const budgetRaw = parseUnits(String(budget), 18);
+      const { paymentToken } = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+      const balances = await walletClient().balances({
+        wallet: wallet.address,
+        tokens: [paymentToken],
+      });
+      if (balances.native < MIN_TRANSACTION_GAS) {
+        throw new Error(
+          'Your passkey wallet needs at least 0.002 tBNB before it can fund escrow.',
+        );
+      }
+      const paymentBalance = balances.tokens?.[0];
+      if (!paymentBalance?.ok || paymentBalance.raw < budgetRaw) {
+        throw new Error(
+          `Your passkey wallet needs at least ${budget} $U to fund this job.`,
+        );
+      }
+
       const outcome = await hireErc8183Agent(
         { address: wallet.address },
         signer,
         {
           provider: providerAddress as `0x${string}`,
           task,
-          budget: parseUnits(String(budget), 18),
+          budget: budgetRaw,
         },
         { network: WALLET_NETWORK },
       );
@@ -246,6 +267,26 @@ export function CommissionPanel({
           <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
             {error}
           </p>
+          {/tBNB/i.test(error) && (
+            <a
+              href="https://www.bnbchain.org/en/testnet-faucet"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+            >
+              Open the official BNB testnet faucet ↗
+            </a>
+          )}
+          {/\$U/i.test(error) && (
+            <a
+              href="https://united-coin-u.github.io/u-faucet/"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+            >
+              Open the testnet $U faucet ↗
+            </a>
+          )}
         </div>
       )}
 

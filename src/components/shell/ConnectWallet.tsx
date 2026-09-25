@@ -24,6 +24,7 @@ import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
  */
 export function ConnectWallet() {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const passkey = usePasskeyWallet();
   const { address, isConnected, chain } = useAccount();
@@ -82,6 +83,27 @@ export function ConnectWallet() {
                   Key held in this device&apos;s secure enclave. Pokter cannot
                   sign for you.
                 </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(passkey.wallet!.address);
+                      setCopied(true);
+                      window.setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className="w-fit rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1 text-[11px] transition-colors hover:bg-[color:var(--surface-hover)]"
+                  >
+                    {copied ? 'Address copied' : 'Copy funding address'}
+                  </button>
+                  <a
+                    href="https://www.bnbchain.org/en/testnet-faucet"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="w-fit rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1 text-[11px] transition-colors hover:bg-[color:var(--surface-hover)]"
+                  >
+                    Get testnet tBNB ↗
+                  </a>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
