@@ -77,7 +77,12 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     setBusy('creating');
     setError(null);
     try {
-      const result = await walletClient().createPasskeyWallet({ name: 'Pokter' });
+      const result = await walletClient().createPasskeyWallet({
+        name: 'Pokter',
+        // Persist the exact relying-party domain with the credential so later
+        // signatures and recovery do not depend on an implicit SDK default.
+        rpId: window.location.hostname,
+      });
       const stored: StoredWallet = {
         address: result.address,
         credential: result.signer.credential,
@@ -102,6 +107,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await walletClient().recoverFromPasskey({
         chainId: WALLET_NETWORK.chainId,
+        rpId: window.location.hostname,
       });
       const stored: StoredWallet = {
         address: result.address,
