@@ -6,7 +6,7 @@ import { PrivateActivity } from '@/components/jobs/PrivateActivity';
  * Activity cannot be keyed by a browser connection on the server without an
  * authenticated wallet session. Showing the process-wide SQLite tables here
  * would leak every demo user's task text and session metadata, so this page
- * deliberately fails closed until address-bound authentication lands.
+ * is kept device-local and filtered by the connected passkey wallet.
  */
 export default function MyAgentsPage() {
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');

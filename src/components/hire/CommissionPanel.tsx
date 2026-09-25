@@ -67,6 +67,10 @@ export function CommissionPanel({
       if (!provider?.reachable) {
         throw new Error('Choose a provider that is live on the escrow chain.');
       }
+      if (!Number.isFinite(budget) || budget < 0.01 || budget > 5) {
+        throw new Error('The budget must be between 0.01 and 5 $U.');
+      }
+      if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       if (new TextEncoder().encode(task).byteLength > 4096) {
         throw new Error('The task must be at most 4096 bytes.');
       }
