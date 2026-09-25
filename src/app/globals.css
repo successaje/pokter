@@ -206,6 +206,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.pokter-mark-on-light {
+  display: none;
+}
+
+:root[data-theme='light'] .pokter-mark-on-dark {
+  display: none;
+}
+
+:root[data-theme='light'] .pokter-mark-on-light {
+  display: block;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .pokter-mark-on-dark {
+    display: none;
+  }
+
+  :root:not([data-theme='dark']) .pokter-mark-on-light {
+    display: block;
+  }
+}
+
 /*
  * Figures line up in columns when they share a width. Applied to every metric,
  * score and percentage in the product.

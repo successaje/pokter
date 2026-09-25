@@ -1,26 +1,28 @@
-/**
- * Pokter's Capital Gate.
- *
- * Two opposing gates form a P; the signal tile crossing their threshold is
- * the agent, proof or capital that Pokter has checked before it moves.
- */
+import Image from 'next/image';
+
+/** The selected Capital Gate artwork, preserved without geometric redrawing. */
 export function Logo({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
+    <span
+      style={{ width: size, height: size }}
       aria-hidden
-      className="shrink-0"
+      className="relative block shrink-0"
     >
-      <path d="M3 3.5h15.25v6.75H10.5V29H3V3.5Z" fill="currentColor" />
-      <path
-        d="M19.25 3.5H24a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-9.25V15h6.75v-4.75h-2.25V3.5Z"
-        fill="currentColor"
+      <Image
+        src="/brand/pokter-mark-selected-dark.png"
+        alt=""
+        fill
+        sizes={`${size}px`}
+        className="pokter-mark-on-dark object-contain"
       />
-      <rect x="11.75" y="12.25" width="6.75" height="6.75" rx="1.35" fill="var(--brand)" />
-    </svg>
+      <Image
+        src="/brand/pokter-mark-selected-light.png"
+        alt=""
+        fill
+        sizes={`${size}px`}
+        className="pokter-mark-on-light object-contain"
+      />
+    </span>
   );
 }
 

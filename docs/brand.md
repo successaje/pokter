@@ -11,8 +11,8 @@ home in the BNB Chain ecosystem without copying the BNB Chain symbol.
 
 ## Logo use
 
-- Use `pokter-mark-dark.svg` on dark or photographic backgrounds.
-- Use `pokter-mark-light.svg` on white or pale backgrounds.
+- Use `pokter-mark-selected-dark.png` on dark or photographic backgrounds.
+- Use `pokter-mark-selected-light.png` on white or pale backgrounds.
 - Keep clear space around the mark equal to the width of its yellow tile.
 - Do not recolor the proof tile with status green, amber, red or blue.
 - Do not rotate, outline, add shadows, or place the mark inside another shape.
@@ -46,8 +46,8 @@ change.
 
 ## Export inventory
 
-- `public/brand/pokter-mark-dark.svg`
-- `public/brand/pokter-mark-light.svg`
+- `public/brand/pokter-mark-selected-dark.png`
+- `public/brand/pokter-mark-selected-light.png`
 - `public/brand/pokter-social-profile-dark.png`
 - `public/brand/pokter-social-profile-light.png`
 - `public/brand/pokter-social-banner.png`
