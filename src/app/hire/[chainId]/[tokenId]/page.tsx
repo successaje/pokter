@@ -11,6 +11,7 @@ import { CommissionPanel } from "@/components/hire/CommissionPanel";
 import { WalletGate } from "@/components/hire/WalletGate";
 import { providerChoicesFor } from "@/lib/erc8183/providers";
 import { EvidenceBadge } from "@/components/ui/EvidenceBadge";
+import { WalletReadiness } from "@/components/hire/WalletReadiness";
 import type { ChainId } from "@/lib/scan/types";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +120,7 @@ export default async function HirePage({
         </section>
       ) : (
         <div className="flex flex-col gap-8">
+          <WalletReadiness requiredBudgetU={0.1} />
           {/*
             Two distinct grants, in the order they matter. A session is standing
             authority over your wallet; a job is a single piece of escrowed

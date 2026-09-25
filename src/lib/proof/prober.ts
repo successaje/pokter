@@ -44,7 +44,10 @@ export interface LiveReading {
   method: AttestationMethod;
 }
 
-const PROBE_TIMEOUT_MS = 6_000;
+// A2A Agent Cards on small seller runtimes regularly cold-start just beyond
+// six seconds. Ten seconds still bounds the page while avoiding false
+// "not responding" verdicts for endpoints that complete a valid handshake.
+const PROBE_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
 /**
@@ -98,7 +101,7 @@ function isPrivateAddress(address: string): boolean {
 }
 
 /** Reject local, credential-bearing and non-HTTPS probe targets before fetch. */
-async function assertPublicEndpoint(endpoint: string): Promise<URL> {
+export async function assertPublicEndpoint(endpoint: string): Promise<URL> {
   const url = new URL(endpoint);
   if (url.protocol !== 'https:' || url.username || url.password) {
     throw new Error('Only public HTTPS endpoints without embedded credentials are probed');
@@ -116,7 +119,7 @@ async function assertPublicEndpoint(endpoint: string): Promise<URL> {
   return url;
 }
 
-async function readJson(response: Response): Promise<unknown> {
+export async function readJson(response: Response): Promise<unknown> {
   const announced = Number(response.headers.get('content-length') ?? 0);
   if (announced > MAX_RESPONSE_BYTES) throw new Error('Response is larger than 256 KiB');
 

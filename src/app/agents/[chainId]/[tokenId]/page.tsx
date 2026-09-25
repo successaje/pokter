@@ -15,6 +15,7 @@ import { TrackRecordPanel } from '@/components/TrackRecordPanel';
 import { LivePanel } from '@/components/LivePanel';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
+import { TrialPanel } from '@/components/agent/TrialPanel';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -145,6 +146,12 @@ export default async function AgentPage({
           {proof.rationale}
         </p>
       </header>
+
+      {agent.services?.a2a?.endpoint && (
+        <TrialPanel
+          agent={{ chainId, tokenId, name: agent.name }}
+        />
+      )}
 
       <TrustPanel dossier={dossier} explorerBase={explorerBase} />
 
