@@ -15,6 +15,7 @@ import { walletClient } from '@/lib/wallet/passkey';
 import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
 import { parseEther, type Hex } from 'viem';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { rememberRevocation, rememberSession } from '@/lib/wallet/activity';
 
 interface GrantResponse {
   session: GrantedSession;
@@ -97,6 +98,8 @@ export function PermissionReview({
       revokeTxHash: null,
     };
 
+    rememberSession(session);
+
     return { session, onChain: Boolean(granted.transactionHash) };
   };
 
@@ -136,6 +139,11 @@ export function PermissionReview({
           revokeTxHash: revokedOnChain.transactionHash ?? null,
         },
       });
+      rememberRevocation(
+        result.session.id,
+        new Date().toISOString(),
+        revokedOnChain.transactionHash ?? null,
+      );
     } catch (caught) {
       setError((caught as Error).message);
     } finally {

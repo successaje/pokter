@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatEther } from 'viem';
+import { formatEther, type Hex } from 'viem';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import type { SessionView } from '@/lib/altana/session';
+import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
+import { walletClient } from '@/lib/wallet/passkey';
+import { rememberRevocation } from '@/lib/wallet/activity';
 
 const TICK_MS = 30_000;
 
@@ -31,6 +34,8 @@ export function SessionCard({
   const [session, setSession] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { wallet } = usePasskeyWallet();
+  const signer = usePasskeySigner();
 
   // The server sends how long was left when it rendered; the client only counts
   // down from there. Reading the clock during render would be impure, and
@@ -50,17 +55,28 @@ export function SessionCard({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/altana/session?id=${encodeURIComponent(session.id)}`,
-        { method: 'DELETE' },
-      );
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? 'Revoke failed.');
+      if (
+        !wallet ||
+        !signer ||
+        wallet.address.toLowerCase() !== session.walletAddress.toLowerCase()
+      ) {
+        throw new Error('Connect the passkey wallet that granted this session.');
+      }
+      const outcome = await walletClient().revokeSession({
+        wallet: { address: wallet.address },
+        signer,
+        session: session.publicKey as Hex,
+      });
+      const revokedAt = new Date().toISOString();
+      const revokeTxHash = outcome.transactionHash ?? null;
       setSession({
-        ...(body.session as SessionView),
+        ...session,
+        revokedAt,
+        revokeTxHash,
         state: 'revoked',
         remainingMs: 0,
       });
+      rememberRevocation(session.id, revokedAt, revokeTxHash);
     } catch (caught) {
       setError((caught as Error).message);
     } finally {

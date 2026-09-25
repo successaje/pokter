@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { PrivateActivity } from '@/components/jobs/PrivateActivity';
 
 /**
  * Activity cannot be keyed by a browser connection on the server without an
@@ -7,6 +9,7 @@ import Link from 'next/link';
  * deliberately fails closed until address-bound authentication lands.
  */
 export default function MyAgentsPage() {
+  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   return (
     <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
@@ -14,29 +17,29 @@ export default function MyAgentsPage() {
           Your agents
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Private activity is not inferred from a connected address. Pokter
-          will show sessions and jobs here once the page can prove wallet
-          ownership with an address-bound sign-in.
+          Sessions created by your passkey wallet and stored only on this
+          device. Pokter never mixes this list with another visitor&apos;s activity.
         </p>
       </header>
 
-      <section className="flex max-w-2xl flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
-        <h2 className="text-sm font-medium text-[color:var(--caution)]">
-          Activity view temporarily locked
-        </h2>
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-          The previous demo view read a shared server index, which could mix
-          activity from different visitors. It has been removed. New passkey
-          grants still show their receipt and a device-signed revoke action on
-          the authorization screen where they are created.
-        </p>
-        <Link
-          href="/agents"
-          className="mt-1 w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          Browse verified agents →
-        </Link>
+      <section className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between gap-4 border-b border-[color:var(--border)] pb-3">
+          <h2 className="text-base font-medium tracking-tight">Permissions</h2>
+          <p className="text-[11px] text-[color:var(--text-faint)]">
+            Device-local · passkey-owned
+          </p>
+        </div>
+        <PrivateActivity explorerBase={explorerBase} />
       </section>
+
+      <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+        Commissioned jobs remain hidden until buyer-signed escrow and wallet
+        authentication are complete.{' '}
+        <Link href="/agents" className="text-[color:var(--info)] underline decoration-dotted">
+          Browse verified agents
+        </Link>
+        .
+      </p>
     </div>
   );
 }
