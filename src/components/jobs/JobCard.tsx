@@ -6,6 +6,14 @@ import { formatUnits } from 'viem';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from './JobStatus';
+import {
+  getErc8183DeliverableUrl,
+  getErc8183Job,
+  settleErc8183Job,
+} from '@altananetwork/sdk';
+import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { updateRememberedJob } from '@/lib/wallet/activity';
 
 /**
  * §55 / §58. A commissioned job.
@@ -23,18 +31,45 @@ export function JobCard({
   const [job, setJob] = useState(initial);
   const [busy, setBusy] = useState<null | 'refresh' | 'approve'>(null);
   const [error, setError] = useState<string | null>(null);
+  const { wallet } = usePasskeyWallet();
+  const signer = usePasskeySigner();
 
   const act = async (action: 'refresh' | 'approve') => {
     setBusy(action);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/hire?id=${encodeURIComponent(job.id)}&action=${action}`,
-        { method: 'PATCH' },
-      );
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? `${action} failed.`);
-      setJob(body.job as HiredJob);
+      if (!wallet) throw new Error('Connect the passkey wallet that funded this job.');
+
+      let settleTxHash = job.settleTxHash;
+      if (action === 'approve') {
+        if (!signer) throw new Error('The passkey signer is unavailable.');
+        const outcome = await settleErc8183Job(
+          { address: wallet.address },
+          signer,
+          { jobId: BigInt(job.jobId), action: 'approve' },
+          { network: WALLET_NETWORK },
+        );
+        settleTxHash = outcome.transactionHash ?? null;
+      }
+
+      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
+      const deliverableUrl =
+        job.deliverableUrl ??
+        ((current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED')
+          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(
+              () => undefined,
+            )
+          : undefined) ??
+        null;
+      const updated: HiredJob = {
+        ...job,
+        status: current.statusName,
+        statusCheckedAt: new Date().toISOString(),
+        deliverableUrl,
+        settleTxHash,
+      };
+      setJob(updated);
+      updateRememberedJob(wallet.address, updated);
     } catch (caught) {
       setError((caught as Error).message);
     } finally {

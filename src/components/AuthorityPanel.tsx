@@ -68,9 +68,8 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
 
       <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
         Altana session grants are signed by your passkey on this device; Pokter
-        never receives that key. Browser wallets are identity-only here, and
-        public operator-funded commissions are disabled until buyer-signed
-        escrow is available.
+        never receives that key. The same passkey signs buyer-funded escrow;
+        browser wallets remain identity-only here.
       </p>
     </div>
   );

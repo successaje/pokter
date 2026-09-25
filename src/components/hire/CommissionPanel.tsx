@@ -7,6 +7,11 @@ import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
 import { useCommitLock } from '@/components/hire/WalletGate';
+import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { rememberJob } from '@/lib/wallet/activity';
+import { hireErc8183Agent } from '@altananetwork/sdk';
+import { parseUnits } from 'viem';
 
 /**
  * A provider the escrow can actually reach.
@@ -37,6 +42,8 @@ export function CommissionPanel({
   explorerBase: string;
 }) {
   const { locked, reason } = useCommitLock();
+  const { wallet } = usePasskeyWallet();
+  const signer = usePasskeySigner();
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable)?.address ?? providers[0]?.address ?? '',
   );
@@ -56,20 +63,45 @@ export function CommissionPanel({
     setState('hiring');
     setError(null);
     try {
-      const response = await fetch('/api/hire', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          provider: providerAddress,
-          agentName: provider?.label ?? agent.name,
-          agentTokenId: agent.tokenId,
-          budgetU: budget,
+      if (!wallet || !signer) throw new Error('A passkey wallet is required.');
+      if (!provider?.reachable) {
+        throw new Error('Choose a provider that is live on the escrow chain.');
+      }
+      if (new TextEncoder().encode(task).byteLength > 4096) {
+        throw new Error('The task must be at most 4096 bytes.');
+      }
+
+      const outcome = await hireErc8183Agent(
+        { address: wallet.address },
+        signer,
+        {
+          provider: providerAddress as `0x${string}`,
           task,
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? 'Hire failed.');
-      setJob(body.job as HiredJob);
+          budget: parseUnits(String(budget), 18),
+        },
+        { network: WALLET_NETWORK },
+      );
+      const now = new Date().toISOString();
+      const hired: HiredJob = {
+        id: crypto.randomUUID(),
+        jobId: outcome.jobId.toString(),
+        chainId: WALLET_NETWORK.chainId,
+        isTestnet: WALLET_NETWORK.chainId === 97,
+        agentTokenId: agent.tokenId,
+        agentName: provider?.label ?? agent.name,
+        provider: outcome.provider,
+        task,
+        budgetRaw: outcome.budget.toString(),
+        expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
+        hiredAt: now,
+        hireTxHash: outcome.transactionHash ?? null,
+        status: 'FUNDED',
+        statusCheckedAt: now,
+        deliverableUrl: null,
+        settleTxHash: null,
+      };
+      rememberJob(wallet.address, hired);
+      setJob(hired);
       setState('hired');
     } catch (caught) {
       setError((caught as Error).message);
@@ -81,13 +113,26 @@ export function CommissionPanel({
     if (!job) return;
     setRefreshing(true);
     try {
-      const response = await fetch(
-        `/api/hire?id=${encodeURIComponent(job.id)}&action=refresh`,
-        { method: 'PATCH' },
+      const { getErc8183Job, getErc8183DeliverableUrl } = await import(
+        '@altananetwork/sdk'
       );
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? 'Refresh failed.');
-      setJob(body.job as HiredJob);
+      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
+      const deliverableUrl =
+        job.deliverableUrl ??
+        ((current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED')
+          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(
+              () => undefined,
+            )
+          : undefined) ??
+        null;
+      const updated: HiredJob = {
+        ...job,
+        status: current.statusName,
+        statusCheckedAt: new Date().toISOString(),
+        deliverableUrl,
+      };
+      setJob(updated);
+      if (wallet) rememberJob(wallet.address, updated);
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -100,8 +145,8 @@ export function CommissionPanel({
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium">Commission work</h3>
         <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          Prepares an ERC-8183 escrow job. Funding is disabled in the public UI
-          until the buyer can sign and pay from their own wallet.
+          Funds an ERC-8183 escrow from your passkey wallet. The budget is held
+          by the kernel and released only through its job lifecycle.
         </p>
       </div>
 
@@ -205,7 +250,11 @@ export function CommissionPanel({
           type="button"
           onClick={commission}
           disabled={
-            state === 'hiring' || locked || !providerAddress || task.trim().length === 0
+            state === 'hiring' ||
+            locked ||
+            !providerAddress ||
+            !provider?.reachable ||
+            task.trim().length === 0
           }
           title={reason ?? undefined}
           className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
@@ -213,7 +262,7 @@ export function CommissionPanel({
           {state === 'hiring'
             ? 'Funding escrow…'
             : locked
-              ? 'Buyer-signed escrow coming next'
+              ? 'Create a passkey to commission'
               : `Commission for ${budget} $U`}
         </button>
       )}

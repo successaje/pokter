@@ -1,13 +1,26 @@
 'use client';
 
 import type { GrantedSession } from '@/lib/altana/types';
+import type { HiredJob } from '@/lib/erc8183/types';
 
 const STORAGE_KEY = 'pokter.sessions.v1';
 const EVENT_NAME = 'pokter:sessions-changed';
+const JOBS_STORAGE_KEY = 'pokter.jobs.v1';
+const JOBS_EVENT_NAME = 'pokter:jobs-changed';
 const EMPTY_SESSIONS: GrantedSession[] = [];
 let cachedRaw: string | null = null;
 let cachedSessions: GrantedSession[] = EMPTY_SESSIONS;
 let cachedByWallet = new Map<string, GrantedSession[]>();
+const EMPTY_JOBS: StoredJob[] = [];
+const EMPTY_HIRED_JOBS: HiredJob[] = [];
+let cachedJobsRaw: string | null = null;
+let cachedJobs: StoredJob[] = EMPTY_JOBS;
+let cachedJobsByWallet = new Map<string, HiredJob[]>();
+
+interface StoredJob {
+  walletAddress: string;
+  job: HiredJob;
+}
 
 function readAll(): GrantedSession[] {
   try {
@@ -42,6 +55,59 @@ export function sessionsForWallet(walletAddress: string): GrantedSession[] {
 
 export function noSessions(): GrantedSession[] {
   return EMPTY_SESSIONS;
+}
+
+function readJobs(): StoredJob[] {
+  try {
+    const raw = window.localStorage.getItem(JOBS_STORAGE_KEY) ?? '[]';
+    if (raw === cachedJobsRaw) return cachedJobs;
+    const parsed = JSON.parse(raw);
+    cachedJobsRaw = raw;
+    cachedJobs = Array.isArray(parsed) ? (parsed as StoredJob[]) : EMPTY_JOBS;
+    cachedJobsByWallet = new Map();
+    return cachedJobs;
+  } catch {
+    return EMPTY_JOBS;
+  }
+}
+
+function writeJobs(jobs: StoredJob[]): void {
+  window.localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(jobs));
+  window.dispatchEvent(new Event(JOBS_EVENT_NAME));
+}
+
+export function jobsForWallet(walletAddress: string): HiredJob[] {
+  const wallet = walletAddress.toLowerCase();
+  const all = readJobs();
+  const cached = cachedJobsByWallet.get(wallet);
+  if (cached) return cached;
+  const jobs = all
+    .filter((entry) => entry.walletAddress.toLowerCase() === wallet)
+    .map((entry) => entry.job);
+  cachedJobsByWallet.set(wallet, jobs);
+  return jobs;
+}
+
+export function noJobs(): HiredJob[] {
+  return EMPTY_HIRED_JOBS;
+}
+
+export function rememberJob(walletAddress: string, job: HiredJob): void {
+  const jobs = readJobs().filter((entry) => entry.job.id !== job.id);
+  writeJobs([{ walletAddress, job }, ...jobs]);
+}
+
+export function updateRememberedJob(walletAddress: string, job: HiredJob): void {
+  rememberJob(walletAddress, job);
+}
+
+export function subscribeToJobs(listener: () => void): () => void {
+  window.addEventListener(JOBS_EVENT_NAME, listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    window.removeEventListener(JOBS_EVENT_NAME, listener);
+    window.removeEventListener('storage', listener);
+  };
 }
 
 export function rememberSession(session: GrantedSession): void {

@@ -31,8 +31,8 @@ export function useCommitLock() {
  *
  * Browsing stays public (§59). A passkey can sign its own Altana session. An
  * injected browser wallet is identity-only until Pokter has a verified signer
- * integration for it, and the commission flow stays read-only until the buyer
- * can fund escrow from their own wallet.
+ * integration for it. Passkey wallets sign both session grants and escrow
+ * funding on-device.
  */
 export function WalletGate({
   action,
@@ -45,12 +45,9 @@ export function WalletGate({
 }) {
   const passkey = usePasskeyWallet();
   const selfCustody = Boolean(passkey.wallet);
-  const reason =
-    capability === 'commission'
-      ? 'Commissioning is read-only until Pokter can fund escrow from your own wallet.'
-      : selfCustody
-        ? null
-        : `Create or connect a passkey wallet to ${action}.`;
+  const reason = selfCustody
+    ? null
+    : `Create or connect a passkey wallet to ${action}.`;
 
   return (
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
@@ -70,9 +67,9 @@ export function WalletGate({
                 </>
               ) : (
                 <>
-                  You can review the provider, task and budget, but Pokter will
-                  not fund a user&apos;s job with an operator key. Buyer-signed
-                  escrow is the remaining integration step.
+                  You can review the provider, task and budget before connecting.
+                  A passkey wallet signs and funds the escrow itself; Pokter
+                  never substitutes its operator key.
                 </>
               )}
             </p>

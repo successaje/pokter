@@ -24,7 +24,7 @@ export default function MyAgentsPage() {
 
       <section className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between gap-4 border-b border-[color:var(--border)] pb-3">
-          <h2 className="text-base font-medium tracking-tight">Permissions</h2>
+          <h2 className="text-base font-medium tracking-tight">Private activity</h2>
           <p className="text-[11px] text-[color:var(--text-faint)]">
             Device-local · passkey-owned
           </p>
@@ -33,8 +33,8 @@ export default function MyAgentsPage() {
       </section>
 
       <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-        Commissioned jobs remain hidden until buyer-signed escrow and wallet
-        authentication are complete.{' '}
+        Clearing browser storage removes this local index but does not change
+        on-chain permissions or escrow. Keep transaction receipts as your durable record.{' '}
         <Link href="/agents" className="text-[color:var(--info)] underline decoration-dotted">
           Browse verified agents
         </Link>

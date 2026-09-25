@@ -27,9 +27,9 @@ const OUTCOMES: {
     name: 'ERC-8183 escrow',
     status: 'working',
     worked:
-      'The controlled testnet demo creates, registers, funds and escrows jobs in one atomic batch.',
+      'A buyer’s passkey wallet creates, registers, funds and escrows a job in one atomic batch.',
     didnt:
-      'The public commission UI is read-only until the buyer can sign and fund escrow from their own wallet. Operator-funded routes require a server-only demo secret.',
+      'Seller runtimes still need a reliable notification and delivery loop; a funded job is not evidence of completed work.',
     report: {
       label: 'Reported, and already fixed · altana-sdk#84',
       href: 'https://github.com/altananetwork/altana-sdk/issues/84',
