@@ -1,85 +1,41 @@
-import { listSessions } from '@/lib/altana/session';
-import { listJobs } from '@/lib/erc8183/hire';
-import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
-import { SessionCard } from '@/components/jobs/SessionCard';
-import { JobCard } from '@/components/jobs/JobCard';
-
-export const dynamic = 'force-dynamic';
+import Link from 'next/link';
 
 /**
- * §56. What you have delegated, and what you have commissioned.
- *
- * Two different kinds of authority, kept visually distinct: a session is
- * standing permission to act on your wallet, while a job is a funded, escrowed
- * piece of work. Conflating them would hide the fact that revoking a session
- * does not cancel a job already in escrow.
+ * Activity cannot be keyed by a browser connection on the server without an
+ * authenticated wallet session. Showing the process-wide SQLite tables here
+ * would leak every demo user's task text and session metadata, so this page
+ * deliberately fails closed until address-bound authentication lands.
  */
-export default async function MyAgentsPage() {
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
-  const sessions = listSessions();
-  const jobs = listJobs();
-
-  const activeSessions = sessions.filter((s) => s.state === 'active').length;
-
+export default function MyAgentsPage() {
   return (
-    <div className="flex flex-col gap-10 pt-6">
+    <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Your agents
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          {activeSessions} active permission{activeSessions === 1 ? '' : 's'} ·{' '}
-          {jobs.length} commissioned job{jobs.length === 1 ? '' : 's'}
-          {IS_TESTNET && ' · BSC testnet'}
+          Private activity is not inferred from a connected address. Pokter
+          will show sessions and jobs here once the page can prove wallet
+          ownership with an address-bound sign-in.
         </p>
       </header>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between gap-4 border-b border-[color:var(--border)] pb-3">
-          <h2 className="text-base font-medium tracking-tight">Permissions</h2>
-          <p className="text-[11px] text-[color:var(--text-faint)]">
-            Standing authority to act on your wallet
-          </p>
-        </div>
-
-        {sessions.length === 0 ? (
-          <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-faint)]">
-            You have not granted any agent permission yet. Permissions are
-            scoped, capped and expiring — and revocable here at any time.
-          </p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {sessions.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                explorerBase={explorerBase}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between gap-4 border-b border-[color:var(--border)] pb-3">
-          <h2 className="text-base font-medium tracking-tight">Jobs</h2>
-          <p className="text-[11px] text-[color:var(--text-faint)]">
-            Escrowed work commissioned over ERC-8183
-          </p>
-        </div>
-
-        {jobs.length === 0 ? (
-          <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-faint)]">
-            No jobs commissioned yet. Hiring escrows $U on the AgenticCommerce
-            kernel and releases it only after the agent delivers.
-          </p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} explorerBase={explorerBase} />
-            ))}
-          </div>
-        )}
+      <section className="flex max-w-2xl flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
+        <h2 className="text-sm font-medium text-[color:var(--caution)]">
+          Activity view temporarily locked
+        </h2>
+        <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          The previous demo view read a shared server index, which could mix
+          activity from different visitors. It has been removed. New passkey
+          grants still show their receipt and a device-signed revoke action on
+          the authorization screen where they are created.
+        </p>
+        <Link
+          href="/agents"
+          className="mt-1 w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+        >
+          Browse verified agents →
+        </Link>
       </section>
     </div>
   );

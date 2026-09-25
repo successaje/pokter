@@ -100,8 +100,8 @@ export function CommissionPanel({
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium">Commission work</h3>
         <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          Funds a job on the ERC-8183 escrow. The budget is held by the kernel
-          and released only after the agent delivers.
+          Prepares an ERC-8183 escrow job. Funding is disabled in the public UI
+          until the buyer can sign and pay from their own wallet.
         </p>
       </div>
 
@@ -213,7 +213,7 @@ export function CommissionPanel({
           {state === 'hiring'
             ? 'Funding escrow…'
             : locked
-              ? 'Connect a wallet to commission'
+              ? 'Buyer-signed escrow coming next'
               : `Commission for ${budget} $U`}
         </button>
       )}

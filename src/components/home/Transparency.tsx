@@ -19,17 +19,17 @@ const OUTCOMES: {
     name: 'Altana sessions',
     status: 'working',
     worked:
-      'Scoped session granted, registered in the on-chain KeyStore and revoked. Five confirmed transactions on BSC testnet.',
+      'A passkey wallet grants, registers and revokes a scoped session directly against the on-chain KeyStore.',
     didnt:
-      'The SDK documents an injected-wallet signer it does not implement, so grants are still signed by an operator key rather than the visitor’s wallet.',
+      'Injected browser wallets cannot sign Altana sessions yet, so Pokter treats them as identity-only and requires a passkey for authorization.',
   },
   {
     name: 'ERC-8183 escrow',
     status: 'working',
     worked:
-      'Jobs created, registered, funded and escrowed from the product itself, in one atomic batch.',
+      'The controlled testnet demo creates, registers, funds and escrows jobs in one atomic batch.',
     didnt:
-      'SDK 0.8.0 shipped a stale policy address, so every hire reverted with an undecodable selector until we diffed it against the reference implementation. We reported it — and the maintainers had already fixed it in 0.9.0 the day before. We upgraded; our workaround is now inert.',
+      'The public commission UI is read-only until the buyer can sign and fund escrow from their own wallet. Operator-funded routes require a server-only demo secret.',
     report: {
       label: 'Reported, and already fixed · altana-sdk#84',
       href: 'https://github.com/altananetwork/altana-sdk/issues/84',

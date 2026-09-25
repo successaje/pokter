@@ -219,10 +219,9 @@ in `internal/signer.d.ts` said the SDK ships three signers and named
 never exported or implemented. 0.9.0 removed the comment; the gap itself
 remains. Browser wallets also no longer expose the raw digest that the SDK's
 `Signer.signDigest` needs, so this may not be implementable as the interface
-stands. So
-MetaMask and friends can identify you, but not authorise on your behalf — in
-that case Pokter's operator key signs, and the interface says so on the button
-you are about to press.
+stands. So MetaMask and friends can identify you, but not authorise on your
+behalf. Pokter fails closed in that case: the public interface requires a
+passkey and never substitutes its operator key for the visitor.
 
 The passkey path is the real answer and it does work: the key is created in
 your device's secure enclave, never leaves it, and Pokter cannot sign for you.
@@ -301,8 +300,10 @@ Runs one probe sweep and appends to the accumulated track record.
 
 Environment (see `.env.example`): `SCAN_API_KEY` lifts the 8004scan rate limit
 from 30 to 3,000 requests per minute, `SWEEP_SECRET` guards `POST /api/sweep`,
-and `ALTANA_ADMIN_KEY` signs session grants and job escrow. **Use a testnet
-key.**
+and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
+`POKTER_DEMO_WRITE_SECRET` to a strong server-side value before using those
+operator routes from a trusted script; they fail closed when it is absent and
+the browser UI never receives it. **Use a testnet key.**
 
 ## Deployment
 

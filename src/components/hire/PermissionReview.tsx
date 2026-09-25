@@ -13,6 +13,8 @@ import {
 import type { GrantedSession } from '@/lib/altana/types';
 import { walletClient } from '@/lib/wallet/passkey';
 import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
+import { parseEther, type Hex } from 'viem';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 
 interface GrantResponse {
   session: GrantedSession;
@@ -57,8 +59,8 @@ export function PermissionReview({
    * Grant in the browser, signed by the passkey.
    *
    * The key never leaves the device, so this cannot run on the server. Once the
-   * grant is on-chain we tell the server about it purely so it can be listed —
-   * the authority lives in the KeyStore, not in our database.
+   * The receipt stays in this browser view; Pokter does not copy visitor
+   * session metadata into its shared server-side demo index.
    */
   const authorizeWithPasskey = async () => {
     const client = walletClient();
@@ -77,47 +79,25 @@ export function PermissionReview({
       register: true,
     });
 
-    const response = await fetch('/api/altana/session/record', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress: passkeyWallet!.address,
-        publicKey: granted.publicKey,
-        grantTxHash: granted.transactionHash ?? null,
-        agentChainId: agent.chainId,
-        agentTokenId: agent.tokenId,
-        agentName: agent.name,
-        spendCapBnb: spendCap,
-        period,
-        expiresAt: new Date(expiry * 1000).toISOString(),
-      }),
-    });
+    const session: GrantedSession = {
+      id: crypto.randomUUID(),
+      agentChainId: agent.chainId,
+      agentTokenId: agent.tokenId,
+      agentName: agent.name,
+      walletAddress: passkeyWallet!.address,
+      publicKey: granted.publicKey,
+      chainId: WALLET_NETWORK.chainId,
+      isTestnet: WALLET_NETWORK.chainId === 97,
+      spendCapWei: parseEther(String(spendCap)).toString(),
+      period,
+      expiresAt: new Date(expiry * 1000).toISOString(),
+      grantedAt: new Date().toISOString(),
+      grantTxHash: granted.transactionHash ?? null,
+      revokedAt: null,
+      revokeTxHash: null,
+    };
 
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error ?? 'Could not record the grant.');
-
-    return { session: body.session as GrantedSession, onChain: Boolean(granted.transactionHash) };
-  };
-
-  /** Fallback while no passkey wallet exists: Pokter's operator key signs. */
-  const authorizeWithOperatorKey = async () => {
-    const response = await fetch('/api/altana/session', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        agentChainId: agent.chainId,
-        agentTokenId: agent.tokenId,
-        agentName: agent.name,
-        category: agent.category,
-        spendCapBnb: spendCap,
-        period,
-        expiryDays,
-      }),
-    });
-
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error ?? 'Grant failed.');
-    return body as GrantResponse;
+    return { session, onChain: Boolean(granted.transactionHash) };
   };
 
   const authorize = async () => {
@@ -125,9 +105,8 @@ export function PermissionReview({
     setError(null);
 
     try {
-      setResult(
-        selfCustody ? await authorizeWithPasskey() : await authorizeWithOperatorKey(),
-      );
+      if (!selfCustody) throw new Error('A passkey wallet is required to authorize.');
+      setResult(await authorizeWithPasskey());
       setState('granted');
     } catch (caught) {
       const message = (caught as Error).message ?? 'Grant failed.';
@@ -141,16 +120,22 @@ export function PermissionReview({
   };
 
   const revoke = async () => {
-    if (!result) return;
+    if (!result || !passkeyWallet || !passkeySigner) return;
     setRevoking(true);
     try {
-      const response = await fetch(
-        `/api/altana/session?id=${encodeURIComponent(result.session.id)}`,
-        { method: 'DELETE' },
-      );
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? 'Revoke failed.');
-      setResult({ ...result, session: body.session as GrantedSession });
+      const revokedOnChain = await walletClient().revokeSession({
+        wallet: { address: passkeyWallet.address },
+        signer: passkeySigner,
+        session: result.session.publicKey as Hex,
+      });
+      setResult({
+        ...result,
+        session: {
+          ...result.session,
+          revokedAt: new Date().toISOString(),
+          revokeTxHash: revokedOnChain.transactionHash ?? null,
+        },
+      });
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -326,9 +311,9 @@ export function PermissionReview({
             </>
           ) : (
             <>
-              No passkey wallet connected, so Pokter&apos;s testnet operator key
-              will sign this grant. Create a passkey wallet from the header to
-              hold the session yourself.
+              A passkey wallet is required. Pokter does not substitute an
+              operator key for you; browser wallets remain identity-only until
+              they can sign Altana sessions directly.
             </>
           )}
         </p>
@@ -344,7 +329,7 @@ export function PermissionReview({
             {state === 'granting'
               ? 'Registering session…'
               : locked
-                ? 'Connect a wallet to authorize'
+                ? 'Create a passkey to authorize'
                 : 'Authorize agent'}
           </button>
         )}

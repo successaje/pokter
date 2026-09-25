@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'Pokter — Choose what deserves your money',
   description:
-    'Compare autonomous financial agents on BNB Chain using onchain activity, reputation, performance, risk and live execution data.',
+    'Compare autonomous financial agents on BNB Chain using onchain identity, reputation, disclosed capabilities and live protocol checks.',
 };
 
 export default async function RootLayout({

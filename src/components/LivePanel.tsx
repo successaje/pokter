@@ -60,6 +60,24 @@ export function LivePanel({ live }: { live: LiveReading }) {
         ))}
       </ol>
 
+      {live.capabilities.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3.5">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
+            Read-only capability discovery
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {live.capabilities.map((capability) => (
+              <span
+                key={capability}
+                className="mono rounded-full border border-[color:var(--border)] px-2 py-1 text-[10px] text-[color:var(--text-secondary)]"
+              >
+                {capability}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="tabular break-all text-[11px] text-[color:var(--text-faint)]">
         {live.endpoint}
       </p>

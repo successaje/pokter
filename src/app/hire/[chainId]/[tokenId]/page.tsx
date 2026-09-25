@@ -69,7 +69,8 @@ export default async function HirePage({
   }
   const dossier = result.dossier;
 
-  const { agent, category, proof } = dossier;
+  const { agent, category, proof, live } = dossier;
+  const answeredNow = live.ratio !== null && live.ratio > 0;
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, "");
   const meta =
     category === "unclassified" ? null : CATEGORY_BY_ID.get(category);
@@ -105,13 +106,15 @@ export default async function HirePage({
         </p>
       </header>
 
-      {!proof.hirable ? (
+      {!proof.hirable || !answeredNow ? (
         <section className="rounded-[var(--radius-lg)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-5">
           <h2 className="text-sm font-medium text-[color:var(--negative)]">
             Hiring is blocked
           </h2>
           <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            {proof.rationale}
+            {!proof.hirable
+              ? proof.rationale
+              : 'This agent did not answer Pokter’s live protocol probe. Hiring stays blocked until it responds again.'}
           </p>
         </section>
       ) : (
@@ -127,7 +130,7 @@ export default async function HirePage({
             title="Grant permission"
             caption="Scoped, capped and expiring authority over your wallet."
           >
-            <WalletGate action="grant permission">
+            <WalletGate action="grant permission" capability="session">
               <PermissionReview
                 summary={summary}
                 agent={{
@@ -148,7 +151,7 @@ export default async function HirePage({
             title="Commission work"
             caption="Escrow a budget for a specific task, released only on delivery."
           >
-            <WalletGate action="commission work">
+            <WalletGate action="commission work" capability="commission">
               <CommissionPanel
                 agent={{ chainId, tokenId, name: agent.name }}
                 providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
