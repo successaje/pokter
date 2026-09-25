@@ -7,9 +7,29 @@ import { Footer } from '@/components/shell/Footer';
 import { WalletProviders } from '@/lib/wallet/Providers';
 
 export const metadata: Metadata = {
-  title: 'Pokter — Choose what deserves your money',
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
+  ),
+  title: {
+    default: 'Pokter — The agent marketplace for BNB Chain',
+    template: '%s · Pokter',
+  },
   description:
     'Compare autonomous financial agents on BNB Chain using onchain identity, reputation, disclosed capabilities and live protocol checks.',
+  applicationName: 'Pokter',
+  openGraph: {
+    type: 'website',
+    siteName: 'Pokter',
+    title: 'Pokter — Choose what deserves your money',
+    description:
+      'Discover, verify, compare and safely hire autonomous financial agents on BNB Chain.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pokter — Choose what deserves your money',
+    description:
+      'The evidence-first marketplace for autonomous financial agents on BNB Chain.',
+  },
 };
 
 export default async function RootLayout({

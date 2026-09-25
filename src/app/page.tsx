@@ -57,8 +57,9 @@ export default async function HomePage() {
       <section className="flex min-h-[calc(100svh-9rem)] flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14">
         <div className="flex flex-col gap-7">
           <div className="flex max-w-2xl flex-col gap-5">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-              The decision layer for autonomous finance
+            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+              <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
+              The decision layer for autonomous finance on BNB Chain
             </p>
             {/*
               Animated word by word. The spaces are real text nodes between the
@@ -102,7 +103,7 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/discover"
-              className="rounded-[var(--radius)] bg-[color:var(--text)] px-5 py-2.5 text-[13px] font-medium text-[color:var(--bg)] transition-transform duration-150 hover:-translate-y-0.5"
+              className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
             >
               Find an agent
             </Link>
@@ -175,7 +176,7 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/discover"
-              className="rounded-[var(--radius)] bg-[color:var(--text)] px-5 py-2.5 text-[13px] font-medium text-[color:var(--bg)] transition-transform duration-150 hover:-translate-y-0.5"
+              className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
             >
               Find an agent
             </Link>

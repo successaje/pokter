@@ -30,7 +30,7 @@
   /* Borders, deliberately low contrast */
   --border: #1c2027;
   --border-strong: #2a3038;
-  --border-focus: #3d6fd9;
+  --border-focus: #f0b90b;
 
   /* Text ramp */
   --text: #edf0f4;
@@ -61,8 +61,10 @@
    * a background swash sitting behind display type on the landing page only,
    * never on a status, a metric or a control.
    */
-  --brand-highlight: #f2d64b;
-  --brand-highlight-soft: rgba(242, 214, 75, 0.22);
+  --brand: #f0b90b;
+  --brand-ink: #100d04;
+  --brand-highlight: #f0b90b;
+  --brand-highlight-soft: rgba(240, 185, 11, 0.2);
 }
 
 @theme inline {
@@ -122,8 +124,10 @@
   --light-info-dim: #eaf2fe;
   --light-neutral: #616b7a;
 
-  --light-brand-highlight: #ffe866;
-  --light-brand-highlight-soft: rgba(255, 232, 102, 0.55);
+  --light-brand: #d9a407;
+  --light-brand-ink: #100d04;
+  --light-brand-highlight: #f0b90b;
+  --light-brand-highlight-soft: rgba(240, 185, 11, 0.3);
 }
 
 /* Applied only when light is actually in effect. */
@@ -150,6 +154,8 @@
   --neutral: var(--light-neutral);
   --brand-highlight: var(--light-brand-highlight);
   --brand-highlight-soft: var(--light-brand-highlight-soft);
+  --brand: var(--light-brand);
+  --brand-ink: var(--light-brand-ink);
 
   color-scheme: light;
 }
@@ -178,6 +184,8 @@
     --neutral: var(--light-neutral);
     --brand-highlight: var(--light-brand-highlight);
     --brand-highlight-soft: var(--light-brand-highlight-soft);
+    --brand: var(--light-brand);
+    --brand-ink: var(--light-brand-ink);
 
     color-scheme: light;
   }

@@ -30,7 +30,11 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[color:var(--bg)]/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-5 sm:px-8">
-        <Link href="/" className="text-[color:var(--text)]">
+        <Link
+          href="/"
+          aria-label="Pokter home"
+          className="text-[color:var(--text)] transition-opacity hover:opacity-80"
+        >
           <Wordmark />
         </Link>
 
@@ -56,8 +60,9 @@ export function Nav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="mono hidden rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:inline">
-            BSC · 56
+          <span className="mono hidden items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:flex">
+            <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
+            BNB Chain · 56
           </span>
           <ThemeToggle />
           <ConnectWallet />
@@ -92,7 +97,7 @@ export function MobileNav() {
                 aria-hidden
                 className={cn(
                   'size-1 rounded-full',
-                  active ? 'bg-[color:var(--info)]' : 'bg-transparent',
+                  active ? 'bg-[color:var(--brand)]' : 'bg-transparent',
                 )}
               />
               {item.label}
