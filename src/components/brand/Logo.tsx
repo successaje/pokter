@@ -16,7 +16,7 @@ export function Logo({ size = 20 }: { size?: number }) {
     >
       <path d="M3 3.5h15.25v6.75H10.5V29H3V3.5Z" fill="currentColor" />
       <path
-        d="M19.25 3.5H24a5 5 0 0 1 5 5v15a5 5 0 0 1-5 5h-9.25v-6.75h6.75v-11.5h-2.25V3.5Z"
+        d="M19.25 3.5H24a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-9.25V15h6.75v-4.75h-2.25V3.5Z"
         fill="currentColor"
       />
       <rect x="11.75" y="12.25" width="6.75" height="6.75" rx="1.35" fill="var(--brand)" />
