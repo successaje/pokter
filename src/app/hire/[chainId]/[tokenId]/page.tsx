@@ -155,7 +155,12 @@ export default async function HirePage({
           >
             <WalletGate action="commission work" capability="commission">
               <CommissionPanel
-                agent={{ chainId, tokenId, name: agent.name }}
+                agent={{
+                  chainId,
+                  tokenId,
+                  name: agent.name,
+                  wallet: agent.agent_wallet,
+                }}
                 providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
                 escrowChainId={ALTANA_NETWORK.chainId}
                 explorerBase={explorerBase}

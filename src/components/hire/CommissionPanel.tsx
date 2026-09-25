@@ -39,7 +39,7 @@ export function CommissionPanel({
   escrowChainId,
   explorerBase,
 }: {
-  agent: { chainId: number; tokenId: string; name: string };
+  agent: { chainId: number; tokenId: string; name: string; wallet?: string | null };
   providers: ProviderChoice[];
   escrowChainId: number;
   explorerBase: string;
@@ -59,8 +59,52 @@ export function CommissionPanel({
   const [job, setJob] = useState<HiredJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [notification, setNotification] = useState<
+    'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
+  >('idle');
+  const [notificationDetail, setNotificationDetail] = useState<string | null>(null);
 
   const provider = providers.find((p) => p.address === providerAddress);
+
+  const notifySeller = async (hired: HiredJob) => {
+    const isRegisteredSeller =
+      agent.chainId === hired.chainId &&
+      agent.wallet?.toLowerCase() === hired.provider.toLowerCase();
+    if (!isRegisteredSeller) {
+      setNotification('not-applicable');
+      setNotificationDetail(
+        'Escrow is funded, but this testnet seller has no registry-discoverable A2A endpoint. Delivery was not automatically requested.',
+      );
+      return;
+    }
+
+    setNotification('notifying');
+    setNotificationDetail(null);
+    try {
+      const response = await fetch('/api/notify-funded', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          chainId: agent.chainId,
+          tokenId: agent.tokenId,
+          jobId: hired.jobId,
+          provider: hired.provider,
+        }),
+      });
+      const payload = (await response.json()) as { status?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'Seller notification failed.');
+      if (payload.status === 'accepted') {
+        setNotification('accepted');
+        setNotificationDetail('The seller verified the funded job and accepted the delivery request.');
+      } else {
+        setNotification('rejected');
+        setNotificationDetail('The seller verified the job but rejected the delivery request.');
+      }
+    } catch (caught) {
+      setNotification('failed');
+      setNotificationDetail((caught as Error).message);
+    }
+  };
 
   const commission = async () => {
     setState('hiring');
@@ -128,6 +172,7 @@ export function CommissionPanel({
       rememberJob(wallet.address, hired);
       setJob(hired);
       setState('hired');
+      await notifySeller(hired);
     } catch (caught) {
       setError((caught as Error).message);
       setState('error');
@@ -329,6 +374,41 @@ export function CommissionPanel({
           <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
             {JOB_STAGE_COPY[job.status]}
           </p>
+
+          {notification !== 'idle' && (
+            <div
+              className={cn(
+                'rounded-[var(--radius)] border p-3 text-[11px] leading-relaxed',
+                notification === 'accepted'
+                  ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] text-[color:var(--positive)]'
+                  : notification === 'notifying'
+                    ? 'border-[color:var(--info)]/30 bg-[color:var(--info-dim)] text-[color:var(--info)]'
+                    : 'border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] text-[color:var(--caution)]',
+              )}
+            >
+              <span className="font-medium">
+                {notification === 'accepted'
+                  ? 'Delivery accepted'
+                  : notification === 'notifying'
+                    ? 'Notifying seller…'
+                    : notification === 'rejected'
+                      ? 'Delivery declined'
+                      : notification === 'failed'
+                        ? 'Seller notification failed'
+                        : 'Delivery not automatically requested'}
+              </span>
+              {notificationDetail && <p className="mt-1">{notificationDetail}</p>}
+              {(notification === 'failed' || notification === 'rejected') && (
+                <button
+                  type="button"
+                  onClick={() => notifySeller(job)}
+                  className="mt-2 font-medium underline decoration-dotted underline-offset-2"
+                >
+                  Retry seller notification
+                </button>
+              )}
+            </div>
+          )}
 
           {job.hireTxHash && (
             <a
