@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatUnits } from 'viem';
+import { formatUnits, parseUnits } from 'viem';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
@@ -12,8 +12,20 @@ import {
   settleErc8183Job,
 } from '@altananetwork/sdk';
 import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
+
+const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
+
+function safeDeliverableUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * §55 / §58. A commissioned job.
@@ -31,6 +43,7 @@ export function JobCard({
   const [job, setJob] = useState(initial);
   const [busy, setBusy] = useState<null | 'refresh' | 'approve'>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState(false);
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
 
@@ -43,6 +56,13 @@ export function JobCard({
       let settleTxHash = job.settleTxHash;
       if (action === 'approve') {
         if (!signer) throw new Error('The passkey signer is unavailable.');
+        if (!reviewed) throw new Error('Review the deliverable before releasing escrow.');
+        const balances = await walletClient().balances({ wallet: wallet.address });
+        if (balances.native < MIN_TRANSACTION_GAS) {
+          throw new Error(
+            'Your passkey wallet needs at least 0.002 tBNB to release escrow.',
+          );
+        }
         const outcome = await settleErc8183Job(
           { address: wallet.address },
           signer,
@@ -68,6 +88,7 @@ export function JobCard({
         deliverableUrl,
         settleTxHash,
       };
+      if (updated.deliverableUrl !== job.deliverableUrl) setReviewed(false);
       setJob(updated);
       updateRememberedJob(wallet.address, updated);
     } catch (caught) {
@@ -79,6 +100,7 @@ export function JobCard({
 
   const budget = formatUnits(BigInt(job.budgetRaw), 18);
   const settleable = job.status === 'SUBMITTED';
+  const deliverableUrl = safeDeliverableUrl(job.deliverableUrl);
 
   return (
     <article className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
@@ -108,15 +130,22 @@ export function JobCard({
         </pre>
       </details>
 
-      {job.deliverableUrl && (
+      {deliverableUrl && (
         <a
-          href={job.deliverableUrl}
+          href={deliverableUrl}
           target="_blank"
           rel="noreferrer noopener"
           className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
         >
           View deliverable →
         </a>
+      )}
+
+      {job.deliverableUrl && !deliverableUrl && (
+        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-2.5 text-[11px] leading-relaxed text-[color:var(--caution)]">
+          The submitted deliverable uses an unsupported or malformed URL. Do not
+          release escrow until the seller provides a valid HTTP(S) deliverable.
+        </p>
       )}
 
       <dl className="flex flex-col gap-1 border-t border-[color:var(--border)] pt-3 text-[11px]">
@@ -180,15 +209,28 @@ export function JobCard({
           {busy === 'refresh' ? 'Reading chain…' : 'Refresh status'}
         </button>
 
-        {settleable && (
-          <button
-            type="button"
-            onClick={() => act('approve')}
-            disabled={busy !== null}
-            className="rounded-[var(--radius)] bg-[color:var(--positive)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {busy === 'approve' ? 'Releasing…' : 'Release escrow'}
-          </button>
+        {settleable && deliverableUrl && (
+          <div className="flex w-full flex-col gap-2 rounded-[var(--radius)] border border-[color:var(--border)] p-3">
+            <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+              <input
+                type="checkbox"
+                checked={reviewed}
+                onChange={(event) => setReviewed(event.target.checked)}
+                disabled={busy !== null}
+                className="mt-0.5"
+              />
+              I opened and reviewed the submitted deliverable. Releasing escrow
+              is an on-chain approval that pays the seller.
+            </label>
+            <button
+              type="button"
+              onClick={() => act('approve')}
+              disabled={busy !== null || !reviewed}
+              className="w-fit rounded-[var(--radius)] bg-[color:var(--positive)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {busy === 'approve' ? 'Releasing…' : 'Release escrow'}
+            </button>
+          </div>
         )}
       </div>
     </article>
