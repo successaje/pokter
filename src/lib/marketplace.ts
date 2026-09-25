@@ -203,7 +203,10 @@ export async function getDossier(
       limit: 0,
       offset: 0,
     })),
-    probeAgent(agent, { samples: 3 }),
+    // One protocol handshake keeps the decision current without adding three
+    // serial network round trips to every dossier. Scheduled sweeps remain the
+    // source of repeated-sample reliability evidence.
+    probeAgent(agent, { samples: 1 }),
   ]);
 
   const attestations = feedbackPage.items.map(toAttestation);

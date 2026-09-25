@@ -300,7 +300,7 @@ async function probeOnce(
  */
 export async function probeAgent(
   agent: ScanAgentDetail,
-  { samples = 3 }: { samples?: number } = {},
+  { samples = 1 }: { samples?: number } = {},
 ): Promise<LiveReading> {
   const target = probeTarget(agent);
 
