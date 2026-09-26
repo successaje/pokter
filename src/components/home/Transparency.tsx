@@ -45,11 +45,11 @@ const OUTCOMES: {
   },
   {
     name: 'Agent delivery',
-    status: 'partial',
+    status: 'working',
     worked:
-      'A same-chain A2A seller now verifies funded jobs, publishes a canonical manifest and submits its hash through ERC-8183.',
+      'Live job #1336 proves the full path: funded escrow, A2A notification, public canonical manifest, on-chain submission and exact-byte receipt verification.',
     didnt:
-      'The positive path still needs one buyer-funded test through the new runtime before we label the complete delivery loop working.',
+      'Third-party delivery still depends on each seller publishing a reachable runtime; Pokter never marks a merely funded job as delivered.',
   },
 ];
 

@@ -122,7 +122,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
       const message = (caught as Error).message ?? 'Recovery failed.';
       setError(
         /NotAllowed|abort/i.test(message)
-          ? `No passkey was selected for ${window.location.hostname}. Passkeys created on another domain, including localhost, cannot be used here.`
+          ? 'No passkey was selected for Pokter.'
           : message,
       );
     } finally {

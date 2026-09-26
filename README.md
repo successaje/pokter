@@ -104,23 +104,23 @@ defects our own method has.
 
 ## What works today
 
-| Capability                                       | Status                                                      |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| Agent discovery across four categories           | Live against BSC mainnet                                    |
-| Hybrid retrieval (semantic + keyword + tags)     | Working                                                     |
-| Clone-farm collapse                              | Working                                                     |
-| Evidence states and the Pokter Score             | Working                                                     |
-| Scheduled endpoint probing and track records     | Working                                                     |
-| Recommendations with checkable rejections        | Working                                                     |
-| Side-by-side comparison, up to four agents       | Working                                                     |
-| Rankings with per-metric awards                  | Working                                                     |
-| Published methodology, imported from the code    | Working                                                     |
-| Altana scoped sessions — grant, register, revoke | **Verified on-chain**                                       |
-| ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                                       |
-| Passkey wallets (WebAuthn, user-held)            | Working                                                     |
-| Session grants signed by the visitor's own key   | Working **via passkey**; browser wallets cannot             |
-| Agent delivery and receipt verification          | **Implemented, awaiting funded positive-path verification** |
-| Performance and risk scoring                     | **Never** — [why](#what-does-not-work)                      |
+| Capability                                       | Status                                          |
+| ------------------------------------------------ | ----------------------------------------------- |
+| Agent discovery across four categories           | Live against BSC mainnet                        |
+| Hybrid retrieval (semantic + keyword + tags)     | Working                                         |
+| Clone-farm collapse                              | Working                                         |
+| Evidence states and the Pokter Score             | Working                                         |
+| Scheduled endpoint probing and track records     | Working                                         |
+| Recommendations with checkable rejections        | Working                                         |
+| Side-by-side comparison, up to four agents       | Working                                         |
+| Rankings with per-metric awards                  | Working                                         |
+| Published methodology, imported from the code    | Working                                         |
+| Altana scoped sessions — grant, register, revoke | **Verified on-chain**                           |
+| ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                           |
+| Passkey wallets (WebAuthn, user-held)            | Working                                         |
+| Session grants signed by the visitor's own key   | Working **via passkey**; browser wallets cannot |
+| Agent delivery and receipt verification          | **Verified end to end on-chain**                |
+| Performance and risk scoring                     | **Never** — [why](#what-does-not-work)          |
 
 ## Evidence
 
@@ -134,6 +134,7 @@ Everything below is on BSC testnet and independently verifiable.
 | Escrow funded                                   | [`0x711855b9…`](https://testnet.bscscan.com/tx/0x711855b98171278e47e51e891d454dc9ef1def728c58e837466ba20085cc7599) |
 | Live session granted from the product           | [`0x62b049db…`](https://testnet.bscscan.com/tx/0x62b049db108673c41bbe8a9d9cebbdffb1e06451db3ba2db31c88a035a1233bd) |
 | Live job hired and escrowed                     | [`0x93385d57…`](https://testnet.bscscan.com/tx/0x93385d5708964b0b6257b24b38ee00149fc53112445030d7227d43a6d90f9ac5) |
+| Public receipt submitted for live job #1336     | [`0x775ced53…`](https://testnet.bscscan.com/tx/0x775ced536b513df298464d76284ad133af4c5b3cd465213ed7ebb3f63bcc3d50) |
 
 Both operator accounts are visible in the **Altana Keystore explorer**, and
 between them they show the whole lifecycle:
@@ -210,8 +211,8 @@ Three things, stated here rather than discovered.
 original test seller has no discoverable runtime, so its historical jobs remain
 at `FUNDED`. Pokter now includes a same-chain A2A seller for the guided path: it
 verifies the funded job, serves a canonical manifest and submits its hash
-through ERC-8183. The positive path still needs one buyer-funded transaction
-before we label the complete loop proven.
+through ERC-8183. Live job #1336 proves that path with a publicly retrievable
+receipt whose exact bytes match the hash committed on-chain.
 
 **A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships no injected-wallet signer. In 0.8.0 a doc comment
 in `internal/signer.d.ts` said the SDK ships three signers and named

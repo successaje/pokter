@@ -136,10 +136,6 @@ export function ConnectWallet() {
                   Creates a wallet whose only key lives in your device. Signing
                   asks for your fingerprint or face.
                 </p>
-                <p className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-2 text-[10px] leading-relaxed text-[color:var(--text-muted)]">
-                  Passkeys are tied to this site. A wallet created on localhost
-                  cannot be recovered on pokter.fly.dev, and vice versa.
-                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -159,7 +155,7 @@ export function ConnectWallet() {
                   >
                     {passkey.busy === 'recovering'
                       ? 'Waiting…'
-                      : 'Use existing on this site'}
+                      : 'Use existing'}
                   </button>
                 </div>
               </>
