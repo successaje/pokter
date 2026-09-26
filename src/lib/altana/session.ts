@@ -17,33 +17,25 @@ import {
 import { getSessionStore } from './store';
 import type { GrantedSession } from './types';
 
-/**
- * Live session signers, held for the lifetime of the process.
- *
- * A granted session's authority lives on-chain, but the *signer* that acts
- * under it is generated at grant time and never persisted — writing an agent's
- * signing key to disk would undo the point of scoping it. A restart therefore
- * loses the ability to execute under an existing session, while leaving the
- * grant itself intact and revocable by public key. Documented rather than
- * hidden; a production deployment would hand the signer to the agent process at
- * grant time instead.
- */
 /*
- * Session signers, held only for the life of this process.
+ * There is deliberately no store of session signers here.
  *
- * SDK 0.9.0 warns that a signer generated this way is unrecoverable if lost,
- * and that the authorization it backs then becomes unusable. That warning does
- * not bite here, and it is worth writing down why rather than rediscovering it.
+ * A granted session's authority lives on chain; the signer that would act
+ * under it was generated at grant time. This module used to keep those signers
+ * in a process-local Map — written on grant, deleted on revoke, and never once
+ * read. It held a live signing key in memory to no purpose.
  *
  * Pokter never acts *as* an agent. It grants a scoped session, registers it,
- * and revokes it — and `revokeSession` targets the registered public key rather
- * than the signer, so a restart cannot strand a live permission. Nothing else
- * reads this map; it exists so a signer is not garbage collected mid-request.
+ * and revokes it, and `revokeSession` targets the registered public key rather
+ * than the signer, so nothing here needs the key after the grant returns.
  *
- * The day Pokter executes on a user's behalf, this becomes a real secret that
- * needs real storage, and the SDK's advice applies in full.
+ * Removing the Map is the point rather than a tidy-up: a capability that does
+ * not exist cannot be reached by accident later. The day Pokter executes on a
+ * user's behalf, the signer becomes a real secret needing real storage, and
+ * that should be a deliberate addition rather than something already half
+ * present.
  */
-const liveSigners = new Map<string, unknown>();
+
 
 export interface GrantInput extends PermissionRequest {
   agentChainId: number;
@@ -81,7 +73,6 @@ export async function grantSession(input: GrantInput): Promise<GrantOutcome> {
   });
 
   const id = randomUUID();
-  liveSigners.set(id, granted.signer);
 
   const record: GrantedSession = {
     id,
@@ -131,7 +122,6 @@ export async function revokeSession(id: string): Promise<GrantedSession> {
 
   const revokedAt = new Date().toISOString();
   store.markRevoked(id, result.transactionHash ?? null, revokedAt);
-  liveSigners.delete(id);
 
   return {
     ...existing,

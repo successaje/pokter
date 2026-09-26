@@ -14,13 +14,15 @@ both chains. Findings marked *Verified* were executed, not reasoned about.
 
 | Severity | Open | Fixed | Accepted | Verified |
 | --- | --- | --- | --- | --- |
-| Critical | 0 | 4 | 0 | — |
-| High | 3 | 0 | 0 | — |
+| Critical | 0 | 5 | 0 | — |
+| High | 0 | 3 | 0 | — |
 | Medium | 3 | 0 | 0 | — |
 | Info | — | — | — | 5 |
 
-**Still not cleared.** The four Criticals are fixed; three High findings
-remain, and the *Not examined* list below is unchanged.
+**Criticals and Highs are closed.** Three Medium findings remain, and the
+*Not examined* list below is unchanged — which is what still blocks a
+migration, since it includes the third-party contracts the enforcement claim
+rests on and whether mainnet `$U` can be obtained at all.
 
 All four Criticals had one cause — the interface described testnet while the
 money would be real — and are fixed at the root rather than per site:
@@ -91,7 +93,7 @@ rather than silently at delivery.
 ## High
 
 ### POK-005 · Spend-cap ceiling is unchanged for mainnet
-**Status: Open**
+**Status: Fixed** · bounds now network-aware
 
 `PermissionReview.tsx:250-252` allows 0.001–1 BNB, defaulting to 0.05. Those
 were chosen when a BNB was worth nothing.
@@ -99,11 +101,22 @@ were chosen when a BNB was worth nothing.
 The user signs their own grant, so this is their decision and the server
 cannot bound it — which makes the slider the only control that exists.
 
-**Remediation.** Reconsider the ceiling and default for mainnet, and show the
-fiat equivalent next to the figure so the number means something.
+**Fix.** `src/lib/altana/caps.ts` sets the range per network. Testnet keeps
+0.001–1 at a 0.05 preset. Mainnet tightens to 0.001–0.25 at a 0.02 preset —
+roughly $12 to start against a $150 ceiling at $600/BNB. Conservative on
+purpose: dragging further is a deliberate act, while a generous default is one
+nobody has to notice.
+
+The cap now also renders its dollar equivalent, priced from the same
+PancakeSwap pool the product already quotes, and omitted rather than guessed
+when pricing fails. **Verified:** mainnet resolves to `{min: 0.001, max: 0.25,
+preset: 0.02}`, the preset reads `$12.00`, and a null price yields no figure.
+
+**Still a product decision.** These numbers are a safe starting point, not a
+researched one. Revisit before real volume.
 
 ### POK-006 · Session signers do not survive a restart
-**Status: Open** · previously documented as a known limit
+**Status: Fixed** · the store is gone
 
 `session.ts:46` holds session signers in an in-process `Map`. SDK 0.9.0 warns
 that losing a session key makes its authorization unusable.
@@ -112,19 +125,35 @@ It does not bite today because Pokter never acts as the agent and revocation
 targets the registered public key. On mainnet, with real value behind a
 session, the blast radius changes even though the mechanism does not.
 
-**Remediation.** Decide explicitly whether Pokter ever holds a session key on
-mainnet. If yes, it needs real secret storage. If no, remove the `Map` so the
-capability cannot be reached by accident.
+**Fix.** The `Map` was written on grant and deleted on revoke, and **never
+once read** — it held a live signing key in memory to no purpose. Removed
+entirely rather than secured, because the answer to "does Pokter hold a
+session key on mainnet" is no, and a capability that does not exist cannot be
+reached by accident later.
+
+The day Pokter executes on a user's behalf, that signer becomes a real secret
+needing real storage. It should arrive as a deliberate addition rather than
+something already half present.
 
 ### POK-007 · Rate limiting is per-process and resets on deploy
-**Status: Open**
+**Status: Fixed** · for the deploy case; still per machine
 
 `security/rate-limit.ts` keeps counters in memory. They reset on every deploy
 and do not span machines, so scaling past one instance multiplies every limit
 by the instance count.
 
-**Remediation.** Acceptable at one machine. Revisit before scaling, and say so
-in the deployment notes rather than discovering it under load.
+**Fix.** Counters moved to SQLite on the mounted volume. The deploy reset was
+the realistic failure — during a campaign each deploy quietly reopened a full
+window to anyone watching, and nothing errored to signal it. Old rows are
+pruned hourly.
+
+**Verified:** a limit of three allowed three calls and refused the fourth, a
+different caller was unaffected, and a fresh process reading the same volume
+still refused — which is the deploy case.
+
+**Still per machine.** The volume is not shared, so two instances double every
+limit. Left open as a scaling note rather than solved, because the fix is a
+shared store and this deployment has one machine.
 
 ---
 

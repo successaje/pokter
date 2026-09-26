@@ -1,6 +1,7 @@
 'use client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { SPEND_CAP_BOUNDS, formatCapUsd } from '@/lib/altana/caps';
 import { useState } from 'react';
 import { useCommitLock } from '@/components/hire/WalletGate';
 
@@ -37,14 +38,18 @@ export function PermissionReview({
   agent,
   explorerBase,
   isTestnet,
+  bnbUsdPrice,
 }: {
   summary: PermissionSummary;
   agent: { chainId: number; tokenId: string; name: string; category: string };
   explorerBase: string;
   isTestnet: boolean;
+  /** Null when pricing was unavailable; the figure is then omitted. */
+  bnbUsdPrice: number | null;
 }) {
   const { locked, reason } = useCommitLock();
-  const [spendCap, setSpendCap] = useState(0.05);
+  const [spendCap, setSpendCap] = useState(SPEND_CAP_BOUNDS.preset);
+  const capUsd = formatCapUsd(spendCap, bnbUsdPrice);
   const [period, setPeriod] = useState<SpendPeriod>('week');
   const [expiryDays, setExpiryDays] = useState(7);
 
@@ -253,15 +258,25 @@ export function PermissionReview({
             <input
               id="spend-cap"
               type="number"
-              min={0.001}
-              max={1}
-              step={0.005}
+              min={SPEND_CAP_BOUNDS.min}
+              max={SPEND_CAP_BOUNDS.max}
+              step={SPEND_CAP_BOUNDS.step}
               value={spendCap}
               disabled={state !== 'idle' && state !== 'error'}
               onChange={(event) => setSpendCap(Number(event.target.value))}
               className="mono w-28 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-2.5 py-1.5 text-[13px]"
             />
-            <span className="text-[13px] text-[color:var(--text-muted)]">BNB per</span>
+            {/* A cap in BNB is not a quantity most people can weigh against
+                their own risk. Omitted rather than guessed when pricing is
+                unavailable. */}
+            {capUsd && (
+              <span className="tabular text-[12px] text-[color:var(--text-faint)]">
+                ≈ {capUsd}
+              </span>
+            )}
+            <span className="text-[13px] text-[color:var(--text-muted)]">
+              {NATIVE_SYMBOL} per
+            </span>
             {(['day', 'week', 'month'] as SpendPeriod[]).map((option) => (
               <button
                 key={option}

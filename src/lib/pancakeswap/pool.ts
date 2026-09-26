@@ -137,7 +137,7 @@ function client() {
  * Read rather than hardcoded: a stale BNB price would misprice every
  * WBNB-quoted pool on the page, and the pool is already being read anyway.
  */
-async function wbnbUsdPrice(): Promise<number> {
+export async function wbnbUsdPrice(): Promise<number> {
   const pool = await readPool('wbnb-usdt');
   // token0 is USDT (0x55… sorts below 0xbb…), so the raw price is WBNB per
   // USDT; one WBNB costs its reciprocal.
