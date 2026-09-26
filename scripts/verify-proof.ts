@@ -29,7 +29,7 @@ async function main() {
     const s = summariseProof(group);
     const score = s.score === null ? '   n/a' : `${(s.score * 100).toFixed(1)}%`;
     console.log(
-      `  ${agentId.slice(0, 8)}  ${s.verdict.padEnd(9)} ${score}  probes=${String(s.probes).padStart(4)}  hirable=${s.hirable}`,
+      `  ${agentId.slice(0, 8)}  ${s.verdict.padEnd(9)} ${score}  probes=${String(s.probes).padStart(4)}  recommended=${s.recommendedForHire}`,
     );
     console.log(`     ${s.rationale}`);
   }

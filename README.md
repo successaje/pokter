@@ -88,11 +88,12 @@ Each carries a provenance tag — `onchain`, `attested`, `Pokter measured`,
 facts and observed facts are never mixed.
 
 **If we cannot verify it, we say so.** An agent with no attestations is marked
-`Unproven` and blocked from hire rather than given a filler score. The Pokter
-Score is computed only over dimensions that carry real data, and its coverage
-travels with it — a 90 scored on three dimensions never passes for a 90 scored
-on five. Returns and drawdown are reported as _not measured_, because nobody
-publishes them and inferring them from uptime would be fabrication.
+`Unproven` rather than given a filler score. Unproven agents cannot be hired
+without explicitly accepting the risk. The Pokter Score is computed only over
+dimensions that carry real data, and its coverage travels with it — a 90 scored
+on three dimensions never passes for a 90 scored on five. Returns and drawdown
+are reported as _not measured_, because nobody publishes them and inferring
+them from uptime would be fabrication.
 
 **We produce evidence, not just consume it.** Because so few agents carry
 attestations, Pokter measures agents itself: scheduled sweeps probe declared
@@ -282,8 +283,8 @@ unretrieved. Keyword search finds exactly those; the classifier filters both.
 them, so it cannot describe a rule the product does not follow.
 
 **Missing data never satisfies a threshold.** An unmeasured agent fails
-`has:probes>10` rather than passing it by absence, and is blocked from hire
-rather than ranked last with a filler score.
+`has:probes>10` rather than passing it by absence, and cannot be hired without
+explicitly accepting the risk rather than being ranked last with a filler score.
 
 ## Running it
 

@@ -10,10 +10,9 @@ import type { LiveReading } from '@/lib/proof/prober';
 /**
  * The rule the marketplace is named after, enforced in the UI.
  *
- * Hire is unreachable until the agent has cleared two independent bars: it holds
- * a verdict that permits hiring, and it answered our live probe just now. A
- * strong historical record does not excuse an endpoint that is down right now,
- * and a responsive endpoint does not excuse a failing record.
+ * The normal hire path requires two independent bars: a recommendable evidence
+ * verdict and a successful live probe. Falling short opens an explicit risk
+ * path rather than silently making the decision for the user.
  */
 export function HireGate({
   proof,
@@ -24,47 +23,73 @@ export function HireGate({
   proof: ProofSummary;
   live: LiveReading;
   agentName: string;
-  /** Where Hire leads once both bars are cleared. */
+  /** Where Hire leads after the normal review or explicit risk acceptance. */
   hireHref: string;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
 
   const answeredNow = live.ratio !== null && live.ratio > 0;
-  const blockers: string[] = [];
+  const warnings: string[] = [];
 
-  if (!proof.hirable) {
-    blockers.push(
+  if (!proof.recommendedForHire) {
+    warnings.push(
       proof.verdict === 'unproven'
         ? 'No verifiable record exists for this agent.'
         : 'This agent is failing the measurers that check it.',
     );
   }
   if (!answeredNow) {
-    blockers.push(
+    warnings.push(
       live.protocol === 'none'
         ? 'It publishes no endpoint we can reach.'
         : 'It did not answer a single live probe just now.',
     );
   }
 
-  const blocked = blockers.length > 0;
+  const needsRiskAcceptance = warnings.length > 0;
 
-  if (blocked) {
+  if (needsRiskAcceptance) {
     return (
-      <section className="flex flex-col gap-2 rounded-xl border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-5">
-        <h2 className="text-sm font-medium text-[color:var(--negative)]">
-          Hiring is blocked
+      <section className="flex flex-col gap-3 rounded-xl border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
+        <h2 className="text-sm font-medium text-[color:var(--caution)]">
+          Explicit risk acceptance required
         </h2>
         <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-[color:var(--text-muted)]">
-          {blockers.map((blocker) => (
-            <li key={blocker}>{blocker}</li>
+          {warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
           ))}
         </ul>
         <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-          This is not a judgement about whether {agentName} is good. It is a
-          statement that nothing here can currently be verified, and Proving
-          Ground will not hand your wallet to something it cannot check.
+          Unproven agents cannot be hired without explicitly accepting the risk.
+          Pokter does not recommend this hire, but the final decision remains
+          yours.
         </p>
+        <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[color:var(--text-muted)]">
+          <input
+            type="checkbox"
+            checked={acknowledged}
+            onChange={(event) => setAcknowledged(event.target.checked)}
+            className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--brand)]"
+          />
+          I understand the evidence warning for {agentName} and explicitly
+          accept the additional risk.
+        </label>
+        {acknowledged ? (
+          <Link
+            href={hireHref}
+            className="w-fit rounded-lg border border-[color:var(--caution)]/50 px-4 py-2 text-xs font-medium text-[color:var(--caution)] transition hover:border-[color:var(--caution)]"
+          >
+            Continue to permissions
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="w-fit cursor-not-allowed rounded-lg border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium text-[color:var(--text-faint)]"
+          >
+            Continue to permissions
+          </button>
+        )}
       </section>
     );
   }

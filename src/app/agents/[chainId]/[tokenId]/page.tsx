@@ -177,19 +177,19 @@ export default async function AgentPage({
             <Link
               href={`/hire/${agent.chain_id}/${agent.token_id}`}
               className={
-                proof.hirable && answeredNow
+                proof.recommendedForHire && answeredNow
                   ? 'action-primary w-full rounded-[var(--radius)] px-4 py-2 text-center text-[13px]'
                   : 'w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
               }
             >
-              {proof.hirable && answeredNow
+              {proof.recommendedForHire && answeredNow
                 ? 'Hire agent'
                 : 'Review risks and hire'}
             </Link>
-            {(!proof.hirable || !answeredNow) && (
+            {(!proof.recommendedForHire || !answeredNow) && (
               <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
                 Not recommended:{' '}
-                {proof.hirable
+                {proof.recommendedForHire
                   ? 'the current live probe failed.'
                   : proof.rationale}
               </p>

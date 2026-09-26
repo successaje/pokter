@@ -7,7 +7,7 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { summarise } from '@/lib/altana/permissions';
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { wbnbUsdPrice } from '@/lib/pancakeswap/pool';
-import { hirableAlternatives } from '@/lib/marketplace';
+import { recommendedAlternatives } from '@/lib/marketplace';
 import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
@@ -91,7 +91,7 @@ export default async function HirePage({
   });
   const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
   const riskWarnings = [
-    ...(!proof.hirable ? [proof.rationale] : []),
+    ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow
       ? ['The agent did not answer Pokter’s current live protocol probe.']
       : []),
@@ -136,13 +136,13 @@ export default async function HirePage({
                   Pokter does not recommend this hire
                 </h2>
                 <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-                  You remain in control. Review the evidence and explicitly
-                  accept the added risk before funding escrow, or choose a
-                  stronger alternative below.
+                  Unproven agents cannot be hired without explicitly accepting
+                  the risk. Review the evidence and accept the added risk before
+                  funding escrow, or choose a stronger alternative below.
                 </p>
               </section>
               <Alternatives
-                alternatives={await hirableAlternatives(
+                alternatives={await recommendedAlternatives(
                   category === 'unclassified' ? 'health-factor' : category,
                   tokenId,
                 )}

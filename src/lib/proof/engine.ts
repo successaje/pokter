@@ -28,7 +28,7 @@ export interface ProofSummary {
   /** Plain-language explanation of how this verdict was reached. */
   rationale: string;
   /** Whether Pokter recommends the normal, low-friction hire path. */
-  hirable: boolean;
+  recommendedForHire: boolean;
 }
 
 /**
@@ -97,7 +97,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       ...base,
       verdict: 'unproven',
       score: null,
-      hirable: false,
+      recommendedForHire: false,
       rationale:
         attestations.length === 0
           ? 'No on-chain attestations exist for this agent. There is nothing to verify, so Pokter does not recommend hiring it.'
@@ -160,7 +160,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     score,
     // A failing agent takes the explicit risk-acceptance path; an emerging one
     // may use the normal path, with its thin record still surfaced in the UI.
-    hirable: verdict === 'proven' || verdict === 'emerging',
+    recommendedForHire: verdict === 'proven' || verdict === 'emerging',
     rationale,
   };
 }

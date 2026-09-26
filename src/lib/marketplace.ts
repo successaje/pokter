@@ -169,7 +169,7 @@ export async function listMarketplace(
   }));
 }
 
-/** Everything the agent detail page needs to justify (or refuse) a hire. */
+/** Everything the detail page needs to justify or warn against a hire. */
 export interface AgentDossier {
   agent: ScanAgentDetail;
   category: ReturnType<typeof classify>;
@@ -390,9 +390,9 @@ export interface Alternative {
 /**
  * Agents in the same category that are worth trying instead.
  *
- * FE-01. A blocked hire used to end in an empty screen, which sends a quest
- * user to finish the category on somebody else's marketplace. Refusing the
- * hire is right; offering nothing after it is not.
+ * FE-01. A high-risk hire used to end in an empty screen, which sends a quest
+ * user to finish the category on somebody else's marketplace. A strong warning
+ * and explicit acceptance are right; silently making the decision is not.
  *
  * Deliberately built from the category listing and the local probe record
  * only. Resolving a full dossier per candidate would mean a live probe each,
@@ -400,7 +400,7 @@ export interface Alternative {
  * that have been answering, not agents guaranteed to answer this second — so
  * the UI says "recently" rather than implying a promise.
  */
-export async function hirableAlternatives(
+export async function recommendedAlternatives(
   category: Category,
   excludeTokenId: string,
   limit = 3,

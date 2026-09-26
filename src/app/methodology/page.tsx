@@ -161,13 +161,14 @@ export default async function MethodologyPage() {
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Failing</span> —
-            measured below {(FAILING_MAX_SCORE * 100).toFixed(0)}%. Blocked from
-            hire.
+            measured below {(FAILING_MAX_SCORE * 100).toFixed(0)}%. Pokter does
+            not recommend hiring it; continuing requires explicit risk acceptance.
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Unproven</span> —
             nothing verifiable exists. This is not a low score; it is the absence
-            of a measurement, and the two are never merged.
+            of a measurement, and the two are never merged. Unproven agents
+            cannot be hired without explicitly accepting the risk.
           </Rule>
         </ul>
 

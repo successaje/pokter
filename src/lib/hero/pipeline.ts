@@ -12,9 +12,9 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
  *
  * Every count, name and rejection reason below is read from the same sources
  * the rest of the product uses. The narrowing it depicts — hundreds of
- * thousands registered, a couple of dozen measured, a handful hirable — is the
- * actual shape of this registry, which is why it makes a better hero than a
- * busy marketplace would: the scarcity is the story.
+ * thousands registered, a couple of dozen measured, a handful recommended for
+ * hire — is the actual shape of this registry, which is why it makes a better
+ * hero than a busy marketplace would: the scarcity is the story.
  */
 
 export interface PipelineStage {
