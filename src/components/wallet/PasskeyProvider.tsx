@@ -67,7 +67,11 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
   // than React state, and neither ever changes after load — so they are read
   // through the same external-store mechanism with a no-op subscription, which
   // keeps the server snapshot explicit and avoids a render-triggering effect.
-  const supported = useSyncExternalStore(NEVER_CHANGES, passkeysSupported, FALSE);
+  const supported = useSyncExternalStore(
+    NEVER_CHANGES,
+    passkeysSupported,
+    FALSE,
+  );
   const ready = useSyncExternalStore(NEVER_CHANGES, TRUE, FALSE);
 
   const [busy, setBusy] = useState<'creating' | 'recovering' | null>(null);
@@ -118,7 +122,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
       const message = (caught as Error).message ?? 'Recovery failed.';
       setError(
         /NotAllowed|abort/i.test(message)
-          ? 'Passkey prompt was dismissed.'
+          ? `No passkey was selected for ${window.location.hostname}. Passkeys created on another domain, including localhost, cannot be used here.`
           : message,
       );
     } finally {
@@ -136,7 +140,9 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     [wallet, ready, supported, busy, error, create, recover, forget],
   );
 
-  return <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>;
+  return (
+    <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>
+  );
 }
 
 /** Signer for the connected wallet, or null when there is none. */

@@ -56,7 +56,9 @@ export function ConnectWallet() {
               aria-hidden
               className="size-1.5 rounded-full"
               style={{
-                background: passkey.wallet ? 'var(--positive)' : 'var(--caution)',
+                background: passkey.wallet
+                  ? 'var(--positive)'
+                  : 'var(--caution)',
               }}
             />
             <span className="mono">{shortAddress(connectedAddress!)}</span>
@@ -78,7 +80,9 @@ export function ConnectWallet() {
 
             {passkey.wallet ? (
               <>
-                <p className="mono text-[11px]">{shortAddress(passkey.wallet.address)}</p>
+                <p className="mono text-[11px]">
+                  {shortAddress(passkey.wallet.address)}
+                </p>
                 <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
                   Key held in this device&apos;s secure enclave. Pokter cannot
                   sign for you.
@@ -87,7 +91,9 @@ export function ConnectWallet() {
                   <button
                     type="button"
                     onClick={async () => {
-                      await navigator.clipboard.writeText(passkey.wallet!.address);
+                      await navigator.clipboard.writeText(
+                        passkey.wallet!.address,
+                      );
                       setCopied(true);
                       window.setTimeout(() => setCopied(false), 1500);
                     }}
@@ -116,7 +122,9 @@ export function ConnectWallet() {
                 </button>
               </>
             ) : !passkey.ready ? (
-              <p className="text-[10px] text-[color:var(--text-faint)]">Checking…</p>
+              <p className="text-[10px] text-[color:var(--text-faint)]">
+                Checking…
+              </p>
             ) : !passkey.supported ? (
               <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
                 This browser cannot use passkeys. They need WebAuthn over a
@@ -128,6 +136,10 @@ export function ConnectWallet() {
                   Creates a wallet whose only key lives in your device. Signing
                   asks for your fingerprint or face.
                 </p>
+                <p className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-2 text-[10px] leading-relaxed text-[color:var(--text-muted)]">
+                  Passkeys are tied to this site. A wallet created on localhost
+                  cannot be recovered on pokter.fly.dev, and vice versa.
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -135,7 +147,9 @@ export function ConnectWallet() {
                     onClick={() => passkey.create()}
                     className="rounded-[var(--radius)] bg-[color:var(--text)] px-2.5 py-1.5 text-[11px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
-                    {passkey.busy === 'creating' ? 'Waiting for prompt…' : 'Create passkey wallet'}
+                    {passkey.busy === 'creating'
+                      ? 'Waiting for prompt…'
+                      : 'Create passkey wallet'}
                   </button>
                   <button
                     type="button"
@@ -143,7 +157,9 @@ export function ConnectWallet() {
                     onClick={() => passkey.recover()}
                     className="rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1.5 text-[11px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
                   >
-                    {passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing'}
+                    {passkey.busy === 'recovering'
+                      ? 'Waiting…'
+                      : 'Use existing on this site'}
                   </button>
                 </div>
               </>
@@ -177,7 +193,9 @@ export function ConnectWallet() {
                     onClick={() => switchChain({ chainId: ESCROW_CHAIN.id })}
                     className="w-fit rounded-[var(--radius)] border border-[color:var(--caution)]/40 px-2.5 py-1 text-[11px] text-[color:var(--caution)] transition-colors hover:bg-[color:var(--caution-dim)] disabled:opacity-50"
                   >
-                    {switching ? 'Switching…' : `Switch to ${ESCROW_CHAIN.name}`}
+                    {switching
+                      ? 'Switching…'
+                      : `Switch to ${ESCROW_CHAIN.name}`}
                   </button>
                 )}
                 <button
