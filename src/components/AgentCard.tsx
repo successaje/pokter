@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
 import type { Verdict } from '@/lib/proof/engine';
+import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
 
 /**
@@ -30,24 +31,27 @@ export function AgentCard({
       className="group flex h-full flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          {meta && (
-            <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-              {meta.label}
-            </span>
-          )}
-          {/*
-            FE-08. break-words alone let `mandaterebalance-agent` split as
-            `mandaterebala / nce-agent`, and three-line titles made card
-            heights disagree across a row. Clamped to two lines with the full
-            name kept in the tooltip — these are identifiers, not prose.
-          */}
-          <h3
-            title={agent.name}
-            className="line-clamp-2 break-words text-sm font-medium leading-snug [overflow-wrap:anywhere]"
-          >
-            {agent.name}
-          </h3>
+        <div className="flex min-w-0 items-start gap-3">
+          <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+          <div className="flex min-w-0 flex-col gap-1">
+            {meta && (
+              <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                {meta.label}
+              </span>
+            )}
+            {/*
+              FE-08. break-words alone let `mandaterebalance-agent` split as
+              `mandaterebala / nce-agent`, and three-line titles made card
+              heights disagree across a row. Clamped to two lines with the full
+              name kept in the tooltip — these are identifiers, not prose.
+            */}
+            <h3
+              title={agent.name}
+              className="line-clamp-2 break-words text-sm font-medium leading-snug [overflow-wrap:anywhere]"
+            >
+              {agent.name}
+            </h3>
+          </div>
         </div>
         <EvidenceBadge verdict={verdict} />
       </div>
