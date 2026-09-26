@@ -225,9 +225,8 @@ body {
     padding-top: env(safe-area-inset-top);
   }
 
-  nav[aria-label='Primary navigation'] {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+  /* The floated bar carries the safe-area inset on its `bottom` offset, so
+     padding it here would pad the inside of a rounded container instead. */
 
   /* Marketing and legal detail remain available on the public website. The
      installed product keeps task routes focused and app-like. */
@@ -650,4 +649,19 @@ body:has([data-pokter-app-home]) > main {
 .word {
   display: inline-block;
   animation: word-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
+ * Clearance for the floated mobile tab bar.
+ *
+ * `main` carries its own bottom padding, but the footer sits outside it and
+ * was left with none — the last 66px of it ended up trapped behind the bar
+ * with the page already scrolled to its end, so there was no way to reveal
+ * it. Scoped to the width where the bar actually exists, and includes the
+ * safe-area inset because the bar is offset by it too.
+ */
+@media (max-width: 767px) {
+  body > footer {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
 }

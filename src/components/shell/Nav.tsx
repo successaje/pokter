@@ -174,13 +174,24 @@ export function MobileNav() {
   return (
     <nav
       ref={layerRef}
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-[color:var(--border)] bg-[color:var(--bg)]/95 backdrop-blur-md md:hidden"
+      /*
+        Floated rather than attached. An edge-to-edge bar with a top border
+        reads as a website's footer navigation; lifting it off the canvas,
+        rounding it and giving it a shadow is most of what makes a thing feel
+        like an application rather than a page.
+
+        `bottom` carries the safe-area inset itself so the bar clears a home
+        indicator without the old padding trick, which would have padded the
+        inside of a rounded container and left the shadow sitting in the gap.
+      */
+      className="fixed inset-x-3 z-30 mx-auto max-w-[520px] overflow-hidden rounded-[1.25rem] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]/92 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+      style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       aria-label="Primary navigation"
     >
       {moreOpen && (
         <div
           id="mobile-more-menu"
-          className="absolute bottom-full right-3 mb-2 w-52 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-1.5 shadow-xl"
+          className="absolute bottom-full right-2 mb-2 w-52 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-1.5 shadow-xl"
         >
           {MOBILE_MORE.map((item) => {
             const active =
@@ -216,7 +227,7 @@ export function MobileNav() {
               href={item.href}
               onClick={closeMore}
               className={cn(
-                'flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
+                'flex min-h-[3.25rem] flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
                 active
                   ? 'text-[color:var(--text)]'
                   : 'text-[color:var(--text-muted)]',
@@ -233,7 +244,7 @@ export function MobileNav() {
           aria-expanded={moreOpen}
           aria-controls="mobile-more-menu"
           className={cn(
-            'flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
+            'flex min-h-[3.25rem] flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
             moreOpen || moreActive
               ? 'text-[color:var(--text)]'
               : 'text-[color:var(--text-muted)]',

@@ -69,7 +69,7 @@ export default async function RootLayout({
           <WalletProviders>
             <Nav />
 
-            <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-24 pt-8 sm:px-8 md:pb-16">
+            <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-28 pt-8 sm:px-8 md:pb-16">
               {children}
             </main>
 

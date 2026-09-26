@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 22** · 14 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 23** · 15 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 14 |
+| Fixed | 15 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -283,6 +283,28 @@ It reads the stored record rather than probing live, because probing every row
 would cost one outbound request per agent on a list view. The hire page still
 runs its own live check and now offers alternatives when that fails, so the
 worst case is a redirect rather than a dead end.
+
+---
+
+### FE-24 · The mobile tab bar was attached rather than floated
+**Status: Fixed** · **Page:** all, mobile
+
+Edge-to-edge with a top border reads as a website's footer navigation. Lifting
+it off the canvas, rounding it and giving it a shadow is most of what makes
+something feel like an application rather than a page — and it is the clearest
+remaining gap against Dolphin's mobile.
+
+**Fixed.** 12px inset on three sides, 20px radius, elevated, capped at 520px
+and centred. The safe-area inset moved onto the `bottom` offset rather than
+staying as padding, which would have padded the inside of a rounded container
+and left the shadow sitting in the gap.
+
+**A regression came with it, found by measuring rather than looking.** `main`
+carries its own bottom padding but the footer sits outside it, so the last
+66px of the footer ended up trapped behind the floated bar with the page
+already scrolled to its end — no way to reveal it at all. The footer now has
+its own clearance, scoped to the width where the bar exists. Verified: the
+last row clears the bar by 22px.
 
 ---
 
