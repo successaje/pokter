@@ -121,7 +121,8 @@ export function CommissionPanel({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          chainId: hired.chainId,
+          // The chain the agent is registered on, not the escrow chain.
+          agentChainId: agent.chainId,
           tokenId: agent.tokenId,
           jobId: hired.jobId,
           provider: hired.provider,

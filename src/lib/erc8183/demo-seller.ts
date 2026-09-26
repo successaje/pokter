@@ -48,8 +48,43 @@ function publicBaseUrl(): URL {
   return new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311');
 }
 
+/**
+ * Refuse to commit a deliverable URL nobody else can fetch.
+ *
+ * POK-036. The submitted URL is written on chain and cannot be edited. Running
+ * a delivery locally, where `NEXT_PUBLIC_APP_URL` falls back to localhost,
+ * permanently records a receipt that no buyer and no verifier can ever
+ * resolve — job #1352 on testnet carries exactly that, and it will say
+ * `http://localhost:4311/...` forever.
+ *
+ * Failing here costs a developer one environment variable. Not failing costs
+ * a buyer their only route to check what they paid for.
+ */
+function assertPubliclyFetchable(url: URL): void {
+  const host = url.hostname.replace(/^\[(.+)\]$/, '$1');
+  const local =
+    url.protocol !== 'https:' ||
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '::1' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+
+  if (local) {
+    throw new Error(
+      `Refusing to submit a deliverable at ${url.href}: the URL is written on ` +
+        'chain permanently and this one is not publicly fetchable. Set ' +
+        'NEXT_PUBLIC_APP_URL to the deployed origin before delivering.',
+    );
+  }
+}
+
 function deliveryUrl(jobId: string): string {
-  return new URL(`/api/seller/deliverables/${jobId}`, publicBaseUrl()).href;
+  const url = new URL(`/api/seller/deliverables/${jobId}`, publicBaseUrl());
+  assertPubliclyFetchable(url);
+  return url.href;
 }
 
 function resultFromStored(stored: StoredDeliverable): DemoDeliveryResult {

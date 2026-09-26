@@ -274,7 +274,7 @@ authenticator class.
 
 ### POK-035 · Delivery notification cannot resolve any marketplace agent
 
-**Severity: High · Status: Open** · found running the testnet integration test
+**Severity: High · Status: Fixed** · verified by delivering job #1352
 
 `POST /api/notify-funded` requires `chainId` to equal the escrow chain
 (`route.ts:61`, currently 97) and then calls `getAgent(chainId, tokenId)` at
@@ -297,9 +297,42 @@ agent through this route.
 like proof the delivery path worked. It exercised the seller and the manifest,
 but not this guard with a marketplace agent id.
 
-**Remediation.** Carry the registry chain and the escrow chain as separate
-fields. They are separate facts, and collapsing them into one `chainId` is
-what made a guard and a lookup contradict each other.
+**Fix.** The route now takes `agentChainId` for the registry lookup, and the
+escrow chain is a server fact rather than caller input — there is only ever
+one, and accepting it from the request is what invited the contradiction.
+`CommissionPanel` sends the agent's own chain.
+
+No fallback from `agentChainId` to `chainId` was kept: every existing caller
+put the escrow chain there, which is precisely the value that cannot resolve
+an agent.
+
+**Verified:** job #1352 hired, delivered and reached `SUBMITTED` on chain with
+a real submit transaction, having resolved a chain-56 agent against chain-97
+escrow — the combination that was impossible before.
+
+---
+
+### POK-036 · A local delivery commits an unfetchable URL on chain
+
+**Severity: Medium · Status: Fixed** · found while re-testing POK-035
+
+`NEXT_PUBLIC_APP_URL` falls back to `http://localhost:4311`, and the demo
+seller writes that value into the deliverable URL it submits on chain. The
+submission is permanent, so a delivery run from a developer machine records a
+receipt that no buyer and no verifier can ever resolve.
+
+Testnet job **#1352** carries exactly that: its on-chain deliverable URL is
+`http://localhost:4311/api/seller/deliverables/1352`, and it will say so
+forever. The job is otherwise sound — SUBMITTED, correct provider, real
+transaction — which is what makes it a good illustration. Nothing errored.
+
+**Fix.** `deliveryUrl` now refuses any URL that is not HTTPS on a public host.
+Failing costs a developer one environment variable; not failing costs a buyer
+their only route to check what they paid for.
+
+**Verified:** delivering job #1353 locally is refused with the reason and the
+variable to set, while job #1352 had already gone through under the old
+behaviour.
 
 ---
 

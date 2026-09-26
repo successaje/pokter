@@ -5,7 +5,7 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
-import type { ChainId } from '@/lib/scan/types';
+import { BSC_MAINNET, type ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -53,18 +53,40 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const chainId = Number(body.chainId) as ChainId;
+  /*
+   * POK-035. The registry chain and the escrow chain are separate facts.
+   *
+   * This used to take one `chainId`, require it to equal the escrow chain,
+   * and then use the same value to look up the agent in the ERC-8004
+   * registry. Pokter indexes mainnet agents and escrows on testnet, so the
+   * value that satisfied the guard was the one guaranteed to 404 the lookup,
+   * and no marketplace agent could be delivered at all.
+   *
+   * The escrow chain is now a server fact rather than caller input — there is
+   * only ever one, and accepting it from the request invited exactly this
+   * contradiction. The caller supplies only which chain the agent is
+   * registered on.
+   */
+  // No fallback to `chainId`: every existing caller sent the escrow chain
+  // there, which is precisely the value that cannot resolve an agent.
+  const agentChainId = Number(body.agentChainId ?? BSC_MAINNET) as ChainId;
   const tokenId = String(body.tokenId ?? '');
   const jobId = String(body.jobId ?? '');
   const provider = String(body.provider ?? '').toLowerCase();
+
+  if (agentChainId !== 56 && agentChainId !== 97) {
+    return NextResponse.json(
+      { error: 'agentChainId must be 56 or 97.' },
+      { status: 400 },
+    );
+  }
   if (
-    chainId !== ALTANA_NETWORK.chainId ||
     !/^\d+$/.test(tokenId) ||
     !/^\d+$/.test(jobId) ||
     !/^0x[0-9a-f]{40}$/.test(provider)
   ) {
     return NextResponse.json(
-      { error: 'Agent, provider and escrow must be on the configured chain.' },
+      { error: 'A numeric token id and job id and a provider address are required.' },
       { status: 400 },
     );
   }
@@ -98,7 +120,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
     }
 
-    const agent = await getAgent(chainId, tokenId);
+    const agent = await getAgent(agentChainId, tokenId);
     if (agent.agent_wallet?.toLowerCase() !== provider) {
       return NextResponse.json(
         {
