@@ -42,15 +42,19 @@ console.log('Protocol safety checks passed.');
 const description = encodePokterJobEnvelope({
   identityChainId: 56,
   agentTokenId: '45422',
+  agentName: 'Yield agent',
   category: 'yield',
   provider: '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87',
+  providerLabel: 'Delivery provider',
   task: 'Return a verifiable execution receipt.',
 });
 const decoded = decodePokterJobEnvelope(description);
 if (
   decoded?.identity.chainId !== 56 ||
   decoded.identity.tokenId !== '45422' ||
+  decoded.identity.name !== 'Yield agent' ||
   decoded.category !== 'yield' ||
+  decoded.providerLabel !== 'Delivery provider' ||
   decoded.task !== 'Return a verifiable execution receipt.'
 ) {
   throw new Error('ERC-8004 identity did not survive the job envelope round trip');

@@ -99,10 +99,12 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
         jobId: importId,
         chainId: WALLET_NETWORK.chainId,
         isTestnet: WALLET_NETWORK.chainId === 97,
+        agentChainId: envelope?.identity.chainId,
         agentTokenId: envelope?.identity.tokenId ?? 'unknown',
         agentName: envelope
-          ? `ERC-8004 agent #${envelope.identity.tokenId}`
+          ? envelope.identity.name ?? `ERC-8004 agent #${envelope.identity.tokenId}`
           : `Recovered job #${importId}`,
+        providerLabel: envelope?.providerLabel,
         provider: onchain.provider,
         task: envelope?.task ?? onchain.description,
         budgetRaw: onchain.budget.toString(),

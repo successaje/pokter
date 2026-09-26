@@ -15,6 +15,8 @@ export interface HiredJob {
   jobId: string;
   chainId: number;
   isTestnet: boolean;
+  /** ERC-8004 registry chain; distinct from the escrow chain above. */
+  agentChainId?: number;
   agentTokenId: string;
   agentName: string;
   /** Human label for the escrow recipient when it differs from the listing. */
