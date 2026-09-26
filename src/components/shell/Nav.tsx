@@ -155,6 +155,20 @@ export function MobileNav() {
   const moreActive = MOBILE_MORE.some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
+  /*
+     One tab bar, one definition. MobileAppHome used to render its own
+     hardcoded four-tab bar, so /app showed different tabs from every other
+     page in the same browser session — the one element a mobile app must
+     keep still.
+
+     The split is by *context*, not by route. Installed users get the app
+     tabs everywhere; browser users get the web tabs everywhere. Keying it to
+     the route instead would reintroduce the bug in a quieter form — the bar
+     would still change identity as you moved between /app and /discover.
+
+     A browser visitor who lands on /app therefore sees no Home tab, which is
+     correct: in a browser the home is /, and the wordmark already goes there.
+  */
   const primaryItems = installed ? INSTALLED_PRIMARY : MOBILE_PRIMARY;
 
   return (

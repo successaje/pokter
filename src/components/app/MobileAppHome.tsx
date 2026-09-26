@@ -130,12 +130,6 @@ export function MobileAppHome() {
           {!walletAddress && <p className="border-t border-[color:var(--border)] px-4 py-3 text-[11px] text-[color:var(--text-faint)]">Connect your passkey wallet to load device-owned activity.</p>}
         </section>
       </main>
-
-      <nav aria-label="App navigation" className="app-safe-bottom fixed inset-x-0 bottom-0 z-40 mx-auto grid max-w-[520px] grid-cols-4 border-t border-[color:var(--border)] bg-[color:var(--bg)]/94 px-2 backdrop-blur-xl">
-        {[{ href: '/app', label: 'Home', icon: 'home' }, { href: '/discover', label: 'Discover', icon: 'discover' }, { href: '/agents', label: 'Agents', icon: 'agents' }, { href: '/my-agents', label: 'Activity', icon: 'activity' }].map((item) => (
-          <Link key={item.href} href={item.href} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] ${item.href === '/app' ? 'text-[color:var(--brand)]' : 'text-[color:var(--text-muted)]'}`}><AppIcon name={item.icon as IconName} className="size-[18px]" /><span>{item.label}</span></Link>
-        ))}
-      </nav>
     </div>
   );
 }

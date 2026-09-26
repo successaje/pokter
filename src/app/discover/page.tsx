@@ -188,6 +188,20 @@ async function Results({ brief }: { brief: Brief }) {
   );
 }
 
+/**
+ * Whether a row can offer Hire without sending someone to a refusal.
+ *
+ * Uses the accumulated record rather than a live probe: probing every row
+ * would cost one outbound request per agent on a list view. The hire page
+ * still runs its own live check, and now offers alternatives when that fails,
+ * so the worst case is a redirect rather than a dead end.
+ */
+function hireableFromRow(entry: Parameters<typeof verdictFor>[0]): boolean {
+  const verdict = verdictFor(entry);
+  if (verdict !== 'proven' && verdict !== 'emerging') return false;
+  return entry.record.totalProbes > 0 && entry.record.totalAnswered > 0;
+}
+
 export default async function DiscoverPage({
   searchParams,
 }: {
@@ -288,19 +302,42 @@ export default async function DiscoverPage({
               const { agent } = entry.listing;
               const category = CATEGORY_BY_ID.get(entry.listing.category);
               return (
-                <Link
+                <div
                   key={`${agent.chain_id}:${agent.token_id}`}
-                  href={`/agents/${agent.chain_id}/${agent.token_id}`}
-                  className={`flex min-h-[4.75rem] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--surface-hover)] ${index > 0 ? 'border-t border-[color:var(--border)]' : ''}`}
+                  className={`flex min-h-[4.75rem] items-center gap-3 pr-3 transition-colors hover:bg-[color:var(--surface-hover)] ${index > 0 ? 'border-t border-[color:var(--border)]' : ''}`}
                 >
-                  <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="truncate text-sm font-medium">{agent.name}</span>
-                    <span className="truncate text-[10px] text-[color:var(--text-muted)]">{category?.label ?? 'Agent'} · {agent.supported_protocols?.slice(0, 2).join(' · ') || 'No endpoint declared'}</span>
-                  </span>
-                  <EvidenceBadge verdict={verdictFor(entry)} />
-                  <span aria-hidden className="text-[color:var(--text-faint)]">›</span>
-                </Link>
+                  <Link
+                    href={`/agents/${agent.chain_id}/${agent.token_id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4"
+                  >
+                    <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate text-sm font-medium">{agent.name}</span>
+                      <span className="truncate text-[10px] text-[color:var(--text-muted)]">{category?.label ?? 'Agent'} · {agent.supported_protocols?.slice(0, 2).join(' · ') || 'No endpoint declared'}</span>
+                    </span>
+                    <EvidenceBadge verdict={verdictFor(entry)} />
+                  </Link>
+                  {/*
+                    Hire on the row itself. Reaching it used to take row →
+                    detail → hire, which is three screens on a phone to do the
+                    one thing the quest actually measures.
+
+                    Offered only where the accumulated evidence supports it. A
+                    button that leads straight to a blocked page is worse than
+                    no button, so unproven and failing agents keep the chevron
+                    and nothing else.
+                  */}
+                  {hireableFromRow(entry) ? (
+                    <Link
+                      href={`/hire/${agent.chain_id}/${agent.token_id}`}
+                      className="action-primary shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-medium"
+                    >
+                      Hire
+                    </Link>
+                  ) : (
+                    <span aria-hidden className="shrink-0 text-[color:var(--text-faint)]">›</span>
+                  )}
+                </div>
               );
             })}
           </div>

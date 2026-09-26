@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 20** · 12 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 22** · 14 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 12 |
+| Fixed | 14 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -245,6 +245,44 @@ their own comment reads *"injected signer, so one cannot be built on top of
 the other"* — and solved the presentation better, labelling their two wallets
 *"Signs in · hire records"* and *"Pays your hires"*. Same wall, clearer sign
 on it.
+
+---
+
+### FE-22 · The mobile tab bar changed identity between routes
+**Status: Fixed** · **Page:** `/app` versus everywhere else
+
+`MobileAppHome` rendered its own hardcoded four-tab bar, so `/app` showed
+`Home · Discover · Agents · Activity` while every other page showed
+`Discover · Agents · Compare · My agents · More` — in the same browser
+session. The tab bar is the one element a mobile app must keep still; it is
+how somebody knows where they are.
+
+**Fixed.** `Nav` owns it everywhere and the duplicate is gone. The split is by
+*context* rather than route: installed users get the app tabs on every page,
+browser users get the web tabs on every page.
+
+My first attempt keyed it to `pathname === '/app'`, which reintroduced the bug
+in a quieter form — the bar would still have changed as you moved between
+`/app` and `/discover`. Recorded because the wrong fix was more plausible than
+the right one.
+
+**Verified:** `/app` and `/discover` both return
+`Discover · Agents · Compare · My agents` in a browser.
+
+### FE-23 · Hiring took three screens on a phone
+**Status: Fixed** · **Page:** `/discover`
+
+Reaching a hire meant row → detail → hire. Three screens to perform the one
+action the Set and Earn quest actually measures.
+
+**Fixed.** Agent rows carry an inline **Hire** pill, shown only where the
+accumulated record supports it — a button that leads straight to a refusal is
+worse than no button, so unproven and failing agents keep the chevron alone.
+
+It reads the stored record rather than probing live, because probing every row
+would cost one outbound request per agent on a list view. The hire page still
+runs its own live check and now offers alternatives when that fails, so the
+worst case is a redirect rather than a dead end.
 
 ---
 
