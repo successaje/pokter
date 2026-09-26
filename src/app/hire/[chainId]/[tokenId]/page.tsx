@@ -1,20 +1,20 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
-import { loadDossier } from "@/lib/marketplace";
-import { RegistryUnreachable } from "@/components/ui/RegistryUnreachable";
-import { CATEGORY_BY_ID } from "@/lib/agents/categories";
-import { summarise } from "@/lib/altana/permissions";
-import { ALTANA_NETWORK, IS_TESTNET } from "@/lib/altana/client";
-import { PermissionReview } from "@/components/hire/PermissionReview";
-import { CommissionPanel } from "@/components/hire/CommissionPanel";
-import { WalletGate } from "@/components/hire/WalletGate";
-import { providerChoicesFor } from "@/lib/erc8183/providers";
-import { EvidenceBadge } from "@/components/ui/EvidenceBadge";
-import { WalletReadiness } from "@/components/hire/WalletReadiness";
-import type { ChainId } from "@/lib/scan/types";
+import { loadDossier } from '@/lib/marketplace';
+import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { summarise } from '@/lib/altana/permissions';
+import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
+import { PermissionReview } from '@/components/hire/PermissionReview';
+import { CommissionPanel } from '@/components/hire/CommissionPanel';
+import { WalletGate } from '@/components/hire/WalletGate';
+import { providerChoicesFor } from '@/lib/erc8183/providers';
+import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { WalletReadiness } from '@/components/hire/WalletReadiness';
+import type { ChainId } from '@/lib/scan/types';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * §30. The staged hire flow.
@@ -72,15 +72,16 @@ export default async function HirePage({
 
   const { agent, category, proof, live } = dossier;
   const answeredNow = live.ratio !== null && live.ratio > 0;
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, "");
+  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   const meta =
-    category === "unclassified" ? null : CATEGORY_BY_ID.get(category);
+    category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const summary = summarise({
     category,
     spendCapBnb: 0.05,
-    period: "week",
+    period: 'week',
     expiryDays: 7,
   });
+  const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
 
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -102,7 +103,7 @@ export default async function HirePage({
           <EvidenceBadge verdict={proof.verdict} size="md" />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          {meta?.label ?? "Unclassified"} · Review exactly what this agent would
+          {meta?.label ?? 'Unclassified'} · Review exactly what this agent would
           be allowed to do before you grant anything.
         </p>
       </header>
@@ -140,7 +141,7 @@ export default async function HirePage({
                   tokenId,
                   name: agent.name,
                   category:
-                    category === "unclassified" ? "health-factor" : category,
+                    category === 'unclassified' ? 'health-factor' : category,
                 }}
                 explorerBase={explorerBase}
                 isTestnet={IS_TESTNET}
@@ -161,7 +162,7 @@ export default async function HirePage({
                   name: agent.name,
                   wallet: agent.agent_wallet,
                 }}
-                providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
+                providers={providers}
                 escrowChainId={ALTANA_NETWORK.chainId}
                 explorerBase={explorerBase}
               />

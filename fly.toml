@@ -12,7 +12,9 @@ primary_region = 'iad'
   PROBE_DB_PATH = '/data/probes.db'
   SESSION_DB_PATH = '/data/sessions.db'
   JOB_DB_PATH = '/data/jobs.db'
+  DELIVERABLE_DB_PATH = '/data/deliverables.db'
   ALTANA_NETWORK = 'bnb-testnet'
+  NEXT_PUBLIC_APP_URL = 'https://pokter.fly.dev'
 
 [http_service]
   internal_port = 8080

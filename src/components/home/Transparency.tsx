@@ -29,7 +29,7 @@ const OUTCOMES: {
     worked:
       'A buyer’s passkey wallet creates, registers, funds and escrows a job in one atomic batch.',
     didnt:
-      'Seller runtimes still need a reliable notification and delivery loop; a funded job is not evidence of completed work.',
+      'Funding alone is not delivery. Pokter waits for a seller acceptance and an on-chain submitted manifest before showing work as delivered.',
     report: {
       label: 'Reported, and already fixed · altana-sdk#84',
       href: 'https://github.com/altananetwork/altana-sdk/issues/84',
@@ -46,9 +46,10 @@ const OUTCOMES: {
   {
     name: 'Agent delivery',
     status: 'partial',
-    worked: 'Escrow funded and visible on-chain, awaiting the seller.',
+    worked:
+      'A same-chain A2A seller now verifies funded jobs, publishes a canonical manifest and submits its hash through ERC-8183.',
     didnt:
-      'Funded jobs sit unfulfilled: the seller runtime has no poller, and its endpoint is not discoverable in the registry, so we cannot notify it.',
+      'The positive path still needs one buyer-funded test through the new runtime before we label the complete delivery loop working.',
   },
 ];
 
@@ -63,9 +64,9 @@ export function Transparency() {
           What worked, and what fought back.
         </h2>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Each integration is written up with the exact error it produced. A page
-          that lists only successes is a claim; one that names its failures is a
-          report.
+          Each integration is written up with the exact error it produced. A
+          page that lists only successes is a claim; one that names its failures
+          is a report.
         </p>
       </div>
 

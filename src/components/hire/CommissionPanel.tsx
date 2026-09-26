@@ -7,7 +7,10 @@ import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
 import { useCommitLock } from '@/components/hire/WalletGate';
-import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import {
+  usePasskeySigner,
+  usePasskeyWallet,
+} from '@/components/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -29,6 +32,7 @@ export interface ProviderChoice {
   label: string;
   note: string;
   reachable: boolean;
+  automatedDelivery: boolean;
 }
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
@@ -39,7 +43,12 @@ export function CommissionPanel({
   escrowChainId,
   explorerBase,
 }: {
-  agent: { chainId: number; tokenId: string; name: string; wallet?: string | null };
+  agent: {
+    chainId: number;
+    tokenId: string;
+    name: string;
+    wallet?: string | null;
+  };
   providers: ProviderChoice[];
   escrowChainId: number;
   explorerBase: string;
@@ -51,29 +60,30 @@ export function CommissionPanel({
     providers.find((p) => p.reachable)?.address ?? providers[0]?.address ?? '',
   );
   const [task, setTask] = useState(
-    `Rank current Venus supply yields for USDT on BNB Chain. Include net APY and state any assumption you had to make.`,
+    'Create a verifiable execution receipt for this escrowed job. Include the chain, client, provider, budget and funded status.',
   );
   const [budget, setBudget] = useState(0.1);
 
-  const [state, setState] = useState<'idle' | 'hiring' | 'hired' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'hiring' | 'hired' | 'error'>(
+    'idle',
+  );
   const [job, setJob] = useState<HiredJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
   >('idle');
-  const [notificationDetail, setNotificationDetail] = useState<string | null>(null);
+  const [notificationDetail, setNotificationDetail] = useState<string | null>(
+    null,
+  );
 
   const provider = providers.find((p) => p.address === providerAddress);
 
   const notifySeller = async (hired: HiredJob) => {
-    const isRegisteredSeller =
-      agent.chainId === hired.chainId &&
-      agent.wallet?.toLowerCase() === hired.provider.toLowerCase();
-    if (!isRegisteredSeller) {
+    if (!provider?.automatedDelivery) {
       setNotification('not-applicable');
       setNotificationDetail(
-        'Escrow is funded, but this testnet seller has no registry-discoverable A2A endpoint. Delivery was not automatically requested.',
+        'Escrow is funded, but this seller has no discoverable delivery endpoint. Delivery was not automatically requested.',
       );
       return;
     }
@@ -85,20 +95,57 @@ export function CommissionPanel({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          chainId: agent.chainId,
+          chainId: hired.chainId,
           tokenId: agent.tokenId,
           jobId: hired.jobId,
           provider: hired.provider,
         }),
       });
-      const payload = (await response.json()) as { status?: string; error?: string };
-      if (!response.ok) throw new Error(payload.error ?? 'Seller notification failed.');
+      const payload = (await response.json()) as {
+        status?: string;
+        error?: string;
+        deliverableUrl?: string;
+      };
+      if (!response.ok)
+        throw new Error(payload.error ?? 'Seller notification failed.');
       if (payload.status === 'accepted') {
         setNotification('accepted');
-        setNotificationDetail('The seller verified the funded job and accepted the delivery request.');
+        setNotificationDetail(
+          'The seller verified the funded job and accepted the delivery request.',
+        );
+        try {
+          const { getErc8183Job, getErc8183DeliverableUrl } = await import(
+            '@altananetwork/sdk'
+          );
+          const current = await getErc8183Job(
+            WALLET_NETWORK,
+            BigInt(hired.jobId),
+          );
+          const deliverableUrl =
+            payload.deliverableUrl ??
+            (await getErc8183DeliverableUrl(
+              WALLET_NETWORK,
+              BigInt(hired.jobId),
+            ).catch(() => undefined)) ??
+            null;
+          const updated: HiredJob = {
+            ...hired,
+            status: current.statusName,
+            statusCheckedAt: new Date().toISOString(),
+            deliverableUrl,
+          };
+          setJob(updated);
+          if (wallet) rememberJob(wallet.address, updated);
+        } catch {
+          setNotificationDetail(
+            'The seller accepted delivery. Refresh the on-chain status if the submitted receipt does not appear yet.',
+          );
+        }
       } else {
         setNotification('rejected');
-        setNotificationDetail('The seller verified the job but rejected the delivery request.');
+        setNotificationDetail(
+          'The seller verified the job but rejected the delivery request.',
+        );
       }
     } catch (caught) {
       setNotification('failed');
@@ -117,13 +164,16 @@ export function CommissionPanel({
       if (!Number.isFinite(budget) || budget < 0.01 || budget > 5) {
         throw new Error('The budget must be between 0.01 and 5 $U.');
       }
-      if (!task.trim()) throw new Error('Describe the work before funding escrow.');
+      if (!task.trim())
+        throw new Error('Describe the work before funding escrow.');
       if (new TextEncoder().encode(task).byteLength > 4096) {
         throw new Error('The task must be at most 4096 bytes.');
       }
 
       const budgetRaw = parseUnits(String(budget), 18);
-      const { paymentToken } = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+      const { paymentToken } = correctedErc8183Addresses(
+        WALLET_NETWORK.chainId,
+      );
       const balances = await walletClient().balances({
         wallet: wallet.address,
         tokens: [paymentToken],
@@ -189,10 +239,12 @@ export function CommissionPanel({
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??
-        ((current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED')
-          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(
-              () => undefined,
-            )
+        (current.statusName === 'SUBMITTED' ||
+        current.statusName === 'COMPLETED'
+          ? await getErc8183DeliverableUrl(
+              WALLET_NETWORK,
+              BigInt(job.jobId),
+            ).catch(() => undefined)
           : undefined) ??
         null;
       const updated: HiredJob = {
@@ -253,10 +305,16 @@ export function CommissionPanel({
                     background: option.reachable
                       ? 'var(--positive-dim)'
                       : 'var(--caution-dim)',
-                    color: option.reachable ? 'var(--positive)' : 'var(--caution)',
+                    color: option.reachable
+                      ? 'var(--positive)'
+                      : 'var(--caution)',
                   }}
                 >
-                  {option.reachable ? 'on escrow chain' : 'different chain'}
+                  {option.automatedDelivery
+                    ? 'ready end to end'
+                    : option.reachable
+                      ? 'on escrow chain'
+                      : 'different chain'}
                 </span>
               </span>
               <span className="mono text-[10px] text-[color:var(--text-faint)]">
@@ -270,8 +328,22 @@ export function CommissionPanel({
         </div>
       </div>
 
+      {provider?.automatedDelivery && (
+        <p className="rounded-[var(--radius)] border border-[color:var(--brand)]/35 bg-[color:var(--brand-highlight-soft)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <span className="font-medium text-[color:var(--text)]">
+            Guided testnet delivery.
+          </span>{' '}
+          This seller verifies the funded job and returns a canonical execution
+          receipt. It demonstrates the complete escrow lifecycle; it does not
+          claim trading performance or provide investment advice.
+        </p>
+      )}
+
       <div className="flex flex-col gap-2">
-        <label htmlFor="task" className="text-xs text-[color:var(--text-muted)]">
+        <label
+          htmlFor="task"
+          className="text-xs text-[color:var(--text-muted)]"
+        >
           Task
         </label>
         <textarea
@@ -285,7 +357,10 @@ export function CommissionPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="budget" className="text-xs text-[color:var(--text-muted)]">
+        <label
+          htmlFor="budget"
+          className="text-xs text-[color:var(--text-muted)]"
+        >
           Budget
         </label>
         <div className="flex items-center gap-2">
@@ -300,7 +375,9 @@ export function CommissionPanel({
             onChange={(event) => setBudget(Number(event.target.value))}
             className="mono w-28 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-2.5 py-1.5 text-[13px]"
           />
-          <span className="text-[13px] text-[color:var(--text-muted)]">$U escrowed</span>
+          <span className="text-[13px] text-[color:var(--text-muted)]">
+            $U escrowed
+          </span>
         </div>
       </div>
 
@@ -397,7 +474,9 @@ export function CommissionPanel({
                         ? 'Seller notification failed'
                         : 'Delivery not automatically requested'}
               </span>
-              {notificationDetail && <p className="mt-1">{notificationDetail}</p>}
+              {notificationDetail && (
+                <p className="mt-1">{notificationDetail}</p>
+              )}
               {(notification === 'failed' || notification === 'rejected') && (
                 <button
                   type="button"
@@ -418,6 +497,17 @@ export function CommissionPanel({
               className="mono w-fit text-[11px] text-[color:var(--info)] underline decoration-dotted underline-offset-2"
             >
               {shortHash(job.hireTxHash)}
+            </a>
+          )}
+
+          {job.deliverableUrl && (
+            <a
+              href={job.deliverableUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+            >
+              Review submitted deliverable →
             </a>
           )}
 

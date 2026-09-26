@@ -2,13 +2,11 @@ import { NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { assertPublicEndpoint, readJson } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
-import {
-  consumeRateLimit,
-  requestClientKey,
-} from '@/lib/security/rate-limit';
+import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 25;
@@ -38,7 +36,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!rate.allowed) {
     return NextResponse.json(
       { error: 'Notification limit reached. Try again shortly.' },
-      { status: 429, headers: { 'retry-after': String(rate.retryAfterSeconds) } },
+      {
+        status: 429,
+        headers: { 'retry-after': String(rate.retryAfterSeconds) },
+      },
     );
   }
 
@@ -46,7 +47,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = (await request.json()) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Expected a JSON body.' },
+      { status: 400 },
+    );
   }
 
   const chainId = Number(body.chainId) as ChainId;
@@ -72,13 +76,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const [agent, job] = await Promise.all([
-      getAgent(chainId, tokenId),
-      getErc8183Job(ALTANA_NETWORK, BigInt(jobId)),
-    ]);
-    if (agent.agent_wallet?.toLowerCase() !== provider || job.provider.toLowerCase() !== provider) {
+    const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+    if (job.provider.toLowerCase() !== provider) {
       return NextResponse.json(
-        { error: 'The registry agent and funded job do not name the same provider.' },
+        { error: 'The funded job does not name the requested provider.' },
         { status: 409 },
       );
     }
@@ -89,7 +90,29 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const cardEndpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
+    if (await isDemoSeller(provider)) {
+      const delivery = await submitDemoDeliverable(jobId);
+      return NextResponse.json({
+        ...delivery,
+        notifiedAt: new Date().toISOString(),
+      });
+    }
+
+    const agent = await getAgent(chainId, tokenId);
+    if (agent.agent_wallet?.toLowerCase() !== provider) {
+      return NextResponse.json(
+        {
+          error:
+            'The registry agent and funded job do not name the same provider.',
+        },
+        { status: 409 },
+      );
+    }
+
+    const cardEndpoint = agent.services?.a2a?.endpoint?.replace(
+      '{agentId}',
+      tokenId,
+    );
     if (!cardEndpoint) {
       return NextResponse.json(
         { error: 'The funded provider publishes no A2A Agent Card.' },
@@ -103,7 +126,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       redirect: 'error',
       signal: AbortSignal.timeout(8_000),
     });
-    if (!cardResponse.ok) throw new Error(`Agent Card answered ${cardResponse.status}`);
+    if (!cardResponse.ok)
+      throw new Error(`Agent Card answered ${cardResponse.status}`);
     const card = object(await readJson(cardResponse));
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const supportsNotification = skills.some(
@@ -119,7 +143,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const serviceUrl = await assertPublicEndpoint(card.url);
     const response = await fetch(serviceUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: crypto.randomUUID(),
@@ -147,7 +174,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     if (!response.ok) throw new Error(`Seller answered ${response.status}`);
     const reply = agentReply(await readJson(response));
-    if (!reply || (reply.status !== 'accepted' && reply.status !== 'rejected')) {
+    if (
+      !reply ||
+      (reply.status !== 'accepted' && reply.status !== 'rejected')
+    ) {
       throw new Error('Seller returned no delivery acceptance status');
     }
 
