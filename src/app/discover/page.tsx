@@ -7,7 +7,7 @@ import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
 import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -15,14 +15,22 @@ export const dynamic = 'force-dynamic';
 const RISKS: RiskTolerance[] = ['low', 'medium', 'high'];
 
 function parseBrief(params: Record<string, string | string[] | undefined>): Brief {
-  const objectiveId = String(params.objective ?? 'earn');
-  const objective =
-    OBJECTIVES.find((option) => option.id === objectiveId)?.category ?? 'yield';
+  const requested = String(params.objective ?? 'earn')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const objectives = [
+    ...new Set(
+      requested
+        .map((id) => OBJECTIVES.find((option) => option.id === id)?.category)
+        .filter((value): value is Category => Boolean(value)),
+    ),
+  ];
 
   const riskParam = String(params.risk ?? 'medium') as RiskTolerance;
 
   return {
-    objective,
+    objectives: objectives.length > 0 ? objectives : ['yield'],
     capital: Number(params.capital ?? 5000) || 5000,
     risk: RISKS.includes(riskParam) ? riskParam : 'medium',
     horizon: Number(params.horizon ?? 30) || 30,
@@ -32,13 +40,21 @@ function parseBrief(params: Record<string, string | string[] | undefined>): Brie
 async function Results({ brief }: { brief: Brief }) {
   const result = await recommend(brief);
   const matchCount = result.matched;
-  const category = CATEGORY_BY_ID.get(brief.objective);
+  const categories = brief.objectives
+    .map((objective) => CATEGORY_BY_ID.get(objective)?.label ?? objective)
+    .join(' + ');
+  const objectiveQuery = brief.objectives
+    .map(
+      (category) =>
+        OBJECTIVES.find((item) => item.category === category)?.id ?? category,
+    )
+    .join(',');
 
   return (
     <div id="matches" className="scroll-mt-24 flex flex-col gap-8">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[11px] text-[color:var(--text-muted)]">
         <span className="font-medium text-[color:var(--text)]">
-          {category?.label ?? brief.objective}
+          {categories}
         </span>
         <span className="tabular">
           {brief.capital.toLocaleString('en-US', {
@@ -102,14 +118,18 @@ async function Results({ brief }: { brief: Brief }) {
           <div className="mt-4 flex flex-wrap gap-2">
             {brief.risk !== 'high' && (
               <Link
-                href={`/discover?objective=${OBJECTIVES.find((item) => item.category === brief.objective)?.id ?? 'earn'}&capital=${brief.capital}&risk=high&horizon=${brief.horizon}&run=1#matches`}
+                href={`/discover?objective=${objectiveQuery}&capital=${brief.capital}&risk=high&horizon=${brief.horizon}&run=1#matches`}
                 className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-xs font-medium hover:bg-[color:var(--surface-hover)]"
               >
                 Try higher tolerance
               </Link>
             )}
             <Link
-              href={`/categories/${brief.objective}`}
+              href={
+                brief.objectives.length === 1
+                  ? `/categories/${brief.objectives[0]}`
+                  : '/agents'
+              }
               className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-xs font-medium hover:bg-[color:var(--surface-hover)]"
             >
               Browse every agent

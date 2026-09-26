@@ -108,10 +108,21 @@ export async function recommend(brief: Brief): Promise<Recommendation> {
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
-  const candidates = await listCategory(brief.objective, {
-    chainId: BSC_MAINNET,
-    limit: 12,
-  });
+  const categoryCandidates = await Promise.all(
+    brief.objectives.map((objective) =>
+      listCategory(objective, {
+        chainId: BSC_MAINNET,
+        limit: 12,
+      }),
+    ),
+  );
+  const candidates = [
+    ...new Map(
+      categoryCandidates
+        .flat()
+        .map((listing) => [listing.agent.id, listing] as const),
+    ).values(),
+  ];
 
   const rejected: Rejection[] = [];
   const matches: Match[] = [];
@@ -173,7 +184,7 @@ export async function recommend(brief: Brief): Promise<Recommendation> {
     const proof = summariseProof(sweep ? [sweep] : []);
     const score = computeScore({
       agent: listing.agent,
-      category: brief.objective,
+      category: listing.category,
       proof,
       attestations: sweep ? [sweep] : [],
       record,

@@ -7,7 +7,8 @@ export type RiskTolerance = 'low' | 'medium' | 'high';
 
 /** §52. What the user tells us. */
 export interface Brief {
-  objective: Category;
+  /** One or more outcomes. Candidates are pooled and ranked across them. */
+  objectives: Category[];
   /** In USD. Used for display and disclosure, not for filtering — see below. */
   capital: number;
   risk: RiskTolerance;

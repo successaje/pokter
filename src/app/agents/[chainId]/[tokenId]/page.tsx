@@ -68,13 +68,17 @@ export default async function AgentPage({
   const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   const answeredNow = live.ratio !== null && live.ratio > 0;
+  const availability =
+    record.totalProbes === 0
+      ? 'Not measured'
+      : `${((record.totalAnswered / record.totalProbes) * 100).toFixed(1)}% uptime`;
 
   const knownDefects = [
     ...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects]),
   ];
 
   return (
-    <div className="flex flex-col gap-12 pt-6">
+    <div className="flex flex-col gap-10 pt-6">
       <Link
         href="/agents"
         className="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
@@ -82,7 +86,7 @@ export default async function AgentPage({
         ← All agents
       </Link>
 
-      <header className="flex flex-col gap-5">
+      <header className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex min-w-0 max-w-2xl flex-col gap-3">
             <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
@@ -120,10 +124,42 @@ export default async function AgentPage({
                 {agent.description}
               </p>
             )}
+
+            <dl className="mt-1 grid grid-cols-3 gap-2">
+              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                  Reliability
+                </dt>
+                <dd className="tabular mt-1 text-[11px] font-medium">
+                  {availability}
+                </dd>
+              </div>
+              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                  Observations
+                </dt>
+                <dd className="tabular mt-1 text-[11px] font-medium">
+                  {record.totalProbes} probes
+                </dd>
+              </div>
+              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                  Evidence
+                </dt>
+                <dd className="tabular mt-1 text-[11px] font-medium">
+                  {attestations.length} receipt{attestations.length === 1 ? '' : 's'}
+                </dd>
+              </div>
+            </dl>
           </div>
 
           <div className="flex w-full max-w-xs flex-col gap-3">
             <ScorePanel score={score} />
+            {/*
+              No hire surface at all when the evidence does not support one.
+              A disabled-looking link still invites the click and makes the
+              refusal feel like an obstacle; absence makes it a position.
+            */}
             {proof.hirable && answeredNow ? (
               <Link
                 href={`/hire/${agent.chain_id}/${agent.token_id}`}
@@ -142,28 +178,56 @@ export default async function AgentPage({
           </div>
         </div>
 
-        <p className="max-w-3xl rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-xs leading-relaxed text-[color:var(--text-secondary)]">
+        <p className="max-w-3xl border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)]">
           {proof.rationale}
         </p>
       </header>
 
+      <nav
+        aria-label="Agent details"
+        className="sticky top-16 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
+      >
+        {[
+          ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
+          ['#trust', 'Trust'],
+          ['#performance', 'Performance'],
+          ['#live', 'Live proof'],
+          ['#receipts', 'Receipts'],
+          ['#permissions', 'Permissions'],
+        ].map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            className="shrink-0 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-[11px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
       {agent.services?.a2a?.endpoint && (
-        <TrialPanel
-          agent={{ chainId, tokenId, name: agent.name }}
-        />
+        <div id="try" className="scroll-mt-28">
+          <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
+        </div>
       )}
 
-      <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+      <div id="trust" className="scroll-mt-28">
+        <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+      </div>
 
-      <PerformancePanel record={record} />
+      <div id="performance" className="scroll-mt-28">
+        <PerformancePanel record={record} />
+      </div>
 
       <div className="grid gap-12 lg:grid-cols-2">
-        <Section
-          title="Watch it work"
-          caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
-        >
-          <LivePanel live={live} />
-        </Section>
+        <div id="live" className="scroll-mt-28">
+          <Section
+            title="Watch it work"
+            caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
+          >
+            <LivePanel live={live} />
+          </Section>
+        </div>
 
         <Section
           title="Track record"
@@ -172,19 +236,23 @@ export default async function AgentPage({
           <TrackRecordPanel record={record} />
         </Section>
 
-        <Section
-          title="Receipts"
-          caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
-        >
-          <EvidencePanel attestations={attestations} />
-        </Section>
+        <div id="receipts" className="scroll-mt-28">
+          <Section
+            title="Receipts"
+            caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
+          >
+            <EvidencePanel attestations={attestations} />
+          </Section>
+        </div>
 
-        <Section
-          title="What hiring it would grant"
-          caption="Stated plainly, including what the registry does not disclose."
-        >
-          <AuthorityPanel agent={agent} />
-        </Section>
+        <div id="permissions" className="scroll-mt-28">
+          <Section
+            title="What hiring it would grant"
+            caption="Stated plainly, including what the registry does not disclose."
+          >
+            <AuthorityPanel agent={agent} />
+          </Section>
+        </div>
       </div>
 
       <Section

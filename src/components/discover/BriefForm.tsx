@@ -60,9 +60,12 @@ export function BriefForm() {
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [objective, setObjective] = useState(
-    params.get('objective') ?? OBJECTIVES[0].id,
-  );
+  const [objectives, setObjectives] = useState(() => {
+    const requested = (params.get('objective') ?? OBJECTIVES[0].id)
+      .split(',')
+      .filter((id) => OBJECTIVES.some((option) => option.id === id));
+    return requested.length > 0 ? requested : [OBJECTIVES[0].id];
+  });
   const [capital, setCapital] = useState(Number(params.get('capital') ?? 5000));
   const [risk, setRisk] = useState<RiskTolerance>(
     (params.get('risk') as RiskTolerance) ?? 'medium',
@@ -71,7 +74,7 @@ export function BriefForm() {
 
   const submit = () => {
     const query = new URLSearchParams({
-      objective,
+      objective: objectives.join(','),
       capital: String(capital),
       risk,
       horizon: String(horizon),
@@ -86,18 +89,29 @@ export function BriefForm() {
     <div className="flex flex-col gap-7 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
       <fieldset className="flex flex-col gap-3">
         <legend className="text-xs font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-          What should your agent do?
+          What should your agent do?{' '}
+          <span className="normal-case tracking-normal text-[color:var(--text-faint)]">
+            Choose one or more
+          </span>
         </legend>
         <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
           {OBJECTIVES.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => setObjective(option.id)}
-              aria-pressed={objective === option.id}
+              onClick={() =>
+                setObjectives((current) =>
+                  current.includes(option.id)
+                    ? current.length === 1
+                      ? current
+                      : current.filter((id) => id !== option.id)
+                    : [...current, option.id],
+                )
+              }
+              aria-pressed={objectives.includes(option.id)}
               className={cn(
                 'group flex min-h-36 flex-col rounded-[var(--radius)] border p-3 text-left transition-[border-color,background-color,transform] duration-150 hover:-translate-y-0.5 sm:p-4 lg:min-h-32',
-                objective === option.id
+                objectives.includes(option.id)
                   ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]'
                   : 'border-[color:var(--border)] hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]',
               )}
@@ -125,12 +139,16 @@ export function BriefForm() {
           <label className="flex items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
             <span className="text-sm text-[color:var(--text-muted)]">$</span>
             <input
-              type="number"
-              min="1"
-              step="100"
+              type="text"
               inputMode="decimal"
               value={capital}
-              onChange={(event) => setCapital(Math.max(1, Number(event.target.value) || 1))}
+              onChange={(event) => {
+                const value = Number(event.target.value.replace(/[^0-9.]/g, ''));
+                setCapital(Number.isFinite(value) ? value : 0);
+              }}
+              onBlur={() =>
+                setCapital((value) => Math.max(1, value || 1))
+              }
               className="tabular min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none"
               aria-label="Capital in US dollars"
             />
@@ -183,6 +201,27 @@ export function BriefForm() {
               </Choice>
             ))}
           </div>
+          <label className="flex w-32 items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={horizon}
+              onChange={(event) => {
+                const value = Number(event.target.value.replace(/\D/g, ''));
+                setHorizon(Number.isFinite(value) ? value : 0);
+              }}
+              onBlur={() =>
+                setHorizon((value) =>
+                  Math.min(365, Math.max(1, value || 1)),
+                )
+              }
+              className="tabular min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
+              aria-label="Custom time horizon in days"
+            />
+            <span className="text-[11px] text-[color:var(--text-muted)]">
+              days
+            </span>
+          </label>
           <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
             We weigh whether the recorded history is long enough for this window.
           </p>
