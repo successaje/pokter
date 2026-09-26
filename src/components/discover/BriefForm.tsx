@@ -22,6 +22,11 @@ const OBJECTIVE_MARKS: Record<string, string> = {
   rebalance: '↻',
 };
 
+function boundedNumber(raw: string | null, fallback: number, min: number, max: number) {
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
 function Choice({
   selected,
   onClick,
@@ -66,18 +71,27 @@ export function BriefForm() {
       .filter((id) => OBJECTIVES.some((option) => option.id === id));
     return requested.length > 0 ? requested : [OBJECTIVES[0].id];
   });
-  const [capital, setCapital] = useState(Number(params.get('capital') ?? 5000));
-  const [risk, setRisk] = useState<RiskTolerance>(
-    (params.get('risk') as RiskTolerance) ?? 'medium',
+  const [capital, setCapital] = useState(() =>
+    String(boundedNumber(params.get('capital'), 5000, 1, 100_000_000)),
   );
-  const [horizon, setHorizon] = useState(Number(params.get('horizon') ?? 30));
+  const [risk, setRisk] = useState<RiskTolerance>(() => {
+    const requested = params.get('risk');
+    return RISKS.some((option) => option.id === requested)
+      ? (requested as RiskTolerance)
+      : 'medium';
+  });
+  const [horizon, setHorizon] = useState(() =>
+    String(Math.round(boundedNumber(params.get('horizon'), 30, 1, 365))),
+  );
 
   const submit = () => {
+    const normalizedCapital = boundedNumber(capital, 5000, 1, 100_000_000);
+    const normalizedHorizon = Math.round(boundedNumber(horizon, 30, 1, 365));
     const query = new URLSearchParams({
       objective: objectives.join(','),
-      capital: String(capital),
+      capital: String(normalizedCapital),
       risk,
-      horizon: String(horizon),
+      horizon: String(normalizedHorizon),
       run: '1',
     });
     startTransition(() => {
@@ -143,12 +157,13 @@ export function BriefForm() {
               inputMode="decimal"
               value={capital}
               onChange={(event) => {
-                const value = Number(event.target.value.replace(/[^0-9.]/g, ''));
-                setCapital(Number.isFinite(value) ? value : 0);
+                const value = event.target.value.replace(/[^0-9.]/g, '');
+                if (/^\d*(?:\.\d{0,2})?$/.test(value)) setCapital(value);
               }}
               onBlur={() =>
-                setCapital((value) => Math.max(1, value || 1))
+                setCapital(String(boundedNumber(capital, 5000, 1, 100_000_000)))
               }
+              placeholder="5,000"
               className="tabular min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none"
               aria-label="Capital in US dollars"
             />
@@ -157,8 +172,8 @@ export function BriefForm() {
             {CAPITAL_PRESETS.map((amount) => (
               <Choice
                 key={amount}
-                selected={capital === amount}
-                onClick={() => setCapital(amount)}
+                selected={Number(capital) === amount}
+                onClick={() => setCapital(String(amount))}
               >
                 <span className="tabular">${amount.toLocaleString('en-US')}</span>
               </Choice>
@@ -194,8 +209,8 @@ export function BriefForm() {
             {HORIZONS.map((days) => (
               <Choice
                 key={days}
-                selected={horizon === days}
-                onClick={() => setHorizon(days)}
+                selected={Number(horizon) === days}
+                onClick={() => setHorizon(String(days))}
               >
                 <span className="tabular">{days} days</span>
               </Choice>
@@ -207,12 +222,11 @@ export function BriefForm() {
               inputMode="numeric"
               value={horizon}
               onChange={(event) => {
-                const value = Number(event.target.value.replace(/\D/g, ''));
-                setHorizon(Number.isFinite(value) ? value : 0);
+                setHorizon(event.target.value.replace(/\D/g, ''));
               }}
               onBlur={() =>
-                setHorizon((value) =>
-                  Math.min(365, Math.max(1, value || 1)),
+                setHorizon(
+                  String(Math.round(boundedNumber(horizon, 30, 1, 365))),
                 )
               }
               className="tabular min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
@@ -223,7 +237,8 @@ export function BriefForm() {
             </span>
           </label>
           <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            We weigh whether the recorded history is long enough for this window.
+            Choose any window from 1 to 365 days. We weigh whether the recorded
+            history is long enough for it.
           </p>
         </fieldset>
       </div>

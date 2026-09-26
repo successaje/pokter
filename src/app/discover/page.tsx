@@ -15,6 +15,16 @@ export const dynamic = 'force-dynamic';
 
 const RISKS: RiskTolerance[] = ['low', 'medium', 'high'];
 
+function boundedParam(
+  raw: string | string[] | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const value = Number(Array.isArray(raw) ? raw[0] : raw);
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
 function parseBrief(params: Record<string, string | string[] | undefined>): Brief {
   const requested = String(params.objective ?? 'earn')
     .split(',')
@@ -32,9 +42,9 @@ function parseBrief(params: Record<string, string | string[] | undefined>): Brie
 
   return {
     objectives: objectives.length > 0 ? objectives : ['yield'],
-    capital: Number(params.capital ?? 5000) || 5000,
+    capital: boundedParam(params.capital, 5000, 1, 100_000_000),
     risk: RISKS.includes(riskParam) ? riskParam : 'medium',
-    horizon: Number(params.horizon ?? 30) || 30,
+    horizon: Math.round(boundedParam(params.horizon, 30, 1, 365)),
   };
 }
 
