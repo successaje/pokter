@@ -18,7 +18,7 @@ jobs:
       - name: Trigger sweep
         run: |
           response=$(curl -sS -w '\n%{http_code}' --max-time 480 \
-            -X POST "https://pokter.fly.dev/api/sweep" \
+            -X POST "https://pokter.xyz/api/sweep" \
             -H "authorization: Bearer ${{ secrets.SWEEP_SECRET }}")
 
           body=$(echo "$response" | head -n -1)
@@ -58,6 +58,6 @@ jobs:
             "/pool-check"
           do
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 \
-              "https://pokter.fly.dev${path}" || echo "000")
+              "https://pokter.xyz${path}" || echo "000")
             printf '  %-42s %s\n' "$path" "$code"
           done

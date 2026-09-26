@@ -10,7 +10,7 @@ Built for the BNB Chain _Smart Money Era_ hackathon.
 
 |                |                              |
 | -------------- | ---------------------------- |
-| **Live app**   | https://pokter.fly.dev       |
+| **Live app**   | https://pokter.xyz       |
 | **Demo video** | https://youtu.be/KyuKia6RL9s |
 
 > The submission form has no field for a demo video, so this README is where it
@@ -180,7 +180,7 @@ Sponsor integrations are documented with their evidence and their limits in
 [`docs/integrations/`](docs/integrations/). The TermiX agent-versus-manual
 comparison, including the task the agent lost, is in
 [`docs/termix-agent-advantage.md`](docs/termix-agent-advantage.md) and on
-[`/agent-advantage`](https://pokter.fly.dev/agent-advantage).
+[`/agent-advantage`](https://pokter.xyz/agent-advantage).
 
 ## For PancakeSwap liquidity providers
 

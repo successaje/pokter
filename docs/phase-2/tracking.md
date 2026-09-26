@@ -3,7 +3,7 @@
 For BNB Chain Phase 2 verification. Everything below was read from chain or
 from live transactions, not from documentation.
 
-**Live URL:** _TBC — own domain, see the checklist_
+**Live URL:** https://pokter.xyz
 **Repository:** https://github.com/successaje/pokter
 **Network:** BSC testnet (chain 97) for sessions and escrow; the ERC-8004
 identity registry is read from BSC mainnet (chain 56). Both are stated on the

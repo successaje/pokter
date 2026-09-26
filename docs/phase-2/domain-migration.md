@@ -1,5 +1,10 @@
 # Moving to pokter.xyz
 
+> **Done — 26 September 2026.** Certificates issued for `pokter.xyz` and
+> `www.pokter.xyz`, `fly.toml` updated, deployed and verified: the seller card
+> reports the new origin, and job #1336 still verifies against the old one.
+> Kept as the record of what was changed and why.
+
 Run top to bottom. The verification step after the deploy is the one that
 matters — skipping it risks committing a wrong URL on chain.
 
