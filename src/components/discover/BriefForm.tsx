@@ -158,109 +158,136 @@ export function BriefForm() {
 
       <DiscoverWalletContext />
 
-      <div className="grid gap-6 border-t border-[color:var(--border)] pt-6 lg:grid-cols-3">
-        <fieldset className="flex min-w-0 flex-col gap-2.5">
-          <legend className="text-xs text-[color:var(--text-muted)]">
-            Capital
-          </legend>
-          <label className="flex items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
-            <span className="text-sm text-[color:var(--text-muted)]">$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={capital}
-              onChange={(event) => {
-                const value = event.target.value.replace(/[^0-9.]/g, '');
-                if (/^\d*(?:\.\d{0,2})?$/.test(value)) setCapital(value);
-              }}
-              onBlur={() =>
-                setCapital(String(boundedNumber(capital, 5000, 1, 100_000_000)))
-              }
-              placeholder="5,000"
-              className="tabular min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none"
-              aria-label="Capital in US dollars"
-            />
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {CAPITAL_PRESETS.map((amount) => (
-              <Choice
-                key={amount}
-                selected={Number(capital) === amount}
-                onClick={() => setCapital(String(amount))}
-              >
-                <span className="tabular">${amount.toLocaleString('en-US')}</span>
-              </Choice>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="flex min-w-0 flex-col gap-2.5">
-          <legend className="text-xs text-[color:var(--text-muted)]">
-            Risk tolerance
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {RISKS.map((option) => (
-              <Choice
-                key={option.id}
-                selected={risk === option.id}
-                onClick={() => setRisk(option.id)}
-              >
-                {option.label}
-              </Choice>
-            ))}
-          </div>
+      <section className="flex flex-col gap-5 border-t border-[color:var(--border)] pt-6">
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-xs font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+            <span className="mr-2 text-[color:var(--brand)]">02</span>
+            Set your context
+          </h2>
           <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            {RISKS.find((option) => option.id === risk)?.blurb}
+            These choices change evidence thresholds and fit—not what Pokter can
+            spend or move.
           </p>
-        </fieldset>
+        </div>
 
-        <fieldset className="flex min-w-0 flex-col gap-2.5">
-          <legend className="text-xs text-[color:var(--text-muted)]">
-            Time horizon
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {HORIZONS.map((days) => (
-              <Choice
-                key={days}
-                selected={Number(horizon) === days}
-                onClick={() => setHorizon(String(days))}
-              >
-                <span className="tabular">{days} days</span>
-              </Choice>
-            ))}
-          </div>
-          <label className="flex w-32 items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={horizon}
-              onChange={(event) => {
-                setHorizon(event.target.value.replace(/\D/g, ''));
-              }}
-              onBlur={() =>
-                setHorizon(
-                  String(Math.round(boundedNumber(horizon, 30, 1, 365))),
-                )
-              }
-              className="tabular min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-              aria-label="Custom time horizon in days"
-            />
-            <span className="text-[11px] text-[color:var(--text-muted)]">
-              days
-            </span>
-          </label>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            Choose any window from 1 to 365 days. We weigh whether the recorded
-            history is long enough for it.
-          </p>
-        </fieldset>
-      </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <fieldset className="flex min-w-0 flex-col gap-2.5">
+            <legend className="text-xs text-[color:var(--text-muted)]">
+              Portfolio capital
+            </legend>
+            <label className="flex items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
+              <span className="text-sm text-[color:var(--text-muted)]">$</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={capital}
+                onChange={(event) => {
+                  const value = event.target.value.replace(/[^0-9.]/g, '');
+                  if (/^\d*(?:\.\d{0,2})?$/.test(value)) setCapital(value);
+                }}
+                onBlur={() =>
+                  setCapital(
+                    String(boundedNumber(capital, 5000, 1, 100_000_000)),
+                  )
+                }
+                placeholder="5,000"
+                className="tabular min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+                aria-label="Capital in US dollars"
+              />
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {CAPITAL_PRESETS.map((amount) => (
+                <Choice
+                  key={amount}
+                  selected={Number(capital) === amount}
+                  onClick={() => setCapital(String(amount))}
+                >
+                  <span className="tabular">
+                    ${amount.toLocaleString('en-US')}
+                  </span>
+                </Choice>
+              ))}
+            </div>
+            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              Used only to explain fit and limitations. Pokter does not read or
+              control this capital.
+            </p>
+          </fieldset>
+
+          <fieldset className="flex min-w-0 flex-col gap-2.5">
+            <legend className="text-xs text-[color:var(--text-muted)]">
+              Risk tolerance
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {RISKS.map((option) => (
+                <Choice
+                  key={option.id}
+                  selected={risk === option.id}
+                  onClick={() => setRisk(option.id)}
+                >
+                  {option.label}
+                </Choice>
+              ))}
+            </div>
+            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              {RISKS.find((option) => option.id === risk)?.blurb}
+            </p>
+          </fieldset>
+
+          <fieldset className="flex min-w-0 flex-col gap-2.5">
+            <legend className="text-xs text-[color:var(--text-muted)]">
+              Time horizon
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {HORIZONS.map((days) => (
+                <Choice
+                  key={days}
+                  selected={Number(horizon) === days}
+                  onClick={() => setHorizon(String(days))}
+                >
+                  <span className="tabular">{days} days</span>
+                </Choice>
+              ))}
+            </div>
+            <label className="flex w-32 items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={horizon}
+                onChange={(event) => {
+                  setHorizon(event.target.value.replace(/\D/g, ''));
+                }}
+                onBlur={() =>
+                  setHorizon(
+                    String(Math.round(boundedNumber(horizon, 30, 1, 365))),
+                  )
+                }
+                className="tabular min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
+                aria-label="Custom time horizon in days"
+              />
+              <span className="text-[11px] text-[color:var(--text-muted)]">
+                days
+              </span>
+            </label>
+            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              Choose any window from 1 to 365 days. We weigh whether the
+              recorded history is long enough for it.
+            </p>
+          </fieldset>
+        </div>
+      </section>
 
       <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="max-w-xl text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          Pokter checks registry identity, endpoint reliability, evidence depth and
-          fit—then shows what did not qualify.
-        </p>
+        <div className="flex max-w-xl flex-col gap-1.5">
+          <h2 className="text-xs font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+            <span className="mr-2 text-[color:var(--brand)]">03</span>
+            Review evidence-ranked matches
+          </h2>
+          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            Pokter checks registry identity, endpoint reliability, evidence depth
+            and fit—then shows what did not qualify.
+          </p>
+        </div>
         <button
           type="button"
           onClick={submit}
