@@ -22,6 +22,7 @@ import {
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 
@@ -69,6 +70,7 @@ export function CommissionPanel({
     chainId: number;
     tokenId: string;
     name: string;
+    category: string;
     wallet?: string | null;
   };
   providers: ProviderChoice[];
@@ -192,9 +194,13 @@ export function CommissionPanel({
       }
       if (!task.trim())
         throw new Error('Describe the work before funding escrow.');
-      if (new TextEncoder().encode(task).byteLength > 4096) {
-        throw new Error('The task must be at most 4096 bytes.');
-      }
+      const committedTask = encodePokterJobEnvelope({
+        identityChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        category: agent.category,
+        provider: providerAddress as `0x${string}`,
+        task,
+      });
 
       const budgetRaw = parseUnits(String(budget), 18);
       const { paymentToken } = correctedErc8183Addresses(
@@ -268,7 +274,7 @@ export function CommissionPanel({
         signer,
         {
           provider: providerAddress as `0x${string}`,
-          task,
+          task: committedTask,
           budget: budgetRaw,
         },
         { network: WALLET_NETWORK },

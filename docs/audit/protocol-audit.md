@@ -93,7 +93,7 @@ invalidates or prevents the handoff; revocation stops the original agent.
 
 ### POK-025 · ERC-8183 jobs do not commit to the selected ERC-8004 agent
 
-**Severity: High · Status: Open · Campaign-attribution blocker**
+**Severity: High · Status: Partially fixed, historical jobs remain unattributed**
 
 The on-chain hire records a provider, description and budget. The ERC-8004
 token ID and marketplace category are written only to browser-local metadata.
@@ -114,6 +114,14 @@ the listing.
 **Acceptance test.** Starting from a listing produces an independently
 verifiable chain from ERC-8004 identity to provider to ERC-8183 job to signed
 delivery and settlement, with no Pokter database required.
+
+**Fix for new jobs.** Pokter now encodes a versioned canonical envelope in the
+immutable ERC-8183 description. It records the ERC-8004 identity chain and
+token ID, category, actual fulfilment provider and original task separately.
+This prevents a shared provider's work from being silently presented as work
+performed by the selected listing. Historical jobs cannot be retroactively
+repaired, and provider-to-registry authorization still needs the capability
+binding described in POK-024.
 
 ### POK-026 · The buyer has no dispute action in the production job UI
 

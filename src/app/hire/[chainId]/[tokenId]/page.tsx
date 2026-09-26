@@ -159,6 +159,7 @@ export default async function HirePage({
                   chainId,
                   tokenId,
                   name: agent.name,
+                  category,
                   wallet: agent.agent_wallet,
                 }}
                 providers={providers}
