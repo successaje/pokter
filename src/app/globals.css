@@ -214,6 +214,22 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Installed mobile windows extend beneath device chrome. Desktop values are
+   zero, so these safe-area offsets do not alter the website layout. */
+@media (display-mode: standalone) and (max-width: 767px) {
+  body {
+    min-height: 100svh;
+  }
+
+  header {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  nav[aria-label='Primary navigation'] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /*
  * Primary product actions use the BNB-family yellow. Statuses keep their own
  * semantic colours; this treatment is reserved for forward motion such as

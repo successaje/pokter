@@ -1,10 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
 import { Footer } from '@/components/shell/Footer';
 import { WalletProviders } from '@/lib/wallet/Providers';
+import { PwaProvider } from '@/components/pwa/PwaProvider';
+
+export const viewport: Viewport = {
+  themeColor: '#f0b90b',
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -17,6 +23,14 @@ export const metadata: Metadata = {
   description:
     'Compare autonomous financial agents on BNB Chain using onchain identity, reputation, disclosed capabilities and live protocol checks.',
   applicationName: 'Pokter',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Pokter',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   openGraph: {
     type: 'website',
     siteName: 'Pokter',
@@ -51,17 +65,19 @@ export default async function RootLayout({
   return (
     <html lang="en" data-theme={explicit} suppressHydrationWarning>
       <body className="antialiased">
-        <WalletProviders>
-          <Nav />
+        <PwaProvider>
+          <WalletProviders>
+            <Nav />
 
-          <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-24 pt-8 sm:px-8 md:pb-16">
-            {children}
-          </main>
+            <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-24 pt-8 sm:px-8 md:pb-16">
+              {children}
+            </main>
 
-          <Footer />
+            <Footer />
 
-          <MobileNav />
-        </WalletProviders>
+            <MobileNav />
+          </WalletProviders>
+        </PwaProvider>
       </body>
     </html>
   );

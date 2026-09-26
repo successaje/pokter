@@ -10,6 +10,7 @@ import { ConnectWallet } from './ConnectWallet';
 import { ThemeToggle } from './ThemeToggle';
 import { Wordmark } from '@/components/brand/Logo';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
+import { InstallPokter } from '@/components/pwa/InstallPokter';
 
 /**
  * §11. Primary navigation.
@@ -146,6 +147,7 @@ export function MobileNav() {
               </Link>
             );
           })}
+          <InstallPokter onComplete={closeMore} />
         </div>
       )}
 
