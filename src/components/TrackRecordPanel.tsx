@@ -1,3 +1,4 @@
+import { plural, pluralise } from '@/lib/ui/plural';
 import type { TrackRecord } from '@/lib/history/record';
 
 function ratioColor(ratio: number | null): string {
@@ -9,8 +10,8 @@ function ratioColor(ratio: number | null): string {
 
 function formatDuration(days: number): string {
   if (days < 1 / 24) return 'under an hour';
-  if (days < 1) return `${Math.round(days * 24)} hour(s)`;
-  return `${days.toFixed(1)} day(s)`;
+  if (days < 1) return plural(Math.round(days * 24), 'hour');
+  return `${days.toFixed(1)} ${pluralise(Number(days.toFixed(1)), 'day')}`;
 }
 
 /**
@@ -67,7 +68,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
           ))}
         </div>
         <p className="tabular text-[11px] text-[color:var(--text-faint)]">
-          {record.days.length} day(s) of coverage · {record.totalAnswered}/
+          {plural(record.days.length, 'day')} of coverage · {record.totalAnswered}/
           {record.totalProbes} probes answered · watched for{' '}
           {formatDuration(record.observedDays)}
         </p>
@@ -76,7 +77,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
       {record.longestOutage && (
         <p className="rounded-lg border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
           Longest observed outage: {record.longestOutage.probes} consecutive failed
-          probe(s), from {record.longestOutage.from.slice(0, 16).replace('T', ' ')} to{' '}
+          {pluralise(record.longestOutage.probes, 'probe')}, from {record.longestOutage.from.slice(0, 16).replace('T', ' ')} to{' '}
           {record.longestOutage.to.slice(0, 16).replace('T', ' ')} UTC. Average
           uptime hides this; a position being watched does not.
         </p>

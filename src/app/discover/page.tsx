@@ -1,3 +1,4 @@
+import { plural } from '@/lib/ui/plural';
 import { Suspense } from 'react';
 import Link from 'next/link';
 
@@ -110,7 +111,7 @@ async function Results({ brief }: { brief: Brief }) {
         <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-6">
           <p className="text-sm font-medium">No agent clears this bar yet.</p>
           <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            We found {result.considered} agent(s) in this category, but none has
+            We found {plural(result.considered, 'agent')} in this category, but none has
             enough verified evidence to recommend at {brief.risk} risk tolerance.
             Increasing your risk tolerance may widen the set—it does not create
             evidence that is missing.

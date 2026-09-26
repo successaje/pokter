@@ -1,5 +1,6 @@
 'use client';
 
+import { plural } from '@/lib/ui/plural';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -76,7 +77,7 @@ export function HireGate({
           {agentName} answered {live.answered} of {live.probes.length} probes just
           now
           {proof.score !== null &&
-            ` and measures ${(proof.score * 100).toFixed(0)}% across ${proof.probes} probe(s) of published evidence`}
+            ` and measures ${(proof.score * 100).toFixed(0)}% across ${plural(proof.probes, 'probe')} of published evidence`}
           .
           {proof.verdict === 'emerging' &&
             ' Its record is real but thin — treat it as a first trial, not a settled track record.'}

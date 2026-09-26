@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 19** · 9 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 19** · 11 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 9 |
+| Fixed | 11 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -176,10 +176,17 @@ is meant to show *rigour*, and currently shows *desolation*. A short line
 naming what the ratio means would turn it.
 
 ### FE-12 · Two probe counts on one screen, both unlabelled
-**Page:** `/agents/[chain]/[token]`
+**Status: Fixed** · **Page:** `/agents/[chain]/[token]`
 
-`276 probes` in the stat row, `352 probe(s)` in the rationale below. One is
-Pokter's record, the other the attestation's. Nothing says which.
+`276 probes` in the stat row, `352 probe(s)` in the rationale below. One was
+Pokter's record, the other the sum across every measurer. Nothing said which.
+
+Corrosive on a page whose argument is that its numbers can be trusted: a
+reader who spots the mismatch has no way to resolve it, so the natural
+conclusion is that one of them is wrong.
+
+**Fixed.** The stat reads `276 by Pokter` and the rationale reads
+`352 probes across all measurers`. Three words each; the ambiguity is gone.
 
 ### FE-13 · Compare promises a highlight it often cannot show
 **Page:** `/compare`
@@ -225,8 +232,21 @@ rather than a gap — only two publishers there have agents that answer.
 **Page:** `/pool-check` — the only blue accent in the interface.
 
 ### FE-16 · `(s)` pluralisation
-**Pages:** agent detail, methodology — `attestation(s)`, `probe(s)`,
-`measurer(s)`, `day(s)`.
+**Status: Fixed** · **Pages:** agent detail, methodology, landing, discover
+
+`attestation(s)`, `probe(s)`, `measurer(s)`, `day(s)` — reads like a form
+field on a product that spends most of its words asking to be taken seriously
+about counts.
+
+**Fixed** with a `plural` helper across the proof engine, track record, trust
+panel, ecosystem panel, hire gate, discover and the event ticker. None of ours
+remain.
+
+**One is deliberately left.** An agent page still shows *"Measured by Kawal
+from 76 probe(s) over 2 day(s)"* — that is a third-party measurer's own
+attestation text, decoded from its `feedback_uri`. Rewriting it would be
+editing evidence to make it read better, which is the one thing this product
+must not do. It stays exactly as published.
 
 ### FE-17 · Discover's primary action sits at the far bottom-right
 **Page:** `/discover` — *Find agents* is correct but low; the eye finishes the

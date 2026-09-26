@@ -52,6 +52,11 @@ export const FAILING_MAX_SCORE = 0.5;
  * worth more than a 5-probe one, but with diminishing returns so a single
  * high-volume measurer cannot drown out the rest.
  */
+/** `1 probe`, `2 probes`. Cheaper than reading `probe(s)` forever. */
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 function evidenceWeight(attestation: Attestation): number {
   const probes = attestation.method?.probes ?? 1;
   return Math.log10(Math.max(1, probes) + 1) + 0.1;
@@ -96,7 +101,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       rationale:
         attestations.length === 0
           ? 'No on-chain attestations exist for this agent. There is nothing to verify, so it cannot be hired here.'
-          : `${attestations.length} attestation(s) exist but none decoded into a readable measurement, so no claim about this agent can be verified.`,
+          : `${plural(attestations.length, 'attestation')} exist but none decoded into a readable measurement, so no claim about this agent can be verified.`,
     };
   }
 
@@ -115,14 +120,26 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
         ? 'proven'
         : 'emerging';
 
+  /*
+   * FE-12. This count is the sum across every measurer, while the agent page
+   * separately shows Pokter's own. Two different probe totals sat on one
+   * screen with nothing saying whose each was, which is corrosive on a page
+   * whose argument is that its numbers can be trusted. Naming the scope costs
+   * three words.
+   *
+   * FE-16 in passing: `attestation(s)` reads like a form field, so the counts
+   * pluralise properly.
+   */
   const evidence =
-    `${usable.length} attestation(s), ${probes} probe(s), ` +
-    `${measurers.length || 'no named'} measurer(s)` +
-    (windowDays ? `, over ${windowDays} day(s)` : '');
+    `${plural(usable.length, 'attestation')}, ` +
+    `${plural(probes, 'probe')} across all measurers, ` +
+    `${measurers.length ? plural(measurers.length, 'measurer') : 'no named measurer'}` +
+    (windowDays ? `, over ${plural(windowDays, 'day')}` : '');
 
   /** What is still missing before this could be called proven. */
   const shortfalls = [
-    probes < PROVEN_MIN_PROBES && `${PROVEN_MIN_PROBES - probes} more probe(s)`,
+    probes < PROVEN_MIN_PROBES &&
+      `${plural(PROVEN_MIN_PROBES - probes, 'more probe')}`,
     measurers.length < PROVEN_MIN_MEASURERS &&
       'a second independent measurer',
     (windowDays ?? 0) < PROVEN_MIN_WINDOW_DAYS &&

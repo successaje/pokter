@@ -1,3 +1,4 @@
+import { plural } from '@/lib/ui/plural';
 import 'server-only';
 
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
@@ -212,7 +213,7 @@ function recentEvents(
     events.push({
       kind: 'evidence',
       title: 'New evidence',
-      detail: `${agent.listing.agent.name} · ${agent.listing.attestationCount} attestation(s)`,
+      detail: `${agent.listing.agent.name} · ${plural(agent.listing.attestationCount, 'attestation')}`,
     });
   }
 

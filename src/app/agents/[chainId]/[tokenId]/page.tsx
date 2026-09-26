@@ -156,7 +156,9 @@ export default async function AgentPage({
                   Observations
                 </dt>
                 <dd className="tabular mt-1 text-[11px] font-medium">
-                  {record.totalProbes} probes
+                  {/* FE-12. Whose count this is, said plainly — the rationale
+                      below reports the total across every measurer. */}
+                  {record.totalProbes} by Pokter
                 </dd>
               </div>
               <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">

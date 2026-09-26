@@ -1,3 +1,4 @@
+import { plural, pluralise } from '@/lib/ui/plural';
 import { ProvenanceTag, type ProvenanceDetail } from '@/components/ui/ProvenanceTag';
 import { shortAddress } from '@/lib/ui/format';
 import type { AgentDossier } from '@/lib/marketplace';
@@ -78,7 +79,7 @@ export function TrustPanel({
       value:
         attestations.length === 0
           ? 'None published'
-          : `${attestations.length} from ${proof.measurers.length || 'unnamed'} measurer(s)`,
+          : `${attestations.length} from ${proof.measurers.length || 'unnamed'} ${pluralise(proof.measurers.length, 'measurer')}`,
       provenance:
         attestations.length === 0 ? (
           <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
@@ -118,7 +119,7 @@ export function TrustPanel({
       value:
         record.totalProbes === 0
           ? 'Not yet measured'
-          : `${record.totalAnswered}/${record.totalProbes} probes over ${record.days.length} day(s)`,
+          : `${record.totalAnswered}/${record.totalProbes} probes over ${plural(record.days.length, 'day')}`,
       provenance: (
         <ProvenanceTag
           kind="historical"

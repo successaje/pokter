@@ -1,3 +1,4 @@
+import { pluralise } from '@/lib/ui/plural';
 import { formatCount } from '@/lib/ui/format';
 import { CountUp, type CountFormat } from '@/components/motion/CountUp';
 import type { EcosystemStats } from '@/lib/marketplace';
@@ -42,7 +43,7 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
       value: stats.probesTaken,
       format: 'count',
       label: 'probes taken',
-      source: `Measured by Pokter across ${formatCount(stats.sweeps)} sweep(s)`,
+      source: `Measured by Pokter across ${formatCount(stats.sweeps)} ${pluralise(stats.sweeps, 'sweep')}`,
     },
   ];
 
