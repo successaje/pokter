@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useId } from 'react';
+import { useCallback, useState, useId } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 
 /**
  * §54. Where a number came from.
@@ -47,17 +48,21 @@ export function ProvenanceTag({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const layerRef = useDismissibleLayer<HTMLSpanElement>({
+    open,
+    onDismiss: close,
+  });
   const panelId = useId();
   const meta = LABELS[kind];
 
   return (
-    <span className={cn('relative inline-flex max-w-full', className)}>
+    <span ref={layerRef} className={cn('relative inline-flex max-w-full', className)}>
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        onBlur={() => setOpen(false)}
         className={cn(
           'inline-flex items-center gap-1 rounded text-[10px] font-medium uppercase tracking-wide transition-opacity hover:opacity-100',
           open ? 'opacity-100' : 'opacity-70',

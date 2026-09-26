@@ -1,13 +1,14 @@
 'use client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 
 /**
  * §59. Wallet connection.
@@ -26,6 +27,11 @@ import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 export function ConnectWallet() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const layerRef = useDismissibleLayer<HTMLDivElement>({
+    open,
+    onDismiss: close,
+  });
 
   const passkey = usePasskeyWallet();
   const { address, isConnected, chain } = useAccount();
@@ -39,7 +45,7 @@ export function ConnectWallet() {
   const anyConnected = Boolean(connectedAddress);
 
   return (
-    <div className="relative">
+    <div ref={layerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

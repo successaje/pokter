@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import {
@@ -10,6 +10,7 @@ import {
   parseQuery,
   stringifyQuery,
 } from '@/lib/search/query';
+import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 
 /**
  * Search with a query syntax, and dropdowns that write that syntax.
@@ -58,6 +59,11 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
 
   const [draft, setDraft] = useState(initial);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const closeFilters = useCallback(() => setOpenGroup(null), []);
+  const filtersRef = useDismissibleLayer<HTMLDivElement>({
+    open: openGroup !== null,
+    onDismiss: closeFilters,
+  });
 
   const parsed = parseQuery(initial);
 
@@ -101,7 +107,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div ref={filtersRef} className="flex flex-wrap items-center gap-2">
         {FILTER_GROUPS.map((group) => (
           <div key={group.label} className="relative">
             <button
