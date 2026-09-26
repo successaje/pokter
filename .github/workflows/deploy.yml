@@ -1,0 +1,76 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Production is backed by a single Fly volume. Never let two image rollouts
+# race over the same machine and persistent data.
+concurrency:
+  group: pokter-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run protocol safety checks
+        run: npm run audit:protocol
+
+      - name: Run rate-limit checks
+        run: npm run audit:rate-limit
+
+      - name: Build production application
+        run: npm run build -- --webpack
+
+  deploy:
+    name: Deploy to Fly.io
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://pokter.xyz
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --config fly.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify production health
+        run: |
+          response=$(curl --fail --silent --show-error \
+            --retry 6 --retry-all-errors --retry-delay 5 \
+            --max-time 20 https://pokter.xyz/api/health)
+          echo "$response" | grep -q '"status":"ok"'
