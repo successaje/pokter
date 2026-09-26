@@ -308,7 +308,8 @@ an agent.
 
 **Verified:** job #1352 hired, delivered and reached `SUBMITTED` on chain with
 a real submit transaction, having resolved a chain-56 agent against chain-97
-escrow — the combination that was impossible before.
+escrow — the combination that was impossible before. Repeated from production
+with job #1353, whose receipt then verified against its on-chain hash.
 
 ---
 
@@ -330,9 +331,21 @@ transaction — which is what makes it a good illustration. Nothing errored.
 Failing costs a developer one environment variable; not failing costs a buyer
 their only route to check what they paid for.
 
-**Verified:** delivering job #1353 locally is refused with the reason and the
-variable to set, while job #1352 had already gone through under the old
-behaviour.
+**Verified, and then demonstrated.** Delivering job #1353 locally is refused
+with the reason and the variable to set. Delivered from production instead, it
+committed `https://pokter.xyz/api/seller/deliverables/1353` and its receipt
+returns `verified: true`.
+
+Job #1352, delivered locally before the guard existed, is the counter-case:
+
+```
+job 1353  verified: true
+job 1352  Receipt verification failed: Only public HTTPS endpoints … are probed
+```
+
+Same seller, same manifest logic, same chain. One receipt can be checked by
+anyone and the other never can, and the difference was a fallback value in an
+environment variable.
 
 ---
 
