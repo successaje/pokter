@@ -65,6 +65,7 @@ export function CommissionPanel({
   providers,
   escrowChainId,
   explorerBase,
+  riskWarnings = [],
 }: {
   agent: {
     chainId: number;
@@ -76,6 +77,7 @@ export function CommissionPanel({
   providers: ProviderChoice[];
   escrowChainId: number;
   explorerBase: string;
+  riskWarnings?: string[];
 }) {
   const { locked, reason } = useCommitLock();
   const { wallet } = usePasskeyWallet();
@@ -87,6 +89,7 @@ export function CommissionPanel({
     'Create a verifiable execution receipt for this escrowed job. Include the chain, client, provider, budget and funded status.',
   );
   const [budget, setBudget] = useState(0.1);
+  const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
 
   const [stage, setStage] = useState<'swapping' | 'hiring'>('hiring');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -352,6 +355,29 @@ export function CommissionPanel({
         </p>
       </div>
 
+      {riskWarnings.length > 0 && (
+        <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-3">
+          <p className="text-[11px] font-semibold text-[color:var(--caution)]">
+            Proceed with extra caution
+          </p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            {riskWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={riskAccepted}
+              onChange={(event) => setRiskAccepted(event.target.checked)}
+              className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--brand)]"
+            />
+            I understand this agent does not currently meet Pokter&apos;s evidence
+            standard and still want to commission it.
+          </label>
+        </div>
+      )}
+
       {provider && !provider.reachable && (
         <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
           {agent.name} is registered on chain {agent.chainId}, but the escrow we
@@ -501,6 +527,7 @@ export function CommissionPanel({
             locked ||
             !providerAddress ||
             !provider?.reachable ||
+            !riskAccepted ||
             task.trim().length === 0
           }
           title={reason ?? undefined}

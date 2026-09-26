@@ -379,7 +379,7 @@ export async function loadDossier(
   }
 }
 
-/** A same-category agent offered when the requested one cannot be hired. */
+/** A stronger same-category alternative offered for a high-risk hire. */
 export interface Alternative {
   listing: Listing;
   verdict: ProofSummary['verdict'];

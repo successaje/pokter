@@ -4,8 +4,8 @@ import type { Attestation } from './attestation';
  * The marketplace's central judgement about an agent.
  *
  * The rule the whole product is built around: an agent you cannot verify is not
- * a low-scoring agent, it is an *unproven* one, and it is not hirable. We never
- * synthesise a number to fill an empty card.
+ * a low-scoring agent, it is an *unproven* one. We never synthesise a number to
+ * fill an empty card; unproven and failing agents take an explicit risk path.
  */
 export type Verdict = 'proven' | 'emerging' | 'failing' | 'unproven';
 
@@ -27,7 +27,7 @@ export interface ProofSummary {
   disclosedDefects: string[];
   /** Plain-language explanation of how this verdict was reached. */
   rationale: string;
-  /** Whether the UI may offer a Hire action. */
+  /** Whether Pokter recommends the normal, low-friction hire path. */
   hirable: boolean;
 }
 
@@ -100,8 +100,8 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       hirable: false,
       rationale:
         attestations.length === 0
-          ? 'No on-chain attestations exist for this agent. There is nothing to verify, so it cannot be hired here.'
-          : `${plural(attestations.length, 'attestation')} exist but none decoded into a readable measurement, so no claim about this agent can be verified.`,
+          ? 'No on-chain attestations exist for this agent. There is nothing to verify, so Pokter does not recommend hiring it.'
+          : `${plural(attestations.length, 'attestation')} exist but none decoded into a readable measurement, so Pokter cannot recommend this agent.`,
     };
   }
 
@@ -149,7 +149,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
 
   const rationale =
     verdict === 'failing'
-      ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. This agent is failing its own measurers and is blocked from hire.`
+      ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. This agent is failing its own measurers, so Pokter does not recommend hiring it.`
       : verdict === 'proven'
         ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence} — enough independent evidence to clear the proven bar.`
         : `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
@@ -158,8 +158,8 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     ...base,
     verdict,
     score,
-    // A failing agent is blocked outright; an emerging one may be hired, but the
-    // UI is required to surface that its record is thin.
+    // A failing agent takes the explicit risk-acceptance path; an emerging one
+    // may use the normal path, with its thin record still surfaced in the UI.
     hirable: verdict === 'proven' || verdict === 'emerging',
     rationale,
   };

@@ -90,6 +90,12 @@ export default async function HirePage({
     expiryDays: 7,
   });
   const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
+  const riskWarnings = [
+    ...(!proof.hirable ? [proof.rationale] : []),
+    ...(!answeredNow
+      ? ['The agent did not answer Pokter’s current live protocol probe.']
+      : []),
+  ];
 
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -122,34 +128,30 @@ export default async function HirePage({
         </p>
       </header>
 
-      {!proof.hirable || !answeredNow ? (
-        /*
-          FE-01. The refusal, and then somewhere to go. This page used to end
-          here, which sends a visitor who needs this category to finish it on
-          another marketplace.
-        */
-        <div className="flex flex-col gap-8">
-          <section className="rounded-[var(--radius-lg)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-5">
-            <h2 className="text-sm font-medium text-[color:var(--negative)]">
-              Hiring is blocked
-            </h2>
-            <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-              {!proof.hirable
-                ? proof.rationale
-                : 'This agent did not answer Pokter’s live protocol probe. Hiring stays blocked until it responds again.'}
-            </p>
-          </section>
-
-          <Alternatives
-            alternatives={await hirableAlternatives(
-              category === 'unclassified' ? 'health-factor' : category,
-              tokenId,
-            )}
-            category={category === 'unclassified' ? 'health-factor' : category}
-          />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8">
+          {riskWarnings.length > 0 && (
+            <>
+              <section className="rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
+                <h2 className="text-sm font-medium text-[color:var(--caution)]">
+                  Pokter does not recommend this hire
+                </h2>
+                <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                  You remain in control. Review the evidence and explicitly
+                  accept the added risk before funding escrow, or choose a
+                  stronger alternative below.
+                </p>
+              </section>
+              <Alternatives
+                alternatives={await hirableAlternatives(
+                  category === 'unclassified' ? 'health-factor' : category,
+                  tokenId,
+                )}
+                category={
+                  category === 'unclassified' ? 'health-factor' : category
+                }
+              />
+            </>
+          )}
           <WalletReadiness requiredBudgetU={0.1} />
           {/*
             Two distinct grants, in the order they matter. A session is standing
@@ -188,11 +190,11 @@ export default async function HirePage({
                 providers={providers}
                 escrowChainId={ALTANA_NETWORK.chainId}
                 explorerBase={explorerBase}
+                riskWarnings={riskWarnings}
               />
             </WalletGate>
           </Stage>
         </div>
-      )}
     </div>
   );
 }

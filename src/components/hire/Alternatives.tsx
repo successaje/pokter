@@ -5,7 +5,7 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 
 /**
- * Where to go when this agent cannot be hired.
+ * Safer same-category options shown before a user accepts a high-risk hire.
  *
  * FE-01. The refusal is the product working; the empty screen after it was
  * not. These are same-category agents with a record of answering, ranked by

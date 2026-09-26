@@ -20,21 +20,22 @@ finding names the page it was seen on.
 
 ## Blocking for the campaign
 
-### FE-01 · A blocked hire is a dead end
+### FE-01 · A high-risk hire is a dead end
 **Status: Fixed** · **Page:** `/hire/[chain]/[token]`
 
-When an agent fails its live probe the page renders a red notice and then
-roughly two thirds of empty viewport. No alternatives, no link back to the
-category, no way to be told when it recovers.
+When an agent failed its live probe the page rendered a red notice and then
+roughly two thirds of empty viewport. There were no alternatives and no path
+for an informed user to continue.
 
 The Set and Earn quest asks a wallet to hire in **all four categories**. A user
 sent here by that quest has no next step on Pokter and will go and finish the
 leg on another shortlisted marketplace. This is the single highest-cost screen
 in the product right now.
 
-**Fixed.** The blocked page now lists same-category agents with a record of
-answering, ranked by the share of probes they answered, with an explicit empty
-state when the category has none.
+**Fixed.** Pokter now marks the hire as not recommended, lists same-category
+agents with a stronger record, and still lets the user proceed after explicitly
+acknowledging the evidence warning. Technical impossibilities—such as selecting
+a provider that cannot receive the escrow job—remain hard constraints.
 
 Built from the category listing and the local probe record only. Resolving a
 dossier per candidate would mean a live probe each, which turns a dead end
@@ -308,4 +309,5 @@ Worth recording, because a list of defects misrepresents the product.
 - **`/agent-advantage`** leads with the result that is least flattering.
 - Evidence badges, provenance and freshness are consistent everywhere.
 - Mobile type, spacing and the bottom navigation hold up well.
-- The blocked-hire refusal itself is correct — only its aftermath is a gap.
+- High-risk hires remain plainly labelled and require explicit acknowledgement;
+  the marketplace does not silently make the decision for the user.

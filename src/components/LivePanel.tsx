@@ -10,7 +10,7 @@ export function LivePanel({ live }: { live: LiveReading }) {
     return (
       <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
         This agent publishes no reachable service endpoint, so there is nothing to
-        watch. It cannot be probed, and it cannot be hired here.
+        watch. It cannot be probed, so Pokter will not recommend hiring it.
       </p>
     );
   }

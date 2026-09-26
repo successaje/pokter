@@ -174,23 +174,23 @@ export default async function AgentPage({
 
           <div className="flex w-full max-w-xs flex-col gap-3">
             <ScorePanel score={score} />
-            {/*
-              No hire surface at all when the evidence does not support one.
-              A disabled-looking link still invites the click and makes the
-              refusal feel like an obstacle; absence makes it a position.
-            */}
-            {proof.hirable && answeredNow ? (
-              <Link
-                href={`/hire/${agent.chain_id}/${agent.token_id}`}
-                className="action-primary w-full rounded-[var(--radius)] px-4 py-2 text-center text-[13px]"
-              >
-                Hire agent
-              </Link>
-            ) : (
-              <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] px-3 py-2 text-[11px] leading-relaxed text-[color:var(--negative)]">
-                Hiring is blocked.{' '}
+            <Link
+              href={`/hire/${agent.chain_id}/${agent.token_id}`}
+              className={
+                proof.hirable && answeredNow
+                  ? 'action-primary w-full rounded-[var(--radius)] px-4 py-2 text-center text-[13px]'
+                  : 'w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
+              }
+            >
+              {proof.hirable && answeredNow
+                ? 'Hire agent'
+                : 'Review risks and hire'}
+            </Link>
+            {(!proof.hirable || !answeredNow) && (
+              <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
+                Not recommended:{' '}
                 {proof.hirable
-                  ? 'The agent did not answer the current live protocol probe.'
+                  ? 'the current live probe failed.'
                   : proof.rationale}
               </p>
             )}
