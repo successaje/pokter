@@ -32,6 +32,14 @@ function safeDeliverableUrl(value: string | null): string | null {
   }
 }
 
+function settlementError(error: unknown): string {
+  const message = (error as Error).message ?? 'Escrow release failed.';
+  if (/0x17be5b7b/i.test(message)) {
+    return 'The dispute window is still open. The contract will allow payment after the review period ends; refresh and try again shortly.';
+  }
+  return message;
+}
+
 /**
  * §55 / §58. A commissioned job.
  *
@@ -114,7 +122,7 @@ export function JobCard({
       setJob(updated);
       updateRememberedJob(wallet.address, updated);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(settlementError(caught));
     } finally {
       setBusy(null);
     }
