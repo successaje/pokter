@@ -25,6 +25,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
+import { walletActionError } from '@/lib/wallet/errors';
 
 /**
  * A provider the escrow can actually reach.
@@ -312,7 +313,7 @@ export function CommissionPanel({
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(walletActionError(caught, 'Commissioning'));
       setState('error');
     }
   };
@@ -344,7 +345,7 @@ export function CommissionPanel({
       setJob(updated);
       if (wallet) rememberJob(wallet.address, updated);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(walletActionError(caught, 'Status refresh'));
     } finally {
       setRefreshing(false);
     }

@@ -18,6 +18,7 @@ import {
 } from '@/components/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
+import { walletActionError } from '@/lib/wallet/errors';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
@@ -34,7 +35,7 @@ function safeDeliverableUrl(value: string | null): string | null {
 }
 
 function settlementError(error: unknown): string {
-  const message = (error as Error).message ?? 'Escrow release failed.';
+  const message = walletActionError(error, 'Escrow action');
   if (/0x17be5b7b/i.test(message)) {
     return 'The dispute window is still open. The contract will allow payment after the review period ends; refresh and try again shortly.';
   }

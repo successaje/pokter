@@ -5,6 +5,7 @@ import {
 } from '../src/lib/erc8183/job-envelope';
 import { verifyNegotiationSignature } from '../src/lib/erc8183/negotiation';
 import { privateKeyToAccount } from 'viem/accounts';
+import { walletActionError } from '../src/lib/wallet/errors';
 
 const delegatedWriteCategories = ['rebalancing', 'grid-trading', 'yield'];
 
@@ -97,3 +98,21 @@ if (wrongProviderAccepted) {
 }
 
 console.log('Negotiation signature checks passed.');
+
+if (
+  walletActionError(
+    new Error('Authorization did not complete. Reason: 0x Details: 0x'),
+    'Commissioning',
+  ) !==
+  'Commissioning did not complete. The wallet returned no usable reason. Check the selected network and wallet balance, then try again.'
+) {
+  throw new Error('Opaque wallet failures were not translated into recovery guidance');
+}
+if (
+  walletActionError(new Error('User rejected the request'), 'Commissioning') !==
+  'Commissioning was cancelled. No transaction was submitted.'
+) {
+  throw new Error('Cancelled wallet actions were not distinguished from failures');
+}
+
+console.log('Wallet error translation checks passed.');
