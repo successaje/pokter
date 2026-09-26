@@ -17,7 +17,7 @@ both chains. Findings marked *Verified* were executed, not reasoned about.
 | Critical | 0 | 5 | 0 | — |
 | High | 0 | 3 | 0 | — |
 | Medium | 3 | 0 | 0 | — |
-| Scoped (swap) | 2 | 4 | 0 | — |
+| Scoped (swap) | 0 | 5 | 1 | — |
 | Info | — | — | — | 5 |
 
 **Criticals and Highs are closed.** Three Medium findings remain, and the
@@ -286,17 +286,33 @@ more likely to land — it would only raise the ceiling on what a bad fill is
 permitted to cost.
 
 ### POK-018 · Swap can succeed while the hire fails
-**Status: Open** · blocks integration
+**Status: Accepted** · sequential, with the failure made mild and legible
 
 Acquiring `$U` and funding escrow are separate. A user can end up holding
 tokens they never wanted, having paid swap fees, with nothing hired.
 
-**Requirement.** Either batch both so they succeed or fail together, or state
-plainly that the swap is a separate step and leave the user with a usable
-balance rather than a stranded one.
+**Decision: accepted, not fixed.** The swap and the hire are two
+transactions.
+
+Atomicity was available — `buildHireCalls` returns the five hire calls, so
+the two swap calls could have been prepended and executed as one batch. It
+was rejected because `hireErc8183Agent` also predicts the jobId from
+`jobCounter() + 1` and computes an expiry that must clear the policy's
+dispute window. Going atomic means re-deriving both by hand, on the path that
+moves money, to replace a tested SDK call. That is a worse trade than the
+failure it avoids.
+
+**Why the failure is mild.** Only the shortfall is swapped, so a hire that
+fails afterwards leaves the user holding exactly the `$U` they needed, in a
+liquid stablecoin, with the retry one button press away. They are further
+along than when they started, not stranded.
+
+**Revisit if** the SDK exposes a hire that accepts extra calls, or if jobId
+prediction and expiry become readable helpers. Then atomicity costs nothing
+and should be taken.
 
 ### POK-019 · Quotes go stale between reading and signing
-**Status: Partly fixed** · deadline carried; re-quote is the caller's job
+**Status: Fixed** · deadline carried, and quoted at signing time
 
 A quote read at render time and signed a minute later can be wrong by more
 than the slippage bound, which surfaces as an opaque revert.
@@ -304,8 +320,9 @@ than the slippage bound, which surfaces as an opaque revert.
 **Fix.** Every swap carries a 300-second deadline, and `SwapQuote` records
 `quotedAt` so a caller can tell how old one is.
 
-**Still on the caller.** Nothing yet forces a re-quote before signing. The
-integration has to do that, and this stays partly open until it does.
+**Closed by the integration.** `CommissionPanel` quotes inside the commission
+handler, immediately before building the calls and signing — never at render
+time. A quote cannot outlive the click that produced it.
 
 ### POK-020 · Swapping exactly enough, not roughly enough
 **Status: Fixed** · exact-output
@@ -319,14 +336,15 @@ whatever the router did not spend, so the user is charged the real price
 rather than the worst-case one they had to authorise.
 
 ### POK-021 · The router becomes a new allowlisted target
-**Status: Open** · blocks integration
+**Status: Fixed** · the swap never touches a session
 
 Swapping through a session means the PancakeSwap router must be callable.
 Every address added to an allowlist widens what a granted agent may do.
 
-**Requirement.** Confirm whether the swap runs under the user's admin
-authority or a session. If a session, the router must not be silently added
-to an agent's allowlist as a side effect.
+**Fix.** The swap executes under the user's own admin authority — their
+passkey signing `execute({ wallet, signer, calls })` — not through a granted
+session. No agent allowlist gains the PancakeSwap router, and nothing an
+agent may call widens as a side effect of a buyer acquiring tokens.
 
 ### POK-022 · Router addresses must be verified on chain
 **Status: Fixed** · both read on chain

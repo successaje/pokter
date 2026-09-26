@@ -1,6 +1,13 @@
 'use client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import {
+  buildSwapCalls,
+  quoteBnbForPaymentToken,
+  type SwapQuote,
+} from '@/lib/pancakeswap/swap';
+import { createPublicClient, http } from 'viem';
+import { bsc, bscTestnet } from 'viem/chains';
 import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
@@ -16,7 +23,7 @@ import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { hireErc8183Agent } from '@altananetwork/sdk';
-import { parseUnits } from 'viem';
+import { formatEther, formatUnits, parseUnits } from 'viem';
 
 /**
  * A provider the escrow can actually reach.
@@ -37,6 +44,20 @@ export interface ProviderChoice {
 }
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
+
+/**
+ * A read-only client for quoting the swap.
+ *
+ * Built per attempt rather than held: it is used once, immediately before
+ * signing, and keeping a long-lived client around would invite quoting from a
+ * connection older than the decision it informs.
+ */
+function readClient() {
+  return createPublicClient({
+    chain: WALLET_NETWORK.chainId === 56 ? bsc : bscTestnet,
+    transport: http(),
+  });
+}
 
 export function CommissionPanel({
   agent,
@@ -65,6 +86,8 @@ export function CommissionPanel({
   );
   const [budget, setBudget] = useState(0.1);
 
+  const [stage, setStage] = useState<'swapping' | 'hiring'>('hiring');
+  const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [state, setState] = useState<'idle' | 'hiring' | 'hired' | 'error'>(
     'idle',
   );
@@ -156,6 +179,8 @@ export function CommissionPanel({
 
   const commission = async () => {
     setState('hiring');
+    setStage('hiring');
+    setSwapQuote(null);
     setError(null);
     try {
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
@@ -185,10 +210,57 @@ export function CommissionPanel({
         );
       }
       const paymentBalance = balances.tokens?.[0];
-      if (!paymentBalance?.ok || paymentBalance.raw < budgetRaw) {
-        throw new Error(
-          `Your passkey wallet needs at least ${budget} $U to fund this job.`,
+      const held = paymentBalance?.ok ? paymentBalance.raw : 0n;
+
+      if (held < budgetRaw) {
+        /*
+         * Acquire exactly the shortfall, then hire.
+         *
+         * POK-018: this is two transactions, not one. `hireErc8183Agent`
+         * executes its own batch and takes no extra calls, so making this
+         * atomic would mean rebuilding the hire from `buildHireCalls` and
+         * reproducing the SDK's jobId prediction and expiry arithmetic — two
+         * things it already gets right, re-derived by hand on a path that
+         * moves money.
+         *
+         * The sequential failure is mild by comparison. If the hire fails
+         * after the swap, the user holds exactly the $U they needed, in a
+         * liquid stablecoin, and pressing commission again works. They are
+         * one retry further along, not stranded — and the error below says
+         * so rather than leaving them to guess.
+         */
+        setStage('swapping');
+        const shortfall = budgetRaw - held;
+
+        // POK-019: quoted here, immediately before signing, not at render.
+        const quote = await quoteBnbForPaymentToken(
+          readClient(),
+          paymentToken,
+          shortfall,
         );
+        if (!quote) {
+          throw new Error(
+            `No PancakeSwap route to $U is available right now. Fund the wallet with at least ${budget} $U directly.`,
+          );
+        }
+        if (balances.native < quote.amountInMaximum + MIN_TRANSACTION_GAS) {
+          throw new Error(
+            `Swapping for ${formatUnits(shortfall, 18)} $U needs about ` +
+              `${formatEther(quote.amountInMaximum)} ${NATIVE_SYMBOL} plus gas, ` +
+              `and this wallet holds ${formatEther(balances.native)}.`,
+          );
+        }
+
+        setSwapQuote(quote);
+        await walletClient().execute({
+          wallet: { address: wallet.address },
+          signer,
+          // POK-021: signed by the user's own admin authority, so no agent
+          // session gains the router as an allowlisted target.
+          calls: buildSwapCalls(quote, paymentToken, wallet.address),
+          chainId: WALLET_NETWORK.chainId,
+        });
+        setStage('hiring');
       }
 
       const outcome = await hireErc8183Agent(
@@ -428,11 +500,33 @@ export function CommissionPanel({
           className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {state === 'hiring'
-            ? 'Funding escrow…'
+            ? stage === 'swapping'
+              ? `Acquiring $U…`
+              : 'Funding escrow…'
             : locked
               ? 'Create a passkey to commission'
               : `Commission for ${budget} $U`}
         </button>
+      )}
+
+      {/*
+        What the swap cost, once it has happened. Shown because the user
+        authorised a maximum and was charged the real price — the difference
+        is refunded in the same transaction, and they should be able to see
+        that rather than take it on trust.
+      */}
+      {swapQuote && (
+        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          Acquired {formatUnits(swapQuote.amountOut, 18)} $U for about{' '}
+          <span className="mono">
+            {Number(formatEther(swapQuote.amountIn)).toFixed(6)} {NATIVE_SYMBOL}
+          </span>{' '}
+          through PancakeSwap. You authorised at most{' '}
+          <span className="mono">
+            {Number(formatEther(swapQuote.amountInMaximum)).toFixed(6)}
+          </span>
+          ; the remainder was refunded in the same transaction.
+        </p>
       )}
 
       {job && (
