@@ -67,18 +67,52 @@ export function MobileAppHome() {
 
   return (
     <div data-pokter-app-home className="app-home mx-auto min-h-[100svh] w-full max-w-[520px] bg-[color:var(--bg)]">
-      {/* Phone chrome only. Above 768px the site header is visible again and
-          two stacked headers would be worse than none. */}
-      <header className="app-safe-top sticky top-0 z-30 flex h-[4.5rem] items-end justify-between border-b border-[color:var(--border)] bg-[color:var(--bg)]/92 px-5 pb-3 backdrop-blur-xl md:hidden">
-        <Link href="/app" aria-label="Pokter app home"><Wordmark size={24} /></Link>
-        <ConnectWallet />
-      </header>
+      {/*
+        One header, two rows. The wordmark bar and the page title used to be
+        separate stacked blocks, which read as two headers sitting on top of
+        each other — the identity row, then another row that also looked like
+        a header. Folding the title in gives the screen a single top edge, the
+        way a native app's large-title header works.
 
-      <main className="flex flex-col gap-7 px-5 pb-28 pt-6">
-        <section className="flex items-start justify-between gap-4">
+        Phone chrome only. Above 768px the site header is visible again.
+      */}
+      {/*
+        Only this bar pins. A header tall enough to hold the large title too
+        would sit on 15% of a phone screen for the whole session, on top of the
+        floated tab bar. So the title is a sibling that scrolls away underneath,
+        the way a native large title does — it cannot live inside the bar, since
+        a sticky element can only travel within its own parent's box.
+      */}
+      <header className="app-safe-top sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[color:var(--border)] bg-[color:var(--bg)]/92 px-5 pb-3 backdrop-blur-xl md:hidden">
+        <Link href="/app" aria-label="Pokter app home"><Wordmark size={22} /></Link>
+        <div className="flex items-center gap-2">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
+            <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
+            {NETWORK_LABEL}
+          </span>
+          <ConnectWallet />
+        </div>
+      </header>
+      <div className="px-5 pb-1 pt-4 md:hidden">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
+        <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your agent workspace</h1>
+      </div>
+
+      {/*
+        A div, not a <main>: the root layout already provides the page's main
+        landmark, and nesting a second one is invalid HTML and gives screen
+        readers two competing "main" regions.
+      */}
+      <div className="flex flex-col gap-7 px-5 pb-28 pt-6">
+        {/*
+          The same title for the wide layout. It lives inside the phone header
+          above, which is md:hidden — folding it there removed it entirely from
+          desktop, where the site chrome provides navigation but no page title.
+        */}
+        <section className="hidden items-start justify-between gap-4 md:flex">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Your agent workspace</h1>
+            <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your agent workspace</h1>
           </div>
           <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
             <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
@@ -131,7 +165,7 @@ export function MobileAppHome() {
           </div>
           {!walletAddress && <p className="border-t border-[color:var(--border)] px-4 py-3 text-[11px] text-[color:var(--text-faint)]">Connect your passkey wallet to load device-owned activity.</p>}
         </section>
-      </main>
+      </div>
     </div>
   );
 }
