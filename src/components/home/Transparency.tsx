@@ -47,7 +47,7 @@ const OUTCOMES: {
     name: 'Agent delivery',
     status: 'working',
     worked:
-      'Live job #1336 proves the full path: funded escrow, A2A notification, public canonical manifest, on-chain submission and exact-byte receipt verification.',
+      'Live job #1336 proves the full path: funded escrow, A2A notification, public canonical manifest, exact-byte receipt verification and buyer-signed settlement to COMPLETED.',
     didnt:
       'Third-party delivery still depends on each seller publishing a reachable runtime; Pokter never marks a merely funded job as delivered.',
   },

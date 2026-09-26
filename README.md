@@ -135,6 +135,7 @@ Everything below is on BSC testnet and independently verifiable.
 | Live session granted from the product           | [`0x62b049db…`](https://testnet.bscscan.com/tx/0x62b049db108673c41bbe8a9d9cebbdffb1e06451db3ba2db31c88a035a1233bd) |
 | Live job hired and escrowed                     | [`0x93385d57…`](https://testnet.bscscan.com/tx/0x93385d5708964b0b6257b24b38ee00149fc53112445030d7227d43a6d90f9ac5) |
 | Public receipt submitted for live job #1336     | [`0x775ced53…`](https://testnet.bscscan.com/tx/0x775ced536b513df298464d76284ad133af4c5b3cd465213ed7ebb3f63bcc3d50) |
+| Buyer verified and settled live job #1336       | [`0xcecbf3fc…`](https://testnet.bscscan.com/tx/0xcecbf3fc43ba3edd609230b855cc6e1a4548b911bf5cd1177a263620e889dc33) |
 
 Both operator accounts are visible in the **Altana Keystore explorer**, and
 between them they show the whole lifecycle:
@@ -211,8 +212,9 @@ Three things, stated here rather than discovered.
 original test seller has no discoverable runtime, so its historical jobs remain
 at `FUNDED`. Pokter now includes a same-chain A2A seller for the guided path: it
 verifies the funded job, serves a canonical manifest and submits its hash
-through ERC-8183. Live job #1336 proves that path with a publicly retrievable
-receipt whose exact bytes match the hash committed on-chain.
+through ERC-8183. Live job #1336 proves the full path with a publicly
+retrievable receipt whose exact bytes match the hash committed on-chain, plus
+a buyer-signed settlement that advanced the job to `COMPLETED`.
 
 **A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships no injected-wallet signer. In 0.8.0 a doc comment
 in `internal/signer.d.ts` said the SDK ships three signers and named
