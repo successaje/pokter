@@ -55,32 +55,41 @@ export function consumeRateLimit(
   prune(now);
 
   const handle = db();
+  /*
+   * One statement is the security boundary. A SELECT followed by UPDATE lets
+   * concurrent requests observe the same old count and all pass. SQLite
+   * serializes this upsert and RETURNING gives us the value produced by the
+   * atomic increment/reset.
+   */
   const current = handle
-    .prepare('SELECT started_at, count FROM windows WHERE key = ?')
-    .get(key) as { started_at: number; count: number } | undefined;
+    .prepare(
+      `INSERT INTO windows (key, started_at, count) VALUES (?, ?, 1)
+       ON CONFLICT(key) DO UPDATE SET
+         count = CASE
+           WHEN ? - started_at >= ? THEN 1
+           ELSE count + 1
+         END,
+         started_at = CASE
+           WHEN ? - started_at >= ? THEN ?
+           ELSE started_at
+         END
+       RETURNING started_at, count`,
+    )
+    .get(key, now, now, windowMs, now, windowMs, now) as {
+    started_at: number;
+    count: number;
+  };
 
-  if (!current || now - current.started_at >= windowMs) {
-    handle
-      .prepare(
-        `INSERT INTO windows (key, started_at, count) VALUES (?, ?, 1)
-         ON CONFLICT(key) DO UPDATE SET started_at = excluded.started_at, count = 1`,
-      )
-      .run(key, now);
-    return { allowed: true, retryAfterSeconds: 0 };
-  }
-
-  if (current.count >= limit) {
-    return {
-      allowed: false,
-      retryAfterSeconds: Math.max(
-        1,
-        Math.ceil((windowMs - (now - current.started_at)) / 1000),
-      ),
-    };
-  }
-
-  handle.prepare('UPDATE windows SET count = count + 1 WHERE key = ?').run(key);
-  return { allowed: true, retryAfterSeconds: 0 };
+  const allowed = current.count <= limit;
+  return {
+    allowed,
+    retryAfterSeconds: allowed
+      ? 0
+      : Math.max(
+          1,
+          Math.ceil((windowMs - (now - current.started_at)) / 1000),
+        ),
+  };
 }
 
 /**
@@ -92,9 +101,9 @@ export function consumeRateLimit(
  * key per unknown would be no limit at all.
  */
 export function requestClientKey(request: Request): string {
-  return (
-    request.headers.get('x-real-ip') ??
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    'unknown'
-  );
+  const trustedHeader =
+    process.env.POKTER_TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase() ??
+    'fly-client-ip';
+  const value = request.headers.get(trustedHeader)?.trim();
+  return value || 'unknown';
 }

@@ -172,7 +172,7 @@ ERC-8004 token ID. Automatic event-derived discovery remains open.
 
 ### POK-028 · Authorization and hiring are independent ceremonies
 
-**Severity: Medium · Status: Open**
+**Severity: Medium · Status: Fixed for one-machine deployment**
 
 The page presents permission grant and commission as two grants “in the order
 they matter,” but commissioning neither consumes nor references the session.
@@ -227,6 +227,12 @@ the same old count. Limits also remain per machine.
 **Required remediation.** Document and test Fly's trusted proxy behavior,
 derive IP only from the platform-trusted header, and use an atomic SQLite
 upsert/transaction or a shared atomic store before scaling horizontally.
+
+**Fix.** Counting is now a single SQLite upsert with `RETURNING`, eliminating
+the read/update race. Caller identity comes only from one configured trusted
+edge header (`fly-client-ip` by default), never the user-selectable first value
+of `x-forwarded-for`. Multi-machine enforcement still requires a shared store
+before horizontal scaling.
 
 ### POK-032 · A new Undici agent is created per outbound endpoint check
 

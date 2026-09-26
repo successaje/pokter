@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "audit:protocol": "tsx scripts/protocol-safety-check.mts",
+    "audit:rate-limit": "tsx --conditions=react-server scripts/rate-limit-check.mts",
     "sweep": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sweep.ts",
     "figures": "tsx scripts/figures.mts"
   },
