@@ -294,6 +294,63 @@ body {
   border-radius: 4px;
 }
 
+/* Native range controls otherwise inherit a browser-blue accent that clashes
+   with the BNB/Pokter palette. Keep the native input semantics and keyboard
+   behavior while making its track and thumb consistent in both themes. */
+.branded-range {
+  width: 100%;
+  height: 1.25rem;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  accent-color: var(--brand);
+}
+
+.branded-range::-webkit-slider-runnable-track {
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+
+.branded-range::-webkit-slider-thumb {
+  width: 1rem;
+  height: 1rem;
+  margin-top: -0.4rem;
+  appearance: none;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  background: var(--brand);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.branded-range::-moz-range-track {
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+
+.branded-range::-moz-range-progress {
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+.branded-range::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  background: var(--brand);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.branded-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* §93: motion is an enhancement, never a requirement for comprehension. */
 @media (prefers-reduced-motion: reduce) {
   *,
