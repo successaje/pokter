@@ -5,17 +5,19 @@ import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request): Promise<NextResponse> {
-  const url = new URL(request.url);
+export async function GET(): Promise<NextResponse> {
+  const origin = new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
+  );
   return NextResponse.json({
     name: 'Pokter Delivery Agent',
     description:
       'A testnet seller that proves the ERC-8183 funded-job, delivery and settlement lifecycle.',
-    url: new URL('/api/seller/a2a', url).href,
+    url: new URL('/api/seller/a2a', origin).href,
     version: '1.0.0',
     protocolVersion: '0.3.0',
     capabilities: { streaming: false, pushNotifications: false },
-    provider: { organization: 'Pokter', url: url.origin },
+    provider: { organization: 'Pokter', url: origin.origin },
     skills: [
       {
         id: 'notify_funded',
