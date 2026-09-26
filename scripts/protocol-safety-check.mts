@@ -3,6 +3,8 @@ import {
   decodePokterJobEnvelope,
   encodePokterJobEnvelope,
 } from '../src/lib/erc8183/job-envelope';
+import { verifyNegotiationSignature } from '../src/lib/erc8183/negotiation';
+import { privateKeyToAccount } from 'viem/accounts';
 
 const delegatedWriteCategories = ['rebalancing', 'grid-trading', 'yield'];
 
@@ -58,3 +60,36 @@ if (decoded.provider.toLowerCase() !== '0x60ef148485c2a5119fa52ca13c52e9fd98f28e
 }
 
 console.log('Job identity envelope checks passed.');
+
+const quoteSigner = privateKeyToAccount(
+  '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+);
+const quoteHash =
+  '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as const;
+const quoteSignature = await quoteSigner.signMessage({
+  message: { raw: quoteHash },
+});
+const recoveredQuoteSigner = await verifyNegotiationSignature({
+  negotiationHash: quoteHash,
+  providerSignature: quoteSignature,
+  expectedProvider: quoteSigner.address,
+});
+if (recoveredQuoteSigner !== quoteSigner.address) {
+  throw new Error('A valid negotiation signature did not recover its provider');
+}
+let wrongProviderAccepted = false;
+try {
+  await verifyNegotiationSignature({
+    negotiationHash: quoteHash,
+    providerSignature: quoteSignature,
+    expectedProvider: '0x000000000000000000000000000000000000dEaD',
+  });
+  wrongProviderAccepted = true;
+} catch {
+  // Expected: a quote from one provider cannot authenticate another listing.
+}
+if (wrongProviderAccepted) {
+  throw new Error('A negotiation signature authenticated the wrong provider');
+}
+
+console.log('Negotiation signature checks passed.');

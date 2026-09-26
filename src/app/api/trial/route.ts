@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import {
   consumeRateLimit,
   requestClientKey,
@@ -152,20 +153,36 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     );
     const data = responseData(serviceResult.payload);
-    if (!data || !data.negotiation_hash || !data.provider_sig) {
+    if (
+      !data ||
+      typeof data.negotiation_hash !== 'string' ||
+      typeof data.provider_sig !== 'string'
+    ) {
       return NextResponse.json(
         { error: 'Agent answered, but did not return a signed negotiation receipt.' },
         { status: 502 },
       );
     }
+    if (!agent.agent_wallet) {
+      return NextResponse.json(
+        { error: 'The ERC-8004 identity publishes no provider wallet for signature verification.' },
+        { status: 409 },
+      );
+    }
+    const verifiedSigner = await verifyNegotiationSignature({
+      negotiationHash: data.negotiation_hash,
+      providerSignature: data.provider_sig,
+      expectedProvider: agent.agent_wallet,
+    });
 
     return NextResponse.json({
       receipt: data,
+      verifiedSigner,
       latencyMs: Date.now() - startedAt,
       endpoint: serviceResult.origin,
       observedAt: new Date().toISOString(),
       disclaimer:
-        'This proves the agent negotiated over A2A. It does not prove investment performance or execute a transaction.',
+        'The EIP-191 quote signature matches the selected ERC-8004 provider wallet. This does not prove investment performance or execute a transaction.',
     });
   } catch (error) {
     return NextResponse.json(

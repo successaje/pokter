@@ -263,6 +263,23 @@ credential loss, RP-ID migration and fallback recovery. Publish what happens
 to active jobs in each case. Do not claim recoverability beyond the tested
 authenticator class.
 
+### POK-034 · Negotiation signatures were displayed but not verified
+
+**Severity: High · Status: Fixed**
+
+The trial previously required `negotiation_hash` and `provider_sig` fields but
+did not recover the EIP-191 signer. Field presence is not authentication, so an
+endpoint could return arbitrary bytes and appear as a signed provider quote.
+
+**Fix.** Pokter now validates the 32-byte hash and 65-byte signature, recovers
+the EIP-191 signer, and requires it to equal the selected ERC-8004 identity's
+provider wallet. Both the current raw-hash encoding and the early printable
+hash encoding are supported. The API returns the verified signer and the UI
+states the exact identity guarantee.
+
+**Verification.** A deterministic valid signature recovers its provider, and
+the same signature is refused when checked against a different provider.
+
 ---
 
 ## Trust-boundary assessment

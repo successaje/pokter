@@ -6,6 +6,7 @@ import { shortAddress, shortHash } from '@/lib/ui/format';
 
 interface TrialReceipt {
   receipt: Record<string, unknown>;
+  verifiedSigner: string;
   latencyMs: number;
   endpoint: string;
   observedAt: string;
@@ -114,6 +115,10 @@ export function TrialPanel({
               {result.latencyMs}ms · A2A
             </span>
           </div>
+          <p className="text-[11px] leading-relaxed text-[color:var(--positive)]">
+            EIP-191 signature verified against provider{' '}
+            <span className="mono">{shortAddress(result.verifiedSigner)}</span>.
+          </p>
           <dl className="grid gap-2 text-[11px] sm:grid-cols-2">
             {terms?.price != null && (
               <div>
