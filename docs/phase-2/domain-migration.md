@@ -5,17 +5,30 @@ matters — skipping it risks committing a wrong URL on chain.
 
 ## 1. Buy it, then point DNS at Fly
 
+Create these three records at the registrar. The values are this app's, read
+from `flyctl ips list`:
+
+| Type | Name | Value | TTL |
+| --- | --- | --- | --- |
+| `A` | `@` | `66.241.125.129` | 300 |
+| `AAAA` | `@` | `2a09:8280:1::180:c664:0` | 300 |
+| `CNAME` | `www` | `pokter.fly.dev` | 300 |
+
+The IPv4 is Fly's *shared* ingress, which is how most apps there run: requests
+are routed by TLS SNI, so the certificate below is what makes it land on this
+app. A dedicated IPv4 is available for about $2/month via
+`flyctl ips allocate-v4` if you would rather not share, but it is not needed
+for this.
+
+Use a short TTL now. It costs nothing and means a mistake is minutes to undo
+rather than a day.
+
+Check it before moving on:
+
 ```bash
-flyctl ips list
+dig +short pokter.xyz A
+dig +short pokter.xyz AAAA
 ```
-
-Create these records at the registrar, using the addresses that prints:
-
-| Type | Name | Value |
-| --- | --- | --- |
-| `A` | `@` | the IPv4 from `flyctl ips list` |
-| `AAAA` | `@` | the IPv6 from `flyctl ips list` |
-| `CNAME` | `www` | `pokter.fly.dev` |
 
 ## 2. Issue certificates
 
