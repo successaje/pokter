@@ -409,7 +409,7 @@ export async function hirableAlternatives(
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
-  return listings
+  const ranked = listings
     .filter((listing) => listing.agent.token_id !== excludeTokenId)
     .map((listing) => {
       const history = store.historyFor(
@@ -434,6 +434,39 @@ export async function hirableAlternatives(
     .filter((entry) => entry.probes > 0 && entry.answered > 0)
     .sort(
       (a, b) => b.answered / b.probes - a.answered / a.probes || b.probes - a.probes,
-    )
-    .slice(0, limit);
+    );
+
+  return preferDistinctOwners(ranked, limit);
+}
+
+/**
+ * One agent per publisher first, then fill from what is left.
+ *
+ * FE-19. Ranking alone offered three members of the same family — distinct
+ * registry entries with strong records, but not three choices. On the screen
+ * where somebody has just been refused, variety is most of the value; a
+ * second opinion from the same publisher is barely a second opinion.
+ *
+ * Order within each pass is preserved, so the best agent from each publisher
+ * still leads and nothing is promoted over a stronger record from elsewhere.
+ */
+function preferDistinctOwners(
+  ranked: Alternative[],
+  limit: number,
+): Alternative[] {
+  const seen = new Set<string>();
+  const first: Alternative[] = [];
+  const rest: Alternative[] = [];
+
+  for (const entry of ranked) {
+    const owner = entry.listing.agent.owner_address?.toLowerCase() ?? '';
+    if (owner && seen.has(owner)) {
+      rest.push(entry);
+      continue;
+    }
+    if (owner) seen.add(owner);
+    first.push(entry);
+  }
+
+  return [...first, ...rest].slice(0, limit);
 }

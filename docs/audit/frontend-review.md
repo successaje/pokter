@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 19** · FE-01 and FE-02 fixed
+**Date:** 26 September 2026 · **Findings: 19** · 5 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
-| Blocking for the campaign | 1 |
-| Fixed | 2 |
+| Blocking for the campaign | 0 |
+| Fixed | 5 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -61,13 +61,19 @@ The copy also points at the path that does work: step 2 pays for a single job
 and never touches standing authority.
 
 ### FE-03 · The network is not stated on mobile
-**Page:** all, mobile header
+**Status: Fixed** · **Page:** all, mobile header
 
 The `BNB Chain · 56` pill is desktop-only. Phase 2 states plainly that the
 network must be stated clearly and that *"not stated on the page counts against
 you."* On a phone it is absent from the header entirely.
 
-**Fix.** Keep a compact network indicator in the mobile header.
+**Fixed together with FE-05**, since both lived in the same element. The pill
+is no longer hidden below 640px, and it now names the escrow network first —
+money moves there — with the registry chain appearing alongside it on wider
+screens.
+
+**Verified** at 375px: the header reads `BSC testnet`, and at desktop width
+`Agents chain 56 · BSC testnet`.
 
 ---
 
@@ -82,15 +88,16 @@ conversion is meaningless and the two halves contradict each other in one line.
 Mine, from POK-005. The USD figure belongs on mainnet only.
 
 ### FE-05 · Two different chains are stated in one viewport
-**Page:** `/hire/[chain]/[token]`
+**Status: Fixed** · **Page:** `/hire/[chain]/[token]`
 
 The header says `BNB Chain · 56` while the body says
 `BSC testnet (chain 97). Real transactions, real on-chain permissions, no real
 money.` Both are true — agents are read from mainnet, escrow runs on testnet —
 and nothing on screen says so.
 
-**Fix.** Name the two roles where they appear: the registry chain in the
-header, the escrow chain at the point of signing.
+**Fixed.** The header states both with their roles rather than one bare
+number, and `NETWORK_LABEL` comes from the same source the hire page uses, so
+the two cannot drift apart again.
 
 ### FE-06 · "Proven" and "Not responding" sit side by side, unexplained
 **Pages:** `/agents/[chain]/[token]`, `/hire/[chain]/[token]`
@@ -169,7 +176,7 @@ cannot see.
 ---
 
 ### FE-19 · Alternatives can be three near-identical clones
-**Page:** `/hire/[chain]/[token]` · **found by fixing FE-01**
+**Status: Fixed** · **Page:** `/hire/[chain]/[token]` · found by fixing FE-01
 
 The first live render offered BORT Yield Weaver #10997, #10967 and #10937 —
 the same family three times. Technically three distinct registry entries with
@@ -180,8 +187,14 @@ their descriptions must differ enough to pass it. Offering variety matters
 more here than in a list, because this is the screen where a user has already
 been refused once.
 
-**Fix.** Prefer distinct publishers when selecting alternatives, falling back
-to the ranked order only when there are not enough.
+**Fixed.** One agent per publisher first, then fill from what is left. Order
+within each pass is preserved, so the best agent from each publisher still
+leads and nothing is promoted over a stronger record elsewhere.
+
+**Verified:** yield now leads with `DeFiMatrix.agent` before the BORT family,
+and grid-trading returns three different owners. Yield still shows two BORT
+entries after the distinct publishers run out, which is the intended fallback
+rather than a gap — only two publishers there have agents that answer.
 
 ---
 

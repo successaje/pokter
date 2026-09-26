@@ -1,5 +1,6 @@
 'use client';
 
+import { NETWORK_LABEL } from '@/lib/network/presentation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -60,9 +61,21 @@ export function Nav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="mono hidden items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:flex">
+          {/*
+            FE-03 and FE-05. This pill used to be hidden below 640px and to
+            name chain 56 only — the registry. Phase 2 requires the network to
+            be stated, and money moves on the escrow chain, so the escrow
+            network is what leads and it is never hidden.
+
+            Both are named because both are true: agents are read from the
+            mainnet registry while transactions settle on the escrow chain,
+            and showing one number alone is what made the header and the hire
+            page appear to contradict each other.
+          */}
+          <span className="mono flex items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
             <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
-            BNB Chain · 56
+            <span className="hidden sm:inline">Agents chain 56 · </span>
+            {NETWORK_LABEL}
           </span>
           <ThemeToggle />
           <ConnectWallet />
