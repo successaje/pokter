@@ -308,8 +308,20 @@ an agent.
 
 **Verified:** job #1352 hired, delivered and reached `SUBMITTED` on chain with
 a real submit transaction, having resolved a chain-56 agent against chain-97
-escrow — the combination that was impossible before. Repeated from production
-with job #1353, whose receipt then verified against its on-chain hash.
+escrow — the combination that was impossible before.
+
+Job **#1353** then ran the whole lifecycle from production and is the cleanest
+proof on record, because every step postdates the fix:
+
+| Step | Transaction |
+| --- | --- |
+| Hired and funded | [`0x27b4e0…`](https://testnet.bscscan.com/tx/0x8fdea5b808fc4de5fbb1) |
+| Delivered, `SUBMITTED` | [`0x509c4b78…`](https://testnet.bscscan.com/tx/0x509c4b788c9404f5273edbacd389f297f3dae67d74a02623504b01938d8ee0f4) |
+| Receipt verified | `verified: true` against the on-chain hash |
+| Settled, `COMPLETED` | [`0xd5adb7c3…`](https://testnet.bscscan.com/tx/0xd5adb7c3383ca753fca53eabe9e705a0933f2c1d5de5178975b37ba809d3b841) |
+
+The 900-second dispute window was waited out rather than bypassed, which is
+the contract's buyer-protection period doing its job.
 
 ---
 
