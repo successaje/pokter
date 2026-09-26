@@ -58,12 +58,12 @@ export function PerformancePanel({ record }: { record: TrackRecord }) {
 
       <dl className="grid grid-cols-2 divide-[color:var(--border)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] sm:grid-cols-4 sm:divide-x">
         {measured.map((metric) => (
-          <div key={metric.label} className="flex flex-col gap-1 p-4">
+          <div key={metric.label} className="flex min-w-0 flex-col gap-1 p-4">
             <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
               {metric.label}
             </dt>
             <dd className="tabular text-xl leading-none">{metric.value}</dd>
-            <dd className="text-[10px] text-[color:var(--text-faint)]">
+            <dd className="break-words text-[10px] text-[color:var(--text-faint)] [overflow-wrap:anywhere]">
               {metric.sub}
             </dd>
           </div>

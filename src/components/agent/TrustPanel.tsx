@@ -157,8 +157,10 @@ export function TrustPanel({
             className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1.5 p-4"
           >
             <dt className="text-xs text-[color:var(--text-muted)]">{row.label}</dt>
-            <dd className="flex min-w-0 flex-col items-end gap-1.5 text-right">
-              <span className="text-[13px]">{row.value}</span>
+            <dd className="flex min-w-0 max-w-full flex-col items-end gap-1.5 text-right">
+              <span className="max-w-full break-words text-[13px] [overflow-wrap:anywhere]">
+                {row.value}
+              </span>
               {row.provenance}
             </dd>
           </div>

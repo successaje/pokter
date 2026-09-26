@@ -51,7 +51,7 @@ export function ProvenanceTag({
   const meta = LABELS[kind];
 
   return (
-    <span className={cn('relative inline-flex', className)}>
+    <span className={cn('relative inline-flex max-w-full', className)}>
       <button
         type="button"
         aria-expanded={open}
@@ -72,10 +72,10 @@ export function ProvenanceTag({
         <span
           id={panelId}
           role="dialog"
-          className="absolute left-0 top-full z-20 mt-2 w-72 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 text-left shadow-xl"
+          className="absolute right-0 top-full z-20 mt-2 w-[min(18rem,calc(100vw-2.5rem))] max-w-[calc(100vw-2.5rem)] rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 text-left shadow-xl"
         >
           {note && (
-            <span className="mb-2 block text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            <span className="mb-2 block break-words text-[11px] leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
               {note}
             </span>
           )}
@@ -83,7 +83,7 @@ export function ProvenanceTag({
             {details.map((detail) => (
               <span
                 key={detail.label}
-                className="flex items-baseline justify-between gap-3 text-[11px]"
+                className="flex min-w-0 items-baseline justify-between gap-3 text-[11px]"
               >
                 <span className="shrink-0 text-[color:var(--text-muted)]">
                   {detail.label}
@@ -93,12 +93,12 @@ export function ProvenanceTag({
                     href={detail.href}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="mono truncate text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+                    className="mono min-w-0 break-all text-right text-[color:var(--info)] underline decoration-dotted underline-offset-2"
                   >
                     {detail.value}
                   </a>
                 ) : (
-                  <span className="mono truncate text-right text-[color:var(--text)]">
+                  <span className="mono min-w-0 break-all text-right text-[color:var(--text)]">
                     {detail.value}
                   </span>
                 )}

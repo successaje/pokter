@@ -25,7 +25,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3.5"
         >
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <span className="text-xs font-medium">
+            <span className="min-w-0 break-words text-xs font-medium [overflow-wrap:anywhere]">
               {attestation.measuredBy ?? 'Unnamed measurer'}
               <span className="ml-2 font-normal text-[color:var(--text-faint)]">
                 {attestation.dimension}
@@ -50,7 +50,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           )}
 
           {attestation.reasoning && (
-            <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            <p className="break-words text-[11px] leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere] mt-2">
               {attestation.reasoning}
             </p>
           )}
@@ -60,7 +60,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
               href={`${BSCSCAN_TX}${attestation.transactionHash}`}
               target="_blank"
               rel="noreferrer noopener"
-              className="tabular mt-2 inline-block text-[11px] text-[color:var(--text-faint)] underline decoration-dotted underline-offset-4 hover:text-[color:var(--text)]"
+              className="tabular mt-2 inline-block max-w-full break-all text-[11px] text-[color:var(--text-faint)] underline decoration-dotted underline-offset-4 hover:text-[color:var(--text)]"
             >
               {attestation.transactionHash.slice(0, 18)}…
               {attestation.blockNumber ? ` · block ${attestation.blockNumber}` : ''}

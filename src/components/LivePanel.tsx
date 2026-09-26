@@ -55,7 +55,9 @@ export function LivePanel({ live }: { live: LiveReading }) {
             <span className="shrink-0 text-[color:var(--text-faint)]">
               {probe.latencyMs != null ? `${probe.latencyMs}ms` : 'timeout'}
             </span>
-            <span>{probe.detail}</span>
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+              {probe.detail}
+            </span>
           </li>
         ))}
       </ol>
@@ -69,7 +71,7 @@ export function LivePanel({ live }: { live: LiveReading }) {
             {live.capabilities.map((capability) => (
               <span
                 key={capability}
-                className="mono rounded-full border border-[color:var(--border)] px-2 py-1 text-[10px] text-[color:var(--text-secondary)]"
+                className="mono max-w-full break-all rounded-full border border-[color:var(--border)] px-2 py-1 text-[10px] text-[color:var(--text-secondary)]"
               >
                 {capability}
               </span>

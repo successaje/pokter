@@ -16,6 +16,7 @@ import { LivePanel } from '@/components/LivePanel';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
 import { TrialPanel } from '@/components/agent/TrialPanel';
+import { AgentAvatar } from '@/components/agent/AgentAvatar';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -82,7 +83,7 @@ export default async function AgentPage({
   ];
 
   return (
-    <div className="flex flex-col gap-10 pt-6">
+    <div className="flex flex-col gap-6 pt-2">
       <Link
         href="/agents"
         className="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
@@ -90,142 +91,131 @@ export default async function AgentPage({
         ← All agents
       </Link>
 
-      <header className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
-        <div className="flex min-w-0 max-w-4xl items-start gap-4">
-          {agent.image_url && (
-            // Registry images can come from arbitrary publisher-controlled hosts,
-            // so they are displayed directly instead of passing through Pokter's
-            // image optimiser. A failed image never hides the agent identity.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={agent.image_url}
-              alt=""
-              width={72}
-              height={72}
-              referrerPolicy="no-referrer"
-              className="hidden size-[72px] shrink-0 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] object-cover sm:block"
-            />
-          )}
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
-              {meta?.label ?? 'Unclassified'}
-            </p>
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
-              {agent.name}
-            </h1>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8">
+        <div className="flex min-w-0 flex-col gap-8">
+          <header className="flex min-w-0 flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
+            <div className="flex min-w-0 max-w-4xl items-start gap-4">
+              <AgentAvatar name={agent.name} src={agent.image_url} />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
+                  {meta?.label ?? 'Unclassified'}
+                </p>
+                <h1 className="break-words text-2xl font-semibold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-3xl">
+                  {agent.name}
+                </h1>
 
-            {/*
+                {/*
               FE-06. These two badges used to sit bare and adjacent, so
               "Proven" beside "Not responding" read as a contradiction. They
               are not: one is the accumulated verdict, the other is this
               second's probe, and that distinction is the thing this product
               cares about most. Naming each one draws it.
             */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                  Evidence
-                </span>
-                <EvidenceBadge
-                  verdict={proof.verdict}
-                  size="md"
-                  label={
-                    proof.verdict === 'proven'
-                      ? 'Historically proven'
-                      : undefined
-                  }
-                />
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                  Right now
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-                  style={{
-                    borderColor: answeredNow
-                      ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
-                      : 'color-mix(in srgb, var(--negative) 35%, transparent)',
-                    background: answeredNow
-                      ? 'var(--positive-dim)'
-                      : 'var(--negative-dim)',
-                    color: answeredNow ? 'var(--positive)' : 'var(--negative)',
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    className={
-                      answeredNow
-                        ? 'live-dot size-1.5 rounded-full bg-current'
-                        : 'size-1.5 rounded-full bg-current'
-                    }
-                  />
-                  {answeredNow ? 'Live check passed' : 'Live check failed'}
-                </span>
-              </span>
-              <span className="mono text-[11px] text-[color:var(--text-faint)]">
-                #{agent.token_id} · chain {agent.chain_id}
-              </span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      Evidence
+                    </span>
+                    <EvidenceBadge
+                      verdict={proof.verdict}
+                      size="md"
+                      label={
+                        proof.verdict === 'proven'
+                          ? 'Historically proven'
+                          : undefined
+                      }
+                    />
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      Right now
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                      style={{
+                        borderColor: answeredNow
+                          ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
+                          : 'color-mix(in srgb, var(--negative) 35%, transparent)',
+                        background: answeredNow
+                          ? 'var(--positive-dim)'
+                          : 'var(--negative-dim)',
+                        color: answeredNow
+                          ? 'var(--positive)'
+                          : 'var(--negative)',
+                      }}
+                    >
+                      <span
+                        aria-hidden
+                        className={
+                          answeredNow
+                            ? 'live-dot size-1.5 rounded-full bg-current'
+                            : 'size-1.5 rounded-full bg-current'
+                        }
+                      />
+                      {answeredNow ? 'Live check passed' : 'Live check failed'}
+                    </span>
+                  </span>
+                  <span className="mono text-[11px] text-[color:var(--text-faint)]">
+                    #{agent.token_id} · chain {agent.chain_id}
+                  </span>
+                </div>
+
+                {agent.description && (
+                  <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+                    <summary className="cursor-pointer list-none">
+                      <span className="line-clamp-3 break-words [overflow-wrap:anywhere] group-open:hidden">
+                        {agent.description}
+                      </span>
+                      <span className="mt-1.5 inline-flex text-[11px] font-medium text-[color:var(--text-muted)] group-open:hidden">
+                        Read full description ↓
+                      </span>
+                      <span className="hidden break-words [overflow-wrap:anywhere] group-open:inline">
+                        {agent.description}
+                      </span>
+                      <span className="mt-1.5 hidden text-[11px] font-medium text-[color:var(--text-muted)] group-open:block">
+                        Show less ↑
+                      </span>
+                    </summary>
+                  </details>
+                )}
+
+                <dl className="mt-1 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
+                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                      Reliability
+                    </dt>
+                    <dd className="tabular mt-1 text-[11px] font-medium">
+                      {availability}
+                    </dd>
+                  </div>
+                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                      Observations
+                    </dt>
+                    <dd className="tabular mt-1 text-[11px] font-medium">
+                      {/* FE-12. Whose count this is, said plainly — the rationale
+                      below reports the total across every measurer. */}
+                      {record.totalProbes} by Pokter
+                    </dd>
+                  </div>
+                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
+                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
+                      Evidence
+                    </dt>
+                    <dd className="tabular mt-1 text-[11px] font-medium">
+                      {attestations.length} receipt
+                      {attestations.length === 1 ? '' : 's'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
 
-            {agent.description && (
-              <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                <summary className="cursor-pointer list-none">
-                  <span className="line-clamp-3 group-open:hidden">
-                    {agent.description}
-                  </span>
-                  <span className="mt-1.5 inline-flex text-[11px] font-medium text-[color:var(--text-muted)] group-open:hidden">
-                    Read full description ↓
-                  </span>
-                  <span className="hidden group-open:inline">
-                    {agent.description}
-                  </span>
-                  <span className="mt-1.5 hidden text-[11px] font-medium text-[color:var(--text-muted)] group-open:block">
-                    Show less ↑
-                  </span>
-                </summary>
-              </details>
-            )}
+            <p className="max-w-3xl break-words border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+              {proof.rationale}
+            </p>
+          </header>
 
-            <dl className="mt-1 grid grid-cols-3 gap-2">
-              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                  Reliability
-                </dt>
-                <dd className="tabular mt-1 text-[11px] font-medium">
-                  {availability}
-                </dd>
-              </div>
-              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                  Observations
-                </dt>
-                <dd className="tabular mt-1 text-[11px] font-medium">
-                  {/* FE-12. Whose count this is, said plainly — the rationale
-                      below reports the total across every measurer. */}
-                  {record.totalProbes} by Pokter
-                </dd>
-              </div>
-              <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                  Evidence
-                </dt>
-                <dd className="tabular mt-1 text-[11px] font-medium">
-                  {attestations.length} receipt
-                  {attestations.length === 1 ? '' : 's'}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        <p className="max-w-3xl border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)]">
-          {proof.rationale}
-        </p>
-      </header>
-
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-10">
-        <div className="flex min-w-0 flex-col gap-10">
           <nav
             aria-label="Agent details"
             className="sticky top-16 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
@@ -330,8 +320,8 @@ export default async function AgentPage({
               <p className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
                 Hire this agent
               </p>
-              <h2 className="mt-1.5 text-lg font-medium tracking-tight">
-                Make an informed decision
+              <h2 className="mt-1.5 break-words text-lg font-medium tracking-tight [overflow-wrap:anywhere]">
+                Review and hire
               </h2>
             </div>
 
@@ -351,34 +341,34 @@ export default async function AgentPage({
             </dl>
 
             <div className="flex flex-col gap-3 p-4">
-              <div className="flex items-start justify-between gap-4 text-xs">
-                <span className="text-[color:var(--text-muted)]">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
+                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
                   Historical evidence
                 </span>
                 <EvidenceBadge verdict={proof.verdict} />
               </div>
-              <div className="flex items-start justify-between gap-4 text-xs">
-                <span className="text-[color:var(--text-muted)]">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
+                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
                   Current status
                 </span>
                 <span
                   className={
                     answeredNow
-                      ? 'text-[color:var(--positive)]'
-                      : 'text-[color:var(--negative)]'
+                      ? 'max-w-[11rem] break-words text-right text-[color:var(--positive)] [overflow-wrap:anywhere]'
+                      : 'max-w-[11rem] break-words text-right text-[color:var(--negative)] [overflow-wrap:anywhere]'
                   }
                 >
                   {answeredNow ? 'Live check passed' : 'Live check failed'}
                 </span>
               </div>
-              <div className="flex items-start justify-between gap-4 text-xs">
-                <span className="text-[color:var(--text-muted)]">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
+                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
                   Observed availability
                 </span>
                 <span className="tabular text-right">{availability}</span>
               </div>
-              <div className="flex items-start justify-between gap-4 text-xs">
-                <span className="text-[color:var(--text-muted)]">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
+                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
                   Spend ceiling
                 </span>
                 <span className="text-right text-[color:var(--caution)]">
