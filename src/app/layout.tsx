@@ -58,7 +58,7 @@ export default async function RootLayout({
             {children}
           </main>
 
-        <Footer />
+          <Footer />
 
           <MobileNav />
         </WalletProviders>
