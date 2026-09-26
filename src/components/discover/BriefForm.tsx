@@ -6,7 +6,6 @@ import { useState, useTransition } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
 import type { RiskTolerance } from '@/lib/recommend/types';
-import { DiscoverWalletContext } from './WalletContext';
 
 const CAPITAL_PRESETS = [500, 1_000, 5_000, 25_000];
 const HORIZONS = [7, 30, 90];
@@ -155,8 +154,6 @@ export function BriefForm() {
           ))}
         </div>
       </fieldset>
-
-      <DiscoverWalletContext />
 
       <section className="flex flex-col gap-5 border-t border-[color:var(--border)] pt-6">
         <div className="flex flex-col gap-1.5">

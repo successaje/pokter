@@ -1,6 +1,8 @@
 'use client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { useQuery } from '@tanstack/react-query';
+import { formatEther, formatUnits } from 'viem';
 import { useCallback, useState } from 'react';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 
@@ -9,6 +11,43 @@ import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+
+function SigningIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-3.5 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M12 3 5 6v5c0 4.6 2.8 8.1 7 10 4.2-1.9 7-5.4 7-10V6l-7-3Z" />
+      <path d="m9.2 12 1.8 1.8 3.8-4" />
+    </svg>
+  );
+}
+
+function IdentityIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-3.5 fill-none stroke-current" strokeWidth="1.8">
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="M16 12h5M7 9h5M7 13h3" />
+    </svg>
+  );
+}
+
+function GasIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="m13 2-7 11h5l-1 9 8-12h-5V2Z" />
+    </svg>
+  );
+}
+
+function EscrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <rect x="3" y="7" width="18" height="13" rx="3" />
+      <path d="M7 7V5a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v2M12 11v5" />
+    </svg>
+  );
+}
 
 /**
  * §59. Wallet connection.
@@ -34,6 +73,20 @@ export function ConnectWallet() {
   });
 
   const passkey = usePasskeyWallet();
+  const paymentToken = correctedErc8183Addresses(
+    WALLET_NETWORK.chainId,
+  ).paymentToken;
+  const balances = useQuery({
+    queryKey: ['passkey-readiness', passkey.wallet?.address, paymentToken],
+    queryFn: () =>
+      walletClient().balances({
+        wallet: passkey.wallet!.address,
+        tokens: [paymentToken],
+      }),
+    enabled: Boolean(passkey.wallet),
+    refetchInterval: 30_000,
+  });
+  const paymentBalance = balances.data?.tokens?.[0];
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
@@ -76,7 +129,7 @@ export function ConnectWallet() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 shadow-xl">
+        <div className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 shadow-xl">
           {/*
             Two wallets, named by the job each one does.
 
@@ -88,8 +141,11 @@ export function ConnectWallet() {
             do you want to happen, and which wallet does it.
           */}
           <section className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <h3 className="text-[11px] font-medium">Signs and pays</h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-[11px] font-medium">
+                <SigningIcon />
+                Signs and pays
+              </h3>
               <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
                 passkey
               </span>
@@ -104,6 +160,64 @@ export function ConnectWallet() {
                   Key held in this device&apos;s secure enclave. Pokter cannot
                   sign for you.
                 </p>
+                <div className="grid grid-cols-2 gap-2" aria-live="polite">
+                  <div className="flex min-w-0 items-center gap-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-2.5">
+                    <span className="text-[color:var(--brand)]">
+                      <GasIcon />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                        Gas
+                      </span>
+                      <span className="tabular truncate text-[11px]">
+                        {balances.data
+                          ? Number(formatEther(balances.data.native)).toFixed(4)
+                          : '—'}{' '}
+                        {NATIVE_SYMBOL}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-2.5">
+                    <span className="text-[color:var(--brand)]">
+                      <EscrowIcon />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                        Escrow
+                      </span>
+                      <span className="tabular truncate text-[11px]">
+                        {paymentBalance?.ok
+                          ? Number(
+                              formatUnits(
+                                paymentBalance.raw,
+                                paymentBalance.decimals,
+                              ),
+                            ).toFixed(2)
+                          : '—'}{' '}
+                        $U
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[10px] text-[color:var(--text-faint)]">
+                  <span>
+                    {balances.isPending
+                      ? 'Reading balances…'
+                      : balances.isError
+                        ? 'Balance unavailable'
+                        : `Hiring funds · chain ${WALLET_NETWORK.chainId}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => balances.refetch()}
+                    disabled={balances.isFetching}
+                    aria-label="Refresh wallet balances"
+                    className="rounded-[var(--radius)] border border-[color:var(--border)] px-2 py-1 transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+                  >
+                    <span aria-hidden>↻</span>{' '}
+                    {balances.isFetching ? 'Checking' : 'Refresh'}
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -189,8 +303,11 @@ export function ConnectWallet() {
           </section>
 
           <section className="mt-3 flex flex-col gap-2 border-t border-[color:var(--border)] pt-3">
-            <div className="flex items-baseline justify-between gap-2">
-              <h3 className="text-[11px] font-medium">Identifies you</h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-[11px] font-medium">
+                <IdentityIcon />
+                Identifies you
+              </h3>
               <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
                 browser wallet
               </span>
