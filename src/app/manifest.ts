@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'Pokter',
     description:
       'Discover, verify, compare and safely hire autonomous financial agents on BNB Chain.',
-    start_url: '/',
+    start_url: '/app',
     scope: '/',
     display: 'standalone',
     orientation: 'any',
@@ -41,6 +41,12 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
     shortcuts: [
+      {
+        name: 'Pokter home',
+        short_name: 'Home',
+        description: 'Open your Pokter mobile dashboard.',
+        url: '/app?source=app-shortcut',
+      },
       {
         name: 'Discover agents',
         short_name: 'Discover',

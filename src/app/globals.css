@@ -228,6 +228,37 @@ body {
   nav[aria-label='Primary navigation'] {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Marketing and legal detail remain available on the public website. The
+     installed product keeps task routes focused and app-like. */
+  body > footer {
+    display: none;
+  }
+}
+
+/* `/app` is the installed product home, not another marketing page. These
+   selectors are route-scoped by the app marker and leave every website route
+   — including the entire desktop experience — exactly as rendered today. */
+body:has([data-pokter-app-home]) > header,
+body:has([data-pokter-app-home]) > footer,
+body:has([data-pokter-app-home]) > nav[aria-label='Primary navigation'] {
+  display: none;
+}
+
+body:has([data-pokter-app-home]) > main {
+  width: 100%;
+  max-width: none;
+  min-height: 100svh;
+  padding: 0;
+}
+
+.app-safe-top {
+  padding-top: env(safe-area-inset-top);
+  height: calc(4.5rem + env(safe-area-inset-top));
+}
+
+.app-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /*

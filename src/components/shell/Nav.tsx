@@ -11,6 +11,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { Wordmark } from '@/components/brand/Logo';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { InstallPokter } from '@/components/pwa/InstallPokter';
+import { usePwaInstall } from '@/components/pwa/PwaProvider';
 
 /**
  * §11. Primary navigation.
@@ -34,6 +35,25 @@ const MOBILE_PRIMARY = PRIMARY.filter((item) =>
 const MOBILE_MORE = PRIMARY.filter((item) =>
   ['/leaderboard', '/pool-check'].includes(item.href),
 );
+const INSTALLED_PRIMARY = [
+  { href: '/app', label: 'Home' },
+  { href: '/discover', label: 'Discover' },
+  { href: '/agents', label: 'Agents' },
+  { href: '/my-agents', label: 'Activity' },
+];
+
+function MobileNavIcon({ href }: { href: string }) {
+  const common = 'size-[18px] fill-none stroke-current';
+  if (href === '/app') return <svg viewBox="0 0 24 24" aria-hidden className={common} strokeWidth="1.8"><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></svg>;
+  if (href === '/discover') return <svg viewBox="0 0 24 24" aria-hidden className={common} strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m16 16 5 5M11 8v6M8 11h6" /></svg>;
+  if (href === '/agents') return <svg viewBox="0 0 24 24" aria-hidden className={common} strokeWidth="1.8"><rect x="4" y="6" width="16" height="13" rx="4" /><path d="M9 11h.01M15 11h.01M9 15h6M12 6V3" /></svg>;
+  if (href === '/compare') return <svg viewBox="0 0 24 24" aria-hidden className={common} strokeWidth="1.8"><path d="M8 4v16M16 4v16M4 8h8M12 16h8" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden className={common} strokeWidth="1.8"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2" /></svg>;
+}
+
+function MoreIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden className="size-[18px] fill-current"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>;
+}
 
 export function Nav() {
   const pathname = usePathname();
@@ -106,6 +126,7 @@ export function Nav() {
 /** §11. Mobile bottom navigation. */
 export function MobileNav() {
   const pathname = usePathname();
+  const { installed } = usePwaInstall();
   const [moreOpen, setMoreOpen] = useState(false);
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const layerRef = useDismissibleLayer<HTMLElement>({
@@ -115,6 +136,7 @@ export function MobileNav() {
   const moreActive = MOBILE_MORE.some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
+  const primaryItems = installed ? INSTALLED_PRIMARY : MOBILE_PRIMARY;
 
   return (
     <nav
@@ -152,7 +174,7 @@ export function MobileNav() {
       )}
 
       <div className="grid grid-cols-5 items-stretch">
-        {MOBILE_PRIMARY.map((item) => {
+        {primaryItems.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -167,13 +189,7 @@ export function MobileNav() {
                   : 'text-[color:var(--text-muted)]',
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  'size-1 rounded-full',
-                  active ? 'bg-[color:var(--brand)]' : 'bg-transparent',
-                )}
-              />
+              <MobileNavIcon href={item.href} />
               {item.label}
             </Link>
           );
@@ -190,15 +206,7 @@ export function MobileNav() {
               : 'text-[color:var(--text-muted)]',
           )}
         >
-          <span
-            aria-hidden
-            className={cn(
-              'size-1 rounded-full',
-              moreOpen || moreActive
-                ? 'bg-[color:var(--brand)]'
-                : 'bg-transparent',
-            )}
-          />
+          <MoreIcon />
           More
         </button>
       </div>
