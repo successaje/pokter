@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
-import { assertPublicEndpoint, readJson } from '@/lib/proof/prober';
+import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import {
   consumeRateLimit,
   requestClientKey,
@@ -82,20 +82,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const cardEndpoint = await assertPublicEndpoint(endpoint);
-    const cardResponse = await cardEndpoint.fetch({
-      headers: { accept: 'application/json' },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(8_000),
+    const card = await withPublicEndpoint(endpoint, async (cardEndpoint) => {
+      const cardResponse = await cardEndpoint.fetch({
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!cardResponse.ok)
+        throw new Error(`Agent Card answered ${cardResponse.status}.`);
+      return object(await readJson(cardResponse));
     });
-    if (!cardResponse.ok) {
-      return NextResponse.json(
-        { error: `Agent Card answered ${cardResponse.status}.` },
-        { status: 502 },
-      );
-    }
-    const card = object(await readJson(cardResponse));
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const canNegotiate = skills.some((skill) => {
       const value = object(skill);
@@ -109,54 +106,52 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const service = await assertPublicEndpoint(card.url);
     const startedAt = Date.now();
-    const response = await service.fetch({
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: crypto.randomUUID(),
-        method: 'message/send',
-        params: {
-          message: {
-            role: 'user',
-            messageId: crypto.randomUUID(),
-            parts: [
-              {
-                kind: 'data',
-                data: {
-                  skill: 'negotiate',
-                  task_description: task,
-                  terms: {
-                    deliverables: 'A JSON assessment with assumptions and data sources.',
-                    quality_standards:
-                      'Read-only analysis only. Execute no transaction and move no funds.',
+    const serviceResult = await withPublicEndpoint(
+      card.url,
+      async (service) => {
+        const response = await service.fetch({
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: crypto.randomUUID(),
+            method: 'message/send',
+            params: {
+              message: {
+                role: 'user',
+                messageId: crypto.randomUUID(),
+                parts: [
+                  {
+                    kind: 'data',
+                    data: {
+                      skill: 'negotiate',
+                      task_description: task,
+                      terms: {
+                        deliverables: 'A JSON assessment with assumptions and data sources.',
+                        quality_standards:
+                          'Read-only analysis only. Execute no transaction and move no funds.',
+                      },
+                    },
                   },
-                },
+                ],
               },
-            ],
-          },
-          configuration: {
-            acceptedOutputModes: ['application/json'],
-            blocking: true,
-          },
-        },
-      }),
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(12_000),
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: `Agent answered ${response.status} ${response.statusText}.` },
-        { status: 502 },
-      );
-    }
-
-    const payload = await readJson(response);
-    const data = responseData(payload);
+              configuration: {
+                acceptedOutputModes: ['application/json'],
+                blocking: true,
+              },
+            },
+          }),
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (!response.ok)
+          throw new Error(`Agent answered ${response.status} ${response.statusText}.`);
+        return { payload: await readJson(response), origin: service.url.origin };
+      },
+    );
+    const data = responseData(serviceResult.payload);
     if (!data || !data.negotiation_hash || !data.provider_sig) {
       return NextResponse.json(
         { error: 'Agent answered, but did not return a signed negotiation receipt.' },
@@ -167,7 +162,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({
       receipt: data,
       latencyMs: Date.now() - startedAt,
-      endpoint: service.url.origin,
+      endpoint: serviceResult.origin,
       observedAt: new Date().toISOString(),
       disclaimer:
         'This proves the agent negotiated over A2A. It does not prove investment performance or execute a transaction.',

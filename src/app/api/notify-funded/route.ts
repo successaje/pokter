@@ -3,7 +3,7 @@ import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
-import { assertPublicEndpoint, readJson } from '@/lib/proof/prober';
+import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -119,16 +119,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 409 },
       );
     }
-    const card_ = await assertPublicEndpoint(cardEndpoint);
-    const cardResponse = await card_.fetch({
-      headers: { accept: 'application/json' },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(8_000),
+    const card = await withPublicEndpoint(cardEndpoint, async (card_) => {
+      const cardResponse = await card_.fetch({
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!cardResponse.ok)
+        throw new Error(`Agent Card answered ${cardResponse.status}`);
+      return object(await readJson(cardResponse));
     });
-    if (!cardResponse.ok)
-      throw new Error(`Agent Card answered ${cardResponse.status}`);
-    const card = object(await readJson(cardResponse));
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const supportsNotification = skills.some(
       (skill) => object(skill)?.id === 'notify_funded',
@@ -140,40 +141,41 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const service = await assertPublicEndpoint(card.url);
-    const response = await service.fetch({
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: crypto.randomUUID(),
-        method: 'message/send',
-        params: {
-          message: {
-            role: 'user',
-            messageId: crypto.randomUUID(),
-            parts: [
-              {
-                kind: 'data',
-                data: { skill: 'notify_funded', job_id: Number(jobId) },
-              },
-            ],
-          },
-          configuration: {
-            acceptedOutputModes: ['application/json'],
-            blocking: true,
-          },
+    const reply = await withPublicEndpoint(card.url, async (service) => {
+      const response = await service.fetch({
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
         },
-      }),
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(12_000),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: crypto.randomUUID(),
+          method: 'message/send',
+          params: {
+            message: {
+              role: 'user',
+              messageId: crypto.randomUUID(),
+              parts: [
+                {
+                  kind: 'data',
+                  data: { skill: 'notify_funded', job_id: Number(jobId) },
+                },
+              ],
+            },
+            configuration: {
+              acceptedOutputModes: ['application/json'],
+              blocking: true,
+            },
+          },
+        }),
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!response.ok) throw new Error(`Seller answered ${response.status}`);
+      return agentReply(await readJson(response));
     });
-    if (!response.ok) throw new Error(`Seller answered ${response.status}`);
-    const reply = agentReply(await readJson(response));
     if (
       !reply ||
       (reply.status !== 'accepted' && reply.status !== 'rejected')

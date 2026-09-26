@@ -186,7 +186,7 @@ to a particular capability. Gate and label each independently.
 
 ### POK-029 · Receipt verification proves integrity, not satisfactory work
 
-**Severity: Medium · Status: Open**
+**Severity: Medium · Status: Fixed**
 
 The verifier correctly proves that fetched bytes match the submitted on-chain
 hash. It does not validate that the manifest belongs to the expected agent,
@@ -245,6 +245,10 @@ connection-pool/resource accumulation even when request count is limited.
 **Required remediation.** Close the dispatcher in `finally`, or use a bounded
 cache with eviction and explicit close behavior. Load-test repeated failures as
 well as successful requests.
+
+**Fix.** Pinned endpoints now expose explicit ownership and every production
+caller releases its single-use Undici dispatcher in `finally`, including error
+and early-return paths.
 
 ### POK-033 · Passkey recovery is a protocol dependency without a proven path
 

@@ -141,6 +141,7 @@ function isPrivateAddress(address: string): boolean {
 export interface PinnedEndpoint {
   url: URL;
   fetch(init?: RequestInit): Promise<Response>;
+  close(): Promise<void>;
 }
 
 export async function assertPublicEndpoint(
@@ -189,7 +190,21 @@ export async function assertPublicEndpoint(
     url,
     fetch: (init?: RequestInit) =>
       fetch(url, { ...init, dispatcher } as RequestInit),
+    close: () => dispatcher.close(),
   };
+}
+
+/** Run all work while the DNS-pinned dispatcher is owned, then release it. */
+export async function withPublicEndpoint<T>(
+  endpoint: string,
+  work: (handle: PinnedEndpoint) => Promise<T>,
+): Promise<T> {
+  const handle = await assertPublicEndpoint(endpoint);
+  try {
+    return await work(handle);
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function readJson(response: Response): Promise<unknown> {
@@ -255,9 +270,10 @@ async function probeOnce(
 ): Promise<ProbeResult> {
   const startedAt = Date.now();
   const at = new Date().toISOString();
+  let endpointHandle: PinnedEndpoint | null = null;
 
   try {
-    const endpointHandle = await assertPublicEndpoint(endpoint);
+    endpointHandle = await assertPublicEndpoint(endpoint);
     const response = await endpointHandle.fetch({
       method: protocol === 'mcp' ? 'POST' : 'GET',
       headers:
@@ -366,6 +382,8 @@ async function probeOnce(
         : `Request failed: ${(error as Error).message}.`,
       at,
     };
+  } finally {
+    await endpointHandle?.close();
   }
 }
 

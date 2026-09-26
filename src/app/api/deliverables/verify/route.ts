@@ -6,7 +6,7 @@ import {
 } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { assertPublicEndpoint } from '@/lib/proof/prober';
+import { withPublicEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -60,38 +60,34 @@ export async function GET(request: Request): Promise<NextResponse> {
     ).origin;
     // Our own origin needs no SSRF check; anything else is validated and then
     // pinned to the address that was checked (POK-008).
-    const pinned =
-      candidate.origin === ownOrigin
-        ? null
-        : await assertPublicEndpoint(candidate.href);
-    const deliverableUrl = pinned?.url ?? candidate;
-
     const init: RequestInit = {
       headers: { accept: 'application/json, text/plain;q=0.9' },
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(8_000),
     };
-    const response = pinned
-      ? await pinned.fetch(init)
-      : await fetch(deliverableUrl, init);
-    if (!response.ok)
-      throw new Error(`Deliverable answered ${response.status}`);
-    const declaredLength = Number(response.headers.get('content-length') ?? 0);
-    if (declaredLength > MAX_MANIFEST_BYTES) {
-      throw new Error('Deliverable exceeds the 256 KB verification limit');
-    }
-    const manifestText = await response.text();
-    if (
-      new TextEncoder().encode(manifestText).byteLength > MAX_MANIFEST_BYTES
-    ) {
-      throw new Error('Deliverable exceeds the 256 KB verification limit');
-    }
+    const readManifest = async (response: Response): Promise<string> => {
+      if (!response.ok)
+        throw new Error(`Deliverable answered ${response.status}`);
+      const declaredLength = Number(response.headers.get('content-length') ?? 0);
+      if (declaredLength > MAX_MANIFEST_BYTES)
+        throw new Error('Deliverable exceeds the 256 KB verification limit');
+      const text = await response.text();
+      if (new TextEncoder().encode(text).byteLength > MAX_MANIFEST_BYTES)
+        throw new Error('Deliverable exceeds the 256 KB verification limit');
+      return text;
+    };
+    const manifestText =
+      candidate.origin === ownOrigin
+        ? await readManifest(await fetch(candidate, init))
+        : await withPublicEndpoint(candidate.href, async (pinned) =>
+            readManifest(await pinned.fetch(init)),
+          );
 
     return NextResponse.json({
       verified: verifyErc8183ManifestText(manifestText, job.deliverable),
       jobId,
-      deliverableUrl: deliverableUrl.href,
+      deliverableUrl: candidate.href,
       onchainHash: job.deliverable,
     });
   } catch (error) {
