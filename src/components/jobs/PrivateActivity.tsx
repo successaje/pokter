@@ -42,7 +42,15 @@ function toView(stored: GrantedSession[]): SessionView[] {
 }
 
 export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
-  const { wallet } = usePasskeyWallet();
+  const {
+    wallet,
+    ready,
+    supported,
+    busy,
+    error: walletError,
+    create,
+    recover,
+  } = usePasskeyWallet();
   const [importId, setImportId] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -118,10 +126,47 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
 
   if (!wallet) {
     return (
-      <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs leading-relaxed text-[color:var(--text-faint)]">
-        Connect the passkey wallet that created your sessions. Activity is read
-        from this device only and is never taken from another visitor&apos;s server data.
-      </p>
+      <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-sm font-medium">Connect your signing wallet</h3>
+          <p className="max-w-xl text-xs leading-relaxed text-[color:var(--text-faint)]">
+            Use the passkey wallet that created your sessions. Activity is read
+            from this device only and is never taken from another visitor&apos;s
+            server data.
+          </p>
+        </div>
+        {!ready ? (
+          <p className="text-xs text-[color:var(--text-faint)]">Checking this device…</p>
+        ) : !supported ? (
+          <p className="text-xs text-[color:var(--caution)]">
+            Passkeys require a supported browser over a secure connection.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={recover}
+              className="action-primary rounded-[var(--radius)] px-3 py-2 text-xs font-medium disabled:opacity-50"
+            >
+              {busy === 'recovering' ? 'Waiting for passkey…' : 'Use existing passkey'}
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={create}
+              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+            >
+              {busy === 'creating' ? 'Waiting for passkey…' : 'Create passkey wallet'}
+            </button>
+          </div>
+        )}
+        {walletError && (
+          <p className="text-xs leading-relaxed text-[color:var(--negative)]">
+            {walletError}
+          </p>
+        )}
+      </div>
     );
   }
 

@@ -15,7 +15,7 @@ import { formatCompact, formatCount } from '@/lib/ui/format';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Methodology — Pokter',
+  title: 'Methodology',
   description:
     'How Pokter scores, verifies, measures and ranks agents — and what it cannot tell you.',
 };
