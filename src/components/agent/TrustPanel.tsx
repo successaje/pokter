@@ -25,6 +25,7 @@ export function TrustPanel({
   explorerBase: string;
 }) {
   const { agent, attestations, proof, live, record } = dossier;
+  const latestProbeAt = live.probes.at(-1)?.at;
 
   const identityDetails: ProvenanceDetail[] = [
     { label: 'Registry', value: shortAddress(agent.contract_address) },
@@ -108,6 +109,12 @@ export function TrustPanel({
             {
               label: 'Median',
               value: live.medianMs === null ? '—' : `${live.medianMs}ms`,
+            },
+            {
+              label: 'Checked at',
+              value: latestProbeAt
+                ? `${new Date(latestProbeAt).toISOString().replace('T', ' ').slice(0, 19)} UTC`
+                : 'not checked',
             },
             { label: 'Endpoint', value: live.endpoint ?? 'none published' },
           ]}
