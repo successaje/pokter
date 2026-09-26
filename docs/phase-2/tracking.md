@@ -5,6 +5,7 @@ from live transactions, not from documentation.
 
 **Live URL:** https://pokter.xyz
 **Repository:** https://github.com/successaje/pokter
+**X:** https://x.com/usepokter
 **Network:** BSC testnet (chain 97) for sessions and escrow; the ERC-8004
 identity registry is read from BSC mainnet (chain 56). Both are stated on the
 site. Mainnet migration is planned before the campaign concludes.

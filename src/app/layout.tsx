@@ -26,6 +26,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
+    // Attributes the preview card to the account, so a shared link credits
+    // Pokter rather than whoever happened to post it.
+    site: '@usepokter',
+    creator: '@usepokter',
     title: 'Pokter — Choose what deserves your money',
     description:
       'The evidence-first marketplace for autonomous financial agents on BNB Chain.',

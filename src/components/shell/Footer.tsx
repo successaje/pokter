@@ -33,6 +33,7 @@ const COLUMNS: { heading: string; links: { label: string; href: string; external
         href: 'https://github.com/successaje/pokter',
         external: true,
       },
+      { label: 'Updates on X', href: 'https://x.com/usepokter', external: true },
     ],
   },
 ];

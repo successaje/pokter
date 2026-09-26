@@ -6,8 +6,10 @@ Everything below is inside X's limits. Character counts checked.
 
 ## Handle
 
-`@pokterxyz` — matches the domain, which is the whole point. Fallbacks in
-order: `@usepokter`, `@pokterhq`.
+**`@usepokter`** — https://x.com/usepokter. Live, rebranded from a previous
+project, 106 followers carried over. Account age is the reason that was worth
+doing: a fresh account posting launch links is the exact shape X's spam
+heuristics look for.
 
 ## Display name
 
@@ -134,6 +136,11 @@ to measure is unusual enough that people stop on it.
 ---
 
 ## Notes
+
+**Two Flare-era posts should go.** Not because they are bad posts — because
+they name a different chain, and a visitor two posts deep during a BNB
+campaign should not have to wonder which chain this is. Everything else stays:
+generic build-in-public posts are what prove the account is not new.
 
 **Do not buy followers or run engagement pods.** BNB's Phase 2 rules exclude
 sybil and wash activity and say encouraging artificial activity can disqualify
