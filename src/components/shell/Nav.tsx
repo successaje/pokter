@@ -2,7 +2,7 @@
 
 import { NETWORK_LABEL } from '@/lib/network/presentation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
@@ -57,13 +57,30 @@ function MoreIcon() {
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { installed } = usePwaInstall();
 
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[color:var(--bg)]/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-5 sm:px-8">
+        {installed && pathname !== '/app' && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) router.back();
+              else router.push('/app');
+            }}
+            aria-label="Go back"
+            className="-mr-3 flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)] md:hidden"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden className="size-[18px] fill-none stroke-current" strokeWidth="1.8">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+        )}
         <Link
-          href="/"
-          aria-label="Pokter home"
+          href={installed ? '/app' : '/'}
+          aria-label={installed ? 'Pokter app home' : 'Pokter home'}
           className="text-[color:var(--text)] transition-opacity hover:opacity-80"
         >
           <Wordmark />
@@ -102,7 +119,7 @@ export function Nav() {
             and showing one number alone is what made the header and the hire
             page appear to contradict each other.
           */}
-          <span className="mono flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
+          <span className="mono hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:flex">
             <span className="size-1.5 shrink-0 rotate-45 bg-[color:var(--brand)]" aria-hidden />
             {/*
               The registry chain only once there is genuinely room. Showing it
@@ -115,7 +132,9 @@ export function Nav() {
             <span className="hidden sm:inline">Hiring: </span>
             {NETWORK_LABEL}
           </span>
-          <ThemeToggle />
+          <span className="hidden sm:block">
+            <ThemeToggle />
+          </span>
           <ConnectWallet />
         </div>
       </div>

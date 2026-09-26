@@ -9,6 +9,10 @@ import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { listSearchable } from '@/lib/marketplace';
+import { verdictFor } from '@/lib/search/match';
+import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -192,6 +196,18 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
+  const explicitObjectives = typeof params.objective === 'string';
+  const browseAgents = shouldRun ? [] : await listSearchable({ limit: 4 });
+  const visibleAgents = browseAgents
+    .filter(
+      (entry) =>
+        !explicitObjectives || brief.objectives.includes(entry.listing.category),
+    )
+    .slice(0, 8);
+  const selectedObjective =
+    typeof params.objective === 'string' && !params.objective.includes(',')
+      ? params.objective
+      : null;
 
   return (
     <div className="flex flex-col gap-10 pt-6">
@@ -214,9 +230,85 @@ export default async function DiscoverPage({
         </div>
       </header>
 
-      <Suspense fallback={<div className="h-72" />}>
-        <BriefForm />
-      </Suspense>
+      <div className="md:hidden">
+        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link
+            href="/discover"
+            className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${!selectedObjective ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
+          >
+            All agents
+          </Link>
+          {OBJECTIVES.map((objective) => (
+            <Link
+              key={objective.id}
+              href={`/discover?objective=${objective.id}`}
+              className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${selectedObjective === objective.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
+            >
+              {objective.label}
+            </Link>
+          ))}
+        </div>
+
+        <details className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+            <span className="flex size-9 items-center justify-center rounded-[var(--radius)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
+              <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
+            </span>
+            <span className="flex flex-1 flex-col">
+              <span className="text-sm font-medium">Tune recommendations</span>
+              <span className="text-[10px] text-[color:var(--text-faint)]">Goals, capital, risk and time horizon</span>
+            </span>
+            <span aria-hidden className="text-[color:var(--text-faint)]">⌄</span>
+          </summary>
+          <div className="border-t border-[color:var(--border)] p-2">
+            <Suspense fallback={<div className="h-72" />}>
+              <BriefForm />
+            </Suspense>
+          </div>
+        </details>
+      </div>
+
+      <div className="hidden md:block">
+        <Suspense fallback={<div className="h-72" />}>
+          <BriefForm />
+        </Suspense>
+      </div>
+
+      {!shouldRun && (
+        <section className="flex flex-col gap-3 md:hidden">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Explore agents</h2>
+              <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Open any profile to review its evidence before hiring.</p>
+            </div>
+            <Link href="/agents" className="shrink-0 text-[11px] text-[color:var(--info)]">View all</Link>
+          </div>
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+            {visibleAgents.map((entry, index) => {
+              const { agent } = entry.listing;
+              const category = CATEGORY_BY_ID.get(entry.listing.category);
+              return (
+                <Link
+                  key={`${agent.chain_id}:${agent.token_id}`}
+                  href={`/agents/${agent.chain_id}/${agent.token_id}`}
+                  className={`flex min-h-[4.75rem] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--surface-hover)] ${index > 0 ? 'border-t border-[color:var(--border)]' : ''}`}
+                >
+                  <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="truncate text-sm font-medium">{agent.name}</span>
+                    <span className="truncate text-[10px] text-[color:var(--text-muted)]">{category?.label ?? 'Agent'} · {agent.supported_protocols?.slice(0, 2).join(' · ') || 'No endpoint declared'}</span>
+                  </span>
+                  <EvidenceBadge verdict={verdictFor(entry)} />
+                  <span aria-hidden className="text-[color:var(--text-faint)]">›</span>
+                </Link>
+              );
+            })}
+          </div>
+          {visibleAgents.length === 0 && (
+            <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-muted)]">No indexed agents currently match this category.</p>
+          )}
+        </section>
+      )}
 
       {shouldRun && <Results brief={brief} />}
     </div>
