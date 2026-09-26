@@ -272,6 +272,37 @@ credential loss, RP-ID migration and fallback recovery. Publish what happens
 to active jobs in each case. Do not claim recoverability beyond the tested
 authenticator class.
 
+### POK-035 · Delivery notification cannot resolve any marketplace agent
+
+**Severity: High · Status: Open** · found running the testnet integration test
+
+`POST /api/notify-funded` requires `chainId` to equal the escrow chain
+(`route.ts:61`, currently 97) and then calls `getAgent(chainId, tokenId)` at
+`route.ts:101` — a registry lookup. The two are different chains.
+
+Pokter's whole shape is mainnet agents with testnet escrow, so the value that
+satisfies the guard is the one guaranteed to fail the lookup:
+
+```
+chainId 56 → rejected: "Agent, provider and escrow must be on the configured chain."
+chainId 97 → accepted, then: 8004scan /agents/97/302257 returned 404
+```
+
+Confirmed against a known-good listing: `getAgent(56, '45422')` returns Beefy
+powered by HeyAnon, `getAgent(97, '45422')` is a 404. Every agent in the
+marketplace is registered on 56, so no value of `chainId` gets a mainnet
+agent through this route.
+
+**Why it was not caught earlier.** Job #1336 settled end to end, which looked
+like proof the delivery path worked. It exercised the seller and the manifest,
+but not this guard with a marketplace agent id.
+
+**Remediation.** Carry the registry chain and the escrow chain as separate
+fields. They are separate facts, and collapsing them into one `chainId` is
+what made a guard and a lookup contradict each other.
+
+---
+
 ### POK-034 · Negotiation signatures were displayed but not verified
 
 **Severity: High · Status: Fixed**
