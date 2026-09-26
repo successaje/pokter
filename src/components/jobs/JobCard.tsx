@@ -173,7 +173,9 @@ export function JobCard({
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-sm font-medium">{job.agentName}</h3>
           <p className="mono text-[11px] text-[color:var(--text-faint)]">
-            Job #{job.jobId} · provider {shortAddress(job.provider)}
+            Job #{job.jobId} · provider{' '}
+            {job.providerLabel ? `${job.providerLabel} · ` : ''}
+            {shortAddress(job.provider)}
             {job.isTestnet && ' · testnet'}
           </p>
         </div>

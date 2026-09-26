@@ -34,6 +34,7 @@ export async function providerChoicesFor(
     choices.push({
       address: agent.agent_wallet,
       label: agent.name,
+      relationship: 'registry-agent',
       reachable: agent.chain_id === escrowChainId,
       automatedDelivery:
         agent.chain_id === escrowChainId &&
@@ -51,6 +52,7 @@ export async function providerChoicesFor(
       choices.push({
         address,
         label: 'Pokter delivery agent',
+        relationship: 'separate-provider',
         reachable: true,
         automatedDelivery: true,
         note: 'Same-chain A2A seller. Verifies escrow, submits a canonical execution receipt and exposes its on-chain proof.',
@@ -61,6 +63,7 @@ export async function providerChoicesFor(
   choices.push({
     address: VERIFIED_TESTNET_PROVIDER,
     label: 'Verified testnet seller',
+    relationship: 'separate-provider',
     reachable: escrowChainId === 97,
     automatedDelivery: false,
     note: 'Three completed jobs at 0.1 $U on chain 97, across yield, rebalancing and grid planning.',

@@ -40,6 +40,7 @@ export interface ProviderChoice {
   address: string;
   label: string;
   note: string;
+  relationship: 'registry-agent' | 'separate-provider';
   reachable: boolean;
   automatedDelivery: boolean;
 }
@@ -290,7 +291,8 @@ export function CommissionPanel({
         chainId: WALLET_NETWORK.chainId,
         isTestnet: WALLET_NETWORK.chainId === 97,
         agentTokenId: agent.tokenId,
-        agentName: provider?.label ?? agent.name,
+        agentName: agent.name,
+        providerLabel: provider?.label,
         provider: outcome.provider,
         task,
         budgetRaw: outcome.budget.toString(),
@@ -372,8 +374,8 @@ export function CommissionPanel({
               onChange={(event) => setRiskAccepted(event.target.checked)}
               className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--brand)]"
             />
-            I understand that unproven agents cannot be hired without explicitly
-            accepting the risk, and I still want to commission this agent.
+            I reviewed the warnings above, explicitly accept the additional
+            risk, and still want to commission this agent.
           </label>
         </div>
       )}
@@ -388,7 +390,15 @@ export function CommissionPanel({
       )}
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs text-[color:var(--text-muted)]">Provider</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-[color:var(--text-muted)]">
+            Execution provider
+          </span>
+          <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+            The registry listing identifies the agent. The provider is the
+            address that receives this escrow and delivers the work.
+          </span>
+        </div>
         <div className="flex flex-col gap-2">
           {providers.map((option) => (
             <button
@@ -405,6 +415,11 @@ export function CommissionPanel({
             >
               <span className="flex items-center gap-2 text-[12px] font-medium">
                 {option.label}
+                <span className="rounded-full border border-[color:var(--border)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                  {option.relationship === 'registry-agent'
+                    ? 'registry agent'
+                    : 'separate provider'}
+                </span>
                 <span
                   className="rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
                   style={{
@@ -442,6 +457,15 @@ export function CommissionPanel({
           This seller verifies the funded job and returns a canonical execution
           receipt. It demonstrates the complete escrow lifecycle; it does not
           claim trading performance or provide investment advice.
+        </p>
+      )}
+
+      {provider?.relationship === 'separate-provider' && (
+        <p className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          You are evaluating <strong>{agent.name}</strong>, but this escrow will
+          commission <strong>{provider.label}</strong>. The immutable job record
+          keeps both the ERC-8004 identity and execution-provider address so the
+          delivery is not attributed to the wrong party.
         </p>
       )}
 

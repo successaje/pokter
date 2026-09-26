@@ -85,6 +85,8 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
             step={1000}
             value={positionUsd}
             onChange={(e) => setPositionUsd(Number(e.target.value))}
+            className="branded-range"
+            aria-label="Position size in US dollars"
           />
         </label>
 
@@ -102,6 +104,8 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
             step={1}
             value={rebalancesPerMonth}
             onChange={(e) => setRebalances(Number(e.target.value))}
+            className="branded-range"
+            aria-label="Rebalances per month"
           />
         </label>
 
@@ -119,6 +123,8 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
             step={0.05}
             value={turnover}
             onChange={(e) => setTurnover(Number(e.target.value))}
+            className="branded-range"
+            aria-label="Percentage of the position swapped each time"
           />
         </label>
       </div>

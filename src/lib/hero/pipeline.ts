@@ -199,7 +199,7 @@ function recentEvents(
   for (const agent of dead) {
     events.push({
       kind: 'blocked',
-      title: 'Hiring blocked',
+      title: 'Risk acceptance required',
       detail: `${agent.listing.agent.name} · 0/${agent.record.totalProbes} probes`,
     });
   }

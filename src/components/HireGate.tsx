@@ -60,9 +60,9 @@ export function HireGate({
           ))}
         </ul>
         <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-          Unproven agents cannot be hired without explicitly accepting the risk.
-          Pokter does not recommend this hire, but the final decision remains
-          yours.
+          Pokter does not recommend proceeding while these warnings remain. You
+          can continue only after reviewing them and explicitly accepting the
+          additional risk.
         </p>
         <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[color:var(--text-muted)]">
           <input

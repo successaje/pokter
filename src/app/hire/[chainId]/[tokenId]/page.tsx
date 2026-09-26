@@ -96,6 +96,9 @@ export default async function HirePage({
       ? ['The agent did not answer Pokter’s current live protocol probe.']
       : []),
   ];
+  const riskSummary = !proof.recommendedForHire
+    ? 'The available evidence does not meet Pokter’s recommendation threshold. Review each warning and explicitly accept the added risk before funding escrow, or choose a stronger alternative below.'
+    : 'This agent has a recommendable evidence record, but it did not pass the current live check. Review the fresh warning and explicitly accept the added risk before funding escrow.';
 
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -136,9 +139,7 @@ export default async function HirePage({
                   Pokter does not recommend this hire
                 </h2>
                 <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-                  Unproven agents cannot be hired without explicitly accepting
-                  the risk. Review the evidence and accept the added risk before
-                  funding escrow, or choose a stronger alternative below.
+                  {riskSummary}
                 </p>
               </section>
               <Alternatives

@@ -8,7 +8,7 @@ import {
 } from '@/lib/experiments/agent-advantage';
 
 export const metadata = {
-  title: 'Agent Advantage — Pokter',
+  title: 'Agent Advantage',
   description:
     'Measured comparisons of hiring an agent versus doing the job yourself, against live BNB Chain state.',
 };

@@ -45,14 +45,6 @@ export default async function ComparePage({
         </p>
       </header>
 
-      {entries.length === 0 ? (
-        <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-8 text-center text-xs text-[color:var(--text-faint)]">
-          Pick two or more agents below to compare them.
-        </p>
-      ) : (
-        <CompareTable entries={entries} />
-      )}
-
       <AgentPicker
         options={sections.flatMap(({ category, listings }) => {
           const meta = CATEGORY_BY_ID.get(category);
@@ -71,6 +63,20 @@ export default async function ComparePage({
         max={MAX_AGENTS}
       />
 
+      {entries.length < 2 ? (
+        <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center">
+          <p className="text-sm font-medium">
+            {entries.length === 0
+              ? 'Choose your first two agents above.'
+              : 'Choose one more agent to start comparing.'}
+          </p>
+          <p className="mt-1 text-xs text-[color:var(--text-faint)]">
+            Evidence, reliability, score and ownership will appear side by side.
+          </p>
+        </div>
+      ) : (
+        <CompareTable entries={entries} />
+      )}
     </div>
   );
 }
