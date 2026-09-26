@@ -70,21 +70,48 @@ function median(values: number[]): number | null {
     : sorted[mid];
 }
 
+function isPrivateIpv4(address: string): boolean {
+  const [a, b] = address.split('.').map(Number);
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    a >= 224
+  );
+}
+
+/**
+ * The IPv4 address inside an IPv4-mapped IPv6 one, or null.
+ *
+ * Both spellings are accepted because both resolve to the same host:
+ * `::ffff:169.254.169.254` and `::ffff:a9fe:a9fe` are the cloud metadata
+ * endpoint either way. Matching mapped ranges as text misses whichever
+ * spelling the list forgot, so the address is unwrapped and run through the
+ * IPv4 rules instead.
+ */
+function mappedIpv4(normalized: string): string | null {
+  const dotted = /^(?:::ffff:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(normalized);
+  if (dotted) return dotted[1];
+
+  const hex = /^(?:::ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(normalized);
+  if (!hex) return null;
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
+}
+
 function isPrivateAddress(address: string): boolean {
-  if (isIP(address) === 4) {
-    const [a, b] = address.split('.').map(Number);
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      a >= 224
-    );
-  }
+  if (isIP(address) === 4) return isPrivateIpv4(address);
 
   const normalized = address.toLowerCase();
+
+  const mapped = mappedIpv4(normalized);
+  if (mapped) return isPrivateIpv4(mapped);
+
   return (
     normalized === '::' ||
     normalized === '::1' ||
@@ -93,10 +120,7 @@ function isPrivateAddress(address: string): boolean {
     normalized.startsWith('fe8') ||
     normalized.startsWith('fe9') ||
     normalized.startsWith('fea') ||
-    normalized.startsWith('feb') ||
-    normalized.startsWith('::ffff:127.') ||
-    normalized.startsWith('::ffff:10.') ||
-    normalized.startsWith('::ffff:192.168.')
+    normalized.startsWith('feb')
   );
 }
 
@@ -107,7 +131,16 @@ export async function assertPublicEndpoint(endpoint: string): Promise<URL> {
     throw new Error('Only public HTTPS endpoints without embedded credentials are probed');
   }
 
-  const literal = isIP(url.hostname) ? [url.hostname] : [];
+  /*
+   * `url.hostname` keeps the brackets on an IPv6 literal, so `[::1]` is not
+   * recognised as an IP and falls through to a DNS lookup that happens to
+   * fail. That blocked the right addresses for the wrong reason — and it
+   * rejected public IPv6 literals too. Unwrapping makes the decision the
+   * private-range check's to make.
+   */
+  const hostname = url.hostname.replace(/^\[(.+)\]$/, '$1');
+
+  const literal = isIP(hostname) ? [hostname] : [];
   const addresses = literal.length
     ? literal
     : (await lookup(url.hostname, { all: true, verbatim: true })).map(

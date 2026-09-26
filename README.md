@@ -206,7 +206,7 @@ know before delegating.
 
 ## What does not work
 
-Three things, stated here rather than discovered.
+Four things, stated here rather than discovered.
 
 **Third-party delivery is only as reliable as the seller endpoint.** The
 original test seller has no discoverable runtime, so its historical jobs remain
@@ -216,8 +216,9 @@ through ERC-8183. Live job #1336 proves the full path with a publicly
 retrievable receipt whose exact bytes match the hash committed on-chain, plus
 a buyer-signed settlement that advanced the job to `COMPLETED`.
 
-**A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships no injected-wallet signer. In 0.8.0 a doc comment
-in `internal/signer.d.ts` said the SDK ships three signers and named
+**A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships
+no injected-wallet signer. In 0.8.0 a doc comment in
+`internal/signer.d.ts` said the SDK ships three signers and named
 `signerFromInjected` — "MetaMask / Rabby / any EIP-1193 provider" — but it was
 never exported or implemented. 0.9.0 removed the comment; the gap itself
 remains. Browser wallets also no longer expose the raw digest that the SDK's
