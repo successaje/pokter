@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
 import type { RiskTolerance } from '@/lib/recommend/types';
+import { DiscoverWalletContext } from './WalletContext';
 
 const CAPITAL_PRESETS = [500, 1_000, 5_000, 25_000];
 const HORIZONS = [7, 30, 90];
@@ -23,6 +24,7 @@ const OBJECTIVE_MARKS: Record<string, string> = {
 };
 
 function boundedNumber(raw: string | null, fallback: number, min: number, max: number) {
+  if (raw === null || raw.trim() === '') return fallback;
   const value = Number(raw);
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
@@ -101,11 +103,20 @@ export function BriefForm() {
 
   return (
     <div className="flex flex-col gap-7 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-          What should your agent do?{' '}
-          <span className="normal-case tracking-normal text-[color:var(--text-faint)]">
-            Choose one or more
+      <fieldset className="flex flex-col gap-5">
+        <legend className="mb-2 block w-full">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+              <span className="mr-2 text-[color:var(--brand)]">01</span>
+              What should your agent do?
+            </span>
+            <span className="tabular text-[10px] text-[color:var(--text-faint)]">
+              {objectives.length} selected
+            </span>
+          </span>
+          <span className="mt-2 block text-[11px] font-normal normal-case leading-relaxed tracking-normal text-[color:var(--text-faint)]">
+            Choose one or more outcomes. Pokter combines their eligible agents
+            into one evidence-ranked shortlist.
           </span>
         </legend>
         <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -144,6 +155,8 @@ export function BriefForm() {
           ))}
         </div>
       </fieldset>
+
+      <DiscoverWalletContext />
 
       <div className="grid gap-6 border-t border-[color:var(--border)] pt-6 lg:grid-cols-3">
         <fieldset className="flex min-w-0 flex-col gap-2.5">
