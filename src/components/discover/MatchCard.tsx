@@ -105,7 +105,7 @@ export function MatchCard({
         className={cn(
           'w-fit rounded-[var(--radius)] px-3 py-1.5 text-[13px] font-medium transition-colors',
           primary
-            ? 'bg-[color:var(--text)] text-[color:var(--bg)] hover:opacity-90'
+            ? 'action-primary'
             : 'border border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]',
         )}
       >

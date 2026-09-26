@@ -62,7 +62,9 @@
    * never on a status, a metric or a control.
    */
   --brand: #f0b90b;
+  --brand-hover: #f8ca32;
   --brand-ink: #100d04;
+  --brand-shadow: rgba(240, 185, 11, 0.18);
   --brand-highlight: #f0b90b;
   --brand-highlight-soft: rgba(240, 185, 11, 0.2);
 }
@@ -125,7 +127,9 @@
   --light-neutral: #616b7a;
 
   --light-brand: #d9a407;
+  --light-brand-hover: #edb80b;
   --light-brand-ink: #100d04;
+  --light-brand-shadow: rgba(217, 164, 7, 0.2);
   --light-brand-highlight: #f0b90b;
   --light-brand-highlight-soft: rgba(240, 185, 11, 0.3);
 }
@@ -155,7 +159,9 @@
   --brand-highlight: var(--light-brand-highlight);
   --brand-highlight-soft: var(--light-brand-highlight-soft);
   --brand: var(--light-brand);
+  --brand-hover: var(--light-brand-hover);
   --brand-ink: var(--light-brand-ink);
+  --brand-shadow: var(--light-brand-shadow);
 
   color-scheme: light;
 }
@@ -185,7 +191,9 @@
     --brand-highlight: var(--light-brand-highlight);
     --brand-highlight-soft: var(--light-brand-highlight-soft);
     --brand: var(--light-brand);
+    --brand-hover: var(--light-brand-hover);
     --brand-ink: var(--light-brand-ink);
+    --brand-shadow: var(--light-brand-shadow);
 
     color-scheme: light;
   }
@@ -204,6 +212,39 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/*
+ * Primary product actions use the BNB-family yellow. Statuses keep their own
+ * semantic colours; this treatment is reserved for forward motion such as
+ * finding, trying and hiring an agent.
+ */
+.action-primary {
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 600;
+  box-shadow: 0 8px 24px var(--brand-shadow);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.action-primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+  box-shadow: 0 10px 28px var(--brand-shadow);
+  transform: translateY(-1px);
+}
+
+.action-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.action-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 .pokter-mark-on-light {

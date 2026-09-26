@@ -94,7 +94,7 @@ export function TrialPanel({
         type="button"
         onClick={run}
         disabled={state === 'running' || task.trim().length < 10}
-        className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="action-primary w-fit rounded-[var(--radius)] px-4 py-2 text-[13px]"
       >
         {state === 'running' ? 'Asking over A2A…' : 'Run safe trial'}
       </button>

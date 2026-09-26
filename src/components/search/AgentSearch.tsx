@@ -95,7 +95,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
         <button
           type="button"
           onClick={() => commit(draft)}
-          className="rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90"
+          className="action-primary rounded-[var(--radius)] px-4 py-2 text-[13px]"
         >
           Search
         </button>

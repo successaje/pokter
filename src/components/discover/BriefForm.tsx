@@ -32,7 +32,7 @@ function Choice({
       className={cn(
         'rounded-[var(--radius)] border px-3 py-2 text-[13px] transition-colors duration-150',
         selected
-          ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] text-[color:var(--text)]'
+          ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--text)]'
           : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',
       )}
     >
@@ -146,7 +146,7 @@ export function BriefForm() {
       <button
         type="button"
         onClick={submit}
-        className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90"
+        className="action-primary w-fit rounded-[var(--radius)] px-4 py-2 text-[13px]"
       >
         Find my matches
       </button>

@@ -127,7 +127,7 @@ export default async function AgentPage({
             {proof.hirable && answeredNow ? (
               <Link
                 href={`/hire/${agent.chain_id}/${agent.token_id}`}
-                className="w-full rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-center text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90"
+                className="action-primary w-full rounded-[var(--radius)] px-4 py-2 text-center text-[13px]"
               >
                 Hire agent
               </Link>
