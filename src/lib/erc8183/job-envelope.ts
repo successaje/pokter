@@ -8,10 +8,18 @@ export interface PokterJobEnvelope {
   identity: {
     chainId: number;
     tokenId: string;
+    name?: string;
   };
   category: string;
   provider: Address;
+  providerLabel?: string;
   task: string;
+}
+
+function optionalLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const label = value.trim();
+  return label.length > 0 && label.length <= 120 ? label : undefined;
 }
 
 /**
@@ -25,8 +33,10 @@ export interface PokterJobEnvelope {
 export function encodePokterJobEnvelope(input: {
   identityChainId: number;
   agentTokenId: string;
+  agentName?: string;
   category: string;
   provider: Address;
+  providerLabel?: string;
   task: string;
 }): string {
   if (!Number.isSafeInteger(input.identityChainId) || input.identityChainId <= 0)
@@ -35,6 +45,10 @@ export function encodePokterJobEnvelope(input: {
     throw new Error('Invalid ERC-8004 token id.');
   if (!input.category.trim()) throw new Error('Agent category is required.');
   if (!input.task.trim()) throw new Error('Task is required.');
+  if (input.agentName && !optionalLabel(input.agentName))
+    throw new Error('Agent name must be at most 120 characters.');
+  if (input.providerLabel && !optionalLabel(input.providerLabel))
+    throw new Error('Provider label must be at most 120 characters.');
 
   const envelope: PokterJobEnvelope = {
     protocol: 'pokter-job',
@@ -42,9 +56,11 @@ export function encodePokterJobEnvelope(input: {
     identity: {
       chainId: input.identityChainId,
       tokenId: input.agentTokenId,
+      name: optionalLabel(input.agentName),
     },
     category: input.category,
     provider: getAddress(input.provider),
+    providerLabel: optionalLabel(input.providerLabel),
     task: input.task.trim(),
   };
   const encoded = JSON.stringify(envelope);
@@ -72,9 +88,14 @@ export function decodePokterJobEnvelope(value: string): PokterJobEnvelope | null
     return {
       protocol: 'pokter-job',
       version: POKTER_JOB_ENVELOPE_VERSION,
-      identity: parsed.identity,
+      identity: {
+        chainId: parsed.identity.chainId,
+        tokenId: parsed.identity.tokenId,
+        name: optionalLabel(parsed.identity.name),
+      },
       category: parsed.category,
       provider: getAddress(parsed.provider),
+      providerLabel: optionalLabel(parsed.providerLabel),
       task: parsed.task,
     };
   } catch {

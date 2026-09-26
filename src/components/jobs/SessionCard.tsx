@@ -8,6 +8,7 @@ import type { SessionView } from '@/lib/altana/session';
 import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
 import { walletClient } from '@/lib/wallet/passkey';
 import { rememberRevocation } from '@/lib/wallet/activity';
+import { walletActionError } from '@/lib/wallet/errors';
 
 const TICK_MS = 30_000;
 
@@ -78,7 +79,7 @@ export function SessionCard({
       });
       rememberRevocation(session.id, revokedAt, revokeTxHash);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(walletActionError(caught, 'Session revocation'));
     } finally {
       setBusy(false);
     }

@@ -18,6 +18,7 @@ import {
 } from '@/components/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
+import { walletActionError } from '@/lib/wallet/errors';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
@@ -34,7 +35,7 @@ function safeDeliverableUrl(value: string | null): string | null {
 }
 
 function settlementError(error: unknown): string {
-  const message = (error as Error).message ?? 'Escrow release failed.';
+  const message = walletActionError(error, 'Escrow action');
   if (/0x17be5b7b/i.test(message)) {
     return 'The dispute window is still open. The contract will allow payment after the review period ends; refresh and try again shortly.';
   }
@@ -187,6 +188,28 @@ export function JobCard({
       <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
         {JOB_STAGE_COPY[job.status]}
       </p>
+
+      <dl className="grid gap-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3 text-[10px] sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className="uppercase tracking-wide text-[color:var(--text-faint)]">
+            ERC-8004 identity
+          </dt>
+          <dd className="mt-1 break-words text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+            {job.agentName}
+            {job.agentChainId && ` · chain ${job.agentChainId}`}
+            {job.agentTokenId !== 'unknown' && ` · token #${job.agentTokenId}`}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="uppercase tracking-wide text-[color:var(--text-faint)]">
+            ERC-8183 provider
+          </dt>
+          <dd className="mono mt-1 break-all text-[color:var(--text-secondary)]">
+            {job.providerLabel ? `${job.providerLabel} · ` : ''}
+            {job.provider}
+          </dd>
+        </div>
+      </dl>
 
       <details className="group">
         <summary className="cursor-pointer text-[11px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]">

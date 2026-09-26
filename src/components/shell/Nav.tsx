@@ -3,11 +3,13 @@
 import { NETWORK_LABEL } from '@/lib/network/presentation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCallback, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import { ConnectWallet } from './ConnectWallet';
 import { ThemeToggle } from './ThemeToggle';
 import { Wordmark } from '@/components/brand/Logo';
+import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 
 /**
  * §11. Primary navigation.
@@ -24,6 +26,13 @@ const PRIMARY = [
   { href: '/pool-check', label: 'Pool check' },
   { href: '/my-agents', label: 'My agents' },
 ];
+
+const MOBILE_PRIMARY = PRIMARY.filter((item) =>
+  ['/discover', '/agents', '/compare', '/my-agents'].includes(item.href),
+);
+const MOBILE_MORE = PRIMARY.filter((item) =>
+  ['/leaderboard', '/pool-check'].includes(item.href),
+);
 
 export function Nav() {
   const pathname = usePathname();
@@ -96,19 +105,61 @@ export function Nav() {
 /** §11. Mobile bottom navigation. */
 export function MobileNav() {
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
+  const layerRef = useDismissibleLayer<HTMLElement>({
+    open: moreOpen,
+    onDismiss: closeMore,
+  });
+  const moreActive = MOBILE_MORE.some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[color:var(--border)] bg-[color:var(--bg)]/95 backdrop-blur-md md:hidden">
-      <div className="flex items-stretch">
-        {PRIMARY.map((item) => {
+    <nav
+      ref={layerRef}
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-[color:var(--border)] bg-[color:var(--bg)]/95 backdrop-blur-md md:hidden"
+      aria-label="Primary navigation"
+    >
+      {moreOpen && (
+        <div
+          id="mobile-more-menu"
+          className="absolute bottom-full right-3 mb-2 w-52 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-1.5 shadow-xl"
+        >
+          {MOBILE_MORE.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={closeMore}
+                className={cn(
+                  'flex min-h-11 items-center justify-between rounded-[var(--radius)] px-3 text-sm transition-colors',
+                  active
+                    ? 'bg-[color:var(--brand-highlight-soft)] text-[color:var(--text)]'
+                    : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]',
+                )}
+              >
+                {item.label}
+                <span aria-hidden>→</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="grid grid-cols-5 items-stretch">
+        {MOBILE_PRIMARY.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={closeMore}
               className={cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] transition-colors',
+                'flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
                 active
                   ? 'text-[color:var(--text)]'
                   : 'text-[color:var(--text-muted)]',
@@ -125,6 +176,29 @@ export function MobileNav() {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((open) => !open)}
+          aria-expanded={moreOpen}
+          aria-controls="mobile-more-menu"
+          className={cn(
+            'flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] transition-colors',
+            moreOpen || moreActive
+              ? 'text-[color:var(--text)]'
+              : 'text-[color:var(--text-muted)]',
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              'size-1 rounded-full',
+              moreOpen || moreActive
+                ? 'bg-[color:var(--brand)]'
+                : 'bg-transparent',
+            )}
+          />
+          More
+        </button>
       </div>
     </nav>
   );

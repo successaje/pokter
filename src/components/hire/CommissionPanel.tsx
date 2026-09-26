@@ -25,6 +25,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
+import { walletActionError } from '@/lib/wallet/errors';
 
 /**
  * A provider the escrow can actually reach.
@@ -202,8 +203,10 @@ export function CommissionPanel({
       const committedTask = encodePokterJobEnvelope({
         identityChainId: agent.chainId,
         agentTokenId: agent.tokenId,
+        agentName: agent.name,
         category: agent.category,
         provider: providerAddress as `0x${string}`,
+        providerLabel: provider?.label,
         task,
       });
 
@@ -290,6 +293,7 @@ export function CommissionPanel({
         jobId: outcome.jobId.toString(),
         chainId: WALLET_NETWORK.chainId,
         isTestnet: WALLET_NETWORK.chainId === 97,
+        agentChainId: agent.chainId,
         agentTokenId: agent.tokenId,
         agentName: agent.name,
         providerLabel: provider?.label,
@@ -309,7 +313,7 @@ export function CommissionPanel({
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(walletActionError(caught, 'Commissioning'));
       setState('error');
     }
   };
@@ -341,7 +345,7 @@ export function CommissionPanel({
       setJob(updated);
       if (wallet) rememberJob(wallet.address, updated);
     } catch (caught) {
-      setError((caught as Error).message);
+      setError(walletActionError(caught, 'Status refresh'));
     } finally {
       setRefreshing(false);
     }
@@ -604,6 +608,25 @@ export function CommissionPanel({
           <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
             {JOB_STAGE_COPY[job.status]}
           </p>
+
+          <dl className="grid gap-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3 text-[10px] sm:grid-cols-2">
+            <div className="min-w-0">
+              <dt className="uppercase tracking-wide text-[color:var(--text-faint)]">
+                ERC-8004 identity
+              </dt>
+              <dd className="mt-1 break-words text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+                {agent.name} · chain {agent.chainId} · token #{agent.tokenId}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="uppercase tracking-wide text-[color:var(--text-faint)]">
+                ERC-8183 provider
+              </dt>
+              <dd className="mono mt-1 break-all text-[color:var(--text-secondary)]">
+                {provider?.label ?? 'Provider'} · {job.provider}
+              </dd>
+            </div>
+          </dl>
 
           {notification !== 'idle' && (
             <div

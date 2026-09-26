@@ -16,6 +16,14 @@ export function LivePanel({ live }: { live: LiveReading }) {
   }
 
   const answeredAll = live.answered === live.probes.length;
+  const checkedAt = live.probes.at(-1)?.at;
+  const checkedLabel = checkedAt
+    ? new Intl.DateTimeFormat('en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+        timeZone: 'UTC',
+      }).format(new Date(checkedAt))
+    : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -30,6 +38,14 @@ export function LivePanel({ live }: { live: LiveReading }) {
           <span className="tabular text-[11px] text-[color:var(--text-faint)]">
             {live.medianMs != null ? `median ${live.medianMs}ms` : 'no successful response'}
           </span>
+          {checkedAt && checkedLabel && (
+            <time
+              dateTime={checkedAt}
+              className="tabular text-[10px] text-[color:var(--text-faint)]"
+            >
+              Checked {checkedLabel} UTC
+            </time>
+          )}
         </div>
         <span
           className="tabular text-sm"
@@ -55,6 +71,13 @@ export function LivePanel({ live }: { live: LiveReading }) {
             <span className="shrink-0 text-[color:var(--text-faint)]">
               {probe.latencyMs != null ? `${probe.latencyMs}ms` : 'timeout'}
             </span>
+            <time
+              dateTime={probe.at}
+              title={new Date(probe.at).toISOString()}
+              className="shrink-0 text-[color:var(--text-faint)]"
+            >
+              {new Date(probe.at).toISOString().slice(11, 19)} UTC
+            </time>
             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
               {probe.detail}
             </span>
