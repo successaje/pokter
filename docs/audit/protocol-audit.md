@@ -217,7 +217,7 @@ shared network presentation module.
 
 ### POK-031 · Rate-limit identity and updates are not robust under concurrency
 
-**Severity: Medium · Status: Open**
+**Severity: Medium · Status: Fixed** · verified under concurrency
 
 The limiter trusts forwarding headers as the caller identity and performs a
 separate read followed by update. Correctness therefore depends on the edge
@@ -234,9 +234,13 @@ edge header (`fly-client-ip` by default), never the user-selectable first value
 of `x-forwarded-for`. Multi-machine enforcement still requires a shared store
 before horizontal scaling.
 
+**Verified.** The counter is now a single `ON CONFLICT … RETURNING` upsert, so
+the read and the increment cannot interleave. Twenty concurrent consumers
+against a limit of five produced exactly five allowances.
+
 ### POK-032 · A new Undici agent is created per outbound endpoint check
 
-**Severity: Medium · Status: Open**
+**Severity: Medium · Status: Fixed** · handle closes its dispatcher
 
 `assertPublicEndpoint` creates a new `undici.Agent` for every call and does not
 close it. Public trial, notification and receipt-verification routes can cause
@@ -249,6 +253,11 @@ well as successful requests.
 **Fix.** Pinned endpoints now expose explicit ownership and every production
 caller releases its single-use Undici dispatcher in `finally`, including error
 and early-return paths.
+
+**Verified.** `assertPublicEndpoint` returns a handle exposing `close()`, and
+every caller closes it in a `finally`. A fetch followed by a close completed
+cleanly. The leak was introduced by the POK-008 pinning work — the dispatcher
+that fixed the rebinding window was never disposed.
 
 ### POK-033 · Passkey recovery is a protocol dependency without a proven path
 
