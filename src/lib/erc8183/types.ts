@@ -29,6 +29,8 @@ export interface HiredJob {
   statusCheckedAt: string;
   deliverableUrl: string | null;
   settleTxHash: Hex | null;
+  /** Buyer-signed policy dispute, when the delivery was contested. */
+  disputeTxHash?: Hex | null;
 }
 
 /** What the UI needs to narrate the lifecycle honestly. */

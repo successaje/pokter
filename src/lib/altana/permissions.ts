@@ -28,6 +28,8 @@ export interface PermissionSummary {
   expiresAt: Date;
   /** True when the agent needs no write authority whatsoever. */
   readOnly: boolean;
+  /** Why Pokter refuses to create a delegated session for this category. */
+  delegationBlockedReason: string;
 }
 
 export function summarise(request: PermissionRequest): PermissionSummary {
@@ -40,6 +42,10 @@ export function summarise(request: PermissionRequest): PermissionSummary {
     period: request.period,
     expiresAt: new Date(Date.now() + request.expiryDays * 86_400_000),
     readOnly: allowed.length === 0,
+    delegationBlockedReason:
+      allowed.length === 0
+        ? 'This agent is read-only, so it does not need authority over your wallet.'
+        : 'Delegated execution is paused until Pokter can enforce recipient and asset constraints inside every allowed call.',
   };
 }
 
@@ -56,6 +62,19 @@ export function toSessionPermissions(
   request: PermissionRequest,
 ): SessionPermissions {
   const contracts = CATEGORY_CONTRACTS[request.category] ?? [];
+
+  /*
+   * A target + function selector is not enough for a financial permission.
+   * PancakeSwap's swap, mint and collect calls contain recipient parameters;
+   * allowing the selector without constraining those arguments would let a
+   * session route proceeds away from the user's account. Fail closed until a
+   * validator/adapter enforces those arguments on-chain.
+   */
+  if (contracts.length > 0) {
+    throw new Error(
+      'Delegated write sessions are disabled: recipient and asset constraints are not yet enforced on-chain.',
+    );
+  }
 
   const calls = contracts.flatMap((contract) =>
     contract.methods.map((signature) => ({

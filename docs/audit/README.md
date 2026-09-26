@@ -6,6 +6,7 @@ before it does so on mainnet, what was found, and what remains open.
 | Report | Scope | Status |
 | --- | --- | --- |
 | [mainnet-readiness.md](mainnet-readiness.md) | Migration from BSC testnet (97) to mainnet (56) | **In progress** |
+| [protocol-audit.md](protocol-audit.md) | Identity, authority, escrow, delivery, dispute and recovery | **Open blockers** |
 
 ## How findings are tracked
 

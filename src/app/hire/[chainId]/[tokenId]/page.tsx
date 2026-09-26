@@ -136,20 +136,12 @@ export default async function HirePage({
           */}
           <Stage
             index={1}
-            title="Grant permission"
-            caption="Scoped, capped and expiring authority over your wallet."
+            title="Review access"
+            caption="Standing wallet authority remains disabled until every call argument is safely constrained."
           >
             <WalletGate action="grant permission" capability="session">
               <PermissionReview
                 summary={summary}
-                agent={{
-                  chainId,
-                  tokenId,
-                  name: agent.name,
-                  category:
-                    category === 'unclassified' ? 'health-factor' : category,
-                }}
-                explorerBase={explorerBase}
                 isTestnet={IS_TESTNET}
                 bnbUsdPrice={bnbUsdPrice}
               />

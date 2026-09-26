@@ -1,30 +1,15 @@
 'use client';
 
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { SPEND_CAP_BOUNDS, formatCapUsd } from '@/lib/altana/caps';
 import { useState } from 'react';
-import { useCommitLock } from '@/components/hire/WalletGate';
 
 import { cn } from '@/lib/ui/cn';
-import { shortAddress, shortHash } from '@/lib/ui/format';
+import { shortAddress } from '@/lib/ui/format';
 import {
-  toSessionPermissions,
   type PermissionSummary,
   type SpendPeriod,
 } from '@/lib/altana/permissions';
-import type { GrantedSession } from '@/lib/altana/types';
-import { walletClient } from '@/lib/wallet/passkey';
-import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
-import { parseEther, type Hex } from 'viem';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
-import { rememberRevocation, rememberSession } from '@/lib/wallet/activity';
-
-interface GrantResponse {
-  session: GrantedSession;
-  onChain: boolean;
-}
-
-const MIN_GRANT_GAS = parseEther('0.002');
 
 /**
  * §31 / §96. What the agent may do, what it may not, and what it costs you.
@@ -35,144 +20,18 @@ const MIN_GRANT_GAS = parseEther('0.002');
  */
 export function PermissionReview({
   summary,
-  agent,
-  explorerBase,
   isTestnet,
   bnbUsdPrice,
 }: {
   summary: PermissionSummary;
-  agent: { chainId: number; tokenId: string; name: string; category: string };
-  explorerBase: string;
   isTestnet: boolean;
   /** Null when pricing was unavailable; the figure is then omitted. */
   bnbUsdPrice: number | null;
 }) {
-  const { locked, reason } = useCommitLock();
   const [spendCap, setSpendCap] = useState(SPEND_CAP_BOUNDS.preset);
   const capUsd = formatCapUsd(spendCap, bnbUsdPrice);
   const [period, setPeriod] = useState<SpendPeriod>('week');
   const [expiryDays, setExpiryDays] = useState(7);
-
-  const [state, setState] = useState<'idle' | 'granting' | 'granted' | 'error'>(
-    'idle',
-  );
-  const [result, setResult] = useState<GrantResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [revoking, setRevoking] = useState(false);
-
-  const { wallet: passkeyWallet } = usePasskeyWallet();
-  const passkeySigner = usePasskeySigner();
-  const selfCustody = Boolean(passkeyWallet && passkeySigner);
-
-  /**
-   * Grant in the browser, signed by the passkey.
-   *
-   * The key never leaves the device, so this cannot run on the server. Once the
-   * The receipt stays in this browser view; Pokter does not copy visitor
-   * session metadata into its shared server-side demo index.
-   */
-  const authorizeWithPasskey = async () => {
-    const client = walletClient();
-    const balance = await client.balances({ wallet: passkeyWallet!.address });
-    if (balance.native < MIN_GRANT_GAS) {
-      throw new Error(
-        `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} for the on-chain ` +
-          `KeyStore write. ${
-            FAUCETS
-              ? `Fund ${passkeyWallet!.address} from the BNB testnet faucet`
-              : `Send ${NATIVE_SYMBOL} to ${passkeyWallet!.address}`
-          }, then try again.`,
-      );
-    }
-    const expiry = Math.floor(Date.now() / 1000) + expiryDays * 86_400;
-
-    const granted = await client.grantSession({
-      wallet: { address: passkeyWallet!.address },
-      signer: passkeySigner!,
-      permissions: toSessionPermissions({
-        category: agent.category,
-        spendCapBnb: spendCap,
-        period,
-        expiryDays,
-      }),
-      expiry,
-      register: true,
-    });
-
-    const session: GrantedSession = {
-      id: crypto.randomUUID(),
-      agentChainId: agent.chainId,
-      agentTokenId: agent.tokenId,
-      agentName: agent.name,
-      walletAddress: passkeyWallet!.address,
-      publicKey: granted.publicKey,
-      chainId: WALLET_NETWORK.chainId,
-      isTestnet: WALLET_NETWORK.chainId === 97,
-      spendCapWei: parseEther(String(spendCap)).toString(),
-      period,
-      expiresAt: new Date(expiry * 1000).toISOString(),
-      grantedAt: new Date().toISOString(),
-      grantTxHash: granted.transactionHash ?? null,
-      revokedAt: null,
-      revokeTxHash: null,
-    };
-
-    rememberSession(session);
-
-    return { session, onChain: Boolean(granted.transactionHash) };
-  };
-
-  const authorize = async () => {
-    setState('granting');
-    setError(null);
-
-    try {
-      if (!selfCustody) throw new Error('A passkey wallet is required to authorize.');
-      setResult(await authorizeWithPasskey());
-      setState('granted');
-    } catch (caught) {
-      const message = (caught as Error).message ?? 'Grant failed.';
-      setError(
-        /NotAllowed|abort/i.test(message)
-          ? 'The passkey prompt was dismissed, so nothing was granted.'
-          : /Reason:\s*0x[\s\S]*Details:\s*0x/i.test(message)
-            ? `The on-chain write reverted without a reason. The usual cause is an unfunded passkey wallet. Fund ${passkeyWallet?.address ?? 'your passkey wallet'} with ${NATIVE_SYMBOL} and try again.`
-          : message,
-      );
-      setState('error');
-    }
-  };
-
-  const revoke = async () => {
-    if (!result || !passkeyWallet || !passkeySigner) return;
-    setRevoking(true);
-    try {
-      const revokedOnChain = await walletClient().revokeSession({
-        wallet: { address: passkeyWallet.address },
-        signer: passkeySigner,
-        session: result.session.publicKey as Hex,
-      });
-      setResult({
-        ...result,
-        session: {
-          ...result.session,
-          revokedAt: new Date().toISOString(),
-          revokeTxHash: revokedOnChain.transactionHash ?? null,
-        },
-      });
-      rememberRevocation(
-        result.session.id,
-        new Date().toISOString(),
-        revokedOnChain.transactionHash ?? null,
-      );
-    } catch (caught) {
-      setError((caught as Error).message);
-    } finally {
-      setRevoking(false);
-    }
-  };
-
-  const revoked = Boolean(result?.session.revokedAt);
 
   return (
     <div className="flex flex-col gap-5">
@@ -262,7 +121,7 @@ export function PermissionReview({
               max={SPEND_CAP_BOUNDS.max}
               step={SPEND_CAP_BOUNDS.step}
               value={spendCap}
-              disabled={state !== 'idle' && state !== 'error'}
+              disabled
               onChange={(event) => setSpendCap(Number(event.target.value))}
               className="mono w-28 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-2.5 py-1.5 text-[13px]"
             />
@@ -282,7 +141,7 @@ export function PermissionReview({
                 key={option}
                 type="button"
                 onClick={() => setPeriod(option)}
-                disabled={state !== 'idle' && state !== 'error'}
+                disabled
                 className={cn(
                   'rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors',
                   period === option
@@ -310,7 +169,7 @@ export function PermissionReview({
                 id={days === 1 ? 'expiry' : undefined}
                 type="button"
                 onClick={() => setExpiryDays(days)}
-                disabled={state !== 'idle' && state !== 'error'}
+                disabled
                 className={cn(
                   'rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors',
                   expiryDays === days
@@ -326,143 +185,15 @@ export function PermissionReview({
       </section>
 
       <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5">
-        <h3 className="text-base font-medium">You remain in control.</h3>
+        <h3 className="text-base font-medium">Delegated access is paused.</h3>
         <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          The permissions above are enforced by the Altana account contract, not
-          by Pokter. Any call outside them reverts on-chain. The session expires
-          on its own, and you can revoke it at any moment.
+          {summary.delegationBlockedReason} You can still commission escrowed
+          work without granting standing access to your wallet.
         </p>
 
-        <p
-          className="rounded-[var(--radius)] border p-3 text-[11px] leading-relaxed"
-          style={{
-            borderColor: selfCustody
-              ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
-              : 'var(--border)',
-            background: selfCustody ? 'var(--positive-dim)' : 'var(--surface)',
-            color: selfCustody ? 'var(--positive)' : 'var(--text-muted)',
-          }}
-        >
-          {selfCustody ? (
-            <>
-              Signed by your passkey on this device. The key stays in your secure
-              enclave — Pokter never sees it and cannot sign for you.
-            </>
-          ) : (
-            <>
-              A passkey wallet is required. Pokter does not substitute an
-              operator key for you; browser wallets remain identity-only until
-              they can sign Altana sessions directly.
-            </>
-          )}
+        <p className="w-fit rounded-full border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-3 py-1.5 text-[11px] font-medium text-[color:var(--caution)]">
+          No wallet permission will be created
         </p>
-
-        {state !== 'granted' && (
-          <button
-            type="button"
-            onClick={authorize}
-            disabled={state === 'granting' || locked}
-            title={reason ?? undefined}
-            className="w-fit rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {state === 'granting'
-              ? 'Registering session…'
-              : locked
-                ? 'Create a passkey to authorize'
-                : 'Authorize agent'}
-          </button>
-        )}
-
-        {error && (
-          /* §61. Explain the failure rather than saying something went wrong. */
-          <div className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3">
-            <p className="text-[11px] font-medium text-[color:var(--negative)]">
-              Authorization did not complete
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-              {error}
-            </p>
-            {/* Only offer a faucet where one exists. On mainnet the same
-                error needs the user to move real funds, not collect free
-                ones. */}
-            {FAUCETS && /tBNB|unfunded passkey wallet/i.test(error) && (
-              <a
-                href={FAUCETS.native}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-              >
-                Open the official BNB testnet faucet ↗
-              </a>
-            )}
-          </div>
-        )}
-
-        {result && (
-          <div className="flex flex-col gap-2 border-t border-[color:var(--border)] pt-3">
-            <p className="text-[11px] font-medium text-[color:var(--positive)]">
-              {revoked ? 'Session revoked' : 'Agent activated'}
-            </p>
-            <dl className="flex flex-col gap-1 text-[11px]">
-              <div className="flex justify-between gap-3">
-                <dt className="text-[color:var(--text-faint)]">Session key</dt>
-                <dd className="mono">{shortHash(result.session.publicKey)}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-[color:var(--text-faint)]">Wallet</dt>
-                <dd className="mono">{shortAddress(result.session.walletAddress)}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-[color:var(--text-faint)]">Expires</dt>
-                <dd className="mono">
-                  {new Date(result.session.expiresAt).toISOString().slice(0, 16).replace('T', ' ')}
-                </dd>
-              </div>
-              {result.session.grantTxHash && (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-[color:var(--text-faint)]">Grant tx</dt>
-                  <dd>
-                    <a
-                      href={`${explorerBase}/tx/${result.session.grantTxHash}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-                    >
-                      {shortHash(result.session.grantTxHash)}
-                    </a>
-                  </dd>
-                </div>
-              )}
-              {result.session.revokeTxHash && (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-[color:var(--text-faint)]">Revoke tx</dt>
-                  <dd>
-                    <a
-                      href={`${explorerBase}/tx/${result.session.revokeTxHash}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-                    >
-                      {shortHash(result.session.revokeTxHash)}
-                    </a>
-                  </dd>
-                </div>
-              )}
-            </dl>
-
-            {!revoked && (
-              /* §57. Revocation is never buried. */
-              <button
-                type="button"
-                onClick={revoke}
-                disabled={revoking}
-                className="mt-1 w-fit rounded-[var(--radius)] border border-[color:var(--negative)]/40 px-3 py-1.5 text-[12px] font-medium text-[color:var(--negative)] transition-colors hover:bg-[color:var(--negative-dim)] disabled:opacity-50"
-              >
-                {revoking ? 'Revoking…' : 'Revoke access'}
-              </button>
-            )}
-          </div>
-        )}
       </section>
     </div>
   );

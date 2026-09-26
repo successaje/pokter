@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
+import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
@@ -54,16 +55,17 @@ export function JobCard({
   explorerBase: string;
 }) {
   const [job, setJob] = useState(initial);
-  const [busy, setBusy] = useState<null | 'refresh' | 'verify' | 'approve'>(
-    null,
-  );
+  const [busy, setBusy] = useState<
+    null | 'refresh' | 'verify' | 'approve' | 'dispute'
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const [receiptVerified, setReceiptVerified] = useState(false);
+  const [disputeConfirmed, setDisputeConfirmed] = useState(false);
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
 
-  const act = async (action: 'refresh' | 'approve') => {
+  const act = async (action: 'refresh' | 'approve' | 'dispute') => {
     setBusy(action);
     setError(null);
     try {
@@ -71,30 +73,34 @@ export function JobCard({
         throw new Error('Connect the passkey wallet that funded this job.');
 
       let settleTxHash = job.settleTxHash;
-      if (action === 'approve') {
+      let disputeTxHash = job.disputeTxHash;
+      if (action === 'approve' || action === 'dispute') {
         if (!signer) throw new Error('The passkey signer is unavailable.');
-        if (!receiptVerified) {
+        if (action === 'approve' && !receiptVerified) {
           throw new Error(
             'Verify the receipt against its on-chain hash first.',
           );
         }
-        if (!reviewed)
+        if (action === 'approve' && !reviewed)
           throw new Error('Review the deliverable before releasing escrow.');
+        if (action === 'dispute' && !disputeConfirmed)
+          throw new Error('Confirm that you intend to contest this delivery.');
         const balances = await walletClient().balances({
           wallet: wallet.address,
         });
         if (balances.native < MIN_TRANSACTION_GAS) {
           throw new Error(
-            'Your passkey wallet needs at least 0.002 tBNB to release escrow.',
+            `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} to ${action === 'approve' ? 'release escrow' : 'open a dispute'}.`,
           );
         }
         const outcome = await settleErc8183Job(
           { address: wallet.address },
           signer,
-          { jobId: BigInt(job.jobId), action: 'approve' },
+          { jobId: BigInt(job.jobId), action },
           { network: WALLET_NETWORK },
         );
-        settleTxHash = outcome.transactionHash ?? null;
+        if (action === 'approve') settleTxHash = outcome.transactionHash ?? null;
+        else disputeTxHash = outcome.transactionHash ?? null;
       }
 
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
@@ -114,6 +120,7 @@ export function JobCard({
         statusCheckedAt: new Date().toISOString(),
         deliverableUrl,
         settleTxHash,
+        disputeTxHash,
       };
       if (updated.deliverableUrl !== job.deliverableUrl) {
         setReviewed(false);
@@ -261,6 +268,21 @@ export function JobCard({
             </dd>
           </div>
         )}
+        {job.disputeTxHash && (
+          <div className="flex justify-between gap-3">
+            <dt className="text-[color:var(--text-faint)]">Dispute tx</dt>
+            <dd>
+              <a
+                href={`${explorerBase}/tx/${job.disputeTxHash}`}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+              >
+                {shortHash(job.disputeTxHash)}
+              </a>
+            </dd>
+          </div>
+        )}
       </dl>
 
       {error && (
@@ -306,6 +328,30 @@ export function JobCard({
             >
               {busy === 'approve' ? 'Releasing…' : 'Release escrow'}
             </button>
+
+            <div className="mt-1 border-t border-[color:var(--border)] pt-3">
+              <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={disputeConfirmed}
+                  onChange={(event) =>
+                    setDisputeConfirmed(event.target.checked)
+                  }
+                  disabled={busy !== null}
+                  className="mt-0.5"
+                />
+                This delivery is unacceptable. I understand that contesting it
+                starts the on-chain dispute process and does not release payment.
+              </label>
+              <button
+                type="button"
+                onClick={() => act('dispute')}
+                disabled={busy !== null || !disputeConfirmed}
+                className="mt-2 w-fit rounded-[var(--radius)] border border-[color:var(--negative)]/45 px-3 py-1.5 text-[12px] font-medium text-[color:var(--negative)] transition-colors hover:bg-[color:var(--negative-dim)] disabled:opacity-50"
+              >
+                {busy === 'dispute' ? 'Opening dispute…' : 'Contest delivery'}
+              </button>
+            </div>
           </div>
         )}
       </div>
