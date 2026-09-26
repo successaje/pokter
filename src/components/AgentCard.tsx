@@ -31,7 +31,16 @@ export function AgentCard({ listing }: { listing: Listing }) {
               {meta.label}
             </span>
           )}
-          <h3 className="break-words text-sm font-medium leading-snug">
+          {/*
+            FE-08. break-words alone let `mandaterebalance-agent` split as
+            `mandaterebala / nce-agent`, and three-line titles made card
+            heights disagree across a row. Clamped to two lines with the full
+            name kept in the tooltip — these are identifiers, not prose.
+          */}
+          <h3
+            title={agent.name}
+            className="line-clamp-2 break-words text-sm font-medium leading-snug [overflow-wrap:anywhere]"
+          >
             {agent.name}
           </h3>
         </div>

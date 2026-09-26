@@ -54,7 +54,12 @@ export function WhyNot({ rejected }: { rejected: Rejection[] }) {
               key={listing.agent.token_id}
               className="flex flex-col gap-1 px-4 py-3"
             >
-              <span className="text-[13px] font-medium">{listing.agent.name}</span>
+              <span
+                title={listing.agent.name}
+                className="text-[13px] font-medium [overflow-wrap:anywhere]"
+              >
+                {listing.agent.name}
+              </span>
               <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
                 {reason}
               </span>

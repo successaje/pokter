@@ -124,6 +124,22 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/*
+        FE-09. The doorway, directly under the hero.
+
+        This used to sit fourth, below the scale, the problem and the live
+        proof — four screens of argument before the first thing a visitor can
+        act on. Campaign traffic arrives cold and with intent, and asking it
+        to read the case before offering the door loses the ones who already
+        knew what they wanted.
+
+        The argument still follows. It reads better as justification for a
+        choice already on screen than as a prerequisite for reaching one.
+      */}
+      <Reveal>
+        <ObjectiveSelector />
+      </Reveal>
+
       {/* THE SCALE — the number that makes the rest necessary. */}
       <Reveal>
         <EcosystemPanel stats={stats} />
@@ -137,11 +153,6 @@ export default async function HomePage() {
       {/* LIVE PROOF — the check itself, verbatim. */}
       <Reveal>
         <LiveProof probes={probes} />
-      </Reveal>
-
-      {/* FOUR FINANCIAL WORLDS. */}
-      <Reveal>
-        <ObjectiveSelector />
       </Reveal>
 
       {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}

@@ -38,9 +38,10 @@ export function MatchCard({
             </span>
           )}
           <h3
+            title={listing.agent.name}
             className={cn(
-              'font-medium leading-snug',
-              primary ? 'text-lg' : 'text-sm',
+              'font-medium leading-snug [overflow-wrap:anywhere]',
+              primary ? 'text-lg' : 'line-clamp-2 text-sm',
             )}
           >
             {listing.agent.name}

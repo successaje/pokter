@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 19** · 7 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 19** · 9 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 7 |
+| Fixed | 9 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -127,26 +127,39 @@ captures a false number on a page arguing its numbers can be trusted.
 **Fix.** Do not animate constants. Pluralise labels from their value.
 
 ### FE-08 · Long agent names break mid-word
-**Pages:** `/agents`, `/categories/[category]`
+**Status: Fixed** · **Pages:** `/agents`, `/categories/[category]`
 
 `mandaterebalance-agent` renders as `mandaterebala / nce-agent`.
 `marketplace-operated-grid-planner` takes three lines and still clips. Card
 heights then disagree across a row.
 
-**Fix.** `overflow-wrap: anywhere` with a hyphen hint, a line clamp, and a
-fixed minimum card height.
+**Fixed.** Titles clamp to two lines with the full name kept in the tooltip,
+applied across the agent card, match card, alternatives and the rejection
+list. These are identifiers rather than prose, so bounding them is truer than
+letting them run.
+
+Card heights now agree across a row, which was the larger of the two
+complaints. A genuinely unbreakable token — `babycaisubagent9_sharp9457` —
+still breaks mid-word, because it has no break opportunity and the only
+alternatives are overflowing or truncating harder. Bounded and uniform is the
+right trade.
 
 ---
 
 ## Medium
 
 ### FE-09 · The product's entry point is four screens down
-**Page:** `/`
+**Status: Fixed** · **Page:** `/`
 
 "What are you trying to do?" — Earn / Trade / Protect / Rebalance — is the
-actual doorway, and it sits below the hero, the stats, the problem panel and
-the live-proof table. Campaign traffic lands cold and has to scroll a long way
+actual doorway, and it sat below the hero, the stats, the problem panel and
+the live-proof table. Campaign traffic lands cold and had to scroll a long way
 to act.
+
+**Fixed.** It now sits directly under the hero, at 825px against a 768px
+viewport — one scroll rather than four. The scale, the problem and the live
+proof still follow, and they read better as justification for a choice already
+on screen than as a prerequisite for reaching one.
 
 ### FE-10 · The hero's loudest element is a failure
 **Page:** `/`

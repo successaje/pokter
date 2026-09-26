@@ -62,7 +62,10 @@ export function Alternatives({
               className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition-colors hover:border-[color:var(--border-strong)]"
             >
               <span className="flex items-start justify-between gap-2">
-                <span className="text-[13px] font-medium leading-snug">
+                <span
+                  title={listing.agent.name}
+                  className="line-clamp-2 text-[13px] font-medium leading-snug [overflow-wrap:anywhere]"
+                >
                   {listing.agent.name}
                 </span>
                 <EvidenceBadge verdict={verdict} />
