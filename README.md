@@ -119,7 +119,7 @@ defects our own method has.
 | ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                                       |
 | Passkey wallets (WebAuthn, user-held)            | Working                                                     |
 | Session grants signed by the visitor's own key   | Working **via passkey**; browser wallets cannot             |
-| Agent delivery after funding                     | **Implemented, awaiting funded positive-path verification** |
+| Agent delivery and receipt verification          | **Implemented, awaiting funded positive-path verification** |
 | Performance and risk scoring                     | **Never** — [why](#what-does-not-work)                      |
 
 ## Evidence

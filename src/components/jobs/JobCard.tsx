@@ -11,7 +11,10 @@ import {
   getErc8183Job,
   settleErc8183Job,
 } from '@altananetwork/sdk';
-import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import {
+  usePasskeySigner,
+  usePasskeyWallet,
+} from '@/components/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 
@@ -21,7 +24,9 @@ function safeDeliverableUrl(value: string | null): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+    return url.protocol === 'https:' || url.protocol === 'http:'
+      ? url.href
+      : null;
   } catch {
     return null;
   }
@@ -41,9 +46,12 @@ export function JobCard({
   explorerBase: string;
 }) {
   const [job, setJob] = useState(initial);
-  const [busy, setBusy] = useState<null | 'refresh' | 'approve'>(null);
+  const [busy, setBusy] = useState<null | 'refresh' | 'verify' | 'approve'>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
+  const [receiptVerified, setReceiptVerified] = useState(false);
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
 
@@ -51,13 +59,22 @@ export function JobCard({
     setBusy(action);
     setError(null);
     try {
-      if (!wallet) throw new Error('Connect the passkey wallet that funded this job.');
+      if (!wallet)
+        throw new Error('Connect the passkey wallet that funded this job.');
 
       let settleTxHash = job.settleTxHash;
       if (action === 'approve') {
         if (!signer) throw new Error('The passkey signer is unavailable.');
-        if (!reviewed) throw new Error('Review the deliverable before releasing escrow.');
-        const balances = await walletClient().balances({ wallet: wallet.address });
+        if (!receiptVerified) {
+          throw new Error(
+            'Verify the receipt against its on-chain hash first.',
+          );
+        }
+        if (!reviewed)
+          throw new Error('Review the deliverable before releasing escrow.');
+        const balances = await walletClient().balances({
+          wallet: wallet.address,
+        });
         if (balances.native < MIN_TRANSACTION_GAS) {
           throw new Error(
             'Your passkey wallet needs at least 0.002 tBNB to release escrow.',
@@ -75,10 +92,12 @@ export function JobCard({
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??
-        ((current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED')
-          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(
-              () => undefined,
-            )
+        (current.statusName === 'SUBMITTED' ||
+        current.statusName === 'COMPLETED'
+          ? await getErc8183DeliverableUrl(
+              WALLET_NETWORK,
+              BigInt(job.jobId),
+            ).catch(() => undefined)
           : undefined) ??
         null;
       const updated: HiredJob = {
@@ -88,9 +107,40 @@ export function JobCard({
         deliverableUrl,
         settleTxHash,
       };
-      if (updated.deliverableUrl !== job.deliverableUrl) setReviewed(false);
+      if (updated.deliverableUrl !== job.deliverableUrl) {
+        setReviewed(false);
+        setReceiptVerified(false);
+      }
       setJob(updated);
       updateRememberedJob(wallet.address, updated);
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const verifyReceipt = async () => {
+    setBusy('verify');
+    setError(null);
+    setReceiptVerified(false);
+    try {
+      const response = await fetch(
+        `/api/deliverables/verify?jobId=${encodeURIComponent(job.jobId)}`,
+        { cache: 'no-store' },
+      );
+      const result = (await response.json()) as {
+        verified?: boolean;
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(result.error ?? 'Receipt verification failed.');
+      if (!result.verified) {
+        throw new Error(
+          'Receipt verification failed: the served bytes do not match the on-chain hash.',
+        );
+      }
+      setReceiptVerified(true);
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -131,14 +181,28 @@ export function JobCard({
       </details>
 
       {deliverableUrl && (
-        <a
-          href={deliverableUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          View deliverable →
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={deliverableUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+          >
+            View deliverable →
+          </a>
+          <button
+            type="button"
+            onClick={verifyReceipt}
+            disabled={busy !== null}
+            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+          >
+            {busy === 'verify'
+              ? 'Verifying bytes…'
+              : receiptVerified
+                ? 'Receipt verified ✓'
+                : 'Verify on-chain receipt'}
+          </button>
+        </div>
       )}
 
       {job.deliverableUrl && !deliverableUrl && (
@@ -157,9 +221,7 @@ export function JobCard({
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-[color:var(--text-faint)]">Status read</dt>
-          <dd className="mono">
-            {job.statusCheckedAt.slice(11, 19)} UTC
-          </dd>
+          <dd className="mono">{job.statusCheckedAt.slice(11, 19)} UTC</dd>
         </div>
         {job.hireTxHash && (
           <div className="flex justify-between gap-3">
@@ -216,16 +278,22 @@ export function JobCard({
                 type="checkbox"
                 checked={reviewed}
                 onChange={(event) => setReviewed(event.target.checked)}
-                disabled={busy !== null}
+                disabled={busy !== null || !receiptVerified}
                 className="mt-0.5"
               />
               I opened and reviewed the submitted deliverable. Releasing escrow
               is an on-chain approval that pays the seller.
             </label>
+            {!receiptVerified && (
+              <p className="text-[10px] leading-relaxed text-[color:var(--caution)]">
+                Verify the exact receipt bytes against the on-chain hash before
+                approving payment.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => act('approve')}
-              disabled={busy !== null || !reviewed}
+              disabled={busy !== null || !reviewed || !receiptVerified}
               className="w-fit rounded-[var(--radius)] bg-[color:var(--positive)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {busy === 'approve' ? 'Releasing…' : 'Release escrow'}
