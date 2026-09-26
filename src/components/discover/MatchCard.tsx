@@ -24,14 +24,19 @@ export function MatchCard({
   return (
     <article
       className={cn(
-        'flex flex-col gap-4 rounded-[var(--radius-lg)] border bg-[color:var(--surface)] p-5',
+        'relative flex flex-col gap-4 overflow-hidden rounded-[var(--radius-lg)] border bg-[color:var(--surface)] p-5',
         primary
-          ? 'border-[color:var(--border-strong)]'
+          ? 'border-[color:var(--brand)] shadow-[inset_3px_0_0_var(--brand)]'
           : 'border-[color:var(--border)]',
       )}
     >
       <header className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
+          {primary && (
+            <span className="mb-1 w-fit rounded-full bg-[color:var(--brand-highlight-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-secondary)]">
+              Best match
+            </span>
+          )}
           <h3
             className={cn(
               'font-medium leading-snug',

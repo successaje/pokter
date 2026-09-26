@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 import { recommend } from '@/lib/recommend/engine';
 import type { Brief, RiskTolerance } from '@/lib/recommend/types';
@@ -6,6 +7,7 @@ import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
 import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -30,9 +32,31 @@ function parseBrief(params: Record<string, string | string[] | undefined>): Brie
 async function Results({ brief }: { brief: Brief }) {
   const result = await recommend(brief);
   const matchCount = result.matched;
+  const category = CATEGORY_BY_ID.get(brief.objective);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div id="matches" className="scroll-mt-24 flex flex-col gap-8">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[11px] text-[color:var(--text-muted)]">
+        <span className="font-medium text-[color:var(--text)]">
+          {category?.label ?? brief.objective}
+        </span>
+        <span className="tabular">
+          {brief.capital.toLocaleString('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: 0,
+          })}
+        </span>
+        <span className="capitalize">{brief.risk} risk tolerance</span>
+        <span className="tabular">{brief.horizon}-day horizon</span>
+        <Link
+          href="/discover"
+          className="ml-auto font-medium text-[color:var(--text-secondary)] underline decoration-[color:var(--border-strong)] underline-offset-4 hover:text-[color:var(--text)]"
+        >
+          Change brief
+        </Link>
+      </div>
+
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-medium tracking-tight">
           We found {result.considered} relevant agent
@@ -72,9 +96,25 @@ async function Results({ brief }: { brief: Brief }) {
           <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
             We found {result.considered} agent(s) in this category, but none has
             enough verified evidence to recommend at {brief.risk} risk tolerance.
-            Lowering the risk requirement widens the set — it does not create
+            Increasing your risk tolerance may widen the set—it does not create
             evidence that is missing.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {brief.risk !== 'high' && (
+              <Link
+                href={`/discover?objective=${OBJECTIVES.find((item) => item.category === brief.objective)?.id ?? 'earn'}&capital=${brief.capital}&risk=high&horizon=${brief.horizon}&run=1#matches`}
+                className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-xs font-medium hover:bg-[color:var(--surface-hover)]"
+              >
+                Try higher tolerance
+              </Link>
+            )}
+            <Link
+              href={`/categories/${brief.objective}`}
+              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-xs font-medium hover:bg-[color:var(--surface-hover)]"
+            >
+              Browse every agent
+            </Link>
+          </div>
         </div>
       )}
 
@@ -125,14 +165,23 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-10 pt-6">
-      <header className="flex max-w-2xl flex-col gap-3">
+      <header className="flex max-w-3xl flex-col gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
+          Evidence-ranked discovery
+        </p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Find an agent
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Tell Pokter what you are trying to do. We rank on verified evidence and
-          measured reliability, and show you what we ruled out.
+          Start with the outcome you want. Pokter compares onchain identity,
+          measured reliability and evidence quality—and shows why each agent did
+          or did not qualify.
         </p>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-[color:var(--text-muted)]">
+          <span>4 financial strategies</span>
+          <span>ERC-8004 identities</span>
+          <span>Live endpoint evidence</span>
+        </div>
       </header>
 
       <Suspense fallback={<div className="h-72" />}>
