@@ -108,7 +108,13 @@ export default async function HirePage({
           <h1 className="text-2xl font-semibold tracking-tight">
             {agent.name}
           </h1>
-          <EvidenceBadge verdict={proof.verdict} size="md" />
+          {/* FE-06. Labelled, so the verdict is not read as a live status. */}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+              Evidence
+            </span>
+            <EvidenceBadge verdict={proof.verdict} size="md" />
+          </span>
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
           {meta?.label ?? 'Unclassified'} · Review exactly what this agent would

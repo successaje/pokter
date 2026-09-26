@@ -39,7 +39,7 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav className="hidden flex-1 items-center gap-1 md:flex">
+        <nav className="hidden min-w-0 flex-1 items-center gap-1 whitespace-nowrap md:flex">
           {PRIMARY.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -72,9 +72,16 @@ export function Nav() {
             and showing one number alone is what made the header and the hire
             page appear to contradict each other.
           */}
-          <span className="mono flex items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
-            <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
-            <span className="hidden sm:inline">Agents chain 56 · </span>
+          <span className="mono flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
+            <span className="size-1.5 shrink-0 rotate-45 bg-[color:var(--brand)]" aria-hidden />
+            {/*
+              The registry chain only once there is genuinely room. Showing it
+              from 640px made the pill wrap and dragged every nav link onto a
+              second line between roughly 768 and 1200px — the escrow network
+              is the part that must always be legible, so it is the part that
+              never moves.
+            */}
+            <span className="hidden xl:inline">Agents chain 56 · </span>
             {NETWORK_LABEL}
           </span>
           <ThemeToggle />

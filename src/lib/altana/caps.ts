@@ -36,6 +36,14 @@ export function formatCapUsd(
   capBnb: number,
   bnbUsdPrice: number | null,
 ): string | null {
+  /*
+   * FE-04. Testnet BNB has no value, so a dollar figure beside it is not a
+   * conversion — it is a fiction, and it appeared in the same line as the
+   * word tBNB, contradicting itself. The price of a token nobody sells is
+   * nothing, and the honest rendering of that is no figure at all.
+   */
+  if (IS_TESTNET) return null;
+
   if (!bnbUsdPrice || !Number.isFinite(bnbUsdPrice) || bnbUsdPrice <= 0) {
     return null;
   }

@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 19** · 5 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 19** · 7 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 5 |
+| Fixed | 7 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -80,12 +80,17 @@ screens.
 ## High
 
 ### FE-04 · A testnet balance is priced in dollars
-**Page:** `/hire/[chain]/[token]` · spend limit
+**Status: Fixed** · **Page:** `/hire/[chain]/[token]` · spend limit
 
 The cap reads `0.05 ≈ $38.68 tBNB per week`. Testnet BNB has no value, so the
 conversion is meaningless and the two halves contradict each other in one line.
 
-Mine, from POK-005. The USD figure belongs on mainnet only.
+Mine, from POK-005.
+
+**Fixed.** `formatCapUsd` returns null on testnet before it looks at a price.
+The price of a token nobody sells is nothing, and the honest rendering of
+that is no figure at all. **Verified:** testnet returns null, mainnet still
+returns `$12.00` for a 0.02 cap at $600.
 
 ### FE-05 · Two different chains are stated in one viewport
 **Status: Fixed** · **Page:** `/hire/[chain]/[token]`
@@ -100,13 +105,16 @@ number, and `NETWORK_LABEL` comes from the same source the hire page uses, so
 the two cannot drift apart again.
 
 ### FE-06 · "Proven" and "Not responding" sit side by side, unexplained
-**Pages:** `/agents/[chain]/[token]`, `/hire/[chain]/[token]`
+**Status: Fixed** · **Pages:** `/agents/[chain]/[token]`, `/hire/[chain]/[token]`
 
 The badges are adjacent and appear to contradict. One is an accumulated
 verdict, the other is this second's probe — a distinction the product cares
 about more than anything, and the one place it is not drawn.
 
-**Fix.** Label them: *Evidence: Proven* and *Right now: not responding*.
+**Fixed.** The header now reads `EVIDENCE · Proven` and
+`RIGHT NOW · Not responding`, and the live state says *Answering* rather than
+*Live*, which was the word doing most of the ambiguity. The hire page's badge
+is labelled the same way.
 
 ### FE-07 · Counters animate constants, producing false intermediate values
 **Page:** `/` ecosystem panel
@@ -215,6 +223,23 @@ form at the left.
 **Page:** `/leaderboard` — data, not a defect, but it undercuts the section's
 argument that different agents lead on different metrics. A line acknowledging
 a sweep would keep the point intact.
+
+---
+
+### FE-20 · The header wrapped between 768 and 1200px
+**Status: Fixed** · **Page:** all · introduced by fixing FE-03
+
+Making the network pill always visible and adding the registry chain from
+640px pushed the pill onto two lines and dragged every nav link with it. The
+header measured 40px of pill at 1024px where it should have been 25.
+
+**Fixed.** The registry chain now appears only from 1280px, and both the pill
+and the nav are `whitespace-nowrap`. The escrow network is the part that must
+always be legible, so it is the part that never moves.
+
+Recorded rather than quietly corrected: it was a regression from a fix in this
+same review, and a register that only lists other people's mistakes is not
+being kept honestly.
 
 ---
 

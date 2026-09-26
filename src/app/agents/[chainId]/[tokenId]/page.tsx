@@ -96,8 +96,24 @@ export default async function AgentPage({
               {agent.name}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <EvidenceBadge verdict={proof.verdict} size="md" />
+            {/*
+              FE-06. These two badges used to sit bare and adjacent, so
+              "Proven" beside "Not responding" read as a contradiction. They
+              are not: one is the accumulated verdict, the other is this
+              second's probe, and that distinction is the thing this product
+              cares about most. Naming each one draws it.
+            */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                  Evidence
+                </span>
+                <EvidenceBadge verdict={proof.verdict} size="md" />
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                  Right now
+                </span>
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
                 style={{
@@ -112,7 +128,8 @@ export default async function AgentPage({
                   aria-hidden
                   className={answeredNow ? 'live-dot size-1.5 rounded-full bg-current' : 'size-1.5 rounded-full bg-current'}
                 />
-                {answeredNow ? 'Live' : 'Not responding'}
+                {answeredNow ? 'Answering' : 'Not responding'}
+              </span>
               </span>
               <span className="mono text-[11px] text-[color:var(--text-faint)]">
                 #{agent.token_id} · chain {agent.chain_id}
