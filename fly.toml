@@ -12,7 +12,9 @@ primary_region = 'iad'
   PROBE_DB_PATH = '/data/probes.db'
   SESSION_DB_PATH = '/data/sessions.db'
   JOB_DB_PATH = '/data/jobs.db'
+  DELIVERABLE_DB_PATH = '/data/deliverables.db'
   ALTANA_NETWORK = 'bnb-testnet'
+  NEXT_PUBLIC_APP_URL = 'https://pokter.fly.dev'
 
 [http_service]
   internal_port = 8080
@@ -46,7 +48,7 @@ primary_region = 'iad'
     type = 'http'
     port = 8080
     method = 'GET'
-    path = '/api/hire'
+    path = '/api/health'
     interval = '30s'
     timeout = '10s'
     grace_period = '20s'

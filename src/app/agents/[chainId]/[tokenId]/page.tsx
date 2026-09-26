@@ -15,6 +15,7 @@ import { TrackRecordPanel } from '@/components/TrackRecordPanel';
 import { LivePanel } from '@/components/LivePanel';
 import { EvidencePanel } from '@/components/EvidencePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
+import { TrialPanel } from '@/components/agent/TrialPanel';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -123,7 +124,7 @@ export default async function AgentPage({
 
           <div className="flex w-full max-w-xs flex-col gap-3">
             <ScorePanel score={score} />
-            {proof.hirable ? (
+            {proof.hirable && answeredNow ? (
               <Link
                 href={`/hire/${agent.chain_id}/${agent.token_id}`}
                 className="w-full rounded-[var(--radius)] bg-[color:var(--text)] px-4 py-2 text-center text-[13px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90"
@@ -132,7 +133,10 @@ export default async function AgentPage({
               </Link>
             ) : (
               <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] px-3 py-2 text-[11px] leading-relaxed text-[color:var(--negative)]">
-                Hiring is blocked. {proof.rationale}
+                Hiring is blocked.{' '}
+                {proof.hirable
+                  ? 'The agent did not answer the current live protocol probe.'
+                  : proof.rationale}
               </p>
             )}
           </div>
@@ -142,6 +146,12 @@ export default async function AgentPage({
           {proof.rationale}
         </p>
       </header>
+
+      {agent.services?.a2a?.endpoint && (
+        <TrialPanel
+          agent={{ chainId, tokenId, name: agent.name }}
+        />
+      )}
 
       <TrustPanel dossier={dossier} explorerBase={explorerBase} />
 

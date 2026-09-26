@@ -1,9 +1,6 @@
 'use client';
 
 import { createContext, useContext } from 'react';
-import { useAccount } from 'wagmi';
-
-import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 
 /**
@@ -32,54 +29,51 @@ export function useCommitLock() {
  * committing to anything, so the panels now render for everyone and only the
  * button that signs is held back.
  *
- * Browsing stays public (§59). The two wallets are not equivalent and the copy
- * does not pretend otherwise: a passkey signs the grant itself, while a browser
- * wallet only identifies the user and leaves signing to Pokter's operator key.
+ * Browsing stays public (§59). A passkey can sign its own Altana session. An
+ * injected browser wallet is identity-only until Pokter has a verified signer
+ * integration for it. Passkey wallets sign both session grants and escrow
+ * funding on-device.
  */
 export function WalletGate({
   action,
+  capability,
   children,
 }: {
   action: string;
+  capability: 'session' | 'commission';
   children: React.ReactNode;
 }) {
   const passkey = usePasskeyWallet();
-  const { isConnected, chain } = useAccount();
-
   const selfCustody = Boolean(passkey.wallet);
-  const unlocked = selfCustody || isConnected;
-  const wrongChain = !selfCustody && isConnected && chain?.id !== ESCROW_CHAIN.id;
-
-  const reason = !unlocked
-    ? `Connect a wallet to ${action}.`
-    : wrongChain
-      ? `Your wallet is on ${chain?.name ?? 'another network'}, but Pokter acts on ${ESCROW_CHAIN.name}.`
-      : null;
+  const reason = selfCustody
+    ? null
+    : `Create or connect a passkey wallet to ${action}.`;
 
   return (
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
       <div className="flex flex-col gap-3">
-        {!unlocked && (
+        {reason && (
           <div className="flex flex-col gap-1 rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] p-4">
             <p className="text-[12px] font-medium">
               Everything below is yours to read before you connect anything.
             </p>
             <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-              Discovery, evidence and rankings stay public, and so does this
-              review. A wallet is only needed for the final step that commits.
-              Use <span className="font-medium">Connect wallet</span> in the
-              header — a passkey keeps the signing key on this device, while a
-              browser wallet identifies you but cannot sign an Altana session.
+              {capability === 'session' ? (
+                <>
+                  Discovery, evidence and this permission review stay public.
+                  Use <span className="font-medium">Connect wallet</span> in the
+                  header and choose a passkey to sign on this device. Browser
+                  wallets are identity-only here and cannot authorize a session.
+                </>
+              ) : (
+                <>
+                  You can review the provider, task and budget before connecting.
+                  A passkey wallet signs and funds the escrow itself; Pokter
+                  never substitutes its operator key.
+                </>
+              )}
             </p>
           </div>
-        )}
-
-        {wrongChain && (
-          <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
-            Your wallet is on {chain?.name ?? 'another network'}, but Pokter acts
-            on {ESCROW_CHAIN.name}. Switch networks from the wallet menu before
-            continuing.
-          </p>
         )}
 
         {children}

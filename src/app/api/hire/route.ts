@@ -9,17 +9,23 @@ import {
   InsufficientPaymentTokenError,
 } from '@/lib/erc8183/hire';
 import { AltanaNotConfiguredError, IS_TESTNET } from '@/lib/altana/client';
+import { requireDemoWriteAccess } from '@/lib/security/demo-write';
 
 export const dynamic = 'force-dynamic';
 /** Hiring batches five contract calls through the relay and waits for FUNDED. */
 export const maxDuration = 180;
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
   return NextResponse.json({ jobs: listJobs(), isTestnet: IS_TESTNET });
 }
 
 /** Commission a job against an ERC-8183 seller. */
 export async function POST(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -84,6 +90,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
 /** Refresh a job's status from chain, or settle it. */
 export async function PATCH(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
+
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   const action = url.searchParams.get('action') ?? 'refresh';

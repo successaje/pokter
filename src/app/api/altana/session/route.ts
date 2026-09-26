@@ -7,6 +7,7 @@ import {
 } from '@/lib/altana/session';
 import { AltanaNotConfiguredError, IS_TESTNET } from '@/lib/altana/client';
 import type { SpendPeriod } from '@/lib/altana/permissions';
+import { requireDemoWriteAccess } from '@/lib/security/demo-write';
 
 export const dynamic = 'force-dynamic';
 /** Granting writes on-chain through the relay; it needs room to confirm. */
@@ -14,12 +15,17 @@ export const maxDuration = 120;
 
 const PERIODS: SpendPeriod[] = ['day', 'week', 'month'];
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
   return NextResponse.json({ sessions: listSessions(), isTestnet: IS_TESTNET });
 }
 
 /** Grant a scoped session to an agent. */
 export async function POST(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -90,6 +96,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
 /** Revoke a session. */
 export async function DELETE(request: Request): Promise<NextResponse> {
+  const denied = requireDemoWriteAccess(request);
+  if (denied) return denied;
+
   const id = new URL(request.url).searchParams.get('id');
   if (!id) {
     return NextResponse.json({ error: 'id is required.' }, { status: 400 });

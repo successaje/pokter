@@ -1,41 +1,36 @@
-/**
- * The Pokter mark.
- *
- * A filled square inside an open one: the outer frame is the claim an agent
- * makes, the inner block is the part of it that has actually been verified.
- * The inner square is deliberately smaller than the frame — the product's
- * whole argument, rendered at twenty pixels.
- */
+import Image from 'next/image';
+
+/** The selected Capital Gate artwork, preserved without geometric redrawing. */
 export function Logo({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
+    <span
+      style={{ width: size, height: size }}
       aria-hidden
-      className="shrink-0"
+      className="relative block shrink-0"
     >
-      <rect
-        x="1.25"
-        y="1.25"
-        width="17.5"
-        height="17.5"
-        rx="4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        opacity="0.45"
+      <Image
+        src="/brand/pokter-mark-selected-dark.png"
+        alt=""
+        fill
+        sizes={`${size}px`}
+        className="pokter-mark-on-dark object-contain"
       />
-      <rect x="6" y="6" width="8" height="8" rx="1.75" fill="currentColor" />
-    </svg>
+      <Image
+        src="/brand/pokter-mark-selected-light.png"
+        alt=""
+        fill
+        sizes={`${size}px`}
+        className="pokter-mark-on-light object-contain"
+      />
+    </span>
   );
 }
 
-export function Wordmark({ size = 20 }: { size?: number }) {
+export function Wordmark({ size = 22 }: { size?: number }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center gap-2.5">
       <Logo size={size} />
-      <span className="text-sm font-semibold tracking-tight">Pokter</span>
+      <span className="text-sm font-semibold tracking-[-0.025em]">Pokter</span>
     </span>
   );
 }

@@ -6,11 +6,11 @@ A decision layer for autonomous finance on BNB Chain. Pokter helps you discover,
 verify, compare and safely hire autonomous financial agents — using onchain
 activity, attestations, live execution data and scoped, revocable permissions.
 
-Built for the BNB Chain *Smart Money Era* hackathon.
+Built for the BNB Chain _Smart Money Era_ hackathon.
 
-| | |
-| --- | --- |
-| **Live app** | https://pokter.fly.dev |
+|                |                              |
+| -------------- | ---------------------------- |
+| **Live app**   | https://pokter.fly.dev       |
 | **Demo video** | https://youtu.be/KyuKia6RL9s |
 
 > The submission form has no field for a demo video, so this README is where it
@@ -93,7 +93,7 @@ facts and observed facts are never mixed.
 `Unproven` and blocked from hire rather than given a filler score. The Pokter
 Score is computed only over dimensions that carry real data, and its coverage
 travels with it — a 90 scored on three dimensions never passes for a 90 scored
-on five. Returns and drawdown are reported as *not measured*, because nobody
+on five. Returns and drawdown are reported as _not measured_, because nobody
 publishes them and inferring them from uptime would be fabrication.
 
 **We produce evidence, not just consume it.** Because so few agents carry
@@ -104,36 +104,38 @@ defects our own method has.
 
 ## What works today
 
-| Capability | Status |
-| --- | --- |
-| Agent discovery across four categories | Live against BSC mainnet |
-| Hybrid retrieval (semantic + keyword + tags) | Working |
-| Clone-farm collapse | Working |
-| Evidence states and the Pokter Score | Working |
-| Scheduled endpoint probing and track records | Working |
-| Recommendations with checkable rejections | Working |
-| Side-by-side comparison, up to four agents | Working |
-| Rankings with per-metric awards | Working |
-| Published methodology, imported from the code | Working |
-| Altana scoped sessions — grant, register, revoke | **Verified on-chain** |
-| ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain** |
-| Passkey wallets (WebAuthn, user-held) | Working |
-| Session grants signed by the visitor's own key | Working **via passkey**; browser wallets cannot |
-| Agent delivery after funding | **Not working** — [why](#what-does-not-work) |
-| Performance and risk scoring | **Never** — [why](#what-does-not-work) |
+| Capability                                       | Status                                          |
+| ------------------------------------------------ | ----------------------------------------------- |
+| Agent discovery across four categories           | Live against BSC mainnet                        |
+| Hybrid retrieval (semantic + keyword + tags)     | Working                                         |
+| Clone-farm collapse                              | Working                                         |
+| Evidence states and the Pokter Score             | Working                                         |
+| Scheduled endpoint probing and track records     | Working                                         |
+| Recommendations with checkable rejections        | Working                                         |
+| Side-by-side comparison, up to four agents       | Working                                         |
+| Rankings with per-metric awards                  | Working                                         |
+| Published methodology, imported from the code    | Working                                         |
+| Altana scoped sessions — grant, register, revoke | **Verified on-chain**                           |
+| ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                           |
+| Passkey wallets (WebAuthn, user-held)            | Working                                         |
+| Session grants signed by the visitor's own key   | Working **via passkey**; browser wallets cannot |
+| Agent delivery and receipt verification          | **Verified end to end on-chain**                |
+| Performance and risk scoring                     | **Never** — [why](#what-does-not-work)          |
 
 ## Evidence
 
 Everything below is on BSC testnet and independently verifiable.
 
-| What | Transaction |
-| --- | --- |
+| What                                            | Transaction                                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Altana session granted + registered in KeyStore | [`0x62a590ae…`](https://testnet.bscscan.com/tx/0x62a590ae974dd86ee0576c0ce2339afa97902430ac49fb4937de817a7f86019a) |
-| Session revoked | [`0x9eaf149e…`](https://testnet.bscscan.com/tx/0x9eaf149e9e9cdd14e7fb192a699d8b62b1d06d3c7239b8e2f50eb8de12a9eae6) |
-| ERC-8183 job hired end-to-end from the product | [`0x40b9fe98…`](https://testnet.bscscan.com/tx/0x40b9fe982b9af6542342c7cea3fbefeabb913e868aadbe15ca153de9ea9e87a8) |
-| Escrow funded | [`0x711855b9…`](https://testnet.bscscan.com/tx/0x711855b98171278e47e51e891d454dc9ef1def728c58e837466ba20085cc7599) |
-| Live session granted from the product | [`0x62b049db…`](https://testnet.bscscan.com/tx/0x62b049db108673c41bbe8a9d9cebbdffb1e06451db3ba2db31c88a035a1233bd) |
-| Live job hired and escrowed | [`0x93385d57…`](https://testnet.bscscan.com/tx/0x93385d5708964b0b6257b24b38ee00149fc53112445030d7227d43a6d90f9ac5) |
+| Session revoked                                 | [`0x9eaf149e…`](https://testnet.bscscan.com/tx/0x9eaf149e9e9cdd14e7fb192a699d8b62b1d06d3c7239b8e2f50eb8de12a9eae6) |
+| ERC-8183 job hired end-to-end from the product  | [`0x40b9fe98…`](https://testnet.bscscan.com/tx/0x40b9fe982b9af6542342c7cea3fbefeabb913e868aadbe15ca153de9ea9e87a8) |
+| Escrow funded                                   | [`0x711855b9…`](https://testnet.bscscan.com/tx/0x711855b98171278e47e51e891d454dc9ef1def728c58e837466ba20085cc7599) |
+| Live session granted from the product           | [`0x62b049db…`](https://testnet.bscscan.com/tx/0x62b049db108673c41bbe8a9d9cebbdffb1e06451db3ba2db31c88a035a1233bd) |
+| Live job hired and escrowed                     | [`0x93385d57…`](https://testnet.bscscan.com/tx/0x93385d5708964b0b6257b24b38ee00149fc53112445030d7227d43a6d90f9ac5) |
+| Public receipt submitted for live job #1336     | [`0x775ced53…`](https://testnet.bscscan.com/tx/0x775ced536b513df298464d76284ad133af4c5b3cd465213ed7ebb3f63bcc3d50) |
+| Buyer verified and settled live job #1336       | [`0xcecbf3fc…`](https://testnet.bscscan.com/tx/0xcecbf3fc43ba3edd609230b855cc6e1a4548b911bf5cd1177a263620e889dc33) |
 
 Both operator accounts are visible in the **Altana Keystore explorer**, and
 between them they show the whole lifecycle:
@@ -143,7 +145,7 @@ between them they show the whole lifecycle:
 - **[Ended](https://testnet.altana.network/account/0xAe4473468F10b507AB410077FA266FD8c5Af2196)** — one root key active, three session keys expired or
   revoked.
 
-That sessions *end* is the point. They are issued scoped and they stop, either
+That sessions _end_ is the point. They are issued scoped and they stop, either
 on their own or because somebody stopped them.
 
 ### The allowlist was tested, not just claimed
@@ -153,10 +155,10 @@ tries it. [`scripts/prove-enforcement.mts`](scripts/prove-enforcement.mts)
 grants a session scoped to a single contract and then makes two calls through
 it — identical calldata, zero value, only the target differs:
 
-| Call | Target | Result |
-| --- | --- | --- |
-| In scope | PancakeSwap V3 Router | **Accepted** — [`0x6e8cb539…`](https://testnet.bscscan.com/tx/0x6e8cb539c9c3cef423) |
-| Out of scope | an address never granted | **Rejected** — `UnauthorizedCall` |
+| Call         | Target                   | Result                                                                              |
+| ------------ | ------------------------ | ----------------------------------------------------------------------------------- |
+| In scope     | PancakeSwap V3 Router    | **Accepted** — [`0x6e8cb539…`](https://testnet.bscscan.com/tx/0x6e8cb539c9c3cef423) |
+| Out of scope | an address never granted | **Rejected** — `UnauthorizedCall`                                                   |
 
 The rejection comes from the Altana account contract's validator, not from
 Pokter. The session, the calldata and the signer were the same in both cases.
@@ -206,12 +208,13 @@ know before delegating.
 
 Three things, stated here rather than discovered.
 
-**Funded jobs stop at `FUNDED`.** The escrow is real, on-chain and visible, and
-the money is held by the ERC-8183 kernel rather than by us. But the seller's
-runtime has no poller and its endpoint is not discoverable through the
-registry, so we have no way to tell it a job is waiting. Nothing has been
-delivered, and the job status track shows exactly that rather than a completion
-we cannot evidence.
+**Third-party delivery is only as reliable as the seller endpoint.** The
+original test seller has no discoverable runtime, so its historical jobs remain
+at `FUNDED`. Pokter now includes a same-chain A2A seller for the guided path: it
+verifies the funded job, serves a canonical manifest and submits its hash
+through ERC-8183. Live job #1336 proves the full path with a publicly
+retrievable receipt whose exact bytes match the hash committed on-chain, plus
+a buyer-signed settlement that advanced the job to `COMPLETED`.
 
 **A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships no injected-wallet signer. In 0.8.0 a doc comment
 in `internal/signer.d.ts` said the SDK ships three signers and named
@@ -219,10 +222,9 @@ in `internal/signer.d.ts` said the SDK ships three signers and named
 never exported or implemented. 0.9.0 removed the comment; the gap itself
 remains. Browser wallets also no longer expose the raw digest that the SDK's
 `Signer.signDigest` needs, so this may not be implementable as the interface
-stands. So
-MetaMask and friends can identify you, but not authorise on your behalf — in
-that case Pokter's operator key signs, and the interface says so on the button
-you are about to press.
+stands. So MetaMask and friends can identify you, but not authorise on your
+behalf. Pokter fails closed in that case: the public interface requires a
+passkey and never substitutes its operator key for the visitor.
 
 The passkey path is the real answer and it does work: the key is created in
 your device's secure enclave, never leaves it, and Pokter cannot sign for you.
@@ -238,7 +240,7 @@ and at that point the key needs real secret storage rather than a Map.
 
 **Performance and risk are never scored.** Not a gap we intend to close — no
 agent publishes realised returns, and nothing on-chain attributes profit or
-loss to a specific agent's decision. Both dimensions read *not measured*
+loss to a specific agent's decision. Both dimensions read _not measured_
 permanently, and the Pokter Score rescales across what is left rather than
 quietly filling them in.
 
@@ -301,8 +303,10 @@ Runs one probe sweep and appends to the accumulated track record.
 
 Environment (see `.env.example`): `SCAN_API_KEY` lifts the 8004scan rate limit
 from 30 to 3,000 requests per minute, `SWEEP_SECRET` guards `POST /api/sweep`,
-and `ALTANA_ADMIN_KEY` signs session grants and job escrow. **Use a testnet
-key.**
+and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
+`POKTER_DEMO_WRITE_SECRET` to a strong server-side value before using those
+operator routes from a trusted script; they fail closed when it is absent and
+the browser UI never receives it. **Use a testnet key.**
 
 ## Deployment
 
@@ -322,11 +326,11 @@ running locally.
 
 If a feature cannot be proven, this codebase does not pretend it exists. If an
 integration fails, it is documented with the exact error. If data is
-unavailable, the interface says *not enough verified data*. If a transaction is
+unavailable, the interface says _not enough verified data_. If a transaction is
 testnet, it says testnet.
 
 Two of the five score dimensions — performance and risk — are permanently marked
-*not measured*, and will stay that way until somebody publishes the data.
+_not measured_, and will stay that way until somebody publishes the data.
 
 Pokter doesn't pretend to know what it can't know. We measure availability. We
 verify attestations. We track evidence. We don't manufacture performance.

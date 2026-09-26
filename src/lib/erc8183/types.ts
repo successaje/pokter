@@ -34,7 +34,8 @@ export interface HiredJob {
 /** What the UI needs to narrate the lifecycle honestly. */
 export const JOB_STAGE_COPY: Record<JobStatusName, string> = {
   OPEN: 'Job created but not yet funded.',
-  FUNDED: 'Escrow funded. Waiting for the agent to deliver.',
+  FUNDED:
+    'Escrow funded. Delivery begins only after the seller accepts a funded-job notification.',
   SUBMITTED: 'Agent delivered. Dispute window open before escrow releases.',
   COMPLETED: 'Escrow released to the agent.',
   REJECTED: 'Delivery was rejected.',

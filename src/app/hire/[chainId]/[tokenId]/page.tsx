@@ -1,19 +1,20 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
-import { loadDossier } from "@/lib/marketplace";
-import { RegistryUnreachable } from "@/components/ui/RegistryUnreachable";
-import { CATEGORY_BY_ID } from "@/lib/agents/categories";
-import { summarise } from "@/lib/altana/permissions";
-import { ALTANA_NETWORK, IS_TESTNET } from "@/lib/altana/client";
-import { PermissionReview } from "@/components/hire/PermissionReview";
-import { CommissionPanel } from "@/components/hire/CommissionPanel";
-import { WalletGate } from "@/components/hire/WalletGate";
-import { providerChoicesFor } from "@/lib/erc8183/providers";
-import { EvidenceBadge } from "@/components/ui/EvidenceBadge";
-import type { ChainId } from "@/lib/scan/types";
+import { loadDossier } from '@/lib/marketplace';
+import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { summarise } from '@/lib/altana/permissions';
+import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
+import { PermissionReview } from '@/components/hire/PermissionReview';
+import { CommissionPanel } from '@/components/hire/CommissionPanel';
+import { WalletGate } from '@/components/hire/WalletGate';
+import { providerChoicesFor } from '@/lib/erc8183/providers';
+import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { WalletReadiness } from '@/components/hire/WalletReadiness';
+import type { ChainId } from '@/lib/scan/types';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * §30. The staged hire flow.
@@ -69,16 +70,18 @@ export default async function HirePage({
   }
   const dossier = result.dossier;
 
-  const { agent, category, proof } = dossier;
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, "");
+  const { agent, category, proof, live } = dossier;
+  const answeredNow = live.ratio !== null && live.ratio > 0;
+  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   const meta =
-    category === "unclassified" ? null : CATEGORY_BY_ID.get(category);
+    category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const summary = summarise({
     category,
     spendCapBnb: 0.05,
-    period: "week",
+    period: 'week',
     expiryDays: 7,
   });
+  const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
 
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -100,22 +103,25 @@ export default async function HirePage({
           <EvidenceBadge verdict={proof.verdict} size="md" />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          {meta?.label ?? "Unclassified"} · Review exactly what this agent would
+          {meta?.label ?? 'Unclassified'} · Review exactly what this agent would
           be allowed to do before you grant anything.
         </p>
       </header>
 
-      {!proof.hirable ? (
+      {!proof.hirable || !answeredNow ? (
         <section className="rounded-[var(--radius-lg)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-5">
           <h2 className="text-sm font-medium text-[color:var(--negative)]">
             Hiring is blocked
           </h2>
           <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            {proof.rationale}
+            {!proof.hirable
+              ? proof.rationale
+              : 'This agent did not answer Pokter’s live protocol probe. Hiring stays blocked until it responds again.'}
           </p>
         </section>
       ) : (
         <div className="flex flex-col gap-8">
+          <WalletReadiness requiredBudgetU={0.1} />
           {/*
             Two distinct grants, in the order they matter. A session is standing
             authority over your wallet; a job is a single piece of escrowed
@@ -127,7 +133,7 @@ export default async function HirePage({
             title="Grant permission"
             caption="Scoped, capped and expiring authority over your wallet."
           >
-            <WalletGate action="grant permission">
+            <WalletGate action="grant permission" capability="session">
               <PermissionReview
                 summary={summary}
                 agent={{
@@ -135,7 +141,7 @@ export default async function HirePage({
                   tokenId,
                   name: agent.name,
                   category:
-                    category === "unclassified" ? "health-factor" : category,
+                    category === 'unclassified' ? 'health-factor' : category,
                 }}
                 explorerBase={explorerBase}
                 isTestnet={IS_TESTNET}
@@ -148,10 +154,15 @@ export default async function HirePage({
             title="Commission work"
             caption="Escrow a budget for a specific task, released only on delivery."
           >
-            <WalletGate action="commission work">
+            <WalletGate action="commission work" capability="commission">
               <CommissionPanel
-                agent={{ chainId, tokenId, name: agent.name }}
-                providers={providerChoicesFor(agent, ALTANA_NETWORK.chainId)}
+                agent={{
+                  chainId,
+                  tokenId,
+                  name: agent.name,
+                  wallet: agent.agent_wallet,
+                }}
+                providers={providers}
                 escrowChainId={ALTANA_NETWORK.chainId}
                 explorerBase={explorerBase}
               />

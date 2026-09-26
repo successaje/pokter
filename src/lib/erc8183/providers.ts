@@ -2,6 +2,7 @@ import type { Address } from 'viem';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { ProviderChoice } from '@/components/hire/CommissionPanel';
+import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
 
 /**
  * A seller we have verified is live on the escrow chain.
@@ -23,10 +24,10 @@ const VERIFIED_TESTNET_PROVIDER: Address =
  * for another: if the agent is on a different chain, the UI says so and the
  * user chooses.
  */
-export function providerChoicesFor(
+export async function providerChoicesFor(
   agent: ScanAgentDetail,
   escrowChainId: number,
-): ProviderChoice[] {
+): Promise<ProviderChoice[]> {
   const choices: ProviderChoice[] = [];
 
   if (agent.agent_wallet) {
@@ -34,6 +35,9 @@ export function providerChoicesFor(
       address: agent.agent_wallet,
       label: agent.name,
       reachable: agent.chain_id === escrowChainId,
+      automatedDelivery:
+        agent.chain_id === escrowChainId &&
+        Boolean(agent.services?.a2a?.endpoint),
       note:
         agent.chain_id === escrowChainId
           ? 'This agent’s own wallet, on the escrow chain.'
@@ -41,12 +45,25 @@ export function providerChoicesFor(
     });
   }
 
+  if (escrowChainId === 97) {
+    const address = await demoSellerAddress().catch(() => null);
+    if (address) {
+      choices.push({
+        address,
+        label: 'Pokter delivery agent',
+        reachable: true,
+        automatedDelivery: true,
+        note: 'Same-chain A2A seller. Verifies escrow, submits a canonical execution receipt and exposes its on-chain proof.',
+      });
+    }
+  }
+
   choices.push({
     address: VERIFIED_TESTNET_PROVIDER,
     label: 'Verified testnet seller',
     reachable: escrowChainId === 97,
-    note:
-      'Three completed jobs at 0.1 $U on chain 97, across yield, rebalancing and grid planning.',
+    automatedDelivery: false,
+    note: 'Three completed jobs at 0.1 $U on chain 97, across yield, rebalancing and grid planning.',
   });
 
   return choices;

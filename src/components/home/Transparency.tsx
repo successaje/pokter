@@ -19,17 +19,17 @@ const OUTCOMES: {
     name: 'Altana sessions',
     status: 'working',
     worked:
-      'Scoped session granted, registered in the on-chain KeyStore and revoked. Five confirmed transactions on BSC testnet.',
+      'A passkey wallet grants, registers and revokes a scoped session directly against the on-chain KeyStore.',
     didnt:
-      'The SDK documents an injected-wallet signer it does not implement, so grants are still signed by an operator key rather than the visitor’s wallet.',
+      'Injected browser wallets cannot sign Altana sessions yet, so Pokter treats them as identity-only and requires a passkey for authorization.',
   },
   {
     name: 'ERC-8183 escrow',
     status: 'working',
     worked:
-      'Jobs created, registered, funded and escrowed from the product itself, in one atomic batch.',
+      'A buyer’s passkey wallet creates, registers, funds and escrows a job in one atomic batch.',
     didnt:
-      'SDK 0.8.0 shipped a stale policy address, so every hire reverted with an undecodable selector until we diffed it against the reference implementation. We reported it — and the maintainers had already fixed it in 0.9.0 the day before. We upgraded; our workaround is now inert.',
+      'Funding alone is not delivery. Pokter waits for a seller acceptance and an on-chain submitted manifest before showing work as delivered.',
     report: {
       label: 'Reported, and already fixed · altana-sdk#84',
       href: 'https://github.com/altananetwork/altana-sdk/issues/84',
@@ -45,10 +45,11 @@ const OUTCOMES: {
   },
   {
     name: 'Agent delivery',
-    status: 'partial',
-    worked: 'Escrow funded and visible on-chain, awaiting the seller.',
+    status: 'working',
+    worked:
+      'Live job #1336 proves the full path: funded escrow, A2A notification, public canonical manifest, exact-byte receipt verification and buyer-signed settlement to COMPLETED.',
     didnt:
-      'Funded jobs sit unfulfilled: the seller runtime has no poller, and its endpoint is not discoverable in the registry, so we cannot notify it.',
+      'Third-party delivery still depends on each seller publishing a reachable runtime; Pokter never marks a merely funded job as delivered.',
   },
 ];
 
@@ -63,9 +64,9 @@ export function Transparency() {
           What worked, and what fought back.
         </h2>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Each integration is written up with the exact error it produced. A page
-          that lists only successes is a claim; one that names its failures is a
-          report.
+          Each integration is written up with the exact error it produced. A
+          page that lists only successes is a claim; one that names its failures
+          is a report.
         </p>
       </div>
 

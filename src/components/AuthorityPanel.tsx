@@ -67,9 +67,9 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
       </dl>
 
       <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-        Pokter never holds your funds and never signs on your behalf. Any
-        approval an agent needs is granted by you, in your own wallet, and can be
-        revoked there.
+        Altana session grants are signed by your passkey on this device; Pokter
+        never receives that key. The same passkey signs buyer-funded escrow;
+        browser wallets remain identity-only here.
       </p>
     </div>
   );

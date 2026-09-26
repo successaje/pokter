@@ -1,6 +1,6 @@
 import { createConfig, http } from 'wagmi';
 import { bsc, bscTestnet } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { injected } from 'wagmi/connectors/injected';
 
 /**
  * Wallet configuration.
