@@ -124,7 +124,7 @@ export function Footer() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] text-[color:var(--text-faint)]">
               <span className="flex items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1">
                 <span className="size-1.5 rounded-full bg-[color:var(--positive)]" />
-                {NETWORK_LABEL} · chain {CHAIN_ID}
+                Hiring: {NETWORK_LABEL} · chain {CHAIN_ID}
               </span>
               <span>ERC-8004 identity</span>
               <span aria-hidden>·</span>

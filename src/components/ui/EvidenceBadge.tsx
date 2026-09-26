@@ -32,10 +32,13 @@ export function EvidenceBadge({
   verdict,
   size = 'sm',
   className,
+  label,
 }: {
   verdict: Verdict;
   size?: 'sm' | 'md';
   className?: string;
+  /** Optional contextual wording; the verdict and colour remain unchanged. */
+  label?: string;
 }) {
   const state = STATES[verdict];
 
@@ -49,7 +52,7 @@ export function EvidenceBadge({
       )}
     >
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
-      {state.label}
+      {label ?? state.label}
     </span>
   );
 }

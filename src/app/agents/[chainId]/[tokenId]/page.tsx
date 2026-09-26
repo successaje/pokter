@@ -65,7 +65,8 @@ export default async function AgentPage({
   const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
-  const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
+  const meta =
+    category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   const answeredNow = live.ratio !== null && live.ratio > 0;
   const availability =
@@ -74,7 +75,10 @@ export default async function AgentPage({
       : `${((record.totalAnswered / record.totalProbes) * 100).toFixed(1)}% uptime`;
 
   const knownDefects = [
-    ...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects]),
+    ...new Set([
+      ...(live.method.knownDefects ?? []),
+      ...proof.disclosedDefects,
+    ]),
   ];
 
   return (
@@ -87,8 +91,22 @@ export default async function AgentPage({
       </Link>
 
       <header className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="flex min-w-0 max-w-2xl flex-col gap-3">
+        <div className="flex min-w-0 max-w-4xl items-start gap-4">
+          {agent.image_url && (
+            // Registry images can come from arbitrary publisher-controlled hosts,
+            // so they are displayed directly instead of passing through Pokter's
+            // image optimiser. A failed image never hides the agent identity.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={agent.image_url}
+              alt=""
+              width={72}
+              height={72}
+              referrerPolicy="no-referrer"
+              className="hidden size-[72px] shrink-0 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] object-cover sm:block"
+            />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
               {meta?.label ?? 'Unclassified'}
             </p>
@@ -108,28 +126,42 @@ export default async function AgentPage({
                 <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
                   Evidence
                 </span>
-                <EvidenceBadge verdict={proof.verdict} size="md" />
+                <EvidenceBadge
+                  verdict={proof.verdict}
+                  size="md"
+                  label={
+                    proof.verdict === 'proven'
+                      ? 'Historically proven'
+                      : undefined
+                  }
+                />
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
                   Right now
                 </span>
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-                style={{
-                  borderColor: answeredNow
-                    ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
-                    : 'color-mix(in srgb, var(--negative) 35%, transparent)',
-                  background: answeredNow ? 'var(--positive-dim)' : 'var(--negative-dim)',
-                  color: answeredNow ? 'var(--positive)' : 'var(--negative)',
-                }}
-              >
                 <span
-                  aria-hidden
-                  className={answeredNow ? 'live-dot size-1.5 rounded-full bg-current' : 'size-1.5 rounded-full bg-current'}
-                />
-                {answeredNow ? 'Answering' : 'Not responding'}
-              </span>
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                  style={{
+                    borderColor: answeredNow
+                      ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
+                      : 'color-mix(in srgb, var(--negative) 35%, transparent)',
+                    background: answeredNow
+                      ? 'var(--positive-dim)'
+                      : 'var(--negative-dim)',
+                    color: answeredNow ? 'var(--positive)' : 'var(--negative)',
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className={
+                      answeredNow
+                        ? 'live-dot size-1.5 rounded-full bg-current'
+                        : 'size-1.5 rounded-full bg-current'
+                    }
+                  />
+                  {answeredNow ? 'Live check passed' : 'Live check failed'}
+                </span>
               </span>
               <span className="mono text-[11px] text-[color:var(--text-faint)]">
                 #{agent.token_id} · chain {agent.chain_id}
@@ -137,9 +169,22 @@ export default async function AgentPage({
             </div>
 
             {agent.description && (
-              <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                {agent.description}
-              </p>
+              <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+                <summary className="cursor-pointer list-none">
+                  <span className="line-clamp-3 group-open:hidden">
+                    {agent.description}
+                  </span>
+                  <span className="mt-1.5 inline-flex text-[11px] font-medium text-[color:var(--text-muted)] group-open:hidden">
+                    Read full description ↓
+                  </span>
+                  <span className="hidden group-open:inline">
+                    {agent.description}
+                  </span>
+                  <span className="mt-1.5 hidden text-[11px] font-medium text-[color:var(--text-muted)] group-open:block">
+                    Show less ↑
+                  </span>
+                </summary>
+              </details>
             )}
 
             <dl className="mt-1 grid grid-cols-3 gap-2">
@@ -166,34 +211,11 @@ export default async function AgentPage({
                   Evidence
                 </dt>
                 <dd className="tabular mt-1 text-[11px] font-medium">
-                  {attestations.length} receipt{attestations.length === 1 ? '' : 's'}
+                  {attestations.length} receipt
+                  {attestations.length === 1 ? '' : 's'}
                 </dd>
               </div>
             </dl>
-          </div>
-
-          <div className="flex w-full max-w-xs flex-col gap-3">
-            <ScorePanel score={score} />
-            <Link
-              href={`/hire/${agent.chain_id}/${agent.token_id}`}
-              className={
-                proof.recommendedForHire && answeredNow
-                  ? 'action-primary w-full rounded-[var(--radius)] px-4 py-2 text-center text-[13px]'
-                  : 'w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
-              }
-            >
-              {proof.recommendedForHire && answeredNow
-                ? 'Hire agent'
-                : 'Review risks and hire'}
-            </Link>
-            {(!proof.recommendedForHire || !answeredNow) && (
-              <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
-                Not recommended:{' '}
-                {proof.recommendedForHire
-                  ? 'the current live probe failed.'
-                  : proof.rationale}
-              </p>
-            )}
           </div>
         </div>
 
@@ -202,99 +224,230 @@ export default async function AgentPage({
         </p>
       </header>
 
-      <nav
-        aria-label="Agent details"
-        className="sticky top-16 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
-      >
-        {[
-          ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
-          ['#trust', 'Trust'],
-          ['#performance', 'Performance'],
-          ['#live', 'Live proof'],
-          ['#receipts', 'Receipts'],
-          ['#permissions', 'Permissions'],
-        ].map(([href, label]) => (
-          <a
-            key={href}
-            href={href}
-            className="shrink-0 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-[11px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-10">
+        <div className="flex min-w-0 flex-col gap-10">
+          <nav
+            aria-label="Agent details"
+            className="sticky top-16 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
           >
-            {label}
-          </a>
-        ))}
-      </nav>
-
-      {agent.services?.a2a?.endpoint && (
-        <div id="try" className="scroll-mt-28">
-          <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
-        </div>
-      )}
-
-      <div id="trust" className="scroll-mt-28">
-        <TrustPanel dossier={dossier} explorerBase={explorerBase} />
-      </div>
-
-      <div id="performance" className="scroll-mt-28">
-        <PerformancePanel record={record} />
-      </div>
-
-      <div className="grid gap-12 lg:grid-cols-2">
-        <div id="live" className="scroll-mt-28">
-          <Section
-            title="Watch it work"
-            caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
-          >
-            <LivePanel live={live} />
-          </Section>
-        </div>
-
-        <Section
-          title="Track record"
-          caption="What repeated sweeps have accumulated, rather than a single sample."
-        >
-          <TrackRecordPanel record={record} />
-        </Section>
-
-        <div id="receipts" className="scroll-mt-28">
-          <Section
-            title="Receipts"
-            caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
-          >
-            <EvidencePanel attestations={attestations} />
-          </Section>
-        </div>
-
-        <div id="permissions" className="scroll-mt-28">
-          <Section
-            title="What hiring it would grant"
-            caption="Stated plainly, including what the registry does not disclose."
-          >
-            <AuthorityPanel agent={agent} />
-          </Section>
-        </div>
-      </div>
-
-      <Section
-        title="How the measurers could be wrong"
-        caption="Limitations disclosed by the measurers themselves, ours included."
-      >
-        {knownDefects.length === 0 ? (
-          <p className="text-xs text-[color:var(--text-faint)]">
-            No measurer has disclosed its limitations.
-          </p>
-        ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {knownDefects.map((defect) => (
-              <li
-                key={defect}
-                className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+            {[
+              ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
+              ['#trust', 'Trust'],
+              ['#performance', 'Performance'],
+              ['#live', 'Live proof'],
+              ['#receipts', 'Receipts'],
+              ['#permissions', 'Permissions'],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="shrink-0 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-[11px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
               >
-                {defect}
-              </li>
+                {label}
+              </a>
             ))}
-          </ul>
-        )}
-      </Section>
+          </nav>
+
+          {agent.services?.a2a?.endpoint && (
+            <div id="try" className="scroll-mt-28">
+              <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
+            </div>
+          )}
+
+          <div id="trust" className="scroll-mt-28">
+            <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+          </div>
+
+          <div id="performance" className="scroll-mt-28">
+            <PerformancePanel record={record} />
+          </div>
+
+          <div className="grid gap-12 xl:grid-cols-2">
+            <div id="live" className="scroll-mt-28">
+              <Section
+                title="Watch it work"
+                caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
+              >
+                <LivePanel live={live} />
+              </Section>
+            </div>
+
+            <Section
+              title="Track record"
+              caption="What repeated sweeps have accumulated, rather than a single sample."
+            >
+              <TrackRecordPanel record={record} />
+            </Section>
+
+            <div id="receipts" className="scroll-mt-28">
+              <Section
+                title="Receipts"
+                caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
+              >
+                <EvidencePanel attestations={attestations} />
+              </Section>
+            </div>
+
+            <div id="permissions" className="scroll-mt-28">
+              <Section
+                title="Permissions and spending limits"
+                caption="Stated plainly, including what the registry does not disclose."
+              >
+                <AuthorityPanel agent={agent} />
+              </Section>
+            </div>
+          </div>
+
+          <Section
+            title="How the measurers could be wrong"
+            caption="Limitations disclosed by the measurers themselves, ours included."
+          >
+            {knownDefects.length === 0 ? (
+              <p className="text-xs text-[color:var(--text-faint)]">
+                No measurer has disclosed its limitations.
+              </p>
+            ) : (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {knownDefects.map((defect) => (
+                  <li
+                    key={defect}
+                    className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+                  >
+                    {defect}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        </div>
+
+        <aside
+          className="sticky top-20 hidden flex-col gap-3 lg:flex"
+          aria-label="Hire this agent"
+        >
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(0,0,0,0.16)]">
+            <div className="border-b border-[color:var(--border)] p-4">
+              <p className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
+                Hire this agent
+              </p>
+              <h2 className="mt-1.5 text-lg font-medium tracking-tight">
+                Make an informed decision
+              </h2>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-px bg-[color:var(--border)]">
+              <div className="bg-[color:var(--surface)] p-3.5">
+                <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                  Price
+                </dt>
+                <dd className="mt-1 text-sm font-medium">0.10 $U</dd>
+              </div>
+              <div className="bg-[color:var(--surface)] p-3.5">
+                <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                  Protocol
+                </dt>
+                <dd className="mt-1 text-sm font-medium">ERC-8183</dd>
+              </div>
+            </dl>
+
+            <div className="flex flex-col gap-3 p-4">
+              <div className="flex items-start justify-between gap-4 text-xs">
+                <span className="text-[color:var(--text-muted)]">
+                  Historical evidence
+                </span>
+                <EvidenceBadge verdict={proof.verdict} />
+              </div>
+              <div className="flex items-start justify-between gap-4 text-xs">
+                <span className="text-[color:var(--text-muted)]">
+                  Current status
+                </span>
+                <span
+                  className={
+                    answeredNow
+                      ? 'text-[color:var(--positive)]'
+                      : 'text-[color:var(--negative)]'
+                  }
+                >
+                  {answeredNow ? 'Live check passed' : 'Live check failed'}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-4 text-xs">
+                <span className="text-[color:var(--text-muted)]">
+                  Observed availability
+                </span>
+                <span className="tabular text-right">{availability}</span>
+              </div>
+              <div className="flex items-start justify-between gap-4 text-xs">
+                <span className="text-[color:var(--text-muted)]">
+                  Spend ceiling
+                </span>
+                <span className="text-right text-[color:var(--caution)]">
+                  Set at approval
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-[color:var(--border)] p-4">
+              <Link
+                href={`/hire/${agent.chain_id}/${agent.token_id}`}
+                className={
+                  proof.recommendedForHire && answeredNow
+                    ? 'action-primary block w-full rounded-[var(--radius)] px-4 py-2.5 text-center text-[13px]'
+                    : 'block w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2.5 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
+                }
+              >
+                {proof.recommendedForHire && answeredNow
+                  ? 'Hire agent'
+                  : 'Review risks and hire'}
+              </Link>
+              {(!proof.recommendedForHire || !answeredNow) && (
+                <p className="mt-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
+                  {proof.recommendedForHire
+                    ? 'Strong historical evidence, but the latest live capability check failed.'
+                    : 'This agent requires explicit risk acceptance before it can be hired.'}
+                </p>
+              )}
+              <a
+                href="#permissions"
+                className="mt-3 block text-center text-[11px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
+              >
+                Review permissions and limits
+              </a>
+            </div>
+          </div>
+
+          <ScorePanel score={score} label="Evidence score" />
+        </aside>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-[3.25rem] z-30 border-t border-[color:var(--border-strong)] bg-[color:var(--bg)]/95 p-3 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md md:bottom-0 lg:hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium">0.10 $U · ERC-8183</p>
+            <p
+              className={
+                answeredNow
+                  ? 'truncate text-[10px] text-[color:var(--positive)]'
+                  : 'truncate text-[10px] text-[color:var(--negative)]'
+              }
+            >
+              {answeredNow ? 'Live check passed' : 'Live check failed'}
+            </p>
+          </div>
+          <Link
+            href={`/hire/${agent.chain_id}/${agent.token_id}`}
+            className={
+              proof.recommendedForHire && answeredNow
+                ? 'action-primary shrink-0 rounded-[var(--radius)] px-4 py-2 text-center text-xs'
+                : 'shrink-0 rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2 text-center text-xs font-medium text-[color:var(--caution)]'
+            }
+          >
+            {proof.recommendedForHire && answeredNow
+              ? 'Hire agent'
+              : 'Review & hire'}
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

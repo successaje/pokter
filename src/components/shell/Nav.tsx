@@ -81,7 +81,8 @@ export function Nav() {
               is the part that must always be legible, so it is the part that
               never moves.
             */}
-            <span className="hidden xl:inline">Agents chain 56 · </span>
+            <span className="hidden xl:inline">Agents: BSC mainnet · </span>
+            <span className="hidden sm:inline">Hiring: </span>
             {NETWORK_LABEL}
           </span>
           <ThemeToggle />

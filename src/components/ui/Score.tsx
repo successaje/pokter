@@ -44,7 +44,13 @@ export function ScoreBadge({
  * unexplained score is exactly the kind of authority this product exists to
  * argue against.
  */
-export function ScorePanel({ score }: { score: PokterScore }) {
+export function ScorePanel({
+  score,
+  label = 'Pokter Score',
+}: {
+  score: PokterScore;
+  label?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -56,7 +62,7 @@ export function ScorePanel({ score }: { score: PokterScore }) {
         className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
       >
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-[color:var(--text-muted)]">Pokter Score</span>
+          <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
           <span className="flex items-baseline gap-1.5">
             <span
               className="tabular text-3xl font-medium leading-none"
