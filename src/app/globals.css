@@ -235,20 +235,34 @@ body {
   }
 }
 
-/* `/app` is the installed product home, not another marketing page. These
-   selectors are route-scoped by the app marker and leave every website route
-   — including the entire desktop experience — exactly as rendered today. */
-body:has([data-pokter-app-home]) > header,
-body:has([data-pokter-app-home]) > footer,
-body:has([data-pokter-app-home]) > nav[aria-label='Primary navigation'] {
-  display: none;
-}
+/*
+ * `/app` is the installed product home, not another marketing page.
+ *
+ * Scoped to phone widths. The route is publicly reachable, so anyone can open
+ * it on a desktop — and there it was replacing a header carrying six
+ * navigation links with one carrying a wordmark and nothing else, which left
+ * a page with no way out of itself. On a wide screen the ordinary site chrome
+ * is the right chrome, and the app shell stands down.
+ */
+@media (max-width: 767px) {
+  /*
+   * The tab bar deliberately stays. Hiding it here left /app with no
+   * navigation at all once MobileAppHome's duplicate bar was removed —
+   * undoing the consistency fix it was part of. The app shell replaces the
+   * site header and footer; it does not replace the way out of a page.
+   */
+  body:has([data-pokter-app-home]) > header,
+  body:has([data-pokter-app-home]) > footer {
+    display: none;
+  }
 
-body:has([data-pokter-app-home]) > main {
-  width: 100%;
-  max-width: none;
-  min-height: 100svh;
-  padding: 0;
+  body:has([data-pokter-app-home]) > main {
+    width: 100%;
+    max-width: none;
+    min-height: 100svh;
+    /* Room for the floated tab bar, which now shows here too. */
+    padding: 0 0 calc(5.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 .app-safe-top {

@@ -67,7 +67,9 @@ export function MobileAppHome() {
 
   return (
     <div data-pokter-app-home className="app-home mx-auto min-h-[100svh] w-full max-w-[520px] bg-[color:var(--bg)]">
-      <header className="app-safe-top sticky top-0 z-30 flex h-[4.5rem] items-end justify-between border-b border-[color:var(--border)] bg-[color:var(--bg)]/92 px-5 pb-3 backdrop-blur-xl">
+      {/* Phone chrome only. Above 768px the site header is visible again and
+          two stacked headers would be worse than none. */}
+      <header className="app-safe-top sticky top-0 z-30 flex h-[4.5rem] items-end justify-between border-b border-[color:var(--border)] bg-[color:var(--bg)]/92 px-5 pb-3 backdrop-blur-xl md:hidden">
         <Link href="/app" aria-label="Pokter app home"><Wordmark size={24} /></Link>
         <ConnectWallet />
       </header>
