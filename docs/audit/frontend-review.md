@@ -6,11 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 18**
+**Date:** 26 September 2026 · **Findings: 19** · FE-01 and FE-02 fixed
 
 | Severity | Count |
 | --- | --- |
-| Blocking for the campaign | 3 |
+| Blocking for the campaign | 1 |
+| Fixed | 2 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -20,7 +21,7 @@ finding names the page it was seen on.
 ## Blocking for the campaign
 
 ### FE-01 · A blocked hire is a dead end
-**Page:** `/hire/[chain]/[token]` · **Seen on:** Beefy powered by HeyAnon
+**Status: Fixed** · **Page:** `/hire/[chain]/[token]`
 
 When an agent fails its live probe the page renders a red notice and then
 roughly two thirds of empty viewport. No alternatives, no link back to the
@@ -31,11 +32,17 @@ sent here by that quest has no next step on Pokter and will go and finish the
 leg on another shortlisted marketplace. This is the single highest-cost screen
 in the product right now.
 
-**Fix.** Offer the same category's passing agents inline, ranked. The refusal
-is right; the dead end is not.
+**Fixed.** The blocked page now lists same-category agents with a record of
+answering, ranked by the share of probes they answered, with an explicit empty
+state when the category has none.
+
+Built from the category listing and the local probe record only. Resolving a
+dossier per candidate would mean a live probe each, which turns a dead end
+into a slow dead end. The heading therefore says agents that *have been*
+answering rather than implying a promise about this second.
 
 ### FE-02 · The permission stage is fully interactive and does nothing
-**Page:** `/hire/[chain]/[token]`
+**Status: Fixed** · **Page:** `/hire/[chain]/[token]`
 
 Stage 1 renders a spend-limit field, day/week/month selector and a 1/7/30-day
 expiry picker — then, below them, *"Delegated access is paused… No wallet
@@ -45,8 +52,13 @@ A user configures a cap and an expiry that cannot be used. The pause is correct
 (POK-023), but presenting a live control above the notice that voids it is the
 kind of thing a judge reads as broken rather than careful.
 
-**Fix.** Collapse the controls behind the paused state, or disable them
-visibly, so the notice governs what is above it rather than contradicting it.
+**Fixed.** The notice moved above the controls and now governs them, and the
+block below is labelled *Preview · what a session would grant*. The controls
+stay visible because what a session *would* grant is the most useful thing on
+the page — they simply no longer look like a decision waiting to be made.
+
+The copy also points at the path that does work: step 2 pays for a single job
+and never touches standing authority.
 
 ### FE-03 · The network is not stated on mobile
 **Page:** all, mobile header
@@ -153,6 +165,23 @@ agents most rows tie, so nothing highlights and the promise reads as broken.
 The copy mentions recovering a job by ID, but the control only appears once a
 passkey is connected. Disconnected visitors are told about something they
 cannot see.
+
+---
+
+### FE-19 · Alternatives can be three near-identical clones
+**Page:** `/hire/[chain]/[token]` · **found by fixing FE-01**
+
+The first live render offered BORT Yield Weaver #10997, #10967 and #10937 —
+the same family three times. Technically three distinct registry entries with
+strong records, but not three choices.
+
+`collapseClones` runs on the category listing and did not group these, so
+their descriptions must differ enough to pass it. Offering variety matters
+more here than in a list, because this is the screen where a user has already
+been refused once.
+
+**Fix.** Prefer distinct publishers when selecting alternatives, falling back
+to the ranked order only when there are not enough.
 
 ---
 

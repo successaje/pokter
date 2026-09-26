@@ -7,6 +7,8 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { summarise } from '@/lib/altana/permissions';
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { wbnbUsdPrice } from '@/lib/pancakeswap/pool';
+import { hirableAlternatives } from '@/lib/marketplace';
+import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
@@ -115,16 +117,31 @@ export default async function HirePage({
       </header>
 
       {!proof.hirable || !answeredNow ? (
-        <section className="rounded-[var(--radius-lg)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-5">
-          <h2 className="text-sm font-medium text-[color:var(--negative)]">
-            Hiring is blocked
-          </h2>
-          <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            {!proof.hirable
-              ? proof.rationale
-              : 'This agent did not answer Pokter’s live protocol probe. Hiring stays blocked until it responds again.'}
-          </p>
-        </section>
+        /*
+          FE-01. The refusal, and then somewhere to go. This page used to end
+          here, which sends a visitor who needs this category to finish it on
+          another marketplace.
+        */
+        <div className="flex flex-col gap-8">
+          <section className="rounded-[var(--radius-lg)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-5">
+            <h2 className="text-sm font-medium text-[color:var(--negative)]">
+              Hiring is blocked
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+              {!proof.hirable
+                ? proof.rationale
+                : 'This agent did not answer Pokter’s live protocol probe. Hiring stays blocked until it responds again.'}
+            </p>
+          </section>
+
+          <Alternatives
+            alternatives={await hirableAlternatives(
+              category === 'unclassified' ? 'health-factor' : category,
+              tokenId,
+            )}
+            category={category === 'unclassified' ? 'health-factor' : category}
+          />
+        </div>
       ) : (
         <div className="flex flex-col gap-8">
           <WalletReadiness requiredBudgetU={0.1} />

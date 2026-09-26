@@ -378,3 +378,62 @@ export async function loadDossier(
     return { state: 'unreachable' };
   }
 }
+
+/** A same-category agent offered when the requested one cannot be hired. */
+export interface Alternative {
+  listing: Listing;
+  verdict: ProofSummary['verdict'];
+  answered: number;
+  probes: number;
+}
+
+/**
+ * Agents in the same category that are worth trying instead.
+ *
+ * FE-01. A blocked hire used to end in an empty screen, which sends a quest
+ * user to finish the category on somebody else's marketplace. Refusing the
+ * hire is right; offering nothing after it is not.
+ *
+ * Deliberately built from the category listing and the local probe record
+ * only. Resolving a full dossier per candidate would mean a live probe each,
+ * turning a dead end into a slow dead end. The trade is that these are agents
+ * that have been answering, not agents guaranteed to answer this second — so
+ * the UI says "recently" rather than implying a promise.
+ */
+export async function hirableAlternatives(
+  category: Category,
+  excludeTokenId: string,
+  limit = 3,
+): Promise<Alternative[]> {
+  const listings = await listCategory(category, { limit: 12 });
+  const store = getProbeStore();
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+
+  return listings
+    .filter((listing) => listing.agent.token_id !== excludeTokenId)
+    .map((listing) => {
+      const history = store.historyFor(
+        listing.agent.chain_id,
+        listing.agent.token_id,
+        since,
+      );
+      const answered = history.filter((probe) => probe.ok).length;
+      const sweep = toSweepAttestation(buildTrackRecord(history), {
+        agentId: listing.agent.id,
+        chainId: listing.agent.chain_id,
+      });
+      return {
+        listing,
+        verdict: summariseProof(sweep ? [sweep] : []).verdict,
+        answered,
+        probes: history.length,
+      };
+    })
+    // Only agents with a record of answering. An alternative that has never
+    // responded is the problem being solved, not a way out of it.
+    .filter((entry) => entry.probes > 0 && entry.answered > 0)
+    .sort(
+      (a, b) => b.answered / b.probes - a.answered / a.probes || b.probes - a.probes,
+    )
+    .slice(0, limit);
+}

@@ -43,6 +43,32 @@ export function PermissionReview({
         </p>
       )}
 
+      {/*
+        FE-02. This used to sit below the controls, so a visitor configured a
+        spend cap and an expiry and only then learned that nothing would be
+        created. The notice now comes first and reframes everything under it
+        as a preview rather than a form — the controls stay visible because
+        what a session *would* grant is the most useful thing on the page,
+        but they no longer look like a decision waiting to be made.
+      */}
+      <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
+        <h3 className="text-base font-medium text-[color:var(--caution)]">
+          Delegated access is paused
+        </h3>
+        <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          {summary.delegationBlockedReason} Nothing below can be granted right
+          now. You can still commission escrowed work in step 2, which pays for
+          a single job and never touches your wallet&apos;s standing authority.
+        </p>
+        <p className="w-fit rounded-full border border-[color:var(--caution)]/40 px-3 py-1.5 text-[11px] font-medium text-[color:var(--caution)]">
+          No wallet permission will be created
+        </p>
+      </section>
+
+      <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-faint)]">
+        Preview · what a session would grant
+      </p>
+
       <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
         <h3 className="border-b border-[color:var(--border)] px-4 py-3 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
           Agent permissions
@@ -184,17 +210,6 @@ export function PermissionReview({
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5">
-        <h3 className="text-base font-medium">Delegated access is paused.</h3>
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          {summary.delegationBlockedReason} You can still commission escrowed
-          work without granting standing access to your wallet.
-        </p>
-
-        <p className="w-fit rounded-full border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-3 py-1.5 text-[11px] font-medium text-[color:var(--caution)]">
-          No wallet permission will be created
-        </p>
-      </section>
     </div>
   );
 }
