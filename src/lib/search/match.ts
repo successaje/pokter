@@ -139,3 +139,23 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
 export function matchesQuery(agent: SearchableAgent, query: ParsedQuery): boolean {
   return query.qualifiers.every((q) => matchesQualifier(agent, q));
 }
+
+/**
+ * Whether a listing may offer Hire directly, without a detour through the
+ * detail page.
+ *
+ * One definition, used by the discover rows, the marketplace cards and the
+ * detail page, so the three cannot disagree about who is hireable. A button
+ * that leads straight to a refusal is worse than no button, so this is
+ * deliberately conservative.
+ *
+ * It reads the accumulated record rather than probing live: a list view would
+ * otherwise cost one outbound request per card. The hire page still runs its
+ * own live check and offers alternatives when that fails, so the worst case
+ * is a redirect rather than a dead end.
+ */
+export function offersDirectHire(entry: SearchableAgent): boolean {
+  const verdict = verdictFor(entry);
+  if (verdict !== 'proven' && verdict !== 'emerging') return false;
+  return entry.record.totalProbes > 0 && entry.record.totalAnswered > 0;
+}

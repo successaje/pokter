@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { listSearchable } from '@/lib/marketplace';
 import { parseQuery } from '@/lib/search/query';
-import { matchesQuery, verdictFor } from '@/lib/search/match';
+import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 import { AgentSearch } from '@/components/search/AgentSearch';
 
@@ -98,6 +98,7 @@ export default async function AgentsPage({
                       key={entry.listing.agent.token_id}
                       listing={entry.listing}
                       verdict={verdictFor(entry)}
+                      hirable={offersDirectHire(entry)}
                     />
                   ))}
                 </div>

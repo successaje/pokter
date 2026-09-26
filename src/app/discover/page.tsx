@@ -10,7 +10,7 @@ import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { listSearchable } from '@/lib/marketplace';
-import { verdictFor } from '@/lib/search/match';
+import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 
@@ -188,20 +188,6 @@ async function Results({ brief }: { brief: Brief }) {
   );
 }
 
-/**
- * Whether a row can offer Hire without sending someone to a refusal.
- *
- * Uses the accumulated record rather than a live probe: probing every row
- * would cost one outbound request per agent on a list view. The hire page
- * still runs its own live check, and now offers alternatives when that fails,
- * so the worst case is a redirect rather than a dead end.
- */
-function hireableFromRow(entry: Parameters<typeof verdictFor>[0]): boolean {
-  const verdict = verdictFor(entry);
-  if (verdict !== 'proven' && verdict !== 'emerging') return false;
-  return entry.record.totalProbes > 0 && entry.record.totalAnswered > 0;
-}
-
 export default async function DiscoverPage({
   searchParams,
 }: {
@@ -327,7 +313,7 @@ export default async function DiscoverPage({
                     no button, so unproven and failing agents keep the chevron
                     and nothing else.
                   */}
-                  {hireableFromRow(entry) ? (
+                  {offersDirectHire(entry) ? (
                     <Link
                       href={`/hire/${agent.chain_id}/${agent.token_id}`}
                       className="action-primary shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-medium"

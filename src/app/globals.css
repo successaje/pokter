@@ -679,3 +679,21 @@ body {
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }
 }
+
+/*
+ * The detail page's hire bar, kept clear of the floated tab bar.
+ *
+ * A class rather than an inline style, because the offset has to change at
+ * the breakpoint where the tab bar disappears — and an inline `bottom` would
+ * win over any `md:bottom-0` utility and quietly strand the bar mid-screen on
+ * a tablet.
+ */
+.hire-action-bar {
+  bottom: calc(4.75rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .hire-action-bar {
+    bottom: 0;
+  }
+}

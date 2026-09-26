@@ -17,18 +17,22 @@ import { EvidenceBadge } from './ui/EvidenceBadge';
 export function AgentCard({
   listing,
   verdict,
+  hirable = false,
 }: {
   listing: Listing;
   verdict: Verdict;
+  /** Offer Hire on the card itself. See `offersDirectHire`. */
+  hirable?: boolean;
 }) {
   const { agent, attestationCount } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
   const protocols = agent.supported_protocols ?? [];
 
   return (
+    <div className="group flex h-full flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]">
     <Link
       href={`/agents/${agent.chain_id}/${agent.token_id}`}
-      className="group flex h-full flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]"
+      className="flex flex-1 flex-col gap-3 p-4"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -75,5 +79,25 @@ export function AgentCard({
         </div>
       </dl>
     </Link>
+
+      {/*
+        Hire from the list, where the decision is actually being made. Browsing
+        used to mean card → detail → hire, and the detail page's own button sat
+        at the fold on a phone, so the action was effectively hidden twice.
+
+        Shown only where the record supports it; everything else keeps the card
+        exactly as it was.
+      */}
+      {hirable && (
+        <div className="border-t border-[color:var(--border)] px-4 py-3">
+          <Link
+            href={`/hire/${agent.chain_id}/${agent.token_id}`}
+            className="action-primary flex w-full items-center justify-center rounded-[var(--radius)] px-3 py-2 text-[12px] font-medium"
+          >
+            Hire {meta?.label ? '' : ''}agent
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

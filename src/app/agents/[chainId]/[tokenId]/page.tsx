@@ -410,7 +410,16 @@ export default async function AgentPage({
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[3.25rem] z-30 border-t border-[color:var(--border-strong)] bg-[color:var(--bg)]/95 p-3 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md md:bottom-0 lg:hidden">
+      {/*
+        Sits above the floated tab bar. The old `bottom-[3.25rem]` was measured
+        against a tab bar attached to the edge; once that bar lifted off the
+        canvas the two overlapped, and the primary action on the page ended up
+        underneath the navigation — present in the DOM, tappable by a couple of
+        pixels, and invisible to anyone actually looking for it.
+
+        Above `md` the tab bar is hidden, so this returns to the edge.
+      */}
+      <div className="hire-action-bar fixed inset-x-0 z-30 border-t border-[color:var(--border-strong)] bg-[color:var(--bg)]/95 p-3 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium">0.10 $U · ERC-8183</p>

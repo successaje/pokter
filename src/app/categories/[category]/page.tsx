@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { listCategorySearchable } from '@/lib/marketplace';
-import { verdictFor } from '@/lib/search/match';
+import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 
 /**
@@ -128,6 +128,7 @@ export default async function CategoryPage({
               key={entry.listing.agent.token_id}
               listing={entry.listing}
               verdict={verdictFor(entry)}
+              hirable={offersDirectHire(entry)}
             />
           ))}
         </div>
