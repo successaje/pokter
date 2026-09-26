@@ -149,8 +149,6 @@ async function Results({ brief }: { brief: Brief }) {
         </div>
       )}
 
-      <WhyNot rejected={result.rejected} />
-
       {result.alternatives.length > 0 && (
         <div className="flex flex-col gap-4">
           <h3 className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
@@ -164,6 +162,7 @@ async function Results({ brief }: { brief: Brief }) {
         </div>
       )}
 
+      <WhyNot rejected={result.rejected} />
 
       {/* §82 / §98. State the blind spots rather than implying there are none. */}
       <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
