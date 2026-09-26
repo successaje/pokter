@@ -149,7 +149,7 @@ testnet.
 
 ### POK-027 · Clearing one browser can orphan Pokter's view of funded jobs
 
-**Severity: High · Status: Open · Recovery blocker**
+**Severity: High · Status: Partially fixed; automatic indexing open**
 
 Buyer jobs and their ERC-8004 attribution are stored only in local storage.
 There is no chain-derived “my jobs” index. A cleared profile, new device or
@@ -163,6 +163,12 @@ Treat local storage as a cache only. Provide import-by-job-ID as a fallback.
 **Acceptance test.** Fund a job, clear all Pokter site data, recover the passkey
 on a supported device/profile, and still discover, review, dispute or settle
 the job without manually editing storage.
+
+**Fallback recovery fix.** “Your agents” now imports a job by ERC-8183 job ID,
+refuses it unless the connected passkey wallet is the on-chain client, reads
+authoritative job fields from the kernel, and restores review/dispute/settle
+controls. New versioned descriptions also restore the original task and
+ERC-8004 token ID. Automatic event-derived discovery remains open.
 
 ### POK-028 · Authorization and hiring are independent ceremonies
 

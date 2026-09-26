@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { SessionCard } from '@/components/jobs/SessionCard';
@@ -9,10 +9,18 @@ import {
   noSessions,
   jobsForWallet,
   noJobs,
+  rememberJob,
   sessionsForWallet,
   subscribeToJobs,
   subscribeToSessions,
 } from '@/lib/wallet/activity';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
+import {
+  getErc8183DeliverableUrl,
+  getErc8183Job,
+} from '@altananetwork/sdk';
 import type { SessionView, SessionState } from '@/lib/altana/session';
 import type { GrantedSession } from '@/lib/altana/types';
 
@@ -35,6 +43,9 @@ function toView(stored: GrantedSession[]): SessionView[] {
 
 export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
   const { wallet } = usePasskeyWallet();
+  const [importId, setImportId] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const getSnapshot = useCallback(
     () => (wallet ? sessionsForWallet(wallet.address) : noSessions()),
     [wallet],
@@ -47,19 +58,69 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
   );
   const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot, noJobs);
 
+  const importJob = async () => {
+    if (!wallet || !/^\d+$/.test(importId)) {
+      setImportError('Enter a numeric ERC-8183 job ID.');
+      return;
+    }
+    setImporting(true);
+    setImportError(null);
+    try {
+      const jobId = BigInt(importId);
+      const onchain = await getErc8183Job(WALLET_NETWORK, jobId);
+      if (onchain.client.toLowerCase() !== wallet.address.toLowerCase()) {
+        throw new Error('This passkey wallet is not the client for that job.');
+      }
+      const envelope = decodePokterJobEnvelope(onchain.description);
+      if (
+        envelope &&
+        envelope.provider.toLowerCase() !== onchain.provider.toLowerCase()
+      ) {
+        throw new Error('The committed provider does not match the escrow job.');
+      }
+      const deliverableUrl =
+        onchain.statusName === 'SUBMITTED' ||
+        onchain.statusName === 'COMPLETED'
+          ? (await getErc8183DeliverableUrl(WALLET_NETWORK, jobId).catch(
+              () => undefined,
+            )) ?? null
+          : null;
+      const now = new Date().toISOString();
+      const recovered: HiredJob = {
+        id: `${WALLET_NETWORK.chainId}:${importId}`,
+        jobId: importId,
+        chainId: WALLET_NETWORK.chainId,
+        isTestnet: WALLET_NETWORK.chainId === 97,
+        agentTokenId: envelope?.identity.tokenId ?? 'unknown',
+        agentName: envelope
+          ? `ERC-8004 agent #${envelope.identity.tokenId}`
+          : `Recovered job #${importId}`,
+        provider: onchain.provider,
+        task: envelope?.task ?? onchain.description,
+        budgetRaw: onchain.budget.toString(),
+        expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
+        hiredAt: now,
+        hireTxHash: null,
+        status: onchain.statusName as JobStatusName,
+        statusCheckedAt: now,
+        deliverableUrl,
+        settleTxHash: null,
+        disputeTxHash: null,
+      };
+      rememberJob(wallet.address, recovered);
+      setImportId('');
+    } catch (error) {
+      setImportError((error as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (!wallet) {
     return (
       <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs leading-relaxed text-[color:var(--text-faint)]">
         Connect the passkey wallet that created your sessions. Activity is read
         from this device only and is never taken from another visitor&apos;s server data.
-      </p>
-    );
-  }
-
-  if (sessions.length === 0 && jobs.length === 0) {
-    return (
-      <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs leading-relaxed text-[color:var(--text-faint)]">
-        This passkey wallet has no sessions or jobs recorded on this device yet.
       </p>
     );
   }
@@ -94,6 +155,38 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
         ) : (
           <p className="text-xs text-[color:var(--text-faint)]">No device-local jobs.</p>
         )}
+
+        <div className="flex max-w-xl flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+          <h4 className="text-sm font-medium">Recover an on-chain job</h4>
+          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            Enter its ERC-8183 job ID. Pokter will import it only when the
+            connected passkey wallet is the job&apos;s on-chain client.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={importId}
+              onChange={(event) => setImportId(event.target.value.trim())}
+              placeholder="Job ID"
+              aria-label="ERC-8183 job ID"
+              className="mono w-36 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 py-2 text-[12px]"
+            />
+            <button
+              type="button"
+              onClick={importJob}
+              disabled={importing || !/^\d+$/.test(importId)}
+              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+            >
+              {importing ? 'Reading chain…' : 'Import job'}
+            </button>
+          </div>
+          {importError && (
+            <p className="text-[11px] leading-relaxed text-[color:var(--negative)]">
+              {importError}
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

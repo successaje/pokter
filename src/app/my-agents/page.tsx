@@ -17,8 +17,8 @@ export default function MyAgentsPage() {
           Your agents
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Sessions created by your passkey wallet and stored only on this
-          device. Pokter never mixes this list with another visitor&apos;s activity.
+          Activity for your passkey wallet. Local records stay on this device;
+          escrowed jobs can also be recovered directly from chain by job ID.
         </p>
       </header>
 
@@ -34,7 +34,8 @@ export default function MyAgentsPage() {
 
       <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
         Clearing browser storage removes this local index but does not change
-        on-chain permissions or escrow. Keep transaction receipts as your durable record.{' '}
+        on-chain permissions or escrow. Reconnect the client passkey and import
+        the job ID from your transaction receipt to recover its controls.{' '}
         <Link href="/agents" className="text-[color:var(--info)] underline decoration-dotted">
           Browse verified agents
         </Link>

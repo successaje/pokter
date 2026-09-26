@@ -93,7 +93,15 @@ export function noJobs(): HiredJob[] {
 }
 
 export function rememberJob(walletAddress: string, job: HiredJob): void {
-  const jobs = readJobs().filter((entry) => entry.job.id !== job.id);
+  const jobs = readJobs().filter(
+    (entry) =>
+      entry.job.id !== job.id &&
+      !(
+        entry.walletAddress.toLowerCase() === walletAddress.toLowerCase() &&
+        entry.job.chainId === job.chainId &&
+        entry.job.jobId === job.jobId
+      ),
+  );
   writeJobs([{ walletAddress, job }, ...jobs]);
 }
 
