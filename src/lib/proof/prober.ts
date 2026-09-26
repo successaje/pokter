@@ -2,6 +2,7 @@ import 'server-only';
 
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { Agent } from 'undici';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { AttestationMethod } from './attestation';
@@ -125,7 +126,26 @@ function isPrivateAddress(address: string): boolean {
 }
 
 /** Reject local, credential-bearing and non-HTTPS probe targets before fetch. */
-export async function assertPublicEndpoint(endpoint: string): Promise<URL> {
+/**
+ * A validated endpoint, and the only way to call it.
+ *
+ * POK-008. Resolving, checking, then letting `fetch` resolve again leaves a
+ * window: a host can answer with a public address on the first lookup and a
+ * private one on the second, and the check protects nothing.
+ *
+ * The connection is pinned to the address that was inspected. `fetch` is
+ * exposed as a method rather than the dispatcher as a field on purpose — a
+ * caller who reached for `.url` and a bare `fetch` would silently reopen the
+ * window, and this way the pin cannot be dropped by accident.
+ */
+export interface PinnedEndpoint {
+  url: URL;
+  fetch(init?: RequestInit): Promise<Response>;
+}
+
+export async function assertPublicEndpoint(
+  endpoint: string,
+): Promise<PinnedEndpoint> {
   const url = new URL(endpoint);
   if (url.protocol !== 'https:' || url.username || url.password) {
     throw new Error('Only public HTTPS endpoints without embedded credentials are probed');
@@ -149,7 +169,27 @@ export async function assertPublicEndpoint(endpoint: string): Promise<URL> {
   if (addresses.length === 0 || addresses.some(isPrivateAddress)) {
     throw new Error('Endpoint resolves to a private or reserved network');
   }
-  return url;
+
+  const [pinned] = addresses;
+  const dispatcher = new Agent({
+    connect: {
+      // Hand back the address already checked instead of resolving again.
+      lookup: (_hostname, options, callback) => {
+        const family = isIP(pinned);
+        if (options.all) {
+          callback(null, [{ address: pinned, family }] as never);
+          return;
+        }
+        callback(null, pinned as never, family as never);
+      },
+    },
+  });
+
+  return {
+    url,
+    fetch: (init?: RequestInit) =>
+      fetch(url, { ...init, dispatcher } as RequestInit),
+  };
 }
 
 export async function readJson(response: Response): Promise<unknown> {
@@ -217,8 +257,8 @@ async function probeOnce(
   const at = new Date().toISOString();
 
   try {
-    const url = await assertPublicEndpoint(endpoint);
-    const response = await fetch(url, {
+    const endpointHandle = await assertPublicEndpoint(endpoint);
+    const response = await endpointHandle.fetch({
       method: protocol === 'mcp' ? 'POST' : 'GET',
       headers:
         protocol === 'mcp'

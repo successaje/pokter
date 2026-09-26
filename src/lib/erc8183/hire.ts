@@ -124,7 +124,7 @@ export async function paymentTokenBalance(wallet: Address): Promise<string> {
  */
 export async function hireAgent(input: HireInput): Promise<HiredJob> {
   const client = altanaClient();
-  const signer = adminSigner();
+  const signer = adminSigner('legacy-hire');
   const wallet = await client.createWallet({ signer });
 
   const budget = parseUnits(String(input.budgetU), 18);
@@ -248,7 +248,7 @@ export async function settleJob(
   if (!existing) throw new Error(`No job ${id}`);
 
   const client = altanaClient();
-  const signer = adminSigner();
+  const signer = adminSigner('legacy-hire');
   const wallet = await client.createWallet({ signer });
 
   const result = await settleErc8183Job(

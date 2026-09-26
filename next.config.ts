@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
    * both resolve native or Node-builtin modules that a bundler cannot inline,
    * and bundling them produces a build that only fails at runtime.
    */
-  serverExternalPackages: ['@altananetwork/sdk', 'node:sqlite'],
+  serverExternalPackages: ['@altananetwork/sdk', 'node:sqlite', 'undici'],
 
   /*
    * The monorepo root is ambiguous here — a stray lockfile sits above this

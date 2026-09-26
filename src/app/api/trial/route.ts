@@ -82,8 +82,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const cardUrl = await assertPublicEndpoint(endpoint);
-    const cardResponse = await fetch(cardUrl, {
+    const cardEndpoint = await assertPublicEndpoint(endpoint);
+    const cardResponse = await cardEndpoint.fetch({
       headers: { accept: 'application/json' },
       cache: 'no-store',
       redirect: 'error',
@@ -109,9 +109,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const url = await assertPublicEndpoint(card.url);
+    const service = await assertPublicEndpoint(card.url);
     const startedAt = Date.now();
-    const response = await fetch(url, {
+    const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -167,7 +167,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({
       receipt: data,
       latencyMs: Date.now() - startedAt,
-      endpoint: url.origin,
+      endpoint: service.url.origin,
       observedAt: new Date().toISOString(),
       disclaimer:
         'This proves the agent negotiated over A2A. It does not prove investment performance or execute a transaction.',

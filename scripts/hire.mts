@@ -23,7 +23,7 @@ const TASK =
 
 const BUDGET = Number(process.env.HIRE_BUDGET ?? 0.1);
 
-const wallet = await altanaClient().createWallet({ signer: adminSigner() });
+const wallet = await altanaClient().createWallet({ signer: adminSigner('legacy-hire') });
 const balance = await paymentTokenBalance(wallet.address);
 
 console.log(`wallet  : ${wallet.address}`);

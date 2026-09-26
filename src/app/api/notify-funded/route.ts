@@ -119,8 +119,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 409 },
       );
     }
-    const cardUrl = await assertPublicEndpoint(cardEndpoint);
-    const cardResponse = await fetch(cardUrl, {
+    const card_ = await assertPublicEndpoint(cardEndpoint);
+    const cardResponse = await card_.fetch({
       headers: { accept: 'application/json' },
       cache: 'no-store',
       redirect: 'error',
@@ -140,8 +140,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const serviceUrl = await assertPublicEndpoint(card.url);
-    const response = await fetch(serviceUrl, {
+    const service = await assertPublicEndpoint(card.url);
+    const response = await service.fetch({
       method: 'POST',
       headers: {
         'content-type': 'application/json',

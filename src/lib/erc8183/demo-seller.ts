@@ -8,34 +8,14 @@ import {
 } from '@altananetwork/sdk';
 import type { Address } from 'viem';
 
-import { adminSigner, ALTANA_NETWORK, IS_TESTNET, altanaClient } from '@/lib/altana/client';
+import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
+import { assertTestnetOnly } from '@/lib/erc8183/demo-guard';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
   readDeliverable,
   writeDeliverable,
   type StoredDeliverable,
 } from '@/lib/erc8183/deliverables';
-
-/**
- * The demo seller is a testnet fixture and must never run anywhere else.
- *
- * It accepts a funded job, submits a canned manifest and takes the escrow. On
- * testnet that proves the lifecycle end to end. On mainnet it would charge a
- * real buyer real money for a deliverable written in advance, which is
- * indefensible at any price.
- *
- * Refusing at the entry point rather than at submission means the failure
- * surfaces before a job is funded, not after someone has already paid.
- */
-function assertTestnetOnly(): void {
-  if (!IS_TESTNET) {
-    throw new Error(
-      'The demo seller is testnet-only and will not run on mainnet. It returns a ' +
-        'prepared deliverable, so charging a real buyer for it is not something ' +
-        'this code is permitted to do.',
-    );
-  }
-}
 
 const inFlight = new Map<string, Promise<DemoDeliveryResult>>();
 let sellerAddressPromise: Promise<Address> | undefined;
@@ -50,7 +30,7 @@ export interface DemoDeliveryResult {
 export async function demoSellerAddress(): Promise<Address> {
   assertTestnetOnly();
   sellerAddressPromise ??= altanaClient()
-    .createWallet({ signer: adminSigner() })
+    .createWallet({ signer: adminSigner('demo-seller') })
     .then((wallet) => wallet.address)
     .catch((error) => {
       sellerAddressPromise = undefined;
@@ -89,7 +69,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
   if (id > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('Job id exceeds the supported manifest range.');
   }
-  const signer = adminSigner();
+  const signer = adminSigner('demo-seller');
   const wallet = await altanaClient().createWallet({ signer });
   const job = await getErc8183Job(ALTANA_NETWORK, id);
   if (job.provider.toLowerCase() !== wallet.address.toLowerCase()) {

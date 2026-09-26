@@ -16,14 +16,15 @@ both chains. Findings marked *Verified* were executed, not reasoned about.
 | --- | --- | --- | --- | --- |
 | Critical | 0 | 5 | 0 | — |
 | High | 0 | 3 | 0 | — |
-| Medium | 3 | 0 | 0 | — |
+| Medium | 0 | 3 | 0 | — |
 | Scoped (swap) | 0 | 5 | 1 | — |
 | Info | — | — | — | 5 |
 
-**Criticals and Highs are closed.** Three Medium findings remain, and the
-*Not examined* list below is unchanged — which is what still blocks a
-migration, since it includes the third-party contracts the enforcement claim
-rests on and whether mainnet `$U` can be obtained at all.
+**Every raised finding is closed**, one of them Accepted with its reasoning
+recorded. What still blocks migration is the *Not examined* list — chiefly the
+third-party contracts the enforcement claim rests on — and the fact that the
+integrated swap-and-hire path has not yet been run end to end with a funded
+mainnet wallet.
 
 All four Criticals had one cause — the interface described testnet while the
 money would be real — and are fixed at the root rather than per site:
@@ -161,7 +162,7 @@ shared store and this deployment has one machine.
 ## Medium
 
 ### POK-016 · Mainnet guards cannot be exercised in isolation
-**Status: Open**
+**Status: Fixed** · the guard no longer drags the SDK in
 
 `altana-sdk#88` makes the SDK unresolvable under `--conditions=react-server`,
 which is the condition `server-only` modules need. So a script can import the
@@ -172,12 +173,17 @@ The guard is three lines and its condition is a single boolean, so confidence
 is reasonable — but "verified by reading" is not what this register means by
 verified, and the gap is recorded rather than glossed.
 
-**Remediation.** Resolves itself when #88 is fixed upstream. Until then, cover
-it with an end-to-end check against a mainnet-configured deployment before
-migrating.
+**Fix.** The guard moved to `src/lib/erc8183/demo-guard.ts`, which imports no
+SDK and reads `ALTANA_NETWORK` directly — the value that decides what gets
+signed, rather than the one that decides what the label says. Waiting on an
+upstream fix was not necessary; the coupling was ours.
+
+**This also upgrades POK-004 from inspected to verified:** with
+`ALTANA_NETWORK=bnb` the guard refuses and with `bnb-testnet` it allows, run
+rather than read.
 
 ### POK-008 · DNS rebinding between check and fetch
-**Status: Open**
+**Status: Fixed** · the connection is pinned to the checked address
 
 `proof/prober.ts:104` resolves a hostname, checks every address against the
 private ranges, and returns the URL — then `fetch` resolves again. A host that
@@ -186,18 +192,34 @@ answers public on the first lookup and private on the second is not caught.
 Reachable only through a URL committed on chain, so an attacker must control
 an agent's deliverable URL and run a rebinding resolver.
 
-**Remediation.** Pin the resolved address and connect to it directly, or
-accept with the reasoning recorded.
+**Fix.** `assertPublicEndpoint` now returns a handle whose connection is
+pinned, via an undici dispatcher with a `lookup` that hands back the address
+already inspected. There is no second resolution to poison.
+
+It exposes `fetch` as a method rather than the dispatcher as a field, so a
+caller reaching for `.url` and a bare `fetch` cannot silently reopen the
+window. All five call sites — prober, trial, notify-funded twice, and
+deliverable verification — go through it.
+
+**Verified:** loopback and the cloud metadata address still refused, a public
+host resolves and its pinned fetch returns 200, and no dispatcher field is
+reachable on the handle.
 
 ### POK-009 · Operator key can sign on mainnet when explicitly enabled
-**Status: Open**
+**Status: Fixed** · the hatch now names what it opens
 
 `altana/client.ts:47` refuses the admin signer on mainnet unless
 `ALTANA_ALLOW_MAINNET=true`. The guard is good. The risk is that enabling it
 for one legitimate reason silently re-enables every operator-signed path.
 
-**Remediation.** Make the escape hatch narrower than a single boolean, or
-enumerate in the register exactly which paths it unlocks.
+**Fix.** `adminSigner` takes a purpose — `legacy-session`, `legacy-hire` or
+`demo-seller` — and on mainnet each must be listed individually in
+`ALTANA_MAINNET_OPERATOR_PURPOSES`. `ALTANA_ALLOW_MAINNET=true` is gone.
+
+The old boolean meant enabling one legitimate use quietly re-armed the other
+two. Worth stating plainly: every operator path is currently a demo path.
+Real users sign with a passkey, so on mainnet the correct value for this
+variable is empty.
 
 ---
 

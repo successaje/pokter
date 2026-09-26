@@ -58,7 +58,7 @@ export interface GrantOutcome {
  */
 export async function grantSession(input: GrantInput): Promise<GrantOutcome> {
   const client = altanaClient();
-  const signer = adminSigner();
+  const signer = adminSigner('legacy-session');
 
   const wallet = await client.createWallet({ signer });
   const permissions = toSessionPermissions(input);
@@ -111,7 +111,7 @@ export async function revokeSession(id: string): Promise<GrantedSession> {
   if (existing.revokedAt) return existing;
 
   const client = altanaClient();
-  const signer = adminSigner();
+  const signer = adminSigner('legacy-session');
   const wallet = await client.createWallet({ signer });
 
   const result = await client.revokeSession({

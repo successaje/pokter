@@ -58,16 +58,23 @@ export async function GET(request: Request): Promise<NextResponse> {
     const ownOrigin = new URL(
       process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
     ).origin;
-    const deliverableUrl =
+    // Our own origin needs no SSRF check; anything else is validated and then
+    // pinned to the address that was checked (POK-008).
+    const pinned =
       candidate.origin === ownOrigin
-        ? candidate
+        ? null
         : await assertPublicEndpoint(candidate.href);
-    const response = await fetch(deliverableUrl, {
+    const deliverableUrl = pinned?.url ?? candidate;
+
+    const init: RequestInit = {
       headers: { accept: 'application/json, text/plain;q=0.9' },
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(8_000),
-    });
+    };
+    const response = pinned
+      ? await pinned.fetch(init)
+      : await fetch(deliverableUrl, init);
     if (!response.ok)
       throw new Error(`Deliverable answered ${response.status}`);
     const declaredLength = Number(response.headers.get('content-length') ?? 0);
