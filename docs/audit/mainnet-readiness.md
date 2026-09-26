@@ -17,6 +17,7 @@ both chains. Findings marked *Verified* were executed, not reasoned about.
 | Critical | 0 | 5 | 0 | — |
 | High | 0 | 3 | 0 | — |
 | Medium | 3 | 0 | 0 | — |
+| Scoped (swap) | 2 | 4 | 0 | — |
 | Info | — | — | — | 5 |
 
 **Criticals and Highs are closed.** Three Medium findings remain, and the
@@ -255,6 +256,92 @@ account contract.
 
 ---
 
+## Scoped work · in-app BNB → $U swap
+
+Raised before the code exists, because a swap is a new path that moves user
+funds and should be designed against its failure modes rather than audited
+after.
+
+**Why it is needed.** ERC-8183 escrow is denominated in `$U`. Without a swap,
+the mainnet hire flow asks a user to go and acquire United Stables somewhere
+else and come back, which most will not finish. The token is liquid —
+~$9.7M `U` against ~$9.3M USDT in the 0.01% PancakeSwap V3 pool — so the
+obstacle is entirely one of flow, not of markets.
+
+### POK-017 · Slippage bound must be justified, not inherited
+**Status: Fixed** · 100 bps, with the measurement behind it
+
+A generous default silently authorises a worse price. Against a pool this
+deep, a hire-sized swap should move the price negligibly, so a wide tolerance
+protects nothing and costs real money in an adverse market.
+
+**Fix.** 100 bps, against the 150 that is conventional. **Measured:** the
+implied price is identical — 1.295e-3 BNB per `$U` — at 0.1, 1 and 25 `$U`,
+so a swap 250× the size of a hire still moves the pool by nothing detectable.
+
+That is the whole argument. The tolerance is not absorbing price impact,
+because there is none at this size; it exists only to survive BNB moving
+between the quote and the signature. A wider band would not make the swap
+more likely to land — it would only raise the ceiling on what a bad fill is
+permitted to cost.
+
+### POK-018 · Swap can succeed while the hire fails
+**Status: Open** · blocks integration
+
+Acquiring `$U` and funding escrow are separate. A user can end up holding
+tokens they never wanted, having paid swap fees, with nothing hired.
+
+**Requirement.** Either batch both so they succeed or fail together, or state
+plainly that the swap is a separate step and leave the user with a usable
+balance rather than a stranded one.
+
+### POK-019 · Quotes go stale between reading and signing
+**Status: Partly fixed** · deadline carried; re-quote is the caller's job
+
+A quote read at render time and signed a minute later can be wrong by more
+than the slippage bound, which surfaces as an opaque revert.
+
+**Fix.** Every swap carries a 300-second deadline, and `SwapQuote` records
+`quotedAt` so a caller can tell how old one is.
+
+**Still on the caller.** Nothing yet forces a re-quote before signing. The
+integration has to do that, and this stays partly open until it does.
+
+### POK-020 · Swapping exactly enough, not roughly enough
+**Status: Fixed** · exact-output
+
+An exact-input swap leaves the user holding dust they did not ask for and may
+still fall short of the budget. The requirement is a specific amount of `$U`.
+
+**Fix.** `quoteExactOutputSingle` and `exactOutputSingle`, so the `$U` amount
+is fixed and the BNB cost varies. A second call to `refundETH` returns
+whatever the router did not spend, so the user is charged the real price
+rather than the worst-case one they had to authorise.
+
+### POK-021 · The router becomes a new allowlisted target
+**Status: Open** · blocks integration
+
+Swapping through a session means the PancakeSwap router must be callable.
+Every address added to an allowlist widens what a granted agent may do.
+
+**Requirement.** Confirm whether the swap runs under the user's admin
+authority or a session. If a session, the router must not be silently added
+to an agent's allowlist as a side effect.
+
+### POK-022 · Router addresses must be verified on chain
+**Status: Fixed** · both read on chain
+
+The SwapRouter and Quoter are new dependencies. A wrong address is the defect
+that broke every testnet hire once already (`altana-sdk#84`).
+
+**Fix.** SwapRouter (12,154 bytes) and QuoterV2 (8,331 bytes) both read on
+BSC mainnet. The router's parameter shape was also determined by simulation
+rather than assumed: it **requires `deadline` inside the tuple**, and the
+variant without it reverts. The built calldata then simulated successfully
+against mainnet.
+
+---
+
 ## Not examined
 
 Stated so the coverage above is not mistaken for completeness.
@@ -266,6 +353,7 @@ Stated so the coverage above is not mistaken for completeness.
 - **Behaviour when a session expires mid-job**, and whether escrow can strand.
 - **Gas estimation under mainnet congestion**, and what a user sees when a
   grant runs out of gas halfway.
-- **The `$U` payment token on mainnet** — a different contract from testnet,
-  with no faucet and unverified liquidity. Whether users can obtain it at all
-  is an open product question, not only a technical one.
+- ~~**The `$U` payment token on mainnet.**~~ **Resolved.** It is United
+  Stables (`0xcE24439F…`), 1.05B supply, with six live PancakeSwap V3 markets
+  and roughly $19M of paired liquidity in the 0.01% U/USDT pool. Users can
+  obtain it; the gap is flow, which the scoped swap above addresses.
