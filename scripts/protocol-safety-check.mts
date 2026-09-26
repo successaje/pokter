@@ -66,6 +66,26 @@ if (decoded.provider.toLowerCase() !== '0x60ef148485c2a5119fa52ca13c52e9fd98f28e
 
 console.log('Job identity envelope checks passed.');
 
+const legacyEnvelope = decodePokterJobEnvelope(
+  JSON.stringify({
+    protocol: 'pokter-job',
+    version: 1,
+    identity: { chainId: 56, tokenId: '302257' },
+    category: 'health-factor',
+    provider: '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87',
+    task: 'Legacy job without display labels.',
+  }),
+);
+if (
+  legacyEnvelope?.identity.tokenId !== '302257' ||
+  legacyEnvelope.identity.name !== undefined ||
+  legacyEnvelope.providerLabel !== undefined
+) {
+  throw new Error('Legacy job envelopes no longer decode safely');
+}
+
+console.log('Legacy job envelope checks passed.');
+
 const quoteSigner = privateKeyToAccount(
   '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
 );
