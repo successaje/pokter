@@ -2,20 +2,25 @@ import Link from 'next/link';
 
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
+import type { Verdict } from '@/lib/proof/engine';
 import { EvidenceBadge } from './ui/EvidenceBadge';
 
 /**
  * §19. The marketplace card.
  *
  * Kept deliberately thin: the list view answers "is this worth opening?", and
- * everything else belongs on the detail page. The evidence state is derived
- * from attestation count alone here, because computing a full proof per card
- * would mean one request per agent — and an agent with no attestations is
- * unproven with certainty regardless.
+ * everything else belongs on the detail page. The evidence state is supplied
+ * by the list-level evidence model so search filters, cards and detail pages do
+ * not contradict one another.
  */
-export function AgentCard({ listing }: { listing: Listing }) {
+export function AgentCard({
+  listing,
+  verdict,
+}: {
+  listing: Listing;
+  verdict: Verdict;
+}) {
   const { agent, attestationCount } = listing;
-  const verdict = attestationCount === 0 ? 'unproven' : 'emerging';
   const meta = CATEGORY_BY_ID.get(listing.category);
   const protocols = agent.supported_protocols ?? [];
 

@@ -372,8 +372,8 @@ export function CommissionPanel({
               onChange={(event) => setRiskAccepted(event.target.checked)}
               className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--brand)]"
             />
-            I understand that unproven agents cannot be hired without explicitly
-            accepting the risk, and I still want to commission this agent.
+            I reviewed the warnings above, explicitly accept the additional
+            risk, and still want to commission this agent.
           </label>
         </div>
       )}

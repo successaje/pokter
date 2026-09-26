@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { listSearchable } from '@/lib/marketplace';
 import { parseQuery } from '@/lib/search/query';
-import { matchesQuery } from '@/lib/search/match';
+import { matchesQuery, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 import { AgentSearch } from '@/components/search/AgentSearch';
 
@@ -93,8 +93,12 @@ export default async function AgentsPage({
                 </p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {entries.map(({ listing }) => (
-                    <AgentCard key={listing.agent.token_id} listing={listing} />
+                  {entries.map((entry) => (
+                    <AgentCard
+                      key={entry.listing.agent.token_id}
+                      listing={entry.listing}
+                      verdict={verdictFor(entry)}
+                    />
                   ))}
                 </div>
               )}

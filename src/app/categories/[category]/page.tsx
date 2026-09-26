@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
-import { listCategory } from '@/lib/marketplace';
+import { listCategorySearchable } from '@/lib/marketplace';
+import { verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 
 /**
@@ -63,7 +64,8 @@ export default async function CategoryPage({
   const meta = CATEGORY_BY_ID.get(raw as Category);
   if (!meta) notFound();
 
-  const listings = await listCategory(meta.id, { limit: 16 });
+  const entries = await listCategorySearchable(meta.id, { limit: 16 });
+  const listings = entries.map(({ listing }) => listing);
   const withEvidence = listings.filter((l) => l.attestationCount > 0);
 
   return (
@@ -121,8 +123,12 @@ export default async function CategoryPage({
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {listings.map((listing) => (
-            <AgentCard key={listing.agent.token_id} listing={listing} />
+          {entries.map((entry) => (
+            <AgentCard
+              key={entry.listing.agent.token_id}
+              listing={entry.listing}
+              verdict={verdictFor(entry)}
+            />
           ))}
         </div>
       )}

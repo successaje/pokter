@@ -1,5 +1,6 @@
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
+import type { Verdict } from '@/lib/proof/engine';
 import { categoryFromTag, type ParsedQuery, type Qualifier } from './query';
 
 /** A listing plus what Pokter has measured about it. */
@@ -20,7 +21,7 @@ function uptime(record: TrackRecord): number | null {
  * lookups. It is honest about the two things it can know cheaply: whether any
  * on-chain attestation exists, and whether our own probes succeeded.
  */
-function verdictFor({ listing, record }: SearchableAgent): string {
+export function verdictFor({ listing, record }: SearchableAgent): Verdict {
   const rate = uptime(record);
 
   if (rate !== null && rate === 0) return 'failing';
@@ -138,5 +139,3 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
 export function matchesQuery(agent: SearchableAgent, query: ParsedQuery): boolean {
   return query.qualifiers.every((q) => matchesQualifier(agent, q));
 }
-
-export { verdictFor };

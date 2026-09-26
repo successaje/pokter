@@ -123,7 +123,9 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
             </div>
             <div className="flex flex-col gap-0.5">
               <dt className="text-[color:var(--text-muted)]">Hiring</dt>
-              <dd className="font-medium text-[color:var(--negative)]">Blocked</dd>
+              <dd className="font-medium text-[color:var(--negative)]">
+                Risk acceptance required
+              </dd>
             </div>
           </dl>
         </article>
@@ -131,8 +133,9 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
 
       <p className="max-w-3xl text-[13px] leading-relaxed text-[color:var(--text-muted)]">
         Nothing here is a judgement about whether this agent is any good. It is a
-        statement that nothing about it can currently be verified — and Pokter
-        will not hand your wallet to something it cannot check.{' '}
+        statement that nothing about it can currently be verified. Pokter does
+        not recommend this hire; continuing requires reviewing the evidence and
+        explicitly accepting the added risk.{' '}
         <Link
           href={`/agents/${agent.chain_id}/${agent.token_id}`}
           className="text-[color:var(--text-secondary)] underline underline-offset-2 hover:text-[color:var(--text)]"

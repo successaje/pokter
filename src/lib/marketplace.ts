@@ -350,6 +350,23 @@ export async function listSearchable(
   );
 }
 
+/** One category enriched with the same track record used by search and cards. */
+export async function listCategorySearchable(
+  category: Category,
+  options: { chainId?: ChainId; limit?: number } = {},
+): Promise<{ listing: Listing; record: TrackRecord }[]> {
+  const listings = await listCategory(category, options);
+  const store = getProbeStore();
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+
+  return listings.map((listing) => ({
+    listing,
+    record: buildTrackRecord(
+      store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
+    ),
+  }));
+}
+
 
 
 /**
