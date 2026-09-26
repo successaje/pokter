@@ -35,9 +35,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Immutable application code and brand assets are safe to reuse. API calls
-  // and every other request retain their normal browser/network behaviour.
-  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/brand/')) {
+  // Build output is content-hashed, so a cached copy can never be the wrong
+  // one. Cache-first is safe and is the fastest path.
+  if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
@@ -48,6 +48,27 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         });
+      }),
+    );
+    return;
+  }
+
+  // Brand assets keep the same filenames forever, so cache-first under a
+  // static cache name would pin whatever an installed user received first —
+  // regenerate a logo and they would never see it. Stale-while-revalidate
+  // keeps the instant paint and lets the next open pick up the change,
+  // without anyone having to remember to bump a version string.
+  if (url.pathname.startsWith('/brand/')) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(request);
+        const network = fetch(request)
+          .then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => cached);
+        return cached ?? network;
       }),
     );
   }
