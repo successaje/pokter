@@ -127,3 +127,29 @@ export function passkeysSupported(): boolean {
     window.isSecureContext
   );
 }
+
+/**
+ * The relying-party domain a passkey is bound to.
+ *
+ * WebAuthn scopes a credential to its rpId, and `window.location.hostname`
+ * makes that whatever host the user happened to type. On a public launch that
+ * splits people in half: a passkey created on `www.pokter.xyz` cannot sign on
+ * `pokter.xyz`, and the wallet simply appears to vanish.
+ *
+ * Setting `NEXT_PUBLIC_PASSKEY_RP_ID` to the apex pins both to one credential,
+ * because a browser accepts any registrable suffix of the current origin.
+ *
+ * The suffix check is what keeps that safe. A production value left in the
+ * environment during local development would otherwise make every ceremony
+ * throw, so an rpId the current host does not sit under is ignored rather than
+ * trusted — and `localhost`, previews and `*.fly.dev` keep working untouched.
+ */
+export function passkeyRpId(): string {
+  const host = window.location.hostname;
+  const configured = process.env.NEXT_PUBLIC_PASSKEY_RP_ID?.trim();
+
+  if (!configured) return host;
+  return host === configured || host.endsWith(`.${configured}`)
+    ? configured
+    : host;
+}

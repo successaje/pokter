@@ -10,7 +10,7 @@ import {
 } from 'react';
 
 import {
-  WALLET_NETWORK,
+  WALLET_NETWORK, passkeyRpId,
   clearStoredWallet,
   getServerWallet,
   getStoredWallet,
@@ -85,7 +85,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
         name: 'Pokter',
         // Persist the exact relying-party domain with the credential so later
         // signatures and recovery do not depend on an implicit SDK default.
-        rpId: window.location.hostname,
+        rpId: passkeyRpId(),
       });
       const stored: StoredWallet = {
         address: result.address,
@@ -111,7 +111,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await walletClient().recoverFromPasskey({
         chainId: WALLET_NETWORK.chainId,
-        rpId: window.location.hostname,
+        rpId: passkeyRpId(),
       });
       const stored: StoredWallet = {
         address: result.address,
