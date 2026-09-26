@@ -50,10 +50,38 @@ change.
 - `public/brand/pokter-mark-selected-light.png`
 - `public/brand/pokter-social-profile-dark.png`
 - `public/brand/pokter-social-profile-light.png`
-- `public/brand/pokter-social-banner.png`
+- `public/brand/pokter-social-banner-dark.png`
+- `public/brand/pokter-social-banner-light.png`
 - `public/brand/pokter-app-icon-192.png`
 - `public/brand/pokter-app-icon-512.png`
 - `src/app/favicon.ico`
 - `src/app/apple-icon.png`
 - `src/app/opengraph-image.png`
 - `src/app/twitter-image.png`
+
+## Social banner
+
+1500×500, light and dark, regenerated with:
+
+```bash
+node scripts/brand-banner.mjs
+```
+
+It carries the headline, the positioning line beneath it, and a field of agent
+cards — most dim, a few alive in green. The field is the argument rather than
+decoration: many agents exist, few can be verified, and that reads before
+anybody parses a word.
+
+Three constraints the layout exists to satisfy:
+
+- **Everything lives in the middle band.** X trims top and bottom on mobile and
+  the avatar covers the lower left on desktop, so anything at an edge is a
+  casualty.
+- **No wordmark.** The avatar already carries it, and repeating it is the most
+  common way a banner ends up saying nothing twice.
+- **The centre stays clear of cards.** They frame the type; they do not crowd
+  it.
+
+The light variant uses `--light-border-strong` for the dim cards rather than
+`--light-border`. On a near-white background the softer token vanishes, and a
+field of invisible cards tells no story.
