@@ -1,9 +1,10 @@
+import { explorerTxUrl } from '@/lib/network/presentation';
 import Link from 'next/link';
 
 import { formatCompact } from '@/lib/ui/format';
 import type { PipelineEvent, PipelinePayload } from '@/lib/hero/pipeline';
 
-const EXPLORER = 'https://testnet.bscscan.com/tx/';
+
 
 const EVENT_TONE: Record<PipelineEvent['kind'], { mark: string; color: string }> = {
   verified: { mark: '✓', color: 'var(--positive)' },
@@ -124,7 +125,7 @@ export function AgentPipeline({ payload }: { payload: PipelinePayload }) {
               </span>
               {event.txHash && (
                 <a
-                  href={`${EXPLORER}${event.txHash}`}
+                  href={explorerTxUrl(event.txHash)}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="mono ml-auto shrink-0 text-[10px] text-[color:var(--info)] underline decoration-dotted underline-offset-2"

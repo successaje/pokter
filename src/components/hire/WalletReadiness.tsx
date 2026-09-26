@@ -1,5 +1,6 @@
 'use client';
 
+import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
 
@@ -65,22 +66,31 @@ export function WalletReadiness({ requiredBudgetU = 0.1 }: { requiredBudgetU?: n
           <p className="flex items-center justify-between gap-2 text-[11px]">
             <span>Transaction gas</span>
             <span style={{ color: gasReady ? 'var(--positive)' : 'var(--caution)' }}>
-              {gasReady ? 'Ready' : 'Needs tBNB'}
+              {gasReady ? 'Ready' : `Needs ${NATIVE_SYMBOL}`}
             </span>
           </p>
           <p className="mono mt-1 text-[12px]">
-            {native === undefined ? '—' : `${Number(formatEther(native)).toFixed(4)} tBNB`}
+            {native === undefined
+              ? '—'
+              : `${Number(formatEther(native)).toFixed(4)} ${NATIVE_SYMBOL}`}
           </p>
-          {!gasReady && (
-            <a
-              href="https://www.bnbchain.org/en/testnet-faucet"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-2 inline-block text-[10px] text-[color:var(--info)] underline decoration-dotted"
-            >
-              Fund with at least 0.002 tBNB ↗
-            </a>
-          )}
+          {!gasReady &&
+            (FAUCETS ? (
+              <a
+                href={FAUCETS.native}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-2 inline-block text-[10px] text-[color:var(--info)] underline decoration-dotted"
+              >
+                Fund with at least 0.002 {NATIVE_SYMBOL} ↗
+              </a>
+            ) : (
+              /* No faucet exists on mainnet. Offering one would tell someone
+                 their funds are free while they authorise real money. */
+              <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">
+                Send at least 0.002 {NATIVE_SYMBOL} to this wallet to cover gas.
+              </p>
+            ))}
         </div>
 
         <div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3">
@@ -93,21 +103,27 @@ export function WalletReadiness({ requiredBudgetU = 0.1 }: { requiredBudgetU?: n
           <p className="mono mt-1 text-[12px]">
             {token?.ok ? `${Number(formatUnits(token.raw, token.decimals)).toFixed(3)} $U` : '—'}
           </p>
-          {!paymentReady && (
-            <a
-              href="https://united-coin-u.github.io/u-faucet/"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-2 inline-block text-[10px] text-[color:var(--info)] underline decoration-dotted"
-            >
-              Get at least {requiredBudgetU} testnet $U ↗
-            </a>
-          )}
+          {!paymentReady &&
+            (FAUCETS ? (
+              <a
+                href={FAUCETS.paymentToken}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-2 inline-block text-[10px] text-[color:var(--info)] underline decoration-dotted"
+              >
+                Get at least {requiredBudgetU} testnet $U ↗
+              </a>
+            ) : (
+              <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">
+                This wallet needs at least {requiredBudgetU} $U to fund the escrow.
+              </p>
+            ))}
         </div>
       </div>
 
       <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
-        Session authorization only needs tBNB. Commissioning also needs the selected $U budget.
+        Session authorization only needs {NATIVE_SYMBOL}. Commissioning also
+        needs the selected $U budget.
       </p>
     </section>
   );

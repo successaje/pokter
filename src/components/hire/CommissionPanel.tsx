@@ -1,5 +1,6 @@
 'use client';
 
+import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
@@ -180,7 +181,7 @@ export function CommissionPanel({
       });
       if (balances.native < MIN_TRANSACTION_GAS) {
         throw new Error(
-          'Your passkey wallet needs at least 0.002 tBNB before it can fund escrow.',
+          `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} before it can fund escrow.`,
         );
       }
       const paymentBalance = balances.tokens?.[0];
@@ -389,9 +390,9 @@ export function CommissionPanel({
           <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
             {error}
           </p>
-          {/tBNB/i.test(error) && (
+          {FAUCETS && /tBNB/i.test(error) && (
             <a
-              href="https://www.bnbchain.org/en/testnet-faucet"
+              href={FAUCETS.native}
               target="_blank"
               rel="noreferrer noopener"
               className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
@@ -399,9 +400,9 @@ export function CommissionPanel({
               Open the official BNB testnet faucet ↗
             </a>
           )}
-          {/\$U/i.test(error) && (
+          {FAUCETS && /\$U/i.test(error) && (
             <a
-              href="https://united-coin-u.github.io/u-faucet/"
+              href={FAUCETS.paymentToken}
               target="_blank"
               rel="noreferrer noopener"
               className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"

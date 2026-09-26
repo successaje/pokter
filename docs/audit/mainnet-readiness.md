@@ -14,20 +14,26 @@ both chains. Findings marked *Verified* were executed, not reasoned about.
 
 | Severity | Open | Fixed | Accepted | Verified |
 | --- | --- | --- | --- | --- |
-| Critical | 4 | 0 | 0 | — |
+| Critical | 0 | 4 | 0 | — |
 | High | 3 | 0 | 0 | — |
-| Medium | 2 | 0 | 0 | — |
+| Medium | 3 | 0 | 0 | — |
 | Info | — | — | — | 5 |
 
-**Not cleared.** Four Critical findings all share one cause: the interface
-describes testnet while spending mainnet money.
+**Still not cleared.** The four Criticals are fixed; three High findings
+remain, and the *Not examined* list below is unchanged.
+
+All four Criticals had one cause — the interface described testnet while the
+money would be real — and are fixed at the root rather than per site:
+`src/lib/network/presentation.ts` is now the single source for the
+denomination, the explorer and whether a faucet exists at all. Fixing them
+surfaced POK-015, which was the more dangerous version of the same problem.
 
 ---
 
 ## Critical
 
 ### POK-001 · Users are sent to a testnet faucet to fund a mainnet wallet
-**Status: Open**
+**Status: Fixed** · `7e1f0a2`
 
 `WalletReadiness.tsx:76` and `PermissionReview.tsx:73` link to
 `bnbchain.org/en/testnet-faucet`, and `WalletReadiness.tsx:98` links to a
@@ -42,7 +48,7 @@ real position.
 instruct the user to transfer real BNB, and name the amount.
 
 ### POK-002 · Explorer links hardcoded to the testnet explorer
-**Status: Open**
+**Status: Fixed** · `7e1f0a2`
 
 `AgentDesk.tsx:3` and `AgentPipeline.tsx:6` hardcode
 `https://testnet.bscscan.com/tx/`. A mainnet transaction linked there resolves
@@ -56,7 +62,7 @@ link is wrong.
 `altana/client.ts` already does for other surfaces.
 
 ### POK-003 · Real BNB labelled as tBNB
-**Status: Open**
+**Status: Fixed** · `7e1f0a2`
 
 `WalletReadiness.tsx:68,81,110` and `PermissionReview.tsx:73` render the
 literal string `tBNB`. On mainnet the user is spending BNB.
@@ -68,7 +74,7 @@ money while believing they are not.
 **Remediation.** Derive the denomination from the network.
 
 ### POK-004 · The demo seller is not network-gated
-**Status: Open**
+**Status: Fixed** · `7e1f0a2`
 
 `demo-seller.ts` follows `ALTANA_NETWORK` throughout and has no testnet
 guard. On mainnet it would accept a funded job, submit a canned deliverable
@@ -124,6 +130,22 @@ in the deployment notes rather than discovering it under load.
 
 ## Medium
 
+### POK-016 · Mainnet guards cannot be exercised in isolation
+**Status: Open**
+
+`altana-sdk#88` makes the SDK unresolvable under `--conditions=react-server`,
+which is the condition `server-only` modules need. So a script can import the
+demo seller *or* the SDK, never both, and POK-004's guard could only be
+confirmed by inspection at each entry point rather than by running it.
+
+The guard is three lines and its condition is a single boolean, so confidence
+is reasonable — but "verified by reading" is not what this register means by
+verified, and the gap is recorded rather than glossed.
+
+**Remediation.** Resolves itself when #88 is fixed upstream. Until then, cover
+it with an end-to-end check against a mainnet-configured deployment before
+migrating.
+
 ### POK-008 · DNS rebinding between check and fetch
 **Status: Open**
 
@@ -146,6 +168,33 @@ for one legitimate reason silently re-enables every operator-signed path.
 
 **Remediation.** Make the escape hatch narrower than a single boolean, or
 enumerate in the register exactly which paths it unlocks.
+
+---
+
+### POK-015 · Server and browser can disagree about the network
+**Status: Fixed** · `7e1f0a2` · *raised while fixing POK-001 to POK-004*
+
+`ALTANA_NETWORK` decides what the server signs. `NEXT_PUBLIC_ALTANA_NETWORK`
+decides what the interface says. They are separate variables, and
+`NEXT_PUBLIC_ALTANA_NETWORK` was set nowhere — the two agreed only because
+both were unset and defaulted to testnet.
+
+Setting one at migration and not the other produces the worst outcome
+available: real mainnet transactions described to the user as testnet, with
+every safety label reading correctly and meaning nothing. This was the more
+dangerous form of POK-003, and it would not have been caught by reading either
+file alone.
+
+**Fix.** `assertNetworkAgreement()` runs inside `adminSigner()`, before
+anything can sign. **Verified** by forcing a mismatch: the guard threw, and
+accepted the matched case.
+
+**Verification of POK-001 to POK-003.** With `NEXT_PUBLIC_ALTANA_NETWORK=bnb`
+the presentation module resolves to `BNB`, `FAUCETS: null`, and
+`https://bscscan.com/tx/…`. Eleven hardcoded testnet references across six
+components and one error class now derive from it, including the ones in error
+paths — which were the easiest to miss and the most likely to be read by
+someone already confused.
 
 ---
 

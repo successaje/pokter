@@ -1,5 +1,6 @@
 'use client';
 
+import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { useState } from 'react';
 import { useCommitLock } from '@/components/hire/WalletGate';
 
@@ -70,7 +71,12 @@ export function PermissionReview({
     const balance = await client.balances({ wallet: passkeyWallet!.address });
     if (balance.native < MIN_GRANT_GAS) {
       throw new Error(
-        `Your passkey wallet needs at least 0.002 tBNB for the on-chain KeyStore write. Fund ${passkeyWallet!.address} from the BNB testnet faucet, then try again.`,
+        `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} for the on-chain ` +
+          `KeyStore write. ${
+            FAUCETS
+              ? `Fund ${passkeyWallet!.address} from the BNB testnet faucet`
+              : `Send ${NATIVE_SYMBOL} to ${passkeyWallet!.address}`
+          }, then try again.`,
       );
     }
     const expiry = Math.floor(Date.now() / 1000) + expiryDays * 86_400;
@@ -125,7 +131,7 @@ export function PermissionReview({
         /NotAllowed|abort/i.test(message)
           ? 'The passkey prompt was dismissed, so nothing was granted.'
           : /Reason:\s*0x[\s\S]*Details:\s*0x/i.test(message)
-            ? `The on-chain write reverted without a reason. The usual cause is an unfunded passkey wallet. Fund ${passkeyWallet?.address ?? 'your passkey wallet'} with tBNB and try again.`
+            ? `The on-chain write reverted without a reason. The usual cause is an unfunded passkey wallet. Fund ${passkeyWallet?.address ?? 'your passkey wallet'} with ${NATIVE_SYMBOL} and try again.`
           : message,
       );
       setState('error');
@@ -361,9 +367,12 @@ export function PermissionReview({
             <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
               {error}
             </p>
-            {/tBNB|unfunded passkey wallet/i.test(error) && (
+            {/* Only offer a faucet where one exists. On mainnet the same
+                error needs the user to move real funds, not collect free
+                ones. */}
+            {FAUCETS && /tBNB|unfunded passkey wallet/i.test(error) && (
               <a
-                href="https://www.bnbchain.org/en/testnet-faucet"
+                href={FAUCETS.native}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"

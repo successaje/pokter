@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { assertNetworkAgreement } from '@/lib/network/presentation';
+
 import {
   createClient,
   signerFromPrivateKey,
@@ -36,6 +38,11 @@ export class AltanaNotConfiguredError extends Error {
  * follows the signer in Altana's model, and Altana never persists keys.
  */
 export function adminSigner() {
+  // Before anything signs, confirm the interface is describing the same chain
+  // the signature will land on. See assertNetworkAgreement for why the two can
+  // drift apart.
+  assertNetworkAgreement();
+
   const key = process.env.ALTANA_ADMIN_KEY;
 
   if (!key || !key.startsWith('0x')) {

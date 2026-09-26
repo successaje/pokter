@@ -8,13 +8,34 @@ import {
 } from '@altananetwork/sdk';
 import type { Address } from 'viem';
 
-import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
+import { adminSigner, ALTANA_NETWORK, IS_TESTNET, altanaClient } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
   readDeliverable,
   writeDeliverable,
   type StoredDeliverable,
 } from '@/lib/erc8183/deliverables';
+
+/**
+ * The demo seller is a testnet fixture and must never run anywhere else.
+ *
+ * It accepts a funded job, submits a canned manifest and takes the escrow. On
+ * testnet that proves the lifecycle end to end. On mainnet it would charge a
+ * real buyer real money for a deliverable written in advance, which is
+ * indefensible at any price.
+ *
+ * Refusing at the entry point rather than at submission means the failure
+ * surfaces before a job is funded, not after someone has already paid.
+ */
+function assertTestnetOnly(): void {
+  if (!IS_TESTNET) {
+    throw new Error(
+      'The demo seller is testnet-only and will not run on mainnet. It returns a ' +
+        'prepared deliverable, so charging a real buyer for it is not something ' +
+        'this code is permitted to do.',
+    );
+  }
+}
 
 const inFlight = new Map<string, Promise<DemoDeliveryResult>>();
 let sellerAddressPromise: Promise<Address> | undefined;
@@ -27,6 +48,7 @@ export interface DemoDeliveryResult {
 }
 
 export async function demoSellerAddress(): Promise<Address> {
+  assertTestnetOnly();
   sellerAddressPromise ??= altanaClient()
     .createWallet({ signer: adminSigner() })
     .then((wallet) => wallet.address)
@@ -38,6 +60,7 @@ export async function demoSellerAddress(): Promise<Address> {
 }
 
 export async function isDemoSeller(address: string): Promise<boolean> {
+  assertTestnetOnly();
   return (await demoSellerAddress()).toLowerCase() === address.toLowerCase();
 }
 
@@ -140,6 +163,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
 export function submitDemoDeliverable(
   jobId: string,
 ): Promise<DemoDeliveryResult> {
+  assertTestnetOnly();
   const running = inFlight.get(jobId);
   if (running) return running;
   const operation = performDelivery(jobId).finally(() =>

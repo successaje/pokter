@@ -65,7 +65,12 @@ export class InsufficientPaymentTokenError extends Error {
   ) {
     super(
       `Wallet holds ${held} $U but the job needs ${required} $U. ` +
-        'Testnet $U comes from the faucet at https://united-coin-u.github.io/u-faucet/.',
+        // Only name a faucet where one exists; on mainnet $U has to be
+        // acquired, and pointing at a testnet faucet would be worse than
+        // saying nothing.
+        (IS_TESTNET
+          ? 'Testnet $U comes from the faucet at https://united-coin-u.github.io/u-faucet/.'
+          : 'Fund the wallet with $U before commissioning.'),
     );
     this.name = 'InsufficientPaymentTokenError';
   }

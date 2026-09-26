@@ -1,5 +1,6 @@
 'use client';
 
+import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { useState } from 'react';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 
@@ -101,14 +102,16 @@ export function ConnectWallet() {
                   >
                     {copied ? 'Address copied' : 'Copy funding address'}
                   </button>
-                  <a
-                    href="https://www.bnbchain.org/en/testnet-faucet"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="w-fit rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1 text-[11px] transition-colors hover:bg-[color:var(--surface-hover)]"
-                  >
-                    Get testnet tBNB ↗
-                  </a>
+                  {FAUCETS && (
+                    <a
+                      href={FAUCETS.native}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="w-fit rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1 text-[11px] transition-colors hover:bg-[color:var(--surface-hover)]"
+                    >
+                      Get testnet {NATIVE_SYMBOL} ↗
+                    </a>
+                  )}
                 </div>
                 <button
                   type="button"
