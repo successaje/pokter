@@ -59,9 +59,6 @@ export function Footer() {
               verify, compare and safely hire financial agents — with
               permissions you set and can revoke.
             </p>
-            <p className="text-[11px] text-[color:var(--text-faint)]">
-              Built for the BNB Chain Smart Money Era hackathon.
-            </p>
           </div>
 
           <div className="grid gap-8 sm:grid-cols-3">

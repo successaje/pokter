@@ -45,7 +45,7 @@ function Choice({
  * §25. The brief.
  *
  * State lives in the URL rather than in the component, so a recommendation is
- * shareable, reloadable, and reproducible — a judge can send the exact query
+ * shareable, reloadable, and reproducible — anyone can send the exact query
  * that produced a result.
  */
 export function BriefForm() {

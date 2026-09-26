@@ -10,7 +10,7 @@ import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { CategoryBlocks } from '@/components/home/CategoryBlocks';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
-import { Sponsors } from '@/components/brand/Sponsors';
+import { Integrations } from '@/components/brand/Integrations';
 import { Reveal } from '@/components/motion/Reveal';
 import { AgentDesk } from '@/components/home/AgentDesk';
 import { LiveProof } from '@/components/home/LiveProof';
@@ -155,7 +155,7 @@ export default async function HomePage() {
 
       {/* THE STACK. */}
       <Reveal>
-        <Sponsors />
+        <Integrations />
       </Reveal>
 
       {/* TRANSPARENCY — what worked and what fought back. */}

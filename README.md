@@ -6,20 +6,17 @@ A decision layer for autonomous finance on BNB Chain. Pokter helps you discover,
 verify, compare and safely hire autonomous financial agents — using onchain
 activity, attestations, live execution data and scoped, revocable permissions.
 
-Built for the BNB Chain _Smart Money Era_ hackathon.
+|                   |                              |
+| ----------------- | ---------------------------- |
+| **Live app**      | https://pokter.xyz           |
+| **X**             | https://x.com/usepokter      |
+| **Walkthrough**   | https://youtu.be/KyuKia6RL9s |
 
-|                |                              |
-| -------------- | ---------------------------- |
-| **Live app**   | https://pokter.xyz       |
-| **X**          | https://x.com/usepokter  |
-| **Demo video** | https://youtu.be/KyuKia6RL9s |
+> The walkthrough is linked rather than committed: a screen recording would
+> outweigh this entire repository many times over, and git keeps large blobs in
+> history permanently even after deletion.
 
-> The submission form has no field for a demo video, so this README is where it
-> lives — please do not look for it elsewhere. The file is linked rather than
-> committed: a screen recording would outweigh this entire repository many times
-> over, and git keeps large blobs in history permanently even after deletion.
-
-### What we found while building this, and how it ended
+### A bug we found in a dependency, and how it ended
 
 Hiring failed against `@altananetwork/sdk@0.8.0` with `0xc94463e3`, a selector
 neither the SDK ABIs nor 4byte could decode. We isolated it by running the
