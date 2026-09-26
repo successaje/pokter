@@ -6,12 +6,12 @@ deployed site. Flow, positioning, hierarchy, colour, spacing, copy and state.
 **Method.** Observation against the live deployment, not source reading. Each
 finding names the page it was seen on.
 
-**Date:** 26 September 2026 · **Findings: 19** · 11 fixed, no campaign blockers open
+**Date:** 26 September 2026 · **Findings: 20** · 12 fixed, no campaign blockers open
 
 | Severity | Count |
 | --- | --- |
 | Blocking for the campaign | 0 |
-| Fixed | 11 |
+| Fixed | 12 |
 | High | 5 |
 | Medium | 6 |
 | Polish | 4 |
@@ -223,6 +223,27 @@ leads and nothing is promoted over a stronger record elsewhere.
 and grid-trading returns three different owners. Yield still shows two BORT
 entries after the distinct publishers run out, which is the intended fallback
 rather than a gap — only two publishers there have agents that answer.
+
+---
+
+### FE-21 · The wallet sheet led with technology and limits
+**Status: Fixed** · **Page:** connect sheet, all pages
+
+It read `Passkey wallet · can sign` above `Browser wallet · identity only`.
+Technology first, with the second option defined by what it lacks — so a
+visitor who already has MetaMask was told what they could not do before being
+told what anything was for.
+
+**Fixed.** The two are now named by the job each does: **Signs and pays**
+(passkey) and **Identifies you** (browser wallet). The browser entry also
+explains *why* rather than only stating the limit: an Altana wallet is an
+EIP-7702 account, and extension wallets withhold the signature one needs.
+
+Worth recording where this came from. Dolphin hit the same SDK constraint —
+their own comment reads *"injected signer, so one cannot be built on top of
+the other"* — and solved the presentation better, labelling their two wallets
+*"Signs in · hire records"* and *"Pays your hires"*. Same wall, clearer sign
+on it.
 
 ---
 

@@ -71,11 +71,21 @@ export function ConnectWallet() {
 
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 shadow-xl">
+          {/*
+            Two wallets, named by the job each one does.
+
+            This used to read "Passkey wallet / can sign" above "Browser
+            wallet / identity only" — technology first, with the second
+            defined by what it lacks. A visitor with MetaMask installed was
+            told what they could not do before being told what anything was
+            for. Naming the roles puts the question the right way round: what
+            do you want to happen, and which wallet does it.
+          */}
           <section className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2">
-              <h3 className="text-[11px] font-medium">Passkey wallet</h3>
-              <span className="text-[9px] uppercase tracking-wide text-[color:var(--positive)]">
-                can sign
+              <h3 className="text-[11px] font-medium">Signs and pays</h3>
+              <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                passkey
               </span>
             </div>
 
@@ -136,8 +146,9 @@ export function ConnectWallet() {
             ) : (
               <>
                 <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
-                  Creates a wallet whose only key lives in your device. Signing
-                  asks for your fingerprint or face.
+                  Grants sessions and funds escrow. The only key lives in this
+                  device, so signing asks for your fingerprint or face and
+                  Pokter never holds it.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -173,11 +184,16 @@ export function ConnectWallet() {
 
           <section className="mt-3 flex flex-col gap-2 border-t border-[color:var(--border)] pt-3">
             <div className="flex items-baseline justify-between gap-2">
-              <h3 className="text-[11px] font-medium">Browser wallet</h3>
+              <h3 className="text-[11px] font-medium">Identifies you</h3>
               <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                identity only
+                browser wallet
               </span>
             </div>
+            <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+              Recognises you across visits. It cannot sign here — an Altana
+              wallet is an EIP-7702 account, and extension wallets withhold the
+              signature one needs.
+            </p>
 
             {isConnected ? (
               <>
