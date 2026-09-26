@@ -17,6 +17,8 @@ export interface HiredJob {
   isTestnet: boolean;
   agentTokenId: string;
   agentName: string;
+  /** Human label for the escrow recipient when it differs from the listing. */
+  providerLabel?: string;
   provider: Address;
   task: string;
   /** Raw $U units, 18 decimals. */
@@ -38,8 +40,8 @@ export const JOB_STAGE_COPY: Record<JobStatusName, string> = {
   OPEN: 'Job created but not yet funded.',
   FUNDED:
     'Escrow funded. Delivery begins only after the seller accepts a funded-job notification.',
-  SUBMITTED: 'Agent delivered. Dispute window open before escrow releases.',
-  COMPLETED: 'Escrow released to the agent.',
+  SUBMITTED: 'Provider delivered. Dispute window open before escrow releases.',
+  COMPLETED: 'Escrow released to the provider.',
   REJECTED: 'Delivery was rejected.',
   EXPIRED: 'Agent never delivered; escrow is reclaimable.',
 };
