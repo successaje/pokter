@@ -2,12 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { plural } from '@/lib/ui/plural';
 import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import type { ChainId } from '@/lib/scan/types';
 
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { EvidenceSection as Section } from '@/components/ui/EvidenceSection';
 import { ScorePanel } from '@/components/ui/Score';
 import { TrustPanel } from '@/components/agent/TrustPanel';
 import { PerformancePanel } from '@/components/agent/PerformancePanel';
@@ -21,25 +23,6 @@ import { AgentAvatar } from '@/components/agent/AgentAvatar';
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
 
-function Section({
-  title,
-  caption,
-  children,
-}: {
-  title: string;
-  caption: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-medium tracking-tight">{title}</h2>
-        <p className="text-xs text-[color:var(--text-muted)]">{caption}</p>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /**
  * §20. The agent dossier.
@@ -81,6 +64,44 @@ export default async function AgentPage({
       ...proof.disclosedDefects,
     ]),
   ];
+
+  /*
+   * §10 Level 2: one line of real substance per collapsed section, so a phone
+   * user can skip a section on evidence rather than on faith. Every one of
+   * these is a measured count — where nothing was measured they say so, rather
+   * than rendering a confident zero.
+   */
+  /*
+   * Days here is `record.days.length` — days that actually carried a probe —
+   * and not `observedDays`, which is the fractional calendar span between the
+   * first and last. The span rendered raw as "7.177851539351852 days", and
+   * rounding it would still have contradicted the trust panel directly below,
+   * which counts observed days. Two different true numbers for one set of
+   * probes reads as a mistake, so both places now make the same, more
+   * conservative claim.
+   */
+  const probeSummary =
+    record.totalProbes === 0
+      ? 'No probes recorded yet.'
+      : `Answered ${record.totalAnswered} of ${record.totalProbes} probes over ${plural(
+          record.days.length,
+          'day',
+        )}.`;
+  const liveSummary = answeredNow
+    ? 'Answered our probe when you opened this page.'
+    : 'Did not answer our probe when you opened this page.';
+  const receiptsSummary =
+    attestations.length === 0
+      ? 'No independent measurer has attested to this agent.'
+      : `${attestations.length} on-chain ${
+          attestations.length === 1 ? 'attestation' : 'attestations'
+        } from independent measurers.`;
+  const defectsSummary =
+    knownDefects.length === 0
+      ? 'No measurer has disclosed its limitations.'
+      : `${knownDefects.length} disclosed ${
+          knownDefects.length === 1 ? 'limitation' : 'limitations'
+        }, ours included.`;
 
   return (
     <div className="flex flex-col gap-6 pt-2">
@@ -218,7 +239,7 @@ export default async function AgentPage({
 
           <nav
             aria-label="Agent details"
-            className="sticky top-16 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
+            className="sticky top-16 z-20 -mx-1 hidden gap-1 overflow-x-auto md:flex rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
           >
             {[
               ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
@@ -256,6 +277,7 @@ export default async function AgentPage({
             <div id="live" className="scroll-mt-28">
               <Section
                 title="Watch it work"
+                summary={liveSummary}
                 caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
               >
                 <LivePanel live={live} />
@@ -264,6 +286,7 @@ export default async function AgentPage({
 
             <Section
               title="Track record"
+              summary={probeSummary}
               caption="What repeated sweeps have accumulated, rather than a single sample."
             >
               <TrackRecordPanel record={record} />
@@ -272,6 +295,7 @@ export default async function AgentPage({
             <div id="receipts" className="scroll-mt-28">
               <Section
                 title="Receipts"
+                summary={receiptsSummary}
                 caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
               >
                 <EvidencePanel attestations={attestations} />
@@ -281,6 +305,7 @@ export default async function AgentPage({
             <div id="permissions" className="scroll-mt-28">
               <Section
                 title="Permissions and spending limits"
+                summary="What hiring would and would not allow."
                 caption="Stated plainly, including what the registry does not disclose."
               >
                 <AuthorityPanel agent={agent} />
@@ -290,6 +315,7 @@ export default async function AgentPage({
 
           <Section
             title="How the measurers could be wrong"
+            summary={defectsSummary}
             caption="Limitations disclosed by the measurers themselves, ours included."
           >
             {knownDefects.length === 0 ? (

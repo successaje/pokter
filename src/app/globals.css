@@ -701,3 +701,65 @@ body {
     bottom: 0;
   }
 }
+
+
+/*
+ * MobileDisclosure. The collapsed state exists only below 768px, so the
+ * desktop layout renders exactly as it did before the component was
+ * introduced — no open state, no toggle, nothing hidden.
+ */
+@media (max-width: 767px) {
+  .mobile-disclosure-content:not(.is-open) {
+    display: none;
+  }
+}
+
+/*
+ * The sheet and its backdrop. Kept short and interruptible: no action should
+ * ever wait on a decorative transition.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-backdrop {
+    animation: sheet-fade 160ms ease-out;
+  }
+
+  .sheet-panel {
+    animation: sheet-rise 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .skeleton {
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheet-rise {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/*
+ * EvidenceSection. Above 768px the wrapper is `display: contents`, so the
+ * section's children lay out exactly as they did before the collapse was
+ * introduced — the extra element is invisible to layout, not just unstyled.
+ */
+@media (min-width: 768px) {
+  .evidence-section-content {
+    display: contents;
+  }
+}
+
+@media (max-width: 767px) {
+  .evidence-section-content:not(.is-open) {
+    display: none;
+  }
+}

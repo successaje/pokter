@@ -1,4 +1,5 @@
 import { formatMs, formatPercent } from '@/lib/ui/format';
+import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import type { TrackRecord } from '@/lib/history/record';
 
 /**
@@ -48,13 +49,16 @@ export function PerformancePanel({ record }: { record: TrackRecord }) {
   ];
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-medium tracking-tight">Performance</h2>
-        <p className="text-xs text-[color:var(--text-muted)]">
-          What has actually been measured, and what nobody publishes.
-        </p>
-      </div>
+    <EvidenceSection
+      title="Performance"
+      caption="What has actually been measured, and what nobody publishes."
+      /*
+       * The honest headline for this section is what it refuses to claim, so
+       * that is what a phone user reads before deciding to open it.
+       */
+      summary="Availability and latency only — profit and loss are not measured."
+      sectionClassName="flex flex-col gap-4"
+    >
 
       <dl className="grid grid-cols-2 divide-[color:var(--border)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] sm:grid-cols-4 sm:divide-x">
         {measured.map((metric) => (
@@ -88,6 +92,6 @@ export function PerformancePanel({ record }: { record: TrackRecord }) {
           were performance would be the fabrication this product argues against.
         </p>
       </div>
-    </section>
+    </EvidenceSection>
   );
 }
