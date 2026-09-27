@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
@@ -116,11 +117,11 @@ export function ExploreMarketplace({
                 </dl>
               </Link>
               <div className="flex items-center gap-2 border-t border-[color:var(--border)] px-4 py-3">
-                <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="flex min-h-9 flex-1 items-center text-[11px] font-medium text-[color:var(--text-secondary)]">
+                <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="flex min-h-11 flex-1 items-center text-[11px] font-medium text-[color:var(--text-secondary)] md:min-h-9">
                   Review evidence
                 </Link>
                 {offersDirectHire(entry) && (
-                  <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary inline-flex min-h-9 items-center rounded-[var(--radius)] px-3 text-[11px] font-semibold">
+                  <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 text-[11px] font-semibold md:min-h-9">
                     Hire
                   </Link>
                 )}
@@ -131,9 +132,7 @@ export function ExploreMarketplace({
       </div>
 
       {ranked.length === 0 && (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-6 text-sm text-[color:var(--text-muted)]">
-          No indexed agents currently match this category.
-        </div>
+        <StatusState body="No indexed agents currently match this category." />
       )}
     </section>
   );

@@ -222,7 +222,12 @@ export default async function DiscoverPage({
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Explore agents. Inspect the evidence.
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+        {/*
+          Desktop only. On a phone this sits between the title and the
+          marketplace the page is named after, and the "Find my best match"
+          button below already says the second half of it.
+        */}
+        <p className="hidden max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
           Browse the market immediately, or ask Pokter to build an
           evidence-ranked shortlist around your goal, capital and risk.
         </p>
