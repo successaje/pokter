@@ -12,6 +12,7 @@ import {
   type Dimension,
 } from '@/lib/score/types';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { RankingTable } from '@/components/leaderboard/RankingTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -230,68 +231,8 @@ export default async function LeaderboardPage({
             ))}
           </ol>
 
-          <div className="hidden overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] md:block">
-            <table className="w-full min-w-[720px] border-collapse bg-[color:var(--surface)]">
-              <thead>
-                <tr className="border-b border-[color:var(--border)] text-left">
-                  {['#', 'Agent', 'Score', 'Measured on', 'Evidence', 'Uptime', 'Probes'].map(
-                    (heading) => (
-                      <th
-                        key={heading}
-                        scope="col"
-                        className="p-4 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]"
-                      >
-                        {heading}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
+          <RankingTable rows={ranked} />
 
-              <tbody>
-                {ranked.map((row) => (
-                  <tr
-                    key={row.key}
-                    className="border-b border-[color:var(--border)] last:border-b-0"
-                  >
-                    <td className="tabular p-4 text-[13px] text-[color:var(--text-faint)]">
-                      {row.rank}
-                    </td>
-                    <td className="p-4">
-                      <Link
-                        href={row.href}
-                        className="text-[13px] font-medium hover:underline"
-                      >
-                        {row.name}
-                      </Link>
-                      {row.categoryLabel && (
-                        <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                          {row.categoryLabel}
-                        </span>
-                      )}
-                    </td>
-                    <td className="tabular p-4 text-[13px]">{row.score}</td>
-                    <td className="tabular p-4 text-[11px] text-[color:var(--text-muted)]">
-                      {row.coverage}
-                    </td>
-                    <td className="p-4">
-                      <EvidenceBadge verdict={row.verdict} />
-                    </td>
-                    <td className="tabular p-4 text-[13px]">
-                      {row.uptime === null ? (
-                        <span className="text-[color:var(--text-faint)]">—</span>
-                      ) : (
-                        formatPercent(row.uptime)
-                      )}
-                    </td>
-                    <td className="tabular p-4 text-[13px] text-[color:var(--text-muted)]">
-                      {row.probes}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
 
