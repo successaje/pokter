@@ -40,9 +40,10 @@ export default async function ComparePage({
           Compare
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Put up to {MAX_AGENTS} agents side by side. The best value in each row
-          is highlighted — but only where more than one agent has data to
-          compare.
+          Put up to {MAX_AGENTS} agents side by side. The strongest value in
+          each row is marked, but only where more than one agent has data to
+          compare — and a score reflects the evidence that exists, not a
+          promise about what happens next.
         </p>
       </header>
 
