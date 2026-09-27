@@ -1,4 +1,5 @@
 import { formatCompact, formatCount } from '@/lib/ui/format';
+import { pluralise } from '@/lib/ui/plural';
 import type { EcosystemStats } from '@/lib/marketplace';
 import type { MarketplaceActivity } from '@/lib/discover/pulse';
 
@@ -45,12 +46,25 @@ export function MarketplacePulse({
     },
   ];
 
+  /*
+   * Pluralised on the noun rather than written plural, because these counts
+   * are genuinely small right now — one funded escrow reads "1 escrows
+   * funded" otherwise, and a band arguing that the numbers are measured
+   * rather than estimated cannot afford to look automatically generated.
+   */
   const activityRows = [
-    { value: activity.hires, label: 'escrows funded' },
-    { value: activity.deliveries, label: 'deliveries recorded' },
-    { value: activity.settlements, label: 'settlements completed' },
-    { value: activity.activeSessions, label: 'active permission sessions' },
-  ].filter((item) => item.value > 0);
+    { value: activity.hires, noun: 'escrow', verb: 'funded' },
+    { value: activity.deliveries, noun: 'delivery', plural: 'deliveries', verb: 'recorded' },
+    { value: activity.settlements, noun: 'settlement', verb: 'completed' },
+    { value: activity.activeSessions, noun: 'active permission session', verb: '' },
+  ]
+    .filter((item) => item.value > 0)
+    .map((item) => ({
+      value: item.value,
+      label: `${pluralise(item.value, item.noun, item.plural)}${
+        item.verb ? ` ${item.verb}` : ''
+      }`,
+    }));
 
   return (
     <section
