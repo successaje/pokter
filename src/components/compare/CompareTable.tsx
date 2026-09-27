@@ -135,7 +135,97 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)]">
+      {/*
+        §6. A phone gets one block per dimension, not a table.
+
+        The six columns are 640px wide inside a 348px viewport, so comparing
+        two agents meant scrolling sideways with the metric label scrolling out
+        of view — the one thing that gives a number meaning. Here the label
+        leads and the agents sit under it, which is the comparison the page is
+        for, read in the direction a phone actually scrolls.
+
+        The legend stays pinned so a value is never read against the wrong
+        agent. Both layouts run the same ROWS and the same `winners`, so a cell
+        highlighted on one is highlighted on the other.
+      */}
+      <div className="flex flex-col gap-3 md:hidden">
+        <div className="sticky top-14 z-20 -mx-5 flex gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg)]/95 px-5 py-2.5 backdrop-blur-md">
+          {entries.map((entry, index) => (
+            <div
+              key={entry.agent.token_id}
+              className="flex min-w-0 flex-1 flex-col gap-1"
+            >
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className="tabular flex size-4 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-raised)] text-[10px] text-[color:var(--text-muted)]"
+                >
+                  {index + 1}
+                </span>
+                <Link
+                  href={`/agents/${entry.agent.chain_id}/${entry.agent.token_id}`}
+                  className="min-w-0 truncate text-[12px] font-medium hover:underline"
+                >
+                  {entry.agent.name}
+                </Link>
+              </span>
+              <EvidenceBadge verdict={entry.proof.verdict} />
+            </div>
+          ))}
+        </div>
+
+        {ROWS.map((row) => {
+          const best = winners(row, entries);
+          return (
+            <section
+              key={row.label}
+              className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3"
+            >
+              <h3 className="text-xs font-medium text-[color:var(--text-secondary)]">
+                {row.label}
+              </h3>
+              {row.hint && (
+                <p className="mt-0.5 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                  {row.hint}
+                </p>
+              )}
+
+              <dl className="mt-2.5 flex flex-col gap-1.5">
+                {entries.map((entry, index) => (
+                  <div
+                    key={entry.agent.token_id}
+                    className="flex items-baseline justify-between gap-3"
+                  >
+                    <dt className="flex min-w-0 items-baseline gap-1.5">
+                      <span
+                        aria-hidden
+                        className="tabular shrink-0 text-[10px] text-[color:var(--text-faint)]"
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
+                        {entry.agent.name}
+                      </span>
+                    </dt>
+                    <dd
+                      className={cn(
+                        'tabular shrink-0 text-right text-[13px]',
+                        best.has(index)
+                          ? 'font-medium text-[color:var(--positive)]'
+                          : 'text-[color:var(--text)]',
+                      )}
+                    >
+                      {row.value(entry)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] md:block">
         <table className="w-full min-w-[640px] border-collapse bg-[color:var(--surface)]">
           <thead>
             <tr className="border-b border-[color:var(--border)]">
