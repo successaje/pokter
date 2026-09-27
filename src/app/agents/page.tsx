@@ -31,7 +31,19 @@ export default async function AgentsPage({
   const raw = typeof params.q === 'string' ? params.q : '';
   const query = parseQuery(raw);
 
-  const all = await listSearchable({ limit: 8 });
+  /*
+   * 8 per category was sized for the anonymous registry tier, where 30
+   * requests a minute made every extra agent a real cost. SCAN_API_KEY is
+   * deployed now, and in any case the limit never governed the fetching: the
+   * discovery queries pull their candidates regardless and this only slices
+   * the ranked result, so raising it costs no registry calls at all.
+   *
+   * 16 matches what a single category page already shows, so the marketplace
+   * no longer surfaces fewer agents than its own subpages. The classifier
+   * currently yields 15-26 per category, so this shows most of them; the rest
+   * wait on pagination rather than a longer page.
+   */
+  const all = await listSearchable({ limit: 16 });
   const matched = query.qualifiers.length
     ? all.filter((agent) => matchesQuery(agent, query))
     : all;

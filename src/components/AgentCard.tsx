@@ -58,7 +58,14 @@ export function AgentCard({
   return (
     <>
       {/* ── Phone ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] md:hidden">
+      {/*
+        `min-w-0` because a grid item defaults to `min-width: auto`, so it
+        refuses to shrink below its content's minimum. One agent whose
+        description holds an unbreakable token was enough to push the card
+        374px wide inside a 350px column and give the whole page a horizontal
+        scroll — latent until a higher list limit surfaced that agent.
+      */}
+      <div className="flex min-w-0 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] md:hidden">
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
@@ -80,7 +87,7 @@ export function AgentCard({
             registry text runs into operator endpoints — a raw URL is not what
             anyone is scanning a marketplace for.
           */}
-          <p className="line-clamp-1 text-xs leading-relaxed text-[color:var(--text-muted)]">
+          <p className="line-clamp-1 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
             {description}
           </p>
         </Link>
@@ -109,7 +116,7 @@ export function AgentCard({
       </div>
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
-      <div className="group hidden h-full flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] md:flex">
+      <div className="group hidden h-full min-w-0 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] md:flex">
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -126,7 +133,7 @@ export function AgentCard({
             <EvidenceBadge verdict={verdict} />
           </div>
 
-          <p className="line-clamp-3 text-xs leading-relaxed text-[color:var(--text-muted)]">
+          <p className="line-clamp-3 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
             {description}
           </p>
 
