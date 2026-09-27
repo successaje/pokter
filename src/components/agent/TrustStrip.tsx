@@ -18,7 +18,16 @@ import type { AgentDossier } from '@/lib/marketplace';
  * mean much less.
  */
 export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
-  const { agent, proof, record, score, attestations } = dossier;
+  const { agent, record, score, attestations } = dossier;
+
+  /** Who published the attestations, excluding Pokter's own measurement. */
+  const publishedMeasurers = [
+    ...new Set(
+      attestations
+        .filter((a) => a.transactionHash && a.measuredBy)
+        .map((a) => a.measuredBy as string),
+    ),
+  ];
 
   const availability =
     record.totalProbes === 0
@@ -68,10 +77,17 @@ export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
     {
       label: 'Attestations',
       value: String(attestations.length),
+      /*
+       * Counted from the published attestations this row is about, not from
+       * proof.measurers — that list includes Pokter, because our own sweep
+       * runs through the verdict logic as a synthetic attestation. Pairing a
+       * count of third-party attestations with a measurer total that is
+       * really us read as independent corroboration where there was none.
+       */
       sub:
-        proof.measurers.length === 0
+        publishedMeasurers.length === 0
           ? 'nobody independent has checked'
-          : `from ${plural(proof.measurers.length, 'measurer')}`,
+          : `from ${plural(publishedMeasurers.length, 'measurer')}`,
       tag: (
         <ProvenanceTag
           kind="attested"
@@ -80,7 +96,9 @@ export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
             { label: 'Attestations', value: String(attestations.length) },
             {
               label: 'Measurers',
-              value: proof.measurers.length ? proof.measurers.join(', ') : 'none',
+              value: publishedMeasurers.length
+                ? publishedMeasurers.join(', ')
+                : 'none',
             },
           ]}
         />
