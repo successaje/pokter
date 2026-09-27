@@ -21,6 +21,8 @@ import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
+import { CopyableId } from '@/components/ui/CopyableId';
+import { shortAddress } from '@/lib/ui/format';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -178,8 +180,24 @@ export default async function AgentPage({
                       {answeredNow ? 'Live check passed' : 'Live check failed'}
                     </span>
                   </span>
-                  <span className="mono text-[11px] text-[color:var(--text-faint)]">
-                    #{agent.token_id} · chain {agent.chain_id}
+                  {/*
+                    Both of these are read here and then pasted somewhere
+                    else — an explorer, a support message — so both are
+                    copyable rather than something to select by hand.
+                  */}
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                    <CopyableId
+                      label="Identity"
+                      value={`${agent.chain_id}:${agent.token_id}`}
+                      display={`#${agent.token_id} · chain ${agent.chain_id}`}
+                    />
+                    {agent.owner_address && (
+                      <CopyableId
+                        label="Owner wallet"
+                        value={agent.owner_address}
+                        display={`Publisher ${shortAddress(agent.owner_address)}`}
+                      />
+                    )}
                   </span>
                 </div>
 
