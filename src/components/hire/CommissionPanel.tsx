@@ -1,6 +1,11 @@
 'use client';
 
-import { FAUCETS, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
+import {
+  FAUCETS,
+  NATIVE_SYMBOL,
+  NETWORK_LABEL,
+  PAYMENT_VALUE_NOTE,
+} from '@/lib/network/presentation';
 import {
   buildSwapCalls,
   quoteBnbForPaymentToken,
@@ -577,7 +582,14 @@ export function CommissionPanel({
           </div>
           <div className="flex items-baseline justify-between gap-3 p-3">
             <dt className="shrink-0 text-[color:var(--text-muted)]">Budget</dt>
-            <dd className="tabular text-right font-medium">{formatBudget(budget)}</dd>
+            <dd className="text-right">
+              <span className="tabular font-medium">{formatBudget(budget)}</span>
+              {PAYMENT_VALUE_NOTE && (
+                <span className="mt-0.5 block text-[11px] font-normal text-[color:var(--text-faint)]">
+                  {PAYMENT_VALUE_NOTE}
+                </span>
+              )}
+            </dd>
           </div>
           <div className="flex items-baseline justify-between gap-3 p-3">
             <dt className="shrink-0 text-[color:var(--text-muted)]">Held by</dt>

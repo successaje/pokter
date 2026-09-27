@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 
 /**
  * The hire decision on a phone: a card at the top of the dossier, and the
@@ -83,6 +84,11 @@ export function MobileHireAction({
             <p className="tabular mt-1 text-2xl font-semibold leading-none">
               {price}
             </p>
+            {PAYMENT_VALUE_NOTE && (
+              <p className="mt-1 text-[11px] text-[color:var(--text-faint)]">
+                {PAYMENT_VALUE_NOTE}
+              </p>
+            )}
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--text-secondary)]">
             <svg viewBox="0 0 24 24" aria-hidden className="size-3.5 fill-none stroke-current" strokeWidth="1.8">

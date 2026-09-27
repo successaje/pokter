@@ -20,6 +20,22 @@ export const NATIVE_SYMBOL = IS_TESTNET ? 'tBNB' : 'BNB';
 
 export const NETWORK_LABEL = IS_TESTNET ? 'BSC testnet' : 'BSC mainnet';
 
+/**
+ * What the payment token is worth.
+ *
+ * `NATIVE_SYMBOL` already tells the truth by becoming tBNB on testnet, but
+ * the payment token renders as "$U" on both networks, so a card reading
+ * "0.10 $U" looks like a price when the amount is faucet currency. Stating
+ * it is cheaper than letting someone infer the wrong thing from a number,
+ * and this product does not get to be careful about evidence and careless
+ * about that.
+ *
+ * Null on mainnet, where the amount means what it says.
+ */
+export const PAYMENT_VALUE_NOTE = IS_TESTNET
+  ? 'Test tokens — no real value'
+  : null;
+
 const EXPLORER = IS_TESTNET
   ? 'https://testnet.bscscan.com'
   : 'https://bscscan.com';
