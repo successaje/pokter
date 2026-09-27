@@ -1,4 +1,3 @@
-import { StatusState } from '@/components/ui/States';
 import { plural } from '@/lib/ui/plural';
 import { Suspense } from 'react';
 import Link from 'next/link';
@@ -10,10 +9,10 @@ import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
-import { listSearchable } from '@/lib/marketplace';
-import { offersDirectHire, verdictFor } from '@/lib/search/match';
-import { AgentAvatar } from '@/components/agent/AgentAvatar';
-import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
+import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
+import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
+import { getMarketplaceActivity } from '@/lib/discover/pulse';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -197,146 +196,78 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
-  const explicitObjectives = typeof params.objective === 'string';
-  const browseAgents = shouldRun ? [] : await listSearchable({ limit: 4 });
-  const visibleAgents = browseAgents
-    .filter(
-      (entry) =>
-        !explicitObjectives || brief.objectives.includes(entry.listing.category),
-    )
-    .slice(0, 8);
-  const selectedObjective =
-    typeof params.objective === 'string' && !params.objective.includes(',')
-      ? params.objective
+  const selectedCategory =
+    typeof params.category === 'string' && CATEGORY_BY_ID.has(params.category as Category)
+      ? params.category
       : null;
+  const [browseAgents, stats] = shouldRun
+    ? [[], null]
+    : await Promise.all([listSearchable({ limit: 8 }), getEcosystemStats()]);
+  const activity = shouldRun ? null : getMarketplaceActivity();
+  const answering = browseAgents.filter(
+    (entry) => entry.record.totalAnswered > 0,
+  ).length;
+  const attestations = browseAgents.reduce(
+    (sum, entry) => sum + entry.listing.attestationCount,
+    0,
+  );
 
   return (
-    <div className="flex flex-col gap-10 pt-6">
-      <header className="flex max-w-3xl flex-col gap-3">
+    <div className="flex flex-col gap-12 pt-6">
+      <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="flex max-w-3xl flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-          Evidence-ranked discovery
+          BNB Chain agent marketplace
         </p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Find an agent
+          Explore agents. Inspect the evidence.
         </h1>
-        {/*
-          Desktop only. On a phone this paragraph and the strip below it put
-          four lines of positioning between the title and the goal chips, which
-          are the actual control for this page.
-        */}
-        <p className="hidden text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
-          Start with the outcome you want. Pokter compares onchain identity,
-          measured reliability and evidence quality—and shows why each agent did
-          or did not qualify.
+        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+          Browse the market immediately, or ask Pokter to build an
+          evidence-ranked shortlist around your goal, capital and risk.
         </p>
-        <div className="hidden flex-wrap gap-x-5 gap-y-1 text-[11px] text-[color:var(--text-muted)] md:flex">
-          <span>4 financial strategies</span>
-          <span>ERC-8004 identities</span>
-          <span>Live endpoint evidence</span>
         </div>
+        {!shouldRun && (
+          <Link
+            href="#recommend"
+            className="action-primary inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
+          >
+            Find my best match
+          </Link>
+        )}
       </header>
 
-      <div className="md:hidden">
-        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <Link
-            href="/discover"
-            className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 py-2 text-xs font-medium md:min-h-0 ${!selectedObjective ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
-          >
-            All agents
-          </Link>
-          {OBJECTIVES.map((objective) => (
-            <Link
-              key={objective.id}
-              href={`/discover?objective=${objective.id}`}
-              className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 py-2 text-xs font-medium md:min-h-0 ${selectedObjective === objective.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
-            >
-              {objective.label}
-            </Link>
-          ))}
-        </div>
+      {!shouldRun && stats && activity && (
+        <>
+          <MarketplacePulse
+            stats={stats}
+            listed={browseAgents.length}
+            answering={answering}
+            attestations={attestations}
+            activity={activity}
+          />
+          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 
-        <details className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
-            <span className="flex size-9 items-center justify-center rounded-[var(--radius)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
-              <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
-            </span>
-            <span className="flex flex-1 flex-col">
-              <span className="text-sm font-medium">Tune recommendations</span>
-              <span className="text-[10px] text-[color:var(--text-faint)]">Goals, capital, risk and time horizon</span>
-            </span>
-            <span aria-hidden className="text-[color:var(--text-faint)]">⌄</span>
-          </summary>
-          <div className="border-t border-[color:var(--border)] p-2">
-            <Suspense fallback={<div className="h-72" />}>
-              <BriefForm />
-            </Suspense>
-          </div>
-        </details>
-      </div>
-
-      <div className="hidden md:block">
-        <Suspense fallback={<div className="h-72" />}>
-          <BriefForm />
-        </Suspense>
-      </div>
-
-      {!shouldRun && (
-        <section className="flex flex-col gap-3 md:hidden">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Explore agents</h2>
-              <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Open any profile to review its evidence before hiring.</p>
-            </div>
-            <Link href="/agents" className="inline-flex min-h-11 shrink-0 items-center text-[11px] text-[color:var(--info)] md:inline md:min-h-0">View all</Link>
-          </div>
-          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-            {visibleAgents.map((entry, index) => {
-              const { agent } = entry.listing;
-              const category = CATEGORY_BY_ID.get(entry.listing.category);
-              return (
-                <div
-                  key={`${agent.chain_id}:${agent.token_id}`}
-                  className={`flex min-h-[4.75rem] items-center gap-3 pr-3 transition-colors hover:bg-[color:var(--surface-hover)] ${index > 0 ? 'border-t border-[color:var(--border)]' : ''}`}
-                >
-                  <Link
-                    href={`/agents/${agent.chain_id}/${agent.token_id}`}
-                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4"
-                  >
-                    <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
-                    <span className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="truncate text-sm font-medium">{agent.name}</span>
-                      <span className="truncate text-[10px] text-[color:var(--text-muted)]">{category?.label ?? 'Agent'} · {agent.supported_protocols?.slice(0, 2).join(' · ') || 'No endpoint declared'}</span>
-                    </span>
-                    <EvidenceBadge verdict={verdictFor(entry)} />
-                  </Link>
-                  {/*
-                    Hire on the row itself. Reaching it used to take row →
-                    detail → hire, which is three screens on a phone to do the
-                    one thing the quest actually measures.
-
-                    Offered only where the accumulated evidence supports it. A
-                    button that leads straight to a blocked page is worse than
-                    no button, so unproven and failing agents keep the chevron
-                    and nothing else.
-                  */}
-                  {offersDirectHire(entry) ? (
-                    <Link
-                      href={`/hire/${agent.chain_id}/${agent.token_id}`}
-                      className="action-primary shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-medium"
-                    >
-                      Hire
-                    </Link>
-                  ) : (
-                    <span aria-hidden className="shrink-0 text-[color:var(--text-faint)]">›</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {visibleAgents.length === 0 && (
-            <StatusState body="No indexed agents currently match this category." />
-          )}
-        </section>
+          <section id="recommend" className="scroll-mt-24">
+            <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
+              <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
+                  <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="text-sm font-semibold">Find my best match</span>
+                  <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">Build a shortlist from your goals, capital, risk tolerance and time horizon.</span>
+                </span>
+                <span aria-hidden className="text-lg text-[color:var(--text-faint)] transition-transform group-open:rotate-180">⌄</span>
+              </summary>
+              <div className="border-t border-[color:var(--border)] p-2 sm:p-3">
+                <Suspense fallback={<div className="h-72" />}>
+                  <BriefForm />
+                </Suspense>
+              </div>
+            </details>
+          </section>
+        </>
       )}
 
       {shouldRun && <Results brief={brief} />}
