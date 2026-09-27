@@ -65,7 +65,13 @@ export default async function CategoryPage({
   const meta = CATEGORY_BY_ID.get(raw as Category);
   if (!meta) notFound();
 
-  const entries = await listCategorySearchable(meta.id, { limit: 16 });
+  /*
+   * The marketplace now sends people here with "View all 26", so this has to
+   * actually hold 26. The classifier yields 15-26 per category today; 30
+   * covers that with room, and costs no extra registry calls because the
+   * limit only slices an already-fetched candidate set.
+   */
+  const entries = await listCategorySearchable(meta.id, { limit: 30 });
   const listings = entries.map(({ listing }) => listing);
   const withEvidence = listings.filter((l) => l.attestationCount > 0);
 

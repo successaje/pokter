@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { StatusState } from '@/components/ui/States';
 import { Suspense } from 'react';
 
@@ -22,6 +23,15 @@ import { AgentSearch } from '@/components/search/AgentSearch';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * How many agents each category shows before "View all" takes over.
+ *
+ * Eight rather than six because the grid runs at one, two and four columns
+ * and eight divides all three — six left a row of four above a row of two,
+ * with two empty cells reading as a rendering fault rather than a preview.
+ */
+const PREVIEW_PER_CATEGORY = 8;
+
 export default async function AgentsPage({
   searchParams,
 }: {
@@ -32,18 +42,20 @@ export default async function AgentsPage({
   const query = parseQuery(raw);
 
   /*
-   * 8 per category was sized for the anonymous registry tier, where 30
-   * requests a minute made every extra agent a real cost. SCAN_API_KEY is
-   * deployed now, and in any case the limit never governed the fetching: the
-   * discovery queries pull their candidates regardless and this only slices
-   * the ranked result, so raising it costs no registry calls at all.
+   * Fetched deep, shown shallow.
    *
-   * 16 matches what a single category page already shows, so the marketplace
-   * no longer surfaces fewer agents than its own subpages. The classifier
-   * currently yields 15-26 per category, so this shows most of them; the rest
-   * wait on pagination rather than a longer page.
+   * The limit never governed the fetching — the discovery queries pull their
+   * candidates regardless and this only slices the ranked result — so asking
+   * for 30 costs no registry calls and lets the section headers state a true
+   * total rather than the size of their own preview.
+   *
+   * What the page renders is PREVIEW_PER_CATEGORY of them. Showing all 63 put
+   * the phone list at 15.7 screens, and a marketplace overview that takes
+   * sixteen swipes to leave is not an overview. The rest are one tap away on
+   * the category page, which is also where they belong: all four categories
+   * stay first-class here, and depth lives behind each one.
    */
-  const all = await listSearchable({ limit: 16 });
+  const all = await listSearchable({ limit: 30 });
   const matched = query.qualifiers.length
     ? all.filter((agent) => matchesQuery(agent, query))
     : all;
@@ -100,16 +112,26 @@ export default async function AgentsPage({
                     {meta.blurb}
                   </p>
                 </div>
-                <p className="tabular text-[11px] text-[color:var(--text-faint)]">
-                  {entries.length} {filtering ? 'matching' : 'indexed'}
-                </p>
+                <div className="flex shrink-0 items-baseline gap-3">
+                  <p className="tabular text-[11px] text-[color:var(--text-faint)]">
+                    {entries.length} {filtering ? 'matching' : 'indexed'}
+                  </p>
+                  {entries.length > PREVIEW_PER_CATEGORY && (
+                    <Link
+                      href={`/categories/${category}`}
+                      className="tap text-[11px] font-medium text-[color:var(--info)]"
+                    >
+                      View all {entries.length}
+                    </Link>
+                  )}
+                </div>
               </div>
 
               {entries.length === 0 ? (
                 <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {entries.map((entry) => (
+                  {entries.slice(0, PREVIEW_PER_CATEGORY).map((entry) => (
                     <AgentCard
                       key={entry.listing.agent.token_id}
                       listing={entry.listing}
