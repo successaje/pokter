@@ -165,7 +165,7 @@ on screen than as a prerequisite for reaching one.
 ### FE-10 · The hero's loudest element is a failure
 **Page:** `/`
 
-`Hiring blocked` is the highest-contrast card in the illustration: red border,
+`Risk acceptance required` is the highest-contrast card in the illustration: red border,
 upper right, against calm greens. On-message, but it is the first thing the eye
 lands on in a frame meant to invite.
 

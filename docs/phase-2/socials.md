@@ -122,7 +122,7 @@ Then a short reply thread under it, one point per post:
 1. A screenshot of the claim-versus-evidence panel — a confident agent pitch
    beside **0 of 72 probes answered**. Caption: *"This agent describes Venus
    liquidation protection in convincing technical detail. It has never
-   answered us. Hiring it is blocked."*
+   answered us. Hiring it takes an explicit risk acceptance."*
 2. The permission panel, showing the **Cannot call** list. Caption: *"Enforced
    by the Altana account contract, not by our interface. A call outside the
    allowlist reverts on chain. We could not weaken it if we wanted to."*
