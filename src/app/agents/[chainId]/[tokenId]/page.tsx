@@ -22,6 +22,7 @@ import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
 import { TrustStrip } from '@/components/agent/TrustStrip';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
+import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
 
@@ -357,95 +358,107 @@ export default async function AgentPage({
           className="sticky top-20 hidden flex-col gap-3 lg:flex"
           aria-label="Hire this agent"
         >
-          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(0,0,0,0.16)]">
-            <div className="border-b border-[color:var(--border)] p-4">
-              <p className="text-[10px] uppercase tracking-widest text-[color:var(--text-faint)]">
-                Hire this agent
+          <div className="surface-card flex flex-col gap-4 p-5">
+            {/*
+              Status first, because it changes what the rest of the card is
+              worth. This is the live probe taken when the page loaded, not a
+              stored flag.
+            */}
+            <span
+              className={
+                answeredNow
+                  ? 'inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--positive)]'
+                  : 'inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--negative)]'
+              }
+            >
+              <span aria-hidden className="size-1.5 rounded-full bg-current" />
+              {answeredNow ? 'Answering now' : 'Not answering'}
+            </span>
+
+            <div>
+              <p className="text-[11px] text-[color:var(--text-muted)]">
+                Starting from
               </p>
-              <h2 className="mt-1.5 break-words text-lg font-medium tracking-tight [overflow-wrap:anywhere]">
-                Review and hire
-              </h2>
+              <p className="tabular mt-1 font-[family-name:var(--font-serif)] text-3xl leading-none">
+                {DEFAULT_BUDGET_LABEL}
+              </p>
+              {/*
+                No dollar estimate. On testnet these are faucet tokens worth
+                nothing, and converting them to a currency figure would dress
+                up a number that has no price.
+              */}
+              {PAYMENT_VALUE_NOTE && (
+                <p className="mt-1.5 text-[11px] text-[color:var(--text-faint)]">
+                  {PAYMENT_VALUE_NOTE}
+                </p>
+              )}
             </div>
 
-            <dl className="grid grid-cols-2 gap-px bg-[color:var(--border)]">
-              <div className="bg-[color:var(--surface)] p-3.5">
-                <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                  Price
-                </dt>
-                <dd className="mt-1 text-sm font-medium">0.10 $U</dd>
+            <dl className="flex flex-col gap-2.5 border-t border-[color:var(--border)] pt-4 text-[12px]">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[color:var(--text-muted)]">Escrow</dt>
+                <dd className="mono">ERC-8183</dd>
               </div>
-              <div className="bg-[color:var(--surface)] p-3.5">
-                <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                  Protocol
-                </dt>
-                <dd className="mt-1 text-sm font-medium">ERC-8183</dd>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[color:var(--text-muted)]">Evidence</dt>
+                <dd>
+                  <EvidenceBadge verdict={proof.verdict} />
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[color:var(--text-muted)]">Availability</dt>
+                <dd className="tabular">{availability}</dd>
+              </div>
+              {/*
+                The old row here read "Spend ceiling — set at approval", which
+                implied a ceiling gets set. Delegated execution is paused, so
+                nothing is granted at all, and saying so is both simpler and
+                the more reassuring of the two.
+              */}
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[color:var(--text-muted)]">Wallet access</dt>
+                <dd className="text-right font-medium text-[color:var(--positive)]">
+                  None
+                </dd>
               </div>
             </dl>
 
-            <div className="flex flex-col gap-3 p-4">
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
-                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
-                  Historical evidence
-                </span>
-                <EvidenceBadge verdict={proof.verdict} />
-              </div>
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
-                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
-                  Current status
-                </span>
-                <span
-                  className={
-                    answeredNow
-                      ? 'max-w-[11rem] break-words text-right text-[color:var(--positive)] [overflow-wrap:anywhere]'
-                      : 'max-w-[11rem] break-words text-right text-[color:var(--negative)] [overflow-wrap:anywhere]'
-                  }
-                >
-                  {answeredNow ? 'Live check passed' : 'Live check failed'}
-                </span>
-              </div>
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
-                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
-                  Observed availability
-                </span>
-                <span className="tabular text-right">{availability}</span>
-              </div>
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 text-xs">
-                <span className="min-w-0 break-words text-[color:var(--text-muted)]">
-                  Spend ceiling
-                </span>
-                <span className="text-right text-[color:var(--caution)]">
-                  Set at approval
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-[color:var(--border)] p-4">
+            <div className="flex flex-col gap-2">
               <Link
                 href={`/hire/${agent.chain_id}/${agent.token_id}`}
                 className={
                   proof.recommendedForHire && answeredNow
-                    ? 'action-primary block w-full rounded-[var(--radius)] px-4 py-2.5 text-center text-[13px]'
-                    : 'block w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2.5 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
+                    ? 'action-primary block w-full rounded-[var(--radius)] px-4 py-3 text-center text-[13px]'
+                    : 'block w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-3 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
                 }
               >
                 {proof.recommendedForHire && answeredNow
                   ? 'Hire agent'
                   : 'Review risks and hire'}
               </Link>
-              {(!proof.recommendedForHire || !answeredNow) && (
-                <p className="mt-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
-                  {proof.recommendedForHire
-                    ? 'Strong historical evidence, but the latest live capability check failed.'
-                    : 'This agent requires explicit risk acceptance before it can be hired.'}
-                </p>
-              )}
-              <a
-                href="#permissions"
-                className="mt-3 block text-center text-[11px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
+
+              <Link
+                href={`/compare?agents=${agent.chain_id}:${agent.token_id}`}
+                className="block w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-3 text-center text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
               >
-                Review permissions and limits
-              </a>
+                Add to compare
+              </Link>
             </div>
+
+            {(!proof.recommendedForHire || !answeredNow) && (
+              <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
+                {proof.recommendedForHire
+                  ? 'Strong historical evidence, but the latest live capability check failed.'
+                  : 'This agent requires explicit risk acceptance before it can be hired.'}
+              </p>
+            )}
+
+            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <svg viewBox="0 0 24 24" aria-hidden className="mt-px size-3.5 shrink-0 fill-none stroke-current" strokeWidth="1.8">
+                <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
+              </svg>
+              Funds stay in escrow until you accept the delivery.
+            </p>
           </div>
 
           <ScorePanel score={score} label="Evidence score" />
