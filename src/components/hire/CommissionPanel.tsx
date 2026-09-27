@@ -1,6 +1,6 @@
 'use client';
 
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
 import {
   buildSwapCalls,
   quoteBnbForPaymentToken,
@@ -547,6 +547,64 @@ export function CommissionPanel({
             </a>
           )}
         </div>
+      )}
+
+      {/*
+        §7. The review, immediately above the action rather than scattered up
+        the page. Before money moves the user should be able to read back what
+        they are committing to in one block, including the part no interface
+        usually states: what this does *not* buy them. Every value here is the
+        live form state, so it cannot drift from what the button will send.
+      */}
+      {state !== 'hired' && (
+        <dl className="flex flex-col divide-y divide-[color:var(--border)] rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] text-[12px]">
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">Hiring</dt>
+            <dd className="min-w-0 break-words text-right font-medium [overflow-wrap:anywhere]">
+              {agent.name}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">Task</dt>
+            <dd className="min-w-0 break-words text-right [overflow-wrap:anywhere]">
+              {task.trim() || (
+                <span className="text-[color:var(--negative)]">
+                  Describe the task above
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">Budget</dt>
+            <dd className="tabular text-right font-medium">{budget} $U</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">Held by</dt>
+            <dd className="min-w-0 text-right">
+              ERC-8183 escrow on {NETWORK_LABEL}
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">Released</dt>
+            <dd className="min-w-0 text-right">
+              On delivery you accept, not before
+            </dd>
+          </div>
+          {/*
+            Stated as plainly as the budget is. Delegated execution is paused,
+            so hiring grants no wallet authority whatsoever — that is the most
+            reassuring fact on this screen and it was only inferable from a
+            section a screen and a half further up.
+          */}
+          <div className="flex items-baseline justify-between gap-3 p-3">
+            <dt className="shrink-0 text-[color:var(--text-muted)]">
+              Wallet access
+            </dt>
+            <dd className="min-w-0 text-right font-medium text-[color:var(--positive)]">
+              None. This agent cannot touch your funds
+            </dd>
+          </div>
+        </dl>
       )}
 
       {state !== 'hired' && (

@@ -10,6 +10,7 @@ import { wbnbUsdPrice } from '@/lib/pancakeswap/pool';
 import { recommendedAlternatives } from '@/lib/marketplace';
 import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
+import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
@@ -155,27 +156,16 @@ export default async function HirePage({
           )}
           <WalletReadiness requiredBudgetU={0.1} />
           {/*
-            Two distinct grants, in the order they matter. A session is standing
-            authority over your wallet; a job is a single piece of escrowed
-            work. Neither implies the other, so they are separate steps rather
-            than one "activate" button.
+            Commissioning leads, because it is the only one of the two that
+            can actually happen. A session is standing authority over your
+            wallet and a job is a single piece of escrowed work; neither
+            implies the other, so they stay separate. But delegated execution
+            is paused, so the access section grants nothing today — it is
+            reference, and it used to sit as 1,200px of it between the user
+            and the thing they came to do.
           */}
           <Stage
             index={1}
-            title="Review access"
-            caption="Standing wallet authority remains disabled until every call argument is safely constrained."
-          >
-            <WalletGate action="grant permission" capability="session">
-              <PermissionReview
-                summary={summary}
-                isTestnet={IS_TESTNET}
-                bnbUsdPrice={bnbUsdPrice}
-              />
-            </WalletGate>
-          </Stage>
-
-          <Stage
-            index={2}
             title="Commission work"
             caption="Escrow a budget for a specific task, released only on delivery."
           >
@@ -195,6 +185,20 @@ export default async function HirePage({
               />
             </WalletGate>
           </Stage>
+
+          <EvidenceSection
+            title="What hiring does not grant"
+            caption="Standing wallet authority remains disabled until every call argument is safely constrained."
+            summary="Delegated execution is paused, so this agent gets no access to your wallet."
+          >
+            <WalletGate action="grant permission" capability="session">
+              <PermissionReview
+                summary={summary}
+                isTestnet={IS_TESTNET}
+                bnbUsdPrice={bnbUsdPrice}
+              />
+            </WalletGate>
+          </EvidenceSection>
         </div>
     </div>
   );
