@@ -28,11 +28,12 @@ export const dynamic = 'force-dynamic';
 /**
  * How many agents each category shows before "View all" takes over.
  *
- * Eight rather than six because the grid runs at one, two and four columns
- * and eight divides all three — six left a row of four above a row of two,
- * with two empty cells reading as a rendering fault rather than a preview.
+ * Six, because the grid now runs at one, two and three columns and six
+ * divides all three. It was eight when the widest breakpoint was four
+ * columns; four turned out to be too narrow for the larger type and was
+ * snapping names mid-word, so both numbers moved together.
  */
-const PREVIEW_PER_CATEGORY = 8;
+const PREVIEW_PER_CATEGORY = 6;
 
 export default async function AgentsPage({
   searchParams,
@@ -169,7 +170,7 @@ export default async function AgentsPage({
               {entries.length === 0 ? (
                 <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {entries.slice(0, PREVIEW_PER_CATEGORY).map((entry) => (
                     <AgentCard
                       key={entry.listing.agent.token_id}

@@ -126,7 +126,7 @@ export default async function CategoryPage({
       {listings.length === 0 ? (
         <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {entries.map((entry) => (
             <AgentCard
               key={entry.listing.agent.token_id}
