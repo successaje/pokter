@@ -53,7 +53,7 @@ function AgentComposition({
   category: Category;
 }) {
   const meta = CATEGORY_BY_ID.get(category);
-  const agents = listings.slice(0, 3);
+  const agents = listings.slice(0, 4);
 
   return (
     <div className="relative mx-auto min-h-[290px] w-full max-w-[520px] sm:min-h-[340px]">
@@ -68,15 +68,19 @@ function AgentComposition({
 
       {agents.map((listing, index) => {
         const positions = [
-          'left-[2%] top-[17%] -rotate-6',
-          'right-[1%] top-[5%] rotate-6',
-          'bottom-[2%] left-[18%] rotate-2',
+          'left-[1%] top-[9%] -rotate-6',
+          'right-[1%] top-[25%] rotate-6',
+          'bottom-[2%] left-[8%] rotate-2',
+          'left-[24%] top-[42%] z-20 -rotate-2',
         ];
+        const href = `/agents/${listing.agent.chain_id}/${listing.agent.token_id}`;
 
         return (
-          <article
+          <Link
             key={`${listing.agent.chain_id}:${listing.agent.token_id}`}
-            className={`absolute ${positions[index]} z-10 flex w-[72%] max-w-[330px] items-center gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 shadow-lg transition-transform duration-300 hover:z-20 hover:rotate-0 hover:scale-[1.02] sm:p-4`}
+            href={href}
+            aria-label={`View ${listing.agent.name}`}
+            className={`absolute ${positions[index]} z-10 flex w-[68%] max-w-[310px] items-center gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 shadow-lg transition-[transform,border-color,box-shadow] duration-300 hover:z-30 hover:rotate-0 hover:scale-[1.02] hover:border-[color:var(--brand)] hover:shadow-xl focus-visible:z-30 focus-visible:rotate-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)] sm:p-4`}
           >
             <AgentAvatar
               name={listing.agent.name}
@@ -93,9 +97,9 @@ function AgentComposition({
             </div>
             <span
               className="size-2 shrink-0 rounded-full bg-[color:var(--positive)]"
-              aria-label="Listed in the marketplace"
+              aria-hidden
             />
-          </article>
+          </Link>
         );
       })}
 
