@@ -1,4 +1,5 @@
 import { plural, pluralise } from '@/lib/ui/plural';
+import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import { ProvenanceTag, type ProvenanceDetail } from '@/components/ui/ProvenanceTag';
 import { shortAddress } from '@/lib/ui/format';
 import type { AgentDossier } from '@/lib/marketplace';
@@ -146,16 +147,17 @@ export function TrustPanel({
   ];
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-medium tracking-tight">
-          Why should I trust this agent?
-        </h2>
-        <p className="text-xs text-[color:var(--text-muted)]">
-          Each claim below shows where it came from. Declared facts and observed
-          facts are never mixed.
-        </p>
-      </div>
+    <EvidenceSection
+      title="Why should I trust this agent?"
+      caption="Each claim below shows where it came from. Declared facts and observed facts are never mixed."
+      /*
+       * The summary names the split rather than the row count, because the
+       * split is the point: a phone user who never opens this section should
+       * still learn that some of these facts are the agent's own.
+       */
+      summary={`${rows.length} claims, each labelled by source — declared or observed.`}
+      sectionClassName="flex flex-col gap-4"
+    >
 
       <dl className="flex flex-col divide-y divide-[color:var(--border)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
         {rows.map((row) => (
@@ -173,6 +175,6 @@ export function TrustPanel({
           </div>
         ))}
       </dl>
-    </section>
+    </EvidenceSection>
   );
 }

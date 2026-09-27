@@ -19,6 +19,7 @@ import { EvidencePanel } from '@/components/EvidencePanel';
 import { AuthorityPanel } from '@/components/AuthorityPanel';
 import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { MobileHireAction } from '@/components/agent/MobileHireAction';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -184,7 +185,7 @@ export default async function AgentPage({
                 {agent.description && (
                   <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
                     <summary className="cursor-pointer list-none">
-                      <span className="line-clamp-3 break-words [overflow-wrap:anywhere] group-open:hidden">
+                      <span className="line-clamp-2 break-words [overflow-wrap:anywhere] group-open:hidden md:line-clamp-3">
                         {agent.description}
                       </span>
                       <span className="mt-1.5 inline-flex text-[11px] font-medium text-[color:var(--text-muted)] group-open:hidden">
@@ -200,7 +201,14 @@ export default async function AgentPage({
                   </details>
                 )}
 
-                <dl className="mt-1 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
+                {/*
+                  Desktop only. On a phone these three cells sat in a 53px
+                  column where "Observations" clipped, and they now repeat what
+                  the verdict badge and the hire card's evidence line say a few
+                  hundred pixels above. Dropping them is less text for the same
+                  facts.
+                */}
+                <dl className="mt-1 hidden grid-cols-3 gap-2 lg:grid">
                   <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
                     <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
                       Reliability
@@ -232,9 +240,25 @@ export default async function AgentPage({
               </div>
             </div>
 
-            <p className="max-w-3xl break-words border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+            <p className="hidden max-w-3xl break-words border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere] lg:block">
               {proof.rationale}
             </p>
+
+            {/*
+            §5. The hire decision sits directly under the identity on a phone,
+            not four screens below it. It carries a measured line as well as a
+            price, so the first thing in reach is not a bare CTA.
+            */}
+            <MobileHireAction
+            href={`/hire/${agent.chain_id}/${agent.token_id}`}
+            price="0.10 $U"
+            answeredNow={answeredNow}
+            recommended={proof.recommendedForHire}
+            verdictLabel={
+            answeredNow ? 'Live check passed' : 'Live check failed'
+            }
+            evidenceLine={probeSummary}
+            />
           </header>
 
           <nav
@@ -436,43 +460,6 @@ export default async function AgentPage({
         </aside>
       </div>
 
-      {/*
-        Sits above the floated tab bar. The old `bottom-[3.25rem]` was measured
-        against a tab bar attached to the edge; once that bar lifted off the
-        canvas the two overlapped, and the primary action on the page ended up
-        underneath the navigation — present in the DOM, tappable by a couple of
-        pixels, and invisible to anyone actually looking for it.
-
-        Above `md` the tab bar is hidden, so this returns to the edge.
-      */}
-      <div className="hire-action-bar fixed inset-x-0 z-30 border-t border-[color:var(--border-strong)] bg-[color:var(--bg)]/95 p-3 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md lg:hidden">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium">0.10 $U · ERC-8183</p>
-            <p
-              className={
-                answeredNow
-                  ? 'truncate text-[10px] text-[color:var(--positive)]'
-                  : 'truncate text-[10px] text-[color:var(--negative)]'
-              }
-            >
-              {answeredNow ? 'Live check passed' : 'Live check failed'}
-            </p>
-          </div>
-          <Link
-            href={`/hire/${agent.chain_id}/${agent.token_id}`}
-            className={
-              proof.recommendedForHire && answeredNow
-                ? 'action-primary shrink-0 rounded-[var(--radius)] px-4 py-2 text-center text-xs'
-                : 'shrink-0 rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-2 text-center text-xs font-medium text-[color:var(--caution)]'
-            }
-          >
-            {proof.recommendedForHire && answeredNow
-              ? 'Hire agent'
-              : 'Review & hire'}
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }
