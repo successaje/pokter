@@ -65,7 +65,7 @@ export function AgentCard({
         374px wide inside a 350px column and give the whole page a horizontal
         scroll — latent until a higher list limit surfaced that agent.
       */}
-      <div className="flex min-w-0 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] md:hidden">
+      <div className="surface-card flex min-w-0 flex-col md:hidden">
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
@@ -116,7 +116,7 @@ export function AgentCard({
       </div>
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
-      <div className="group hidden h-full min-w-0 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] md:flex">
+      <div className="surface-card group hidden h-full min-w-0 flex-col md:flex">
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
