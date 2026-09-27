@@ -752,3 +752,79 @@ body {
     display: none;
   }
 }
+
+/*
+ * ── Mobile ergonomics floor ──────────────────────────────────────────────
+ *
+ * Everything in this block is scoped to phone widths, because the desktop
+ * layout is a fixed constraint. That scoping is also why these are media
+ * queries over utility classes rather than 325 edits at the call sites: the
+ * components are shared, so changing a size in the markup would move desktop
+ * too. A floor applied in one documented place is both safer and easier to
+ * find than the same change smeared across a hundred files.
+ */
+@media (max-width: 767px) {
+  /*
+   * Type floor. The marketplace listing alone rendered 196 text nodes below
+   * 12px, some at 9px — density tuned for a monitor at arm's length, not a
+   * phone held in one hand. Raised gently: a bigger jump reflows dense rows
+   * and pushes them back into overflow.
+   */
+  .text-\[9px\] {
+    font-size: 11px;
+  }
+
+  .text-\[10px\] {
+    font-size: 11.5px;
+  }
+
+  .text-\[11px\] {
+    font-size: 12.5px;
+  }
+
+  /*
+   * Form controls. Any control under 16px makes iOS Safari zoom the viewport
+   * on focus — on the hire screen that meant the page lurched while the user
+   * was typing how much money to commit. 16px is the threshold, not a
+   * preference, so it is set exactly rather than rounded to a scale step.
+   * Checkboxes and radios are excluded: they are sized by their own box.
+   */
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  /*
+   * Hit-area floor for controls that are deliberately small, such as the
+   * inline provenance chips inside running text. The target is grown with a
+   * pseudo-element so the chip keeps its typographic size and the line box
+   * does not move — making the chip itself 44px would break the sentence it
+   * sits in.
+   */
+  .tap-safe {
+    position: relative;
+  }
+
+  .tap-safe::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 44px;
+    min-width: 44px;
+    width: 100%;
+    transform: translate(-50%, -50%);
+  }
+
+  /*
+   * The primary action. Every "Hire agent" on the marketplace listing and the
+   * search submit render through this class at 34px — the most important
+   * control in the product, and the one hardest to hit. Fixed here rather than
+   * per button so a new call site inherits the floor.
+   */
+  .action-primary {
+    min-height: 44px;
+  }
+}

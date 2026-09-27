@@ -108,7 +108,13 @@ export function Footer() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
+                      /*
+                       * Footer links are a stacked list on a phone, where a
+                       * 14px line is a hard target between two other links.
+                       * Padding rather than min-height so the rows stay a
+                       * list; md:py-0 leaves the desktop columns as they were.
+                       */
+                      className="inline-flex min-h-11 items-center text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)] md:inline md:min-h-0"
                     >
                       {link.label}
                     </Link>

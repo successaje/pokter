@@ -63,8 +63,13 @@ export function ProvenanceTag({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
+        /*
+         * `tap-safe` grows the hit area to 44px on phones without changing
+         * the chip's size, so it stays legible inline in a sentence while
+         * still being tappable.
+         */
         className={cn(
-          'inline-flex items-center gap-1 rounded text-[10px] font-medium uppercase tracking-wide transition-opacity hover:opacity-100',
+          'tap-safe inline-flex items-center gap-1 rounded text-[10px] font-medium uppercase tracking-wide transition-opacity hover:opacity-100',
           open ? 'opacity-100' : 'opacity-70',
           meta.className,
         )}

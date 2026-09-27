@@ -104,7 +104,7 @@ export function ConnectWallet() {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         className={cn(
-          'flex items-center gap-2 rounded-[var(--radius)] border px-3 py-1.5 text-[13px] font-medium transition-colors',
+          'flex min-h-11 items-center gap-2 rounded-[var(--radius)] border px-3 py-1.5 text-[13px] font-medium transition-colors md:min-h-0',
           wrongChain && !passkey.wallet
             ? 'border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] text-[color:var(--caution)]'
             : 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] hover:bg-[color:var(--surface-hover)]',

@@ -117,7 +117,8 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
               }
               aria-expanded={openGroup === group.label}
               className={cn(
-                'rounded-[var(--radius)] border px-2.5 py-1.5 text-[12px] transition-colors',
+                /* min-h-11 on phones only; md:min-h-0 keeps desktop as it was. */
+                'min-h-11 rounded-[var(--radius)] border px-2.5 py-1.5 text-[12px] transition-colors md:min-h-0',
                 openGroup === group.label
                   ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
                   : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',
