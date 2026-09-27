@@ -28,16 +28,16 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
       source: 'ERC-8004 registry, via 8004scan',
     },
     {
-      value: stats.categories,
-      format: 'plain',
-      label: 'financial categories',
-      source: 'Marketplace scope',
-    },
-    {
       value: stats.agentsMonitored,
       format: 'count',
-      label: 'agents monitored',
-      source: 'Indexed by Pokter',
+      label: 'called by Pokter',
+      source: `Across ${stats.categories} financial categories`,
+    },
+    {
+      value: stats.agentsAnswering,
+      format: 'count',
+      label: 'answered when called',
+      source: 'Measured, not self-reported',
     },
     {
       value: stats.probesTaken,
@@ -49,9 +49,32 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
 
   return (
     <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
-      <h2 className="border-b border-[color:var(--border-strong)] px-5 py-3 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-        BNB agent economy
-      </h2>
+      {/*
+        The panel was already built around this argument — the original note
+        here said the gap between the first figure and the third is the point
+        — but the figures never made it out loud. "74 agents monitored" beside
+        a registry of hundreds of thousands reads as thin coverage, an apology
+        for how little we have indexed.
+        
+        It is the opposite. A registry entry is a claim that something exists;
+        most of those claims go unanswered when the address is actually
+        called. Naming the two figures "called" and "answered" turns the gap
+        from an embarrassment into the finding, and the line below says it
+        plainly rather than leaving it to be inferred from a subtitle.
+
+        The claim stays scoped to what Pokter has actually done. It is not a
+        census of the registry — it is a census of the agents we called, which
+        is the only one we are entitled to make.
+      */}
+      <div className="flex flex-col gap-1 border-b border-[color:var(--border-strong)] px-5 py-3">
+        <h2 className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+          BNB agent economy
+        </h2>
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+          A registry entry is a claim that an agent exists. Pokter calls the
+          address to find out, and most of the registry has never answered.
+        </p>
+      </div>
 
       <dl className="grid divide-y divide-[color:var(--border)] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
         {figures.map((figure) => (
