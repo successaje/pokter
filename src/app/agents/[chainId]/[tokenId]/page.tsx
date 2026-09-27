@@ -20,6 +20,7 @@ import { AuthorityPanel } from '@/components/AuthorityPanel';
 import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
+import { TrustStrip } from '@/components/agent/TrustStrip';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
@@ -220,42 +221,6 @@ export default async function AgentPage({
                   </details>
                 )}
 
-                {/*
-                  Desktop only. On a phone these three cells sat in a 53px
-                  column where "Observations" clipped, and they now repeat what
-                  the verdict badge and the hire card's evidence line say a few
-                  hundred pixels above. Dropping them is less text for the same
-                  facts.
-                */}
-                <dl className="mt-1 hidden grid-cols-3 gap-2 lg:grid">
-                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                      Reliability
-                    </dt>
-                    <dd className="tabular mt-1 text-[11px] font-medium">
-                      {availability}
-                    </dd>
-                  </div>
-                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                      Observations
-                    </dt>
-                    <dd className="tabular mt-1 text-[11px] font-medium">
-                      {/* FE-12. Whose count this is, said plainly — the rationale
-                      below reports the total across every measurer. */}
-                      {record.totalProbes} by Pokter
-                    </dd>
-                  </div>
-                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-2.5">
-                    <dt className="text-[9px] uppercase tracking-wider text-[color:var(--text-faint)]">
-                      Evidence
-                    </dt>
-                    <dd className="tabular mt-1 text-[11px] font-medium">
-                      {attestations.length} receipt
-                      {attestations.length === 1 ? '' : 's'}
-                    </dd>
-                  </div>
-                </dl>
               </div>
             </div>
 
@@ -278,6 +243,14 @@ export default async function AgentPage({
             }
             evidenceLine={probeSummary}
             />
+
+            {/*
+              The old three-cell grid said the same things without saying
+              where any of them came from, and hid on phones because it could
+              not fit. This replaces it: the same facts plus identity, each
+              carrying its source, at every width.
+            */}
+            <TrustStrip dossier={dossier} />
           </header>
 
           <nav
