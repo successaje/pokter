@@ -104,7 +104,7 @@ export default async function HirePage({
     <div className="flex flex-col gap-8 pt-6">
       <Link
         href={`/agents/${chainId}/${tokenId}`}
-        className="inline-flex min-h-11 items-center self-start text-xs md:self-auto text-[color:var(--text-muted)] hover:text-[color:var(--text)] md:inline md:min-h-0"
+        className="tap self-start text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)] md:self-auto"
       >
         ← Back to agent
       </Link>

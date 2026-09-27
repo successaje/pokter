@@ -52,7 +52,7 @@ export function EvidenceSection({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={contentId}
-        className="-my-1 flex min-h-11 w-full items-center justify-between gap-3 py-1 text-left md:hidden"
+        className="-my-1 flex w-full items-center justify-between gap-3 py-1 text-left md:hidden"
       >
         <span className="min-w-0">
           <span className="block text-[15px] font-semibold tracking-[-0.01em]">

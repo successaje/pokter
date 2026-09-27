@@ -81,7 +81,7 @@ export function Nav() {
         <Link
           href={installed ? '/app' : '/'}
           aria-label={installed ? 'Pokter app home' : 'Pokter home'}
-          className="text-[color:var(--text)] transition-opacity hover:opacity-80"
+          className="tap text-[color:var(--text)] transition-opacity hover:opacity-80"
         >
           <Wordmark />
         </Link>
@@ -202,7 +202,7 @@ export function MobileNav() {
                 href={item.href}
                 onClick={closeMore}
                 className={cn(
-                  'flex min-h-11 items-center justify-between rounded-[var(--radius)] px-3 text-sm transition-colors',
+                  'flex items-center justify-between rounded-[var(--radius)] px-3 text-sm transition-colors',
                   active
                     ? 'bg-[color:var(--brand-highlight-soft)] text-[color:var(--text)]'
                     : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]',

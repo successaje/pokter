@@ -797,6 +797,40 @@ body {
   }
 
   /*
+   * The touch floor, by default rather than by opt-in.
+   *
+   * This used to be `min-h-11 md:min-h-0` written out at two dozen call
+   * sites, which had two problems. It was silently wrong if anyone forgot the
+   * `md:` half, and it did not survive contact with a rewrite: when Discover
+   * was rebuilt, every per-component floor on that page went with it while
+   * the type floor — which lives here — came through untouched. Ergonomics
+   * stated once, centrally, outlast the markup they apply to.
+   *
+   * Buttons and fields need no markup at all: `min-height` applies to their
+   * default inline-block box. `.tap-safe` opts out, for controls that are
+   * small on purpose and grow their hit area with a pseudo-element instead —
+   * making an inline provenance chip 44px tall would break the sentence it
+   * sits in.
+   */
+  button:not(.tap-safe),
+  [role='button']:not(.tap-safe) {
+    min-height: 44px;
+  }
+
+  /*
+   * Links opt in with `.tap`, because they need the display as well:
+   * `min-height` does nothing to a non-replaced inline box, which is why the
+   * old call sites all carried `inline-flex items-center` alongside it. The
+   * rule exists only inside this media query, so a call site cannot get the
+   * desktop scoping wrong by forgetting a `md:` prefix.
+   */
+  .tap {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /*
    * Hit-area floor for controls that are deliberately small, such as the
    * inline provenance chips inside running text. The target is grown with a
    * pseudo-element so the chip keeps its typographic size and the line box

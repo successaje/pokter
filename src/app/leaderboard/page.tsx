@@ -84,7 +84,7 @@ export default async function LeaderboardPage({
             key={tab.id}
             href={tab.id === 'overall' ? '/leaderboard' : `/leaderboard?category=${tab.id}`}
             className={cn(
-              'inline-flex min-h-11 shrink-0 items-center rounded-[var(--radius)] border px-3 py-1.5 text-[13px] transition-colors md:min-h-0',
+              'tap shrink-0 rounded-[var(--radius)] border px-3 py-1.5 text-[13px] transition-colors',
               active === tab.id
                 ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] text-[color:var(--text)]'
                 : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',
@@ -115,7 +115,7 @@ export default async function LeaderboardPage({
               <>
                 <Link
                   href={`/agents/${award.winner.agent.chain_id}/${award.winner.agent.token_id}`}
-                  className="inline-flex min-h-11 items-center text-[13px] font-medium leading-snug hover:underline md:inline md:min-h-0"
+                  className="tap text-[13px] font-medium leading-snug hover:underline"
                 >
                   {award.winner.agent.name}
                 </Link>

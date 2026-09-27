@@ -169,7 +169,7 @@ export function PermissionReview({
                 onClick={() => setPeriod(option)}
                 disabled
                 className={cn(
-                  'min-h-11 rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors md:min-h-0',
+                  'rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors',
                   period === option
                     ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
                     : 'border-[color:var(--border)] text-[color:var(--text-muted)]',
@@ -197,7 +197,7 @@ export function PermissionReview({
                 onClick={() => setExpiryDays(days)}
                 disabled
                 className={cn(
-                  'min-h-11 rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors md:min-h-0',
+                  'rounded-[var(--radius)] border px-2.5 py-1.5 text-[13px] transition-colors',
                   expiryDays === days
                     ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
                     : 'border-[color:var(--border)] text-[color:var(--text-muted)]',

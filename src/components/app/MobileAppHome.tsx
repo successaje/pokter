@@ -84,7 +84,7 @@ export function MobileAppHome() {
         a sticky element can only travel within its own parent's box.
       */}
       <header className="app-safe-top sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[color:var(--border)] bg-[color:var(--bg)]/92 px-5 pb-3 backdrop-blur-xl md:hidden">
-        <Link href="/app" aria-label="Pokter app home"><Wordmark size={22} /></Link>
+        <Link href="/app" aria-label="Pokter app home" className="tap"><Wordmark size={22} /></Link>
         <div className="flex items-center gap-2">
           <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
             <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
@@ -137,8 +137,8 @@ export function MobileAppHome() {
             <h2 className="mt-4 text-lg font-semibold tracking-tight">Connect your signing wallet</h2>
             <p className="mt-2 text-xs leading-relaxed text-[color:var(--text-secondary)]">Use your Pokter passkey to see balances, active agents and approvals on this device.</p>
             <div className="mt-4 flex gap-2">
-              <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.recover()} className="action-primary min-h-11 flex-1 rounded-[var(--radius)] px-4 text-sm">{passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing passkey'}</button>
-              <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.create()} className="min-h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-sm font-medium">Create</button>
+              <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.recover()} className="action-primary flex-1 rounded-[var(--radius)] px-4 text-sm">{passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing passkey'}</button>
+              <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.create()} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-sm font-medium">Create</button>
             </div>
             {passkey.error && <p className="mt-3 text-[11px] leading-relaxed text-[color:var(--negative)]">{passkey.error}</p>}
           </section>
@@ -158,7 +158,7 @@ export function MobileAppHome() {
         </section>
 
         <section className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Your activity</h2><Link href="/my-agents" className="text-[11px] text-[color:var(--info)]">View all</Link></div>
+          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Your activity</h2><Link href="/my-agents" className="tap text-[11px] text-[color:var(--info)]">View all</Link></div>
           <div className="grid grid-cols-2 divide-x divide-[color:var(--border)]">
             <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeJobs.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Active jobs</p></Link>
             <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeSessions.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Live permissions</p></Link>

@@ -95,7 +95,7 @@ export function AgentPicker({
                   disabled={disabled}
                   aria-pressed={isSelected}
                   className={cn(
-                    'inline-flex min-h-11 cursor-pointer items-center rounded-[var(--radius)] border px-3 py-2 text-[12px] transition-colors md:min-h-0',
+                    'inline-flex cursor-pointer items-center rounded-[var(--radius)] border px-3 py-2 text-[12px] transition-colors',
                     isSelected
                       ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] text-[color:var(--text)]'
                       : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',

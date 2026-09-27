@@ -235,7 +235,7 @@ export default async function DiscoverPage({
         {!shouldRun && (
           <Link
             href="#recommend"
-            className="action-primary inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
+            className="action-primary tap inline-flex items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
           >
             Find my best match
           </Link>

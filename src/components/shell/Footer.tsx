@@ -52,7 +52,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
         <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr_1fr]">
           <div className="flex max-w-md flex-col items-start gap-4">
-            <Link href="/" aria-label="Pokter home">
+            <Link href="/" aria-label="Pokter home" className="tap">
               <Wordmark size={24} />
             </Link>
             <p className="text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
@@ -65,7 +65,7 @@ export function Footer() {
                 href="https://www.bnbchain.org/"
                 target="_blank"
                 rel="noreferrer noopener"
-                className="flex h-9 items-center gap-2 rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+                className="tap flex h-9 items-center gap-2 rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
               >
                 <Image
                   src="/integrations/bnbchain.ico"
@@ -114,7 +114,7 @@ export function Footer() {
                        * Padding rather than min-height so the rows stay a
                        * list; md:py-0 leaves the desktop columns as they were.
                        */
-                      className="inline-flex min-h-11 items-center text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)] md:inline md:min-h-0"
+                      className="tap text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
                     >
                       {link.label}
                     </Link>

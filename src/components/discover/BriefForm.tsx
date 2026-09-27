@@ -44,7 +44,7 @@ function Choice({
       aria-pressed={selected}
       className={cn(
         /* Shared by every option in the brief, so one floor covers them all. */
-        'inline-flex min-h-11 items-center rounded-[var(--radius)] border px-3 py-2 text-[13px] transition-colors duration-150 md:min-h-0',
+        'inline-flex items-center rounded-[var(--radius)] border px-3 py-2 text-[13px] transition-colors duration-150',
         selected
           ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--text)]'
           : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',

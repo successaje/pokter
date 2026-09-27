@@ -31,7 +31,7 @@ export function InstallPokter({ onComplete }: { onComplete?: () => void }) {
           if (await install()) onComplete?.();
         }}
         aria-expanded={installMethod === 'ios' ? showIosHelp : undefined}
-        className="flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius)] px-3 text-left text-sm text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-hover)]"
+        className="flex w-full items-center gap-2.5 rounded-[var(--radius)] px-3 text-left text-sm text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-hover)]"
       >
         <span className="text-[color:var(--brand)]"><InstallIcon /></span>
         <span className="flex flex-1 flex-col">
