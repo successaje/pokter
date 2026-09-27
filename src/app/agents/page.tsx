@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { StatusState } from '@/components/ui/States';
 import { Suspense } from 'react';
 
@@ -7,6 +8,8 @@ import { parseQuery } from '@/lib/search/query';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 import { AgentSearch } from '@/components/search/AgentSearch';
+import { FilterSidebar } from '@/components/search/FilterSidebar';
+import { FILTER_GROUPS } from '@/lib/search/filters';
 
 /**
  * Rendered per request rather than pre-built.
@@ -22,6 +25,16 @@ import { AgentSearch } from '@/components/search/AgentSearch';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * How many agents each category shows before "View all" takes over.
+ *
+ * Six, because the grid now runs at one, two and three columns and six
+ * divides all three. It was eight when the widest breakpoint was four
+ * columns; four turned out to be too narrow for the larger type and was
+ * snapping names mid-word, so both numbers moved together.
+ */
+const PREVIEW_PER_CATEGORY = 6;
+
 export default async function AgentsPage({
   searchParams,
 }: {
@@ -32,18 +45,20 @@ export default async function AgentsPage({
   const query = parseQuery(raw);
 
   /*
-   * 8 per category was sized for the anonymous registry tier, where 30
-   * requests a minute made every extra agent a real cost. SCAN_API_KEY is
-   * deployed now, and in any case the limit never governed the fetching: the
-   * discovery queries pull their candidates regardless and this only slices
-   * the ranked result, so raising it costs no registry calls at all.
+   * Fetched deep, shown shallow.
    *
-   * 16 matches what a single category page already shows, so the marketplace
-   * no longer surfaces fewer agents than its own subpages. The classifier
-   * currently yields 15-26 per category, so this shows most of them; the rest
-   * wait on pagination rather than a longer page.
+   * The limit never governed the fetching — the discovery queries pull their
+   * candidates regardless and this only slices the ranked result — so asking
+   * for 30 costs no registry calls and lets the section headers state a true
+   * total rather than the size of their own preview.
+   *
+   * What the page renders is PREVIEW_PER_CATEGORY of them. Showing all 63 put
+   * the phone list at 15.7 screens, and a marketplace overview that takes
+   * sixteen swipes to leave is not an overview. The rest are one tap away on
+   * the category page, which is also where they belong: all four categories
+   * stay first-class here, and depth lives behind each one.
    */
-  const all = await listSearchable({ limit: 16 });
+  const all = await listSearchable({ limit: 30 });
   const matched = query.qualifiers.length
     ? all.filter((agent) => matchesQuery(agent, query))
     : all;
@@ -54,6 +69,26 @@ export default async function AgentsPage({
   }));
 
   const filtering = query.qualifiers.length > 0;
+
+  /*
+   * How many agents each filter would match, counted over everything indexed
+   * rather than over the current result. Counting the current result would
+   * make every unselected option read zero as soon as one filter was on,
+   * which is the opposite of useful — the number is there to answer "what
+   * happens if I click this", and that question is about the whole set.
+   *
+   * 81 agents against about twenty options is a few thousand comparisons on
+   * data already in memory, so there is no reason to do it any other way.
+   */
+  const filterCounts: Record<string, number> = {};
+  for (const group of FILTER_GROUPS) {
+    for (const option of group.options) {
+      const parsedOption = parseQuery(option.query);
+      filterCounts[option.query] = all.filter((entry) =>
+        matchesQuery(entry, parsedOption),
+      ).length;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -76,6 +111,30 @@ export default async function AgentsPage({
       <Suspense fallback={<div className="h-28" />}>
         <AgentSearch resultCount={matched.length} />
       </Suspense>
+
+      {/*
+        Two columns from 1024px up: a standing filter shelf beside the
+        results. Below that the shelf would cost more room than the results
+        it filters, so phones keep the chip row and its sheet, which was built
+        for exactly that width.
+      */}
+      <div className="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+        <Suspense fallback={null}>
+          <FilterSidebar
+            groups={FILTER_GROUPS}
+            counts={filterCounts}
+            /*
+              Pinned. The shelf is how you navigate 81 agents, and scrolling
+              past the fold used to take it with you — so narrowing the set
+              meant scrolling back up to the controls that do it. It sits
+              below the site header and scrolls internally when the groups
+              outgrow the viewport.
+            */
+            className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100svh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
+          />
+        </Suspense>
+
+        <div className="flex min-w-0 flex-col gap-8">
 
       {matched.length === 0 ? (
         /* §60. An honest empty state, naming the filter that produced it. */
@@ -100,20 +159,31 @@ export default async function AgentsPage({
                     {meta.blurb}
                   </p>
                 </div>
-                <p className="tabular text-[11px] text-[color:var(--text-faint)]">
-                  {entries.length} {filtering ? 'matching' : 'indexed'}
-                </p>
+                <div className="flex shrink-0 items-baseline gap-3">
+                  <p className="tabular text-[11px] text-[color:var(--text-faint)]">
+                    {entries.length} {filtering ? 'matching' : 'indexed'}
+                  </p>
+                  {entries.length > PREVIEW_PER_CATEGORY && (
+                    <Link
+                      href={`/categories/${category}`}
+                      className="tap text-[11px] font-medium text-[color:var(--info)]"
+                    >
+                      View all {entries.length}
+                    </Link>
+                  )}
+                </div>
               </div>
 
               {entries.length === 0 ? (
                 <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {entries.map((entry) => (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {entries.slice(0, PREVIEW_PER_CATEGORY).map((entry) => (
                     <AgentCard
                       key={entry.listing.agent.token_id}
                       listing={entry.listing}
                       verdict={verdictFor(entry)}
+                      record={entry.record}
                       hirable={offersDirectHire(entry)}
                     />
                   ))}
@@ -121,8 +191,10 @@ export default async function AgentsPage({
               )}
             </section>
           );
-        })
-      )}
+          })
+        )}
+        </div>
+      </div>
     </div>
   );
 }

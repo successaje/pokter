@@ -202,7 +202,12 @@ export default async function DiscoverPage({
       : null;
   const [browseAgents, stats] = shouldRun
     ? [[], null]
-    : await Promise.all([listSearchable({ limit: 8 }), getEcosystemStats()]);
+    : /*
+       * Same depth as the marketplace page. At 8 per category this counted 32
+       * "curated listings" while /agents reported 81 indexed — the same set,
+       * described two ways, on two pages a visitor moves between.
+       */
+      await Promise.all([listSearchable({ limit: 30 }), getEcosystemStats()]);
   const activity = shouldRun ? null : getMarketplaceActivity();
   const answering = browseAgents.filter(
     (entry) => entry.record.totalAnswered > 0,

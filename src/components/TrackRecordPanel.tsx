@@ -1,4 +1,5 @@
 import { StatusState } from '@/components/ui/States';
+import { ReliabilityChart } from '@/components/agent/ReliabilityChart';
 import { plural, pluralise } from '@/lib/ui/plural';
 import type { TrackRecord } from '@/lib/history/record';
 
@@ -28,7 +29,14 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      {/*
+        The chart leads. The three windows below it are the same record
+        summarised, and a reader who only looks at one thing should be looking
+        at the shape of the observation rather than at three rounded numbers.
+      */}
+      <ReliabilityChart record={record} />
+
       <dl className="grid grid-cols-3 divide-x divide-[color:var(--border)] rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)]">
         {record.windows.map((window) => (
           <div key={window.label} className="flex flex-col gap-1 p-3.5">

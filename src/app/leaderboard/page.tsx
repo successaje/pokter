@@ -6,7 +6,13 @@ import { formatPercent, formatScore } from '@/lib/ui/format';
 import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { leaderboardFor, superlativesFor } from '@/lib/leaderboard';
 import { plural } from '@/lib/ui/plural';
+import {
+  DIMENSION_LABELS,
+  DIMENSION_WEIGHTS,
+  type Dimension,
+} from '@/lib/score/types';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { RankingTable } from '@/components/leaderboard/RankingTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +83,32 @@ export default async function LeaderboardPage({
           that leads on each specific metric.
         </p>
       </header>
+
+      {/*
+        The weights, on the page that applies them.
+        
+        They were only ever stated on the methodology page, so a ranking that
+        argues it is not sponsored asked the reader to go elsewhere to check
+        what it was actually built from. Read from DIMENSION_WEIGHTS rather
+        than written out, so the sentence cannot drift from the formula the
+        way a hand-typed list would.
+      */}
+      <div className="surface-card flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-[13px] font-medium">How this ranking works</span>
+          <span className="tabular text-[11px] text-[color:var(--text-muted)]">
+            {(Object.keys(DIMENSION_WEIGHTS) as Dimension[])
+              .map((key) => `${DIMENSION_WEIGHTS[key]}% ${DIMENSION_LABELS[key].toLowerCase()}`)
+              .join(' · ')}
+          </span>
+        </div>
+        <Link
+          href="/methodology"
+          className="tap shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+        >
+          Read methodology
+        </Link>
+      </div>
 
       <nav className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
         {TABS.map((tab) => (
@@ -199,68 +231,8 @@ export default async function LeaderboardPage({
             ))}
           </ol>
 
-          <div className="hidden overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] md:block">
-            <table className="w-full min-w-[720px] border-collapse bg-[color:var(--surface)]">
-              <thead>
-                <tr className="border-b border-[color:var(--border)] text-left">
-                  {['#', 'Agent', 'Score', 'Measured on', 'Evidence', 'Uptime', 'Probes'].map(
-                    (heading) => (
-                      <th
-                        key={heading}
-                        scope="col"
-                        className="p-4 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]"
-                      >
-                        {heading}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
+          <RankingTable rows={ranked} />
 
-              <tbody>
-                {ranked.map((row) => (
-                  <tr
-                    key={row.key}
-                    className="border-b border-[color:var(--border)] last:border-b-0"
-                  >
-                    <td className="tabular p-4 text-[13px] text-[color:var(--text-faint)]">
-                      {row.rank}
-                    </td>
-                    <td className="p-4">
-                      <Link
-                        href={row.href}
-                        className="text-[13px] font-medium hover:underline"
-                      >
-                        {row.name}
-                      </Link>
-                      {row.categoryLabel && (
-                        <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                          {row.categoryLabel}
-                        </span>
-                      )}
-                    </td>
-                    <td className="tabular p-4 text-[13px]">{row.score}</td>
-                    <td className="tabular p-4 text-[11px] text-[color:var(--text-muted)]">
-                      {row.coverage}
-                    </td>
-                    <td className="p-4">
-                      <EvidenceBadge verdict={row.verdict} />
-                    </td>
-                    <td className="tabular p-4 text-[13px]">
-                      {row.uptime === null ? (
-                        <span className="text-[color:var(--text-faint)]">—</span>
-                      ) : (
-                        formatPercent(row.uptime)
-                      )}
-                    </td>
-                    <td className="tabular p-4 text-[13px] text-[color:var(--text-muted)]">
-                      {row.probes}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
 

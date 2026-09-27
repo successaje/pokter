@@ -6,6 +6,7 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import type { Comparison } from '@/lib/marketplace';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { AgentAvatar } from '@/components/agent/AgentAvatar';
 
 /**
  * One comparable row.
@@ -209,13 +210,16 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                     </dt>
                     <dd
                       className={cn(
-                        'tabular shrink-0 text-right text-[13px]',
-                        best.has(index)
-                          ? 'font-medium text-[color:var(--positive)]'
-                          : 'text-[color:var(--text)]',
+                        'tabular flex shrink-0 items-baseline gap-2 text-right text-[13px]',
+                        best.has(index) ? 'font-medium' : 'text-[color:var(--text)]',
                       )}
                     >
                       {row.value(entry)}
+                      {best.has(index) && (
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--brand-highlight)]">
+                          Strongest
+                        </span>
+                      )}
                     </dd>
                   </div>
                 ))}
@@ -239,17 +243,50 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                     : CATEGORY_BY_ID.get(entry.category);
                 return (
                   <th key={entry.agent.token_id} scope="col" className="p-4 text-left align-top">
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                        {meta?.label ?? 'Unclassified'}
-                      </span>
-                      <Link
-                        href={`/agents/${entry.agent.chain_id}/${entry.agent.token_id}`}
-                        className="text-[13px] font-medium leading-snug hover:underline"
-                      >
-                        {entry.agent.name}
-                      </Link>
-                      <EvidenceBadge verdict={entry.proof.verdict} />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <AgentAvatar
+                          name={entry.agent.name}
+                          src={entry.agent.image_url}
+                          size="sm"
+                        />
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-[13px] font-medium leading-snug">
+                            {entry.agent.name}
+                          </span>
+                          <span className="text-[11px] text-[color:var(--text-faint)]">
+                            {meta?.label ?? 'Unclassified'}
+                          </span>
+                        </div>
+                      </div>
+                      {/* w-fit, or the column's flex stretch turns the pill
+                          into a full-width bar. */}
+                      <EvidenceBadge
+                        verdict={entry.proof.verdict}
+                        className="w-fit"
+                      />
+                      {/*
+                        A comparison ends in a decision, and this table used to
+                        offer no way to act on one — the agent's name was a
+                        link and that was all. Hire leads where the evidence
+                        supports it, and the profile is always reachable.
+                      */}
+                      <div className="mt-1 flex flex-col gap-1.5">
+                        {entry.proof.recommendedForHire ? (
+                          <Link
+                            href={`/hire/${entry.agent.chain_id}/${entry.agent.token_id}`}
+                            className="action-primary block rounded-[var(--radius)] px-3 py-2 text-center text-[12px]"
+                          >
+                            Hire agent
+                          </Link>
+                        ) : null}
+                        <Link
+                          href={`/agents/${entry.agent.chain_id}/${entry.agent.token_id}`}
+                          className="block rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-center text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+                        >
+                          View profile
+                        </Link>
+                      </div>
                     </div>
                   </th>
                 );
@@ -282,11 +319,25 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                       className={cn(
                         'tabular p-4 align-top text-[13px]',
                         best.has(index)
-                          ? 'font-medium text-[color:var(--positive)]'
+                          ? 'bg-[color:var(--brand-highlight-soft)] font-medium'
                           : 'text-[color:var(--text)]',
                       )}
                     >
-                      {row.value(entry)}
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        {row.value(entry)}
+                        {/*
+                          The word, not only the tint. Someone who cannot
+                          separate the two backgrounds still reads which cell
+                          leads — and "strongest" is the honest claim, scoped
+                          to this row, where "best" would suggest a verdict
+                          about the agent.
+                        */}
+                        {best.has(index) && (
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-[color:var(--brand-highlight)]">
+                            Strongest
+                          </span>
+                        )}
+                      </span>
                     </td>
                   ))}
                 </tr>

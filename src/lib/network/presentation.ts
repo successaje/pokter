@@ -18,7 +18,32 @@ export const CHAIN_ID = IS_TESTNET ? 97 : 56;
 /** What the user is actually spending. Never hardcode this. */
 export const NATIVE_SYMBOL = IS_TESTNET ? 'tBNB' : 'BNB';
 
-export const NETWORK_LABEL = IS_TESTNET ? 'BSC testnet' : 'BSC mainnet';
+/*
+ * Named the way BNB Chain names itself. "BSC testnet" is accurate and is what
+ * the tooling says, but the chain's own branding is BNB Chain, and a header
+ * whose job is to stop someone mistaking test money for real money should not
+ * make them translate an abbreviation first.
+ */
+export const NETWORK_LABEL = IS_TESTNET ? 'BNB Testnet' : 'BNB Chain';
+
+/** The registry's network, which is mainnet even while escrow is on testnet. */
+export const REGISTRY_NETWORK_LABEL = 'BNB Chain';
+
+/**
+ * What the payment token is worth.
+ *
+ * `NATIVE_SYMBOL` already tells the truth by becoming tBNB on testnet, but
+ * the payment token renders as "$U" on both networks, so a card reading
+ * "0.10 $U" looks like a price when the amount is faucet currency. Stating
+ * it is cheaper than letting someone infer the wrong thing from a number,
+ * and this product does not get to be careful about evidence and careless
+ * about that.
+ *
+ * Null on mainnet, where the amount means what it says.
+ */
+export const PAYMENT_VALUE_NOTE = IS_TESTNET
+  ? 'Test tokens — no real value'
+  : null;
 
 const EXPLORER = IS_TESTNET
   ? 'https://testnet.bscscan.com'

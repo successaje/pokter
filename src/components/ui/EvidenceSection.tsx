@@ -23,6 +23,7 @@ export function EvidenceSection({
   caption,
   summary,
   sectionClassName,
+  alwaysCollapsible = false,
   children,
 }: {
   title: string;
@@ -35,6 +36,14 @@ export function EvidenceSection({
   summary?: string;
   /** Preserves a caller's original section spacing, so desktop is untouched. */
   sectionClassName?: string;
+  /**
+   * Collapse on desktop too.
+   *
+   * For sections that are reference rather than evidence — the permission
+   * preview on the hire page describes a grant that is currently paused, and
+   * two screens of it sat open above the fold on every visit.
+   */
+  alwaysCollapsible?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -42,7 +51,12 @@ export function EvidenceSection({
 
   return (
     <section className={sectionClassName ?? 'flex flex-col gap-3'}>
-      <div className="hidden flex-col gap-1 md:flex">
+      <div
+        className={cn(
+          'hidden flex-col gap-1',
+          alwaysCollapsible ? 'hidden' : 'md:flex',
+        )}
+      >
         <h2 className="text-base font-medium tracking-tight">{title}</h2>
         <p className="text-xs text-[color:var(--text-muted)]">{caption}</p>
       </div>
@@ -52,7 +66,10 @@ export function EvidenceSection({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={contentId}
-        className="-my-1 flex w-full items-center justify-between gap-3 py-1 text-left md:hidden"
+        className={cn(
+          '-my-1 flex w-full items-center justify-between gap-3 py-1 text-left',
+          alwaysCollapsible ? 'flex' : 'md:hidden',
+        )}
       >
         <span className="min-w-0">
           <span className="block text-[15px] font-semibold tracking-[-0.01em]">
@@ -77,7 +94,12 @@ export function EvidenceSection({
 
       <div
         id={contentId}
-        className={cn('evidence-section-content', open && 'is-open')}
+        className={cn(
+          alwaysCollapsible
+            ? 'evidence-section-content--collapsible'
+            : 'evidence-section-content',
+          open && 'is-open',
+        )}
       >
         {children}
       </div>

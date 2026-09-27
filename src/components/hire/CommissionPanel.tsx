@@ -1,6 +1,13 @@
 'use client';
 
-import { FAUCETS, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
+import Link from 'next/link';
+import {
+  explorerTxUrl,
+  FAUCETS,
+  NATIVE_SYMBOL,
+  NETWORK_LABEL,
+  PAYMENT_VALUE_NOTE,
+} from '@/lib/network/presentation';
 import {
   buildSwapCalls,
   quoteBnbForPaymentToken,
@@ -11,6 +18,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
@@ -26,6 +34,7 @@ import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
+import { WalletReadiness } from '@/components/hire/WalletReadiness';
 
 /**
  * A provider the escrow can actually reach.
@@ -65,8 +74,6 @@ function readClient() {
 export function CommissionPanel({
   agent,
   providers,
-  escrowChainId,
-  explorerBase,
   riskWarnings = [],
 }: {
   agent: {
@@ -77,8 +84,6 @@ export function CommissionPanel({
     wallet?: string | null;
   };
   providers: ProviderChoice[];
-  escrowChainId: number;
-  explorerBase: string;
   riskWarnings?: string[];
 }) {
   const { locked, reason } = useCommitLock();
@@ -90,8 +95,9 @@ export function CommissionPanel({
   const [task, setTask] = useState(
     'Create a verifiable execution receipt for this escrowed job. Include the chain, client, provider, budget and funded status.',
   );
-  const [budget, setBudget] = useState(0.1);
+  const [budget, setBudget] = useState(DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
+  const [flowStep, setFlowStep] = useState<'configure' | 'review'>('configure');
 
   const [stage, setStage] = useState<'swapping' | 'hiring'>('hiring');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -106,6 +112,15 @@ export function CommissionPanel({
   >('idle');
   const [notificationDetail, setNotificationDetail] = useState<string | null>(
     null,
+  );
+
+  /*
+   * The one failure a retry cannot clear. `assertPubliclyFetchable` refuses to
+   * write a deliverable URL that points at a machine only the developer can
+   * reach, and no amount of pressing retry changes where the app is deployed.
+   */
+  const isConfigFailure = Boolean(
+    notificationDetail && /publicly fetchable|NEXT_PUBLIC_APP_URL/i.test(notificationDetail),
   );
 
   const provider = providers.find((p) => p.address === providerAddress);
@@ -352,284 +367,199 @@ export function CommissionPanel({
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
-      {/*
-        No heading here: the stage that wraps this panel is already titled
-        "Commission work", and repeating it rendered the same words twice in a
-        row. The sentence stays, because it carries the escrow detail the
-        stage caption does not.
-      */}
-      <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-        Funds an ERC-8183 escrow from your passkey wallet. The budget is held by
-        the kernel and released only through its job lifecycle.
-      </p>
+    <section className="flex flex-col gap-5">
+      {state !== 'hired' && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
+            <ol aria-label="Commission progress" className="grid grid-cols-2 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+              {[
+                { id: 'configure', label: 'Configure', number: 1 },
+                { id: 'review', label: 'Review & fund', number: 2 },
+              ].map((item) => {
+                const active = flowStep === item.id;
+                return (
+                  <li key={item.id} className={cn('flex items-center gap-2 px-4 py-3 text-[11px]', active ? 'text-[color:var(--text)]' : 'text-[color:var(--text-faint)]')}>
+                    <span className={cn('flex size-5 items-center justify-center rounded-full border text-[9px]', active ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]' : 'border-[color:var(--border)]')}>
+                      {item.number}
+                    </span>
+                    <span className="font-medium">{item.label}</span>
+                  </li>
+                );
+              })}
+            </ol>
 
-      {riskWarnings.length > 0 && (
-        <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-3">
-          <p className="text-[11px] font-semibold text-[color:var(--caution)]">
-            Proceed with extra caution
-          </p>
-          <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            {riskWarnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-          <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            <input
-              type="checkbox"
-              checked={riskAccepted}
-              onChange={(event) => setRiskAccepted(event.target.checked)}
-              className="mt-0.5 size-3.5 shrink-0 accent-[color:var(--brand)]"
-            />
-            I reviewed the warnings above, explicitly accept the additional
-            risk, and still want to commission this agent.
-          </label>
-        </div>
-      )}
+            {flowStep === 'configure' ? (
+              <div className="flex flex-col gap-6 p-4 sm:p-6">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">What should the agent deliver?</h2>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                    Describe one specific outcome. Your final task and budget are written into the escrow job.
+                  </p>
+                </div>
 
-      {provider && !provider.reachable && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
-          {agent.name} is registered on chain {agent.chainId}, but the escrow we
-          can fund runs on chain {escrowChainId}. A job created here would be a
-          real transaction that this agent&apos;s runtime never sees. Pick a
-          provider live on the escrow chain to see the flow actually complete.
-        </p>
-      )}
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="task" className="text-xs font-medium">Task</label>
+                  <textarea
+                    id="task"
+                    rows={5}
+                    value={task}
+                    disabled={state === 'hiring'}
+                    onChange={(event) => setTask(event.target.value)}
+                    className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-[13px] leading-relaxed outline-none transition-colors focus:border-[color:var(--brand)]"
+                  />
+                  <p className="text-[10px] text-[color:var(--text-faint)]">Include the expected result and any constraints. Do not include private keys or seed phrases.</p>
+                </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-[color:var(--text-muted)]">
-            Execution provider
-          </span>
-          <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
-            The registry listing identifies the agent. The provider is the
-            address that receives this escrow and delivers the work.
-          </span>
-        </div>
-        <div className="flex flex-col gap-2">
-          {providers.map((option) => (
-            <button
-              key={option.address}
-              type="button"
-              onClick={() => setProviderAddress(option.address)}
-              disabled={state === 'hiring' || state === 'hired'}
-              className={cn(
-                'flex flex-col gap-0.5 rounded-[var(--radius)] border p-3 text-left transition-colors',
-                providerAddress === option.address
-                  ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
-                  : 'border-[color:var(--border)] hover:border-[color:var(--border-strong)]',
-              )}
-            >
-              <span className="flex items-center gap-2 text-[12px] font-medium">
-                {option.label}
-                <span className="rounded-full border border-[color:var(--border)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                  {option.relationship === 'registry-agent'
-                    ? 'registry agent'
-                    : 'separate provider'}
-                </span>
-                <span
-                  className="rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
-                  style={{
-                    background: option.reachable
-                      ? 'var(--positive-dim)'
-                      : 'var(--caution-dim)',
-                    color: option.reachable
-                      ? 'var(--positive)'
-                      : 'var(--caution)',
-                  }}
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="budget" className="text-xs font-medium">Escrow budget</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] focus-within:border-[color:var(--brand)]">
+                      <input
+                        id="budget"
+                        type="number"
+                        min={0.01}
+                        max={5}
+                        step={0.05}
+                        value={budget}
+                        disabled={state === 'hiring'}
+                        onChange={(event) => setBudget(Number(event.target.value))}
+                        className="mono w-24 bg-transparent px-3 py-2 text-[13px] outline-none"
+                      />
+                      <span className="border-l border-[color:var(--border)] px-3 py-2 text-[12px] text-[color:var(--text-muted)]">$U</span>
+                    </div>
+                    {[0.05, 0.1, 0.25, 0.5].map((amount) => (
+                      <button key={amount} type="button" onClick={() => setBudget(amount)} className={cn('min-h-10 rounded-full border px-3 text-[11px]', budget === amount ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]' : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]')}>
+                        {amount} $U
+                      </button>
+                    ))}
+                  </div>
+                  {PAYMENT_VALUE_NOTE && <p className="text-[10px] text-[color:var(--text-faint)]">{PAYMENT_VALUE_NOTE}</p>}
+                </div>
+
+                <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
+                    <span>Advanced · delivery route</span>
+                    <span className="text-[color:var(--text-faint)]">{provider?.label ?? 'Choose provider'} · change</span>
+                  </summary>
+                  <div className="flex flex-col gap-2 border-t border-[color:var(--border)] p-3">
+                    <p className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
+                    {providers.map((option) => (
+                      <button
+                        key={option.address}
+                        type="button"
+                        onClick={() => setProviderAddress(option.address)}
+                        className={cn('flex flex-col gap-1 rounded-[var(--radius)] border p-3 text-left', providerAddress === option.address ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]' : 'border-[color:var(--border)]')}
+                      >
+                        <span className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                          {option.label}
+                          <span className={cn('rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide', option.reachable ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]')}>
+                            {option.automatedDelivery ? 'recommended' : option.reachable ? 'compatible' : 'different chain'}
+                          </span>
+                        </span>
+                        <span className="mono text-[10px] text-[color:var(--text-faint)]">{shortAddress(option.address)}</span>
+                        <span className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">{option.note}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+
+                <button
+                  type="button"
+                  onClick={() => setFlowStep('review')}
+                  disabled={!task.trim() || !Number.isFinite(budget) || budget < 0.01 || budget > 5 || !provider?.reachable}
+                  className="action-primary flex min-h-11 w-full items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold sm:w-fit sm:self-end"
                 >
-                  {option.automatedDelivery
-                    ? 'ready end to end'
-                    : option.reachable
-                      ? 'on escrow chain'
-                      : 'different chain'}
-                </span>
-              </span>
-              <span className="mono text-[10px] text-[color:var(--text-faint)]">
-                {shortAddress(option.address)}
-              </span>
-              <span className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">
-                {option.note}
-              </span>
-            </button>
-          ))}
+                  Review commission
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-5 p-4 sm:p-6">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Review before funding</h2>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">Nothing moves until your passkey wallet signs the escrow transaction.</p>
+                </div>
+
+                <WalletReadiness requiredBudgetU={budget} />
+
+                {riskWarnings.length > 0 && (
+                  <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-4">
+                    <p className="text-[11px] font-semibold text-[color:var(--caution)]">Additional risk acceptance required</p>
+                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                      {riskWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                    </ul>
+                    <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                      <input type="checkbox" checked={riskAccepted} onChange={(event) => setRiskAccepted(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[color:var(--brand)]" />
+                      I understand these warnings and still want to fund this commission.
+                    </label>
+                  </div>
+                )}
+
+                {provider?.relationship === 'separate-provider' && (
+                  <div className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                    <strong>{agent.name}</strong> is the identity being evaluated. <strong>{provider.label}</strong> delivers this testnet job. Both are recorded in the immutable job envelope.
+                  </div>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    ['1', 'Funded', 'Your budget enters ERC-8183 escrow.'],
+                    ['2', 'Delivered', 'The provider submits an execution receipt.'],
+                    ['3', 'Released', 'Escrow releases after accepted delivery.'],
+                  ].map(([number, label, copy]) => (
+                    <div key={number} className="rounded-[var(--radius)] border border-[color:var(--border)] p-3">
+                      <span className="flex size-5 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[9px] text-[color:var(--brand)]">{number}</span>
+                      <p className="mt-2 text-[11px] font-medium">{label}</p>
+                      <p className="mt-0.5 text-[10px] leading-relaxed text-[color:var(--text-muted)]">{copy}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button type="button" onClick={() => setFlowStep('configure')} disabled={state === 'hiring'} className="min-h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-[12px] font-medium">
+                    Back to edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={commission}
+                    disabled={state === 'hiring' || locked || !providerAddress || !provider?.reachable || !riskAccepted || task.trim().length === 0}
+                    title={reason ?? undefined}
+                    className="action-primary min-h-11 rounded-[var(--radius)] px-5 text-[13px] font-semibold"
+                  >
+                    {state === 'hiring' ? (stage === 'swapping' ? 'Acquiring $U…' : 'Funding escrow…') : locked ? 'Connect passkey wallet to fund' : `Fund ${formatBudget(budget)} commission`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="border-t border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-4">
+                <p className="text-[11px] font-medium text-[color:var(--negative)]">The job was not created</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">{error}</p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {FAUCETS && /tBNB/i.test(error) && <a href={FAUCETS.native} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open BNB testnet faucet ↗</a>}
+                  {FAUCETS && /\$U/i.test(error) && <a href={FAUCETS.paymentToken} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open testnet $U faucet ↗</a>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <aside className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] lg:sticky lg:top-24">
+            <div className="border-b border-[color:var(--border)] px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand)]">Commission summary</p>
+              <p className="mt-1 line-clamp-2 text-sm font-semibold [overflow-wrap:anywhere]">{agent.name}</p>
+            </div>
+            <dl className="flex flex-col divide-y divide-[color:var(--border)] text-[11px]">
+              <div className="p-4"><dt className="text-[color:var(--text-faint)]">Task</dt><dd className="mt-1 line-clamp-3 leading-relaxed">{task.trim() || 'Not described yet'}</dd></div>
+              <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Budget</dt><dd className="tabular text-right font-semibold">{formatBudget(budget)}</dd></div>
+              <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Escrow</dt><dd className="text-right">ERC-8183 · {NETWORK_LABEL}</dd></div>
+              <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Delivery</dt><dd className="text-right">{provider?.label ?? 'Not selected'}</dd></div>
+              <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Wallet access</dt><dd className="text-right font-medium text-[color:var(--positive)]">None</dd></div>
+            </dl>
+            <div className="border-t border-[color:var(--border)] bg-[color:var(--positive-dim)] px-4 py-3 text-[10px] leading-relaxed text-[color:var(--positive)]">
+              Funds release through the job lifecycle—not when you open this page.
+            </div>
+          </aside>
         </div>
-      </div>
-
-      {provider?.automatedDelivery && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--brand)]/35 bg-[color:var(--brand-highlight-soft)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-          <span className="font-medium text-[color:var(--text)]">
-            Guided testnet delivery.
-          </span>{' '}
-          This seller verifies the funded job and returns a canonical execution
-          receipt. It demonstrates the complete escrow lifecycle; it does not
-          claim trading performance or provide investment advice.
-        </p>
-      )}
-
-      {provider?.relationship === 'separate-provider' && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-          You are evaluating <strong>{agent.name}</strong>, but this escrow will
-          commission <strong>{provider.label}</strong>. The immutable job record
-          keeps both the ERC-8004 identity and execution-provider address so the
-          delivery is not attributed to the wrong party.
-        </p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <label
-          htmlFor="task"
-          className="text-xs text-[color:var(--text-muted)]"
-        >
-          Task
-        </label>
-        <textarea
-          id="task"
-          rows={3}
-          value={task}
-          disabled={state === 'hiring' || state === 'hired'}
-          onChange={(event) => setTask(event.target.value)}
-          className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-2.5 text-[12px] leading-relaxed"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label
-          htmlFor="budget"
-          className="text-xs text-[color:var(--text-muted)]"
-        >
-          Budget
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            id="budget"
-            type="number"
-            min={0.01}
-            max={5}
-            step={0.05}
-            value={budget}
-            disabled={state === 'hiring' || state === 'hired'}
-            onChange={(event) => setBudget(Number(event.target.value))}
-            className="mono w-28 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-2.5 py-1.5 text-[13px]"
-          />
-          <span className="text-[13px] text-[color:var(--text-muted)]">
-            $U escrowed
-          </span>
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3">
-          <p className="text-[11px] font-medium text-[color:var(--negative)]">
-            The job was not created
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
-            {error}
-          </p>
-          {FAUCETS && /tBNB/i.test(error) && (
-            <a
-              href={FAUCETS.native}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-            >
-              Open the official BNB testnet faucet ↗
-            </a>
-          )}
-          {FAUCETS && /\$U/i.test(error) && (
-            <a
-              href={FAUCETS.paymentToken}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-2 inline-block text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-            >
-              Open the testnet $U faucet ↗
-            </a>
-          )}
-        </div>
-      )}
-
-      {/*
-        §7. The review, immediately above the action rather than scattered up
-        the page. Before money moves the user should be able to read back what
-        they are committing to in one block, including the part no interface
-        usually states: what this does *not* buy them. Every value here is the
-        live form state, so it cannot drift from what the button will send.
-      */}
-      {state !== 'hired' && (
-        <dl className="flex flex-col divide-y divide-[color:var(--border)] rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] text-[12px]">
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">Hiring</dt>
-            <dd className="min-w-0 break-words text-right font-medium [overflow-wrap:anywhere]">
-              {agent.name}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">Task</dt>
-            <dd className="min-w-0 break-words text-right [overflow-wrap:anywhere]">
-              {task.trim() || (
-                <span className="text-[color:var(--negative)]">
-                  Describe the task above
-                </span>
-              )}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">Budget</dt>
-            <dd className="tabular text-right font-medium">{budget} $U</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">Held by</dt>
-            <dd className="min-w-0 text-right">
-              ERC-8183 escrow on {NETWORK_LABEL}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">Released</dt>
-            <dd className="min-w-0 text-right">
-              On delivery you accept, not before
-            </dd>
-          </div>
-          {/*
-            Stated as plainly as the budget is. Delegated execution is paused,
-            so hiring grants no wallet authority whatsoever — that is the most
-            reassuring fact on this screen and it was only inferable from a
-            section a screen and a half further up.
-          */}
-          <div className="flex items-baseline justify-between gap-3 p-3">
-            <dt className="shrink-0 text-[color:var(--text-muted)]">
-              Wallet access
-            </dt>
-            <dd className="min-w-0 text-right font-medium text-[color:var(--positive)]">
-              None. This agent cannot touch your funds
-            </dd>
-          </div>
-        </dl>
-      )}
-
-      {state !== 'hired' && (
-        <button
-          type="button"
-          onClick={commission}
-          disabled={
-            state === 'hiring' ||
-            locked ||
-            !providerAddress ||
-            !provider?.reachable ||
-            !riskAccepted ||
-            task.trim().length === 0
-          }
-          title={reason ?? undefined}
-          className="action-primary w-fit rounded-[var(--radius)] px-4 py-2 text-[13px]"
-        >
-          {state === 'hiring'
-            ? stage === 'swapping'
-              ? `Acquiring $U…`
-              : 'Funding escrow…'
-            : locked
-              ? 'Create a passkey to commission'
-              : `Commission for ${budget} $U`}
-        </button>
       )}
 
       {/*
@@ -652,16 +582,55 @@ export function CommissionPanel({
         </p>
       )}
 
+      {/*
+        The receipt is contained and centred. Left to fill the page it
+        stretched a short confirmation across sixteen hundred pixels, which is
+        what made it read as cluttered rather than dense — the design keeps the
+        same content in a column you can take in at a glance.
+      */}
       {job && (
-        <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-medium text-[color:var(--positive)]">
-              Job #{job.jobId} created
+        <div className="surface-card mx-auto flex w-full max-w-2xl flex-col gap-4 p-6">
+          {/*
+            The moment the money moves deserves more than an 11px line at the
+            foot of the form it came from. It names the agent, because "Job
+            #1353 created" tells you a row exists somewhere and not that the
+            thing you wanted is now happening.
+
+            It stops short of congratulating anyone. The escrow is funded and
+            nothing has been delivered, so the heading says begun rather than
+            done, and the lifecycle track underneath carries the rest.
+          */}
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span
+              aria-hidden
+              className="flex size-10 items-center justify-center rounded-full bg-[color:var(--positive-dim)]"
+            >
+              <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-[color:var(--positive)]" strokeWidth="2.2">
+                <path d="m5 13 4 4L19 7" />
+              </svg>
             </span>
-            <span className="mono text-[10px] text-[color:var(--text-faint)]">
-              chain {job.chainId}
-              {job.isTestnet && ' · testnet'}
-            </span>
+            <h3 className="font-[family-name:var(--font-serif)] text-xl">
+              {job.agentName} is ready to begin.
+            </h3>
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+              Job #{job.jobId} is funded on {NETWORK_LABEL}.{' '}
+              {job.hireTxHash ? (
+                <a
+                  href={explorerTxUrl(job.hireTxHash)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+                >
+                  {shortHash(job.hireTxHash)} ↗
+                </a>
+              ) : null}
+            </p>
+            <Link
+              href="/my-agents"
+              className="action-primary mt-1 inline-flex items-center rounded-[var(--radius)] px-4 py-2.5 text-[13px]"
+            >
+              Track in My agents
+            </Link>
           </div>
 
           <JobStatusTrack status={job.status} />
@@ -708,13 +677,46 @@ export function CommissionPanel({
                     : notification === 'rejected'
                       ? 'Delivery declined'
                       : notification === 'failed'
-                        ? 'Seller notification failed'
+                        ? 'The seller was not notified'
                         : 'Delivery not automatically requested'}
               </span>
-              {notificationDetail && (
-                <p className="mt-1">{notificationDetail}</p>
+
+              {/*
+                §16. What happened to the money, before what happened to the
+                request. The escrow is funded and on chain by this point; only
+                the notification failed, and a buyer reading "Seller
+                notification failed" has no way to know their 0.10 $U is not
+                the thing that went wrong.
+              */}
+              {notification === 'failed' && (
+                <p className="mt-1">
+                  Your escrow is funded and the job exists on chain. Nothing
+                  was lost — the seller simply has not been told yet.
+                </p>
               )}
-              {(notification === 'failed' || notification === 'rejected') && (
+
+              {/*
+                The detail is the developer's line, not the buyer's, so it is
+                set smaller and quieter than the sentence about their money.
+
+                It used to be followed by a paragraph of mine restating it —
+                that the URL is written on chain, that the origin has to be
+                reachable, that this is configuration rather than a hiccup.
+                The detail already says all three, and saying them twice is
+                what made this box read as noise rather than as an answer.
+
+                Retry is still withheld when the cause is configuration:
+                pressing it produces the same refusal every time, and offering
+                the button implies otherwise.
+              */}
+              {notificationDetail && (
+                <p className="mt-1.5 text-[11px] leading-relaxed opacity-75">
+                  {notificationDetail}
+                </p>
+              )}
+
+              {((notification === 'failed' && !isConfigFailure) ||
+                notification === 'rejected') && (
                 <button
                   type="button"
                   onClick={() => notifySeller(job)}
@@ -724,17 +726,6 @@ export function CommissionPanel({
                 </button>
               )}
             </div>
-          )}
-
-          {job.hireTxHash && (
-            <a
-              href={`${explorerBase}/tx/${job.hireTxHash}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mono w-fit text-[11px] text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-            >
-              {shortHash(job.hireTxHash)}
-            </a>
           )}
 
           {job.deliverableUrl && (
@@ -748,7 +739,7 @@ export function CommissionPanel({
             </a>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex justify-center gap-2">
             <button
               type="button"
               onClick={refresh}
@@ -757,12 +748,6 @@ export function CommissionPanel({
             >
               {refreshing ? 'Reading chain…' : 'Refresh status'}
             </button>
-            <a
-              href="/my-agents"
-              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)]"
-            >
-              View in My agents →
-            </a>
           </div>
         </div>
       )}

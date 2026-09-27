@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { formatScore } from '@/lib/ui/format';
 import { DIMENSION_LABELS, type PokterScore } from '@/lib/score/types';
+import { ScoreRing } from './ScoreRing';
 
 function scoreColor(overall: number | null): string {
   if (overall === null) return 'var(--text-muted)';
@@ -59,29 +60,32 @@ export function ScorePanel({
         type="button"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
+        className="flex w-full flex-col gap-3 p-4 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
       >
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
-          <span className="flex items-baseline gap-1.5">
-            <span
-              className="tabular text-3xl font-medium leading-none"
-              style={{ color: scoreColor(score.overall) }}
-            >
-              {formatScore(score.overall)}
+        {/*
+          A single column rather than two facing each other. The panel also
+          lives in a 280px rail, where a ring plus two competing text columns
+          left "out of 100" and "of 5 dimensions" both wrapping mid-phrase.
+        */}
+        <div className="flex items-center gap-3.5">
+          <ScoreRing score={score} size={48} />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
+            {/*
+              The denominator stays in text beside the ring. An arc shows a
+              proportion but never says of what, and "67" on its own invites
+              the reader to supply their own scale.
+            */}
+            <span className="text-[13px] text-[color:var(--text-secondary)]">
+              out of 100 · {score.measuredDimensions} of {score.totalDimensions}{' '}
+              dimensions
             </span>
-            <span className="text-sm text-[color:var(--text-faint)]">/ 100</span>
-          </span>
+          </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1 text-right">
-          <span className="text-[11px] text-[color:var(--text-secondary)]">
-            Scored on {score.measuredDimensions} of {score.totalDimensions} dimensions
-          </span>
-          <span className="text-[11px] text-[color:var(--text-faint)]">
-            {expanded ? 'Hide breakdown' : 'Show breakdown'} · v{score.version}
-          </span>
-        </div>
+        <span className="text-[11px] text-[color:var(--text-faint)]">
+          {expanded ? 'Hide breakdown' : 'Show breakdown'} · v{score.version}
+        </span>
       </button>
 
       {expanded && (

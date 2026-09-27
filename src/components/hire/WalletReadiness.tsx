@@ -1,6 +1,7 @@
 'use client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
 
@@ -11,7 +12,7 @@ import { shortAddress } from '@/lib/ui/format';
 
 const MIN_GAS = parseEther('0.002');
 
-export function WalletReadiness({ requiredBudgetU = 0.1 }: { requiredBudgetU?: number }) {
+export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requiredBudgetU?: number }) {
   const { wallet } = usePasskeyWallet();
   const paymentToken = correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken;
   const balance = useQuery({
@@ -111,11 +112,11 @@ export function WalletReadiness({ requiredBudgetU = 0.1 }: { requiredBudgetU?: n
                 rel="noreferrer noopener"
                 className="mt-2 inline-block text-[10px] text-[color:var(--info)] underline decoration-dotted"
               >
-                Get at least {requiredBudgetU} testnet $U ↗
+                Get at least {requiredBudgetU.toFixed(2)} testnet $U ↗
               </a>
             ) : (
               <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">
-                This wallet needs at least {requiredBudgetU} $U to fund the escrow.
+                This wallet needs at least {formatBudget(requiredBudgetU)} to fund the escrow.
               </p>
             ))}
         </div>

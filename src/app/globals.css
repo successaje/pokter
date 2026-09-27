@@ -15,28 +15,50 @@
  * decoration. Most of the interface stays neutral on purpose.
  */
 :root {
-  --font-geist-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-geist-mono: "Geist Mono", "SFMono-Regular", Consolas,
+  /*
+   * Three roles. Newsreader speaks at display sizes, Manrope carries the
+   * body, DM Mono takes labels, eyebrows and anything numeric that wants to
+   * line up in a column.
+   *
+   * These resolve to the self-hosted families next/font sets up in the root
+   * layout; the fallbacks matter only for the first paint of a cold cache.
+   */
+  /*
+   * Deliberately not named --font-display: next/font sets that one on <html>,
+   * which is the same element as :root, so a stack referring to it by that
+   * name would refer to itself and resolve to nothing.
+   */
+  --font-serif-stack: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-geist-sans: var(--font-sans-family), ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --font-geist-mono: var(--font-mono-family), "SFMono-Regular", Consolas,
     "Liberation Mono", monospace;
 
-  /* Ground and surfaces */
-  --bg: #08090b;
-  --bg-subtle: #0b0d10;
-  --surface: #0f1114;
-  --surface-raised: #16191e;
-  --surface-hover: #1b1f25;
+  /*
+   * Ground and surfaces.
+   *
+   * The design is light-first, so dark is a translation of it rather than a
+   * separate palette: the ground is the mock's own dark band and everything
+   * above it keeps that warmth instead of drifting to the cool slate this
+   * used to be. A neutral grey beside a cream light theme reads as two
+   * different products.
+   */
+  --bg: #17170f;
+  --bg-subtle: #1c1c14;
+  --surface: #24241f;
+  --surface-raised: #2c2c26;
+  --surface-hover: #33332c;
 
-  /* Borders, deliberately low contrast */
-  --border: #1c2027;
-  --border-strong: #2a3038;
-  --border-focus: #f0b90b;
+  /* Borders carry real weight in this design rather than hinting at an edge. */
+  --border: #34342c;
+  --border-strong: #46463c;
+  --border-focus: #f3ba2f;
 
   /* Text ramp */
-  --text: #edf0f4;
-  --text-secondary: #a2acba;
-  --text-muted: #7b8593;
-  --text-faint: #79838f;
+  --text: #fffefa;
+  --text-secondary: #cfcabb;
+  --text-muted: #a6a294;
+  --text-faint: #8e8a7e;
 
   /* Semantics: green healthy, amber caution, red failing, blue interactive */
   --positive: #3fb97f;
@@ -49,8 +71,9 @@
   --info-dim: #1c2a41;
   --neutral: #6e7987;
 
-  --radius: 8px;
-  --radius-lg: 12px;
+  /* The design sits at 10-11px for cards and a full pill for chips. */
+  --radius: 9px;
+  --radius-lg: 11px;
 
   /*
    * Brand highlight.
@@ -61,12 +84,26 @@
    * a background swash sitting behind display type on the landing page only,
    * never on a status, a metric or a control.
    */
-  --brand: #f0b90b;
-  --brand-hover: #f8ca32;
-  --brand-ink: #100d04;
-  --brand-shadow: rgba(240, 185, 11, 0.18);
-  --brand-highlight: #f0b90b;
-  --brand-highlight-soft: rgba(240, 185, 11, 0.2);
+  /*
+   * Chart marks, kept apart from the action colours on purpose.
+   *
+   * Two reasons. The brand yellow is reserved for forward motion, and a
+   * chart is data rather than an action. And it does not survive the light
+   * theme: #f3ba2f measures 1.75:1 on the cream surface, well under the 3:1
+   * a meaningful graphic needs, so bars drawn in it would be close to
+   * invisible on exactly the theme this design leads with. These values were
+   * measured against each theme's own surface rather than picked to match.
+   */
+  --chart-bar: #f3ba2f;
+  --chart-bar-failed: #c1543f;
+  --chart-track: #34342c;
+
+  --brand: #f3ba2f;
+  --brand-hover: #f7c94f;
+  --brand-ink: #1d1d1b;
+  --brand-shadow: rgba(243, 186, 47, 0.18);
+  --brand-highlight: #f3ba2f;
+  --brand-highlight-soft: rgba(243, 186, 47, 0.22);
 }
 
 @theme inline {
@@ -85,8 +122,12 @@
   --color-caution: var(--caution);
   --color-negative: var(--negative);
   --color-info: var(--info);
+  --color-chart-bar: var(--chart-bar);
+  --color-chart-bar-failed: var(--chart-bar-failed);
+  --color-chart-track: var(--chart-track);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif-stack);
 }
 
 /*
@@ -102,36 +143,65 @@
  */
 :root[data-theme='light'],
 :root:not([data-theme='dark']) {
-  --light-bg: #fbfbfc;
-  --light-bg-subtle: #f5f6f8;
-  --light-surface: #ffffff;
-  --light-surface-raised: #ffffff;
-  --light-surface-hover: #f3f4f6;
+  /*
+   * The mirror of the dark ramp. A white card cannot lift any further, so the
+   * ground drops instead — #fbfbfc left four points between them, which only
+   * a border could carry.
+   */
+  /*
+   * Read from the design prototype rather than guessed: a warm cream ground
+   * with a warmer-than-white card sitting on it. The warmth is the point —
+   * a cool grey ground made the same layout read as a dashboard, which is
+   * what this direction is moving away from.
+   */
+  --light-bg: #f5f2e9;
+  --light-bg-subtle: #efebe0;
+  --light-surface: #fffefa;
+  --light-surface-raised: #fffefa;
+  --light-surface-hover: #faf7ef;
 
-  --light-border: #e5e7eb;
-  --light-border-strong: #cbd1d9;
+  /* Borders are part of this design, not a fallback for weak contrast. */
+  --light-border: #dfddd4;
+  --light-border-strong: #cbc7ba;
 
-  --light-text: #0c1116;
-  --light-text-secondary: #414a56;
-  --light-text-muted: #616b7a;
-  --light-text-faint: #6a7380;
+  --light-text: #1d1d1b;
+  --light-text-secondary: #4a483f;
+  --light-text-muted: #6c6a63;
+  /*
+   * #85837a measured 3.77:1 on the card surface, under the 4.5 AA floor, and
+   * this token carries small metadata — probe counts, timestamps, publisher
+   * addresses — where the floor actually applies.
+   *
+   * Checked against both grounds, not just the card: some of this text sits
+   * on the cream page rather than on a surface, and the cream is the harder
+   * of the two. 5.30:1 on the card, 4.78:1 on the page.
+   */
+  --light-text-faint: #6d6b61;
 
-  --light-positive: #06774a;
-  --light-positive-dim: #e7f7ef;
-  --light-caution: #a8560a;
-  --light-caution-dim: #fdf4e3;
-  --light-negative: #b03027;
-  --light-negative-dim: #fdeeec;
-  --light-info: #1856c4;
-  --light-info-dim: #eaf2fe;
-  --light-neutral: #616b7a;
+  --light-positive: #1c6b45;
+  --light-positive-dim: #e6f2ea;
+  --light-caution: #8c6400;
+  --light-caution-dim: #fff4cf;
+  --light-negative: #a33a2c;
+  --light-negative-dim: #fbebe7;
+  --light-info: #3b64b1;
+  --light-info-dim: #eaf0fa;
+  --light-neutral: #6c6a63;
 
-  --light-brand: #d9a407;
-  --light-brand-hover: #edb80b;
-  --light-brand-ink: #100d04;
-  --light-brand-shadow: rgba(217, 164, 7, 0.2);
-  --light-brand-highlight: #f0b90b;
-  --light-brand-highlight-soft: rgba(240, 185, 11, 0.3);
+  /*
+   * #f3ba2f is BNB's own yellow, which is where the design takes it from.
+   * Slightly warmer and lighter than the #f0b90b this used before.
+   */
+  --light-chart-bar: #b87f00;
+  --light-chart-bar-failed: #a33a2c;
+  --light-chart-track: #e6e3d9;
+
+  --light-brand: #f3ba2f;
+  --light-brand-hover: #e5a916;
+  --light-brand-ink: #1d1d1b;
+  --light-brand-shadow: rgba(243, 186, 47, 0.18);
+  --light-brand-highlight: #d99a00;
+  --light-brand-highlight-soft: #fff4cf;
 }
 
 /* Applied only when light is actually in effect. */
@@ -158,6 +228,9 @@
   --neutral: var(--light-neutral);
   --brand-highlight: var(--light-brand-highlight);
   --brand-highlight-soft: var(--light-brand-highlight-soft);
+  --chart-bar: var(--light-chart-bar);
+  --chart-bar-failed: var(--light-chart-bar-failed);
+  --chart-track: var(--light-chart-track);
   --brand: var(--light-brand);
   --brand-hover: var(--light-brand-hover);
   --brand-ink: var(--light-brand-ink);
@@ -190,6 +263,9 @@
     --neutral: var(--light-neutral);
     --brand-highlight: var(--light-brand-highlight);
     --brand-highlight-soft: var(--light-brand-highlight-soft);
+    --chart-bar: var(--light-chart-bar);
+    --chart-bar-failed: var(--light-chart-bar-failed);
+    --chart-track: var(--light-chart-track);
     --brand: var(--light-brand);
     --brand-hover: var(--light-brand-hover);
     --brand-ink: var(--light-brand-ink);
@@ -754,6 +830,118 @@ body {
 }
 
 /*
+ * The always-collapsible variant, for sections that are reference rather than
+ * evidence. No media query: it stays shut until asked at every width.
+ */
+.evidence-section-content--collapsible:not(.is-open) {
+  display: none;
+}
+
+/*
+ * ── Card surface ─────────────────────────────────────────────────────────
+ *
+ * One radius, one border, one hover.
+ *
+ * An earlier pass took the border off and separated cards by surface lift
+ * alone. That was the right instinct for the palette it had — a cool grey
+ * ground where an outline on every box read as clutter — and the wrong one
+ * for this design, which uses a hairline on a warm ground as part of its
+ * voice. The border is back, at the weight the design uses.
+ *
+ * Hover is still a ring drawn with box-shadow rather than a thicker border,
+ * because changing border width on hover moves every pixel of the card's
+ * contents.
+ */
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+a.surface-card:hover,
+.surface-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface-card {
+    transition: none;
+  }
+}
+
+/*
+ * ── Display voice ────────────────────────────────────────────────────────
+ *
+ * The serif is what makes this read as an editorial financial publication
+ * rather than a dashboard, and it earns that only at size. Applied to h1 and
+ * h2, which are the page and section titles; h3 and below stay in the sans,
+ * where they sit inside dense rows and cards and a serif would just be
+ * harder to read small.
+ *
+ * Weight 600 and normal tracking, not the 700-plus-negative-tracking the
+ * sans needed to feel deliberate. A serif at display size carries its own
+ * authority; tightening it only makes it look cramped.
+ */
+h1,
+h2 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+/*
+ * Eyebrows and small caps labels.
+ *
+ * The design uses mono, uppercase and wide tracking as one consistent device
+ * — BROWSE BY OUTCOME, TRUST DECOMPOSED — and it is the second thing, after
+ * the serif, that gives the pages their rhythm. Opt in with `eyebrow` rather
+ * than styling every uppercase span, because plenty of them are badges.
+ */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-highlight);
+}
+
+/*
+ * ── Type ramp ────────────────────────────────────────────────────────────
+ *
+ * A floor under the smallest sizes, at every width rather than only on
+ * phones. The listing rendered 196 text nodes below 12px and some at 9px:
+ * density tuned for a monitor at arm's length. Raising it only below 768px
+ * fixed the phone and left the desktop reading like a spreadsheet, which is
+ * the difference a marketplace comparison kept pointing at.
+ *
+ * Applied to the utility classes rather than at the call sites because the
+ * components are shared — 73 occurrences across 15 files — and because a
+ * floor in one documented place is easier to find, and to raise again, than
+ * the same decision smeared through the markup.
+ *
+ * Raised gently on purpose. These sizes sit in dense rows, stat grids and
+ * table cells; a bigger jump reflows them into overflow, which is a worse
+ * problem than small text.
+ */
+.text-\[9px\] {
+  font-size: 11px;
+}
+
+.text-\[10px\] {
+  font-size: 11.5px;
+}
+
+.text-\[11px\] {
+  font-size: 12.5px;
+}
+
+/*
  * ── Mobile ergonomics floor ──────────────────────────────────────────────
  *
  * Everything in this block is scoped to phone widths, because the desktop
@@ -764,24 +952,6 @@ body {
  * find than the same change smeared across a hundred files.
  */
 @media (max-width: 767px) {
-  /*
-   * Type floor. The marketplace listing alone rendered 196 text nodes below
-   * 12px, some at 9px — density tuned for a monitor at arm's length, not a
-   * phone held in one hand. Raised gently: a bigger jump reflows dense rows
-   * and pushes them back into overflow.
-   */
-  .text-\[9px\] {
-    font-size: 11px;
-  }
-
-  .text-\[10px\] {
-    font-size: 11.5px;
-  }
-
-  .text-\[11px\] {
-    font-size: 12.5px;
-  }
-
   /*
    * Form controls. Any control under 16px makes iOS Safari zoom the viewport
    * on focus — on the hire screen that meant the page lurched while the user

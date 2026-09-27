@@ -17,6 +17,7 @@ export type Provenance =
   | 'onchain'
   | 'attested'
   | 'measured'
+  | 'calculated'
   | 'estimated'
   | 'historical';
 
@@ -24,6 +25,13 @@ const LABELS: Record<Provenance, { label: string; className: string }> = {
   onchain: { label: 'Onchain', className: 'text-[color:var(--info)]' },
   attested: { label: 'Attested', className: 'text-[color:var(--positive)]' },
   measured: { label: 'Pokter measured', className: 'text-[color:var(--text-secondary)]' },
+  /*
+   * Derived arithmetic over figures we measured, which is neither a
+   * measurement nor an estimate. Score coverage is the case this exists for:
+   * calling it "historical" said the wrong thing about how it was produced,
+   * and calling it "measured" would claim we observed it directly.
+   */
+  calculated: { label: 'Calculated', className: 'text-[color:var(--text-muted)]' },
   estimated: { label: 'Estimated', className: 'text-[color:var(--caution)]' },
   historical: { label: 'Historical', className: 'text-[color:var(--text-muted)]' },
 };
