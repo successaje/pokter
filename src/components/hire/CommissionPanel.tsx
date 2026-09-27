@@ -695,24 +695,23 @@ export function CommissionPanel({
                 </p>
               )}
 
-              {notificationDetail && (
-                <p className="mt-1 opacity-80">{notificationDetail}</p>
-              )}
-
               {/*
-                Retry only when retrying could work. This one failure is a
-                deployment setting rather than a hiccup: the deliverable URL
-                is written on chain permanently, so Pokter refuses to write
-                one that points at a machine nobody else can reach. Pressing
-                retry against that produces the same refusal every time, and
-                offering the button implies otherwise.
+                The detail is the developer's line, not the buyer's, so it is
+                set smaller and quieter than the sentence about their money.
+
+                It used to be followed by a paragraph of mine restating it —
+                that the URL is written on chain, that the origin has to be
+                reachable, that this is configuration rather than a hiccup.
+                The detail already says all three, and saying them twice is
+                what made this box read as noise rather than as an answer.
+
+                Retry is still withheld when the cause is configuration:
+                pressing it produces the same refusal every time, and offering
+                the button implies otherwise.
               */}
-              {notification === 'failed' && isConfigFailure && (
-                <p className="mt-2 opacity-80">
-                  This is a configuration problem, not a transient one:
-                  delivery has to be requested from a deployment that is
-                  publicly reachable, because the deliverable URL is written on
-                  chain and has to stay fetchable.
+              {notificationDetail && (
+                <p className="mt-1.5 text-[11px] leading-relaxed opacity-75">
+                  {notificationDetail}
                 </p>
               )}
 
