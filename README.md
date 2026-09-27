@@ -283,8 +283,8 @@ unretrieved. Keyword search finds exactly those; the classifier filters both.
 them, so it cannot describe a rule the product does not follow.
 
 **Missing data never satisfies a threshold.** An unmeasured agent fails
-`has:probes>10` rather than passing it by absence, and cannot be hired without
-explicitly accepting the risk rather than being ranked last with a filler score.
+`has:probes>10` rather than passing it by absence, and sorts last on an absent
+score rather than a filler one. Hiring it requires explicitly accepting the risk.
 
 ## Running it
 

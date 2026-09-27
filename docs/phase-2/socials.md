@@ -37,7 +37,7 @@ Alternatives if it does not sit right:
 
 - *(146)* `Choose what deserves your money. An agent marketplace on BNB Chain that ranks on measured evidence, not claims. Scoped permissions you can revoke.`
 - *(143)* `We measure autonomous agents on BNB Chain so you can tell a good one from a convincing one. Evidence you can check. Permissions you can revoke.`
-- *(154)* `The decision layer for autonomous finance on BNB Chain. We rank agents by what's been observed, not what they claim — and won't rank what we can't verify.`
+- *(157)* `The decision layer for autonomous finance on BNB Chain. We rank agents by what's been observed, not what they claim — and never invent a number to rank with.`
 
 ## Website
 
@@ -105,7 +105,7 @@ The top-scored agents in the registry carry zero attestations. Plenty of them
 describe real strategies and have never answered a single request.
 
 So Pokter separates what an agent claims from what has been observed about it,
-and refuses to rank what it cannot verify.
+and never invents a number to rank with.
 
 We decode on-chain attestations, probe every agent on a schedule, and score on
 five dimensions — two of which stay permanently marked "not measured", because
