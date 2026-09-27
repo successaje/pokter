@@ -704,17 +704,6 @@ body {
 
 
 /*
- * MobileDisclosure. The collapsed state exists only below 768px, so the
- * desktop layout renders exactly as it did before the component was
- * introduced — no open state, no toggle, nothing hidden.
- */
-@media (max-width: 767px) {
-  .mobile-disclosure-content:not(.is-open) {
-    display: none;
-  }
-}
-
-/*
  * The sheet and its backdrop. Kept short and interruptible: no action should
  * ever wait on a decorative transition.
  */
