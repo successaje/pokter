@@ -828,3 +828,8 @@ body {
     min-height: 44px;
   }
 }
+
+/* Horizontal chip rows hide their scrollbar; the bleeding edge is the cue. */
+.overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}

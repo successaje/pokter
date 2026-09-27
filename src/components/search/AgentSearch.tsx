@@ -87,7 +87,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-row gap-2">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -107,7 +107,15 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
         </button>
       </div>
 
-      <div ref={filtersRef} className="flex flex-wrap items-center gap-2">
+      {/*
+        One scrolling row on a phone instead of two wrapped ones. `-mx-1 px-1`
+        lets the row bleed to the screen edge so a half-visible chip signals
+        there is more, rather than ending flush and looking complete.
+      */}
+      <div
+        ref={filtersRef}
+        className="-mx-1 flex snap-x items-center gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
+      >
         {FILTER_GROUPS.map((group) => (
           <div key={group.label} className="relative">
             <button
@@ -118,7 +126,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
               aria-expanded={openGroup === group.label}
               className={cn(
                 /* min-h-11 on phones only; md:min-h-0 keeps desktop as it was. */
-                'min-h-11 rounded-[var(--radius)] border px-2.5 py-1.5 text-[12px] transition-colors md:min-h-0',
+                'min-h-11 shrink-0 snap-start rounded-[var(--radius)] border px-2.5 py-1.5 text-[12px] transition-colors md:min-h-0',
                 openGroup === group.label
                   ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
                   : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]',

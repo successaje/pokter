@@ -46,7 +46,13 @@ export default async function AgentsPage({
     <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Agents</h1>
-        <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
+        {/*
+          Desktop only. This paragraph documents the query syntax, which is
+          reference material for someone already filtering — on a phone it was
+          four lines of prose between the title and the first agent, and the
+          search control below states the count anyway.
+        */}
+        <p className="hidden text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
           {all.length} agents indexed across {CATEGORIES.length} categories.
           Filter on what has been observed — <span className="mono">is:proven</span>,{' '}
           <span className="mono">has:probes&gt;10</span> — not just on what
@@ -79,7 +85,10 @@ export default async function AgentsPage({
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-[color:var(--border)] pb-3">
                 <div className="flex flex-col gap-1">
                   <h2 className="text-base font-medium tracking-tight">{meta.label}</h2>
-                  <p className="text-xs text-[color:var(--text-muted)]">{meta.blurb}</p>
+                  {/* The blurb explains the category; the label already names it. */}
+                  <p className="hidden text-xs text-[color:var(--text-muted)] md:block">
+                    {meta.blurb}
+                  </p>
                 </div>
                 <p className="tabular text-[11px] text-[color:var(--text-faint)]">
                   {entries.length} {filtering ? 'matching' : 'indexed'}
