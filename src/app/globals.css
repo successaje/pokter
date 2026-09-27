@@ -84,6 +84,20 @@
    * a background swash sitting behind display type on the landing page only,
    * never on a status, a metric or a control.
    */
+  /*
+   * Chart marks, kept apart from the action colours on purpose.
+   *
+   * Two reasons. The brand yellow is reserved for forward motion, and a
+   * chart is data rather than an action. And it does not survive the light
+   * theme: #f3ba2f measures 1.75:1 on the cream surface, well under the 3:1
+   * a meaningful graphic needs, so bars drawn in it would be close to
+   * invisible on exactly the theme this design leads with. These values were
+   * measured against each theme's own surface rather than picked to match.
+   */
+  --chart-bar: #f3ba2f;
+  --chart-bar-failed: #c1543f;
+  --chart-track: #34342c;
+
   --brand: #f3ba2f;
   --brand-hover: #f7c94f;
   --brand-ink: #1d1d1b;
@@ -108,6 +122,9 @@
   --color-caution: var(--caution);
   --color-negative: var(--negative);
   --color-info: var(--info);
+  --color-chart-bar: var(--chart-bar);
+  --color-chart-bar-failed: var(--chart-bar-failed);
+  --color-chart-track: var(--chart-track);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-serif-stack);
@@ -175,6 +192,10 @@
    * #f3ba2f is BNB's own yellow, which is where the design takes it from.
    * Slightly warmer and lighter than the #f0b90b this used before.
    */
+  --light-chart-bar: #b87f00;
+  --light-chart-bar-failed: #a33a2c;
+  --light-chart-track: #e6e3d9;
+
   --light-brand: #f3ba2f;
   --light-brand-hover: #e5a916;
   --light-brand-ink: #1d1d1b;
@@ -207,6 +228,9 @@
   --neutral: var(--light-neutral);
   --brand-highlight: var(--light-brand-highlight);
   --brand-highlight-soft: var(--light-brand-highlight-soft);
+  --chart-bar: var(--light-chart-bar);
+  --chart-bar-failed: var(--light-chart-bar-failed);
+  --chart-track: var(--light-chart-track);
   --brand: var(--light-brand);
   --brand-hover: var(--light-brand-hover);
   --brand-ink: var(--light-brand-ink);
@@ -239,6 +263,9 @@
     --neutral: var(--light-neutral);
     --brand-highlight: var(--light-brand-highlight);
     --brand-highlight-soft: var(--light-brand-highlight-soft);
+    --chart-bar: var(--light-chart-bar);
+    --chart-bar-failed: var(--light-chart-bar-failed);
+    --chart-track: var(--light-chart-track);
     --brand: var(--light-brand);
     --brand-hover: var(--light-brand-hover);
     --brand-ink: var(--light-brand-ink);
