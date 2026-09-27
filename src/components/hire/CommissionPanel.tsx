@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import {
+  explorerTxUrl,
   FAUCETS,
   NATIVE_SYMBOL,
   NETWORK_LABEL,
@@ -574,15 +576,48 @@ export function CommissionPanel({
       )}
 
       {job && (
-        <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-medium text-[color:var(--positive)]">
-              Job #{job.jobId} created
+        <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-5">
+          {/*
+            The moment the money moves deserves more than an 11px line at the
+            foot of the form it came from. It names the agent, because "Job
+            #1353 created" tells you a row exists somewhere and not that the
+            thing you wanted is now happening.
+
+            It stops short of congratulating anyone. The escrow is funded and
+            nothing has been delivered, so the heading says begun rather than
+            done, and the lifecycle track underneath carries the rest.
+          */}
+          <div className="flex flex-col items-center gap-2 text-center">
+            <span
+              aria-hidden
+              className="flex size-10 items-center justify-center rounded-full bg-[color:var(--positive-dim)]"
+            >
+              <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-[color:var(--positive)]" strokeWidth="2.2">
+                <path d="m5 13 4 4L19 7" />
+              </svg>
             </span>
-            <span className="mono text-[10px] text-[color:var(--text-faint)]">
-              chain {job.chainId}
-              {job.isTestnet && ' · testnet'}
-            </span>
+            <h3 className="font-[family-name:var(--font-serif)] text-xl">
+              {job.agentName} is ready to begin.
+            </h3>
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+              Job #{job.jobId} is funded on {NETWORK_LABEL}.{' '}
+              {job.hireTxHash ? (
+                <a
+                  href={explorerTxUrl(job.hireTxHash)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+                >
+                  {shortHash(job.hireTxHash)} ↗
+                </a>
+              ) : null}
+            </p>
+            <Link
+              href="/my-agents"
+              className="action-primary mt-1 inline-flex items-center rounded-[var(--radius)] px-4 py-2.5 text-[13px]"
+            >
+              Track in My agents
+            </Link>
           </div>
 
           <JobStatusTrack status={job.status} />

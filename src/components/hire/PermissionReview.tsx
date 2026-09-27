@@ -92,7 +92,7 @@ export function PermissionReview({
               <ul className="flex flex-col gap-2">
                 {summary.allowed.map((contract) => (
                   <li key={contract.address} className="flex flex-col gap-0.5">
-                    <span className="flex items-baseline gap-2 text-[12px]">
+                    <span className="flex flex-wrap items-baseline gap-2 text-[12px]">
                       <span aria-hidden className="text-[color:var(--positive)]">
                         ✓
                       </span>
@@ -100,13 +100,21 @@ export function PermissionReview({
                       <span className="mono text-[10px] text-[color:var(--text-faint)]">
                         {shortAddress(contract.address)}
                       </span>
+                      {/*
+                        How far the grant reaches, said on the row rather than
+                        left to be inferred from a method count. "Scoped"
+                        because the allowlist names specific functions on
+                        specific contracts — not "low risk", which is a
+                        judgement about outcomes we are in no position to make
+                        on the user's behalf.
+                      */}
+                      <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">
+                        Scoped · {contract.methods.length}{' '}
+                        {contract.methods.length === 1 ? 'call' : 'calls'}
+                      </span>
                     </span>
                     <span className="pl-5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
                       {contract.capability}
-                    </span>
-                    <span className="pl-5 text-[10px] text-[color:var(--text-faint)]">
-                      {contract.methods.length} method
-                      {contract.methods.length === 1 ? '' : 's'} allowed
                     </span>
                   </li>
                 ))}
