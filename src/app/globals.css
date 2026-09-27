@@ -830,6 +830,14 @@ body {
 }
 
 /*
+ * The always-collapsible variant, for sections that are reference rather than
+ * evidence. No media query: it stays shut until asked at every width.
+ */
+.evidence-section-content--collapsible:not(.is-open) {
+  display: none;
+}
+
+/*
  * ── Card surface ─────────────────────────────────────────────────────────
  *
  * One radius, one border, one hover.

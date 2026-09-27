@@ -116,6 +116,15 @@ export function CommissionPanel({
     null,
   );
 
+  /*
+   * The one failure a retry cannot clear. `assertPubliclyFetchable` refuses to
+   * write a deliverable URL that points at a machine only the developer can
+   * reach, and no amount of pressing retry changes where the app is deployed.
+   */
+  const isConfigFailure = Boolean(
+    notificationDetail && /publicly fetchable|NEXT_PUBLIC_APP_URL/i.test(notificationDetail),
+  );
+
   const provider = providers.find((p) => p.address === providerAddress);
 
   const notifySeller = async (hired: HiredJob) => {
@@ -664,13 +673,47 @@ export function CommissionPanel({
                     : notification === 'rejected'
                       ? 'Delivery declined'
                       : notification === 'failed'
-                        ? 'Seller notification failed'
+                        ? 'The seller was not notified'
                         : 'Delivery not automatically requested'}
               </span>
-              {notificationDetail && (
-                <p className="mt-1">{notificationDetail}</p>
+
+              {/*
+                §16. What happened to the money, before what happened to the
+                request. The escrow is funded and on chain by this point; only
+                the notification failed, and a buyer reading "Seller
+                notification failed" has no way to know their 0.10 $U is not
+                the thing that went wrong.
+              */}
+              {notification === 'failed' && (
+                <p className="mt-1">
+                  Your escrow is funded and the job exists on chain. Nothing
+                  was lost — the seller simply has not been told yet.
+                </p>
               )}
-              {(notification === 'failed' || notification === 'rejected') && (
+
+              {notificationDetail && (
+                <p className="mt-1 opacity-80">{notificationDetail}</p>
+              )}
+
+              {/*
+                Retry only when retrying could work. This one failure is a
+                deployment setting rather than a hiccup: the deliverable URL
+                is written on chain permanently, so Pokter refuses to write
+                one that points at a machine nobody else can reach. Pressing
+                retry against that produces the same refusal every time, and
+                offering the button implies otherwise.
+              */}
+              {notification === 'failed' && isConfigFailure && (
+                <p className="mt-2 opacity-80">
+                  This is a configuration problem, not a transient one:
+                  delivery has to be requested from a deployment that is
+                  publicly reachable, because the deliverable URL is written on
+                  chain and has to stay fetchable.
+                </p>
+              )}
+
+              {((notification === 'failed' && !isConfigFailure) ||
+                notification === 'rejected') && (
                 <button
                   type="button"
                   onClick={() => notifySeller(job)}

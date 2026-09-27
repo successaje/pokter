@@ -142,6 +142,12 @@ export default async function HirePage({
             title="What hiring does not grant"
             caption="Standing wallet authority remains disabled until every call argument is safely constrained."
             summary="Delegated execution is paused, so this agent gets no access to your wallet."
+            /*
+              Shut by default at every width. It grants nothing today, and two
+              screens of preview sat open above the escrow the page exists to
+              fund — and stayed open after the hire had already happened.
+            */
+            alwaysCollapsible
           >
             <WalletGate action="grant permission" capability="session">
               <PermissionReview
