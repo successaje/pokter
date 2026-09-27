@@ -1,4 +1,4 @@
-import { VOCABULARY } from './query';
+import { CATEGORIES } from '@/lib/agents/categories';
 
 /**
  * The filter shelf, defined once.
@@ -22,12 +22,6 @@ export interface FilterGroup {
   label: string;
   hint: string;
   options: FilterOption[];
-}
-
-/** Title-cases a registry tag for display: `grid-trading` → `Grid trading`. */
-function tagLabel(tag: string): string {
-  const spaced = tag.replace(/-/g, ' ');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 export const FILTER_GROUPS: FilterGroup[] = [
@@ -56,9 +50,16 @@ export const FILTER_GROUPS: FilterGroup[] = [
     label: 'Category',
     /* Worth saying: this is the only group sourced from the publisher. */
     hint: 'Publisher-declared, not observed',
-    options: VOCABULARY.tags.map((tag) => ({
-      query: `tag:${tag}`,
-      label: tagLabel(tag),
+    /*
+       * One row per category, not one per alias. The parser accepts
+       * `tag:rebalance` and `tag:rebalancing` alike — that is what the alias
+       * table is for — but offering both in the shelf listed "Rebalancing 15"
+       * above "Rebalance 15", two rows for one set, which reads as a counting
+       * bug rather than as a synonym.
+       */
+    options: CATEGORIES.map(({ id, label }) => ({
+      query: `tag:${id}`,
+      label,
     })),
   },
   {

@@ -118,12 +118,19 @@ export default async function AgentsPage({
         it filters, so phones keep the chip row and its sheet, which was built
         for exactly that width.
       */}
-      <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+      <div className="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
         <Suspense fallback={null}>
           <FilterSidebar
             groups={FILTER_GROUPS}
             counts={filterCounts}
-            className="hidden lg:flex"
+            /*
+              Pinned. The shelf is how you navigate 81 agents, and scrolling
+              past the fold used to take it with you — so narrowing the set
+              meant scrolling back up to the controls that do it. It sits
+              below the site header and scrolls internally when the groups
+              outgrow the viewport.
+            */
+            className="hidden lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100svh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
           />
         </Suspense>
 
