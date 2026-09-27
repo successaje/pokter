@@ -74,7 +74,6 @@ function readClient() {
 export function CommissionPanel({
   agent,
   providers,
-  explorerBase,
   riskWarnings = [],
 }: {
   agent: {
@@ -85,7 +84,6 @@ export function CommissionPanel({
     wallet?: string | null;
   };
   providers: ProviderChoice[];
-  explorerBase: string;
   riskWarnings?: string[];
 }) {
   const { locked, reason } = useCommitLock();

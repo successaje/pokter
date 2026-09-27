@@ -39,7 +39,6 @@ export default async function HirePage({
 
   const { agent, category, proof, live } = dossier;
   const answeredNow = live.ratio !== null && live.ratio > 0;
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
 
   // Quoted so a spend cap can be shown in a currency people weigh risk in.
   // A pricing failure must not take the hire page down, so it degrades to no
@@ -121,7 +120,6 @@ export default async function HirePage({
                 wallet: agent.agent_wallet,
               }}
               providers={providers}
-              explorerBase={explorerBase}
               riskWarnings={riskWarnings}
             />
           </WalletGate>
