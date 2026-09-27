@@ -584,8 +584,14 @@ export function CommissionPanel({
         </p>
       )}
 
+      {/*
+        The receipt is contained and centred. Left to fill the page it
+        stretched a short confirmation across sixteen hundred pixels, which is
+        what made it read as cluttered rather than dense — the design keeps the
+        same content in a column you can take in at a glance.
+      */}
       {job && (
-        <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-5">
+        <div className="surface-card mx-auto flex w-full max-w-2xl flex-col gap-4 p-6">
           {/*
             The moment the money moves deserves more than an 11px line at the
             foot of the form it came from. It names the agent, because "Job
@@ -725,17 +731,6 @@ export function CommissionPanel({
             </div>
           )}
 
-          {job.hireTxHash && (
-            <a
-              href={`${explorerBase}/tx/${job.hireTxHash}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mono w-fit text-[11px] text-[color:var(--info)] underline decoration-dotted underline-offset-2"
-            >
-              {shortHash(job.hireTxHash)}
-            </a>
-          )}
-
           {job.deliverableUrl && (
             <a
               href={job.deliverableUrl}
@@ -747,7 +742,7 @@ export function CommissionPanel({
             </a>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex justify-center gap-2">
             <button
               type="button"
               onClick={refresh}
@@ -756,12 +751,6 @@ export function CommissionPanel({
             >
               {refreshing ? 'Reading chain…' : 'Refresh status'}
             </button>
-            <a
-              href="/my-agents"
-              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)]"
-            >
-              View in My agents →
-            </a>
           </div>
         </div>
       )}
