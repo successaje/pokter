@@ -22,3 +22,20 @@ export const DEFAULT_BUDGET_LABEL = `${DEFAULT_BUDGET_U.toFixed(2)} $U`;
 export function formatBudget(amountU: number): string {
   return `${amountU.toFixed(2)} $U`;
 }
+
+/**
+ * A price an agent quoted, as the interface states it.
+ *
+ * `formatBudget` rounds to two places, which is right for a budget the buyer
+ * typed and wrong for a price the agent chose: one listed agent quotes a
+ * single wei, and two-place rounding printed that as "0.00 $U" — a free
+ * agent, which it is not.
+ *
+ * Anything above zero that would round away is shown as a bound instead, so
+ * the number is never smaller than the truth.
+ */
+export function formatQuotedPrice(amountU: number): string {
+  if (amountU === 0) return 'Free';
+  if (amountU < 0.01) return '< 0.01 $U';
+  return formatBudget(amountU);
+}

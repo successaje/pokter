@@ -611,6 +611,19 @@ export function CommissionPanel({
               <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Escrow</dt><dd className="text-right">ERC-8183 · {NETWORK_LABEL}</dd></div>
               <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Delivery</dt><dd className="text-right">{provider?.label ?? 'Not selected'}</dd></div>
               <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">Wallet access</dt><dd className="text-right font-medium text-[color:var(--positive)]">None</dd></div>
+              {/*
+                The summary answered what the buyer is paying and what the
+                agent can reach, and stopped before the question people
+                actually hesitate on: what happens to the money if nothing
+                comes back.
+
+                The answer is stated rather than implied by the lifecycle
+                track. No duration is given because the dispute window is read
+                from the policy contract at hire time and is not known while
+                this panel is still a form — naming a number here would be
+                inventing one.
+              */}
+              <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">If it never delivers</dt><dd className="text-right">Escrow is reclaimable once the job expires</dd></div>
             </dl>
             <div className="border-t border-[color:var(--border)] bg-[color:var(--positive-dim)] px-4 py-3 text-[10px] leading-relaxed text-[color:var(--positive)]">
               Funds release through the job lifecycle—not when you open this page.

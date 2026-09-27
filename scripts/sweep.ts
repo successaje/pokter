@@ -26,6 +26,7 @@ async function main() {
       `  probes   : ${outcome.probes}`,
       `  answered : ${outcome.answered} (${pct})`,
       `  skipped  : ${outcome.skipped} (no probeable endpoint)`,
+      `  quoted   : ${outcome.quoted} (agents that named a price)`,
       `  failed   : ${outcome.failed} (could not look up)`,
       ...outcome.errors.map((e) => `             ${e}`),
     ].join('\n'),

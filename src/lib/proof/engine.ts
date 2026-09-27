@@ -127,13 +127,32 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
    * whose argument is that its numbers can be trusted. Naming the scope costs
    * three words.
    *
+   * The same fault, worse, in the attestation count: this sentence counted
+   * only the attestations that decoded and carried a ratio, while the trust
+   * strip beside it counted every attestation received. One screen said "1
+   * attestation" and "Attestations 3" about the same agent, and a page whose
+   * entire argument is that it does not invent numbers cannot contradict
+   * itself in two adjacent paragraphs.
+   *
+   * Saying "1 of 3" fixes it and pays for itself: it reports that two
+   * attestations exist which could not be scored, which is a fact a buyer
+   * should have and the old phrasing hid.
+   *
+   * The measurer clause merged into the probe clause. "286 probes across all
+   * measurers, 1 measurer" said the scope twice and scanned as a stutter.
+   *
    * FE-16 in passing: `attestation(s)` reads like a form field, so the counts
    * pluralise properly.
    */
+  const scored =
+    usable.length === attestations.length
+      ? plural(usable.length, 'attestation')
+      : `${usable.length} of ${plural(attestations.length, 'attestation')}`;
+
   const evidence =
-    `${plural(usable.length, 'attestation')}, ` +
-    `${plural(probes, 'probe')} across all measurers, ` +
-    `${measurers.length ? plural(measurers.length, 'measurer') : 'no named measurer'}` +
+    `${scored}, ` +
+    `${plural(probes, 'probe')} ` +
+    `${measurers.length ? `from ${plural(measurers.length, 'measurer')}` : 'from no named measurer'}` +
     (windowDays ? `, over ${plural(windowDays, 'day')}` : '');
 
   /** What is still missing before this could be called proven. */

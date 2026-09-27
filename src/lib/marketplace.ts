@@ -17,7 +17,7 @@ import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { cache } from 'react';
 
-import { getProbeStore } from '@/lib/history/store';
+import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
@@ -54,6 +54,15 @@ export interface Listing {
   confidence: number;
   /** Cheap, list-level signal. Full proof is computed on the detail page. */
   attestationCount: number;
+  /**
+   * The last price this agent quoted for itself, if it has ever quoted one.
+   *
+   * Undefined where the caller did not join the quote store; null where it
+   * did and the agent has never answered a price enquiry. The card has to
+   * tell those apart, because "we did not ask" and "it would not say" are
+   * different facts about an agent.
+   */
+  quote?: QuoteRecord | null;
 }
 
 function dedupe(agents: ScanAgent[]): ScanAgent[] {
@@ -241,6 +250,8 @@ export interface EcosystemStats {
   registered: number | null;
   categories: number;
   agentsMonitored: number;
+  /** Of those, how many have ever answered. The gap is the product's point. */
+  agentsAnswering: number;
   probesTaken: number;
   probesAnswered: number;
   sweeps: number;
@@ -340,14 +351,21 @@ export async function listSearchable(
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
-  return sections.flatMap(({ listings }) =>
-    listings.map((listing) => ({
-      listing,
-      record: buildTrackRecord(
-        store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
-      ),
-    })),
+  const all = sections.flatMap(({ listings }) => listings);
+  const quotes = store.quotesFor(
+    all.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
   );
+
+  return all.map((listing) => ({
+    listing: {
+      ...listing,
+      quote:
+        quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? null,
+    },
+    record: buildTrackRecord(
+      store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
+    ),
+  }));
 }
 
 /** One category enriched with the same track record used by search and cards. */
@@ -359,8 +377,19 @@ export async function listCategorySearchable(
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
+  const quotes = store.quotesFor(
+    listings.map((l) => ({
+      chainId: l.agent.chain_id,
+      tokenId: l.agent.token_id,
+    })),
+  );
+
   return listings.map((listing) => ({
-    listing,
+    listing: {
+      ...listing,
+      quote:
+        quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? null,
+    },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
