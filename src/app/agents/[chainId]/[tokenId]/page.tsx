@@ -20,6 +20,7 @@ import { AuthorityPanel } from '@/components/AuthorityPanel';
 import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
+import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -251,7 +252,7 @@ export default async function AgentPage({
             */}
             <MobileHireAction
             href={`/hire/${agent.chain_id}/${agent.token_id}`}
-            price="0.10 $U"
+            price={DEFAULT_BUDGET_LABEL}
             answeredNow={answeredNow}
             recommended={proof.recommendedForHire}
             verdictLabel={

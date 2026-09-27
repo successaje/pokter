@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
 import type { Verdict } from '@/lib/proof/engine';
+import type { TrackRecord } from '@/lib/history/record';
+import { shortAddress } from '@/lib/ui/format';
+import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
 
@@ -21,16 +24,22 @@ import { EvidenceBadge } from './ui/EvidenceBadge';
 export function AgentCard({
   listing,
   verdict,
+  record,
   hirable = false,
 }: {
   listing: Listing;
   verdict: Verdict;
+  /**
+   * What our sweeps have accumulated. The card previously showed the agent's
+   * declared protocols — "A2A" — which is jargon that answers none of the
+   * questions someone scanning a marketplace is actually asking.
+   */
+  record?: TrackRecord;
   /** Offer Hire on the card itself. See `offersDirectHire`. */
   hirable?: boolean;
 }) {
   const { agent, attestationCount } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
-  const protocols = agent.supported_protocols ?? [];
   const href = `/agents/${agent.chain_id}/${agent.token_id}`;
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
@@ -39,6 +48,22 @@ export function AgentCard({
     attestationCount === 0
       ? 'No attestations'
       : `${attestationCount} attestation${attestationCount === 1 ? '' : 's'}`;
+
+  /*
+   * The card answers five questions and no more: what does it do, can I
+   * trust it, is it answering, what does it cost, can I hire it. Availability
+   * is the third of those, and it is the one the old footer spent its space
+   * not answering.
+   */
+  const availability =
+    record && record.totalProbes > 0
+      ? `${Math.round((record.totalAnswered / record.totalProbes) * 100)}% of ${record.totalProbes} probes`
+      : 'Not yet probed';
+
+  /* An owner is a publisher. Shown short, because the full word is an address. */
+  const publisher = agent.owner_address
+    ? shortAddress(agent.owner_address)
+    : null;
 
   /*
     FE-08. break-words alone let `mandaterebalance-agent` split as
@@ -96,22 +121,26 @@ export function AgentCard({
           Evidence and the action share one row here rather than stacking as
           two, which is most of the height difference.
         */}
-        <div className="flex items-center justify-between gap-2 border-t border-[color:var(--border)] px-3 py-2">
-          <span className="tabular min-w-0 truncate text-[11px] text-[color:var(--text-faint)]">
-            {attestations}
-          </span>
-          {hirable ? (
-            <Link
-              href={hireHref}
-              className="action-primary flex shrink-0 items-center justify-center rounded-[var(--radius)] px-3.5 text-[12px] font-medium"
-            >
-              Hire agent
-            </Link>
-          ) : (
-            <span className="mono shrink-0 text-[11px] text-[color:var(--text-faint)]">
-              {protocols.slice(0, 2).join(' · ') || 'no endpoint'}
-            </span>
-          )}
+        <div className="flex flex-col gap-2 border-t border-[color:var(--border)] px-3 py-2.5">
+          <p className="tabular min-w-0 truncate text-[11px] text-[color:var(--text-faint)]">
+            {publisher ? `${publisher} · ` : ''}
+            {availability}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="tabular text-[12px] font-medium">{DEFAULT_BUDGET_LABEL}</span>
+            {hirable ? (
+              <Link
+                href={hireHref}
+                className="action-primary flex shrink-0 items-center justify-center rounded-[var(--radius)] px-3.5 text-[12px] font-medium"
+              >
+                Hire agent
+              </Link>
+            ) : (
+              <span className="text-[11px] text-[color:var(--text-faint)]">
+                {attestations}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -137,15 +166,19 @@ export function AgentCard({
             {description}
           </p>
 
-          <dl className="mt-auto flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
-            <div className="flex items-baseline gap-1.5">
+          <dl className="mt-auto flex flex-col gap-1 border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="sr-only">Publisher</dt>
+              <dd className="min-w-0 truncate">{publisher ?? 'Owner unknown'}</dd>
               <dt className="sr-only">Attestations</dt>
-              <dd className="tabular">{attestations}</dd>
+              <dd className="tabular shrink-0">{attestations}</dd>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <dt className="sr-only">Protocols</dt>
-              <dd className="mono">
-                {protocols.slice(0, 2).join(' · ') || 'no endpoint'}
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="sr-only">Availability</dt>
+              <dd className="tabular min-w-0 truncate">{availability}</dd>
+              <dt className="sr-only">Price</dt>
+              <dd className="tabular shrink-0 font-medium text-[color:var(--text-secondary)]">
+                {DEFAULT_BUDGET_LABEL}
               </dd>
             </div>
           </dl>

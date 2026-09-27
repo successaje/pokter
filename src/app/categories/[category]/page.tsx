@@ -126,6 +126,7 @@ export default async function CategoryPage({
               key={entry.listing.agent.token_id}
               listing={entry.listing}
               verdict={verdictFor(entry)}
+              record={entry.record}
               hirable={offersDirectHire(entry)}
             />
           ))}

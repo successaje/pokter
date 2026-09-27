@@ -11,6 +11,7 @@ import { recommendedAlternatives } from '@/lib/marketplace';
 import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
 import { EvidenceSection } from '@/components/ui/EvidenceSection';
+import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
@@ -154,7 +155,7 @@ export default async function HirePage({
               />
             </>
           )}
-          <WalletReadiness requiredBudgetU={0.1} />
+          <WalletReadiness requiredBudgetU={DEFAULT_BUDGET_U} />
           {/*
             Commissioning leads, because it is the only one of the two that
             can actually happen. A session is standing authority over your

@@ -114,6 +114,7 @@ export default async function AgentsPage({
                       key={entry.listing.agent.token_id}
                       listing={entry.listing}
                       verdict={verdictFor(entry)}
+                      record={entry.record}
                       hirable={offersDirectHire(entry)}
                     />
                   ))}

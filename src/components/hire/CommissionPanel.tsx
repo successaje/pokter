@@ -11,6 +11,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
@@ -90,7 +91,7 @@ export function CommissionPanel({
   const [task, setTask] = useState(
     'Create a verifiable execution receipt for this escrowed job. Include the chain, client, provider, budget and funded status.',
   );
-  const [budget, setBudget] = useState(0.1);
+  const [budget, setBudget] = useState(DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
 
   const [stage, setStage] = useState<'swapping' | 'hiring'>('hiring');
