@@ -59,7 +59,7 @@ export function ExploreMarketplace({
       <nav aria-label="Filter marketplace by outcome" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
         <Link
           href="/discover#explore"
-          className={`tap shrink-0 rounded-full border px-4 text-xs font-medium sm:min-h-9 ${!selectedCategory ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
+          className={`tap inline-flex shrink-0 items-center rounded-full border px-4 text-xs font-medium sm:min-h-9 ${!selectedCategory ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
         >
           All agents
         </Link>
@@ -67,7 +67,7 @@ export function ExploreMarketplace({
           <Link
             key={category.id}
             href={`/discover?category=${category.id}#explore`}
-            className={`tap shrink-0 rounded-full border px-4 text-xs font-medium sm:min-h-9 ${selectedCategory === category.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]'}`}
+            className={`tap inline-flex shrink-0 items-center rounded-full border px-4 text-xs font-medium sm:min-h-9 ${selectedCategory === category.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]'}`}
           >
             {category.label}
           </Link>
@@ -117,11 +117,11 @@ export function ExploreMarketplace({
                 </dl>
               </Link>
               <div className="flex items-center gap-2 border-t border-[color:var(--border)] px-4 py-3">
-                <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="tap flex-1 text-[11px] font-medium text-[color:var(--text-secondary)] md:min-h-9">
+                <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="tap flex flex-1 items-center text-[11px] font-medium text-[color:var(--text-secondary)] md:min-h-9">
                   Review evidence
                 </Link>
                 {offersDirectHire(entry) && (
-                  <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary tap rounded-[var(--radius)] px-3 text-[11px] font-semibold md:min-h-9">
+                  <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary tap inline-flex items-center rounded-[var(--radius)] px-3 text-[11px] font-semibold md:min-h-9">
                     Hire
                   </Link>
                 )}

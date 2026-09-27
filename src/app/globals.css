@@ -823,6 +823,14 @@ body {
    * old call sites all carried `inline-flex items-center` alongside it. The
    * rule exists only inside this media query, so a call site cannot get the
    * desktop scoping wrong by forgetting a `md:` prefix.
+   *
+   * That scoping is also the trap. Above the breakpoint `.tap` contributes
+   * nothing at all, so anything that needs a flex box for its own appearance
+   * — a pill with a border, a filled button — must still carry
+   * `inline-flex items-center` itself. Dropping those in favour of `.tap`
+   * left the Discover category chips as plain blocks on desktop, with their
+   * labels sitting at the top of a 36px pill. `.tap` sets the floor; it does
+   * not lay the element out.
    */
   .tap {
     display: inline-flex;
