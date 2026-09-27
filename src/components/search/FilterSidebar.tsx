@@ -24,11 +24,19 @@ export function FilterSidebar({
   groups,
   counts,
   className,
+  /*
+   * Where a toggle navigates to. The shelf used to be hardwired to /agents,
+   * which is why the category pages — the ones you reach from "View all 26" —
+   * had no filters at all: the only shelf that existed would have thrown you
+   * out of the category to use it.
+   */
+  basePath = '/agents',
 }: {
   groups: FilterGroup[];
   /** How many agents each option's query matches, keyed by that query. */
   counts: Record<string, number>;
   className?: string;
+  basePath?: string;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -39,11 +47,12 @@ export function FilterSidebar({
   const commit = useCallback(
     (next: string) => {
       const query = next.trim();
-      router.push(query ? `/agents?q=${encodeURIComponent(query)}` : '/agents', {
-        scroll: false,
-      });
+      router.push(
+        query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath,
+        { scroll: false },
+      );
     },
-    [router],
+    [router, basePath],
   );
 
   const toggle = (option: string) => {
