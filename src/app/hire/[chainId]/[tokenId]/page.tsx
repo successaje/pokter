@@ -11,52 +11,13 @@ import { recommendedAlternatives } from '@/lib/marketplace';
 import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
 import { EvidenceSection } from '@/components/ui/EvidenceSection';
-import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
-import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * §30. The staged hire flow.
- *
- * Four stages rather than the six sketched in the brief: review the agent,
- * review what it would be allowed to do, authorize, and see the result. Steps
- * were merged rather than padded — a stage the user clicks through without a
- * decision is friction, not safety.
- */
-function Stage({
-  index,
-  title,
-  caption,
-  children,
-}: {
-  index: number;
-  title: string;
-  caption: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <span className="tabular flex size-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--border-strong)] text-[10px] text-[color:var(--text-muted)]">
-          {index}
-        </span>
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-sm font-medium tracking-tight">{title}</h2>
-          <p className="text-[11px] text-[color:var(--text-muted)]">
-            {caption}
-          </p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export default async function HirePage({
   params,
@@ -111,9 +72,9 @@ export default async function HirePage({
         ← Back to agent
       </Link>
 
-      <header className="flex flex-col gap-3">
-        <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
-          Hire
+      <header className="flex flex-col gap-3 border-b border-[color:var(--border)] pb-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
+          Hire for a task
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -127,65 +88,54 @@ export default async function HirePage({
             <EvidenceBadge verdict={proof.verdict} size="md" />
           </span>
         </div>
-        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          {meta?.label ?? 'Unclassified'} · Review exactly what this agent would
-          be allowed to do before you grant anything.
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--text-muted)]">
+          <span>{meta?.label ?? 'Unclassified'}</span>
+          <span aria-hidden>·</span>
+          <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1">Identity · BSC mainnet</span>
+          <span className="rounded-full border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] px-2.5 py-1 text-[color:var(--info)]">Commission · BSC testnet</span>
+        </div>
       </header>
 
       <div className="flex flex-col gap-8">
           {riskWarnings.length > 0 && (
-            <>
-              <section className="rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-5">
+              <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
                 <h2 className="text-sm font-medium text-[color:var(--caution)]">
-                  Pokter does not recommend this hire
+                  Additional review required
                 </h2>
-                <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
                   {riskSummary}
                 </p>
+                </div>
+                <a href="#alternatives" className="shrink-0 text-[11px] font-medium text-[color:var(--caution)] underline decoration-dotted underline-offset-4">See stronger alternatives</a>
               </section>
+          )}
+          <WalletGate action="commission work" capability="commission">
+            <CommissionPanel
+              agent={{
+                chainId,
+                tokenId,
+                name: agent.name,
+                category,
+                wallet: agent.agent_wallet,
+              }}
+              providers={providers}
+              explorerBase={explorerBase}
+              riskWarnings={riskWarnings}
+            />
+          </WalletGate>
+
+          {riskWarnings.length > 0 && (
+            <section id="alternatives" className="scroll-mt-24">
               <Alternatives
                 alternatives={await recommendedAlternatives(
                   category === 'unclassified' ? 'health-factor' : category,
                   tokenId,
                 )}
-                category={
-                  category === 'unclassified' ? 'health-factor' : category
-                }
+                category={category === 'unclassified' ? 'health-factor' : category}
               />
-            </>
+            </section>
           )}
-          <WalletReadiness requiredBudgetU={DEFAULT_BUDGET_U} />
-          {/*
-            Commissioning leads, because it is the only one of the two that
-            can actually happen. A session is standing authority over your
-            wallet and a job is a single piece of escrowed work; neither
-            implies the other, so they stay separate. But delegated execution
-            is paused, so the access section grants nothing today — it is
-            reference, and it used to sit as 1,200px of it between the user
-            and the thing they came to do.
-          */}
-          <Stage
-            index={1}
-            title="Commission work"
-            caption="Escrow a budget for a specific task, released only on delivery."
-          >
-            <WalletGate action="commission work" capability="commission">
-              <CommissionPanel
-                agent={{
-                  chainId,
-                  tokenId,
-                  name: agent.name,
-                  category,
-                  wallet: agent.agent_wallet,
-                }}
-                providers={providers}
-                escrowChainId={ALTANA_NETWORK.chainId}
-                explorerBase={explorerBase}
-                riskWarnings={riskWarnings}
-              />
-            </WalletGate>
-          </Stage>
 
           <EvidenceSection
             title="What hiring does not grant"

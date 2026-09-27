@@ -53,27 +53,28 @@ export function WalletGate({
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
       <div className="flex flex-col gap-3">
         {reason && (
-          <div className="flex flex-col gap-1 rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] p-4">
-            <p className="text-[12px] font-medium">
-              Everything below is yours to read before you connect anything.
-            </p>
-            <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-              {capability === 'session' ? (
+          capability === 'commission' ? (
+            <div className="flex items-center gap-3 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>⌁</span>
+              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                Configure and review first. You only need a passkey wallet when you are ready to fund.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1 rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] p-4">
+              <p className="text-[12px] font-medium">
+                Everything below is yours to read before you connect anything.
+              </p>
+              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
                 <>
                   Discovery, evidence and this permission review stay public.
                   Use <span className="font-medium">Connect wallet</span> in the
                   header and choose a passkey to sign on this device. Browser
                   wallets are identity-only here and cannot authorize a session.
                 </>
-              ) : (
-                <>
-                  You can review the provider, task and budget before connecting.
-                  A passkey wallet signs and funds the escrow itself; Pokter
-                  never substitutes its operator key.
-                </>
-              )}
-            </p>
-          </div>
+              </p>
+            </div>
+          )
         )}
 
         {children}
