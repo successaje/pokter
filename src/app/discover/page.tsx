@@ -218,12 +218,17 @@ export default async function DiscoverPage({
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Find an agent
         </h1>
-        <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
+        {/*
+          Desktop only. On a phone this paragraph and the strip below it put
+          four lines of positioning between the title and the goal chips, which
+          are the actual control for this page.
+        */}
+        <p className="hidden text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
           Start with the outcome you want. Pokter compares onchain identity,
           measured reliability and evidence quality—and shows why each agent did
           or did not qualify.
         </p>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-[color:var(--text-muted)]">
+        <div className="hidden flex-wrap gap-x-5 gap-y-1 text-[11px] text-[color:var(--text-muted)] md:flex">
           <span>4 financial strategies</span>
           <span>ERC-8004 identities</span>
           <span>Live endpoint evidence</span>
@@ -234,7 +239,7 @@ export default async function DiscoverPage({
         <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Link
             href="/discover"
-            className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${!selectedObjective ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
+            className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 py-2 text-xs font-medium md:min-h-0 ${!selectedObjective ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
           >
             All agents
           </Link>
@@ -242,7 +247,7 @@ export default async function DiscoverPage({
             <Link
               key={objective.id}
               href={`/discover?objective=${objective.id}`}
-              className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium ${selectedObjective === objective.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
+              className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 py-2 text-xs font-medium md:min-h-0 ${selectedObjective === objective.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
             >
               {objective.label}
             </Link>
@@ -281,7 +286,7 @@ export default async function DiscoverPage({
               <h2 className="text-lg font-semibold tracking-tight">Explore agents</h2>
               <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Open any profile to review its evidence before hiring.</p>
             </div>
-            <Link href="/agents" className="shrink-0 text-[11px] text-[color:var(--info)]">View all</Link>
+            <Link href="/agents" className="inline-flex min-h-11 shrink-0 items-center text-[11px] text-[color:var(--info)] md:inline md:min-h-0">View all</Link>
           </div>
           <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
             {visibleAgents.map((entry, index) => {
