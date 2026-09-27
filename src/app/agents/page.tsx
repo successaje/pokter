@@ -8,6 +8,8 @@ import { parseQuery } from '@/lib/search/query';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
 import { AgentSearch } from '@/components/search/AgentSearch';
+import { FilterSidebar } from '@/components/search/FilterSidebar';
+import { FILTER_GROUPS } from '@/lib/search/filters';
 
 /**
  * Rendered per request rather than pre-built.
@@ -67,6 +69,26 @@ export default async function AgentsPage({
 
   const filtering = query.qualifiers.length > 0;
 
+  /*
+   * How many agents each filter would match, counted over everything indexed
+   * rather than over the current result. Counting the current result would
+   * make every unselected option read zero as soon as one filter was on,
+   * which is the opposite of useful — the number is there to answer "what
+   * happens if I click this", and that question is about the whole set.
+   *
+   * 81 agents against about twenty options is a few thousand comparisons on
+   * data already in memory, so there is no reason to do it any other way.
+   */
+  const filterCounts: Record<string, number> = {};
+  for (const group of FILTER_GROUPS) {
+    for (const option of group.options) {
+      const parsedOption = parseQuery(option.query);
+      filterCounts[option.query] = all.filter((entry) =>
+        matchesQuery(entry, parsedOption),
+      ).length;
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
@@ -88,6 +110,23 @@ export default async function AgentsPage({
       <Suspense fallback={<div className="h-28" />}>
         <AgentSearch resultCount={matched.length} />
       </Suspense>
+
+      {/*
+        Two columns from 1024px up: a standing filter shelf beside the
+        results. Below that the shelf would cost more room than the results
+        it filters, so phones keep the chip row and its sheet, which was built
+        for exactly that width.
+      */}
+      <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+        <Suspense fallback={null}>
+          <FilterSidebar
+            groups={FILTER_GROUPS}
+            counts={filterCounts}
+            className="hidden lg:flex"
+          />
+        </Suspense>
+
+        <div className="flex min-w-0 flex-col gap-8">
 
       {matched.length === 0 ? (
         /* §60. An honest empty state, naming the filter that produced it. */
@@ -144,8 +183,10 @@ export default async function AgentsPage({
               )}
             </section>
           );
-        })
-      )}
+          })
+        )}
+        </div>
+      </div>
     </div>
   );
 }
