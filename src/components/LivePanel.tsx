@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import type { LiveReading } from '@/lib/proof/prober';
 
 /**
@@ -8,10 +9,7 @@ import type { LiveReading } from '@/lib/proof/prober';
 export function LivePanel({ live }: { live: LiveReading }) {
   if (live.protocol === 'none') {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
-        This agent publishes no reachable service endpoint, so there is nothing to
-        watch. It cannot be probed, so Pokter will not recommend hiring it.
-      </p>
+      <StatusState body="This agent publishes no reachable service endpoint, so there is nothing to watch. It cannot be probed, so Pokter will not recommend hiring it." />
     );
   }
 

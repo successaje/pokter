@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { getComparisons, listMarketplace, type Listing } from '@/lib/marketplace';
 import { CompareTable } from '@/components/compare/CompareTable';
@@ -64,16 +65,14 @@ export default async function ComparePage({
       />
 
       {entries.length < 2 ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center">
-          <p className="text-sm font-medium">
-            {entries.length === 0
+        <StatusState
+          title={
+            entries.length === 0
               ? 'Choose your first two agents above.'
-              : 'Choose one more agent to start comparing.'}
-          </p>
-          <p className="mt-1 text-xs text-[color:var(--text-faint)]">
-            Evidence, reliability, score and ownership will appear side by side.
-          </p>
-        </div>
+              : 'Choose one more agent to start comparing.'
+          }
+          body="Evidence, reliability, score and ownership will appear side by side."
+        />
       ) : (
         <CompareTable entries={entries} />
       )}

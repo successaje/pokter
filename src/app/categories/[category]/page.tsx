@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -117,10 +118,7 @@ export default async function CategoryPage({
       </section>
 
       {listings.length === 0 ? (
-        <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-8 text-center text-xs text-[color:var(--text-faint)]">
-          No agent in the registry currently matches this category with enough
-          confidence to list.
-        </p>
+        <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {entries.map((entry) => (

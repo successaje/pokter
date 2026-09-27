@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import { plural } from '@/lib/ui/plural';
 import { Suspense } from 'react';
 import Link from 'next/link';
@@ -333,7 +334,7 @@ export default async function DiscoverPage({
             })}
           </div>
           {visibleAgents.length === 0 && (
-            <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-muted)]">No indexed agents currently match this category.</p>
+            <StatusState body="No indexed agents currently match this category." />
           )}
         </section>
       )}

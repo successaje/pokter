@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
@@ -132,9 +133,7 @@ export default async function LeaderboardPage({
       </section>
 
       {entries.length === 0 ? (
-        <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-8 text-center text-xs text-[color:var(--text-faint)]">
-          No agent in this category could be resolved right now.
-        </p>
+        <StatusState body="No agent in this category could be resolved right now." />
       ) : (
         <>
           {/*

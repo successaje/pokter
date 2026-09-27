@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import type { Attestation } from '@/lib/proof/attestation';
 
 const BSCSCAN_TX = 'https://bscscan.com/tx/';
@@ -10,10 +11,7 @@ const BSCSCAN_TX = 'https://bscscan.com/tx/';
 export function EvidencePanel({ attestations }: { attestations: Attestation[] }) {
   if (attestations.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
-        No third-party measurer has published an attestation for this agent. That
-        is not a low score — it means nobody independent has checked it yet.
-      </p>
+      <StatusState body="No third-party measurer has published an attestation for this agent. That is not a low score — it means nobody independent has checked it yet." />
     );
   }
 

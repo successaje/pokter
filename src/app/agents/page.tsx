@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import { Suspense } from 'react';
 
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
@@ -66,13 +67,10 @@ export default async function AgentsPage({
 
       {matched.length === 0 ? (
         /* §60. An honest empty state, naming the filter that produced it. */
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-8 text-center">
-          <p className="text-sm font-medium">No agent matches these filters.</p>
-          <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-[color:var(--text-muted)]">
-            {all.length} agents are indexed. Loosening the evidence requirement
-            widens the set — it does not create evidence that is missing.
-          </p>
-        </div>
+        <StatusState
+          title="No agent matches these filters."
+          body={`${all.length} agents are indexed. Loosening the evidence requirement widens the set — it does not create evidence that is missing.`}
+        />
       ) : (
         byCategory.map(({ category, entries }) => {
           const meta = CATEGORY_BY_ID.get(category);
@@ -96,10 +94,7 @@ export default async function AgentsPage({
               </div>
 
               {entries.length === 0 ? (
-                <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6 text-center text-xs text-[color:var(--text-faint)]">
-                  No agent in the registry currently matches this category with
-                  enough confidence to list.
-                </p>
+                <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {entries.map((entry) => (

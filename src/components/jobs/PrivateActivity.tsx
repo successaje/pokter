@@ -1,5 +1,6 @@
 'use client';
 
+import { StatusState } from '@/components/ui/States';
 import { useCallback, useState, useSyncExternalStore } from 'react';
 
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
@@ -185,7 +186,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-[color:var(--text-faint)]">No device-local sessions.</p>
+          <StatusState body="No permissions on this device. Sessions are held per device, so one granted elsewhere will not appear here." />
         )}
       </section>
 
@@ -200,7 +201,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-[color:var(--text-faint)]">No device-local jobs.</p>
+          <StatusState body="No jobs on this device. Jobs are recorded per device — one hired elsewhere can be pulled in below using its ERC-8183 job ID." />
         )}
 
         <div className="flex max-w-xl flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">

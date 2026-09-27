@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import { plural, pluralise } from '@/lib/ui/plural';
 import type { TrackRecord } from '@/lib/history/record';
 
@@ -22,10 +23,7 @@ function formatDuration(days: number): string {
 export function TrackRecordPanel({ record }: { record: TrackRecord }) {
   if (record.totalProbes === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-[color:var(--border)] p-5 text-xs leading-relaxed text-[color:var(--text-faint)]">
-        Pokter has not yet swept this agent, so it has no accumulated
-        record here. Only the live probe above speaks for it.
-      </p>
+      <StatusState body="Pokter has not yet swept this agent, so it has no accumulated record here. Only the live probe above speaks for it." />
     );
   }
 

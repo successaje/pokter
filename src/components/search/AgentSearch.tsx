@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { Sheet } from '@/components/ui/Sheet';
+import { useIsPhone } from '@/lib/ui/useIsPhone';
 import {
   VOCABULARY,
   describeQualifier,
@@ -59,6 +61,8 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
 
   const [draft, setDraft] = useState(initial);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const isPhone = useIsPhone();
+  const activeGroup = FILTER_GROUPS.find((g) => g.label === openGroup) ?? null;
   const closeFilters = useCallback(() => setOpenGroup(null), []);
   const filtersRef = useDismissibleLayer<HTMLDivElement>({
     open: openGroup !== null,
@@ -135,8 +139,16 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
               {group.label} ▾
             </button>
 
+            {/*
+              Desktop keeps the anchored popover. A phone cannot: this row
+              scrolls sideways, and `overflow-x: auto` computes `overflow-y`
+              to `auto` as well, so the panel was clipped 170px below the row
+              with no way to reach the options. The sheet escapes the scroll
+              container entirely, and gives the options a real tap target
+              while it is there.
+            */}
             {openGroup === group.label && (
-              <div className="absolute left-0 top-full z-30 mt-1.5 w-64 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-2 shadow-xl">
+              <div className="absolute left-0 top-full z-30 mt-1.5 hidden w-64 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-2 shadow-xl md:block">
                 <p className="px-1 pb-1.5 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
                   {group.hint}
                 </p>
@@ -161,6 +173,29 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
           {resultCount} agent{resultCount === 1 ? '' : 's'}
         </span>
       </div>
+
+      <Sheet
+        open={isPhone && openGroup !== null}
+        onClose={() => setOpenGroup(null)}
+        title={activeGroup ? activeGroup.label : ''}
+        description={activeGroup?.hint}
+      >
+        <div className="flex flex-col gap-1">
+          {activeGroup?.options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                addToken(option);
+                setOpenGroup(null);
+              }}
+              className="mono flex min-h-11 items-center rounded-[var(--radius)] px-3 text-left text-[13px] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       {parsed.qualifiers.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">

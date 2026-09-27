@@ -1,3 +1,4 @@
+import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 
 import { PAIRS, readPool, toClientPool, type ClientPool } from '@/lib/pancakeswap/pool';
@@ -37,10 +38,7 @@ export default async function PoolCheckPage() {
       </header>
 
       {pools.length === 0 ? (
-        <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-8 text-center text-xs text-[color:var(--text-faint)]">
-          No pool could be read from BNB Chain right now. This page reads live
-          state and does not fall back to cached numbers.
-        </p>
+        <StatusState body="No pool could be read from BNB Chain right now. This page reads live state and does not fall back to cached numbers." />
       ) : (
         <PoolCheck pools={pools} />
       )}
