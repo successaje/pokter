@@ -152,15 +152,16 @@ escrow client-side, so the funds and the authority are the user's throughout.
 
 ---
 
-## 5. Team wallets
+## 5. Project-controlled wallets — exclude from quest counting
 
 | Purpose | Address |
 | --- | --- |
-| Operator / demo seller (chain 97) | `0x60eF148485C2a5119fa52CA13c52E9fd98F28e87` |
-| Prize / payout | `0xEF869BB780a5163E6D39E83817cD29af6DEaA784` |
+| Demo seller / operator (chain 97) | `0x60eF148485C2a5119fa52CA13c52E9fd98F28e87` |
+| Official team / payout wallet | `0xEF869BB780a5163E6D39E83817cD29af6DEaA784` |
 
-Exclude both from quest counting. The operator key signs the demo seller's
-deliverable submissions and historical demo records; it is not a user.
+The operator address signs Pokter's demo-seller deliveries and appears in
+historical end-to-end tests. Neither address represents organic user activity;
+exclude both from quest and campaign activity counts.
 
 ---
 
