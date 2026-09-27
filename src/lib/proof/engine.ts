@@ -121,46 +121,66 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
         : 'emerging';
 
   /*
-   * FE-12. This count is the sum across every measurer, while the agent page
-   * separately shows Pokter's own. Two different probe totals sat on one
+   * FE-12. The probe count is the sum across every measurer, while the agent
+   * page separately shows Pokter's own. Two different probe totals sat on one
    * screen with nothing saying whose each was, which is corrosive on a page
    * whose argument is that its numbers can be trusted. Naming the scope costs
    * three words.
    *
-   * The same fault, worse, in the attestation count: this sentence counted
-   * only the attestations that decoded and carried a ratio, while the trust
-   * strip beside it counted every attestation received. One screen said "1
-   * attestation" and "Attestations 3" about the same agent, and a page whose
-   * entire argument is that it does not invent numbers cannot contradict
-   * itself in two adjacent paragraphs.
+   * The attestation count had the same fault and a worse consequence. Pokter's
+   * own sweep enters this function as a synthetic attestation so that first-
+   * and third-party evidence run through one verdict path — but it carries no
+   * transaction hash, and `toSweepAttestation` is explicit that the interface
+   * must not mix it in with the published ones.
    *
-   * Saying "1 of 3" fixes it and pays for itself: it reports that two
-   * attestations exist which could not be scored, which is a fact a buyer
-   * should have and the old phrasing hid.
-   *
-   * The measurer clause merged into the probe clause. "286 probes across all
-   * measurers, 1 measurer" said the scope twice and scanned as a stutter.
-   *
+   * Counting them together produced a sentence that was not merely inconsistent
+   * with the trust strip but wrong about who had checked: one listed agent has
+   * three published attestations, none of them scorable, and a score resting
+   * entirely on Pokter's own probing. "Across 1 of 4 attestations" presented
+   * that as attested evidence. It is not — it is us, marking our own homework,
+   * and the sentence now says so before anything else.
+   */
+  const published = attestations.filter((a) => a.transactionHash);
+  const usablePublished = usable.filter((a) => a.transactionHash);
+  const selfMeasured = usable.some((a) => !a.transactionHash);
+
+  const unscored =
+    published.length > usablePublished.length
+      ? ` ${plural(published.length - usablePublished.length, 'published attestation')} could not be scored.`
+      : '';
+
+  /*
    * FE-16 in passing: `attestation(s)` reads like a form field, so the counts
    * pluralise properly.
    */
-  const scored =
-    usable.length === attestations.length
-      ? plural(usable.length, 'attestation')
-      : `${usable.length} of ${plural(attestations.length, 'attestation')}`;
+  const ownProbes = `${plural(probes, 'probe')} by Pokter`;
+  const span = windowDays ? `, over ${plural(windowDays, 'day')}` : '';
 
   const evidence =
-    `${scored}, ` +
-    `${plural(probes, 'probe')} ` +
-    `${measurers.length ? `from ${plural(measurers.length, 'measurer')}` : 'from no named measurer'}` +
-    (windowDays ? `, over ${plural(windowDays, 'day')}` : '');
+    usablePublished.length === 0
+      ? `${ownProbes} and nothing else${span}.${unscored}`
+      : selfMeasured
+        ? `${plural(usablePublished.length, 'published attestation')} and ${ownProbes}${span}.${unscored}`
+        : `${plural(usablePublished.length, 'published attestation')}${span}.${unscored}`;
 
   /** What is still missing before this could be called proven. */
   const shortfalls = [
     probes < PROVEN_MIN_PROBES &&
       `${plural(PROVEN_MIN_PROBES - probes, 'more probe')}`,
+    /*
+     * "A second independent measurer" counts Pokter as the first, which it is
+     * not — an agent whose only measurer is us has no independent check at
+     * all, and telling its buyer they need a *second* one implies otherwise.
+     *
+     * Kept to a parenthetical rather than a dashed clause: this is one item in
+     * a comma-separated list of shortfalls, and a dash here ran the sentence
+     * into whichever shortfall followed it.
+     */
     measurers.length < PROVEN_MIN_MEASURERS &&
-      'a second independent measurer',
+      (measurers.length === 0 ||
+      measurers.every((m) => m.toLowerCase() === 'pokter')
+        ? 'an independent measurer (only Pokter has checked)'
+        : 'a second independent measurer'),
     (windowDays ?? 0) < PROVEN_MIN_WINDOW_DAYS &&
       'at least a day of observation',
     score < PROVEN_MIN_SCORE && `a score above ${PROVEN_MIN_SCORE * 100}%`,
@@ -168,10 +188,10 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
 
   const rationale =
     verdict === 'failing'
-      ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. This agent is failing its own measurers, so Pokter does not recommend hiring it.`
+      ? `Measured at ${(score * 100).toFixed(1)}% from ${evidence} This agent is failing its own measurers, so Pokter does not recommend hiring it.`
       : verdict === 'proven'
-        ? `Measured at ${(score * 100).toFixed(1)}% across ${evidence} — enough independent evidence to clear the proven bar.`
-        : `Measured at ${(score * 100).toFixed(1)}% across ${evidence}. Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
+        ? `Measured at ${(score * 100).toFixed(1)}% from ${evidence} Enough independent evidence to clear the proven bar.`
+        : `Measured at ${(score * 100).toFixed(1)}% from ${evidence} Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
 
   return {
     ...base,
