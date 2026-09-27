@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { formatScore } from '@/lib/ui/format';
 import { DIMENSION_LABELS, type PokterScore } from '@/lib/score/types';
+import { ScoreRing } from './ScoreRing';
 
 function scoreColor(overall: number | null): string {
   if (overall === null) return 'var(--text-muted)';
@@ -61,17 +62,19 @@ export function ScorePanel({
         aria-expanded={expanded}
         className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
       >
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
-          <span className="flex items-baseline gap-1.5">
-            <span
-              className="tabular text-3xl font-medium leading-none"
-              style={{ color: scoreColor(score.overall) }}
-            >
-              {formatScore(score.overall)}
+        <div className="flex items-center gap-3.5">
+          <ScoreRing score={score} size={56} />
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-[color:var(--text-muted)]">{label}</span>
+            {/*
+              The denominator stays in text beside the ring. An arc shows a
+              proportion but never says of what, and "67" on its own invites
+              the reader to supply their own scale.
+            */}
+            <span className="text-sm text-[color:var(--text-faint)]">
+              out of 100
             </span>
-            <span className="text-sm text-[color:var(--text-faint)]">/ 100</span>
-          </span>
+          </div>
         </div>
 
         <div className="flex flex-col items-end gap-1 text-right">
