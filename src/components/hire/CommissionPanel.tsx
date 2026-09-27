@@ -353,13 +353,16 @@ export function CommissionPanel({
 
   return (
     <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-sm font-medium">Commission work</h3>
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          Funds an ERC-8183 escrow from your passkey wallet. The budget is held
-          by the kernel and released only through its job lifecycle.
-        </p>
-      </div>
+      {/*
+        No heading here: the stage that wraps this panel is already titled
+        "Commission work", and repeating it rendered the same words twice in a
+        row. The sentence stays, because it carries the escrow detail the
+        stage caption does not.
+      */}
+      <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        Funds an ERC-8183 escrow from your passkey wallet. The budget is held by
+        the kernel and released only through its job lifecycle.
+      </p>
 
       {riskWarnings.length > 0 && (
         <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-3">

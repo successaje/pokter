@@ -44,7 +44,7 @@ function GitHubMark() {
 }
 
 const socialClass =
-  'flex size-9 items-center justify-center rounded-full border border-[color:var(--border-strong)] text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--text-faint)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]';
+  'flex size-11 items-center justify-center rounded-full border border-[color:var(--border-strong)] md:size-9 text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--text-faint)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]';
 
 export function Footer() {
   return (

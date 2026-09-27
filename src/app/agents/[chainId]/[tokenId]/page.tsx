@@ -107,7 +107,7 @@ export default async function AgentPage({
     <div className="flex flex-col gap-6 pt-2">
       <Link
         href="/agents"
-        className="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
+        className="inline-flex min-h-11 items-center self-start text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)] md:inline md:min-h-0"
       >
         ← All agents
       </Link>
