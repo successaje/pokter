@@ -1,6 +1,11 @@
 'use client';
 
-import { NETWORK_LABEL } from '@/lib/network/presentation';
+import {
+  IS_TESTNET,
+  NETWORK_LABEL,
+  REGISTRY_NETWORK_LABEL,
+} from '@/lib/network/presentation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -119,8 +124,32 @@ export function Nav() {
             and showing one number alone is what made the header and the hire
             page appear to contradict each other.
           */}
-          <span className="mono hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] sm:flex">
-            <span className="size-1.5 shrink-0 rotate-45 bg-[color:var(--brand)]" aria-hidden />
+          {/*
+            Shown at every width now. It used to start at 640px, which meant
+            the one thing a phone user most needs to know — that the money on
+            this screen is test money — was the one thing the phone header did
+            not say.
+
+            On testnet it carries the caution treatment rather than the muted
+            one. A network name in the same grey as everything else is a label;
+            in caution colour it is a warning, which is what it is.
+          */}
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-1 text-[10px] sm:px-2.5',
+              IS_TESTNET
+                ? 'border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] text-[color:var(--caution)]'
+                : 'border-[color:var(--border)] text-[color:var(--text-muted)]',
+            )}
+          >
+            <Image
+              src="/integrations/bnbchain.ico"
+              alt=""
+              width={14}
+              height={14}
+              className="size-3.5 shrink-0 rounded-full"
+              unoptimized
+            />
             {/*
               The registry chain only once there is genuinely room. Showing it
               from 640px made the pill wrap and dragged every nav link onto a
@@ -128,9 +157,11 @@ export function Nav() {
               is the part that must always be legible, so it is the part that
               never moves.
             */}
-            <span className="hidden xl:inline">Agents: BSC mainnet · </span>
+            <span className="hidden xl:inline">
+              Agents: {REGISTRY_NETWORK_LABEL} ·{' '}
+            </span>
             <span className="hidden sm:inline">Hiring: </span>
-            {NETWORK_LABEL}
+            <span className="font-medium">{NETWORK_LABEL}</span>
           </span>
           <span className="hidden sm:block">
             <ThemeToggle />

@@ -1,6 +1,10 @@
 'use client';
 
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import {
+  CHAIN_ID,
+  NATIVE_SYMBOL,
+  NETWORK_LABEL,
+} from '@/lib/network/presentation';
 import { SPEND_CAP_BOUNDS, formatCapUsd } from '@/lib/altana/caps';
 import { useState } from 'react';
 
@@ -38,7 +42,7 @@ export function PermissionReview({
       {isTestnet && (
         /* §39. Never blur testnet and mainnet. */
         <p className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] px-3 py-2 text-[11px] text-[color:var(--info)]">
-          BSC testnet (chain 97). Real transactions, real on-chain permissions,
+          {NETWORK_LABEL} (chain {CHAIN_ID}). Real transactions, real on-chain permissions,
           no real money.
         </p>
       )}

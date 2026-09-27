@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NETWORK_LABEL, REGISTRY_NETWORK_LABEL } from '@/lib/network/presentation';
 import { notFound } from 'next/navigation';
 
 import { loadDossier } from '@/lib/marketplace';
@@ -91,8 +92,8 @@ export default async function HirePage({
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--text-muted)]">
           <span>{meta?.label ?? 'Unclassified'}</span>
           <span aria-hidden>·</span>
-          <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1">Identity · BSC mainnet</span>
-          <span className="rounded-full border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] px-2.5 py-1 text-[color:var(--info)]">Commission · BSC testnet</span>
+          <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1">Identity · {REGISTRY_NETWORK_LABEL}</span>
+          <span className="rounded-full border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] px-2.5 py-1 text-[color:var(--info)]">Commission · {NETWORK_LABEL}</span>
         </div>
       </header>
 

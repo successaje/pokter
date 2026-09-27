@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NETWORK_LABEL } from '@/lib/network/presentation';
 
 import { DIMENSION_WEIGHTS, DIMENSION_LABELS, SCORE_VERSION } from '@/lib/score/types';
 import {
@@ -346,7 +347,7 @@ export default async function MethodologyPage() {
             <span className="font-medium text-[color:var(--text)]">
               Testnet is labelled, never blurred.
             </span>{' '}
-            Sessions and escrow currently run on BSC testnet, and every surface
+            Sessions and escrow currently run on {NETWORK_LABEL}, and every surface
             that shows one says so.
           </Rule>
         </ul>
