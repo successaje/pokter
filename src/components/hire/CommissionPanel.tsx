@@ -11,7 +11,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
+import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
@@ -577,7 +577,7 @@ export function CommissionPanel({
           </div>
           <div className="flex items-baseline justify-between gap-3 p-3">
             <dt className="shrink-0 text-[color:var(--text-muted)]">Budget</dt>
-            <dd className="tabular text-right font-medium">{budget} $U</dd>
+            <dd className="tabular text-right font-medium">{formatBudget(budget)}</dd>
           </div>
           <div className="flex items-baseline justify-between gap-3 p-3">
             <dt className="shrink-0 text-[color:var(--text-muted)]">Held by</dt>
@@ -629,7 +629,7 @@ export function CommissionPanel({
               : 'Funding escrow…'
             : locked
               ? 'Create a passkey to commission'
-              : `Commission for ${budget} $U`}
+              : `Commission for ${formatBudget(budget)}`}
         </button>
       )}
 
