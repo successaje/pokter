@@ -1,11 +1,51 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
+import { DM_Mono, Manrope, Newsreader } from 'next/font/google';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
 import { Footer } from '@/components/shell/Footer';
 import { WalletProviders } from '@/lib/wallet/Providers';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
+
+/*
+ * Three families, each with a job.
+ *
+ * Until now the stylesheet asked for "Geist" and nothing ever loaded it, so
+ * every page has been rendering in whatever sans the system had. These are
+ * self-hosted by next/font, so they arrive without a network round trip to
+ * Google and without the reflow that a late webfont causes.
+ *
+ * Newsreader carries the display voice. It is the whole reason the design
+ * reads as an editorial financial publication rather than a dashboard, and
+ * it is used at heading sizes only — a serif at 11px in a dense row is worse
+ * than the sans it replaced.
+ */
+const display = Newsreader({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const sans = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans-family',
+  display: 'swap',
+});
+
+/*
+ * DM Mono stops at 500. The mock asks for 600 in places, which a browser can
+ * only fake by smearing the glyphs, so those call sites use 500 instead.
+ */
+const mono = DM_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono-family',
+  display: 'swap',
+});
 
 export const viewport: Viewport = {
   themeColor: '#f0b90b',
@@ -63,7 +103,12 @@ export default async function RootLayout({
   const explicit = theme === 'light' || theme === 'dark' ? theme : undefined;
 
   return (
-    <html lang="en" data-theme={explicit} suppressHydrationWarning>
+    <html
+      lang="en"
+      data-theme={explicit}
+      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
       <body className="antialiased">
         <PwaProvider>
           <WalletProviders>
