@@ -5,7 +5,8 @@ import type { Listing } from '@/lib/marketplace';
 import type { Verdict } from '@/lib/proof/engine';
 import type { TrackRecord } from '@/lib/history/record';
 import { shortAddress } from '@/lib/ui/format';
-import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
+import { cn } from '@/lib/ui/cn';
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
 
@@ -41,6 +42,26 @@ export function AgentCard({
   const { agent, attestationCount } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
   const href = `/agents/${agent.chain_id}/${agent.token_id}`;
+  /*
+   * What the agent charges, or an admission that we do not know.
+   *
+   * Every card used to print the same 0.10 $U, which was not a price at all
+   * but Pokter's default escrow budget. Read across a grid it said every
+   * agent costs the same — a claim nobody made and which is not true.
+   *
+   * A price exists only inside a signed quote the agent gives when asked, so
+   * there are three states and the card distinguishes all of them: a price we
+   * hold, an agent that has been asked and would not name one, and an agent
+   * we have not yet asked.
+   */
+  const priceLabel =
+    listing.quote === undefined
+      ? 'Price not yet asked'
+      : listing.quote === null
+        ? 'No price quoted'
+        : formatQuotedPrice(listing.quote.priceU);
+  const hasPrice = Boolean(listing.quote);
+
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
 
@@ -127,7 +148,16 @@ export function AgentCard({
             {availability}
           </p>
           <div className="flex items-center justify-between gap-2">
-            <span className="tabular text-[12px] font-medium">{DEFAULT_BUDGET_LABEL}</span>
+            <span
+              className={cn(
+                'tabular min-w-0 truncate text-[12px]',
+                hasPrice
+                  ? 'font-medium'
+                  : 'text-[11px] text-[color:var(--text-faint)]',
+              )}
+            >
+              {priceLabel}
+            </span>
             {hirable ? (
               <Link
                 href={hireHref}
@@ -177,8 +207,15 @@ export function AgentCard({
               <dt className="sr-only">Availability</dt>
               <dd className="tabular min-w-0 truncate">{availability}</dd>
               <dt className="sr-only">Price</dt>
-              <dd className="tabular shrink-0 font-medium text-[color:var(--text-secondary)]">
-                {DEFAULT_BUDGET_LABEL}
+              <dd
+                className={cn(
+                  'tabular shrink-0',
+                  hasPrice
+                    ? 'font-medium text-[color:var(--text-secondary)]'
+                    : 'text-[color:var(--text-faint)]',
+                )}
+              >
+                {priceLabel}
               </dd>
             </div>
           </dl>

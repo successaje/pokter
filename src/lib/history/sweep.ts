@@ -6,7 +6,13 @@ import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
-import { getProbeStore, type ProbeRecord, type SweepRecord } from './store';
+import { requestQuote } from '@/lib/erc8183/quote';
+import {
+  getProbeStore,
+  type ProbeRecord,
+  type QuoteRecord,
+  type SweepRecord,
+} from './store';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -23,6 +29,8 @@ export interface SweepOutcome extends SweepRecord {
   failed: number;
   /** Distinct lookup failures, so a silent sweep can be diagnosed. */
   errors: string[];
+  /** Agents that quoted a price for themselves this sweep. */
+  quoted: number;
 }
 
 /**
@@ -89,6 +97,7 @@ export async function runSweep({
   let skipped = 0;
   let failed = 0;
   const errors = new Set<string>();
+  const quotes: QuoteRecord[] = [];
 
   // Agents are swept a few at a time: each one costs a registry lookup plus
   // several outbound probes, and hammering either side helps nobody.
@@ -112,6 +121,32 @@ export async function runSweep({
 
     const reading = await probeAgent(agent, { samples });
 
+    /*
+     * While we have the agent on the line, ask what it charges.
+     *
+     * The price is only obtainable by negotiating for it — no registry field
+     * or agent card carries one — so the sweep is the one place already
+     * paying the cost of reaching every agent. It is the same read-only
+     * negotiation the trial runs: no funds move and nothing is written on
+     * chain.
+     *
+     * An agent that will not quote simply has no row, and the interface says
+     * so rather than substituting a default and calling it a price.
+     */
+    const quote = await requestQuote(agent);
+    if (quote) {
+      quotes.push({
+        chainId: agent.chain_id,
+        tokenId: agent.token_id,
+        priceRaw: quote.priceRaw,
+        priceU: quote.priceU,
+        currency: quote.currency,
+        signer: quote.signer,
+        quotedAt: quote.quotedAt,
+        expiresAt: quote.expiresAt,
+      });
+    }
+
     return reading.probes.map<ProbeRecord>((probe) => ({
       chainId: agent.chain_id,
       tokenId: agent.token_id,
@@ -130,6 +165,7 @@ export async function runSweep({
   answered = records.filter((r) => r.ok).length;
 
   store.record(records);
+  store.recordQuotes(quotes);
 
   const outcome: SweepOutcome = {
     startedAt,
@@ -140,6 +176,7 @@ export async function runSweep({
     skipped,
     failed,
     errors: [...errors],
+    quoted: quotes.length,
   };
 
   store.recordSweep(outcome);

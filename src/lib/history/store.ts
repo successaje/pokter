@@ -17,6 +17,24 @@ export interface ProbeRecord {
   probedAt: string;
 }
 
+/**
+ * The last price one agent quoted for itself.
+ *
+ * Only ever one row per agent: a quote carries an expiry measured in minutes,
+ * so a history of stale prices would be a history of numbers nobody may still
+ * honour. The current observation, dated, is the honest thing to keep.
+ */
+export interface QuoteRecord {
+  chainId: number;
+  tokenId: string;
+  priceRaw: string;
+  priceU: number;
+  currency: string;
+  signer: string;
+  quotedAt: string;
+  expiresAt: string | null;
+}
+
 /** Summary of one sweep across the roster. */
 export interface SweepRecord {
   startedAt: string;
@@ -37,6 +55,10 @@ export interface SweepRecord {
 export interface ProbeStore {
   record(probes: ProbeRecord[]): void;
   recordSweep(sweep: SweepRecord): void;
+  /** Replace each agent's stored quote with what it just said. */
+  recordQuotes(quotes: QuoteRecord[]): void;
+  /** The last quote held for each of the given agents, keyed `chainId:tokenId`. */
+  quotesFor(agents: { chainId: number; tokenId: string }[]): Map<string, QuoteRecord>;
   /** Probes for one agent, newest first, limited to `since`. */
   historyFor(chainId: number, tokenId: string, since: Date): ProbeRecord[];
   /** Agents we hold any history for, as `chainId:tokenId`. */
@@ -51,6 +73,14 @@ export interface ProbeStore {
 /** What Pokter itself has measured, as opposed to what the registry reports. */
 export interface StoreStats {
   agentsMonitored: number;
+  /**
+   * Agents that have ever answered Pokter when called.
+   *
+   * Counted separately from `agentsMonitored` because the difference between
+   * them is the one number this marketplace exists to report: a registry
+   * entry is a claim that something is there, and most of them are not.
+   */
+  agentsAnswering: number;
   probesTaken: number;
   probesAnswered: number;
   sweeps: number;
@@ -73,6 +103,18 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_probes_agent
     ON probes (chain_id, token_id, probed_at DESC);
 
+  CREATE TABLE IF NOT EXISTS quotes (
+    chain_id   INTEGER NOT NULL,
+    token_id   TEXT    NOT NULL,
+    price_raw  TEXT    NOT NULL,
+    price_u    REAL    NOT NULL,
+    currency   TEXT    NOT NULL,
+    signer     TEXT    NOT NULL,
+    quoted_at  TEXT    NOT NULL,
+    expires_at TEXT,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
   CREATE TABLE IF NOT EXISTS sweeps (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at  TEXT    NOT NULL,
@@ -93,6 +135,17 @@ interface ProbeRow {
   status: number | null;
   detail: string;
   probed_at: string;
+}
+
+interface QuoteRow {
+  chain_id: number;
+  token_id: string;
+  price_raw: string;
+  price_u: number;
+  currency: string;
+  signer: string;
+  quoted_at: string;
+  expires_at: string | null;
 }
 
 interface SweepRow {
@@ -159,6 +212,71 @@ class SqliteProbeStore implements ProbeStore {
     }
   }
 
+  recordQuotes(quotes: QuoteRecord[]): void {
+    if (quotes.length === 0) return;
+
+    const upsert = this.db.prepare(
+      `INSERT INTO quotes
+         (chain_id, token_id, price_raw, price_u, currency, signer, quoted_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (chain_id, token_id) DO UPDATE SET
+         price_raw = excluded.price_raw,
+         price_u = excluded.price_u,
+         currency = excluded.currency,
+         signer = excluded.signer,
+         quoted_at = excluded.quoted_at,
+         expires_at = excluded.expires_at`,
+    );
+
+    this.db.exec('BEGIN');
+    try {
+      for (const q of quotes) {
+        upsert.run(
+          q.chainId,
+          q.tokenId,
+          q.priceRaw,
+          q.priceU,
+          q.currency,
+          q.signer,
+          q.quotedAt,
+          q.expiresAt,
+        );
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  quotesFor(
+    agents: { chainId: number; tokenId: string }[],
+  ): Map<string, QuoteRecord> {
+    const found = new Map<string, QuoteRecord>();
+    if (agents.length === 0) return found;
+
+    const select = this.db.prepare(
+      'SELECT * FROM quotes WHERE chain_id = ? AND token_id = ?',
+    );
+    for (const agent of agents) {
+      const row = select.get(agent.chainId, agent.tokenId) as
+        | unknown as QuoteRow
+        | undefined;
+      if (!row) continue;
+      found.set(`${row.chain_id}:${row.token_id}`, {
+        chainId: row.chain_id,
+        tokenId: row.token_id,
+        priceRaw: row.price_raw,
+        priceU: row.price_u,
+        currency: row.currency,
+        signer: row.signer,
+        quotedAt: row.quoted_at,
+        expiresAt: row.expires_at,
+      });
+    }
+    return found;
+  }
+
   recordSweep(sweep: SweepRecord): void {
     this.db
       .prepare(
@@ -206,10 +324,17 @@ class SqliteProbeStore implements ProbeStore {
       .prepare(
         `SELECT COUNT(*) AS taken,
                 COALESCE(SUM(ok), 0) AS answered,
-                COUNT(DISTINCT chain_id || ':' || token_id) AS agents
+                COUNT(DISTINCT chain_id || ':' || token_id) AS agents,
+                COUNT(DISTINCT CASE WHEN ok = 1
+                      THEN chain_id || ':' || token_id END) AS answering
            FROM probes`,
       )
-      .get() as unknown as { taken: number; answered: number; agents: number };
+      .get() as unknown as {
+      taken: number;
+      answered: number;
+      agents: number;
+      answering: number;
+    };
 
     const sweeps = this.db
       .prepare('SELECT COUNT(*) AS n FROM sweeps')
@@ -217,6 +342,7 @@ class SqliteProbeStore implements ProbeStore {
 
     return {
       agentsMonitored: probes.agents,
+      agentsAnswering: probes.answering,
       probesTaken: probes.taken,
       probesAnswered: probes.answered,
       sweeps: sweeps.n,
