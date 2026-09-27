@@ -20,7 +20,11 @@ import { useState } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { shortAddress, shortHash } from '@/lib/ui/format';
-import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
+import {
+  JOB_STAGE_COPY,
+  type HiredJob,
+  type JobStatusName,
+} from '@/lib/erc8183/types';
 import { JobStatusTrack } from '@/components/jobs/JobStatus';
 import { useCommitLock } from '@/components/hire/WalletGate';
 import {
@@ -56,6 +60,59 @@ export interface ProviderChoice {
 }
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
+
+/**
+ * What the receipt says at the top, for each state the job can be in.
+ *
+ * The heading and the line beneath it used to be written for the instant the
+ * escrow was funded and then never moved. Seen against a real delivered job
+ * the card contradicted itself: "is ready to begin" and "is funded" sat four
+ * lines above "Provider delivered", a lifecycle track pointing at SUBMITTED
+ * and an accepted delivery. The track was honest and the headline was stale.
+ *
+ * `standing` is a verb phrase that has to read into "Job #N ___ on BNB
+ * Testnet." Anything longer breaks it: "has a deliverable awaiting your
+ * review" put the network on the reviewing, and "expired; the escrow is
+ * reclaimable" swallowed it in a subordinate clause. What the state means for
+ * the money is JOB_STAGE_COPY's job, immediately below.
+ *
+ * `settled` marks the states where a green tick would be a lie.
+ */
+const RECEIPT_HEADLINE: Record<
+  JobStatusName,
+  { heading: (agent: string) => string; standing: string; settled: boolean }
+> = {
+  OPEN: {
+    heading: (agent) => `${agent} is ready to begin.`,
+    standing: 'is open',
+    settled: false,
+  },
+  FUNDED: {
+    heading: (agent) => `${agent} is ready to begin.`,
+    standing: 'is funded',
+    settled: false,
+  },
+  SUBMITTED: {
+    heading: (agent) => `${agent} has delivered.`,
+    standing: 'has a submitted deliverable',
+    settled: false,
+  },
+  COMPLETED: {
+    heading: (agent) => `${agent} was paid.`,
+    standing: 'is complete',
+    settled: false,
+  },
+  REJECTED: {
+    heading: () => 'This delivery was rejected.',
+    standing: 'is in dispute',
+    settled: true,
+  },
+  EXPIRED: {
+    heading: (agent) => `${agent} never delivered.`,
+    standing: 'expired',
+    settled: true,
+  },
+};
 
 /**
  * A read-only client for quoting the swap.
@@ -588,7 +645,9 @@ export function CommissionPanel({
         what made it read as cluttered rather than dense — the design keeps the
         same content in a column you can take in at a glance.
       */}
-      {job && (
+      {job && (() => {
+        const headline = RECEIPT_HEADLINE[job.status];
+        return (
         <div className="surface-card mx-auto flex w-full max-w-2xl flex-col gap-4 p-6">
           {/*
             The moment the money moves deserves more than an 11px line at the
@@ -603,17 +662,29 @@ export function CommissionPanel({
           <div className="flex flex-col items-center gap-2 text-center">
             <span
               aria-hidden
-              className="flex size-10 items-center justify-center rounded-full bg-[color:var(--positive-dim)]"
+              className={cn(
+                'flex size-10 items-center justify-center rounded-full',
+                headline.settled
+                  ? 'bg-[color:var(--caution-dim)]'
+                  : 'bg-[color:var(--positive-dim)]',
+              )}
             >
-              <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-[color:var(--positive)]" strokeWidth="2.2">
-                <path d="m5 13 4 4L19 7" />
-              </svg>
+              {headline.settled ? (
+                <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-[color:var(--caution)]" strokeWidth="2.2">
+                  <path d="M12 8v5M12 16.5v.01" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-[color:var(--positive)]" strokeWidth="2.2">
+                  <path d="m5 13 4 4L19 7" />
+                </svg>
+              )}
             </span>
             <h3 className="font-[family-name:var(--font-serif)] text-xl">
-              {job.agentName} is ready to begin.
+              {headline.heading(job.agentName)}
             </h3>
             <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-              Job #{job.jobId} is funded on {NETWORK_LABEL}.{' '}
+              Job #{job.jobId} {headline.standing} on {NETWORK_LABEL}.{' '}
               {job.hireTxHash ? (
                 <a
                   href={explorerTxUrl(job.hireTxHash)}
@@ -625,9 +696,19 @@ export function CommissionPanel({
                 </a>
               ) : null}
             </p>
+            {/*
+              Once a deliverable exists, reviewing it is the live action and
+              tracking the job is not — so the emphasis follows the job rather
+              than staying on the button that was right at funding time.
+            */}
             <Link
               href="/my-agents"
-              className="action-primary mt-1 inline-flex items-center rounded-[var(--radius)] px-4 py-2.5 text-[13px]"
+              className={cn(
+                'mt-1 inline-flex items-center rounded-[var(--radius)] px-4 py-2.5 text-[13px]',
+                job.status === 'SUBMITTED'
+                  ? 'border border-[color:var(--border-strong)] transition-colors hover:bg-[color:var(--surface-hover)]'
+                  : 'action-primary',
+              )}
             >
               Track in My agents
             </Link>
@@ -750,7 +831,8 @@ export function CommissionPanel({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </section>
   );
 }
