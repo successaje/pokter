@@ -1,8 +1,12 @@
-import { plural, pluralise } from '@/lib/ui/plural';
+import { plural } from '@/lib/ui/plural';
 import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import { ProvenanceTag, type ProvenanceDetail } from '@/components/ui/ProvenanceTag';
 import { shortAddress } from '@/lib/ui/format';
 import type { AgentDossier } from '@/lib/marketplace';
+import {
+  publishedEvidenceLine,
+  summarisePublishedEvidence,
+} from '@/lib/proof/published';
 
 interface TrustRow {
   label: string;
@@ -25,7 +29,8 @@ export function TrustPanel({
   dossier: AgentDossier;
   explorerBase: string;
 }) {
-  const { agent, attestations, proof, live, record } = dossier;
+  const { agent, attestations, live, record } = dossier;
+  const published = summarisePublishedEvidence(attestations);
   const latestProbeAt = live.probes.at(-1)?.at;
 
   const identityDetails: ProvenanceDetail[] = [
@@ -39,8 +44,7 @@ export function TrustPanel({
     },
   ];
 
-  const attestationDetails: ProvenanceDetail[] = attestations
-    .filter((a) => a.transactionHash)
+  const attestationDetails: ProvenanceDetail[] = published.attestations
     .slice(0, 4)
     .map((a) => ({
       label: a.measuredBy ?? 'measurer',
@@ -78,19 +82,16 @@ export function TrustPanel({
     },
     {
       label: 'Attestations',
-      value:
-        attestations.length === 0
-          ? 'None published'
-          : `${attestations.length} from ${proof.measurers.length || 'unnamed'} ${pluralise(proof.measurers.length, 'measurer')}`,
+      value: publishedEvidenceLine(published),
       provenance:
-        attestations.length === 0 ? (
+        published.total === 0 ? (
           <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
             Nothing to trace
           </span>
         ) : (
           <ProvenanceTag
             kind="attested"
-            note="Published on-chain by independent measurers, each carrying its own methodology and disclosed defects."
+            note="Published on-chain receipts. Pokter calls a publisher independent only when the receipt names its measurer; unattributed receipts remain visible but do not strengthen the independence claim."
             details={attestationDetails}
           />
         ),

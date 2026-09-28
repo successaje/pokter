@@ -54,8 +54,8 @@ export default function manifest(): MetadataRoute.Manifest {
         url: '/discover?source=app-shortcut',
       },
       {
-        name: 'My agents',
-        short_name: 'My agents',
+        name: 'Activity',
+        short_name: 'Activity',
         description: 'Review your active agent work.',
         url: '/my-agents?source=app-shortcut',
       },

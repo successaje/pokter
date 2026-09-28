@@ -39,6 +39,10 @@ import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
+import {
+  commissionTaskTemplates,
+  type CommissionTaskTemplate,
+} from '@/lib/hire/taskTemplates';
 
 /**
  * A provider the escrow can actually reach.
@@ -146,12 +150,14 @@ export function CommissionPanel({
   const { locked, reason } = useCommitLock();
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
+  const taskTemplates = commissionTaskTemplates(agent.category);
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable)?.address ?? providers[0]?.address ?? '',
   );
-  const [task, setTask] = useState(
-    'Create a verifiable execution receipt for this escrowed job. Include the chain, client, provider, budget and funded status.',
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<
+    CommissionTaskTemplate['id'] | null
+  >(taskTemplates[0].id);
+  const [task, setTask] = useState(taskTemplates[0].task);
   const [budget, setBudget] = useState(DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [flowStep, setFlowStep] = useState<'configure' | 'review'>('configure');
@@ -450,18 +456,51 @@ export function CommissionPanel({
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">What should the agent deliver?</h2>
                   <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-                    Describe one specific outcome. Your final task and budget are written into the escrow job.
+                    Start with a useful brief for this kind of agent, then make it yours. Your final task and budget are written into the escrow job.
                   </p>
                 </div>
 
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="text-xs font-medium">Start from an outcome</legend>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {taskTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        aria-pressed={selectedTemplate === template.id}
+                        onClick={() => {
+                          setSelectedTemplate(template.id);
+                          setTask(template.task);
+                        }}
+                        className={cn(
+                          'min-h-24 rounded-[var(--radius)] border p-3 text-left transition-colors',
+                          selectedTemplate === template.id
+                            ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]'
+                            : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:border-[color:var(--border-strong)]',
+                        )}
+                      >
+                        <span className="block text-[11px] font-semibold">
+                          {template.label}
+                        </span>
+                        <span className="mt-1 block text-[10px] leading-relaxed text-[color:var(--text-muted)]">
+                          {template.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
                 <div className="flex flex-col gap-2">
-                  <label htmlFor="task" className="text-xs font-medium">Task</label>
+                  <label htmlFor="task" className="text-xs font-medium">Commission brief</label>
                   <textarea
                     id="task"
                     rows={5}
                     value={task}
                     disabled={state === 'hiring'}
-                    onChange={(event) => setTask(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedTemplate(null);
+                      setTask(event.target.value);
+                    }}
                     className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-[13px] leading-relaxed outline-none transition-colors focus:border-[color:var(--brand)]"
                   />
                   <p className="text-[10px] text-[color:var(--text-faint)]">Include the expected result and any constraints. Do not include private keys or seed phrases.</p>
@@ -533,8 +572,35 @@ export function CommissionPanel({
               <div className="flex flex-col gap-5 p-4 sm:p-6">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">Review before funding</h2>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">Nothing moves until your passkey wallet signs the escrow transaction.</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">Confirm the outcome, protections and delivery route. Nothing moves until your passkey wallet signs the escrow transaction.</p>
                 </div>
+
+                <dl className="grid gap-px overflow-hidden rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--border)] text-[11px] lg:hidden">
+                  <div className="bg-[color:var(--bg-subtle)] p-3">
+                    <dt className="text-[color:var(--text-faint)]">Commission brief</dt>
+                    <dd className="mt-1 leading-relaxed">{task}</dd>
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-[color:var(--border)]">
+                    <div className="bg-[color:var(--surface)] p-3">
+                      <dt className="text-[color:var(--text-faint)]">Budget in escrow</dt>
+                      <dd className="mt-1 font-semibold">{formatBudget(budget)}</dd>
+                    </div>
+                    <div className="bg-[color:var(--surface)] p-3">
+                      <dt className="text-[color:var(--text-faint)]">Wallet access</dt>
+                      <dd className="mt-1 font-semibold text-[color:var(--positive)]">None</dd>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-[color:var(--border)]">
+                    <div className="bg-[color:var(--surface)] p-3">
+                      <dt className="text-[color:var(--text-faint)]">Delivery</dt>
+                      <dd className="mt-1">{provider?.label ?? 'Not selected'}</dd>
+                    </div>
+                    <div className="bg-[color:var(--surface)] p-3">
+                      <dt className="text-[color:var(--text-faint)]">If nothing arrives</dt>
+                      <dd className="mt-1">Reclaim after expiry</dd>
+                    </div>
+                  </div>
+                </dl>
 
                 <WalletReadiness requiredBudgetU={budget} />
 
@@ -723,7 +789,7 @@ export function CommissionPanel({
                   : 'action-primary',
               )}
             >
-              Track in My agents
+              Track activity
             </Link>
           </div>
 

@@ -158,7 +158,7 @@ export function MobileAppHome() {
         </section>
 
         <section className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Your activity</h2><Link href="/my-agents" className="tap text-[11px] text-[color:var(--info)]">View all</Link></div>
+          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Activity</h2><Link href="/my-agents" className="tap text-[11px] text-[color:var(--info)]">View all</Link></div>
           <div className="grid grid-cols-2 divide-x divide-[color:var(--border)]">
             <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeJobs.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Active jobs</p></Link>
             <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeSessions.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Live permissions</p></Link>
