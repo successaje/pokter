@@ -41,14 +41,14 @@ export function ExploreMarketplace({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-            Explore the marketplace
+            Prefer to browse?
           </p>
           <h2 id="explore-title" className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-            Agents with evidence you can inspect.
+            Recommended agents you can inspect now.
           </h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            Start browsing now. Open the recommendation studio only when you
-            want Pokter to narrow the market around your capital and risk.
+            These are strong starting points from the indexed market. The full
+            Marketplace contains every listing and advanced evidence filter.
           </p>
         </div>
         <Link href="/agents" className="tap text-xs font-medium text-[color:var(--info)] sm:min-h-0">
