@@ -26,9 +26,28 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
 
   if (rate !== null && rate === 0) return 'failing';
   if (listing.attestationCount === 0 && record.totalProbes === 0) return 'unproven';
-  if (listing.attestationCount > 0 && record.totalProbes >= 10 && (rate ?? 0) >= 0.9) {
-    return 'proven';
-  }
+
+  /*
+   * This never returns `proven`, and cannot.
+   *
+   * Proven means independent measurers agree, with Pokter excluded from that
+   * count. Establishing it requires decoding each attestation to the measurer
+   * behind it, which is what `summariseProof` does on the detail page and what
+   * this deliberately cheap, list-level signal does not do. All it has is
+   * `attestationCount`, a registry tally that says how many feedbacks exist
+   * and nothing about who wrote them or whether any of them decode.
+   *
+   * It used to award `proven` for one attestation of any kind plus ten of our
+   * own probes at 90% uptime. That badged twenty-one agents Proven on the
+   * marketplace while the proof engine held that none were — so a card said
+   * Proven and the page behind it said the opposite, about the same agent, on
+   * the same visit.
+   *
+   * Capping at `emerging` is the conservative direction: this signal can now
+   * understate an agent's standing but never overstate it, and the detail page
+   * remains the only place the top tier is awarded, because it is the only
+   * place independence is actually checked.
+   */
   return 'emerging';
 }
 
@@ -41,12 +60,18 @@ function numericField(agent: SearchableAgent, field: string): number | null {
     case 'days':
       return agent.record.days.length;
     case 'measurers':
-      // Cheaply knowable: an on-chain attestation implies a third party, and
-      // our own probes imply us.
-      return (
-        (agent.listing.attestationCount > 0 ? 1 : 0) +
-        (agent.record.totalProbes > 0 ? 1 : 0)
-      );
+      /*
+       * Independent measurers only. This used to add one for our own probes,
+       * so `has:measurers>1` matched any agent carrying a single attestation
+       * that Pokter had also probed — counting ourselves toward the
+       * independence the filter exists to test.
+       *
+       * At this level an attestation implies at most one third party, because
+       * the registry tally does not say who wrote them. So the value is 0 or
+       * 1, and `has:measurers>1` correctly matches nothing — which is the
+       * truth today regardless.
+       */
+      return agent.listing.attestationCount > 0 ? 1 : 0;
     case 'score': {
       const rate = uptime(agent.record);
       return rate === null ? null : Math.round(rate * 100);
