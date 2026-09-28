@@ -25,6 +25,20 @@ const COLUMNS = [
       { label: 'Yield agents', href: '/categories/yield' },
     ],
   },
+  /*
+   * Until now the only way to reach anyone was to find the GitHub icon and
+   * guess that issues were open. A marketplace that funds escrow from a
+   * stranger's wallet should not make being contacted a puzzle.
+   */
+  {
+    heading: 'Support',
+    links: [
+      { label: 'Get help', href: '/support' },
+      { label: 'Report a problem', href: '/support#where-to-send-what' },
+      { label: 'Security', href: '/support#security' },
+      { label: 'How we measure', href: '/methodology' },
+    ],
+  },
 ] as const;
 
 function XMark() {
@@ -50,7 +64,7 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
       <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
-        <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr_1fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
           <div className="flex max-w-md flex-col items-start gap-4">
             <Link href="/" aria-label="Pokter home" className="tap">
               <Wordmark size={24} />

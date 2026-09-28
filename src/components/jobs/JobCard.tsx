@@ -6,6 +6,7 @@ import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
+import { supportMailto } from '@/lib/support/contact';
 import { JobStatusTrack } from './JobStatus';
 import {
   getErc8183DeliverableUrl,
@@ -188,6 +189,40 @@ export function JobCard({
       <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
         {JOB_STAGE_COPY[job.status]}
       </p>
+
+      {/*
+        A way out, at the two states where someone is stuck.
+        
+        FUNDED means the money has left and nothing has come back yet;
+        EXPIRED means it never will. Those are the moments a person wants to
+        talk to someone, and until now the only route was to find the GitHub
+        icon in the footer and guess. The link carries the job id so the reply
+        can begin with what the chain says rather than with a question.
+
+        Not shown on SUBMITTED or COMPLETED: there the next action is on this
+        card already, and offering help instead would be a distraction from
+        it.
+      */}
+      {(job.status === 'FUNDED' || job.status === 'EXPIRED') && (
+        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          {job.status === 'EXPIRED'
+            ? 'The budget is yours to reclaim from the escrow contract. '
+            : 'Waiting longer than you expected? '}
+          <a
+            href={supportMailto({
+              subject:
+                job.status === 'EXPIRED'
+                  ? 'Expired job'
+                  : 'Funded job with no delivery',
+              jobId: job.jobId,
+            })}
+            className="text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          >
+            Ask us what the chain says
+          </a>
+          .
+        </p>
+      )}
 
       <dl className="grid gap-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3 text-[10px] sm:grid-cols-2">
         <div className="min-w-0">

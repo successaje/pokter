@@ -19,6 +19,7 @@ import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
+import { supportMailto } from '@/lib/support/contact';
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import {
   JOB_STAGE_COPY,
@@ -872,6 +873,28 @@ export function CommissionPanel({
               {notificationDetail && (
                 <p className="mt-1.5 text-[11px] leading-relaxed opacity-75">
                   {notificationDetail}
+                </p>
+              )}
+
+              {/*
+                Offered only where retrying cannot help. A notification that
+                failed for a transient reason has a retry button below and
+                needs no human; one that failed on configuration will fail the
+                same way forever, and the person is left with a funded escrow
+                and nowhere to go.
+              */}
+              {notification === 'failed' && isConfigFailure && (
+                <p className="mt-2 text-[11px] leading-relaxed">
+                  <a
+                    href={supportMailto({
+                      subject: 'Seller notification failed',
+                      jobId: job.jobId,
+                    })}
+                    className="font-medium underline decoration-dotted underline-offset-2"
+                  >
+                    Tell us about this job
+                  </a>{' '}
+                  and we will check what the chain recorded.
                 </p>
               )}
 

@@ -1,0 +1,41 @@
+name: Something is broken
+description: A page, a control or a flow that does not work.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If money is involved — an escrow funded with nothing delivered, or a
+        job that will not progress — say so at the top. Those get looked at
+        first.
+
+        Pokter cannot move or reverse a payment: escrow is held by the
+        ERC-8183 contract and released by its own rules. What we can do is
+        tell you what the chain says happened and what your options are.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      validations:
+        required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where?
+      placeholder: https://pokter.xyz/hire/56/265375
+  - type: input
+    id: job
+    attributes:
+      label: Job id or transaction hash, if a hire was involved
+      placeholder: Job #1366, or 0x9419d2…
+  - type: input
+    id: env
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 141 on macOS, or Safari on iPhone 15

@@ -1,0 +1,39 @@
+name: Evidence looks wrong
+description: A score, uptime figure, attestation count or provenance tag that does not match the evidence behind it.
+labels: ['evidence']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pokter's claim is that every number traces to a source. A number that
+        does not is the most serious kind of bug this project can have, so
+        thank you for taking the time.
+
+        If the report would let someone forge or tamper with evidence rather
+        than just read a wrong figure, please email security@pokter.xyz
+        instead — see SECURITY.md.
+  - type: input
+    id: where
+    attributes:
+      label: Where did you see it?
+      description: A URL, or the agent's chain and token id.
+      placeholder: https://pokter.xyz/agents/56/265375
+    validations:
+      required: true
+  - type: textarea
+    id: shown
+    attributes:
+      label: What does Pokter show?
+      description: Quote it exactly, including the provenance tag beside it if there is one.
+      placeholder: |
+        "Measured at 99.3% from 2 published attestations and 288 probes by Pokter"
+        Trust strip: Attestations 3, from 1 measurer
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what makes you say so?
+      description: A transaction, an attestation, a probe you ran yourself — whatever you checked it against.
+    validations:
+      required: true
