@@ -13,6 +13,7 @@ import {
 } from '@/lib/score/types';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { RankingTable } from '@/components/leaderboard/RankingTable';
+import { TierNote } from '@/components/proof/TierNote';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,16 @@ export default async function LeaderboardPage({
           cannot answer everyone&apos;s question, the awards below name the agent
           that leads on each specific metric.
         </p>
+        {/*
+          Said here as well as on the marketplace. A ranking is where the top
+          tier is most conspicuously absent — the table is ordered by score and
+          the strongest badge never appears — so this is where a reader is
+          likeliest to read the gap as a defect rather than as the finding.
+        */}
+        <TierNote
+          proven={entries.filter((e) => e.proof.verdict === 'proven').length}
+          emerging={entries.filter((e) => e.proof.verdict === 'emerging').length}
+        />
       </header>
 
       {/*
