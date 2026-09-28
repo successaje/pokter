@@ -93,7 +93,7 @@ export default async function AgentsPage({
   return (
     <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Agents</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Marketplace</h1>
         {/*
           Desktop only. This paragraph documents the query syntax, which is
           reference material for someone already filtering — on a phone it was

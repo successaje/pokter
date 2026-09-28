@@ -27,11 +27,11 @@ import { usePwaInstall } from '@/components/pwa/PwaProvider';
  */
 const PRIMARY = [
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Agents' },
+  { href: '/agents', label: 'Marketplace' },
   { href: '/compare', label: 'Compare' },
   { href: '/leaderboard', label: 'Rankings' },
   { href: '/pool-check', label: 'Pool check' },
-  { href: '/my-agents', label: 'My agents' },
+  { href: '/my-agents', label: 'Activity' },
 ];
 
 const MOBILE_PRIMARY = PRIMARY.filter((item) =>
@@ -43,7 +43,7 @@ const MOBILE_MORE = PRIMARY.filter((item) =>
 const INSTALLED_PRIMARY = [
   { href: '/app', label: 'Home' },
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Agents' },
+  { href: '/agents', label: 'Marketplace' },
   { href: '/my-agents', label: 'Activity' },
 ];
 
@@ -158,7 +158,7 @@ export function Nav() {
               never moves.
             */}
             <span className="hidden xl:inline">
-              Agents: {REGISTRY_NETWORK_LABEL} ·{' '}
+              Identities: {REGISTRY_NETWORK_LABEL} ·{' '}
             </span>
             <span className="hidden sm:inline">Hiring: </span>
             <span className="font-medium">{NETWORK_LABEL}</span>

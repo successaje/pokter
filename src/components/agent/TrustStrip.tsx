@@ -1,6 +1,10 @@
 import { plural } from '@/lib/ui/plural';
 import { ProvenanceTag } from '@/components/ui/ProvenanceTag';
 import type { AgentDossier } from '@/lib/marketplace';
+import {
+  publishedEvidenceLine,
+  summarisePublishedEvidence,
+} from '@/lib/proof/published';
 
 /**
  * The four things worth knowing before reading anything else, each labelled
@@ -20,14 +24,7 @@ import type { AgentDossier } from '@/lib/marketplace';
 export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
   const { agent, record, score, attestations } = dossier;
 
-  /** Who published the attestations, excluding Pokter's own measurement. */
-  const publishedMeasurers = [
-    ...new Set(
-      attestations
-        .filter((a) => a.transactionHash && a.measuredBy)
-        .map((a) => a.measuredBy as string),
-    ),
-  ];
+  const published = summarisePublishedEvidence(attestations);
 
   const availability =
     record.totalProbes === 0
@@ -76,28 +73,22 @@ export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
     },
     {
       label: 'Attestations',
-      value: String(attestations.length),
-      /*
-       * Counted from the published attestations this row is about, not from
-       * proof.measurers — that list includes Pokter, because our own sweep
-       * runs through the verdict logic as a synthetic attestation. Pairing a
-       * count of third-party attestations with a measurer total that is
-       * really us read as independent corroboration where there was none.
-       */
+      value: String(published.total),
       sub:
-        publishedMeasurers.length === 0
-          ? 'nobody independent has checked'
-          : `from ${plural(publishedMeasurers.length, 'measurer')}`,
+        published.namedMeasurers.length === 0
+          ? 'no named independent measurer'
+          : `from ${plural(published.namedMeasurers.length, 'named measurer')}`,
       tag: (
         <ProvenanceTag
           kind="attested"
           note="Published on-chain by third parties, decoded to the measurer behind each figure. Pokter does not issue these."
           details={[
-            { label: 'Attestations', value: String(attestations.length) },
+            { label: 'Published evidence', value: publishedEvidenceLine(published) },
+            { label: 'Scorable', value: String(published.scorable) },
             {
-              label: 'Measurers',
-              value: publishedMeasurers.length
-                ? publishedMeasurers.join(', ')
+              label: 'Named measurers',
+              value: published.namedMeasurers.length
+                ? published.namedMeasurers.join(', ')
                 : 'none',
             },
           ]}

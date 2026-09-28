@@ -7,6 +7,10 @@ import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import type { ChainId } from '@/lib/scan/types';
+import {
+  publishedEvidenceLine,
+  summarisePublishedEvidence,
+} from '@/lib/proof/published';
 
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { EvidenceSection as Section } from '@/components/ui/EvidenceSection';
@@ -55,6 +59,7 @@ export default async function AgentPage({
   const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
+  const publishedEvidence = summarisePublishedEvidence(attestations);
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
@@ -96,12 +101,7 @@ export default async function AgentPage({
   const liveSummary = answeredNow
     ? 'Answered our probe when you opened this page.'
     : 'Did not answer our probe when you opened this page.';
-  const receiptsSummary =
-    attestations.length === 0
-      ? 'No independent measurer has attested to this agent.'
-      : `${attestations.length} on-chain ${
-          attestations.length === 1 ? 'attestation' : 'attestations'
-        } from independent measurers.`;
+  const receiptsSummary = `${publishedEvidenceLine(publishedEvidence)}.`;
   const defectsSummary =
     knownDefects.length === 0
       ? 'No measurer has disclosed its limitations.'
@@ -313,7 +313,7 @@ export default async function AgentPage({
               <Section
                 title="Receipts"
                 summary={receiptsSummary}
-                caption="Attestations published on-chain by independent measurers. Every row links to its transaction."
+                caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
               >
                 <EvidencePanel attestations={attestations} />
               </Section>
