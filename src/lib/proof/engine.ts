@@ -68,8 +68,10 @@ function unique(values: (string | null | undefined)[]): string[] {
 
 export function summariseProof(attestations: Attestation[]): ProofSummary {
   const usable = attestations.filter((a) => a.verified && a.ratio !== null);
-
-  const measurers = unique(attestations.map((a) => a.measuredBy));
+  const published = attestations.filter((a) => a.transactionHash);
+  const measurers = unique(published.map((a) => a.measuredBy)).filter(
+    (measurer) => measurer.toLowerCase() !== 'pokter',
+  );
   const disclosedDefects = unique(
     attestations.flatMap((a) => a.method?.knownDefects ?? []),
   );
@@ -140,9 +142,11 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
    * that as attested evidence. It is not — it is us, marking our own homework,
    * and the sentence now says so before anything else.
    */
-  const published = attestations.filter((a) => a.transactionHash);
   const usablePublished = usable.filter((a) => a.transactionHash);
   const selfMeasured = usable.some((a) => !a.transactionHash);
+  const ownProbeCount = attestations
+    .filter((a) => !a.transactionHash)
+    .reduce((sum, a) => sum + (a.method?.probes ?? 0), 0);
 
   const unscored =
     published.length > usablePublished.length
@@ -153,7 +157,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
    * FE-16 in passing: `attestation(s)` reads like a form field, so the counts
    * pluralise properly.
    */
-  const ownProbes = `${plural(probes, 'probe')} by Pokter`;
+  const ownProbes = `${plural(ownProbeCount, 'probe')} by Pokter`;
   const span = windowDays ? `, over ${plural(windowDays, 'day')}` : '';
 
   const evidence =
@@ -177,9 +181,10 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
      * into whichever shortfall followed it.
      */
     measurers.length < PROVEN_MIN_MEASURERS &&
-      (measurers.length === 0 ||
-      measurers.every((m) => m.toLowerCase() === 'pokter')
-        ? 'an independent measurer (only Pokter has checked)'
+      (measurers.length === 0
+        ? selfMeasured
+          ? 'two independent measurers (only Pokter has checked)'
+          : 'two independent measurers'
         : 'a second independent measurer'),
     (windowDays ?? 0) < PROVEN_MIN_WINDOW_DAYS &&
       'at least a day of observation',
