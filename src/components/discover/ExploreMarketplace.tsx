@@ -45,9 +45,14 @@ export function ExploreMarketplace({
           <h2 id="explore-title" className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
             Agents with evidence you can inspect.
           </h2>
+          {/*
+            The studio moved above this, so telling a reader to "open the
+            recommendation studio" now points backwards at something they have
+            already scrolled past.
+          */}
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            Start browsing now. Open the recommendation studio only when you
-            want Pokter to narrow the market around your capital and risk.
+            Every indexed agent, ranked on what has been observed rather than
+            what was declared. Filter by outcome, or read the whole set.
           </p>
         </div>
         <Link href="/agents" className="tap text-xs font-medium text-[color:var(--info)] sm:min-h-0">
@@ -80,7 +85,7 @@ export function ExploreMarketplace({
       */}
       <div id="explore" className="scroll-mt-24">
         <MarketplaceListing
-          rows={ranked.slice(0, 9).map((entry) => {
+          rows={ranked.map((entry) => {
             const { agent } = entry.listing;
             const ratio = entry.record.totalProbes
               ? Math.round(

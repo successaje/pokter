@@ -237,18 +237,68 @@ export default async function DiscoverPage({
           evidence-ranked shortlist around your goal, capital and risk.
         </p>
         </div>
-        {!shouldRun && (
-          <Link
-            href="#recommend"
-            className="action-primary tap inline-flex items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
-          >
-            Find my best match
-          </Link>
-        )}
+        {/*
+          The header used to carry a button jumping to a collapsed panel at
+          the foot of the page. The panel now sits immediately below this, so
+          a link to it would be pointing at something already in view.
+        */}
       </header>
 
       {!shouldRun && stats && activity && (
         <>
+          {/*
+            First, and stated as a choice rather than a feature.
+
+            This was a collapsed strip at the foot of the page, below the
+            market it exists to narrow — so the guided path was the last thing
+            anyone met, after they had already started browsing without it.
+            It leads now, and stays collapsed: opening a form over the market
+            would answer a question nobody had asked yet.
+          */}
+          <section id="recommend" className="scroll-mt-24">
+            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/45 bg-[color:var(--brand-highlight-soft)]">
+              <summary className="flex cursor-pointer list-none items-center gap-4 p-5 sm:gap-5 sm:p-6 [&::-webkit-details-marker]:hidden">
+                <span
+                  className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)] sm:flex"
+                  aria-hidden
+                >
+                  <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-current" strokeWidth="1.8">
+                    <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
+                  </svg>
+                </span>
+
+                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="font-[family-name:var(--font-serif)] text-lg leading-tight sm:text-xl">
+                    Find my best match
+                  </span>
+                  <span className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+                    Say what you want to happen, how much you are putting in
+                    and how much risk you will carry. Pokter ranks what has
+                    been measured and names what it ruled out.
+                  </span>
+                </span>
+
+                <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius)] bg-[color:var(--brand)] px-4 text-[13px] font-semibold text-[color:var(--brand-ink)]">
+                  <span className="hidden sm:inline">Start</span>
+                  <span
+                    aria-hidden
+                    className="transition-transform group-open:rotate-180"
+                  >
+                    ⌄
+                  </span>
+                </span>
+              </summary>
+
+              <div className="border-t border-[color:var(--brand)]/30 bg-[color:var(--surface)] p-2 sm:p-3">
+                <Suspense fallback={<div className="h-72" />}>
+                  <BriefForm />
+                </Suspense>
+              </div>
+            </details>
+          </section>
+
+          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
+
           <MarketplacePulse
             stats={stats}
             listed={browseAgents.length}
@@ -256,27 +306,6 @@ export default async function DiscoverPage({
             attestations={attestations}
             activity={activity}
           />
-          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
-
-          <section id="recommend" className="scroll-mt-24">
-            <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
-              <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
-                  <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-sm font-semibold">Find my best match</span>
-                  <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">Build a shortlist from your goals, capital, risk tolerance and time horizon.</span>
-                </span>
-                <span aria-hidden className="text-lg text-[color:var(--text-faint)] transition-transform group-open:rotate-180">⌄</span>
-              </summary>
-              <div className="border-t border-[color:var(--border)] p-2 sm:p-3">
-                <Suspense fallback={<div className="h-72" />}>
-                  <BriefForm />
-                </Suspense>
-              </div>
-            </details>
-          </section>
         </>
       )}
 

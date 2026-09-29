@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
@@ -114,14 +114,28 @@ function writeView(next: View) {
   for (const listener of listeners) listener();
 }
 
+/*
+ * How many agents a first look should hold.
+ *
+ * Nine fills three rows of the grid without turning the page into a catalogue
+ * before anyone has said what they want. The rest are already here — the
+ * server sent every match — so revealing them costs a click and no request.
+ */
+const PAGE = 9;
+
 export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
   const view = useSyncExternalStore(subscribe, readView, () => 'grid' as View);
+  const [visible, setVisible] = useState(PAGE);
+
+  const shown = rows.slice(0, visible);
+  const remaining = rows.length - shown.length;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-[color:var(--text-faint)]">
-          <span className="tabular">{rows.length}</span> shown
+          <span className="tabular">{shown.length}</span> of{' '}
+          <span className="tabular">{rows.length}</span>
         </p>
 
         <div
@@ -159,7 +173,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
           so the density bought nothing a reader could use.
         */
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((row) => (
+          {shown.map((row) => (
             <article
               key={row.key}
               className="group flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:shadow-[0_12px_35px_rgba(0,0,0,0.08)]"
@@ -211,7 +225,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
           line up and the description gets one line instead of two.
         */
         <ul className="flex flex-col divide-y divide-[color:var(--border)] overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-          {rows.map((row) => (
+          {shown.map((row) => (
             <li
               key={row.key}
               className="flex flex-col gap-3 p-4 transition-colors hover:bg-[color:var(--surface-hover)] sm:flex-row sm:items-center sm:gap-4"
@@ -258,6 +272,31 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/*
+        Reveals what is already here rather than fetching.
+        
+        Every match was sent with the page, so this is a disclosure control,
+        not pagination — no spinner, no request, and no chance of the list
+        shifting underneath someone because the ranking moved between pages.
+        It disappears when there is nothing left rather than going disabled,
+        because a dead button is a question the reader has to answer.
+      */}
+      {remaining > 0 && (
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setVisible((count) => count + PAGE)}
+            className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+          >
+            View {Math.min(PAGE, remaining)} more
+          </button>
+          <p className="text-[11px] text-[color:var(--text-faint)]">
+            <span className="tabular">{remaining}</span> more indexed in this
+            view
+          </p>
+        </div>
       )}
     </div>
   );
