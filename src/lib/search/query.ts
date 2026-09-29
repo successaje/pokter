@@ -29,7 +29,8 @@ export interface ParsedQuery {
 }
 
 /** Evidence states usable as `is:` values. */
-const VERDICTS: Verdict[] = ['proven', 'emerging', 'unproven', 'failing'];
+/** Exported so the public API can publish the enum it actually enforces. */
+export const VERDICTS: Verdict[] = ['proven', 'emerging', 'unproven', 'failing'];
 
 /** Non-verdict `is:` flags. */
 const IS_FLAGS = ['live', 'offline', 'measured', 'unmeasured', 'testnet', 'mainnet'];

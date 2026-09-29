@@ -35,6 +35,7 @@ const COLUMNS = [
     links: [
       { label: 'Get help', href: '/support' },
       { label: 'Agent diagnostic', href: '/compatibility' },
+      { label: 'Read API', href: '/api/v1' },
       { label: 'Report a problem', href: '/support#where-to-send-what' },
       { label: 'Security', href: '/support#security' },
       { label: 'How we measure', href: '/methodology' },
