@@ -682,10 +682,33 @@ export function CommissionPanel({
                   {PAYMENT_VALUE_NOTE && <p className="text-[10px] text-[color:var(--text-faint)]">{PAYMENT_VALUE_NOTE}</p>}
                 </div>
 
-                <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+                {/*
+                  `group` so the chevron below can follow the open state.
+
+                  The row ended in the word "change" set in the same muted grey
+                  as the provider name beside it, which read as a label rather
+                  than something to press. A mark that turns when the row opens
+                  says it is a control and which way it goes.
+                */}
+                <details className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
-                    <span>Advanced · delivery route</span>
-                    <span className="text-[color:var(--text-faint)]">{provider?.label ?? 'Choose provider'} · change</span>
+                    <span className="shrink-0">Advanced · delivery route</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-[color:var(--text-faint)]">
+                        {provider?.label ?? 'Choose provider'}
+                      </span>
+                      <span className="shrink-0 text-[color:var(--text-secondary)] underline decoration-dotted underline-offset-2">
+                        Change
+                      </span>
+                      <span
+                        aria-hidden
+                        className="shrink-0 text-[color:var(--text-faint)] transition-transform group-open:rotate-180"
+                      >
+                        <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
+                    </span>
                   </summary>
                   <div className="flex flex-col gap-2 border-t border-[color:var(--border)] p-3">
                     <p className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
