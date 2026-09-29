@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { AgentCard } from '@/components/AgentCard';
-import { listSearchable } from '@/lib/marketplace';
+import { listSearchable, preferDistinctOwners } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 
@@ -39,7 +39,7 @@ export async function SimilarAgents({
   const all = await listSearchable({ limit: 30 }).catch(() => []);
   const meta = CATEGORY_BY_ID.get(category);
 
-  const peers = all
+  const ranked = all
     .filter(
       (entry) =>
         entry.listing.category === category &&
@@ -60,25 +60,20 @@ export async function SimilarAgents({
       if (answered !== 0) return answered;
       return b.listing.attestationCount - a.listing.attestationCount;
     })
-    /*
-     * One agent per publisher.
-     *
-     * Two operators account for eighteen of the eighty listings by registering
-     * the same agent repeatedly — the first version of this strip showed five
-     * BORT clones out of eight slots, which is a worse answer than the back
-     * button it replaced. Alternatives have to be alternatives; the rest of a
-     * publisher's fleet is one click away in the category.
-     */
-    .filter((entry, index, list) => {
-      const owner = entry.listing.agent.owner_address?.toLowerCase();
-      if (!owner) return true;
-      return (
-        list.findIndex(
-          (other) => other.listing.agent.owner_address?.toLowerCase() === owner,
-        ) === index
-      );
-    })
-    .slice(0, 8);
+    .slice(0, 24);
+
+  /*
+   * One agent per publisher, then backfill.
+   *
+   * Two operators account for eighteen of the eighty listings by registering
+   * the same agent repeatedly, and the first build of this strip filled five
+   * of its eight slots with clones from one of them — a worse answer than the
+   * back button it replaces. This is the rule the hire page already applies
+   * when it offers alternatives, shared rather than written twice: prefer a
+   * distinct publisher, then fill the remaining slots from what is left, so a
+   * thin category still shows a full row.
+   */
+  const peers = preferDistinctOwners(ranked, 8);
 
   if (peers.length === 0) return null;
 

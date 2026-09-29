@@ -496,13 +496,13 @@ export async function recommendedAlternatives(
  * Order within each pass is preserved, so the best agent from each publisher
  * still leads and nothing is promoted over a stronger record from elsewhere.
  */
-function preferDistinctOwners(
-  ranked: Alternative[],
+export function preferDistinctOwners<T extends { listing: Listing }>(
+  ranked: T[],
   limit: number,
-): Alternative[] {
+): T[] {
   const seen = new Set<string>();
-  const first: Alternative[] = [];
-  const rest: Alternative[] = [];
+  const first: T[] = [];
+  const rest: T[] = [];
 
   for (const entry of ranked) {
     const owner = entry.listing.agent.owner_address?.toLowerCase() ?? '';

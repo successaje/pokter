@@ -62,6 +62,7 @@ export default async function LeaderboardPage({
       // filtered to one.
       categoryLabel: active === 'overall' && meta ? meta.label : null,
       score: formatScore(entry.score.overall),
+      scoreValue: entry.score.overall,
       coverage: `${entry.score.measuredDimensions}/${entry.score.totalDimensions}`,
       verdict: entry.proof.verdict,
       uptime,
@@ -194,13 +195,33 @@ export default async function LeaderboardPage({
             {ranked.map((row) => (
               <li
                 key={row.key}
-                className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+                className={[
+                  'rounded-[var(--radius-lg)] border bg-[color:var(--surface)]',
+                  // The podium is visible on a phone too. It was the one place
+                  // the ranking's own answer was rendered as grey body text.
+                  row.rank === 1
+                    ? 'border-[color:var(--brand)]/50 bg-[color:var(--bg-subtle)]'
+                    : row.rank <= 3
+                      ? 'border-[color:var(--border-strong)]'
+                      : 'border-[color:var(--border)]',
+                ].join(' ')}
               >
                 <Link
                   href={row.href}
                   className="flex items-start gap-3 p-3"
                 >
-                  <span className="tabular mt-0.5 w-5 shrink-0 text-[13px] font-medium text-[color:var(--text-faint)]">
+                  <span
+                    className={[
+                      'tabular mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold',
+                      row.rank === 1
+                        ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                        : row.rank === 2
+                          ? 'bg-[color:var(--surface-raised)] text-[color:var(--text)] ring-1 ring-[color:var(--border-strong)]'
+                          : row.rank === 3
+                            ? 'bg-[color:var(--caution-dim)] text-[color:var(--caution)] ring-1 ring-[color:var(--caution)]/50'
+                            : 'text-[color:var(--text-faint)]',
+                    ].join(' ')}
+                  >
                     {row.rank}
                   </span>
 

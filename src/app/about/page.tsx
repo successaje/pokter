@@ -23,7 +23,14 @@ export const metadata: Metadata = {
  */
 export default function AboutPage() {
   return (
-    <div className="flex flex-col gap-16 pt-6 sm:gap-20">
+    <div className="flex flex-col gap-6 pt-6">
+      <Link
+        href="/"
+        className="inline-flex w-fit items-center gap-1.5 text-[12px] text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
+      >
+        <span aria-hidden>←</span> Back to Pokter
+      </Link>
+
       <header className="flex max-w-2xl flex-col gap-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">
           How it is built
@@ -38,6 +45,7 @@ export default function AboutPage() {
         </p>
       </header>
 
+      <div className="flex flex-col gap-16 pt-6 sm:gap-20">
       <Reveal>
         <Integrations />
       </Reveal>
@@ -71,6 +79,7 @@ export default function AboutPage() {
           </div>
         </section>
       </Reveal>
+      </div>
     </div>
   );
 }
