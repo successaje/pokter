@@ -19,6 +19,7 @@ const COLUMNS = [
     heading: 'Research',
     links: [
       { label: 'Methodology', href: '/methodology' },
+      { label: 'Liveness census', href: '/census' },
       { label: 'Agent advantage', href: '/agent-advantage' },
       { label: 'Pool economics', href: '/pool-check' },
       { label: 'Rebalancing', href: '/categories/rebalancing' },
