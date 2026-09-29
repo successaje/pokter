@@ -247,43 +247,56 @@ export default async function DiscoverPage({
       {!shouldRun && stats && activity && (
         <>
           {/*
-            First, and stated as a choice rather than a feature.
+            Coverage first. It is three numbers on one line and it frames
+            everything under it — how much of the registry this page is
+            actually drawing from — so it costs a row and earns it.
+          */}
+          <MarketplacePulse
+            stats={stats}
+            listed={browseAgents.length}
+            answering={answering}
+            attestations={attestations}
+            activity={activity}
+          />
 
-            This was a collapsed strip at the foot of the page, below the
-            market it exists to narrow — so the guided path was the last thing
-            anyone met, after they had already started browsing without it.
-            It leads now, and stays collapsed: opening a form over the market
-            would answer a question nobody had asked yet.
+          {/*
+            The guided path, as a bar rather than a billboard.
+
+            It began as a collapsed strip at the foot of the page, below the
+            market it exists to narrow. Moving it up was right; giving it a
+            hero card was not — it pushed the market itself below the fold to
+            advertise a form. One line states the offer, and the form is a
+            click away for anyone who wants it.
           */}
           <section id="recommend" className="scroll-mt-24">
-            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/45 bg-[color:var(--brand-highlight-soft)]">
-              <summary className="flex cursor-pointer list-none items-center gap-4 p-5 sm:gap-5 sm:p-6 [&::-webkit-details-marker]:hidden">
+            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)]">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
                 <span
-                  className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)] sm:flex"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)]"
                   aria-hidden
                 >
-                  <svg viewBox="0 0 24 24" className="size-5 fill-none stroke-current" strokeWidth="1.8">
+                  <svg viewBox="0 0 24 24" className="size-3.5 fill-none stroke-current" strokeWidth="2">
                     <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
                   </svg>
                 </span>
 
-                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="font-[family-name:var(--font-serif)] text-lg leading-tight sm:text-xl">
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                  <span className="text-[13px] font-semibold">
                     Find my best match
                   </span>
-                  <span className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
-                    Say what you want to happen, how much you are putting in
-                    and how much risk you will carry. Pokter ranks what has
-                    been measured and names what it ruled out.
+                  <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
+                    Rank the market around your outcome, capital and risk.
                   </span>
                 </span>
 
-                <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[var(--radius)] bg-[color:var(--brand)] px-4 text-[13px] font-semibold text-[color:var(--brand-ink)]">
-                  <span className="hidden sm:inline">Start</span>
-                  <span
-                    aria-hidden
-                    className="transition-transform group-open:rotate-180"
-                  >
+                {/*
+                  Decorative, not the hit target — the whole summary row is
+                  clickable and clears the touch floor on its own. Sized for
+                  legibility rather than for tapping.
+                */}
+                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[color:var(--brand)] px-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">
+                  Start
+                  <span aria-hidden className="transition-transform group-open:rotate-180">
                     ⌄
                   </span>
                 </span>
@@ -299,13 +312,6 @@ export default async function DiscoverPage({
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 
-          <MarketplacePulse
-            stats={stats}
-            listed={browseAgents.length}
-            answering={answering}
-            attestations={attestations}
-            activity={activity}
-          />
         </>
       )}
 
