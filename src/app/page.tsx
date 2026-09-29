@@ -9,12 +9,9 @@ import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
-import { Integrations } from '@/components/brand/Integrations';
 import { Reveal } from '@/components/motion/Reveal';
 import { LandingHero } from '@/components/home/LandingHero';
 import { LiveProof } from '@/components/home/LiveProof';
-import { Philosophy } from '@/components/home/Philosophy';
-import { Transparency } from '@/components/home/Transparency';
 import { buildPipeline, recentProbes } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
@@ -75,19 +72,30 @@ export default async function HomePage() {
         <HowItWorks />
       </Reveal>
 
-      {/* THE STACK. */}
-      <Reveal>
-        <Integrations />
-      </Reveal>
 
-      {/* TRANSPARENCY — what worked and what fought back. */}
-      <Reveal>
-        <Transparency />
-      </Reveal>
 
-      {/* THE POSITION, then the way in. */}
+
+      {/*
+        The relocated sections are signposted rather than silently dropped.
+        Removing the evidence of our own limits with no route to it would be
+        the one edit this product cannot defend.
+      */}
       <Reveal>
-        <Philosophy />
+        <section className="flex flex-col items-center gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-8 text-center">
+          <h2 className="display max-w-3xl text-2xl sm:text-3xl">
+            What we build on, and what fought back.
+          </h2>
+          <p className="max-w-xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+            Every integration, written up with the errors it produced, and the
+            list of things Pokter refuses to estimate.
+          </p>
+          <Link
+            href="/about"
+            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+          >
+            Read how it is built →
+          </Link>
+        </section>
       </Reveal>
 
       <Reveal>

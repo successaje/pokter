@@ -9,9 +9,11 @@ import type { PipelineEvent } from '@/lib/hero/pipeline';
  * The hero, shared by the live landing page and the two layout previews so a
  * comparison is about structure rather than about which copy got updated.
  *
- * `compact` drops the full-viewport minimum. A page that leads with browsing
- * wants the first row of agents visible without a scroll; a page that leads
- * with an argument wants the argument alone on screen one.
+ * `compact` still holds the first screen, just less of it. The hero has one
+ * job — say the single thing this product is for — and a next section already
+ * peeking under it steals that. What compact buys is the section starting
+ * immediately after the fold rather than a screen below it, so one scroll
+ * reaches the marketplace.
  */
 const HEADLINE: string[][] = [
   ['Choose', 'what', 'deserves'],
@@ -26,7 +28,7 @@ export function LandingHero({
   compact?: boolean;
 }) {
   return (
-    <section className={`flex ${compact ? 'pt-4' : 'min-h-[calc(100svh-9rem)]'} flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14`}>
+    <section className={`flex ${compact ? 'min-h-[calc(100svh-11rem)]' : 'min-h-[calc(100svh-9rem)]'} flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14`}>
         <div className="flex flex-col gap-7">
           <div className="flex max-w-2xl flex-col gap-5">
             <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">

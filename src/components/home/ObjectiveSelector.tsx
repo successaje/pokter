@@ -80,7 +80,11 @@ function AgentComposition({
             key={`${listing.agent.chain_id}:${listing.agent.token_id}`}
             href={href}
             aria-label={`View ${listing.agent.name}`}
-            style={{ animationDelay: `${index * 110}ms, ${index * 110 + 900}ms` }}
+            style={{
+              // Stagger as a scroll offset: delays are ignored on a view
+              // timeline, so each card finishes a little further down instead.
+              animationRange: `entry ${5 + index * 7}% entry ${60 + index * 7}%`,
+            }}
             className={`agent-deal absolute ${positions[index]} z-10 flex w-[68%] max-w-[310px] items-center gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 shadow-lg transition-[transform,border-color,box-shadow] duration-300 hover:z-30 hover:rotate-0 hover:scale-[1.02] hover:border-[color:var(--brand)] hover:shadow-xl focus-visible:z-30 focus-visible:rotate-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)] sm:p-4`}
           >
             <AgentAvatar

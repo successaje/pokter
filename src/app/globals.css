@@ -1070,7 +1070,12 @@ h2 {
 }
 
 /*
- * The outcome compositions deal themselves in.
+ * The outcome compositions deal themselves in as they are scrolled to.
+ *
+ * Driven by a view timeline rather than a page-load delay, for the same reason
+ * `.reveal` is: the four outcome blocks span nearly three phone screens, so a
+ * load-time animation finished long before three of them were ever on screen,
+ * and refreshing halfway down the page showed nothing move at all.
  *
  * Animating `translate` rather than `transform` on purpose. Each card carries a
  * Tailwind rotation utility, and Tailwind v4 emits that as a standalone
@@ -1078,9 +1083,13 @@ h2 {
  * instead of flattening it, and the hover state keeps `rotate` and `scale` to
  * itself. Animating `transform` here would fight all three.
  *
- * The drift starts only after the deal finishes, so the two never contend for
- * the same property at the same time. The global reduced-motion rule collapses
- * both to nothing, which leaves the composition exactly where it lands.
+ * The stagger is a per-card `animation-range` offset, not `animation-delay`:
+ * delays do not apply to a progress-based timeline, so each card instead
+ * finishes its entrance at a slightly later point in the scroll.
+ *
+ * Guarded by @supports so a browser without scroll timelines renders the cards
+ * plainly rather than stranding them at opacity 0 — the failure mode of every
+ * scroll animation that does not load.
  */
 @keyframes agent-deal {
   from {
@@ -1093,22 +1102,12 @@ h2 {
   }
 }
 
-@keyframes agent-drift {
-  to {
-    translate: 0 -7px;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .agent-deal {
-    animation:
-      agent-deal 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
-      agent-drift 7s ease-in-out 900ms infinite alternate;
-  }
-
-  /* Paused under the pointer: a card being read should hold still. */
-  .agent-deal:hover,
-  .agent-deal:focus-visible {
-    animation-play-state: paused;
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .agent-deal {
+      animation: agent-deal linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 60%;
+    }
   }
 }
