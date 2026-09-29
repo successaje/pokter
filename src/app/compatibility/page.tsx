@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { DiagnosticForm } from '@/components/diagnostic/DiagnosticForm';
+import { Lifecycle } from '@/components/diagnostic/Lifecycle';
 
 export const metadata: Metadata = {
   // The root layout appends "· Pokter".
@@ -39,6 +40,10 @@ export default function CompatibilityPage() {
       </header>
 
       <DiagnosticForm />
+
+      <div className="border-t border-[color:var(--border)] pt-8">
+        <Lifecycle />
+      </div>
 
       <section className="flex max-w-2xl flex-col gap-3 border-t border-[color:var(--border)] pt-6">
         <h2 className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
