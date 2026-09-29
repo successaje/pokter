@@ -204,7 +204,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             aria-controls={`activity-panel-${value}`}
             onClick={() => setTab(value)}
             className={cn(
-              'tap-safe -mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition-colors',
+              '-mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition-colors',
               tab === value
                 ? 'border-[color:var(--brand)] text-[color:var(--brand)]'
                 : 'border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text)]',

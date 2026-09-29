@@ -140,7 +140,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
               aria-pressed={view === value}
               aria-label={`${label} view`}
               className={cn(
-                'tap-safe flex size-9 items-center justify-center transition-colors',
+                'flex size-11 items-center justify-center transition-colors sm:size-9',
                 view === value
                   ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
                   : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)]',
