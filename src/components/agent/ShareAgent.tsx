@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type State = 'idle' | 'copied' | 'failed';
+type State = 'idle' | 'copied' | 'shared' | 'failed';
 
 /**
  * Share this agent.
@@ -31,21 +31,39 @@ export function ShareAgent({ name }: { name: string }) {
   const share = async () => {
     const url = window.location.href;
 
-    if (typeof navigator.share === 'function') {
+    /*
+     * The share sheet is offered only where it is the expected affordance.
+     *
+     * Chrome on a desktop exposes `navigator.share`, so preferring it whenever
+     * it exists routed every desktop click into an OS sheet — and when that
+     * sheet did not open, the call rejected with AbortError, which this code
+     * read as "the person changed their mind" and answered by doing nothing at
+     * all. A button that can do nothing when pressed is worse than one that
+     * only ever copies.
+     *
+     * A coarse pointer is the honest test: it is the device where a sheet is
+     * what someone expects and where copying a link is awkward. Everywhere
+     * else, copy — it is deterministic, and it is what a link is for.
+     */
+    const prefersSheet =
+      typeof navigator.share === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches;
+
+    if (prefersSheet) {
       try {
-        await navigator.share({
-          title: `${name} on Pokter`,
-          text: `${name} — the evidence Pokter has measured.`,
-          url,
-        });
+        await navigator.share({ title: `${name} on Pokter`, url });
+        setState('shared');
         return;
       } catch (error) {
         /*
-         * A cancelled share sheet rejects with AbortError. That is the person
-         * deciding not to share, not a failure, and telling them it went wrong
-         * would be worse than saying nothing.
+         * A dismissed sheet is a decision and needs no message. Any other
+         * failure falls through to the clipboard rather than ending here,
+         * because the press has to produce something.
          */
-        if ((error as Error)?.name === 'AbortError') return;
+        if ((error as Error)?.name === 'AbortError') {
+          setState('idle');
+          return;
+        }
       }
     }
 
@@ -54,15 +72,15 @@ export function ShareAgent({ name }: { name: string }) {
       setState('copied');
       return;
     } catch {
-      // Falls through: the async clipboard needs a secure context and a
-      // permission this page may not have.
+      // Falls through: the async clipboard needs a permission this page may
+      // not have, even in a secure context.
     }
 
     /*
-     * The old way, which still works where the new one will not — an insecure
-     * origin, an embedded webview, a browser that wants a synchronous call
-     * inside the gesture. Deprecated, not dead, and a share control that fails
-     * silently is worse than no share control.
+     * The old way, which still works where the new one will not — an embedded
+     * webview, a browser that wants a synchronous call inside the gesture.
+     * Deprecated, not dead, and the last thing standing between a press and
+     * silence.
      */
     try {
       const field = document.createElement('textarea');
@@ -83,9 +101,11 @@ export function ShareAgent({ name }: { name: string }) {
   const message =
     state === 'copied'
       ? 'Link copied'
-      : state === 'failed'
-        ? 'Copy failed'
-        : null;
+      : state === 'shared'
+        ? 'Shared'
+        : state === 'failed'
+          ? 'Copy failed'
+          : null;
 
   return (
     <div className="absolute right-3 top-3 flex items-center gap-2 sm:right-4 sm:top-4">
@@ -97,9 +117,9 @@ export function ShareAgent({ name }: { name: string }) {
       {message && (
         <span
           className={
-            state === 'copied'
-              ? 'text-[11px] font-medium text-[color:var(--positive)]'
-              : 'text-[11px] font-medium text-[color:var(--negative)]'
+            state === 'failed'
+              ? 'text-[11px] font-medium text-[color:var(--negative)]'
+              : 'text-[11px] font-medium text-[color:var(--positive)]'
           }
         >
           {message}
