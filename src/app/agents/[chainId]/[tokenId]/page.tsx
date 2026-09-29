@@ -27,6 +27,7 @@ import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
 import { TrustStrip } from '@/components/agent/TrustStrip';
 import { SimilarAgents } from '@/components/agent/SimilarAgents';
+import { ShareAgent } from '@/components/agent/ShareAgent';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
@@ -202,6 +203,14 @@ export default async function AgentPage({
                         display={`Publisher ${shortAddress(agent.owner_address)}`}
                       />
                     )}
+                    {/*
+                      In the identity row rather than the hire column, because
+                      that column is hidden below 1024px and the platform share
+                      sheet only exists on the widths it hides at. Sharing is
+                      also not a step in hiring — it is something done with the
+                      page, next to the other things that are.
+                    */}
+                    <ShareAgent name={agent.name} />
                   </span>
                 </div>
 
