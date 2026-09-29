@@ -121,7 +121,8 @@ export function ObjectiveSelector({
 
   return (
     <section className="flex flex-col gap-12 sm:gap-16">
-      <div className="max-w-2xl">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div className="max-w-2xl">
         <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--brand-strong)]">
           Start with the outcome
         </p>
@@ -132,6 +133,13 @@ export function ObjectiveSelector({
           You do not need to know the strategy name. Choose the outcome, meet
           the agents built for it, then inspect what Pokter can actually verify.
         </p>
+        </div>
+        <Link
+          href="/agents"
+          className="text-[11px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
+        >
+          Browse all agents →
+        </Link>
       </div>
 
       <div className="flex flex-col gap-16 sm:gap-24">
@@ -154,6 +162,26 @@ export function ObjectiveSelector({
                 <p className="mt-4 max-w-lg text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
                   {objective.blurb}
                 </p>
+                {/*
+                  These counts had their own section further down the page,
+                  restating the same four categories in protocol vocabulary.
+                  They belong next to the outcome they describe, where the
+                  reader is already deciding whether to click.
+                */}
+                <dl className="mt-5 flex items-baseline gap-5 text-[11px]">
+                  <div className="flex items-baseline gap-2">
+                    <dt className="text-[color:var(--text-faint)]">Indexed</dt>
+                    <dd className="tabular font-medium">{listings.length}</dd>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <dt className="text-[color:var(--text-faint)]">
+                      With evidence
+                    </dt>
+                    <dd className="tabular font-medium">
+                      {listings.filter((l) => l.attestationCount > 0).length}
+                    </dd>
+                  </div>
+                </dl>
                 <Link
                   href={`/discover?objective=${objective.id}`}
                   className="mt-6 inline-flex items-center gap-3 rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-200 hover:-translate-y-0.5"
