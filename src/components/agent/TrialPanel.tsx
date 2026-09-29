@@ -31,6 +31,7 @@ export function TrialPanel({
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<TrialReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   const run = async () => {
     setState('running');
@@ -63,20 +64,56 @@ export function TrialPanel({
   const signature = String(result?.receipt.provider_sig ?? '');
   const currency = String(terms?.currency ?? '');
 
+  /*
+   * Forced open once there is something to read.
+   *
+   * The trial is optional, so it collapses — but a result or an error is the
+   * answer to a question the reader just asked, and letting the panel stay
+   * shut over it would hide the thing they pressed the button for.
+   */
+  const expanded = open || Boolean(result) || Boolean(error);
+
   return (
-    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex max-w-2xl flex-col gap-1">
-          <h2 className="text-base font-medium">Try the agent before hiring</h2>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-            Sends a read-only A2A negotiation request. It creates no wallet
-            permission, moves no funds and executes no strategy transaction.
-          </p>
-        </div>
-        <span className="rounded-full border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-[color:var(--positive)]">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={expanded}
+        aria-controls="trial-panel"
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
+      >
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+          <span className="text-[13px] font-semibold">
+            Try the agent before hiring
+          </span>
+          <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
+            Read-only. No wallet, no funds, no transaction.
+          </span>
+        </span>
+
+        <span className="shrink-0 rounded-full border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-[color:var(--positive)]">
           No wallet required
         </span>
-      </div>
+
+        <span
+          aria-hidden
+          className={`shrink-0 text-[color:var(--text-faint)] transition-transform ${expanded ? 'rotate-180' : ''}`}
+        >
+          <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </button>
+
+      <div
+        id="trial-panel"
+        hidden={!expanded}
+        className="flex flex-col gap-4 border-t border-[color:var(--border)] p-5"
+      >
+        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          Sends a read-only A2A negotiation request. It creates no wallet
+          permission, moves no funds and executes no strategy transaction.
+        </p>
 
       <label className="flex flex-col gap-2 text-xs text-[color:var(--text-muted)]">
         Trial task
@@ -150,6 +187,7 @@ export function TrialPanel({
           </p>
         </div>
       )}
+      </div>
     </section>
   );
 }
