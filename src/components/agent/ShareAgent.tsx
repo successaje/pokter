@@ -80,18 +80,42 @@ export function ShareAgent({ name }: { name: string }) {
     }
   };
 
+  const message =
+    state === 'copied'
+      ? 'Link copied'
+      : state === 'failed'
+        ? 'Copy failed'
+        : null;
+
   return (
-    <button
-      type="button"
-      onClick={share}
-      aria-live="polite"
-      className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]"
-    >
-      {state === 'idle' && (
+    <div className="absolute right-3 top-3 flex items-center gap-2 sm:right-4 sm:top-4">
+      {/*
+        The outcome is a label beside the icon rather than a change of icon.
+        A tick replacing the glyph says something happened; it does not say
+        what, and this control has two outcomes worth telling apart.
+      */}
+      {message && (
+        <span
+          className={
+            state === 'copied'
+              ? 'text-[11px] font-medium text-[color:var(--positive)]'
+              : 'text-[11px] font-medium text-[color:var(--negative)]'
+          }
+        >
+          {message}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={share}
+        title={`Share ${name}`}
+        aria-label={`Share ${name}`}
+        className="flex size-8 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+      >
         <svg
           viewBox="0 0 24 24"
           aria-hidden
-          className="size-3.5 shrink-0 fill-none stroke-current"
+          className="size-4 fill-none stroke-current"
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -99,12 +123,11 @@ export function ShareAgent({ name }: { name: string }) {
           <path d="M12 3v12M12 3 8 7M12 3l4 4" />
           <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
         </svg>
-      )}
-      {state === 'idle'
-        ? 'Share agent'
-        : state === 'copied'
-          ? 'Link copied ✓'
-          : 'Copy failed'}
-    </button>
+      </button>
+      {/* The outcome is announced without the label having to be focused. */}
+      <span aria-live="polite" className="sr-only">
+        {message ?? ''}
+      </span>
+    </div>
   );
 }

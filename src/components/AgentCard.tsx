@@ -134,11 +134,34 @@ export function AgentCard({
                       {meta.label}
                     </span>
                     {fromAFleet && (
+                      /*
+                        Twenty-five characters to carry one number, wrapping to
+                        a second line on a card whose own name often already
+                        does. The stacked mark says "there are more of these"
+                        on sight, which is the whole message; the count gives
+                        the scale, and the accessible name carries the sentence
+                        for anyone who needs it spelled out.
+                      */
                       <span
-                        title={`This publisher holds ${fleetSize} listings in the catalogue.`}
-                        className="rounded-full border border-[color:var(--border-strong)] px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]"
+                        title={`One of ${fleetSize} listings by this publisher`}
+                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--bg-subtle)] px-1.5 py-px text-[10px] font-medium tabular-nums text-[color:var(--text-muted)]"
                       >
-                        1 of {fleetSize} by this publisher
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                          className="size-3 fill-none stroke-current"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="8" y="8" width="12" height="12" rx="2.5" />
+                          <path d="M16 4H6a2 2 0 0 0-2 2v10" />
+                        </svg>
+                        {fleetSize}
+                        <span className="sr-only">
+                          {' '}
+                          listings by this publisher
+                        </span>
                       </span>
                     )}
                   </span>
@@ -208,11 +231,34 @@ export function AgentCard({
                       {meta.label}
                     </span>
                     {fromAFleet && (
+                      /*
+                        Twenty-five characters to carry one number, wrapping to
+                        a second line on a card whose own name often already
+                        does. The stacked mark says "there are more of these"
+                        on sight, which is the whole message; the count gives
+                        the scale, and the accessible name carries the sentence
+                        for anyone who needs it spelled out.
+                      */
                       <span
-                        title={`This publisher holds ${fleetSize} listings in the catalogue.`}
-                        className="rounded-full border border-[color:var(--border-strong)] px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]"
+                        title={`One of ${fleetSize} listings by this publisher`}
+                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--bg-subtle)] px-1.5 py-px text-[10px] font-medium tabular-nums text-[color:var(--text-muted)]"
                       >
-                        1 of {fleetSize} by this publisher
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                          className="size-3 fill-none stroke-current"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="8" y="8" width="12" height="12" rx="2.5" />
+                          <path d="M16 4H6a2 2 0 0 0-2 2v10" />
+                        </svg>
+                        {fleetSize}
+                        <span className="sr-only">
+                          {' '}
+                          listings by this publisher
+                        </span>
                       </span>
                     )}
                   </span>
