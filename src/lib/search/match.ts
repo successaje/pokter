@@ -3,7 +3,6 @@ import type { TrackRecord } from '@/lib/history/record';
 import {
   FAILING_MAX_SCORE,
   PROVEN_MIN_PROBES,
-  PROVEN_MIN_SCORE,
   PROVEN_MIN_WINDOW_DAYS,
   type Verdict,
 } from '@/lib/proof/engine';
@@ -69,13 +68,15 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
    * place independence is actually checked.
    *
    * Below `emerging` it makes the engine's other split, on the parts this
-   * level can see: short of the probe, window or rate minimum, Pokter has
-   * started looking and has no business implying more than that.
+   * level can see: short of the probe or window minimum, Pokter has started
+   * looking and has no business implying more than that. The rate is
+   * deliberately not part of this test — a poorly performing agent that has
+   * been probed hundreds of times has been examined, and saying otherwise
+   * described our own coverage using the agent's score.
    */
   if (
     record.totalProbes < PROVEN_MIN_PROBES ||
-    record.observedDays < PROVEN_MIN_WINDOW_DAYS ||
-    (rate ?? 0) < PROVEN_MIN_SCORE
+    record.observedDays < PROVEN_MIN_WINDOW_DAYS
   ) {
     return 'observed';
   }
