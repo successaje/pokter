@@ -1,12 +1,18 @@
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
 import {
+  FAILING_MAX_SCORE,
   PROVEN_MIN_PROBES,
   PROVEN_MIN_SCORE,
   PROVEN_MIN_WINDOW_DAYS,
   type Verdict,
 } from '@/lib/proof/engine';
-import { categoryFromTag, type ParsedQuery, type Qualifier } from './query';
+import {
+  categoryFromTag,
+  VERDICTS,
+  type ParsedQuery,
+  type Qualifier,
+} from './query';
 
 /** A listing plus what Pokter has measured about it. */
 export interface SearchableAgent {
@@ -29,7 +35,16 @@ function uptime(record: TrackRecord): number | null {
 export function verdictFor({ listing, record }: SearchableAgent): Verdict {
   const rate = uptime(record);
 
-  if (rate !== null && rate === 0) return 'failing';
+  /*
+   * Failing at the engine's bar, not at zero.
+   *
+   * This used to call an agent failing only when it answered nothing at all,
+   * while `summariseProof` fails anything under FAILING_MAX_SCORE. An agent
+   * answering three probes in ten sat above the line here and below it there,
+   * so the card and the page behind it disagreed about the same agent on the
+   * same visit — the exact contradiction the note below was written to end.
+   */
+  if (rate !== null && rate < FAILING_MAX_SCORE) return 'failing';
   if (listing.attestationCount === 0 && record.totalProbes === 0) return 'unproven';
 
   /*
@@ -52,11 +67,10 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
    * understate an agent's standing but never overstate it, and the detail page
    * remains the only place the top tier is awarded, because it is the only
    * place independence is actually checked.
-   */
-  /*
-   * The same split the proof engine makes, on the parts this level can see.
-   * Below the probe or window minimum, Pokter has started looking and has no
-   * business implying more than that.
+   *
+   * Below `emerging` it makes the engine's other split, on the parts this
+   * level can see: short of the probe, window or rate minimum, Pokter has
+   * started looking and has no business implying more than that.
    */
   if (
     record.totalProbes < PROVEN_MIN_PROBES ||
@@ -130,12 +144,17 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
     }
 
     case 'is': {
+      /*
+       * Asked of the vocabulary rather than a list repeated here. This switch
+       * enumerated the verdicts by hand, so adding `observed` to VERDICTS and
+       * to the filter shelf left `is:observed` matching nothing at all: the
+       * chip was offered, the badge was rendered, and the filter silently
+       * returned an empty set.
+       */
+      if ((VERDICTS as string[]).includes(q.value)) {
+        return verdictFor(agent) === q.value;
+      }
       switch (q.value) {
-        case 'proven':
-        case 'emerging':
-        case 'unproven':
-        case 'failing':
-          return verdictFor(agent) === q.value;
         case 'live':
           return (uptime(record) ?? 0) > 0;
         case 'offline':
