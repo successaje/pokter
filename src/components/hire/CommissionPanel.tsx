@@ -120,6 +120,33 @@ const RECEIPT_HEADLINE: Record<
 };
 
 /**
+ * One mark per outcome, so the three cards can be told apart before they are
+ * read. They are distinct actions — assess, decide, watch — and a row of three
+ * identical boxes makes the reader parse prose to find that out.
+ */
+const TEMPLATE_ICON: Record<string, React.ReactNode> = {
+  analyse: (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="6" />
+      <path d="m20 20-4.5-4.5M9 11h4M11 9v4" />
+    </svg>
+  ),
+  recommend: (
+    // A lamp rather than a signpost: two arms and a post collapse into a
+    // squiggle at sixteen pixels, which is the only size this is ever drawn.
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z" />
+    </svg>
+  ),
+  monitor: (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  ),
+};
+
+/**
  * A read-only client for quoting the swap.
  *
  * Built per attempt rather than held: it is used once, immediately before
@@ -517,31 +544,99 @@ export function CommissionPanel({
 
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-xs font-medium">Start from an outcome</legend>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {taskTemplates.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        aria-pressed={selectedTemplate === template.id}
-                        onClick={() => {
-                          setSelectedTemplate(template.id);
-                          setTask(template.task);
-                        }}
-                        className={cn(
-                          'min-h-24 rounded-[var(--radius)] border p-3 text-left transition-colors',
-                          selectedTemplate === template.id
-                            ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]'
-                            : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:border-[color:var(--border-strong)]',
-                        )}
-                      >
-                        <span className="block text-[11px] font-semibold">
-                          {template.label}
-                        </span>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-[color:var(--text-muted)]">
-                          {template.description}
-                        </span>
-                      </button>
-                    ))}
+                  <p className="mb-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                    Each one writes a brief below that you can edit. None of
+                    them execute anything.
+                  </p>
+
+                  {/*
+                    A radio group, not three toggles.
+                    
+                    These were buttons carrying aria-pressed, which announces
+                    three independent switches when exactly one can be chosen.
+                    Radio semantics say what is true, and bring the arrow-key
+                    behaviour a one-of-three choice is expected to have.
+                  */}
+                  <div
+                    role="radiogroup"
+                    aria-label="Start from an outcome"
+                    onKeyDown={(event) => {
+                      const delta =
+                        event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                          ? 1
+                          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                            ? -1
+                            : 0;
+                      if (delta === 0) return;
+                      event.preventDefault();
+                      const index = taskTemplates.findIndex(
+                        (t) => t.id === selectedTemplate,
+                      );
+                      const next =
+                        taskTemplates[
+                          (index + delta + taskTemplates.length) %
+                            taskTemplates.length
+                        ];
+                      setSelectedTemplate(next.id);
+                      setTask(next.task);
+                    }}
+                    className="grid gap-2 sm:grid-cols-3"
+                  >
+                    {taskTemplates.map((template) => {
+                      const chosen = selectedTemplate === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={chosen}
+                          tabIndex={chosen ? 0 : -1}
+                          onClick={() => {
+                            setSelectedTemplate(template.id);
+                            setTask(template.task);
+                          }}
+                          className={cn(
+                            'group relative flex flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all',
+                            chosen
+                              ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] shadow-[0_0_0_1px_var(--brand)]'
+                              : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
+                          )}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span
+                              className={cn(
+                                'flex size-7 items-center justify-center rounded-full transition-colors',
+                                chosen
+                                  ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                                  : 'bg-[color:var(--surface)] text-[color:var(--text-muted)]',
+                              )}
+                            >
+                              {TEMPLATE_ICON[template.id]}
+                            </span>
+
+                            {/* Reserved either way, so choosing does not reflow the row. */}
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'text-[color:var(--brand)] transition-opacity',
+                                chosen ? 'opacity-100' : 'opacity-0',
+                              )}
+                            >
+                              <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="2.6">
+                                <path d="m5 13 4 4L19 7" />
+                              </svg>
+                            </span>
+                          </span>
+
+                          <span className="block text-[13px] font-semibold leading-tight">
+                            {template.label}
+                          </span>
+                          <span className="block text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                            {template.description}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </fieldset>
 
