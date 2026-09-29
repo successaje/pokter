@@ -300,6 +300,7 @@ export default async function AgentPage({
                   summary={`${publishedEvidenceLine(publishedEvidence)}. ${probeSummary}`}
                   caption="Identity, declared capabilities, attestations and Pokter's observations, each labelled by source."
                   alwaysCollapsible
+                  anchorId="trust"
                 >
                   <div className="pt-4">
                     <TrustPanel dossier={dossier} explorerBase={explorerBase} />
@@ -313,6 +314,7 @@ export default async function AgentPage({
                   summary={`${availability}. Profit, loss and drawdown are not measured.`}
                   caption="Availability and latency are measured; financial returns are left blank when nobody publishes them."
                   alwaysCollapsible
+                  anchorId="performance"
                 >
                   <div className="pt-4">
                     <PerformancePanel record={record} />
@@ -320,13 +322,14 @@ export default async function AgentPage({
                 </Section>
               </div>
 
-            <div id="live" className="scroll-mt-28">
+            <div className="scroll-mt-28">
               <Section
                 title="Watch it work"
                 summary={liveSummary}
                 caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
                 sectionClassName="p-4 sm:p-5"
                 alwaysCollapsible
+                anchorId="live"
               >
                 <div className="pt-4"><LivePanel live={live} /></div>
               </Section>
@@ -338,17 +341,19 @@ export default async function AgentPage({
               caption="What repeated sweeps have accumulated, rather than a single sample."
               sectionClassName="p-4 sm:p-5"
               alwaysCollapsible
+              anchorId="track-record"
             >
               <div className="pt-4"><TrackRecordPanel record={record} /></div>
             </Section>
 
-            <div id="receipts" className="scroll-mt-28">
+            <div className="scroll-mt-28">
               <Section
                 title="Receipts"
                 summary={receiptsSummary}
                 caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
                 sectionClassName="p-4 sm:p-5"
                 alwaysCollapsible
+                anchorId="receipts"
               >
                 <div className="pt-4"><EvidencePanel attestations={attestations} /></div>
               </Section>
@@ -360,6 +365,7 @@ export default async function AgentPage({
                   summary={defectsSummary}
                   caption="Limitations disclosed by the measurers themselves, ours included."
                   alwaysCollapsible
+                  anchorId="limitations"
                 >
                   <div className="pt-4">
                     {knownDefects.length === 0 ? (
@@ -384,12 +390,13 @@ export default async function AgentPage({
             </div>
           </section>
 
-          <div id="permissions" className="scroll-mt-28 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 sm:p-5">
+          <div className="scroll-mt-28 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 sm:p-5">
               <Section
                 title="Permissions and spending limits"
                 summary="What hiring would and would not allow."
                 caption="Stated plainly, including what the registry does not disclose."
                 alwaysCollapsible
+                anchorId="permissions"
               >
                 <div className="pt-4"><AuthorityPanel agent={agent} /></div>
               </Section>

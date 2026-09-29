@@ -63,6 +63,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const isPhone = useIsPhone();
   const activeGroup = FILTER_GROUPS.find((g) => g.label === openGroup) ?? null;
+  const allFiltersOpen = openGroup === 'Filters';
   const closeFilters = useCallback(() => setOpenGroup(null), []);
   const filtersRef = useDismissibleLayer<HTMLDivElement>({
     open: openGroup !== null,
@@ -120,8 +121,22 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
         ref={filtersRef}
         className="-mx-1 flex snap-x items-center gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
       >
+        <button
+          type="button"
+          onClick={() => setOpenGroup('Filters')}
+          aria-expanded={allFiltersOpen}
+          className={cn(
+            'shrink-0 snap-start rounded-[var(--radius)] border px-3 py-1.5 text-[12px] transition-colors md:hidden',
+            allFiltersOpen
+              ? 'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]'
+              : 'border-[color:var(--border)] text-[color:var(--text-muted)]',
+          )}
+        >
+          Filters{parsed.qualifiers.length > 0 ? ` · ${parsed.qualifiers.length}` : ''} ▾
+        </button>
+
         {FILTER_GROUPS.map((group) => (
-          <div key={group.label} className="relative">
+          <div key={group.label} className="relative hidden md:block">
             <button
               type="button"
               onClick={() =>
@@ -176,24 +191,51 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
       <Sheet
         open={isPhone && openGroup !== null}
         onClose={() => setOpenGroup(null)}
-        title={activeGroup ? activeGroup.label : ''}
-        description={activeGroup?.hint}
+        title={allFiltersOpen ? 'Filter marketplace' : activeGroup?.label ?? ''}
+        description={
+          allFiltersOpen
+            ? 'Choose evidence, endpoint, category and depth filters.'
+            : activeGroup?.hint
+        }
       >
-        <div className="flex flex-col gap-1">
-          {activeGroup?.options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                addToken(option);
-                setOpenGroup(null);
-              }}
-              className="mono flex items-center rounded-[var(--radius)] px-3 text-left text-[13px] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        {allFiltersOpen ? (
+          <div className="flex flex-col gap-5">
+            {FILTER_GROUPS.map((group) => (
+              <section key={group.label}>
+                <h3 className="text-[13px] font-semibold">{group.label}</h3>
+                <p className="mt-0.5 text-[11px] text-[color:var(--text-faint)]">{group.hint}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {group.options.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => addToken(option)}
+                      className="mono min-h-10 rounded-[var(--radius)] border border-[color:var(--border)] px-2 text-left text-[11px] text-[color:var(--text-secondary)]"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {activeGroup?.options.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  addToken(option);
+                  setOpenGroup(null);
+                }}
+                className="mono flex items-center rounded-[var(--radius)] px-3 text-left text-[13px] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
       </Sheet>
 
       {parsed.qualifiers.length > 0 && (
