@@ -43,6 +43,33 @@ export function AgentCard({
   const meta = CATEGORY_BY_ID.get(listing.category);
   const href = `/agents/${agent.chain_id}/${agent.token_id}`;
   /*
+   * Whether it is answering now, not just how it has done overall.
+   *
+   * The evidence badge is a verdict on an accumulated record, so an agent that
+   * answered hundreds of probes over a month and then went down still reads
+   * "Emerging" — accurate about the history, and the opposite of what someone
+   * about to hire it needs to know. The detail page said "Live check failed"
+   * right beside that badge; the card, where people actually choose, said
+   * nothing.
+   *
+   * Taken from the 24h window rather than a fresh call, because a browse grid
+   * cannot probe eighty endpoints to render. It is a narrower claim — recently,
+   * not right now — so the label says recently.
+   */
+  /*
+   * "Hire agent" on an agent that has never named a price.
+   *
+   * Only eight of eighty listings return a signed quote, yet forty-three
+   * carried this button, and the flow behind it then asks the buyer to invent
+   * a budget for work nobody has priced. Funding escrow that way is a real
+   * action, not a dead end, so the button stays — but the verb changes, because
+   * "hire" implies an agreed transaction and this is an offer into silence.
+   */
+  const quoted = listing.quote != null;
+
+  const recent = record?.windows.find((window) => window.label === '24h');
+  const downRecently = recent !== undefined && recent.probes > 0 && recent.ratio === 0;
+  /*
    * What the agent charges, or an admission that we do not know.
    *
    * Every card used to print the same 0.10 $U, which was not a price at all
@@ -125,7 +152,17 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <EvidenceBadge verdict={verdict} />
+            <span className="flex shrink-0 items-center gap-1.5">
+              {downRecently && (
+                <span
+                  title="Answered no probes in the last 24 hours"
+                  className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
+                >
+                  Not answering
+                </span>
+              )}
+              <EvidenceBadge verdict={verdict} />
+            </span>
           </div>
 
           {/*
@@ -163,7 +200,7 @@ export function AgentCard({
                 href={hireHref}
                 className="action-primary flex shrink-0 items-center justify-center rounded-[var(--radius)] px-3.5 text-[12px] font-medium"
               >
-                Hire agent
+                {quoted ? 'Hire agent' : 'Offer a budget'}
               </Link>
             ) : (
               <span className="text-[11px] text-[color:var(--text-faint)]">
@@ -189,7 +226,17 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <EvidenceBadge verdict={verdict} />
+            <span className="flex shrink-0 items-center gap-1.5">
+              {downRecently && (
+                <span
+                  title="Answered no probes in the last 24 hours"
+                  className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
+                >
+                  Not answering
+                </span>
+              )}
+              <EvidenceBadge verdict={verdict} />
+            </span>
           </div>
 
           <p className="line-clamp-3 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
@@ -233,7 +280,7 @@ export function AgentCard({
               href={hireHref}
               className="action-primary flex w-full items-center justify-center rounded-[var(--radius)] px-3 py-2 text-[12px] font-medium"
             >
-              Hire agent
+              {quoted ? 'Hire agent' : 'Offer a budget'}
             </Link>
           </div>
         )}
