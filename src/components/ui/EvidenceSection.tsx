@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -24,6 +24,7 @@ export function EvidenceSection({
   summary,
   sectionClassName,
   alwaysCollapsible = false,
+  anchorId,
   children,
 }: {
   title: string;
@@ -44,13 +45,33 @@ export function EvidenceSection({
    * two screens of it sat open above the fold on every visit.
    */
   alwaysCollapsible?: boolean;
+  /** Opens this disclosure when its URL fragment is targeted. */
+  anchorId?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const contentId = useId();
 
+  useEffect(() => {
+    if (!anchorId) return;
+
+    const openFromHash = () => {
+      if (window.location.hash === `#${anchorId}`) setOpen(true);
+    };
+
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+  }, [anchorId]);
+
   return (
-    <section className={sectionClassName ?? 'flex flex-col gap-3'}>
+    <section
+      id={anchorId}
+      className={cn(
+        sectionClassName ?? 'flex flex-col gap-3',
+        anchorId && 'scroll-mt-28',
+      )}
+    >
       <div
         className={cn(
           'hidden flex-col gap-1',
