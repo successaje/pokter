@@ -258,9 +258,20 @@ export async function settleJob(
     { network: ALTANA_NETWORK },
   );
 
+  /*
+   * A contested delivery is not a settlement.
+   *
+   * Both outcomes were written to settleTxHash, so a disputed job came back
+   * from this path looking settled — the record said the money had been
+   * released when the buyer had just refused to release it. The type has
+   * carried a disputeTxHash for exactly this since the field was added; this
+   * path simply never used it.
+   */
   const settled: HiredJob = {
     ...existing,
-    settleTxHash: result.transactionHash ?? null,
+    ...(action === 'dispute'
+      ? { disputeTxHash: result.transactionHash ?? null }
+      : { settleTxHash: result.transactionHash ?? null }),
     statusCheckedAt: new Date().toISOString(),
   };
 

@@ -1,7 +1,13 @@
 /**
- * Commission a real ERC-8183 job and follow it to completion.
+ * Commission a real ERC-8183 job and follow it to an outcome.
  *
  *   npx tsx --env-file=.env.local scripts/hire.mts
+ *   HIRE_SETTLE=approve  … release escrow once delivered
+ *   HIRE_SETTLE=dispute  … contest the delivery instead
+ *
+ * Both outcomes exist because proving only the happy path proves half a
+ * marketplace. A buyer's real protection is the refusal, and a refusal that
+ * has never been executed on chain is a claim rather than a mechanism.
  *
  * Defaults to a provider with a proven delivery record on BSC testnet, at the
  * 0.1 $U price its completed jobs were priced at.
@@ -65,7 +71,33 @@ for (let attempt = 1; attempt <= 20; attempt += 1) {
   }
 }
 
-if (process.env.HIRE_SETTLE === 'true') {
-  const settled = await settleJob(job.id, 'approve');
-  console.log(`\nsettle: ${settled.status} tx ${settled.settleTxHash}`);
+const outcome = process.env.HIRE_SETTLE;
+if (outcome === 'approve' || outcome === 'true' || outcome === 'dispute') {
+  const action = outcome === 'dispute' ? 'dispute' : 'approve';
+  const before = await refreshJob(job.id);
+  if (before.status !== 'SUBMITTED') {
+    console.log(
+      `\ncannot ${action}: job is ${before.status}, and only a SUBMITTED job can be approved or contested.`,
+    );
+  } else {
+    const settled = await settleJob(job.id, action);
+    const tx = action === 'dispute' ? settled.disputeTxHash : settled.settleTxHash;
+    console.log(`\n${action}: ${before.status} -> ${settled.status}`);
+    console.log(`  tx ${ALTANA_NETWORK.explorer.replace(/\/$/, '')}/tx/${tx}`);
+
+    /*
+     * Asserted rather than reported. The point of running this is to find out
+     * whether the kernel actually moves the job, and a script that prints the
+     * status it was given would pass whatever happened.
+     */
+    const expected = action === 'dispute' ? 'REJECTED' : 'COMPLETED';
+    if (settled.status !== expected) {
+      console.error(
+        `\nFAILED: expected ${expected} after ${action}, chain reports ${settled.status}`,
+      );
+      process.exitCode = 1;
+    } else {
+      console.log(`\nOK: chain reports ${settled.status}`);
+    }
+  }
 }

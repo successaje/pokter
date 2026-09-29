@@ -35,10 +35,25 @@ function safeDeliverableUrl(value: string | null): string | null {
   }
 }
 
-function settlementError(error: unknown): string {
+function settlementError(error: unknown, expired: boolean): string {
   const message = walletActionError(error, 'Escrow action');
   if (/0x17be5b7b/i.test(message)) {
     return 'The dispute window is still open. The contract will allow payment after the review period ends; refresh and try again shortly.';
+  }
+  /*
+   * The SDK reports a reverted batch as "An error occurred while executing
+   * calls", which was shown to the buyer unchanged. Someone contesting a
+   * delivery and reading that learns nothing: not what failed, not whether
+   * their money moved, not what to do instead.
+   *
+   * Past the expiry the kernel will not accept a dispute at all, and that is
+   * the likeliest reason this reverts, so it is named. The escrow is not lost
+   * — an expired job is reclaimable — and saying so is the part that matters.
+   */
+  if (/error occurred while executing calls|execution reverted/i.test(message)) {
+    return expired
+      ? 'This job has passed its expiry, so the contract no longer accepts a dispute. Nothing moved and the escrow is still yours to reclaim.'
+      : 'The contract refused this call and reported no reason. Nothing moved. Refresh the status and try again.';
   }
   return message;
 }
@@ -64,6 +79,19 @@ export function JobCard({
   const [reviewed, setReviewed] = useState(false);
   const [receiptVerified, setReceiptVerified] = useState(false);
   const [disputeConfirmed, setDisputeConfirmed] = useState(false);
+
+  /*
+   * Read from the job rather than from a failed call: the card already knows
+   * when the job expires, so it can say the window has closed instead of
+   * letting the buyer discover it by signing a transaction that reverts.
+   *
+   * Sampled once on mount rather than on every render. The clock is not a
+   * pure input, and a component that re-reads it mid-render can produce two
+   * different answers for one paint. A job crossing its expiry while the page
+   * sits open is caught by Refresh, which re-reads the chain anyway.
+   */
+  const [openedAt] = useState(() => Date.now());
+  const windowClosed = Date.parse(job.expiredAt) <= openedAt;
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
 
@@ -131,7 +159,7 @@ export function JobCard({
       setJob(updated);
       updateRememberedJob(wallet.address, updated);
     } catch (caught) {
-      setError(settlementError(caught));
+      setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {
       setBusy(null);
     }
@@ -403,10 +431,17 @@ export function JobCard({
                 This delivery is unacceptable. I understand that contesting it
                 starts the on-chain dispute process and does not release payment.
               </label>
+              {windowClosed && (
+                <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--caution)]">
+                  The dispute window closed when this job expired on{' '}
+                  {job.expiredAt.slice(0, 10)}. The escrow was never released
+                  and is still yours to reclaim.
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => act('dispute')}
-                disabled={busy !== null || !disputeConfirmed}
+                disabled={busy !== null || !disputeConfirmed || windowClosed}
                 className="mt-2 w-fit rounded-[var(--radius)] border border-[color:var(--negative)]/45 px-3 py-1.5 text-[12px] font-medium text-[color:var(--negative)] transition-colors hover:bg-[color:var(--negative-dim)] disabled:opacity-50"
               >
                 {busy === 'dispute' ? 'Opening dispute…' : 'Contest delivery'}
