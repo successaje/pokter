@@ -27,6 +27,7 @@ export function AgentCard({
   verdict,
   record,
   hirable = false,
+  fleetSize,
 }: {
   listing: Listing;
   verdict: Verdict;
@@ -38,6 +39,15 @@ export function AgentCard({
   record?: TrackRecord;
   /** Offer Hire on the card itself. See `offersDirectHire`. */
   hirable?: boolean;
+  /**
+   * How many listings this publisher holds across the catalogue.
+   *
+   * Stated rather than collapsed. Nine near-identical registrations from one
+   * operator is a fact about this marketplace worth a reader knowing — it
+   * changes how much a strong record here means — and hiding it would make the
+   * catalogue tidier at the cost of the count being true.
+   */
+  fleetSize?: number;
 }) {
   const { agent, attestationCount } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
@@ -61,6 +71,7 @@ export function AgentCard({
         ? 'No price quoted'
         : formatQuotedPrice(listing.quote.priceU);
   const hasPrice = Boolean(listing.quote);
+  const fromAFleet = (fleetSize ?? 1) > 1;
 
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
@@ -118,8 +129,18 @@ export function AgentCard({
               <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
               <div className="flex min-w-0 flex-col gap-0.5">
                 {meta && (
-                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                    {meta.label}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      {meta.label}
+                    </span>
+                    {fromAFleet && (
+                      <span
+                        title={`This publisher holds ${fleetSize} listings in the catalogue.`}
+                        className="rounded-full border border-[color:var(--border-strong)] px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]"
+                      >
+                        1 of {fleetSize} by this publisher
+                      </span>
+                    )}
                   </span>
                 )}
                 {name}
@@ -182,8 +203,18 @@ export function AgentCard({
               <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
               <div className="flex min-w-0 flex-col gap-1">
                 {meta && (
-                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                    {meta.label}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      {meta.label}
+                    </span>
+                    {fromAFleet && (
+                      <span
+                        title={`This publisher holds ${fleetSize} listings in the catalogue.`}
+                        className="rounded-full border border-[color:var(--border-strong)] px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]"
+                      >
+                        1 of {fleetSize} by this publisher
+                      </span>
+                    )}
                   </span>
                 )}
                 {name}

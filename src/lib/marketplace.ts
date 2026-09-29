@@ -496,6 +496,28 @@ export async function recommendedAlternatives(
  * Order within each pass is preserved, so the best agent from each publisher
  * still leads and nothing is promoted over a stronger record from elsewhere.
  */
+/**
+ * How many listings each publisher holds across the indexed set.
+ *
+ * Two operators account for eighteen of the eighty entries by registering the
+ * same agent repeatedly. Collapsing them would make the marketplace look
+ * tidier by making the census less true — "80 curated listings" is the honest
+ * count of what the registry contains, and it appears on pages whose whole job
+ * is to be that count. So the concentration is reported instead of removed,
+ * and a card can say how much of the catalogue its publisher is.
+ */
+export function listingsPerOwner<T extends { listing: Listing }>(
+  entries: T[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const owner = entry.listing.agent.owner_address?.toLowerCase();
+    if (!owner) continue;
+    counts.set(owner, (counts.get(owner) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export function preferDistinctOwners<T extends { listing: Listing }>(
   ranked: T[],
   limit: number,
