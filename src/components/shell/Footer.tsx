@@ -39,6 +39,18 @@ const COLUMNS = [
       { label: 'Read API', href: '/api/v1' },
       { label: 'Report a problem', href: '/support#where-to-send-what' },
       { label: 'Security', href: '/support#security' },
+    ],
+  },
+  /*
+   * A product that funds escrow from a stranger's wallet owes them these
+   * before they sign, not buried in a support thread afterwards.
+   */
+  {
+    heading: 'Legal',
+    links: [
+      { label: 'Risk disclosure', href: '/risk' },
+      { label: 'Terms of use', href: '/terms' },
+      { label: 'Privacy', href: '/privacy' },
       { label: 'How we measure', href: '/methodology' },
     ],
   },

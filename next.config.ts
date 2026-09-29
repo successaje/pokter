@@ -1,6 +1,54 @@
 import type { NextConfig } from 'next';
 
+/**
+ * The content policy, written against what this app actually loads.
+ *
+ * `img-src` has to allow any https host: agent avatars come from whatever
+ * address an operator published in the registry, which is the one thing here
+ * that is deliberately not under Pokter's control. They are already loaded
+ * with a no-referrer policy so the host learns nothing about the visitor.
+ *
+ * `script-src` still carries 'unsafe-inline'. Next's bootstrap and streamed
+ * RSC payloads are inline, and removing it needs a nonce threaded through a
+ * middleware on every request. That is worth doing and is not done here — this
+ * policy is a floor, not the finished job. It already stops framing, plugin
+ * content, base-tag rewriting and form posts to third parties.
+ */
+function contentSecurityPolicy(): string {
+  const dev = process.env.NODE_ENV !== 'production';
+
+  return [
+    "default-src 'self'",
+    // eval is React Fast Refresh in development only.
+    `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    // Chain RPC, the registry indexer and the wallet relay are all https, and
+    // the dev server's hot-reload channel is a websocket.
+    `connect-src 'self' https:${dev ? ' ws: wss:' : ' wss:'}`,
+    "frame-ancestors 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    /*
+     * Production only. This directive rewrites ws: to wss: as well as http: to
+     * https:, which silently kills the dev server's hot-reload socket on
+     * localhost — the page still renders, so it looks like HMR is broken
+     * rather than like a policy doing its job.
+     */
+    ...(dev ? [] : ['upgrade-insecure-requests']),
+  ].join('; ');
+}
+
 const nextConfig: NextConfig = {
+  /*
+   * Announcing the framework and its version tells an attacker which
+   * advisories to try first and tells a visitor nothing.
+   */
+  poweredByHeader: false,
+
   async headers() {
     return [
       {
@@ -15,6 +63,17 @@ const nextConfig: NextConfig = {
           },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          /*
+           * Two years, with subdomains, and preload-eligible. A product that
+           * asks someone to sign a transaction should never be reachable over
+           * plaintext, and without this the first request of a session still
+           * can be.
+           */
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          { key: 'Content-Security-Policy', value: contentSecurityPolicy() },
         ],
       },
     ];

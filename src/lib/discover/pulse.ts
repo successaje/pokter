@@ -1,13 +1,11 @@
 import 'server-only';
 
 import { getJobStore } from '@/lib/erc8183/store';
-import { getSessionStore } from '@/lib/altana/store';
 
 export interface MarketplaceActivity {
   hires: number;
   deliveries: number;
   settlements: number;
-  activeSessions: number;
 }
 
 /**
@@ -17,9 +15,16 @@ export interface MarketplaceActivity {
  * remains authoritative for every job and the activity UI labels this scope so
  * a small demo history cannot be mistaken for network-wide volume.
  */
+/*
+ * Delegated-session counts are deliberately absent.
+ *
+ * Counting grants with no revocation on record surfaced historical testnet
+ * sessions as live marketplace activity, while the rest of the product states
+ * that Pokter creates no new delegated sessions. A viewer's own sessions are
+ * still shown on their own activity page, where the scope is unambiguous.
+ */
 export function getMarketplaceActivity(): MarketplaceActivity {
   const jobs = getJobStore().all();
-  const sessions = getSessionStore().all();
 
   return {
     hires: jobs.filter((job) => Boolean(job.hireTxHash)).length,
@@ -29,6 +34,5 @@ export function getMarketplaceActivity(): MarketplaceActivity {
     settlements: jobs.filter(
       (job) => job.status === 'COMPLETED' && Boolean(job.settleTxHash),
     ).length,
-    activeSessions: sessions.filter((session) => !session.revokedAt).length,
   };
 }

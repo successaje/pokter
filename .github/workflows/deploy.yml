@@ -39,6 +39,9 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Test
+        run: npm test
+
       - name: Run protocol safety checks
         run: npm run audit:protocol
 

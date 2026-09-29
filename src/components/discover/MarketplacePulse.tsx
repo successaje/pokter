@@ -52,13 +52,27 @@ export function MarketplacePulse({
    * funded" otherwise, and a band arguing that the numbers are measured
    * rather than estimated cannot afford to look automatically generated.
    */
+  /*
+   * The lifecycle is shown whole, including the stages sitting at zero.
+   *
+   * This list was filtered to non-zero values, which meant a marketplace with
+   * eight funded escrows and no deliveries displayed "8 escrows funded" and
+   * nothing else — the flattering half of its own funnel. A product that
+   * reports unmeasured dimensions as unmeasured everywhere else does not get
+   * to hide the stage where its own numbers stop.
+   *
+   * The permission-session count is gone rather than fixed. It counted grants
+   * with no revocation on record, which today means historical testnet
+   * sessions, and printing them as current activity contradicted the
+   * transparency section's statement that Pokter creates no new delegated
+   * sessions. Two pages of the same product disagreed about whether anything
+   * holds delegated authority.
+   */
   const activityRows = [
     { value: activity.hires, noun: 'escrow', verb: 'funded' },
     { value: activity.deliveries, noun: 'delivery', plural: 'deliveries', verb: 'recorded' },
     { value: activity.settlements, noun: 'settlement', verb: 'completed' },
-    { value: activity.activeSessions, noun: 'active permission session', verb: '' },
   ]
-    .filter((item) => item.value > 0)
     .map((item) => ({
       value: item.value,
       label: `${pluralise(item.value, item.noun, item.plural)}${
