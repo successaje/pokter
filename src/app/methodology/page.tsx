@@ -5,6 +5,7 @@ import { DIMENSION_WEIGHTS, DIMENSION_LABELS, SCORE_VERSION } from '@/lib/score/
 import {
   FAILING_MAX_SCORE,
   PROVEN_MIN_MEASURERS,
+  VERDICT_LABEL,
   PROVEN_MIN_PROBES,
   PROVEN_MIN_SCORE,
   PROVEN_MIN_WINDOW_DAYS,
@@ -142,7 +143,12 @@ export default async function MethodologyPage() {
 
       <Section id="verify" title="How we verify">
         <p>
-          Every agent gets one of four evidence states. The bar for{' '}
+          {/*
+           * Counted from the vocabulary rather than written out, so adding a
+           * state cannot leave this sentence quietly claiming the old number.
+           */}
+          Every agent gets one of {Object.keys(VERDICT_LABEL).length} evidence
+          states. The bar for{' '}
           <span className="font-medium text-[color:var(--text)]">Proven</span> is
           independence rather than volume — probing an agent more often does not
           make a single measurer more trustworthy:
@@ -158,7 +164,13 @@ export default async function MethodologyPage() {
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Emerging</span> —
-            real evidence exists but falls short of one of those bars.
+            examined against all three of those bars, but corroborated by fewer
+            than {PROVEN_MIN_MEASURERS} independent measurers.
+          </Rule>
+          <Rule>
+            <span className="font-medium text-[color:var(--text)]">Observed</span>{' '}
+            — real measured evidence exists, but not yet enough probes, days or
+            rate to have been examined against the Proven bar at all.
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Failing</span> —
@@ -166,10 +178,13 @@ export default async function MethodologyPage() {
             not recommend hiring it; continuing requires explicit risk acceptance.
           </Rule>
           <Rule>
-            <span className="font-medium text-[color:var(--text)]">Unproven</span> —
-            nothing verifiable exists. This is not a low score; it is the absence
-            of a measurement, and the two are never merged. Unproven agents
-            cannot be hired without explicitly accepting the risk.
+            <span className="font-medium text-[color:var(--text)]">
+              Not measured
+            </span>{' '}
+            — nothing verifiable exists. This is not a low score; it is the
+            absence of a measurement, and the two are never merged. It describes
+            Pokter&rsquo;s coverage rather than the agent. These agents cannot be
+            hired without explicitly accepting the risk.
           </Rule>
         </ul>
 

@@ -29,7 +29,13 @@ const FILTER_GROUPS: { label: string; hint: string; options: string[] }[] = [
   {
     label: 'Evidence',
     hint: 'What has been observed about the agent',
-    options: ['is:proven', 'is:emerging', 'is:unproven', 'is:failing'],
+    options: [
+      'is:proven',
+      'is:emerging',
+      'is:observed',
+      'is:unproven',
+      'is:failing',
+    ],
   },
   {
     label: 'Endpoint',

@@ -7,7 +7,27 @@ import type { Attestation } from './attestation';
  * a low-scoring agent, it is an *unproven* one. We never synthesise a number to
  * fill an empty card; unproven and failing agents take an explicit risk path.
  */
-export type Verdict = 'proven' | 'emerging' | 'failing' | 'unproven';
+/**
+ * What Pokter knows about an agent, as a lifecycle rather than a grade.
+ *
+ * `unproven` used to carry two different meanings: "nobody has checked this"
+ * and "this was checked and fell short". Those are opposite claims, and a
+ * newly registered agent wearing the same word as a thin one reads as an
+ * accusation about the agent when it is a statement about our own ignorance.
+ *
+ * `observed` splits them on a bar the product already enforces. The proven bar
+ * has two unrelated kinds of shortfall — how much Pokter has looked (probes,
+ * window, score) and whether anyone independent has looked at all (measurers).
+ * An agent below the first has barely been examined; one above it but short of
+ * the second has been examined properly and simply has no corroboration. The
+ * old vocabulary called both "emerging" and told a reader nothing.
+ */
+export type Verdict =
+  | 'proven'
+  | 'emerging'
+  | 'observed'
+  | 'failing'
+  | 'unproven';
 
 export interface ProofSummary {
   verdict: Verdict;
@@ -112,15 +132,24 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     usable.reduce((sum, a) => sum + (a.ratio as number) * evidenceWeight(a), 0) /
     totalWeight;
 
+  /*
+   * Enough looking to have an opinion at all: the volume, duration and quality
+   * bars, without the independence one. Clearing this is what separates an
+   * agent Pokter has examined from one it has merely touched.
+   */
+  const examined =
+    score >= PROVEN_MIN_SCORE &&
+    probes >= PROVEN_MIN_PROBES &&
+    (windowDays ?? 0) >= PROVEN_MIN_WINDOW_DAYS;
+
   const verdict: Verdict =
     score < FAILING_MAX_SCORE
       ? 'failing'
-      : score >= PROVEN_MIN_SCORE &&
-          probes >= PROVEN_MIN_PROBES &&
-          measurers.length >= PROVEN_MIN_MEASURERS &&
-          (windowDays ?? 0) >= PROVEN_MIN_WINDOW_DAYS
-        ? 'proven'
-        : 'emerging';
+      : examined
+        ? measurers.length >= PROVEN_MIN_MEASURERS
+          ? 'proven'
+          : 'emerging'
+        : 'observed';
 
   /*
    * FE-12. The probe count is the sum across every measurer, while the agent
@@ -212,6 +241,21 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
 export const VERDICT_LABEL: Record<Verdict, string> = {
   proven: 'Proven',
   emerging: 'Emerging',
+  observed: 'Observed',
   failing: 'Failing',
-  unproven: 'Unproven',
+  /*
+   * Named for what Pokter lacks rather than for what the agent failed to be.
+   * "Unproven" reads as a verdict on the agent; this state is a verdict on our
+   * own coverage, and an agent registered an hour ago has done nothing wrong.
+   */
+  unproven: 'Not measured',
+};
+
+/** One line on what each state means, for anywhere the badge needs explaining. */
+export const VERDICT_MEANING: Record<Verdict, string> = {
+  proven: 'Independent measurers agree, over enough probes and a long enough window.',
+  emerging: 'Measured well enough to judge, but nobody independent has corroborated it.',
+  observed: 'Measurement has started. Too few probes, or too short a window, to judge yet.',
+  failing: 'Measured, and failing its own measurers.',
+  unproven: 'Nothing has been measured. This says what Pokter lacks, not what the agent did.',
 };

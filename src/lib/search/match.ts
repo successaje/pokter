@@ -1,6 +1,11 @@
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
-import type { Verdict } from '@/lib/proof/engine';
+import {
+  PROVEN_MIN_PROBES,
+  PROVEN_MIN_SCORE,
+  PROVEN_MIN_WINDOW_DAYS,
+  type Verdict,
+} from '@/lib/proof/engine';
 import { categoryFromTag, type ParsedQuery, type Qualifier } from './query';
 
 /** A listing plus what Pokter has measured about it. */
@@ -48,6 +53,19 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
    * remains the only place the top tier is awarded, because it is the only
    * place independence is actually checked.
    */
+  /*
+   * The same split the proof engine makes, on the parts this level can see.
+   * Below the probe or window minimum, Pokter has started looking and has no
+   * business implying more than that.
+   */
+  if (
+    record.totalProbes < PROVEN_MIN_PROBES ||
+    record.observedDays < PROVEN_MIN_WINDOW_DAYS ||
+    (rate ?? 0) < PROVEN_MIN_SCORE
+  ) {
+    return 'observed';
+  }
+
   return 'emerging';
 }
 
