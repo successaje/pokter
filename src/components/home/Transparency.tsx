@@ -17,11 +17,11 @@ const OUTCOMES: {
 }[] = [
   {
     name: 'Altana sessions',
-    status: 'working',
+    status: 'partial',
     worked:
-      'A passkey wallet grants, registers and revokes a scoped session directly against the on-chain KeyStore.',
+      'Historical testnet transactions prove that a session can be registered, expire and be revoked in the on-chain KeyStore.',
     didnt:
-      'Injected browser wallets cannot sign Altana sessions yet, so Pokter treats them as identity-only and requires a passkey for authorization.',
+      'Target and selector rules cannot constrain recipients, assets, positions or amounts inside calldata, so Pokter creates no new delegated sessions.',
   },
   {
     name: 'ERC-8183 escrow',

@@ -1,8 +1,6 @@
-import { parseEther, type Address } from 'viem';
-
 import type { SessionPermissions } from './types';
 import {
-  CATEGORY_CONTRACTS,
+  CATEGORY_INTEGRATIONS,
   DENIED_CAPABILITIES,
   type KnownContract,
 } from './contracts';
@@ -21,11 +19,9 @@ export interface PermissionRequest {
 
 /** The same grant, rendered for the §31 review screen. */
 export interface PermissionSummary {
-  allowed: KnownContract[];
+  /** Integrations a future safe adapter would need; none are granted today. */
+  requiredIntegrations: KnownContract[];
   denied: string[];
-  spendCap: string;
-  period: SpendPeriod;
-  expiresAt: Date;
   /** True when the agent needs no write authority whatsoever. */
   readOnly: boolean;
   /** Why Pokter refuses to create a delegated session for this category. */
@@ -33,19 +29,16 @@ export interface PermissionSummary {
 }
 
 export function summarise(request: PermissionRequest): PermissionSummary {
-  const allowed = CATEGORY_CONTRACTS[request.category] ?? [];
+  const requiredIntegrations = CATEGORY_INTEGRATIONS[request.category] ?? [];
 
   return {
-    allowed,
+    requiredIntegrations,
     denied: DENIED_CAPABILITIES,
-    spendCap: `${request.spendCapBnb} BNB`,
-    period: request.period,
-    expiresAt: new Date(Date.now() + request.expiryDays * 86_400_000),
-    readOnly: allowed.length === 0,
+    readOnly: requiredIntegrations.length === 0,
     delegationBlockedReason:
-      allowed.length === 0
-        ? 'This agent is read-only, so it does not need authority over your wallet.'
-        : 'Delegated execution is paused until Pokter can enforce recipient and asset constraints inside every allowed call.',
+      requiredIntegrations.length === 0
+        ? 'This task is read-only, so Pokter creates no wallet authority for it.'
+        : 'Pokter creates no delegated session until recipient, asset, position and amount constraints are all enforced on-chain.',
   };
 }
 
@@ -61,37 +54,21 @@ export function summarise(request: PermissionRequest): PermissionSummary {
 export function toSessionPermissions(
   request: PermissionRequest,
 ): SessionPermissions {
-  const contracts = CATEGORY_CONTRACTS[request.category] ?? [];
-
+  // Keep the input in the API so every caller must still name the intended
+  // category and bounds; none of those values may weaken the global pause.
+  void request;
   /*
-   * A target + function selector is not enough for a financial permission.
-   * PancakeSwap's swap, mint and collect calls contain recipient parameters;
-   * allowing the selector without constraining those arguments would let a
-   * session route proceeds away from the user's account. Fail closed until a
-   * validator/adapter enforces those arguments on-chain.
+   * This is deliberately unconditional, including for read-only categories.
+   * A read-only task needs no session, and creating a key with an empty call
+   * list would add lifecycle and recovery risk without granting useful power.
+   *
+   * A target + selector is not enough for financial delegation. The next safe
+   * implementation must constrain recipient, assets, position IDs and amounts
+   * inside calldata through an audited adapter or account validator.
    */
-  if (contracts.length > 0) {
-    throw new Error(
-      'Delegated write sessions are disabled: recipient and asset constraints are not yet enforced on-chain.',
-    );
-  }
-
-  const calls = contracts.flatMap((contract) =>
-    contract.methods.map((signature) => ({
-      to: contract.address as Address,
-      signature,
-    })),
+  throw new Error(
+    'Delegated wallet sessions are disabled: recipient, asset, position and amount constraints are not yet enforced on-chain.',
   );
-
-  return {
-    calls,
-    spend: [
-      {
-        limit: parseEther(String(request.spendCapBnb)),
-        period: request.period,
-      },
-    ],
-  };
 }
 
 export function expiryTimestamp(request: PermissionRequest): number {
