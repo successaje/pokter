@@ -1,5 +1,12 @@
 import Image from 'next/image';
 
+import {
+  CHAIN_ID,
+  NETWORK_LABEL,
+  REGISTRY_CHAIN_ID,
+  REGISTRY_NETWORK_LABEL,
+} from '@/lib/network/presentation';
+
 /**
  * What the product is built on.
  *
@@ -57,6 +64,17 @@ export function Integrations() {
           Every integration below is wired to something real. Where one has
           limits, they are written up with the errors they produced rather than
           quietly dropped.
+        </p>
+        {/*
+          Both numbers are read from the network module rather than written
+          out. Escrow's chain is set by ALTANA_NETWORK, so a hardcoded 97
+          would quietly become false the day this runs on mainnet.
+        */}
+        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
+          Identity is read from the ERC-8004 registry on{' '}
+          {REGISTRY_NETWORK_LABEL} (chain {REGISTRY_CHAIN_ID}); escrow settles
+          on {NETWORK_LABEL} (chain {CHAIN_ID}). The registry is the real one —
+          the money is not yet.
         </p>
       </div>
 
