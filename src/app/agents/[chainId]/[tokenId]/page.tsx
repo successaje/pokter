@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -11,6 +12,7 @@ import {
   publishedEvidenceLine,
   summarisePublishedEvidence,
 } from '@/lib/proof/published';
+import { VERDICT_LABEL } from '@/lib/proof/engine';
 
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { EvidenceSection as Section } from '@/components/ui/EvidenceSection';
@@ -36,6 +38,61 @@ import { shortAddress } from '@/lib/ui/format';
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
 
+
+/**
+ * What a shared agent link looks like when it is unfurled.
+ *
+ * Every agent link previewed as the generic site card — same title, same
+ * image, same sentence — which made a share worth about as much as a bare
+ * URL. Shipping a share button while every link unfurled identically was
+ * half a feature.
+ *
+ * The description carries the evidence rather than the operator's pitch,
+ * because the pitch is the thing this product exists to check. A preview
+ * showing "Proven · 96% over 288 probes" and one showing "Not measured" are
+ * different claims, and the difference should survive being pasted into a
+ * chat window.
+ *
+ * Failures degrade to the site defaults rather than throwing: an unfurl is
+ * not worth a 500 on the page itself.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ chainId: string; tokenId: string }>;
+}): Promise<Metadata> {
+  const { chainId: rawChainId, tokenId } = await params;
+  const chainId = Number(rawChainId) as ChainId;
+  if (chainId !== 56 && chainId !== 97) return {};
+
+  const result = await loadDossier(chainId, tokenId);
+  if (result.state !== 'ok') return {};
+
+  const { agent, category, proof, record } = result.dossier;
+  const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
+
+  const measured =
+    record.totalProbes === 0
+      ? 'Not measured by Pokter yet'
+      : `${((record.totalAnswered / record.totalProbes) * 100).toFixed(1)}% of ${plural(record.totalProbes, 'probe')} answered`;
+
+  const description = [
+    `${VERDICT_LABEL[proof.verdict]} · ${measured}.`,
+    meta ? `${meta.label} agent on BNB Chain.` : 'Agent on BNB Chain.',
+    'Evidence you can check before you hire.',
+  ].join(' ');
+
+  const title = `${agent.name} — ${VERDICT_LABEL[proof.verdict]}`;
+  const url = `/agents/${chainId}/${tokenId}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: 'profile' },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
 
 /**
  * §20. The agent dossier.
