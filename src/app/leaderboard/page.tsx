@@ -26,6 +26,17 @@ function isTab(value: string): value is Category | 'overall' {
   return TABS.some((tab) => tab.id === value);
 }
 
+/**
+ * One mark per award, so four cards in a row are told apart by shape rather
+ * than by reading four near-identical headings.
+ */
+const AWARD_GLYPH: Record<string, string> = {
+  reliability: '◎',
+  evidence: '✦',
+  record: '◷',
+  responsive: '⚡',
+};
+
 export default async function LeaderboardPage({
   searchParams,
 }: {
@@ -140,33 +151,67 @@ export default async function LeaderboardPage({
         ))}
       </nav>
 
-      {/* §72. Best for — more useful than one generic order. */}
+      {/*
+        §72. Best for — more useful than one generic order.
+
+        These four answer the questions the overall ranking flattens: who
+        answers most, who has been checked by the most independent parties, who
+        has been watched longest, who replies fastest. They were four muted
+        cards of 10px grey, quieter than the table beneath them, so the page's
+        most specific answers were its least visible.
+
+        One accent for all four rather than a colour each: the product reserves
+        green, amber and red for what the evidence says, and spending them on
+        decoration here would make a card look like a verdict. The glyph
+        carries the difference instead.
+      */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {superlatives.map((award) => (
           <div
             key={award.id}
-            className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4"
+            className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-4 transition-[border-color,box-shadow] hover:border-[color:var(--brand)] hover:shadow-md"
           >
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                {award.label}
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-0.5 bg-[color:var(--brand)]"
+            />
+
+            <div className="flex items-start gap-2.5">
+              <span
+                aria-hidden
+                className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"
+              >
+                {AWARD_GLYPH[award.id] ?? '★'}
               </span>
-              <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
-                {award.basis}
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--brand-strong)]">
+                  {award.label}
+                </span>
+                <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                  {award.basis}
+                </span>
               </span>
             </div>
 
             {award.winner ? (
               <>
+                <div className="flex flex-col gap-0.5">
+                  <span className="tabular text-2xl font-semibold leading-none tracking-tight">
+                    {award.headline}
+                  </span>
+                  {award.qualifier && (
+                    <span className="text-[11px] text-[color:var(--text-muted)]">
+                      {award.qualifier}
+                    </span>
+                  )}
+                </div>
+
                 <Link
                   href={`/agents/${award.winner.agent.chain_id}/${award.winner.agent.token_id}`}
-                  className="tap text-[13px] font-medium leading-snug hover:underline"
+                  className="tap mt-auto border-t border-[color:var(--border)] pt-2.5 text-[13px] font-medium leading-snug hover:text-[color:var(--brand-strong)] hover:underline"
                 >
                   {award.winner.agent.name}
                 </Link>
-                <span className="tabular mt-auto text-[11px] text-[color:var(--positive)]">
-                  {award.value}
-                </span>
               </>
             ) : (
               <span className="mt-auto text-[11px] leading-relaxed text-[color:var(--text-faint)]">
