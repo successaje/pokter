@@ -116,9 +116,13 @@ export async function SimilarAgents({
         A scroller rather than a grid. Eight cards do not fit a row at any
         width this page uses, and a grid would either truncate the set to three
         or add a third of a page of height to a page that is already long.
-        Snap points keep it from stopping between cards.
+        `overscroll-x-contain` matters more than it looks: without it a sideways
+        component in a trackpad gesture scrolls past the end of the strip and
+        chains to the page, which reads as the whole page sliding away. Snap is
+        proximity rather than mandatory for the same reason — mandatory fights
+        a vertical scroll that drifts a few pixels horizontally.
       */}
-      <ul className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:thin] sm:-mx-8 sm:px-8">
+      <ul className="-mx-6 flex snap-x snap-proximity gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:thin] sm:-mx-8 sm:px-8">
         {peers.map((entry) => (
           <li
             key={`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`}

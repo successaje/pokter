@@ -5,6 +5,7 @@ import { DM_Mono, Manrope, Newsreader } from 'next/font/google';
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
 import { Footer } from '@/components/shell/Footer';
+import { SmoothHashScroll } from '@/components/shell/SmoothHashScroll';
 import { WalletProviders } from '@/lib/wallet/Providers';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
 
@@ -110,6 +111,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased">
+        <SmoothHashScroll />
         <PwaProvider>
           <WalletProviders>
             <Nav />

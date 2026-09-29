@@ -289,17 +289,17 @@ html {
   color-scheme: dark;
 
   /*
-   * In-page anchors glide rather than jump.
+   * Scroll behaviour is deliberately NOT smooth here.
    *
-   * The category chips on Discover link to #explore, so choosing one teleported
-   * the reader seven hundred pixels down the page with nothing connecting where
-   * they were to where they landed. The results did change — but a jump that
-   * large reads as the page breaking rather than as a filter being applied.
+   * `scroll-behavior: smooth` on the root made every route change land part way
+   * down the new page: the App Router scrolls to the top on navigation, the
+   * declaration turned that into an animation, and the incoming render
+   * interrupted it. Leaving a page scrolled to 1200 and arriving at the next
+   * one at 89 is a broken product, and it was caused by an in-page nicety.
    *
-   * The reduced-motion block below already forces scroll-behavior back to auto,
-   * so this costs nothing for anyone who has asked not to be moved.
+   * The glide the chips on Discover wanted now lives in `SmoothHashScroll`,
+   * which applies it to same-page anchors only and leaves the router alone.
    */
-  scroll-behavior: smooth;
 }
 
 :root[data-theme='dark'] {
@@ -1117,5 +1117,25 @@ h2 {
       animation: agent-deal linear both;
       animation-timeline: --agent-scene;
     }
+  }
+}
+
+/*
+ * A horizontal scroller must not scroll the page.
+ *
+ * Every sideways strip in this product — the similar-agent cards, the detail
+ * tabs, the filter chips, the comparison and ranking tables — could be pushed
+ * past its own end, at which point the gesture chained to the document. On a
+ * trackpad, where a vertical scroll almost always carries a few degrees of
+ * horizontal, that reads as the whole page sliding away under the content you
+ * were reading.
+ *
+ * Extending the utility rather than annotating a dozen call sites: there is no
+ * scroller in this app that wants the chaining, and the next one added would
+ * not have remembered to opt out.
+ */
+@layer utilities {
+  .overflow-x-auto {
+    overscroll-behavior-x: contain;
   }
 }
