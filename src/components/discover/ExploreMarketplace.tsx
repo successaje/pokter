@@ -1,8 +1,7 @@
 import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 
-import { AgentAvatar } from '@/components/agent/AgentAvatar';
-import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { MarketplaceListing } from '@/components/discover/MarketplaceListing';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { listSearchable } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
@@ -46,9 +45,14 @@ export function ExploreMarketplace({
           <h2 id="explore-title" className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
             Agents with evidence you can inspect.
           </h2>
+          {/*
+            The studio moved above this, so telling a reader to "open the
+            recommendation studio" now points backwards at something they have
+            already scrolled past.
+          */}
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            Start browsing now. Open the recommendation studio only when you
-            want Pokter to narrow the market around your capital and risk.
+            Every indexed agent, ranked on what has been observed rather than
+            what was declared. Filter by outcome, or read the whole set.
           </p>
         </div>
         <Link href="/agents" className="tap text-xs font-medium text-[color:var(--info)] sm:min-h-0">
@@ -74,61 +78,42 @@ export function ExploreMarketplace({
         ))}
       </nav>
 
-      <div id="explore" className="scroll-mt-24 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {ranked.slice(0, 8).map((entry) => {
-          const { agent } = entry.listing;
-          const category = CATEGORY_BY_ID.get(entry.listing.category);
-          const ratio = entry.record.totalProbes
-            ? Math.round((entry.record.totalAnswered / entry.record.totalProbes) * 100)
-            : null;
+      {/*
+        Mapped to plain rows before crossing to the client. The listing owns a
+        layout preference and nothing else, so it has no business receiving
+        whole dossiers to render two numbers from.
+      */}
+      <div id="explore" className="scroll-mt-24">
+        <MarketplaceListing
+          rows={ranked.map((entry) => {
+            const { agent } = entry.listing;
+            const ratio = entry.record.totalProbes
+              ? Math.round(
+                  (entry.record.totalAnswered / entry.record.totalProbes) * 100,
+                )
+              : null;
 
-          return (
-            <article
-              key={`${agent.chain_id}:${agent.token_id}`}
-              className="group flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:shadow-[0_12px_35px_rgba(0,0,0,0.08)]"
-            >
-              <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="flex flex-1 flex-col gap-4 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <AgentAvatar name={agent.name} src={agent.image_url} size="lg" />
-                  <EvidenceBadge verdict={verdictFor(entry)} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[color:var(--text-faint)]">
-                    {category?.label ?? 'Agent'}
-                  </p>
-                  <h3 title={agent.name} className="mt-1 line-clamp-2 text-sm font-semibold leading-snug [overflow-wrap:anywhere]">
-                    {agent.name}
-                  </h3>
-                  <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-                    {agent.description?.trim() || 'No description published.'}
-                  </p>
-                </div>
-                <dl className="mt-auto grid grid-cols-2 gap-2 border-t border-[color:var(--border)] pt-3">
-                  <div>
-                    <dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Observed</dt>
-                    <dd className="tabular mt-0.5 text-[11px] font-medium">
-                      {ratio === null ? 'Not measured' : `${ratio}% · ${entry.record.totalProbes} probes`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Receipts</dt>
-                    <dd className="tabular mt-0.5 text-[11px] font-medium">{entry.listing.attestationCount}</dd>
-                  </div>
-                </dl>
-              </Link>
-              <div className="flex items-center gap-2 border-t border-[color:var(--border)] px-4 py-3">
-                <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="tap flex flex-1 items-center text-[11px] font-medium text-[color:var(--text-secondary)] md:min-h-9">
-                  Review evidence
-                </Link>
-                {offersDirectHire(entry) && (
-                  <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary tap inline-flex items-center rounded-[var(--radius)] px-3 text-[11px] font-semibold md:min-h-9">
-                    Hire
-                  </Link>
-                )}
-              </div>
-            </article>
-          );
-        })}
+            return {
+              key: `${agent.chain_id}:${agent.token_id}`,
+              href: `/agents/${agent.chain_id}/${agent.token_id}`,
+              hireHref: offersDirectHire(entry)
+                ? `/hire/${agent.chain_id}/${agent.token_id}`
+                : null,
+              name: agent.name,
+              imageUrl: agent.image_url,
+              categoryLabel:
+                CATEGORY_BY_ID.get(entry.listing.category)?.label ?? 'Agent',
+              description:
+                agent.description?.trim() || 'No description published.',
+              verdict: verdictFor(entry),
+              observed:
+                ratio === null
+                  ? 'Not measured'
+                  : `${ratio}% · ${entry.record.totalProbes} probes`,
+              receipts: entry.listing.attestationCount,
+            };
+          })}
+        />
       </div>
 
       {ranked.length === 0 && (

@@ -24,12 +24,25 @@ export function AgentAvatar({
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'A';
+  /*
+   * A colour per agent, stable and actually distinguishable.
+   *
+   * The hue used to span 36–53 degrees — a seventeen-degree band of gold — so
+   * every generated avatar came out the same colour and the one thing this
+   * image exists to do, tell two unnamed agents apart, it could not do.
+   *
+   * The hue now runs the whole circle while lightness and chroma stay fixed.
+   * That is what oklch buys: unlike hsl, a fixed lightness there is a fixed
+   * *perceived* lightness, so a blue avatar is no darker than a yellow one and
+   * the near-black initials keep the same contrast against all of them rather
+   * than only against the light half of the wheel.
+   */
   const seed = [...name].reduce(
     (value, character) => (value * 31 + character.charCodeAt(0)) >>> 0,
     2166136261,
   );
-  const hue = 36 + (seed % 18);
-  const accentHue = 44 + ((seed >>> 8) % 16);
+  const hue = seed % 360;
+  const accentHue = (hue + 28) % 360;
 
   return (
     <div
@@ -58,7 +71,13 @@ export function AgentAvatar({
           role="img"
           className="relative flex size-full items-center justify-center overflow-hidden"
           style={{
-            background: `linear-gradient(145deg, hsl(${hue} 88% 58%), hsl(${accentHue} 92% 43%))`,
+            /*
+             * Colour and gradient set separately so a browser without oklch
+             * drops only the gradient and still shows a solid, readable tile
+             * rather than falling back to an empty frame.
+             */
+            backgroundColor: `hsl(${hue} 70% 68%)`,
+            backgroundImage: `linear-gradient(145deg, oklch(0.82 0.13 ${hue}), oklch(0.68 0.16 ${accentHue}))`,
           }}
         >
           <span

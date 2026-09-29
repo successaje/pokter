@@ -15,6 +15,7 @@ import {
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { EvidenceSection as Section } from '@/components/ui/EvidenceSection';
 import { ScorePanel } from '@/components/ui/Score';
+import { DetailTabs } from '@/components/agent/DetailTabs';
 import { TrustPanel } from '@/components/agent/TrustPanel';
 import { PerformancePanel } from '@/components/agent/PerformancePanel';
 import { TrackRecordPanel } from '@/components/TrackRecordPanel';
@@ -254,104 +255,109 @@ export default async function AgentPage({
             <TrustStrip dossier={dossier} />
           </header>
 
-          <nav
-            aria-label="Agent details"
-            className="sticky top-16 z-20 -mx-1 hidden gap-1 overflow-x-auto md:flex rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)]/95 p-1 shadow-sm backdrop-blur"
-          >
-            {[
-              ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
-              ['#trust', 'Trust'],
-              ['#performance', 'Performance'],
-              ['#live', 'Live proof'],
-              ['#receipts', 'Receipts'],
-              ['#permissions', 'Permissions'],
-            ].map(([href, label]) => (
-              <a
-                key={href}
-                href={href}
-                className="shrink-0 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-[11px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
-
           {agent.services?.a2a?.endpoint && (
             <div id="try" className="scroll-mt-28">
               <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
             </div>
           )}
 
-          <div id="trust" className="scroll-mt-28">
-            <TrustPanel dossier={dossier} explorerBase={explorerBase} />
-          </div>
+          {/*
+            Tabs rather than one long scroll.
+            
+            The evidence here is deep by design, and stacking all of it meant a
+            reader chasing one question — is it live, who vouches for it, what
+            would hiring allow — scrolled through the answers to the other
+            three to reach it. The depth is the product; making someone wade
+            through it was never part of the argument.
 
-          <div id="performance" className="scroll-mt-28">
-            <PerformancePanel record={record} />
-          </div>
-
-          <div className="grid gap-12 xl:grid-cols-2">
-            <div id="live" className="scroll-mt-28">
-              <Section
-                title="Watch it work"
-                summary={liveSummary}
-                caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
-              >
-                <LivePanel live={live} />
-              </Section>
-            </div>
-
-            <Section
-              title="Track record"
-              summary={probeSummary}
-              caption="What repeated sweeps have accumulated, rather than a single sample."
-            >
-              <TrackRecordPanel record={record} />
-            </Section>
-
-            <div id="receipts" className="scroll-mt-28">
-              <Section
-                title="Receipts"
-                summary={receiptsSummary}
-                caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
-              >
-                <EvidencePanel attestations={attestations} />
-              </Section>
-            </div>
-
-            <div id="permissions" className="scroll-mt-28">
-              <Section
-                title="Permissions and spending limits"
-                summary="What hiring would and would not allow."
-                caption="Stated plainly, including what the registry does not disclose."
-              >
-                <AuthorityPanel agent={agent} />
-              </Section>
-            </div>
-          </div>
-
-          <Section
-            title="How the measurers could be wrong"
-            summary={defectsSummary}
-            caption="Limitations disclosed by the measurers themselves, ours included."
-          >
-            {knownDefects.length === 0 ? (
-              <p className="text-xs text-[color:var(--text-faint)]">
-                No measurer has disclosed its limitations.
-              </p>
-            ) : (
-              <ul className="grid gap-2 sm:grid-cols-2">
-                {knownDefects.map((defect) => (
-                  <li
-                    key={defect}
-                    className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+            Grouped by the question each answers rather than by which component
+            renders it, which is why reliability holds three panels and
+            permissions holds one.
+          */}
+          <DetailTabs
+            tabs={[
+              {
+                id: 'evidence',
+                label: 'Evidence',
+                content: (
+                  <>
+                    <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+                    <Section
+                      title="Receipts"
+                      summary={receiptsSummary}
+                      caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
+                    >
+                      <EvidencePanel attestations={attestations} />
+                    </Section>
+                  </>
+                ),
+              },
+              {
+                id: 'reliability',
+                label: 'Reliability',
+                content: (
+                  <>
+                    <PerformancePanel record={record} />
+                    <Section
+                      title="Watch it work"
+                      summary={liveSummary}
+                      caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
+                    >
+                      <LivePanel live={live} />
+                    </Section>
+                    <Section
+                      title="Track record"
+                      summary={probeSummary}
+                      caption="What repeated sweeps have accumulated, rather than a single sample."
+                    >
+                      <TrackRecordPanel record={record} />
+                    </Section>
+                  </>
+                ),
+              },
+              {
+                id: 'permissions',
+                label: 'Permissions',
+                content: (
+                  <Section
+                    title="Permissions and spending limits"
+                    summary="What hiring would and would not allow."
+                    caption="Stated plainly, including what the registry does not disclose."
                   >
-                    {defect}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
+                    <AuthorityPanel agent={agent} />
+                  </Section>
+                ),
+              },
+              {
+                id: 'limitations',
+                label: 'Limitations',
+                content: (
+                  <Section
+                    title="How the measurers could be wrong"
+                    summary={defectsSummary}
+                    caption="Limitations disclosed by the measurers themselves, ours included."
+                  >
+                    {knownDefects.length === 0 ? (
+                      <p className="text-xs text-[color:var(--text-faint)]">
+                        No measurer has disclosed its limitations.
+                      </p>
+                    ) : (
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {knownDefects.map((defect) => (
+                          <li
+                            key={defect}
+                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+                          >
+                            {defect}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Section>
+                ),
+              },
+            ]}
+          />
         </div>
 
         <aside

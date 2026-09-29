@@ -14,17 +14,23 @@ export default function MyAgentsPage() {
     <div className="flex flex-col gap-8 pt-6">
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Your agents
+          My activity
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Activity for your passkey wallet. Local records stay on this device;
-          escrowed jobs can also be recovered directly from chain by job ID.
+          Track jobs, review deliverables and manage agent permissions. Records
+          are held on this device; an escrowed job hired elsewhere can be
+          recovered from chain by its job ID.
         </p>
       </header>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between gap-4 border-b border-[color:var(--border)] pb-3">
-          <h2 className="text-base font-medium tracking-tight">Private activity</h2>
+        {/*
+          The old "Private activity" heading and its rule sat directly above
+          the tabs, giving the page two competing dividers and naming a section
+          that is now the whole page. The scope it was stating survives as one
+          line.
+        */}
+        <div className="flex items-baseline justify-between gap-4">
           <p className="text-[11px] text-[color:var(--text-faint)]">
             Device-local · passkey-owned
           </p>

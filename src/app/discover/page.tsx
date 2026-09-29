@@ -237,18 +237,20 @@ export default async function DiscoverPage({
           evidence-ranked shortlist around your goal, capital and risk.
         </p>
         </div>
-        {!shouldRun && (
-          <Link
-            href="#recommend"
-            className="action-primary tap inline-flex items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
-          >
-            Find my best match
-          </Link>
-        )}
+        {/*
+          The header used to carry a button jumping to a collapsed panel at
+          the foot of the page. The panel now sits immediately below this, so
+          a link to it would be pointing at something already in view.
+        */}
       </header>
 
       {!shouldRun && stats && activity && (
         <>
+          {/*
+            Coverage first. It is three numbers on one line and it frames
+            everything under it — how much of the registry this page is
+            actually drawing from — so it costs a row and earns it.
+          */}
           <MarketplacePulse
             stats={stats}
             listed={browseAgents.length}
@@ -256,27 +258,60 @@ export default async function DiscoverPage({
             attestations={attestations}
             activity={activity}
           />
-          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 
+          {/*
+            The guided path, as a bar rather than a billboard.
+
+            It began as a collapsed strip at the foot of the page, below the
+            market it exists to narrow. Moving it up was right; giving it a
+            hero card was not — it pushed the market itself below the fold to
+            advertise a form. One line states the offer, and the form is a
+            click away for anyone who wants it.
+          */}
           <section id="recommend" className="scroll-mt-24">
-            <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
-              <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
-                  <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
+            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)]">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)]"
+                  aria-hidden
+                >
+                  <svg viewBox="0 0 24 24" className="size-3.5 fill-none stroke-current" strokeWidth="2">
+                    <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
+                  </svg>
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-sm font-semibold">Find my best match</span>
-                  <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">Build a shortlist from your goals, capital, risk tolerance and time horizon.</span>
+
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                  <span className="text-[13px] font-semibold">
+                    Find my best match
+                  </span>
+                  <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
+                    Rank the market around your outcome, capital and risk.
+                  </span>
                 </span>
-                <span aria-hidden className="text-lg text-[color:var(--text-faint)] transition-transform group-open:rotate-180">⌄</span>
+
+                {/*
+                  Decorative, not the hit target — the whole summary row is
+                  clickable and clears the touch floor on its own. Sized for
+                  legibility rather than for tapping.
+                */}
+                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[color:var(--brand)] px-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">
+                  Start
+                  <span aria-hidden className="transition-transform group-open:rotate-180">
+                    ⌄
+                  </span>
+                </span>
               </summary>
-              <div className="border-t border-[color:var(--border)] p-2 sm:p-3">
+
+              <div className="border-t border-[color:var(--brand)]/30 bg-[color:var(--surface)] p-2 sm:p-3">
                 <Suspense fallback={<div className="h-72" />}>
                   <BriefForm />
                 </Suspense>
               </div>
             </details>
           </section>
+
+          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
+
         </>
       )}
 

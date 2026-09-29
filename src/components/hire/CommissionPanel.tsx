@@ -120,6 +120,33 @@ const RECEIPT_HEADLINE: Record<
 };
 
 /**
+ * One mark per outcome, so the three cards can be told apart before they are
+ * read. They are distinct actions — assess, decide, watch — and a row of three
+ * identical boxes makes the reader parse prose to find that out.
+ */
+const TEMPLATE_ICON: Record<string, React.ReactNode> = {
+  analyse: (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <circle cx="11" cy="11" r="6" />
+      <path d="m20 20-4.5-4.5M9 11h4M11 9v4" />
+    </svg>
+  ),
+  recommend: (
+    // A lamp rather than a signpost: two arms and a post collapse into a
+    // squiggle at sixteen pixels, which is the only size this is ever drawn.
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z" />
+    </svg>
+  ),
+  monitor: (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  ),
+};
+
+/**
  * A read-only client for quoting the swap.
  *
  * Built per attempt rather than held: it is used once, immediately before
@@ -435,18 +462,72 @@ export function CommissionPanel({
       {state !== 'hired' && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
-            <ol aria-label="Commission progress" className="grid grid-cols-2 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+            {/*
+              A track rather than two boxes.
+              
+              Split in half, the two cells read as tabs — something to choose
+              between — when they are a sequence you move along. Joining them
+              says which way the flow runs and how far along it you are, and
+              the finished step carries a tick because "done" is more useful
+              to see than the number one again.
+            */}
+            <ol
+              aria-label="Commission progress"
+              className="flex items-center gap-3 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3.5 sm:px-6"
+            >
               {[
-                { id: 'configure', label: 'Configure', number: 1 },
-                { id: 'review', label: 'Review & fund', number: 2 },
-              ].map((item) => {
+                { id: 'configure', label: 'Describe the work', number: 1 },
+                { id: 'review', label: 'Review and fund', number: 2 },
+              ].map((item, index) => {
                 const active = flowStep === item.id;
+                const done = index === 0 && flowStep === 'review';
                 return (
-                  <li key={item.id} className={cn('flex items-center gap-2 px-4 py-3 text-[11px]', active ? 'text-[color:var(--text)]' : 'text-[color:var(--text-faint)]')}>
-                    <span className={cn('flex size-5 items-center justify-center rounded-full border text-[9px]', active ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]' : 'border-[color:var(--border)]')}>
-                      {item.number}
+                  <li
+                    key={item.id}
+                    aria-current={active ? 'step' : undefined}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 last:flex-none"
+                  >
+                    <span
+                      className={cn(
+                        'flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors',
+                        done
+                          ? 'border-[color:var(--positive)] bg-[color:var(--positive)] text-[color:var(--bg)]'
+                          : active
+                            ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                            : 'border-[color:var(--border-strong)] text-[color:var(--text-faint)]',
+                      )}
+                    >
+                      {done ? (
+                        <svg viewBox="0 0 24 24" aria-hidden className="size-3 fill-none stroke-current" strokeWidth="3">
+                          <path d="m5 13 4 4L19 7" />
+                        </svg>
+                      ) : (
+                        item.number
+                      )}
                     </span>
-                    <span className="font-medium">{item.label}</span>
+
+                    <span
+                      className={cn(
+                        'truncate text-[12px] font-medium',
+                        active || done
+                          ? 'text-[color:var(--text)]'
+                          : 'text-[color:var(--text-faint)]',
+                      )}
+                    >
+                      {item.label}
+                    </span>
+
+                    {index === 0 && (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'hidden h-px min-w-6 flex-1 sm:block',
+                          done
+                            ? 'bg-[color:var(--positive)]/50'
+                            : 'bg-[color:var(--border)]',
+                        )}
+                      />
+                    )}
                   </li>
                 );
               })}
@@ -455,39 +536,107 @@ export function CommissionPanel({
             {flowStep === 'configure' ? (
               <div className="flex flex-col gap-6 p-4 sm:p-6">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight">What should the agent deliver?</h2>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <h2 className="font-[family-name:var(--font-serif)] text-xl sm:text-2xl">What should the agent deliver?</h2>
+                  <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     Start with a useful brief for this kind of agent, then make it yours. Your final task and budget are written into the escrow job.
                   </p>
                 </div>
 
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-xs font-medium">Start from an outcome</legend>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {taskTemplates.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        aria-pressed={selectedTemplate === template.id}
-                        onClick={() => {
-                          setSelectedTemplate(template.id);
-                          setTask(template.task);
-                        }}
-                        className={cn(
-                          'min-h-24 rounded-[var(--radius)] border p-3 text-left transition-colors',
-                          selectedTemplate === template.id
-                            ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]'
-                            : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:border-[color:var(--border-strong)]',
-                        )}
-                      >
-                        <span className="block text-[11px] font-semibold">
-                          {template.label}
-                        </span>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-[color:var(--text-muted)]">
-                          {template.description}
-                        </span>
-                      </button>
-                    ))}
+                  <p className="mb-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                    Each one writes a brief below that you can edit. None of
+                    them execute anything.
+                  </p>
+
+                  {/*
+                    A radio group, not three toggles.
+                    
+                    These were buttons carrying aria-pressed, which announces
+                    three independent switches when exactly one can be chosen.
+                    Radio semantics say what is true, and bring the arrow-key
+                    behaviour a one-of-three choice is expected to have.
+                  */}
+                  <div
+                    role="radiogroup"
+                    aria-label="Start from an outcome"
+                    onKeyDown={(event) => {
+                      const delta =
+                        event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                          ? 1
+                          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                            ? -1
+                            : 0;
+                      if (delta === 0) return;
+                      event.preventDefault();
+                      const index = taskTemplates.findIndex(
+                        (t) => t.id === selectedTemplate,
+                      );
+                      const next =
+                        taskTemplates[
+                          (index + delta + taskTemplates.length) %
+                            taskTemplates.length
+                        ];
+                      setSelectedTemplate(next.id);
+                      setTask(next.task);
+                    }}
+                    className="grid gap-2 sm:grid-cols-3"
+                  >
+                    {taskTemplates.map((template) => {
+                      const chosen = selectedTemplate === template.id;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={chosen}
+                          tabIndex={chosen ? 0 : -1}
+                          onClick={() => {
+                            setSelectedTemplate(template.id);
+                            setTask(template.task);
+                          }}
+                          className={cn(
+                            'group relative flex flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all',
+                            chosen
+                              ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] shadow-[0_0_0_1px_var(--brand)]'
+                              : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
+                          )}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span
+                              className={cn(
+                                'flex size-7 items-center justify-center rounded-full transition-colors',
+                                chosen
+                                  ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                                  : 'bg-[color:var(--surface)] text-[color:var(--text-muted)]',
+                              )}
+                            >
+                              {TEMPLATE_ICON[template.id]}
+                            </span>
+
+                            {/* Reserved either way, so choosing does not reflow the row. */}
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'text-[color:var(--brand)] transition-opacity',
+                                chosen ? 'opacity-100' : 'opacity-0',
+                              )}
+                            >
+                              <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="2.6">
+                                <path d="m5 13 4 4L19 7" />
+                              </svg>
+                            </span>
+                          </span>
+
+                          <span className="block text-[13px] font-semibold leading-tight">
+                            {template.label}
+                          </span>
+                          <span className="block text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                            {template.description}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </fieldset>
 
@@ -533,10 +682,33 @@ export function CommissionPanel({
                   {PAYMENT_VALUE_NOTE && <p className="text-[10px] text-[color:var(--text-faint)]">{PAYMENT_VALUE_NOTE}</p>}
                 </div>
 
-                <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+                {/*
+                  `group` so the chevron below can follow the open state.
+
+                  The row ended in the word "change" set in the same muted grey
+                  as the provider name beside it, which read as a label rather
+                  than something to press. A mark that turns when the row opens
+                  says it is a control and which way it goes.
+                */}
+                <details className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
-                    <span>Advanced · delivery route</span>
-                    <span className="text-[color:var(--text-faint)]">{provider?.label ?? 'Choose provider'} · change</span>
+                    <span className="shrink-0">Advanced · delivery route</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-[color:var(--text-faint)]">
+                        {provider?.label ?? 'Choose provider'}
+                      </span>
+                      <span className="shrink-0 text-[color:var(--text-secondary)] underline decoration-dotted underline-offset-2">
+                        Change
+                      </span>
+                      <span
+                        aria-hidden
+                        className="shrink-0 text-[color:var(--text-faint)] transition-transform group-open:rotate-180"
+                      >
+                        <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="2">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
+                    </span>
                   </summary>
                   <div className="flex flex-col gap-2 border-t border-[color:var(--border)] p-3">
                     <p className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
