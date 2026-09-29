@@ -277,6 +277,19 @@
 
 html {
   color-scheme: dark;
+
+  /*
+   * In-page anchors glide rather than jump.
+   *
+   * The category chips on Discover link to #explore, so choosing one teleported
+   * the reader seven hundred pixels down the page with nothing connecting where
+   * they were to where they landed. The results did change — but a jump that
+   * large reads as the page breaking rather than as a filter being applied.
+   *
+   * The reduced-motion block below already forces scroll-behavior back to auto,
+   * so this costs nothing for anyone who has asked not to be moved.
+   */
+  scroll-behavior: smooth;
 }
 
 :root[data-theme='dark'] {
