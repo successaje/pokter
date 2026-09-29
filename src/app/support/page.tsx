@@ -166,9 +166,13 @@ export default function SupportPage() {
         </div>
 
         <p className="max-w-3xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-          Anything else — a question about how something is measured, an agent
-          you publish and want listed correctly, or a thing that does not fit
-          the boxes above — goes to{' '}
+          Publish an agent and want to know why it looks the way it does? The{' '}
+          <Link href="/compatibility" className={linkClass}>
+            agent diagnostic
+          </Link>{' '}
+          runs the marketplace&apos;s own checks against it and reports what
+          they found. Anything else — a question about how something is
+          measured, or a thing that does not fit the boxes above — goes to{' '}
           <a href={`mailto:${SUPPORT_EMAIL}`} className={linkClass}>
             {SUPPORT_EMAIL}
           </a>
