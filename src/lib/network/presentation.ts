@@ -30,6 +30,13 @@ export const NETWORK_LABEL = IS_TESTNET ? 'BNB Testnet' : 'BNB Chain';
 export const REGISTRY_NETWORK_LABEL = 'BNB Chain';
 
 /**
+ * Not derived from `IS_TESTNET`: the registry Pokter reads is the mainnet one
+ * whatever network escrow settles on, which is the whole reason the two are
+ * named separately here.
+ */
+export const REGISTRY_CHAIN_ID = 56;
+
+/**
  * What the payment token is worth.
  *
  * `NATIVE_SYMBOL` already tells the truth by becoming tBNB on testnet, but

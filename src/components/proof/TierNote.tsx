@@ -48,7 +48,7 @@ export function TierNote({
           that.
         </>
       ) : (
-        <>Nothing has yet been measured closely enough to rank above Unproven.</>
+        <>Nothing has yet been measured closely enough to reach that tier.</>
       )}
     </p>
   );

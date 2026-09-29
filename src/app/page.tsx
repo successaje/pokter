@@ -7,7 +7,6 @@ import {
 } from '@/lib/marketplace';
 import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
-import { CategoryBlocks } from '@/components/home/CategoryBlocks';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Integrations } from '@/components/brand/Integrations';
@@ -130,11 +129,6 @@ export default async function HomePage() {
         <EcosystemPanel stats={stats} />
       </Reveal>
 
-      {/* Four outcome scenes, each backed by the live category listings. */}
-      <Reveal>
-        <ObjectiveSelector sections={sections} />
-      </Reveal>
-
       {/* THE PROBLEM — a real agent whose pitch outruns its evidence. */}
       <Reveal>
         <ClaimVsEvidence exhibit={exhibit} />
@@ -145,13 +139,14 @@ export default async function HomePage() {
         <LiveProof probes={probes} />
       </Reveal>
 
+      {/* Four outcome scenes, each backed by the live category listings. */}
+      <Reveal>
+        <ObjectiveSelector sections={sections} />
+      </Reveal>
+
       {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}
       <Reveal>
         <HowItWorks />
-      </Reveal>
-
-      <Reveal>
-        <CategoryBlocks sections={sections} />
       </Reveal>
 
       {/* THE STACK. */}

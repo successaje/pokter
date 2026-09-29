@@ -31,5 +31,23 @@ export function walletActionError(error: unknown, action: string): string {
     return `${action} is connected to the wrong network. Switch to the hiring network and try again.`;
   }
 
+  /*
+   * A thrown name is not an explanation.
+   *
+   * `ERC8183Error`, a bare selector or any single token with no prose in it
+   * tells the reader to go and debug the SDK. Whatever the cause, the useful
+   * thing to say is the same: nothing moved, and here is what to check. The
+   * raw value still reaches the console for anyone who wants it.
+   */
+  if (!/\s/.test(message) || /^[\w.]*(?:error|exception)$/i.test(message)) {
+    /*
+     * No claim here about what did or did not move. This function cannot see
+     * how far the caller got, and a reassuring "nothing was transferred" would
+     * be false for a failure that follows a completed swap. Callers that do
+     * know say so themselves.
+     */
+    return `${action} did not complete, and the wallet gave no reason we can translate. Check the selected network and wallet balance, then try again.`;
+  }
+
   return message.length > 500 ? `${message.slice(0, 497)}…` : message;
 }

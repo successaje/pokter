@@ -31,7 +31,8 @@ export const FILTER_GROUPS: FilterGroup[] = [
     options: [
       { query: 'is:proven', label: 'Proven' },
       { query: 'is:emerging', label: 'Emerging' },
-      { query: 'is:unproven', label: 'Unproven' },
+      { query: 'is:observed', label: 'Observed' },
+      { query: 'is:unproven', label: 'Not measured' },
       { query: 'is:failing', label: 'Failing' },
     ],
   },

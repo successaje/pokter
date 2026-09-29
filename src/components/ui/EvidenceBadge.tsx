@@ -2,8 +2,12 @@ import { cn } from '@/lib/ui/cn';
 import type { Verdict } from '@/lib/proof/engine';
 
 /**
- * §24. The four evidence states, rendered identically everywhere they appear so
- * the vocabulary stays stable across the product.
+ * §24. The evidence states, rendered identically everywhere they appear so the
+ * vocabulary stays stable across the product.
+ *
+ * Only `failing` is a judgement on the agent. `Not measured` and `Observed`
+ * describe how far Pokter has got, which is why neither is coloured as a
+ * warning — an agent nobody has checked has not done anything wrong.
  */
 const STATES: Record<Verdict, { label: string; className: string }> = {
   proven: {
@@ -21,8 +25,13 @@ const STATES: Record<Verdict, { label: string; className: string }> = {
     className:
       'border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] text-[color:var(--negative)]',
   },
+  observed: {
+    label: 'Observed',
+    className:
+      'border-[color:var(--info)]/35 bg-[color:var(--info-dim)] text-[color:var(--info)]',
+  },
   unproven: {
-    label: 'Unproven',
+    label: 'Not measured',
     className:
       'border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] text-[color:var(--text-muted)]',
   },

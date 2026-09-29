@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
-import { shortAddress, shortHash } from '@/lib/ui/format';
+import { formatElapsed, shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { supportMailto } from '@/lib/support/contact';
 import { JobStatusTrack } from './JobStatus';
@@ -92,6 +92,33 @@ export function JobCard({
    */
   const [openedAt] = useState(() => Date.now());
   const windowClosed = Date.parse(job.expiredAt) <= openedAt;
+
+  /*
+   * A funded job that has gone quiet.
+   *
+   * Deliberately not called "the agent stopped responding": this card has no
+   * liveness signal. It knows the job was funded and that nothing has been
+   * submitted, which is a fact about the job, not a diagnosis of the seller —
+   * a working agent part-way through a long task looks identical from here.
+   *
+   * The threshold is a third of the job's own window rather than a fixed
+   * number of minutes, because the window is what the buyer agreed to wait.
+   *
+   * Known gap: a job recovered from chain stamps `hiredAt` with the import
+   * time, so this stays quiet for one that has in fact been funded for days.
+   * Under-reporting a wait is the safe direction — it never claims a delivery
+   * is late when it is not — but it is the wrong answer, and fixing it needs
+   * the funding time to come from the chain rather than from the import.
+   */
+  const fundedAt = Date.parse(job.hiredAt);
+  const expiresAt = Date.parse(job.expiredAt);
+  const agreedWindow = expiresAt - fundedAt;
+  const waitedFor = openedAt - fundedAt;
+  const quiet =
+    job.status === 'FUNDED' &&
+    agreedWindow > 0 &&
+    waitedFor > agreedWindow / 3 &&
+    !windowClosed;
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
 
@@ -231,6 +258,25 @@ export function JobCard({
         card already, and offering help instead would be a distraction from
         it.
       */}
+      {quiet && (
+        <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3">
+          <p className="text-[11px] font-medium text-[color:var(--caution)]">
+            Nothing delivered yet
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            {job.agentName} was funded {formatElapsed(waitedFor)} ago and has
+            not submitted work. Your {budget} $U has not moved: the escrow
+            releases only against a submitted deliverable you approve, and if
+            nothing is submitted by {job.expiredAt.slice(0, 16).replace('T', ' ')}{' '}
+            UTC the budget is yours to reclaim.
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            Reclaimable in {formatElapsed(expiresAt - openedAt)}. Refresh status
+            re-reads the chain rather than trusting this card.
+          </p>
+        </div>
+      )}
+
       {(job.status === 'FUNDED' || job.status === 'EXPIRED') && (
         <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
           {job.status === 'EXPIRED'

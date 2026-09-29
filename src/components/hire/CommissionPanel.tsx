@@ -197,6 +197,8 @@ export function CommissionPanel({
   );
   const [job, setJob] = useState<HiredJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** $U bought before a failure and still in the wallet, as a display amount. */
+  const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -296,6 +298,9 @@ export function CommissionPanel({
     setStage('hiring');
     setSwapQuote(null);
     setError(null);
+    setHeldAfterFailure(null);
+    /** $U bought on the way here, so a later failure can say it is still held. */
+    let acquired = 0n;
     try {
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
       if (!provider?.reachable) {
@@ -325,8 +330,16 @@ export function CommissionPanel({
         tokens: [paymentToken],
       });
       if (balances.native < MIN_TRANSACTION_GAS) {
+        /*
+         * Both numbers, not just the requirement. "Needs at least 0.002" left
+         * the reader to go and look up what they hold before they could tell
+         * how short they were, and the answer was already in hand here.
+         */
         throw new Error(
-          `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} before it can fund escrow.`,
+          `You need ${NATIVE_SYMBOL} for this action. This wallet holds ` +
+            `${formatEther(balances.native)} ${NATIVE_SYMBOL} and funding ` +
+            `escrow needs at least ${formatEther(MIN_TRANSACTION_GAS)} ` +
+            `${NATIVE_SYMBOL} for the network fee.`,
         );
       }
       const paymentBalance = balances.tokens?.[0];
@@ -380,6 +393,8 @@ export function CommissionPanel({
           calls: buildSwapCalls(quote, paymentToken, wallet.address),
           chainId: WALLET_NETWORK.chainId,
         });
+        // The swap settled. From here a failure leaves the user holding $U.
+        acquired = shortfall;
         setStage('hiring');
       }
 
@@ -419,7 +434,20 @@ export function CommissionPanel({
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
+      /*
+       * POK-018 above argues the sequential swap is acceptable because a
+       * failure after it leaves the user one retry further along rather than
+       * stranded, and says "the error below says so". It did not: every
+       * failure took the same generic path, so the one piece of information
+       * that made the trade-off defensible was the piece we withheld.
+       */
       setError(walletActionError(caught, 'Commissioning'));
+      /*
+       * Kept out of `error` deliberately. The faucet links below are chosen by
+       * matching the error text, so folding a sentence containing "$U" into it
+       * would offer a $U faucet to someone who just bought $U.
+       */
+      setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
     }
   };
@@ -831,6 +859,14 @@ export function CommissionPanel({
               <div className="border-t border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-4">
                 <p className="text-[11px] font-medium text-[color:var(--negative)]">The job was not created</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">{error}</p>
+                {heldAfterFailure && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                    The {heldAfterFailure} $U was acquired before this failed
+                    and is still in your wallet. Nothing was escrowed.
+                    Commissioning again spends it rather than swapping a second
+                    time.
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-3">
                   {FAUCETS && /tBNB/i.test(error) && <a href={FAUCETS.native} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open BNB testnet faucet ↗</a>}
                   {FAUCETS && /\$U/i.test(error) && <a href={FAUCETS.paymentToken} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open testnet $U faucet ↗</a>}
