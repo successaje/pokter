@@ -1072,10 +1072,15 @@ h2 {
 /*
  * The outcome compositions deal themselves in as they are scrolled to.
  *
- * Driven by a view timeline rather than a page-load delay, for the same reason
- * `.reveal` is: the four outcome blocks span nearly three phone screens, so a
- * load-time animation finished long before three of them were ever on screen,
- * and refreshing halfway down the page showed nothing move at all.
+ * The timeline is the composition, not each card. A card is about 100px tall,
+ * so its own `entry` phase spans 100px of scrolling — the first version ran
+ * over `entry 5%` to `entry 60%` and therefore finished after roughly 60px,
+ * while the card was still sitting on the bottom edge of the viewport. It was
+ * working and invisible, which is the worst of both.
+ *
+ * Naming the timeline on the container and running over `cover` gives a range
+ * of a viewport plus the container's height, so the deal plays out over a few
+ * hundred pixels of scroll with the cards properly on screen.
  *
  * Animating `translate` rather than `transform` on purpose. Each card carries a
  * Tailwind rotation utility, and Tailwind v4 emits that as a standalone
@@ -1084,8 +1089,7 @@ h2 {
  * itself. Animating `transform` here would fight all three.
  *
  * The stagger is a per-card `animation-range` offset, not `animation-delay`:
- * delays do not apply to a progress-based timeline, so each card instead
- * finishes its entrance at a slightly later point in the scroll.
+ * delays do not apply to a progress-based timeline.
  *
  * Guarded by @supports so a browser without scroll timelines renders the cards
  * plainly rather than stranding them at opacity 0 — the failure mode of every
@@ -1094,7 +1098,7 @@ h2 {
 @keyframes agent-deal {
   from {
     opacity: 0;
-    translate: 0 26px;
+    translate: 0 34px;
   }
   to {
     opacity: 1;
@@ -1104,10 +1108,14 @@ h2 {
 
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
+    .agent-scene {
+      view-timeline-name: --agent-scene;
+      view-timeline-axis: block;
+    }
+
     .agent-deal {
       animation: agent-deal linear both;
-      animation-timeline: view();
-      animation-range: entry 5% entry 60%;
+      animation-timeline: --agent-scene;
     }
   }
 }
