@@ -271,56 +271,49 @@ export default async function DiscoverPage({
             advertise a form. One line states the offer, and the form is a
             click away for anyone who wants it.
           */}
-          <section id="recommend" className="scroll-mt-24">
-            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)]">
-              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                <span
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)]"
-                  aria-hidden
-                >
-                  <svg viewBox="0 0 24 24" className="size-3.5 fill-none stroke-current" strokeWidth="2">
-                    <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
-                  </svg>
+          {/*
+            One way in, not two.
+            
+            "Find my best match" and the brief answer the same question — rank
+            this market around what I want — and stacking them asked a visitor
+            to choose between two openings to the same thing before they had
+            told us anything. The brief is the simpler opening, so it is the
+            one on the page; the structured form it replaces is still reachable
+            for someone who wants to set capital and risk by hand.
+          */}
+          <div className="flex flex-col gap-2">
+            <JobBrief initial={jobBrief} />
+            {/*
+              Closed, and one line when closed. The structured form is the right
+              tool for someone who knows their capital and risk and wants to say
+              so, and the wrong first thing to show someone who has not told us
+              anything yet. A details element rather than state: it works before
+              hydration and needs no client component to hold a boolean.
+            */}
+            <details className="group">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
+                <span>
+                  Nothing is hired from here — this only decides what you are
+                  shown.
                 </span>
-
-                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-                  <span className="text-[13px] font-semibold">
-                    Find my best match
+                <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
+                  <span className="group-open:hidden">
+                    Set capital and risk yourself
                   </span>
-                  <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
-                    Rank the market around your outcome, capital and risk.
-                  </span>
-                </span>
-
-                {/*
-                  Decorative, not the hit target — the whole summary row is
-                  clickable and clears the touch floor on its own. Sized for
-                  legibility rather than for tapping.
-                */}
-                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[color:var(--brand)] px-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">
-                  Start
-                  <span aria-hidden className="transition-transform group-open:rotate-180">
-                    ⌄
-                  </span>
+                  <span className="hidden group-open:inline">Hide</span>
                 </span>
               </summary>
 
-              <div className="border-t border-[color:var(--brand)]/30 bg-[color:var(--surface)] p-2 sm:p-3">
+              <div className="mt-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2 sm:p-3">
                 <Suspense fallback={<div className="h-72" />}>
                   <BriefForm />
                 </Suspense>
               </div>
             </details>
-          </section>
-
-          {/*
-            The brief sits above the browse grid because it is the faster route
-            for someone who knows the job but not the vocabulary, and below the
-            pulse because the numbers are what make the answers worth reading.
-          */}
-          <JobBrief initial={jobBrief} />
+          </div>
 
           {jobBrief && <BriefResults brief={jobBrief} />}
+
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 

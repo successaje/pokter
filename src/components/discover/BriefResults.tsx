@@ -48,65 +48,50 @@ export async function BriefResults({ brief }: { brief: string }) {
       aria-labelledby="brief-results-title"
       className="flex scroll-mt-24 flex-col gap-5"
     >
-      <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-          Your brief
-        </p>
-        <p className="max-w-3xl text-[15px] leading-relaxed text-[color:var(--text)]">
-          &ldquo;{brief}&rdquo;
-        </p>
+      {/*
+        The reading, in one line.
+        
+        It had a quoted brief, a heading, a badge, a sentence, a term list and
+        a caveat stacked in a bordered box — more apparatus explaining the
+        answer than answer. What a reader needs is whether it understood them,
+        which is one line, and the terms, which are the proof of that line.
+      */}
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] text-[color:var(--text-muted)]">
+        <span className="text-[color:var(--text-secondary)]">
+          Read as{' '}
+          <span className="font-semibold text-[color:var(--text)]">
+            {meta?.label ?? 'no category Pokter measures'}
+          </span>
+        </span>
+        {reading.matched.map((term) => (
+          <span
+            key={term}
+            className="rounded-full bg-[color:var(--brand-highlight-soft)] px-2 py-px text-[11px] font-medium text-[color:var(--brand-strong)]"
+          >
+            {term}
+          </span>
+        ))}
+        <span
+          title={
+            reading.by === 'model'
+              ? 'A language model read this brief.'
+              : 'Matched on terms, not by a model.'
+          }
+          className="rounded-full border border-[color:var(--border)] px-2 py-px text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]"
+        >
+          {reading.by === 'model' ? 'Model' : 'Keywords'}
+        </span>
+        <Link
+          href="/discover"
+          className="ml-auto text-[color:var(--text-faint)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
+        >
+          Clear
+        </Link>
+      </p>
 
-        <div className="flex flex-col gap-2 border-t border-[color:var(--border)] pt-3">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
-            <span className="font-semibold text-[color:var(--brand-strong)]">
-              What Pokter read
-            </span>
-            {/*
-              Named so a keyword match can never be mistaken for something
-              cleverer. When a model does this work the badge changes, and the
-              difference stays visible rather than being absorbed silently.
-            */}
-            <span className="rounded-full border border-[color:var(--border-strong)] px-2 py-px text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">
-              {reading.by === 'model' ? 'Language model' : 'Keyword match'}
-            </span>
-          </p>
-          <p className="text-[13px] leading-relaxed text-[color:var(--text-secondary)]">
-            {reading.because}
-          </p>
-          {reading.matched.length > 0 && (
-            <p className="flex flex-wrap gap-1.5">
-              {reading.matched.map((term) => (
-                <span
-                  key={term}
-                  className="rounded-[var(--radius)] bg-[color:var(--brand-highlight-soft)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--brand-strong)]"
-                >
-                  {term}
-                </span>
-              ))}
-            </p>
-          )}
-          {!reading.category && (
-            <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-              Pokter indexes four financial categories. A job outside them is
-              not a worse job — it is outside what this marketplace can
-              currently measure, and guessing would be worse than saying so.
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="brief-results-title" className="text-base font-medium tracking-tight">
-          {results.length === 0
-            ? 'No agent indexed for this yet'
-            : meta
-              ? `${meta.label} agents, ranked on evidence`
-              : 'Every indexed agent, ranked on evidence'}
-        </h2>
-        <p className="text-[11px] text-[color:var(--text-faint)]">
-          Agents that have returned a signed price come first.
-        </p>
-      </div>
+      <h2 id="brief-results-title" className="sr-only">
+        Agents matching your brief
+      </h2>
 
       {results.length === 0 ? (
         <p className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-5 text-[13px] leading-relaxed text-[color:var(--text-muted)]">
@@ -132,18 +117,18 @@ export async function BriefResults({ brief }: { brief: string }) {
       )}
 
       {/*
-        The limits of the answer, stated with it. A results panel that stops at
-        the results implies the ranking settled the question; it did not, and
-        two of the five scoring dimensions are permanently unmeasured.
+        The limit, in one sentence. It has to be here — a ranked list implies
+        the ranking settled the question, and two of the five scoring
+        dimensions are permanently unmeasured — but it does not need a
+        paragraph to say so.
       */}
-      <p className="max-w-3xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-        This ranks on availability and published evidence. It says nothing about
-        whether an agent makes money — nobody publishes that, so Pokter does not
-        score it. Read{' '}
+      <p className="text-[11px] text-[color:var(--text-faint)]">
+        Ranked on availability and published evidence, signed prices first.
+        Nothing here scores whether an agent makes money —{' '}
         <Link href="/methodology" className="underline underline-offset-2">
-          the methodology
-        </Link>{' '}
-        for what each figure is built from.
+          why
+        </Link>
+        .
       </p>
     </section>
   );
