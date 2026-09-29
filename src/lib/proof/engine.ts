@@ -239,9 +239,22 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     ...base,
     verdict,
     score,
-    // A failing agent takes the explicit risk-acceptance path; an emerging one
-    // may use the normal path, with its thin record still surfaced in the UI.
-    recommendedForHire: verdict === 'proven' || verdict === 'emerging',
+    /*
+     * The risk-acceptance path is for an agent the evidence argues against or
+     * cannot speak to at all: `failing`, and `unproven` above.
+     *
+     * `observed` belongs on the normal path. This rule predates that tier and
+     * read `proven || emerging`, which was correct when `emerging` still
+     * covered thin records — the note here said so, that an agent with a thin
+     * record may use the normal path with the thinness surfaced in the UI.
+     * Splitting `observed` out of `emerging` moved exactly that case into a
+     * tier this line had never heard of, so an agent answering every probe it
+     * had been given was told it required explicit risk acceptance. The thin
+     * record is still shown: the badge says Observed and the page states the
+     * probe count and window.
+     */
+    recommendedForHire:
+      verdict === 'proven' || verdict === 'emerging' || verdict === 'observed',
     rationale,
   };
 }
