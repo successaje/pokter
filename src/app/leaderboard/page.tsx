@@ -13,6 +13,7 @@ import {
 } from '@/lib/score/types';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { RankingTable } from '@/components/leaderboard/RankingTable';
+import { CatalogueViews } from '@/components/shell/CatalogueViews';
 import { TierNote } from '@/components/proof/TierNote';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,8 @@ export default async function LeaderboardPage({
 
   return (
     <div className="flex flex-col gap-10 pt-6">
+      <CatalogueViews active={'/leaderboard'} />
+
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Agent rankings

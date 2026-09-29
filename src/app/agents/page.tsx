@@ -7,6 +7,7 @@ import { listSearchable } from '@/lib/marketplace';
 import { parseQuery, stringifyQuery } from '@/lib/search/query';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
+import { CatalogueViews } from '@/components/shell/CatalogueViews';
 import { TierNote } from '@/components/proof/TierNote';
 import { AgentSearch } from '@/components/search/AgentSearch';
 import { FilterSidebar } from '@/components/search/FilterSidebar';
@@ -106,6 +107,8 @@ export default async function AgentsPage({
 
   return (
     <div className="flex flex-col gap-8 pt-6">
+      <CatalogueViews active={'/agents'} />
+
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Marketplace</h1>
         {/*

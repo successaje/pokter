@@ -25,25 +25,40 @@ import { usePwaInstall } from '@/components/pwa/PwaProvider';
  * nav itself teaches the journey. Browsing never requires a wallet (§59), so
  * Connect sits apart from the primary items rather than gating them.
  */
+/*
+ * One entry for "show me agents".
+ *
+ * Discover, Marketplace, Rankings and Compare were four top-level answers to
+ * the same question, and a visitor could not tell which one they wanted
+ * because the difference is not in the agents but in what is being done to
+ * them. Discover is the way in; the catalogue and the ranking are two views of
+ * one set and now switch between each other where a reader is already looking
+ * at agents; Compare is a tool invoked on a selection, which is how people
+ * reach it anyway — the checkboxes on the ranking table and the button on an
+ * agent page — and it keeps a top-level slot because comparing is the thing
+ * this product is for.
+ *
+ * Nothing is removed. Every route still resolves, and the ones that left the
+ * bar are in the footer and cross-linked from the pages that lead to them.
+ */
 const PRIMARY = [
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Marketplace' },
   { href: '/compare', label: 'Compare' },
-  { href: '/leaderboard', label: 'Rankings' },
-  { href: '/pool-check', label: 'Pool check' },
   { href: '/my-agents', label: 'Activity' },
 ];
 
-const MOBILE_PRIMARY = PRIMARY.filter((item) =>
-  ['/discover', '/agents', '/compare', '/my-agents'].includes(item.href),
-);
-const MOBILE_MORE = PRIMARY.filter((item) =>
-  ['/leaderboard', '/pool-check'].includes(item.href),
-);
+const SECONDARY = [
+  { href: '/agents', label: 'Full catalogue' },
+  { href: '/leaderboard', label: 'Rankings' },
+  { href: '/pool-check', label: 'Pool check' },
+];
+
+const MOBILE_PRIMARY = PRIMARY;
+const MOBILE_MORE = SECONDARY;
 const INSTALLED_PRIMARY = [
   { href: '/app', label: 'Home' },
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Marketplace' },
+  { href: '/compare', label: 'Compare' },
   { href: '/my-agents', label: 'Activity' },
 ];
 
