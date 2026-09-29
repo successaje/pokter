@@ -12,6 +12,8 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
+import { JobBrief } from '@/components/discover/JobBrief';
+import { BriefResults } from '@/components/discover/BriefResults';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
@@ -196,6 +198,7 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
+  const jobBrief = typeof params.brief === 'string' ? params.brief.slice(0, 400) : '';
   const selectedCategory =
     typeof params.category === 'string' && CATEGORY_BY_ID.has(params.category as Category)
       ? params.category
@@ -309,6 +312,15 @@ export default async function DiscoverPage({
               </div>
             </details>
           </section>
+
+          {/*
+            The brief sits above the browse grid because it is the faster route
+            for someone who knows the job but not the vocabulary, and below the
+            pulse because the numbers are what make the answers worth reading.
+          */}
+          <JobBrief initial={jobBrief} />
+
+          {jobBrief && <BriefResults brief={jobBrief} />}
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 
