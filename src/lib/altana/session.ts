@@ -25,9 +25,11 @@ import type { GrantedSession } from './types';
  * in a process-local Map — written on grant, deleted on revoke, and never once
  * read. It held a live signing key in memory to no purpose.
  *
- * Pokter never acts *as* an agent. It grants a scoped session, registers it,
- * and revokes it, and `revokeSession` targets the registered public key rather
- * than the signer, so nothing here needs the key after the grant returns.
+ * Pokter never acts *as* an agent. Granting is now refused outright — the
+ * permission schema cannot constrain calldata arguments — and what remains is
+ * reading and revoking sessions granted before that policy. `revokeSession`
+ * targets the registered public key rather than the signer, so nothing here
+ * needs a key at all.
  *
  * Removing the Map is the point rather than a tidy-up: a capability that does
  * not exist cannot be reached by accident later. The day Pokter executes on a

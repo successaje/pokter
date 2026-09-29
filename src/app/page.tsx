@@ -96,7 +96,8 @@ export default async function HomePage() {
               BNB Chain has hundreds of thousands of autonomous agents. Finding
               one was never the hard part. Pokter turns onchain activity,
               attestations and live execution data into evidence you can check —
-              then lets you hire with permissions you set and can revoke.
+              then lets you hire through escrow you control, without granting
+              anyone authority over your wallet.
             </p>
           </div>
 

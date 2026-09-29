@@ -65,10 +65,13 @@ recipients and for ERC-20 value exceeding the displayed cap.
 the user's account and reverts on-chain when only the recipient is changed to
 an attacker. Repeat for swap, collect and mint.
 
-**Containment.** `toSessionPermissions` now refuses every category carrying
-write calls, and the hire UI creates no standing wallet permission. The
-mainnet blocker remains until argument-aware enforcement passes the acceptance
-test above; disabling exposure is not the final protocol design.
+**Containment.** `toSessionPermissions` now refuses every marketplace category,
+including read-only monitoring (which needs no session). The authenticated
+grant route returns `409` before parsing grant parameters or touching a signer,
+and the hire UI creates no standing wallet permission. `audit:protocol` asserts
+the refusal for all four categories. The mainnet delegation blocker remains
+until argument-aware enforcement passes the acceptance test above; disabling
+exposure is the safe product policy, not the final protocol design.
 
 ### POK-024 · “Authorize agent” creates a session the agent cannot use
 

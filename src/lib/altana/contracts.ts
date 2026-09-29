@@ -1,13 +1,14 @@
 import type { Address } from 'viem';
 
 /**
- * The contracts an agent may be allowed to call.
+ * The protocol integrations a delegated strategy would need to call.
  *
  * Addresses were verified to hold bytecode on both BSC mainnet (56) and testnet
  * (97) — PancakeSwap deploys V3 deterministically, so the addresses match across
- * chains. `verifyAllowlist` re-checks at runtime rather than trusting this file,
- * because an allowlist entry pointing at nothing is worse than no allowlist: it
- * looks like a constraint while constraining nothing.
+ * chains. These are requirements for a future argument-aware adapter, not a
+ * session allowlist. Altana currently constrains targets and selectors but not
+ * calldata arguments, so exposing the raw contracts would let a session choose
+ * recipients, assets and position IDs that the user never approved.
  */
 export interface KnownContract {
   address: Address;
@@ -41,8 +42,8 @@ export const PANCAKESWAP_V3_POSITION_MANAGER: KnownContract = {
   ],
 };
 
-/** Preset allowlists per category, so the UI never asks a user to assemble one. */
-export const CATEGORY_CONTRACTS: Record<string, KnownContract[]> = {
+/** Required integrations shown as design context; never passed to a session. */
+export const CATEGORY_INTEGRATIONS: Record<string, KnownContract[]> = {
   rebalancing: [PANCAKESWAP_V3_POSITION_MANAGER],
   'grid-trading': [PANCAKESWAP_V3_ROUTER],
   yield: [PANCAKESWAP_V3_ROUTER],
@@ -51,16 +52,12 @@ export const CATEGORY_CONTRACTS: Record<string, KnownContract[]> = {
 };
 
 /**
- * What an agent explicitly cannot do under any Pokter-issued session.
- *
- * These are consequences of the allowlist rather than separate switches: any
- * target not named above reverts at validation time in the Altana account
- * contract. They are listed so the user sees the boundary, not just the
- * permission.
+ * The effective boundary today. These statements are stronger than a proposed
+ * allowlist because Pokter creates no delegated session at all.
  */
 export const DENIED_CAPABILITIES = [
-  'Call any contract outside the list above',
-  'Transfer your tokens to an arbitrary address',
-  'Withdraw from protocols unrelated to this strategy',
-  'Extend its own permissions or expiry',
+  'Call any contract from your wallet',
+  'Move, approve or spend any token',
+  'Operate any liquidity position',
+  'Create a standing session key',
 ];

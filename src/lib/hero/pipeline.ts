@@ -71,12 +71,12 @@ export async function buildPipeline(): Promise<PipelinePayload> {
   const survivorAt = (pool: typeof agents, index: number) =>
     pool.length === 0 ? null : pool[index % pool.length].listing.agent.name;
 
-  // How many agents Pokter has actually acted on, which is the true end of the
-  // funnel — narrower than "could be hired", and the number that matters.
+  // How many agents have an escrowed job in Pokter's local index. Historical
+  // sessions are deliberately excluded: new standing delegation is disabled.
   const acted = new Set(
-    getSessionStore()
+    getJobStore()
       .all()
-      .map((session) => `${session.agentChainId}:${session.agentTokenId}`),
+      .map((job) => job.agentTokenId),
   ).size;
 
   const stages: PipelineStage[] = [
@@ -122,19 +122,17 @@ export async function buildPipeline(): Promise<PipelinePayload> {
           : null,
     },
     {
-      id: 'permit',
-      label: 'Permit',
-      question: 'What exactly am I allowing it to do?',
+      id: 'commission',
+      label: 'Commission',
+      question: 'What exactly am I paying it to deliver?',
       count: withEvidence.length,
       passing: survivorAt(withEvidence, 3),
       rejected: null,
     },
     {
       id: 'execute',
-      label: 'Execute',
-      question: 'What is it doing right now?',
-      // Agents Pokter has actually granted a session to — the real end of the
-      // funnel, and a much smaller number than "eligible".
+      label: 'Fund',
+      question: 'Which jobs reached on-chain escrow?',
       count: acted,
       passing: best?.listing.agent.name ?? null,
       rejected: null,
@@ -144,7 +142,7 @@ export async function buildPipeline(): Promise<PipelinePayload> {
   return {
     stages,
     events: recentEvents(agents),
-    capsule: { spend: '0.05 BNB', expiry: '7 days', venue: 'PancakeSwap only' },
+    capsule: { spend: 'One job', expiry: 'Escrow terms', venue: 'No wallet delegation' },
     survivor: best
       ? {
           name: best.listing.agent.name,
@@ -228,7 +226,7 @@ function recentEvents(
           }
         : {
             kind: 'session',
-            title: 'Session created',
+            title: 'Historical session',
             detail: `${Number(session.spendCapWei) / 1e18} BNB · ${session.period}`,
             txHash: session.grantTxHash ?? undefined,
           },

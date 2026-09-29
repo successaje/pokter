@@ -7,7 +7,6 @@ import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { summarise } from '@/lib/altana/permissions';
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
-import { wbnbUsdPrice } from '@/lib/pancakeswap/pool';
 import { recommendedAlternatives } from '@/lib/marketplace';
 import { Alternatives } from '@/components/hire/Alternatives';
 import { PermissionReview } from '@/components/hire/PermissionReview';
@@ -40,10 +39,6 @@ export default async function HirePage({
   const { agent, category, proof, live } = dossier;
   const answeredNow = live.ratio !== null && live.ratio > 0;
 
-  // Quoted so a spend cap can be shown in a currency people weigh risk in.
-  // A pricing failure must not take the hire page down, so it degrades to no
-  // figure rather than to a wrong one.
-  const bnbUsdPrice = await wbnbUsdPrice().catch(() => null);
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const summary = summarise({
@@ -147,13 +142,10 @@ export default async function HirePage({
             */
             alwaysCollapsible
           >
-            <WalletGate action="grant permission" capability="session">
-              <PermissionReview
-                summary={summary}
-                isTestnet={IS_TESTNET}
-                bnbUsdPrice={bnbUsdPrice}
-              />
-            </WalletGate>
+            <PermissionReview
+              summary={summary}
+              isTestnet={IS_TESTNET}
+            />
           </EvidenceSection>
         </div>
     </div>
