@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { pluralise } from '@/lib/ui/plural';
 import { formatCount } from '@/lib/ui/format';
 import { CountUp, type CountFormat } from '@/components/motion/CountUp';
@@ -72,7 +73,14 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
         </h2>
         <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           A registry entry is a claim that an agent exists. Pokter calls the
-          address to find out, and most of the registry has never answered.
+          address to find out, and most of the registry has never answered.{' '}
+          <Link
+            href="/census"
+            className="text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+          >
+            See how far it gets
+          </Link>
+          .
         </p>
       </div>
 
