@@ -300,6 +300,24 @@ html {
    * The glide the chips on Discover wanted now lives in `SmoothHashScroll`,
    * which applies it to same-page anchors only and leaves the router alone.
    */
+
+  /*
+   * The document does not hand a sideways gesture to the browser.
+   *
+   * Containing overscroll on the individual strips was not enough: a gesture
+   * that starts anywhere else on the page never touches them, and the browser
+   * answers a horizontal swipe over an unscrollable document with its
+   * back-forward navigation, which slides the whole page away. On the agent
+   * page — which carries a card strip and a tab rail, so a sideways gesture is
+   * the natural thing to try — that reads as the layout coming apart.
+   *
+   * `contain` rather than `none`: the strips keep their own scrolling and the
+   * page keeps its bounce, only the chain out to browser navigation is cut.
+   * The cost is the swipe-back gesture within the site, which is a fair trade
+   * against losing a filtered marketplace view to an accidental flick, and the
+   * browser's own back button is untouched.
+   */
+  overscroll-behavior-x: contain;
 }
 
 :root[data-theme='dark'] {

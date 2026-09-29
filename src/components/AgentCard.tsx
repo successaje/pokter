@@ -111,7 +111,7 @@ export function AgentCard({
         374px wide inside a 350px column and give the whole page a horizontal
         scroll — latent until a higher list limit surfaced that agent.
       */}
-      <div className="surface-card flex min-w-0 flex-col md:hidden">
+      <div className="surface-card relative flex min-w-0 flex-col md:hidden">
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
@@ -175,7 +175,7 @@ export function AgentCard({
       </div>
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
-      <div className="surface-card group hidden h-full min-w-0 flex-col md:flex">
+      <div className="surface-card group relative hidden h-full min-w-0 flex-col md:flex">
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -198,6 +198,15 @@ export function AgentCard({
 
           <dl className="mt-auto flex flex-col gap-1 border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
             <div className="flex items-baseline justify-between gap-3">
+              {/*
+                These labels are `sr-only`, which is `position: absolute`. With
+                no positioned ancestor their containing block is the document,
+                so a card sitting inside a horizontally scrolled strip placed
+                them a thousand pixels past the viewport and stretched the page
+                itself — the whole layout slid sideways on any agent page whose
+                similar-agents row was long enough to scroll. The `relative` on
+                the card root is what keeps them inside it.
+              */}
               <dt className="sr-only">Publisher</dt>
               <dd className="min-w-0 truncate">{publisher ?? 'Owner unknown'}</dd>
               <dt className="sr-only">Attestations</dt>
