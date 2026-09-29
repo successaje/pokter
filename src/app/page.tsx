@@ -5,18 +5,14 @@ import {
   getEcosystemStats,
   listMarketplace,
 } from '@/lib/marketplace';
-import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
-import { CategoryBlocks } from '@/components/home/CategoryBlocks';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Integrations } from '@/components/brand/Integrations';
 import { Reveal } from '@/components/motion/Reveal';
 import { AgentDesk } from '@/components/home/AgentDesk';
-import { LiveProof } from '@/components/home/LiveProof';
-import { Philosophy } from '@/components/home/Philosophy';
-import { Transparency } from '@/components/home/Transparency';
-import { buildPipeline, recentProbes } from '@/lib/hero/pipeline';
+import { buildPipeline } from '@/lib/hero/pipeline';
+import { FeaturedMarketplace } from '@/components/home/FeaturedMarketplace';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,17 +40,15 @@ export default async function HomePage() {
     buildPipeline().catch(() => null),
   ]);
 
-  const probes = recentProbes(5);
-
   return (
-    <div className="flex flex-col gap-20 sm:gap-28">
+    <div className="flex flex-col gap-16 sm:gap-20">
       {/*
         The hero occupies the viewport so the first screen states one thing.
         Uses svh rather than vh: on mobile, vh is measured against the browser
         chrome's collapsed state, which pushes the next section into view before
         any scrolling has happened — the exact problem this replaces.
       */}
-      <section className="flex min-h-[calc(100svh-9rem)] flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14">
+      <section className="flex min-h-[min(780px,calc(82svh-4rem))] flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14">
         <div className="flex flex-col gap-7">
           <div className="flex max-w-2xl flex-col gap-5">
             <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
@@ -124,14 +118,14 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Inventory first: the user can enter the market before reading the thesis. */}
+      <Reveal>
+        <FeaturedMarketplace sections={sections} />
+      </Reveal>
+
       {/* THE SCALE — the number that makes the rest necessary. */}
       <Reveal>
         <EcosystemPanel stats={stats} />
-      </Reveal>
-
-      {/* Four outcome scenes, each backed by the live category listings. */}
-      <Reveal>
-        <ObjectiveSelector sections={sections} />
       </Reveal>
 
       {/* THE PROBLEM — a real agent whose pitch outruns its evidence. */}
@@ -139,33 +133,14 @@ export default async function HomePage() {
         <ClaimVsEvidence exhibit={exhibit} />
       </Reveal>
 
-      {/* LIVE PROOF — the check itself, verbatim. */}
-      <Reveal>
-        <LiveProof probes={probes} />
-      </Reveal>
-
       {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}
       <Reveal>
         <HowItWorks />
       </Reveal>
 
-      <Reveal>
-        <CategoryBlocks sections={sections} />
-      </Reveal>
-
       {/* THE STACK. */}
       <Reveal>
         <Integrations />
-      </Reveal>
-
-      {/* TRANSPARENCY — what worked and what fought back. */}
-      <Reveal>
-        <Transparency />
-      </Reveal>
-
-      {/* THE POSITION, then the way in. */}
-      <Reveal>
-        <Philosophy />
       </Reveal>
 
       <Reveal>

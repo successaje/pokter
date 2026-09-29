@@ -260,10 +260,7 @@ export default async function AgentPage({
           >
             {[
               ...(agent.services?.a2a?.endpoint ? [['#try', 'Try']] : []),
-              ['#trust', 'Trust'],
-              ['#performance', 'Performance'],
-              ['#live', 'Live proof'],
-              ['#receipts', 'Receipts'],
+              ['#evidence', 'Evidence'],
               ['#permissions', 'Permissions'],
             ].map(([href, label]) => (
               <a
@@ -282,22 +279,59 @@ export default async function AgentPage({
             </div>
           )}
 
-          <div id="trust" className="scroll-mt-28">
-            <TrustPanel dossier={dossier} explorerBase={explorerBase} />
-          </div>
+          <section id="evidence" className="scroll-mt-28 flex flex-col gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
+                Evidence record
+              </p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight">
+                Inspect only as deeply as your decision requires.
+              </h2>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
+                The decision summary above stays visible. Open the underlying
+                sources, probe history and limitations when you need to verify it.
+              </p>
+            </div>
 
-          <div id="performance" className="scroll-mt-28">
-            <PerformancePanel record={record} />
-          </div>
+            <div className="flex flex-col divide-y divide-[color:var(--border)] overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+              <div className="p-4 sm:p-5">
+                <Section
+                  title="Evidence sources"
+                  summary={`${publishedEvidenceLine(publishedEvidence)}. ${probeSummary}`}
+                  caption="Identity, declared capabilities, attestations and Pokter's observations, each labelled by source."
+                  alwaysCollapsible
+                  anchorId="trust"
+                >
+                  <div className="pt-4">
+                    <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+                  </div>
+                </Section>
+              </div>
 
-          <div className="grid gap-12 xl:grid-cols-2">
-            <div id="live" className="scroll-mt-28">
+              <div className="p-4 sm:p-5">
+                <Section
+                  title="Measured performance"
+                  summary={`${availability}. Profit, loss and drawdown are not measured.`}
+                  caption="Availability and latency are measured; financial returns are left blank when nobody publishes them."
+                  alwaysCollapsible
+                  anchorId="performance"
+                >
+                  <div className="pt-4">
+                    <PerformancePanel record={record} />
+                  </div>
+                </Section>
+              </div>
+
+            <div className="scroll-mt-28">
               <Section
                 title="Watch it work"
                 summary={liveSummary}
                 caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
+                sectionClassName="p-4 sm:p-5"
+                alwaysCollapsible
+                anchorId="live"
               >
-                <LivePanel live={live} />
+                <div className="pt-4"><LivePanel live={live} /></div>
               </Section>
             </div>
 
@@ -305,53 +339,68 @@ export default async function AgentPage({
               title="Track record"
               summary={probeSummary}
               caption="What repeated sweeps have accumulated, rather than a single sample."
+              sectionClassName="p-4 sm:p-5"
+              alwaysCollapsible
+              anchorId="track-record"
             >
-              <TrackRecordPanel record={record} />
+              <div className="pt-4"><TrackRecordPanel record={record} /></div>
             </Section>
 
-            <div id="receipts" className="scroll-mt-28">
+            <div className="scroll-mt-28">
               <Section
                 title="Receipts"
                 summary={receiptsSummary}
                 caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
+                sectionClassName="p-4 sm:p-5"
+                alwaysCollapsible
+                anchorId="receipts"
               >
-                <EvidencePanel attestations={attestations} />
+                <div className="pt-4"><EvidencePanel attestations={attestations} /></div>
               </Section>
             </div>
 
-            <div id="permissions" className="scroll-mt-28">
+              <div className="p-4 sm:p-5">
+                <Section
+                  title="How the measurements could be wrong"
+                  summary={defectsSummary}
+                  caption="Limitations disclosed by the measurers themselves, ours included."
+                  alwaysCollapsible
+                  anchorId="limitations"
+                >
+                  <div className="pt-4">
+                    {knownDefects.length === 0 ? (
+                      <p className="text-xs text-[color:var(--text-faint)]">
+                        No measurer has disclosed its limitations.
+                      </p>
+                    ) : (
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {knownDefects.map((defect) => (
+                          <li
+                            key={defect}
+                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+                          >
+                            {defect}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </Section>
+              </div>
+            </div>
+          </section>
+
+          <div className="scroll-mt-28 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 sm:p-5">
               <Section
                 title="Permissions and spending limits"
                 summary="What hiring would and would not allow."
                 caption="Stated plainly, including what the registry does not disclose."
+                alwaysCollapsible
+                anchorId="permissions"
               >
-                <AuthorityPanel agent={agent} />
+                <div className="pt-4"><AuthorityPanel agent={agent} /></div>
               </Section>
             </div>
-          </div>
-
-          <Section
-            title="How the measurers could be wrong"
-            summary={defectsSummary}
-            caption="Limitations disclosed by the measurers themselves, ours included."
-          >
-            {knownDefects.length === 0 ? (
-              <p className="text-xs text-[color:var(--text-faint)]">
-                No measurer has disclosed its limitations.
-              </p>
-            ) : (
-              <ul className="grid gap-2 sm:grid-cols-2">
-                {knownDefects.map((defect) => (
-                  <li
-                    key={defect}
-                    className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
-                  >
-                    {defect}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
         </div>
 
         <aside

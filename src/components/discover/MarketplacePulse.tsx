@@ -67,24 +67,25 @@ export function MarketplacePulse({
     }));
 
   return (
-    <section
-      aria-labelledby="marketplace-pulse-title"
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]"
+    <details
+      className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
     >
-      <div className="flex flex-col gap-2 border-b border-[color:var(--border)] px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-5">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-            Marketplace pulse
-          </p>
-          <h2 id="marketplace-pulse-title" className="mt-1 text-base font-semibold tracking-tight">
-            The market, measured—not estimated.
-          </h2>
-        </div>
-        <p className="max-w-md text-[10px] leading-relaxed text-[color:var(--text-faint)] sm:text-right">
-          Registry scale comes from 8004scan. Verification and activity counts
-          cover only records Pokter can independently read.
-        </p>
-      </div>
+      <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
+            Marketplace coverage
+          </span>
+          <span className="mt-1 block text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            {formatCount(listed)} indexed listings · {formatCount(answering)} answering · {formatCount(attestations)} onchain attestations
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-[10px] font-medium text-[color:var(--text-faint)]">
+          Measured totals
+          <span aria-hidden className="transition-transform group-open:rotate-180">⌄</span>
+        </span>
+      </summary>
+
+      <div className="border-t border-[color:var(--border)]">
 
       <dl className="flex snap-x overflow-x-auto [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
         {scale.map((item) => (
@@ -120,6 +121,7 @@ export function MarketplacePulse({
           ))}
         </div>
       )}
-    </section>
+      </div>
+    </details>
   );
 }

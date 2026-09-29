@@ -222,10 +222,10 @@ export default async function DiscoverPage({
       <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="flex max-w-3xl flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-          BNB Chain agent marketplace
+          Guided agent matching
         </p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Explore agents. Inspect the evidence.
+          Tell Pokter the outcome. Get an evidence-ranked shortlist.
         </h1>
         {/*
           Desktop only. On a phone this sits between the title and the
@@ -233,40 +233,31 @@ export default async function DiscoverPage({
           button below already says the second half of it.
         */}
         <p className="hidden max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
-          Browse the market immediately, or ask Pokter to build an
-          evidence-ranked shortlist around your goal, capital and risk.
+          Describe what the agent should accomplish, then refine by capital,
+          time horizon and risk. Pokter ranks the available evidence—not the pitch.
         </p>
         </div>
         {!shouldRun && (
           <Link
-            href="#recommend"
-            className="action-primary tap inline-flex items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold lg:min-h-10"
+            href="/agents"
+            className="tap inline-flex items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 text-[13px] font-semibold lg:min-h-10"
           >
-            Find my best match
+            Browse the full marketplace
           </Link>
         )}
       </header>
 
       {!shouldRun && stats && activity && (
         <>
-          <MarketplacePulse
-            stats={stats}
-            listed={browseAgents.length}
-            answering={answering}
-            attestations={attestations}
-            activity={activity}
-          />
-          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
-
           <section id="recommend" className="scroll-mt-24">
-            <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
+            <details open className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
               <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>
                   <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.8"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" /></svg>
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-sm font-semibold">Find my best match</span>
-                  <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">Build a shortlist from your goals, capital, risk tolerance and time horizon.</span>
+                  <span className="text-sm font-semibold">Build my shortlist</span>
+                  <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">Choose one or more outcomes, then add only the constraints that matter.</span>
                 </span>
                 <span aria-hidden className="text-lg text-[color:var(--text-faint)] transition-transform group-open:rotate-180">⌄</span>
               </summary>
@@ -277,6 +268,16 @@ export default async function DiscoverPage({
               </div>
             </details>
           </section>
+
+          <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
+
+          <MarketplacePulse
+            stats={stats}
+            listed={browseAgents.length}
+            answering={answering}
+            attestations={attestations}
+            activity={activity}
+          />
         </>
       )}
 
