@@ -435,18 +435,72 @@ export function CommissionPanel({
       {state !== 'hired' && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]">
-            <ol aria-label="Commission progress" className="grid grid-cols-2 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+            {/*
+              A track rather than two boxes.
+              
+              Split in half, the two cells read as tabs — something to choose
+              between — when they are a sequence you move along. Joining them
+              says which way the flow runs and how far along it you are, and
+              the finished step carries a tick because "done" is more useful
+              to see than the number one again.
+            */}
+            <ol
+              aria-label="Commission progress"
+              className="flex items-center gap-3 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3.5 sm:px-6"
+            >
               {[
-                { id: 'configure', label: 'Configure', number: 1 },
-                { id: 'review', label: 'Review & fund', number: 2 },
-              ].map((item) => {
+                { id: 'configure', label: 'Describe the work', number: 1 },
+                { id: 'review', label: 'Review and fund', number: 2 },
+              ].map((item, index) => {
                 const active = flowStep === item.id;
+                const done = index === 0 && flowStep === 'review';
                 return (
-                  <li key={item.id} className={cn('flex items-center gap-2 px-4 py-3 text-[11px]', active ? 'text-[color:var(--text)]' : 'text-[color:var(--text-faint)]')}>
-                    <span className={cn('flex size-5 items-center justify-center rounded-full border text-[9px]', active ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]' : 'border-[color:var(--border)]')}>
-                      {item.number}
+                  <li
+                    key={item.id}
+                    aria-current={active ? 'step' : undefined}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 last:flex-none"
+                  >
+                    <span
+                      className={cn(
+                        'flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors',
+                        done
+                          ? 'border-[color:var(--positive)] bg-[color:var(--positive)] text-[color:var(--bg)]'
+                          : active
+                            ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                            : 'border-[color:var(--border-strong)] text-[color:var(--text-faint)]',
+                      )}
+                    >
+                      {done ? (
+                        <svg viewBox="0 0 24 24" aria-hidden className="size-3 fill-none stroke-current" strokeWidth="3">
+                          <path d="m5 13 4 4L19 7" />
+                        </svg>
+                      ) : (
+                        item.number
+                      )}
                     </span>
-                    <span className="font-medium">{item.label}</span>
+
+                    <span
+                      className={cn(
+                        'truncate text-[12px] font-medium',
+                        active || done
+                          ? 'text-[color:var(--text)]'
+                          : 'text-[color:var(--text-faint)]',
+                      )}
+                    >
+                      {item.label}
+                    </span>
+
+                    {index === 0 && (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'hidden h-px min-w-6 flex-1 sm:block',
+                          done
+                            ? 'bg-[color:var(--positive)]/50'
+                            : 'bg-[color:var(--border)]',
+                        )}
+                      />
+                    )}
                   </li>
                 );
               })}
@@ -455,8 +509,8 @@ export function CommissionPanel({
             {flowStep === 'configure' ? (
               <div className="flex flex-col gap-6 p-4 sm:p-6">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight">What should the agent deliver?</h2>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <h2 className="font-[family-name:var(--font-serif)] text-xl sm:text-2xl">What should the agent deliver?</h2>
+                  <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     Start with a useful brief for this kind of agent, then make it yours. Your final task and budget are written into the escrow job.
                   </p>
                 </div>
