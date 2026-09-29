@@ -50,6 +50,28 @@ export function formatDuration(days: number): string {
   return `${(days / 365).toFixed(1)}y`;
 }
 
+/**
+ * A span on the scale a job actually runs on.
+ *
+ * `formatDuration` measures an observation window in days and answers "under
+ * a day" for everything shorter, which is the wrong resolution for an escrow
+ * that expires in hours: a buyer waiting on a delivery needs the minutes.
+ */
+export function formatElapsed(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'less than a minute';
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 24) {
+    return rest === 0
+      ? `${hours} hour${hours === 1 ? '' : 's'}`
+      : `${hours}h ${rest}m`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'}`;
+}
+
 export function shortHash(hash: string, chars = 6): string {
   if (hash.length <= chars * 2 + 2) return hash;
   return `${hash.slice(0, chars + 2)}…${hash.slice(-chars)}`;
