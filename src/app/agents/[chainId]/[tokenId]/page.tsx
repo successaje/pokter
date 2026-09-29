@@ -26,6 +26,7 @@ import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
 import { TrustStrip } from '@/components/agent/TrustStrip';
+import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
@@ -471,55 +472,11 @@ export default async function AgentPage({
         </aside>
       </div>
 
-      {/*
-        A way onward from a dead end.
-        
-        This page ends in a decision, and the answer is often no — the agent is
-        not answering, or its record is thin, or the price is unknown. Until now
-        the only route out was the browser's back button, which loses whatever
-        the reader had already filtered or compared. The nearest useful thing is
-        the same category, so that leads.
-      */}
-      <section className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-6 sm:p-8">
-        <div className="max-w-2xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">
-            Keep looking
-          </p>
-          <h2 className="display mt-2 text-2xl sm:text-3xl">
-            {meta
-              ? `Other ${meta.label.toLowerCase()} agents`
-              : 'Explore the marketplace'}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-            {meta
-              ? `Every ${meta.label.toLowerCase()} agent Pokter has indexed, ranked on what has been observed rather than what was declared.`
-              : 'Every agent Pokter has indexed, ranked on what has been observed rather than what was declared.'}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          {meta && (
-            <Link
-              href={`/categories/${category}`}
-              className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
-            >
-              Explore {meta.label.toLowerCase()} agents →
-            </Link>
-          )}
-          <Link
-            href="/agents"
-            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-          >
-            Browse all agents
-          </Link>
-          <Link
-            href="/discover"
-            className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-          >
-            Find my best match
-          </Link>
-        </div>
-      </section>
+      <SimilarAgents
+        category={category}
+        chainId={agent.chain_id}
+        tokenId={agent.token_id}
+      />
     </div>
   );
 }
