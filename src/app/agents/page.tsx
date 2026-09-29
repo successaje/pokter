@@ -4,9 +4,10 @@ import { Suspense } from 'react';
 
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { listSearchable } from '@/lib/marketplace';
-import { parseQuery } from '@/lib/search/query';
+import { parseQuery, stringifyQuery } from '@/lib/search/query';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
+import { TierNote } from '@/components/proof/TierNote';
 import { AgentSearch } from '@/components/search/AgentSearch';
 import { FilterSidebar } from '@/components/search/FilterSidebar';
 import { FILTER_GROUPS } from '@/lib/search/filters';
@@ -71,6 +72,18 @@ export default async function AgentsPage({
   const filtering = query.qualifiers.length > 0;
 
   /*
+   * Counted over everything indexed rather than the current result, for the
+   * same reason the filter counts are: this describes the marketplace, and
+   * stays true whatever the reader has narrowed to.
+   */
+  const verdicts = all.map((entry) => verdictFor(entry));
+  const provenCount = verdicts.filter((v) => v === 'proven').length;
+  const emergingCount = verdicts.filter((v) => v === 'emerging').length;
+  const askedForProven = query.qualifiers.some(
+    (q) => stringifyQuery([q]) === 'is:proven',
+  );
+
+  /*
    * How many agents each filter would match, counted over everything indexed
    * rather than over the current result. Counting the current result would
    * make every unselected option read zero as soon as one filter was on,
@@ -108,6 +121,20 @@ export default async function AgentsPage({
         </p>
       </header>
 
+      {/*
+        Suppressed when the empty state below is already saying it. Filtering
+        to Proven and finding nothing produced the note at the top of the page
+        and the same sentence again in the middle of it, which is the sort of
+        repetition that reads as a template rather than as an answer.
+      */}
+      {!(askedForProven && matched.length === 0) && (
+        <TierNote
+          proven={provenCount}
+          emerging={emergingCount}
+          className="max-w-2xl"
+        />
+      )}
+
       <Suspense fallback={<div className="h-28" />}>
         <AgentSearch resultCount={matched.length} />
       </Suspense>
@@ -138,9 +165,22 @@ export default async function AgentsPage({
 
       {matched.length === 0 ? (
         /* §60. An honest empty state, naming the filter that produced it. */
+        /*
+          When the proven filter is what emptied the page, the generic line
+          invites the reader to conclude the filter is broken. The specific
+          reason is more useful and is the marketplace's actual state.
+        */
         <StatusState
-          title="No agent matches these filters."
-          body={`${all.length} agents are indexed. Loosening the evidence requirement widens the set — it does not create evidence that is missing.`}
+          title={
+            askedForProven && provenCount === 0
+              ? 'No agent is Proven yet.'
+              : 'No agent matches these filters.'
+          }
+          body={
+            askedForProven && provenCount === 0
+              ? `That tier needs two independent measurers agreeing, and Pokter does not count its own probing as one of them. ${emergingCount} agents are Emerging — measured, but corroborated by fewer measurers than that.`
+              : `${all.length} agents are indexed. Loosening the evidence requirement widens the set — it does not create evidence that is missing.`
+          }
         />
       ) : (
         byCategory.map(({ category, entries }) => {

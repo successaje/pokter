@@ -1,0 +1,36 @@
+name: Agent listed wrongly
+description: An agent in the wrong category, missing, duplicated, or described in a way that does not match what it does.
+labels: ['listing']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Categories are assigned by Pokter's own classifier, not by the
+        publisher, so getting one wrong is our mistake rather than theirs.
+  - type: input
+    id: agent
+    attributes:
+      label: Which agent?
+      description: The chain and token id, or a link to its page.
+      placeholder: chain 56, token #265375
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong?
+      options:
+        - In the wrong category
+        - Missing from the marketplace entirely
+        - Listed more than once
+        - Description does not match what it does
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: What should it be instead?
+      description: If you publish this agent, say so — it helps to know the report comes from the operator.
+    validations:
+      required: true
