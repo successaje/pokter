@@ -5,7 +5,9 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { SessionCard } from '@/components/jobs/SessionCard';
-import { JobCard } from '@/components/jobs/JobCard';
+import { JobRow } from '@/components/jobs/JobRow';
+import { ActivitySummary } from '@/components/jobs/ActivitySummary';
+import { cn } from '@/lib/ui/cn';
 import {
   noSessions,
   jobsForWallet,
@@ -52,6 +54,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     create,
     recover,
   } = usePasskeyWallet();
+  const [tab, setTab] = useState<'jobs' | 'permissions'>('jobs');
   const [importId, setImportId] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -174,68 +177,109 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
-          Permissions
-        </h3>
-        {sessions.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {sessions.map((session) => (
-              <SessionCard key={session.id} session={session} explorerBase={explorerBase} />
-            ))}
-          </div>
-        ) : (
-          <StatusState body="No permissions on this device. Sessions are held per device, so one granted elsewhere will not appear here." />
-        )}
-      </section>
+    <div className="flex flex-col gap-6">
+      <ActivitySummary jobs={jobs} />
 
-      <section className="flex flex-col gap-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-[color:var(--text-muted)]">
-          Escrowed jobs
-        </h3>
-        {jobs.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} explorerBase={explorerBase} />
-            ))}
-          </div>
-        ) : (
-          <StatusState body="No jobs on this device. Jobs are recorded per device — one hired elsewhere can be pulled in below using its ERC-8183 job ID." />
-        )}
+      {/*
+        Jobs first, and by default. Permissions used to sit above them even
+        though Pokter no longer issues any, so the page opened on an empty
+        section explaining an absence before showing the thing the visitor
+        came for.
+      */}
+      <div
+        role="tablist"
+        aria-label="Activity"
+        className="flex gap-1 border-b border-[color:var(--border)]"
+      >
+        {([
+          ['jobs', `Jobs${jobs.length ? ` (${jobs.length})` : ''}`],
+          ['permissions', `Permissions${sessions.length ? ` (${sessions.length})` : ''}`],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            id={`activity-tab-${value}`}
+            aria-selected={tab === value}
+            aria-controls={`activity-panel-${value}`}
+            onClick={() => setTab(value)}
+            className={cn(
+              'tap-safe -mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition-colors',
+              tab === value
+                ? 'border-[color:var(--brand)] text-[color:var(--brand)]'
+                : 'border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text)]',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        <div className="flex max-w-xl flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
-          <h4 className="text-sm font-medium">Recover an on-chain job</h4>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-            Enter its ERC-8183 job ID. Pokter will import it only when the
-            connected passkey wallet is the job&apos;s on-chain client.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <input
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={importId}
-              onChange={(event) => setImportId(event.target.value.trim())}
-              placeholder="Job ID"
-              aria-label="ERC-8183 job ID"
-              className="mono w-36 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 py-2 text-[12px]"
-            />
-            <button
-              type="button"
-              onClick={importJob}
-              disabled={importing || !/^\d+$/.test(importId)}
-              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
-            >
-              {importing ? 'Reading chain…' : 'Import job'}
-            </button>
-          </div>
-          {importError && (
-            <p className="text-[11px] leading-relaxed text-[color:var(--negative)]">
-              {importError}
-            </p>
+      {tab === 'jobs' ? (
+        <section
+          role="tabpanel"
+          id="activity-panel-jobs"
+          aria-labelledby="activity-tab-jobs"
+          className="flex flex-col gap-3"
+        >
+          {jobs.length ? (
+            jobs.map((job) => (
+              <JobRow key={job.id} job={job} explorerBase={explorerBase} />
+            ))
+          ) : (
+            <StatusState body="No jobs on this device. Jobs are recorded per device — one hired elsewhere can be pulled in below using its ERC-8183 job ID." />
           )}
-        </div>
-      </section>
+
+          <div className="flex max-w-xl flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+            <h4 className="text-sm font-medium">Recover an on-chain job</h4>
+            <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              Enter its ERC-8183 job ID. Pokter will import it only when the
+              connected passkey wallet is the job&apos;s on-chain client.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={importId}
+                onChange={(event) => setImportId(event.target.value.trim())}
+                placeholder="Job ID"
+                aria-label="ERC-8183 job ID"
+                className="mono w-36 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 py-2 text-[12px]"
+              />
+              <button
+                type="button"
+                onClick={importJob}
+                disabled={importing || !/^\d+$/.test(importId)}
+                className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+              >
+                {importing ? 'Reading chain…' : 'Import job'}
+              </button>
+            </div>
+            {importError && (
+              <p className="text-[11px] leading-relaxed text-[color:var(--negative)]">
+                {importError}
+              </p>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section
+          role="tabpanel"
+          id="activity-panel-permissions"
+          aria-labelledby="activity-tab-permissions"
+          className="flex flex-col gap-3"
+        >
+          {sessions.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {sessions.map((session) => (
+                <SessionCard key={session.id} session={session} explorerBase={explorerBase} />
+              ))}
+            </div>
+          ) : (
+            <StatusState body="No permissions on this device. Pokter no longer creates delegated sessions, so this stays empty unless one was granted before that changed — sessions are held per device either way." />
+          )}
+        </section>
+      )}
     </div>
   );
 }
