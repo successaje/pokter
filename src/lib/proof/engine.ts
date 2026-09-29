@@ -133,23 +133,31 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     totalWeight;
 
   /*
-   * Enough looking to have an opinion at all: the volume, duration and quality
-   * bars, without the independence one. Clearing this is what separates an
-   * agent Pokter has examined from one it has merely touched.
+   * How much Pokter has looked — not how well the agent did.
+   *
+   * This bar originally included the score, which made `observed` claim
+   * something false. An agent probed 286 times over 28 days and answering
+   * 88.8% of them was badged "measurement has started, too few probes or too
+   * short a window to judge yet", when it had been examined thoroughly and
+   * simply was not excellent. Eight of the nine observed agents in production
+   * were that case.
+   *
+   * Coverage and quality are different questions. Coverage decides whether
+   * Pokter is entitled to an opinion at all; quality decides which opinion.
    */
   const examined =
-    score >= PROVEN_MIN_SCORE &&
     probes >= PROVEN_MIN_PROBES &&
     (windowDays ?? 0) >= PROVEN_MIN_WINDOW_DAYS;
 
   const verdict: Verdict =
     score < FAILING_MAX_SCORE
       ? 'failing'
-      : examined
-        ? measurers.length >= PROVEN_MIN_MEASURERS
+      : !examined
+        ? 'observed'
+        : score >= PROVEN_MIN_SCORE &&
+            measurers.length >= PROVEN_MIN_MEASURERS
           ? 'proven'
-          : 'emerging'
-        : 'observed';
+          : 'emerging';
 
   /*
    * FE-12. The probe count is the sum across every measurer, while the agent
