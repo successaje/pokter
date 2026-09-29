@@ -104,8 +104,17 @@ export function HireGate({
           {proof.score !== null &&
             ` and measures ${(proof.score * 100).toFixed(0)}% across ${plural(proof.probes, 'probe')} of published evidence`}
           .
-          {proof.verdict === 'emerging' &&
+          {/*
+            The two shortfalls say different things and had one sentence
+            between them. "Real but thin" described the case that is now
+            `observed`; an `emerging` agent has been examined properly and is
+            simply uncorroborated, which is a different thing to tell someone
+            about to spend money.
+          */}
+          {proof.verdict === 'observed' &&
             ' Its record is real but thin — treat it as a first trial, not a settled track record.'}
+          {proof.verdict === 'emerging' &&
+            ' It has been measured enough to judge, but nobody independent has corroborated it.'}
         </p>
       </div>
 

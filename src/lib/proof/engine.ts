@@ -253,11 +253,28 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
      * record is still shown: the badge says Observed and the page states the
      * probe count and window.
      */
-    recommendedForHire:
-      verdict === 'proven' || verdict === 'emerging' || verdict === 'observed',
+    recommendedForHire: HIREABLE_VERDICTS.has(verdict),
     rationale,
   };
 }
+
+/**
+ * The verdicts that take the normal hire path.
+ *
+ * Exported as data rather than left as a boolean expression in two files. The
+ * pairing has broken twice — both times a rule written against the older
+ * vocabulary that nobody revisited when a tier was added — so the set lives in
+ * one place and every caller reads it.
+ *
+ * Risk acceptance is for evidence that argues against the agent (`failing`) or
+ * does not exist (`unproven`). Everything else is measured and not bad, and
+ * shows its own thinness through its badge.
+ */
+export const HIREABLE_VERDICTS: ReadonlySet<Verdict> = new Set<Verdict>([
+  'proven',
+  'emerging',
+  'observed',
+]);
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   proven: 'Proven',

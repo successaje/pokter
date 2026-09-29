@@ -93,6 +93,7 @@ export default async function LeaderboardPage({
         <TierNote
           proven={entries.filter((e) => e.proof.verdict === 'proven').length}
           emerging={entries.filter((e) => e.proof.verdict === 'emerging').length}
+          observed={entries.filter((e) => e.proof.verdict === 'observed').length}
         />
       </header>
 

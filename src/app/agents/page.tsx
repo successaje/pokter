@@ -79,6 +79,7 @@ export default async function AgentsPage({
   const verdicts = all.map((entry) => verdictFor(entry));
   const provenCount = verdicts.filter((v) => v === 'proven').length;
   const emergingCount = verdicts.filter((v) => v === 'emerging').length;
+  const observedCount = verdicts.filter((v) => v === 'observed').length;
   const askedForProven = query.qualifiers.some(
     (q) => stringifyQuery([q]) === 'is:proven',
   );
@@ -131,6 +132,7 @@ export default async function AgentsPage({
         <TierNote
           proven={provenCount}
           emerging={emergingCount}
+          observed={observedCount}
           className="max-w-2xl"
         />
       )}

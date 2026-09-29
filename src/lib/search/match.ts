@@ -2,6 +2,7 @@ import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
 import {
   FAILING_MAX_SCORE,
+  HIREABLE_VERDICTS,
   PROVEN_MIN_PROBES,
   PROVEN_MIN_WINDOW_DAYS,
   type Verdict,
@@ -218,7 +219,13 @@ export function matchesQuery(agent: SearchableAgent, query: ParsedQuery): boolea
  * is a redirect rather than a dead end.
  */
 export function offersDirectHire(entry: SearchableAgent): boolean {
-  const verdict = verdictFor(entry);
-  if (verdict !== 'proven' && verdict !== 'emerging') return false;
+  /*
+   * The same set the proof engine uses for the normal hire path. This read
+   * `proven || emerging` and so withheld the button from every `observed`
+   * agent, while the detail page behind the card offered it — the card and the
+   * page disagreeing about the same agent, which is the fault this function's
+   * own note above says it exists to prevent.
+   */
+  if (!HIREABLE_VERDICTS.has(verdictFor(entry))) return false;
   return entry.record.totalProbes > 0 && entry.record.totalAnswered > 0;
 }

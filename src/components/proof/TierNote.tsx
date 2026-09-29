@@ -21,10 +21,13 @@ import { cn } from '@/lib/ui/cn';
 export function TierNote({
   proven,
   emerging,
+  observed,
   className,
 }: {
   proven: number;
   emerging: number;
+  /** Measured, but short of the volume the Proven bar asks for. */
+  observed: number;
   className?: string;
 }) {
   if (proven > 0) return null;
@@ -41,11 +44,25 @@ export function TierNote({
       </span>{' '}
       That tier needs {plural(PROVEN_MIN_MEASURERS, 'independent measurer')}{' '}
       agreeing, and Pokter does not count its own probing as one of them.{' '}
+      {/*
+        The fallback used to read "nothing has yet been measured closely enough
+        to reach that tier", which was true when a measured agent could only be
+        Emerging. With the thin records split into their own tier that sentence
+        could sit above forty-six agents Pokter had measured, so the two states
+        are now named separately and the flat denial is only reached when both
+        are genuinely empty.
+      */}
       {emerging > 0 ? (
         <>
           {plural(emerging, 'agent')} {emerging === 1 ? 'is' : 'are'} Emerging —
           measured, with real evidence, but corroborated by fewer measurers than
           that.
+        </>
+      ) : observed > 0 ? (
+        <>
+          {plural(observed, 'agent')} {observed === 1 ? 'is' : 'are'} Observed —
+          measured, but not yet over enough probes or a long enough window to be
+          judged against that bar.
         </>
       ) : (
         <>Nothing has yet been measured closely enough to reach that tier.</>
