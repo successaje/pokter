@@ -79,7 +79,12 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
       <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
+        {/*
+          Five tracks, not four: the Legal column was added and wrapped onto a
+          row of its own, which read as an afterthought rather than as a peer of
+          the other three. The brand track gives up the width to pay for it.
+        */}
+        <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-[1.15fr_repeat(4,1fr)]">
           <div className="flex max-w-md flex-col items-start gap-4">
             <Link href="/" aria-label="Pokter home" className="tap">
               <Wordmark size={24} />

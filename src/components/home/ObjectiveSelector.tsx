@@ -80,7 +80,8 @@ function AgentComposition({
             key={`${listing.agent.chain_id}:${listing.agent.token_id}`}
             href={href}
             aria-label={`View ${listing.agent.name}`}
-            className={`absolute ${positions[index]} z-10 flex w-[68%] max-w-[310px] items-center gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 shadow-lg transition-[transform,border-color,box-shadow] duration-300 hover:z-30 hover:rotate-0 hover:scale-[1.02] hover:border-[color:var(--brand)] hover:shadow-xl focus-visible:z-30 focus-visible:rotate-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)] sm:p-4`}
+            style={{ animationDelay: `${index * 110}ms, ${index * 110 + 900}ms` }}
+            className={`agent-deal absolute ${positions[index]} z-10 flex w-[68%] max-w-[310px] items-center gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 shadow-lg transition-[transform,border-color,box-shadow] duration-300 hover:z-30 hover:rotate-0 hover:scale-[1.02] hover:border-[color:var(--brand)] hover:shadow-xl focus-visible:z-30 focus-visible:rotate-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)] sm:p-4`}
           >
             <AgentAvatar
               name={listing.agent.name}
@@ -103,7 +104,14 @@ function AgentComposition({
         );
       })}
 
-      <p className="absolute bottom-[5%] right-[4%] z-20 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-[10px] uppercase tracking-wider text-[color:var(--text-muted)] shadow-sm">
+      {/*
+        The protocol name for this outcome. It was 10px of muted grey on a
+        surface chip, which put the one word connecting "Trade with a system"
+        to "Grid Trading" below the threshold anyone reads while scanning.
+        It now carries the brand, at a size that survives a phone.
+      */}
+      <p className="absolute bottom-[4%] right-[3%] z-30 inline-flex items-center gap-1.5 rounded-full border border-[color:var(--brand)]/45 bg-[color:var(--brand-highlight-soft)] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--brand-strong)] shadow-md">
+        <span className="size-1.5 rotate-45 bg-[color:var(--brand-strong)]" aria-hidden />
         {meta?.label ?? 'Financial agents'}
       </p>
     </div>
@@ -153,8 +161,27 @@ export function ObjectiveSelector({
               className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
             >
               <div className={reverse ? 'lg:order-2' : undefined}>
-                <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--brand-strong)]">
-                  0{index + 1} · {objective.eyebrow}
+                {/*
+                  Human word and protocol word together, which is the pairing
+                  that teaches. "Trade" alone tells a newcomer what they want;
+                  "Grid Trading" alone tells an expert what this is; neither
+                  alone connects the two, and this is the one place both
+                  readers are looking at the same line.
+                */}
+                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-semibold uppercase tracking-widest">
+                  <span className="text-[color:var(--text-faint)]">
+                    0{index + 1}
+                  </span>
+                  <span className="text-[color:var(--brand-strong)]">
+                    {objective.eyebrow}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="h-3 w-px bg-[color:var(--border-strong)]"
+                  />
+                  <span className="tracking-[0.08em] text-[color:var(--text-secondary)]">
+                    {CATEGORY_BY_ID.get(objective.category)?.label ?? ''}
+                  </span>
                 </p>
                 <h3 className="display mt-3 max-w-xl text-3xl leading-tight sm:text-4xl">
                   {objective.label}

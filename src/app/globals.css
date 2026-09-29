@@ -1068,3 +1068,47 @@ h2 {
 .overflow-x-auto::-webkit-scrollbar {
   display: none;
 }
+
+/*
+ * The outcome compositions deal themselves in.
+ *
+ * Animating `translate` rather than `transform` on purpose. Each card carries a
+ * Tailwind rotation utility, and Tailwind v4 emits that as a standalone
+ * `rotate` property — so a keyframe touching `translate` leaves the tilt alone
+ * instead of flattening it, and the hover state keeps `rotate` and `scale` to
+ * itself. Animating `transform` here would fight all three.
+ *
+ * The drift starts only after the deal finishes, so the two never contend for
+ * the same property at the same time. The global reduced-motion rule collapses
+ * both to nothing, which leaves the composition exactly where it lands.
+ */
+@keyframes agent-deal {
+  from {
+    opacity: 0;
+    translate: 0 26px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes agent-drift {
+  to {
+    translate: 0 -7px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .agent-deal {
+    animation:
+      agent-deal 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+      agent-drift 7s ease-in-out 900ms infinite alternate;
+  }
+
+  /* Paused under the pointer: a card being read should hold still. */
+  .agent-deal:hover,
+  .agent-deal:focus-visible {
+    animation-play-state: paused;
+  }
+}
