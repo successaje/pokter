@@ -100,6 +100,13 @@
 
   --brand: #f3ba2f;
   --brand-hover: #f7c94f;
+  /*
+   * Brand yellow that can be read as text. --brand measures 1.58:1 on the
+   * cream surface, so eyebrows set in it were invisible on the theme this
+   * design leads with; on the dark theme the yellow already carries 10.19:1
+   * and needs no darkening. Measured against each theme's own surface.
+   */
+  --brand-strong: #f3ba2f;
   --brand-ink: #1d1d1b;
   --brand-shadow: rgba(243, 186, 47, 0.18);
   --brand-highlight: #f3ba2f;
@@ -197,6 +204,7 @@
   --light-chart-track: #e6e3d9;
 
   --light-brand: #f3ba2f;
+  --light-brand-strong: #8a5e08;
   --light-brand-hover: #e5a916;
   --light-brand-ink: #1d1d1b;
   --light-brand-shadow: rgba(243, 186, 47, 0.18);
@@ -232,6 +240,7 @@
   --chart-bar-failed: var(--light-chart-bar-failed);
   --chart-track: var(--light-chart-track);
   --brand: var(--light-brand);
+  --brand-strong: var(--light-brand-strong);
   --brand-hover: var(--light-brand-hover);
   --brand-ink: var(--light-brand-ink);
   --brand-shadow: var(--light-brand-shadow);
@@ -267,6 +276,7 @@
     --chart-bar-failed: var(--light-chart-bar-failed);
     --chart-track: var(--light-chart-track);
     --brand: var(--light-brand);
+    --brand-strong: var(--light-brand-strong);
     --brand-hover: var(--light-brand-hover);
     --brand-ink: var(--light-brand-ink);
     --brand-shadow: var(--light-brand-shadow);

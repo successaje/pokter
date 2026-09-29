@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -51,12 +51,27 @@ export function EvidenceSection({
 }) {
   const [open, setOpen] = useState(false);
   const contentId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!anchorId) return;
 
     const openFromHash = () => {
-      if (window.location.hash === `#${anchorId}`) setOpen(true);
+      if (window.location.hash !== `#${anchorId}`) return;
+      setOpen(true);
+      /*
+       * Aim again once the section has opened.
+       *
+       * The browser jumps to the fragment while this is still collapsed, so it
+       * lands on a heading with nothing under it, and the expansion then
+       * inserts the content between the reader and where they were looking —
+       * the evidence they followed the link for ends up below the fold. The
+       * scroll is deferred past the frame that paints the open state, so it
+       * measures the section at its real height.
+       */
+      requestAnimationFrame(() => {
+        sectionRef.current?.scrollIntoView({ block: 'start' });
+      });
     };
 
     openFromHash();
@@ -66,6 +81,7 @@ export function EvidenceSection({
 
   return (
     <section
+      ref={sectionRef}
       id={anchorId}
       className={cn(
         sectionClassName ?? 'flex flex-col gap-3',

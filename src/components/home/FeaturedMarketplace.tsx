@@ -25,6 +25,19 @@ export function FeaturedMarketplace({
         Boolean(entry.listing),
     );
 
+  /*
+   * Counted, not asserted.
+   *
+   * The heading said "Four outcomes" while the list above it drops any
+   * category whose only listings are test deployments or retired duplicates.
+   * A registry change that left one category unrepresented would have printed
+   * a headline contradicted by the three cards directly beneath it — on a page
+   * whose argument is that Pokter states only what it can show.
+   */
+  const spelled =
+    (['no', 'One', 'Two', 'Three', 'Four'] as const)[featured.length] ??
+    String(featured.length);
+
   return (
     <section className="flex flex-col gap-6" aria-labelledby="featured-agents-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -33,7 +46,8 @@ export function FeaturedMarketplace({
             Start with an agent
           </p>
           <h2 id="featured-agents-title" className="display mt-2 text-3xl sm:text-4xl">
-            Four outcomes. Four evidence trails.
+            {spelled} outcome{featured.length === 1 ? '' : 's'}. {spelled}{' '}
+            evidence trail{featured.length === 1 ? '' : 's'}.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
             Open a leading agent from each financial role, or let Pokter narrow
