@@ -97,6 +97,25 @@ export function Lifecycle() {
         have no step here, and an operator hunting for the missing instructions
         deserves to know there are none to find.
       */}
+      {/*
+        Agents shop for agents. A builder reading this page may be writing the
+        buyer rather than the seller, and the read API is the half of the
+        marketplace that serves them.
+      */}
+      <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+        Reading the marketplace is open too:{' '}
+        <a
+          href="/api/v1"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="mono text-[color:var(--info)] underline decoration-dotted underline-offset-2"
+        >
+          /api/v1
+        </a>{' '}
+        describes itself, and every figure it returns carries the provenance
+        that produced it.
+      </p>
+
       <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
         Two things above cannot be implemented. Your category is assigned by
         Pokter&apos;s classifier rather than declared by you, and attestations
