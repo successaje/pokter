@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { verdictFor, matchesQuery } from '../src/lib/search/match';
+import {
+  matchesQuery,
+  offersDirectHire,
+  verdictFor,
+} from '../src/lib/search/match';
 import { parseQuery, VERDICTS } from '../src/lib/search/query';
 import {
   FAILING_MAX_SCORE,
@@ -109,4 +113,34 @@ test('every agent lands in exactly one verdict', () => {
     const hits = VERDICTS.filter((v) => verdictFor(candidate) === v);
     assert.equal(hits.length, 1, 'a card shows one badge, so one state must match');
   }
+});
+
+test('the card offers hire on the same verdicts the detail page does', () => {
+  /*
+   * These disagreed: the engine put `observed` on the normal hire path while
+   * this function still read `proven || emerging`, so a card withheld the
+   * button from an agent whose own page offered it. Both now read one set.
+   */
+  const measuredThin = agent(20, 20, 2);
+  const measuredWell = agent(200, 200, 10);
+  const dead = agent(200, 10, 10);
+  const never = agent(0, 0, 0, 0);
+
+  assert.equal(verdictFor(measuredThin), 'observed');
+  assert.equal(offersDirectHire(measuredThin), true);
+
+  assert.equal(verdictFor(measuredWell), 'emerging');
+  assert.equal(offersDirectHire(measuredWell), true);
+
+  assert.equal(verdictFor(dead), 'failing');
+  assert.equal(offersDirectHire(dead), false);
+
+  assert.equal(verdictFor(never), 'unproven');
+  assert.equal(offersDirectHire(never), false);
+});
+
+test('an agent that never answered is never offered hire', () => {
+  // Silent endpoints reach the button only through a verdict check, so the
+  // record is asserted too: a tier change must not let one through.
+  assert.equal(offersDirectHire(agent(50, 0, 5)), false);
 });

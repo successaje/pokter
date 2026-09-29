@@ -289,17 +289,35 @@ html {
   color-scheme: dark;
 
   /*
-   * In-page anchors glide rather than jump.
+   * Scroll behaviour is deliberately NOT smooth here.
    *
-   * The category chips on Discover link to #explore, so choosing one teleported
-   * the reader seven hundred pixels down the page with nothing connecting where
-   * they were to where they landed. The results did change — but a jump that
-   * large reads as the page breaking rather than as a filter being applied.
+   * `scroll-behavior: smooth` on the root made every route change land part way
+   * down the new page: the App Router scrolls to the top on navigation, the
+   * declaration turned that into an animation, and the incoming render
+   * interrupted it. Leaving a page scrolled to 1200 and arriving at the next
+   * one at 89 is a broken product, and it was caused by an in-page nicety.
    *
-   * The reduced-motion block below already forces scroll-behavior back to auto,
-   * so this costs nothing for anyone who has asked not to be moved.
+   * The glide the chips on Discover wanted now lives in `SmoothHashScroll`,
+   * which applies it to same-page anchors only and leaves the router alone.
    */
-  scroll-behavior: smooth;
+
+  /*
+   * The document does not hand a sideways gesture to the browser.
+   *
+   * Containing overscroll on the individual strips was not enough: a gesture
+   * that starts anywhere else on the page never touches them, and the browser
+   * answers a horizontal swipe over an unscrollable document with its
+   * back-forward navigation, which slides the whole page away. On the agent
+   * page — which carries a card strip and a tab rail, so a sideways gesture is
+   * the natural thing to try — that reads as the layout coming apart.
+   *
+   * `contain` rather than `none`: the strips keep their own scrolling and the
+   * page keeps its bounce, only the chain out to browser navigation is cut.
+   * The cost is the swipe-back gesture within the site, which is a fair trade
+   * against losing a filtered marketplace view to an accidental flick, and the
+   * browser's own back button is untouched.
+   */
+  overscroll-behavior-x: contain;
 }
 
 :root[data-theme='dark'] {
@@ -1067,4 +1085,75 @@ h2 {
 /* Horizontal chip rows hide their scrollbar; the bleeding edge is the cue. */
 .overflow-x-auto::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * The outcome compositions deal themselves in as they are scrolled to.
+ *
+ * The timeline is the composition, not each card. A card is about 100px tall,
+ * so its own `entry` phase spans 100px of scrolling — the first version ran
+ * over `entry 5%` to `entry 60%` and therefore finished after roughly 60px,
+ * while the card was still sitting on the bottom edge of the viewport. It was
+ * working and invisible, which is the worst of both.
+ *
+ * Naming the timeline on the container and running over `cover` gives a range
+ * of a viewport plus the container's height, so the deal plays out over a few
+ * hundred pixels of scroll with the cards properly on screen.
+ *
+ * Animating `translate` rather than `transform` on purpose. Each card carries a
+ * Tailwind rotation utility, and Tailwind v4 emits that as a standalone
+ * `rotate` property — so a keyframe touching `translate` leaves the tilt alone
+ * instead of flattening it, and the hover state keeps `rotate` and `scale` to
+ * itself. Animating `transform` here would fight all three.
+ *
+ * The stagger is a per-card `animation-range` offset, not `animation-delay`:
+ * delays do not apply to a progress-based timeline.
+ *
+ * Guarded by @supports so a browser without scroll timelines renders the cards
+ * plainly rather than stranding them at opacity 0 — the failure mode of every
+ * scroll animation that does not load.
+ */
+@keyframes agent-deal {
+  from {
+    opacity: 0;
+    translate: 0 34px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .agent-scene {
+      view-timeline-name: --agent-scene;
+      view-timeline-axis: block;
+    }
+
+    .agent-deal {
+      animation: agent-deal linear both;
+      animation-timeline: --agent-scene;
+    }
+  }
+}
+
+/*
+ * A horizontal scroller must not scroll the page.
+ *
+ * Every sideways strip in this product — the similar-agent cards, the detail
+ * tabs, the filter chips, the comparison and ranking tables — could be pushed
+ * past its own end, at which point the gesture chained to the document. On a
+ * trackpad, where a vertical scroll almost always carries a few degrees of
+ * horizontal, that reads as the whole page sliding away under the content you
+ * were reading.
+ *
+ * Extending the utility rather than annotating a dozen call sites: there is no
+ * scroller in this app that wants the chaining, and the next one added would
+ * not have remembered to opt out.
+ */
+@layer utilities {
+  .overflow-x-auto {
+    overscroll-behavior-x: contain;
+  }
 }

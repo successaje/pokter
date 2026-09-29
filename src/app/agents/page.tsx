@@ -3,10 +3,14 @@ import { StatusState } from '@/components/ui/States';
 import { Suspense } from 'react';
 
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { listSearchable } from '@/lib/marketplace';
+import { listSearchable,
+  listingsPerOwner,
+  preferDistinctOwners,
+} from '@/lib/marketplace';
 import { parseQuery, stringifyQuery } from '@/lib/search/query';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { AgentCard } from '@/components/AgentCard';
+import { CatalogueViews } from '@/components/shell/CatalogueViews';
 import { TierNote } from '@/components/proof/TierNote';
 import { AgentSearch } from '@/components/search/AgentSearch';
 import { FilterSidebar } from '@/components/search/FilterSidebar';
@@ -77,8 +81,12 @@ export default async function AgentsPage({
    * stays true whatever the reader has narrowed to.
    */
   const verdicts = all.map((entry) => verdictFor(entry));
+  // Counted over everything indexed, so a card says how much of the whole
+  // catalogue its publisher is rather than how much of the current filter.
+  const fleets = listingsPerOwner(all);
   const provenCount = verdicts.filter((v) => v === 'proven').length;
   const emergingCount = verdicts.filter((v) => v === 'emerging').length;
+  const observedCount = verdicts.filter((v) => v === 'observed').length;
   const askedForProven = query.qualifiers.some(
     (q) => stringifyQuery([q]) === 'is:proven',
   );
@@ -105,6 +113,8 @@ export default async function AgentsPage({
 
   return (
     <div className="flex flex-col gap-8 pt-6">
+      <CatalogueViews active={'/agents'} />
+
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Marketplace</h1>
         {/*
@@ -131,6 +141,7 @@ export default async function AgentsPage({
         <TierNote
           proven={provenCount}
           emerging={emergingCount}
+          observed={observedCount}
           className="max-w-2xl"
         />
       )}
@@ -218,15 +229,31 @@ export default async function AgentsPage({
                 <StatusState body="No agent in the registry currently matches this category with enough confidence to list." />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {entries.slice(0, PREVIEW_PER_CATEGORY).map((entry) => (
-                    <AgentCard
-                      key={entry.listing.agent.token_id}
-                      listing={entry.listing}
-                      verdict={verdictFor(entry)}
-                      record={entry.record}
-                      hirable={offersDirectHire(entry)}
-                    />
-                  ))}
+                  {/*
+                    The preview shows distinct publishers first.
+                    
+                    Two operators hold eighteen of the eighty listings, so a
+                    preview taken straight off the ranking could be nine
+                    near-identical cards from one of them — a category page
+                    that looks like a catalogue of one agent. The full count
+                    above is untouched and the rest are all still behind "View
+                    all", because the duplication is a fact about this
+                    marketplace rather than something to quietly drop.
+                  */}
+                  {preferDistinctOwners(entries, PREVIEW_PER_CATEGORY).map(
+                    (entry) => (
+                      <AgentCard
+                        key={entry.listing.agent.token_id}
+                        listing={entry.listing}
+                        verdict={verdictFor(entry)}
+                        record={entry.record}
+                        hirable={offersDirectHire(entry)}
+                        fleetSize={fleets.get(
+                          entry.listing.agent.owner_address?.toLowerCase() ?? '',
+                        )}
+                      />
+                    ),
+                  )}
                 </div>
               )}
             </section>

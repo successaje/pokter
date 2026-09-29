@@ -25,25 +25,50 @@ import { usePwaInstall } from '@/components/pwa/PwaProvider';
  * nav itself teaches the journey. Browsing never requires a wallet (§59), so
  * Connect sits apart from the primary items rather than gating them.
  */
+/*
+ * Six entries became four, and the two that remain for agents say which is
+ * which.
+ *
+ * Discover, Marketplace, Rankings and Compare were four top-level answers to
+ * one question. Folding all of them behind Discover went too far the other
+ * way: Discover is a guided flow that asks about your outcome and capital
+ * before it shows anything, and someone who simply wants to read the
+ * catalogue should not have to start by answering questions. So both stay,
+ * named for what they are — Discover leads you to agents, Agents is the list
+ * of them.
+ *
+ * Rankings left the bar because it is not a destination but the same set in a
+ * different order, and it now switches with the catalogue on both pages.
+ * Compare keeps its slot because comparing is what this product is for, and
+ * Pool check is research about pools rather than a route to an agent.
+ *
+ * Nothing is removed. Every route still resolves and the ones that left the
+ * bar are in the footer and cross-linked from the pages that lead to them.
+ */
 const PRIMARY = [
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Marketplace' },
+  { href: '/agents', label: 'Agents' },
   { href: '/compare', label: 'Compare' },
-  { href: '/leaderboard', label: 'Rankings' },
-  { href: '/pool-check', label: 'Pool check' },
   { href: '/my-agents', label: 'Activity' },
 ];
 
-const MOBILE_PRIMARY = PRIMARY.filter((item) =>
-  ['/discover', '/agents', '/compare', '/my-agents'].includes(item.href),
-);
-const MOBILE_MORE = PRIMARY.filter((item) =>
-  ['/leaderboard', '/pool-check'].includes(item.href),
-);
+/*
+ * Rankings is not here because it is not a destination — it is the catalogue
+ * in a different order, and it switches with it on both pages. Pool check is
+ * research about pools rather than a route to an agent, and lives in the
+ * footer with the rest of the research.
+ */
+const SECONDARY = [
+  { href: '/leaderboard', label: 'Rankings' },
+  { href: '/pool-check', label: 'Pool check' },
+];
+
+const MOBILE_PRIMARY = PRIMARY;
+const MOBILE_MORE = SECONDARY;
 const INSTALLED_PRIMARY = [
   { href: '/app', label: 'Home' },
   { href: '/discover', label: 'Discover' },
-  { href: '/agents', label: 'Marketplace' },
+  { href: '/agents', label: 'Agents' },
   { href: '/my-agents', label: 'Activity' },
 ];
 

@@ -239,12 +239,42 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     ...base,
     verdict,
     score,
-    // A failing agent takes the explicit risk-acceptance path; an emerging one
-    // may use the normal path, with its thin record still surfaced in the UI.
-    recommendedForHire: verdict === 'proven' || verdict === 'emerging',
+    /*
+     * The risk-acceptance path is for an agent the evidence argues against or
+     * cannot speak to at all: `failing`, and `unproven` above.
+     *
+     * `observed` belongs on the normal path. This rule predates that tier and
+     * read `proven || emerging`, which was correct when `emerging` still
+     * covered thin records — the note here said so, that an agent with a thin
+     * record may use the normal path with the thinness surfaced in the UI.
+     * Splitting `observed` out of `emerging` moved exactly that case into a
+     * tier this line had never heard of, so an agent answering every probe it
+     * had been given was told it required explicit risk acceptance. The thin
+     * record is still shown: the badge says Observed and the page states the
+     * probe count and window.
+     */
+    recommendedForHire: HIREABLE_VERDICTS.has(verdict),
     rationale,
   };
 }
+
+/**
+ * The verdicts that take the normal hire path.
+ *
+ * Exported as data rather than left as a boolean expression in two files. The
+ * pairing has broken twice — both times a rule written against the older
+ * vocabulary that nobody revisited when a tier was added — so the set lives in
+ * one place and every caller reads it.
+ *
+ * Risk acceptance is for evidence that argues against the agent (`failing`) or
+ * does not exist (`unproven`). Everything else is measured and not bad, and
+ * shows its own thinness through its badge.
+ */
+export const HIREABLE_VERDICTS: ReadonlySet<Verdict> = new Set<Verdict>([
+  'proven',
+  'emerging',
+  'observed',
+]);
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   proven: 'Proven',

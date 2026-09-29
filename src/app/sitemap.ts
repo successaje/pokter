@@ -21,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/agents', priority: 0.9 },
     { path: '/compare', priority: 0.7 },
     { path: '/leaderboard', priority: 0.7 },
+    { path: '/about', priority: 0.7 },
     { path: '/methodology', priority: 0.8 },
     { path: '/census', priority: 0.7 },
     { path: '/compatibility', priority: 0.6 },

@@ -13,6 +13,7 @@ import {
 } from '@/lib/score/types';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { RankingTable } from '@/components/leaderboard/RankingTable';
+import { CatalogueViews } from '@/components/shell/CatalogueViews';
 import { TierNote } from '@/components/proof/TierNote';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,17 @@ const TABS: { id: Category | 'overall'; label: string }[] = [
 function isTab(value: string): value is Category | 'overall' {
   return TABS.some((tab) => tab.id === value);
 }
+
+/**
+ * One mark per award, so four cards in a row are told apart by shape rather
+ * than by reading four near-identical headings.
+ */
+const AWARD_GLYPH: Record<string, string> = {
+  reliability: '◎',
+  evidence: '✦',
+  record: '◷',
+  responsive: '⚡',
+};
 
 export default async function LeaderboardPage({
   searchParams,
@@ -62,6 +74,7 @@ export default async function LeaderboardPage({
       // filtered to one.
       categoryLabel: active === 'overall' && meta ? meta.label : null,
       score: formatScore(entry.score.overall),
+      scoreValue: entry.score.overall,
       coverage: `${entry.score.measuredDimensions}/${entry.score.totalDimensions}`,
       verdict: entry.proof.verdict,
       uptime,
@@ -73,6 +86,8 @@ export default async function LeaderboardPage({
 
   return (
     <div className="flex flex-col gap-10 pt-6">
+      <CatalogueViews active={'/leaderboard'} />
+
       <header className="flex max-w-2xl flex-col gap-3">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Agent rankings
@@ -92,6 +107,7 @@ export default async function LeaderboardPage({
         <TierNote
           proven={entries.filter((e) => e.proof.verdict === 'proven').length}
           emerging={entries.filter((e) => e.proof.verdict === 'emerging').length}
+          observed={entries.filter((e) => e.proof.verdict === 'observed').length}
         />
       </header>
 
@@ -138,33 +154,67 @@ export default async function LeaderboardPage({
         ))}
       </nav>
 
-      {/* §72. Best for — more useful than one generic order. */}
+      {/*
+        §72. Best for — more useful than one generic order.
+
+        These four answer the questions the overall ranking flattens: who
+        answers most, who has been checked by the most independent parties, who
+        has been watched longest, who replies fastest. They were four muted
+        cards of 10px grey, quieter than the table beneath them, so the page's
+        most specific answers were its least visible.
+
+        One accent for all four rather than a colour each: the product reserves
+        green, amber and red for what the evidence says, and spending them on
+        decoration here would make a card look like a verdict. The glyph
+        carries the difference instead.
+      */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {superlatives.map((award) => (
           <div
             key={award.id}
-            className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4"
+            className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-4 transition-[border-color,box-shadow] hover:border-[color:var(--brand)] hover:shadow-md"
           >
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                {award.label}
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-0.5 bg-[color:var(--brand)]"
+            />
+
+            <div className="flex items-start gap-2.5">
+              <span
+                aria-hidden
+                className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"
+              >
+                {AWARD_GLYPH[award.id] ?? '★'}
               </span>
-              <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
-                {award.basis}
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--brand-strong)]">
+                  {award.label}
+                </span>
+                <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                  {award.basis}
+                </span>
               </span>
             </div>
 
             {award.winner ? (
               <>
+                <div className="flex flex-col gap-0.5">
+                  <span className="tabular text-2xl font-semibold leading-none tracking-tight">
+                    {award.headline}
+                  </span>
+                  {award.qualifier && (
+                    <span className="text-[11px] text-[color:var(--text-muted)]">
+                      {award.qualifier}
+                    </span>
+                  )}
+                </div>
+
                 <Link
                   href={`/agents/${award.winner.agent.chain_id}/${award.winner.agent.token_id}`}
-                  className="tap text-[13px] font-medium leading-snug hover:underline"
+                  className="tap mt-auto border-t border-[color:var(--border)] pt-2.5 text-[13px] font-medium leading-snug hover:text-[color:var(--brand-strong)] hover:underline"
                 >
                   {award.winner.agent.name}
                 </Link>
-                <span className="tabular mt-auto text-[11px] text-[color:var(--positive)]">
-                  {award.value}
-                </span>
               </>
             ) : (
               <span className="mt-auto text-[11px] leading-relaxed text-[color:var(--text-faint)]">
@@ -194,13 +244,33 @@ export default async function LeaderboardPage({
             {ranked.map((row) => (
               <li
                 key={row.key}
-                className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+                className={[
+                  'rounded-[var(--radius-lg)] border bg-[color:var(--surface)]',
+                  // The podium is visible on a phone too. It was the one place
+                  // the ranking's own answer was rendered as grey body text.
+                  row.rank === 1
+                    ? 'border-[color:var(--brand)]/50 bg-[color:var(--bg-subtle)]'
+                    : row.rank <= 3
+                      ? 'border-[color:var(--border-strong)]'
+                      : 'border-[color:var(--border)]',
+                ].join(' ')}
               >
                 <Link
                   href={row.href}
                   className="flex items-start gap-3 p-3"
                 >
-                  <span className="tabular mt-0.5 w-5 shrink-0 text-[13px] font-medium text-[color:var(--text-faint)]">
+                  <span
+                    className={[
+                      'tabular mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-bold',
+                      row.rank === 1
+                        ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]'
+                        : row.rank === 2
+                          ? 'bg-[color:var(--surface-raised)] text-[color:var(--text)] ring-1 ring-[color:var(--border-strong)]'
+                          : row.rank === 3
+                            ? 'bg-[color:var(--caution-dim)] text-[color:var(--caution)] ring-1 ring-[color:var(--caution)]/50'
+                            : 'text-[color:var(--text-faint)]',
+                    ].join(' ')}
+                  >
                     {row.rank}
                   </span>
 

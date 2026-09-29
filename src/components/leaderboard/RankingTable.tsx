@@ -6,7 +6,11 @@ import { useState } from 'react';
 import { cn } from '@/lib/ui/cn';
 import { formatPercent } from '@/lib/ui/format';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
-import type { Verdict } from '@/lib/proof/engine';
+import {
+  FAILING_MAX_SCORE,
+  PROVEN_MIN_SCORE,
+  type Verdict,
+} from '@/lib/proof/engine';
 
 /** Compare renders at most four columns before a row stops being readable. */
 const MAX_COMPARE = 4;
@@ -18,10 +22,94 @@ export interface RankingRow {
   name: string;
   categoryLabel: string | null;
   score: string;
+  /** The same figure unformatted, for the bar. Null when nothing was measured. */
+  scoreValue: number | null;
   coverage: string;
   verdict: Verdict;
   uptime: number | null;
   probes: number;
+}
+
+/*
+ * The top three carry a medal rather than a number.
+ *
+ * A ranking whose first row looks exactly like its fortieth is a sorted list,
+ * not a ranking — the position was in a faint grey column an eye slides past.
+ * These are the only rows where the rank itself is the information.
+ *
+ * Gold is the brand; silver and bronze are neutral and warm respectively, so
+ * the three read as a set without inventing colours the product does not own.
+ */
+const MEDALS: Record<number, { ring: string; fill: string; text: string }> = {
+  1: {
+    ring: 'ring-[color:var(--brand)]',
+    fill: 'bg-[color:var(--brand)]',
+    text: 'text-[color:var(--brand-ink)]',
+  },
+  2: {
+    ring: 'ring-[color:var(--border-strong)]',
+    fill: 'bg-[color:var(--surface-raised)]',
+    text: 'text-[color:var(--text)]',
+  },
+  3: {
+    ring: 'ring-[color:var(--caution)]/50',
+    fill: 'bg-[color:var(--caution-dim)]',
+    text: 'text-[color:var(--caution)]',
+  },
+};
+
+function RankMark({ rank }: { rank: number }) {
+  const medal = MEDALS[rank];
+  if (!medal) {
+    return (
+      <span className="tabular text-[13px] text-[color:var(--text-faint)]">
+        {rank}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        'tabular inline-flex size-7 items-center justify-center rounded-full text-[12px] font-bold ring-1',
+        medal.ring,
+        medal.fill,
+        medal.text,
+      )}
+    >
+      {rank}
+    </span>
+  );
+}
+
+/*
+ * The score as a bar as well as a number.
+ *
+ * Forty rows of two-digit numbers is a table you read one cell at a time. The
+ * bar is the same figure, scannable down the column, and it stops at the
+ * measured value rather than implying a full scale — an unmeasured score
+ * renders as no bar at all, not as an empty one.
+ */
+function ScoreMeter({ value, label }: { value: number | null; label: string }) {
+  return (
+    <div className="flex min-w-[5.5rem] items-center gap-2.5">
+      <span className="tabular w-8 text-[13px] font-semibold">{label}</span>
+      {value === null ? (
+        <span className="text-[10px] text-[color:var(--text-faint)]">
+          not measured
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--bg-subtle)]"
+        >
+          <span
+            className="block h-full rounded-full bg-[color:var(--brand)]"
+            style={{ width: `${Math.max(2, Math.min(100, value))}%` }}
+          />
+        </span>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -85,6 +173,13 @@ export function RankingTable({ rows }: { rows: RankingRow[] }) {
                     checked
                       ? 'bg-[color:var(--brand-highlight-soft)]'
                       : 'hover:bg-[color:var(--surface-hover)]',
+                    // The leader gets a rule down its left edge, so the eye
+                    // lands on the top of the ranking before reading anything.
+                    !checked && row.rank === 1 && 'bg-[color:var(--bg-subtle)]',
+                    row.rank <= 3 &&
+                      'border-l-2 border-l-[color:var(--brand)]',
+                    row.rank === 2 && 'border-l-[color:var(--border-strong)]',
+                    row.rank === 3 && 'border-l-[color:var(--caution)]',
                   )}
                 >
                   <td className="p-4">
@@ -102,13 +197,18 @@ export function RankingTable({ rows }: { rows: RankingRow[] }) {
                       className="size-3.5 accent-[color:var(--brand)] disabled:opacity-40"
                     />
                   </td>
-                  <td className="tabular p-4 text-[13px] text-[color:var(--text-faint)]">
-                    {row.rank}
+                  <td className="p-4">
+                    <RankMark rank={row.rank} />
                   </td>
                   <td className="p-4">
                     <Link
                       href={row.href}
-                      className="text-[13px] font-medium hover:underline"
+                      className={cn(
+                        'hover:underline',
+                        row.rank <= 3
+                          ? 'text-[14px] font-semibold'
+                          : 'text-[13px] font-medium',
+                      )}
                     >
                       {row.name}
                     </Link>
@@ -118,7 +218,9 @@ export function RankingTable({ rows }: { rows: RankingRow[] }) {
                       </span>
                     )}
                   </td>
-                  <td className="tabular p-4 text-[13px]">{row.score}</td>
+                  <td className="p-4">
+                    <ScoreMeter value={row.scoreValue} label={row.score} />
+                  </td>
                   <td className="tabular p-4 text-[11px] text-[color:var(--text-muted)]">
                     {row.coverage}
                   </td>
@@ -129,7 +231,20 @@ export function RankingTable({ rows }: { rows: RankingRow[] }) {
                     {row.uptime === null ? (
                       <span className="text-[color:var(--text-faint)]">—</span>
                     ) : (
-                      formatPercent(row.uptime)
+                      <span
+                        className={cn(
+                          'font-medium',
+                          // The same thresholds the verdict engine uses, so a
+                          // green figure here never sits beside a Failing badge.
+                          row.uptime >= PROVEN_MIN_SCORE
+                            ? 'text-[color:var(--positive)]'
+                            : row.uptime < FAILING_MAX_SCORE
+                              ? 'text-[color:var(--negative)]'
+                              : 'text-[color:var(--text)]',
+                        )}
+                      >
+                        {formatPercent(row.uptime)}
+                      </span>
                     )}
                   </td>
                   <td className="tabular p-4 text-[13px] text-[color:var(--text-muted)]">

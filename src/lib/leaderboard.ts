@@ -33,6 +33,17 @@ export interface Superlative {
   winner: Comparison | null;
   /** The winning value, formatted. */
   value: string;
+  /*
+   * The figure alone, and the qualifier that belongs under it.
+   *
+   * Split so the card can set the number at a size worth reading. "100.0% of
+   * 10 probes" rendered as one 11px line put the most interesting fact on the
+   * page below the threshold anyone scanning it would notice, and the sample
+   * size — the part that says whether to believe the figure — was buried in
+   * the middle of the same run of text.
+   */
+  headline: string;
+  qualifier: string | null;
   /** Why nobody won, when nobody did. */
   unavailable?: string;
 }
@@ -61,7 +72,7 @@ function award(
   basis: string,
   entries: Comparison[],
   metric: (entry: Comparison) => number | null,
-  format: (value: number, entry: Comparison) => string,
+  format: (value: number, entry: Comparison) => [string, string | null],
   { lowerWins = false }: { lowerWins?: boolean } = {},
 ): Superlative {
   const ranked = entries
@@ -76,6 +87,8 @@ function award(
       basis,
       winner: null,
       value: '—',
+      headline: '—',
+      qualifier: null,
       unavailable:
         ranked.length === 0
           ? 'No agent here has been measured on this yet.'
@@ -84,12 +97,15 @@ function award(
   }
 
   const [best] = ranked;
+  const [headline, qualifier] = format(best.value, best.entry);
   return {
     id,
     label,
     basis,
     winner: best.entry,
-    value: format(best.value, best.entry),
+    value: qualifier ? `${headline} ${qualifier}` : headline,
+    headline,
+    qualifier,
   };
 }
 
@@ -101,8 +117,10 @@ export function superlativesFor(entries: Comparison[]): Superlative[] {
       'Highest share of probes answered',
       entries,
       uptimeOf,
-      (value, entry) =>
-        `${(value * 100).toFixed(1)}% of ${entry.record.totalProbes} probes`,
+      (value, entry) => [
+        `${(value * 100).toFixed(1)}%`,
+        `of ${entry.record.totalProbes} probes`,
+      ],
     ),
     award(
       'evidence',
@@ -110,7 +128,10 @@ export function superlativesFor(entries: Comparison[]): Superlative[] {
       'Most independent measurers',
       entries,
       (entry) => entry.proof.measurers.length,
-      (value) => `${value} independent measurer${value === 1 ? '' : 's'}`,
+      (value) => [
+        String(value),
+        `independent measurer${value === 1 ? '' : 's'}`,
+      ],
     ),
     award(
       'record',
@@ -118,7 +139,7 @@ export function superlativesFor(entries: Comparison[]): Superlative[] {
       'Most days under observation',
       entries,
       (entry) => (entry.record.days.length === 0 ? null : entry.record.days.length),
-      (value) => `${value} day${value === 1 ? '' : 's'} observed`,
+      (value) => [String(value), `day${value === 1 ? '' : 's'} observed`],
     ),
     award(
       'responsive',
@@ -126,7 +147,7 @@ export function superlativesFor(entries: Comparison[]): Superlative[] {
       'Lowest median response time',
       entries,
       medianOf,
-      (value) => `${value}ms median`,
+      (value) => [`${value}ms`, 'median response'],
       { lowerWins: true },
     ),
   ];

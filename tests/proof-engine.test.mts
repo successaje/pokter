@@ -153,3 +153,77 @@ test('the independence bar is what the constant says it is', () => {
   assert.equal(summariseProof(measurers).verdict, 'proven');
   assert.equal(summariseProof(measurers.slice(0, -1)).verdict, 'emerging');
 });
+
+/*
+ * Which verdicts take the normal hire path.
+ *
+ * This pairing has already broken once: `recommendedForHire` read
+ * `proven || emerging` from before `observed` existed, so splitting the thin
+ * record out of `emerging` quietly moved it onto the risk-acceptance path and
+ * an agent answering every probe it had been given was told it required
+ * explicit risk acceptance. Pinned per verdict so the next tier added has to
+ * decide this deliberately.
+ */
+test('evidence that exists and is not bad takes the normal hire path', () => {
+  const proven = summariseProof([
+    attestation({ id: 'a', measuredBy: 'one' }),
+    attestation({ id: 'b', measuredBy: 'two' }),
+  ]);
+  const emerging = summariseProof([attestation()]);
+  const observed = summariseProof([
+    attestation({ method: { probes: 20, windowDays: 2 } }),
+  ]);
+
+  assert.equal(proven.verdict, 'proven');
+  assert.equal(emerging.verdict, 'emerging');
+  assert.equal(observed.verdict, 'observed');
+
+  for (const result of [proven, emerging, observed]) {
+    assert.equal(
+      result.recommendedForHire,
+      true,
+      `${result.verdict} should not demand risk acceptance`,
+    );
+  }
+});
+
+test('failing and unmeasured require explicit risk acceptance', () => {
+  const failing = summariseProof([
+    attestation({ ratio: 0.2, method: { probes: 200, windowDays: 30 } }),
+  ]);
+  const unproven = summariseProof([]);
+
+  assert.equal(failing.verdict, 'failing');
+  assert.equal(unproven.verdict, 'unproven');
+  assert.equal(failing.recommendedForHire, false);
+  assert.equal(unproven.recommendedForHire, false);
+});
+
+test('every verdict states a hire path, so a new tier cannot default in', () => {
+  const byVerdict = new Map(
+    [
+      summariseProof([
+        attestation({ id: 'a', measuredBy: 'one' }),
+        attestation({ id: 'b', measuredBy: 'two' }),
+      ]),
+      summariseProof([attestation()]),
+      summariseProof([attestation({ method: { probes: 20, windowDays: 2 } })]),
+      summariseProof([
+        attestation({ ratio: 0.2, method: { probes: 200, windowDays: 30 } }),
+      ]),
+      summariseProof([]),
+    ].map((result) => [result.verdict, result.recommendedForHire]),
+  );
+
+  assert.deepEqual(
+    Object.fromEntries(byVerdict),
+    {
+      proven: true,
+      emerging: true,
+      observed: true,
+      failing: false,
+      unproven: false,
+    },
+    'the five states and their hire paths, stated in one place',
+  );
+});

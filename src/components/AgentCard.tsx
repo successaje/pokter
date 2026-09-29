@@ -27,6 +27,7 @@ export function AgentCard({
   verdict,
   record,
   hirable = false,
+  fleetSize,
 }: {
   listing: Listing;
   verdict: Verdict;
@@ -38,6 +39,15 @@ export function AgentCard({
   record?: TrackRecord;
   /** Offer Hire on the card itself. See `offersDirectHire`. */
   hirable?: boolean;
+  /**
+   * How many listings this publisher holds across the catalogue.
+   *
+   * Stated rather than collapsed. Nine near-identical registrations from one
+   * operator is a fact about this marketplace worth a reader knowing — it
+   * changes how much a strong record here means — and hiding it would make the
+   * catalogue tidier at the cost of the count being true.
+   */
+  fleetSize?: number;
 }) {
   const { agent, attestationCount } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
@@ -88,6 +98,7 @@ export function AgentCard({
         ? 'No price quoted'
         : formatQuotedPrice(listing.quote.priceU);
   const hasPrice = Boolean(listing.quote);
+  const fromAFleet = (fleetSize ?? 1) > 1;
 
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
@@ -138,15 +149,48 @@ export function AgentCard({
         374px wide inside a 350px column and give the whole page a horizontal
         scroll — latent until a higher list limit surfaced that agent.
       */}
-      <div className="surface-card flex min-w-0 flex-col md:hidden">
+      <div className="surface-card relative flex min-w-0 flex-col md:hidden">
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
               <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
               <div className="flex min-w-0 flex-col gap-0.5">
                 {meta && (
-                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                    {meta.label}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      {meta.label}
+                    </span>
+                    {fromAFleet && (
+                      /*
+                        Twenty-five characters to carry one number, wrapping to
+                        a second line on a card whose own name often already
+                        does. The stacked mark says "there are more of these"
+                        on sight, which is the whole message; the count gives
+                        the scale, and the accessible name carries the sentence
+                        for anyone who needs it spelled out.
+                      */
+                      <span
+                        title={`One of ${fleetSize} listings by this publisher`}
+                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--bg-subtle)] px-1.5 py-px text-[10px] font-medium tabular-nums text-[color:var(--text-muted)]"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                          className="size-3 fill-none stroke-current"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="8" y="8" width="12" height="12" rx="2.5" />
+                          <path d="M16 4H6a2 2 0 0 0-2 2v10" />
+                        </svg>
+                        {fleetSize}
+                        <span className="sr-only">
+                          {' '}
+                          listings by this publisher
+                        </span>
+                      </span>
+                    )}
                   </span>
                 )}
                 {name}
@@ -212,15 +256,48 @@ export function AgentCard({
       </div>
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
-      <div className="surface-card group hidden h-full min-w-0 flex-col md:flex">
+      <div className="surface-card group relative hidden h-full min-w-0 flex-col md:flex">
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
               <div className="flex min-w-0 flex-col gap-1">
                 {meta && (
-                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                    {meta.label}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                      {meta.label}
+                    </span>
+                    {fromAFleet && (
+                      /*
+                        Twenty-five characters to carry one number, wrapping to
+                        a second line on a card whose own name often already
+                        does. The stacked mark says "there are more of these"
+                        on sight, which is the whole message; the count gives
+                        the scale, and the accessible name carries the sentence
+                        for anyone who needs it spelled out.
+                      */
+                      <span
+                        title={`One of ${fleetSize} listings by this publisher`}
+                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--bg-subtle)] px-1.5 py-px text-[10px] font-medium tabular-nums text-[color:var(--text-muted)]"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                          className="size-3 fill-none stroke-current"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="8" y="8" width="12" height="12" rx="2.5" />
+                          <path d="M16 4H6a2 2 0 0 0-2 2v10" />
+                        </svg>
+                        {fleetSize}
+                        <span className="sr-only">
+                          {' '}
+                          listings by this publisher
+                        </span>
+                      </span>
+                    )}
                   </span>
                 )}
                 {name}
@@ -245,6 +322,15 @@ export function AgentCard({
 
           <dl className="mt-auto flex flex-col gap-1 border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
             <div className="flex items-baseline justify-between gap-3">
+              {/*
+                These labels are `sr-only`, which is `position: absolute`. With
+                no positioned ancestor their containing block is the document,
+                so a card sitting inside a horizontally scrolled strip placed
+                them a thousand pixels past the viewport and stretched the page
+                itself — the whole layout slid sideways on any agent page whose
+                similar-agents row was long enough to scroll. The `relative` on
+                the card root is what keeps them inside it.
+              */}
               <dt className="sr-only">Publisher</dt>
               <dd className="min-w-0 truncate">{publisher ?? 'Owner unknown'}</dd>
               <dt className="sr-only">Attestations</dt>

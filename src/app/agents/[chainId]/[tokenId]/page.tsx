@@ -26,6 +26,8 @@ import { TrialPanel } from '@/components/agent/TrialPanel';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { MobileHireAction } from '@/components/agent/MobileHireAction';
 import { TrustStrip } from '@/components/agent/TrustStrip';
+import { SimilarAgents } from '@/components/agent/SimilarAgents';
+import { ShareAgent } from '@/components/agent/ShareAgent';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
@@ -121,8 +123,17 @@ export default async function AgentPage({
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8">
         <div className="flex min-w-0 flex-col gap-8">
-          <header className="flex min-w-0 flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
-            <div className="flex min-w-0 max-w-4xl items-start gap-4">
+          <header className="relative flex min-w-0 flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
+            {/*
+              Top corner of the identity card, out of the reading order of the
+              name and its badges. It belongs to the whole card rather than to
+              any one line in it, and the hire column would have hidden it
+              below 1024px — exactly the widths where a platform share sheet
+              exists.
+            */}
+            <ShareAgent name={agent.name} />
+
+            <div className="flex min-w-0 max-w-4xl items-start gap-4 pr-10">
               <AgentAvatar name={agent.name} src={agent.image_url} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
@@ -471,6 +482,11 @@ export default async function AgentPage({
         </aside>
       </div>
 
+      <SimilarAgents
+        category={category}
+        chainId={agent.chain_id}
+        tokenId={agent.token_id}
+      />
     </div>
   );
 }
