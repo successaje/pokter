@@ -7,9 +7,14 @@ import { verifyNegotiationSignature } from '../src/lib/erc8183/negotiation';
 import { privateKeyToAccount } from 'viem/accounts';
 import { walletActionError } from '../src/lib/wallet/errors';
 
-const delegatedWriteCategories = ['rebalancing', 'grid-trading', 'yield'];
+const marketplaceCategories = [
+  'rebalancing',
+  'grid-trading',
+  'yield',
+  'health-factor',
+];
 
-for (const category of delegatedWriteCategories) {
+for (const category of marketplaceCategories) {
   let refused = false;
   try {
     toSessionPermissions({
@@ -20,22 +25,12 @@ for (const category of delegatedWriteCategories) {
     });
   } catch (error) {
     refused = (error as Error).message.includes(
-      'recipient and asset constraints are not yet enforced',
+      'recipient, asset, position and amount constraints are not yet enforced',
     );
   }
   if (!refused) {
-    throw new Error(`${category} produced an unsafe delegated-write session`);
+    throw new Error(`${category} produced a delegated wallet session`);
   }
-}
-
-const monitor = toSessionPermissions({
-  category: 'health-factor',
-  spendCapBnb: 0.02,
-  period: 'week',
-  expiryDays: 7,
-});
-if ((monitor.calls?.length ?? 0) !== 0) {
-  throw new Error('The read-only health-factor category gained write calls');
 }
 
 console.log('Protocol safety checks passed.');

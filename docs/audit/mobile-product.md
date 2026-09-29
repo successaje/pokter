@@ -23,14 +23,14 @@ the four categories, by deliberate design.
 > Delegated write sessions are disabled: recipient and asset constraints are
 > not yet enforced on-chain.
 
-`CATEGORY_CONTRACTS` shows the blast radius:
+`CATEGORY_INTEGRATIONS` shows the blast radius:
 
 | Category | Contracts | Delegated session |
 | --- | --- | --- |
 | Rebalancing | PancakeSwap V3 Position Manager | **Throws** |
 | Grid Trading | PancakeSwap V3 Router | **Throws** |
 | Yield Optimisation | PancakeSwap V3 Router | **Throws** |
-| Health Factor | none (read-only) | Succeeds |
+| Health Factor | none (read-only) | Not created; no authority needed |
 
 The reason is sound: those router and position-manager calls carry recipient
 parameters, and allowing the selector without constraining the arguments would

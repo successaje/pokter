@@ -4,7 +4,7 @@
 
 A decision layer for autonomous finance on BNB Chain. Pokter helps you discover,
 verify, compare and safely hire autonomous financial agents — using onchain
-activity, attestations, live execution data and scoped, revocable permissions.
+activity, attestations, live execution data and buyer-controlled escrow.
 
 |                   |                              |
 | ----------------- | ---------------------------- |
@@ -114,16 +114,18 @@ defects our own method has.
 | Side-by-side comparison, up to four agents       | Working                                         |
 | Rankings with per-metric awards                  | Working                                         |
 | Published methodology, imported from the code    | Working                                         |
-| Altana scoped sessions — grant, register, revoke | **Verified on-chain**                           |
+| Historical Altana session grant and revocation  | **Verified on-chain; new grants disabled**      |
 | ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                           |
 | Passkey wallets (WebAuthn, user-held)            | Working                                         |
-| Session grants signed by the visitor's own key   | Working **via passkey**; browser wallets cannot |
+| Standing delegated wallet authority              | **Disabled until calldata constraints exist**   |
 | Agent delivery and receipt verification          | **Verified end to end on-chain**                |
 | Performance and risk scoring                     | **Never** — [why](#what-does-not-work)          |
 
 ## Evidence
 
-Everything below is on BSC testnet and independently verifiable.
+Everything below is on BSC testnet and independently verifiable. Session
+transactions are historical evidence of the integration; Pokter no longer
+creates new delegated sessions from the product.
 
 | What                                            | Transaction                                                                                                        |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -144,10 +146,10 @@ between them they show the whole lifecycle:
 - **[Ended](https://testnet.altana.network/account/0xAe4473468F10b507AB410077FA266FD8c5Af2196)** — one root key active, three session keys expired or
   revoked.
 
-That sessions _end_ is the point. They are issued scoped and they stop, either
-on their own or because somebody stopped them.
+These transactions prove that sessions expire and can be revoked. They do not
+prove that the old target-and-selector policy was safe for financial execution.
 
-### The allowlist was tested, not just claimed
+### The allowlist was tested — and its limit changed the product
 
 Saying "a call outside the allowlist reverts" is worth nothing unless somebody
 tries it. [`scripts/prove-enforcement.mts`](scripts/prove-enforcement.mts)
@@ -168,12 +170,26 @@ which would have read as the allowlist working while proving nothing — the
 same mistake this product exists to prevent, so the test now has to distinguish
 the two failure modes.
 
-**The permission scoping is enforced on-chain, not in our UI.** We granted two
-sessions with deliberately different scopes and diffed the calldata: the
-rebalancer grant carries the PancakeSwap Position Manager address; the
-monitoring grant, whose allowlist is empty by design, does not. A call outside
-the scope reverts inside the Altana account contract — Pokter could not weaken
-it if it wanted to.
+The test proves that target and function restrictions are enforced on-chain.
+It also exposed why that is not enough: PancakeSwap swap, mint and collect
+calls carry recipient, asset, position and amount fields inside calldata. The
+current Altana permission schema cannot constrain those arguments. A permitted
+selector could therefore route proceeds to an address the user never approved.
+
+Pokter now fails closed at three layers: the hire UI states that no standing
+authority is created, the grant route refuses before reading grant parameters
+or touching a signer — `403` to the public, since granting was always an
+operator-funded demo action, and `409` even when that check passes — and
+`toSessionPermissions` refuses every marketplace category. `npm run
+audit:protocol` checks all four categories so a raw protocol selector cannot be
+reintroduced as an incidental refactor.
+
+Delegation will remain disabled until an audited adapter or account validator
+can enforce the wallet as recipient, explicit asset and position allowlists,
+per-call amount bounds, aggregate spend bounds, expiry and revocation. The
+acceptance test is adversarial: an otherwise identical call with an attacker
+recipient, unapproved asset, unapproved position or excessive amount must
+revert on-chain.
 
 Sponsor integrations are documented with their evidence and their limits in
 [`docs/integrations/`](docs/integrations/). The TermiX agent-versus-manual
@@ -215,21 +231,11 @@ through ERC-8183. Live job #1336 proves the full path with a publicly
 retrievable receipt whose exact bytes match the hash committed on-chain, plus
 a buyer-signed settlement that advanced the job to `COMPLETED`.
 
-**A browser wallet cannot sign a session grant.** `@altananetwork/sdk` ships
-no injected-wallet signer. In 0.8.0 a doc comment in
-`internal/signer.d.ts` said the SDK ships three signers and named
-`signerFromInjected` — "MetaMask / Rabby / any EIP-1193 provider" — but it was
-never exported or implemented. 0.9.0 removed the comment; the gap itself
-remains. Browser wallets also no longer expose the raw digest that the SDK's
-`Signer.signDigest` needs, so this may not be implementable as the interface
-stands. So MetaMask and friends can identify you, but not authorise on your
-behalf. Pokter fails closed in that case: the public interface requires a
-passkey and never substitutes its operator key for the visitor.
-
-The passkey path is the real answer and it does work: the key is created in
-your device's secure enclave, never leaves it, and Pokter cannot sign for you.
-The permission panel always states which key signed, because a permission model
-that is vague about who holds the key is not one.
+**Delegated wallet execution is disabled.** The SDK can restrict a session to
+a target and function selector, but not the safety-critical arguments inside
+that function. This affects passkeys and browser wallets equally; changing the
+signer does not improve the policy. Pokter commissions one escrowed job without
+creating standing authority over the buyer's wallet.
 
 **Session signers do not survive a restart.** Granting produces an ephemeral
 key held in process memory, and SDK 0.9.0 warns that losing it makes the
@@ -259,7 +265,7 @@ src/lib/
   score/        the Pokter Score, versioned and explainable
   recommend/    briefs, fit scoring, and why an agent was ruled out
   leaderboard   rankings and the per-metric awards
-  altana/       scoped sessions: permissions, grant, revoke
+  altana/       historical sessions, revocation, fail-closed delegation policy
   erc8183/      job escrow: hire, status, settle
   wallet/       passkey wallets and the signer in use
   hero/         the landing pipeline, built from real measurements
@@ -311,8 +317,9 @@ the browser UI never receives it. **Use a testnet key.**
 ## Deployment
 
 Deployed on Fly.io with a persistent volume, and the volume is the point: the
-three SQLite stores hold the accumulated probe history, granted sessions and
-escrowed jobs. A marketplace whose evidence resets on every deploy is not one.
+SQLite stores hold accumulated probe history, historical sessions, escrowed
+jobs, deliverables and rate-limit state. A marketplace whose evidence resets on
+every deploy is not one.
 
 ```bash
 flyctl deploy --now

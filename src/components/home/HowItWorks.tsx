@@ -5,8 +5,8 @@ import Link from 'next/link';
  *
  * Each step names the question it answers rather than the feature it ships,
  * because the sequence is the argument: verification comes before comparison,
- * and permissions come before money moves. A marketplace that reorders these
- * is a directory with a checkout button.
+ * and the scope of what you are authorising is settled before money moves. A
+ * marketplace that reorders these is a directory with a checkout button.
  */
 const STEPS = [
   {
@@ -27,16 +27,27 @@ const STEPS = [
     body: 'Side by side on the metrics that exist, with a winner marked only where more than one agent has data.',
     href: '/compare',
   },
+  /*
+    This step used to promise a scoped session — allowlisted contracts, a
+    spend cap, an expiry. Pokter no longer issues one: a target and selector
+    allowlist cannot constrain the recipient, asset, position or amount inside
+    the call, so a permitted selector could still send proceeds somewhere the
+    user never approved. Delegation fails closed until those are enforceable.
+
+    The question is unchanged because it is the right one. The answer got
+    shorter and better, and a step still describing a spend cap would be
+    advertising a control that no longer exists.
+  */
   {
-    label: 'Permit',
+    label: 'Hire',
     question: 'What exactly am I allowing it to do?',
-    body: 'A scoped session: allowlisted contracts, a spend cap, an expiry. Enforced on-chain, revocable any time.',
+    body: 'Nothing to your wallet. You fund one escrowed job from your own key, and the agent is paid only when it delivers.',
     href: '/methodology',
   },
   {
     label: 'Monitor',
     question: 'What is it doing right now?',
-    body: 'Live permissions and escrowed jobs, with every grant and revocation linked to its transaction.',
+    body: 'Every escrowed job and its lifecycle, each state change linked to the transaction that caused it.',
     href: '/my-agents',
   },
 ];
