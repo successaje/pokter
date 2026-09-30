@@ -7,7 +7,7 @@ import { getAddress } from 'viem';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { cn } from '@/lib/ui/cn';
-import { connectIdentityWallet, hasIdentityWallet } from '@/lib/registry/wallet';
+import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
 
 type Mode = 'choose' | 'existing' | 'new';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean };
@@ -67,6 +67,8 @@ export function BuilderStudio() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState<string | null>(null);
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
+  const [verificationStep, setVerificationStep] = useState<'idle' | 'registry' | 'signature' | 'verifying'>('idle');
   const [draft, setDraft] = useState<Draft>(() => {
     if (typeof window === 'undefined') return EMPTY_DRAFT;
     try {
@@ -116,7 +118,7 @@ export function BuilderStudio() {
 
   async function runDiagnostic(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true); setError(null); setReport(null); setConnected(null);
+    setBusy(true); setError(null); setReport(null); setConnected(null); setVerifiedAt(null);
     try {
       const response = await fetch('/api/compatibility', {
         method: 'POST',
@@ -132,13 +134,34 @@ export function BuilderStudio() {
   }
 
   async function verifyOwner() {
-    setError(null);
+    setError(null); setVerifiedAt(null); setVerificationStep('registry');
     try {
       if (!hasIdentityWallet()) throw new Error('Install or open an injected wallet to verify ownership.');
-      setConnected(await connectIdentityWallet());
+      if (!report) throw new Error('Find the ERC-8004 identity first.');
+      const address = await connectIdentityWallet();
+      setConnected(address);
+      if (!report.owner || getAddress(address) !== getAddress(report.owner)) {
+        throw new Error('The connected wallet is not the current ERC-8004 owner.');
+      }
+      const challengeResponse = await fetch('/api/builders/verify', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'challenge', chainId: report.chainId, tokenId: report.tokenId }),
+      });
+      const challengePayload = await challengeResponse.json() as { challenge?: { id: string; message: string }; error?: string };
+      if (!challengeResponse.ok || !challengePayload.challenge) throw new Error(challengePayload.error ?? 'Could not prepare ownership verification.');
+      setVerificationStep('signature');
+      const signature = await signIdentityMessage(address, challengePayload.challenge.message);
+      setVerificationStep('verifying');
+      const verifyResponse = await fetch('/api/builders/verify', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', challengeId: challengePayload.challenge.id, signature }),
+      });
+      const verifyPayload = await verifyResponse.json() as { publisher?: { verifiedAt: string }; error?: string };
+      if (!verifyResponse.ok || !verifyPayload.publisher) throw new Error(verifyPayload.error ?? 'Ownership verification failed.');
+      setVerifiedAt(verifyPayload.publisher.verifiedAt);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The wallet could not be connected.');
-    }
+    } finally { setVerificationStep('idle'); }
   }
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
@@ -217,7 +240,7 @@ export function BuilderStudio() {
           <aside className="h-fit rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
             <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Publish checklist</p>
             <ol className="mt-5 flex flex-col gap-5">{['Find the registry identity','Verify the owner wallet','Fix quality gaps','Build an independent record'].map((label, index) => <li key={label} className="flex gap-3"><span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px]', (index === 0 && report) || (index === 1 && ownsAgent) ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{(index === 0 && report) || (index === 1 && ownsAgent) ? '✓' : index + 1}</span><span className="pt-0.5 text-[12px]">{label}</span></li>)}</ol>
-            {report && <div className="mt-6 border-t border-[color:var(--border)] pt-5"><button type="button" onClick={verifyOwner} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[12px] font-semibold hover:border-[color:var(--brand)]"><Icon name="wallet" />{connected ? 'Wallet connected' : 'Verify ownership'}</button>{ownsAgent === true && <p className="mt-3 text-[11px] leading-5 text-[color:var(--positive)]">Connected wallet owns this identity.</p>}{ownsAgent === false && <p className="mt-3 text-[11px] leading-5 text-[color:var(--caution)]">This wallet does not own the identity. Switch accounts if you manage it.</p>}<p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">Ownership verification compares addresses only. It does not switch networks, request a signature or send a transaction.</p></div>}
+            {report && <div className="mt-6 border-t border-[color:var(--border)] pt-5"><button type="button" disabled={verificationStep !== 'idle' || Boolean(verifiedAt)} onClick={verifyOwner} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[12px] font-semibold hover:border-[color:var(--brand)] disabled:opacity-60"><Icon name={verifiedAt ? 'check' : 'wallet'} />{verifiedAt ? 'Publisher verified' : verificationStep === 'registry' ? 'Checking registry owner…' : verificationStep === 'signature' ? 'Waiting for wallet signature…' : verificationStep === 'verifying' ? 'Verifying signature…' : 'Verify ownership'}</button>{verifiedAt && <p className="mt-3 text-[11px] leading-5 text-[color:var(--positive)]">Ownership verified with an expiring, single-use wallet challenge.</p>}{!verifiedAt && ownsAgent === true && <p className="mt-3 text-[11px] leading-5 text-[color:var(--text-secondary)]">Address matched. Sign the verification message to prove control.</p>}{ownsAgent === false && <p className="mt-3 text-[11px] leading-5 text-[color:var(--caution)]">This wallet does not own the identity. Switch accounts if you manage it.</p>}<p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">The message names this identity and expires after ten minutes. It cannot move funds or authorize transactions.</p></div>}
           </aside>
         </section>
       )}

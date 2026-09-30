@@ -1,6 +1,6 @@
 'use client';
 
-import { getAddress, type Address } from 'viem';
+import { getAddress, stringToHex, type Address, type Hex } from 'viem';
 
 type InjectedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -32,4 +32,13 @@ export function hasIdentityWallet(): boolean {
   } catch {
     return false;
   }
+}
+
+export async function signIdentityMessage(address: Address, message: string): Promise<Hex> {
+  const signature = await injectedProvider().request({
+    method: 'personal_sign',
+    params: [stringToHex(message), address],
+  });
+  if (typeof signature !== 'string' || !signature.startsWith('0x')) throw new Error('INVALID_SIGNATURE');
+  return signature as Hex;
 }
