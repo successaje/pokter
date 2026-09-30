@@ -1,9 +1,8 @@
 import Link from 'next/link';
 
-import { AgentAvatar } from '@/components/agent/AgentAvatar';
-import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
+import { AgentCard } from '@/components/AgentCard';
 import { listSearchable, preferDistinctOwners } from '@/lib/marketplace';
-import { verdictFor } from '@/lib/search/match';
+import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 
@@ -76,7 +75,7 @@ export async function SimilarAgents({
    * distinct publisher, then fill the remaining slots from what is left, so a
    * thin category still shows a full row.
    */
-  const peers = preferDistinctOwners(ranked, 4);
+  const peers = preferDistinctOwners(ranked, 8);
 
   if (peers.length === 0) return null;
 
@@ -98,35 +97,17 @@ export async function SimilarAgents({
         </Link>
       </div>
 
-      <ul className="-mx-1 flex snap-x snap-proximity gap-3 overflow-x-auto px-1 pb-2 overscroll-x-contain [scrollbar-width:thin]">
-        {peers.map((entry) => {
-          const agent = entry.listing.agent;
-          const availability = entry.record.totalProbes > 0
-            ? `${Math.round((entry.record.totalAnswered / entry.record.totalProbes) * 100)}% answered`
-            : 'Not measured';
-          return (
-            <li key={`${agent.chain_id}:${agent.token_id}`} className="w-[17rem] shrink-0 snap-start sm:w-[19rem]">
-              <Link
-                href={`/agents/${agent.chain_id}/${agent.token_id}`}
-                className="group flex min-h-20 items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]"
-              >
-                <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-start justify-between gap-2">
-                    <strong className="line-clamp-1 text-[13px] font-semibold">{agent.name}</strong>
-                    <EvidenceBadge verdict={verdictFor(entry)} />
-                  </span>
-                  <span className="mt-1 flex items-center gap-1.5 text-[10px] text-[color:var(--text-faint)]">
-                    <span>{availability}</span>
-                    <span aria-hidden>·</span>
-                    <span>{entry.record.totalProbes} probe{entry.record.totalProbes === 1 ? '' : 's'}</span>
-                  </span>
-                </span>
-                <span aria-hidden className="text-[color:var(--text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--text)]">→</span>
-              </Link>
+      <ul className="-mx-1 flex snap-x snap-proximity gap-4 overflow-x-auto px-1 pb-2 overscroll-x-contain [scrollbar-width:thin]">
+        {peers.map((entry) => (
+            <li key={`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`} className="w-[19rem] shrink-0 snap-start">
+              <AgentCard
+                listing={entry.listing}
+                verdict={verdictFor(entry)}
+                record={entry.record}
+                hirable={offersDirectHire(entry)}
+              />
             </li>
-          );
-        })}
+        ))}
       </ul>
     </section>
   );
