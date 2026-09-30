@@ -377,6 +377,13 @@ and is a dry run unless the JSON body includes `"write": true`. Identity,
 provider, budget and status are re-read from chain; jobs without a valid Pokter
 identity envelope are skipped rather than attributed heuristically.
 
+Verified reviews are never hidden by report volume. `POST /api/reviews/report`
+only adds a rate-limited moderation report. The guarded
+`GET /api/reviews/moderate` lists open reports, and authenticated `PATCH`
+actions can dismiss a report, hide a review, or restore it. These endpoints use
+the same bearer `SWEEP_SECRET`; moderation retains the signed review and records
+the operator reason instead of deleting evidence.
+
 ```bash
 flyctl deploy --now
 ```

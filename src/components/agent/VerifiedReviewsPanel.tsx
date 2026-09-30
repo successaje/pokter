@@ -1,5 +1,6 @@
 import { shortAddress } from '@/lib/ui/format';
 import type { VerifiedReview } from '@/lib/reviews/model';
+import { ReportReview } from './ReportReview';
 
 export function VerifiedReviewsPanel({ reviews }: { reviews: VerifiedReview[] }) {
   if (reviews.length === 0) return (
@@ -27,7 +28,10 @@ export function VerifiedReviewsPanel({ reviews }: { reviews: VerifiedReview[] })
           <div><dt className="inline text-[color:var(--text-faint)]">Hire again </dt><dd className="inline">{review.wouldHireAgain ? 'yes' : 'no'}</dd></div>
         </dl>
         {review.comment && <p className="mt-3 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">{review.comment}</p>}
-        <p className="mt-3 text-[10px] text-[color:var(--text-faint)]">Signed by {shortAddress(review.buyer)}</p>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[10px] text-[color:var(--text-faint)]">Signed by {shortAddress(review.buyer)}</p>
+          <ReportReview chainId={review.chainId} jobId={review.jobId} />
+        </div>
       </li>)}
     </ul>
   </div>;

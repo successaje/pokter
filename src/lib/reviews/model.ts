@@ -16,7 +16,11 @@ export interface VerifiedReview {
   comment: string;
   signature: Hex;
   updatedAt: string;
+  visibility?: 'published' | 'hidden';
 }
+
+export const REVIEW_REPORT_REASONS = ['spam', 'harassment', 'personal-information', 'unrelated', 'other'] as const;
+export type ReviewReportReason = (typeof REVIEW_REPORT_REASONS)[number];
 
 export interface ReviewContent {
   rating: number;
