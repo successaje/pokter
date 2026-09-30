@@ -72,14 +72,16 @@ export function WalletGate({
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
       <div className="flex flex-col gap-3">
         {reason && (
-          capability === 'commission' ? (
-            <div className="flex items-center gap-3 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>⌁</span>
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-                Configure and review first. You only need a wallet — passkey or your own — when you are ready to fund.
-              </p>
-            </div>
-          ) : (
+          /*
+             Nothing is said on the commission path any more.
+
+             It carried a notice explaining that a wallet is only needed at the
+             funding step — which the page already demonstrates by letting
+             someone configure the whole job first, and which the button states
+             itself when it is disabled. A line explaining a thing the reader
+             can already see is a line they read instead of the job.
+          */
+          capability === 'commission' ? null : (
             <div className="flex flex-col gap-1 rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] p-4">
               <p className="text-[12px] font-medium">
                 Everything below is yours to read before you connect anything.
