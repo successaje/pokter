@@ -42,7 +42,7 @@ function EvidenceVisual({ entry }: { entry: Entry }) {
   const windows = entry.record.windows.filter((window) => window.probes > 0);
 
   return (
-    <div className="relative flex min-h-64 flex-col justify-between overflow-hidden rounded-2xl border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(255,250,231,0.78))] p-5 shadow-sm">
+    <div className="spotlight-evidence-visual relative flex min-h-64 flex-col justify-between overflow-hidden rounded-2xl border border-[color:var(--border)] p-5 shadow-sm">
       <div className="absolute -right-14 -top-14 size-44 rounded-full border border-[color:var(--brand)]/15" />
       <div className="absolute -right-5 -top-5 size-28 rounded-full border border-[color:var(--brand)]/20" />
 
@@ -86,7 +86,7 @@ function EvidenceVisual({ entry }: { entry: Entry }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <span className="flex flex-col rounded-xl border border-[color:var(--border)] bg-white/60 px-3 py-2">
+    <span className="flex flex-col rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-raised)] px-3 py-2">
       <strong className="text-sm tabular-nums text-[color:var(--text)]">{value}</strong>
       <span className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">{label}</span>
     </span>
@@ -183,9 +183,9 @@ export function HireableNow({ entries }: { entries: Entry[] }) {
         <Link href="/agents" className="text-[12px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2">Explore all {entries.length} agents →</Link>
       </div>
 
-      <div className="overflow-hidden rounded-[1.8rem] border border-[color:var(--border)] bg-[radial-gradient(circle_at_18%_10%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(145deg,rgba(224,239,255,0.78),rgba(255,242,184,0.52))] p-4 sm:p-7">
+      <div className="spotlight-stage overflow-hidden rounded-[1.8rem] border border-[color:var(--border)] p-4 sm:p-7">
         <div className="mb-5 flex items-center justify-between gap-4">
-          <div role="tablist" aria-label="Spotlight agents" className="flex gap-1 rounded-full bg-white/65 p-1">
+          <div role="tablist" aria-label="Spotlight agents" className="flex gap-1 rounded-full bg-[color:var(--surface)]/80 p-1">
             {(['recommended', 'recent'] as const).map((tab) => (
               <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setTab(tab)} className={`rounded-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${activeTab === tab ? 'bg-[color:var(--text)] text-[color:var(--bg)]' : 'text-[color:var(--text-muted)]'}`}>
                 {tab === 'recommended' ? 'Recommended' : 'Latest evidence'}
@@ -193,13 +193,13 @@ export function HireableNow({ entries }: { entries: Entry[] }) {
             ))}
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => move(-1)} aria-label="Previous spotlight agent" className="grid size-9 place-items-center rounded-full border border-white/80 bg-white/65 text-sm transition-transform hover:-translate-x-0.5">←</button>
-            <button type="button" onClick={() => move(1)} aria-label="Next spotlight agent" className="grid size-9 place-items-center rounded-full border border-white/80 bg-white/80 text-sm transition-transform hover:translate-x-0.5">→</button>
+            <button type="button" onClick={() => move(-1)} aria-label="Previous spotlight agent" className="grid size-9 place-items-center rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface)]/80 text-sm transition-transform hover:-translate-x-0.5">←</button>
+            <button type="button" onClick={() => move(1)} aria-label="Next spotlight agent" className="grid size-9 place-items-center rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface)] text-sm transition-transform hover:translate-x-0.5">→</button>
           </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(230px,0.8fr)]">
-          <button type="button" onClick={() => setPreview(current)} className="group grid min-w-0 overflow-hidden rounded-2xl border border-white/80 bg-[color:var(--surface)] text-left shadow-sm transition-transform duration-200 hover:-translate-y-0.5 lg:grid-cols-[0.92fr_1.08fr]">
+          <button type="button" onClick={() => setPreview(current)} className="group grid min-w-0 overflow-hidden rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--surface)] text-left shadow-sm transition-transform duration-200 hover:-translate-y-0.5 lg:grid-cols-[0.92fr_1.08fr]">
             <div className="flex min-w-0 flex-col gap-4 p-5 sm:p-7">
               <div className="flex items-center gap-2">
                 <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-[color:var(--info)]">{category?.label}</span>
@@ -219,7 +219,7 @@ export function HireableNow({ entries }: { entries: Entry[] }) {
           </button>
 
           {next && (
-            <button type="button" onClick={() => setPreview(next)} className="group hidden min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-white/80 bg-[color:var(--surface)] p-5 text-left shadow-sm transition-transform duration-200 hover:-translate-y-0.5 lg:flex">
+            <button type="button" onClick={() => setPreview(next)} className="group hidden min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 text-left shadow-sm transition-transform duration-200 hover:-translate-y-0.5 lg:flex">
               <div>
                 <span className="text-[9px] font-semibold uppercase tracking-wide text-[color:var(--brand)]">Up next</span>
                 <div className="mt-5 flex items-center gap-3"><AgentAvatar name={next.listing.agent.name} src={next.listing.agent.image_url} size="sm" /><h3 className="line-clamp-2 text-lg font-semibold">{next.listing.agent.name}</h3></div>
@@ -230,7 +230,7 @@ export function HireableNow({ entries }: { entries: Entry[] }) {
           )}
         </div>
 
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/70 bg-white/55 px-4 py-3">
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-4 py-3">
           <span className="text-sm font-medium">Explore the complete evidence-ranked marketplace</span>
           <Link href="/agents" className="action-primary rounded-[var(--radius)] px-4 py-2 text-[11px] font-semibold">Browse marketplace →</Link>
         </div>

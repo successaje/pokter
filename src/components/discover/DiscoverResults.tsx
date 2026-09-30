@@ -1,8 +1,9 @@
 import Link from 'next/link';
 
 import { BackButton } from '@/components/navigation/BackButton';
+import { DiscoverCategorySelect } from '@/components/discover/DiscoverCategorySelect';
 import { MarketplaceListing, type ListingRow } from '@/components/discover/MarketplaceListing';
-import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { rankForBrief } from '@/lib/brief/rank';
 import type { TrackRecord } from '@/lib/history/record';
@@ -72,15 +73,13 @@ export function DiscoverResults({ entries, intent, selectedCategory, evidence }:
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-1 lg:sticky lg:top-24 lg:self-start" aria-label="Search filters">
-          <details className="group border-b border-[color:var(--border)] py-1">
-            <summary className="flex cursor-pointer list-none items-center justify-between py-3 text-xs font-semibold">Outcome <span className="transition-transform group-open:rotate-180">⌄</span></summary>
-            <div className="flex flex-col gap-1 pb-3">
-              <Link href={hrefFor(intent, null, evidence)} className={`rounded-lg px-2.5 py-2 text-[11px] ${!selectedCategory ? 'bg-[color:var(--brand)]/10 font-medium' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)]'}`}>All outcomes</Link>
-              {CATEGORIES.map((category) => <Link key={category.id} href={hrefFor(intent, category.id, evidence)} className={`rounded-lg px-2.5 py-2 text-[11px] ${selectedCategory === category.id ? 'bg-[color:var(--brand)]/10 font-medium' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)]'}`}>{category.label}</Link>)}
-            </div>
-          </details>
-          <details className="group border-b border-[color:var(--border)] py-1">
+        <aside className="discover-filter-panel flex flex-col gap-4 rounded-2xl border border-[color:var(--border)] p-4 lg:sticky lg:top-24 lg:self-start" aria-label="Search filters">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Refine results</h2>
+            {(selectedCategory || evidence) && <Link href={hrefFor(intent, null, null)} className="text-[10px] font-medium text-[color:var(--info)]">Clear</Link>}
+          </div>
+          <DiscoverCategorySelect intent={intent} selectedCategory={selectedCategory} evidence={evidence} />
+          <details className="group border-t border-[color:var(--border)] pt-1">
             <summary className="flex cursor-pointer list-none items-center justify-between py-3 text-xs font-semibold">Evidence <span className="transition-transform group-open:rotate-180">⌄</span></summary>
             <div className="flex flex-col gap-1 pb-3">
               <Link href={hrefFor(intent, selectedCategory, null)} className={`rounded-lg px-2.5 py-2 text-[11px] ${!evidence ? 'bg-[color:var(--brand)]/10 font-medium' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)]'}`}>Any evidence state</Link>
