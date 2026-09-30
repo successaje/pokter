@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { preferDistinctOwners } from '@/lib/agents/diversity';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { TrackRecord } from '@/lib/history/record';
 import type { Listing } from '@/lib/marketplace';
@@ -25,23 +26,47 @@ function evidenceRate(entry: Entry): number {
     : entry.record.totalAnswered / entry.record.totalProbes;
 }
 
+/**
+ * The three agents an outcome tab offers.
+ *
+ * Exported and pure so it can be tested. This ordering broke once already —
+ * ranking on answer rate with probe count as the tiebreak filled the yield
+ * shelf with three listings by one publisher, none of which had ever named a
+ * price, so a doorway labelled "earn yield" offered nothing anyone could buy
+ * while the two agents that had signed a price sat underneath them for having
+ * been probed fewer times. A rule that decides what a marketplace puts on its
+ * front page should not be a sort buried in a render.
+ *
+ * Price leads because it is the difference between an agent you can hire and
+ * one you can only look at. Owner diversity is applied last, because one
+ * publisher holds eighteen of the eighty listings and would otherwise take
+ * the whole shelf.
+ */
+export function outcomeShortlist(entries: Entry[], category: Category): Entry[] {
+  const ranked = entries
+    .filter(
+      (entry) =>
+        entry.listing.category === category &&
+        isPromotableAgent(entry.listing.agent),
+    )
+    .sort((a, b) => {
+      const quoted =
+        Number(b.listing.quote != null) - Number(a.listing.quote != null);
+      if (quoted !== 0) return quoted;
+      const rate = evidenceRate(b) - evidenceRate(a);
+      if (rate !== 0) return rate;
+      return b.record.totalProbes - a.record.totalProbes;
+    });
+
+  return preferDistinctOwners(ranked, 3);
+}
+
 /** An outcome-first doorway into the full catalogue, without duplicating Discover. */
 export function BrowseByOutcome({ entries }: { entries: Entry[] }) {
   const [active, setActive] = useState<Category>('yield');
   const category = CATEGORIES.find((candidate) => candidate.id === active) ?? CATEGORIES[0];
   const outcome = OUTCOMES[active];
-  const agents = entries
-    .filter(
-      (entry) =>
-        entry.listing.category === active &&
-        isPromotableAgent(entry.listing.agent),
-    )
-    .sort((a, b) => {
-      const rate = evidenceRate(b) - evidenceRate(a);
-      if (rate !== 0) return rate;
-      return b.record.totalProbes - a.record.totalProbes;
-    })
-    .slice(0, 3);
+  const shortlist = outcomeShortlist(entries, active);
 
   return (
     <section className="flex flex-col gap-5" aria-labelledby="browse-outcome-heading">
@@ -100,7 +125,7 @@ export function BrowseByOutcome({ entries }: { entries: Entry[] }) {
           </div>
 
           <div className="divide-y divide-[color:var(--border)] bg-[color:var(--surface)]">
-            {agents.length > 0 ? agents.map((entry) => {
+            {shortlist.length > 0 ? shortlist.map((entry) => {
               const { agent } = entry.listing;
               const uptime = evidenceRate(entry);
               return (

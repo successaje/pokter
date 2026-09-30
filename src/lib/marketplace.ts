@@ -24,6 +24,8 @@ import { computeScore } from '@/lib/score/engine';
 import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { preferDistinctOwners } from '@/lib/agents/diversity';
+export { preferDistinctOwners };
 
 /**
  * Retrieval is deliberately hybrid.
@@ -523,23 +525,3 @@ export function listingsPerOwner<T extends { listing: Listing }>(
   return counts;
 }
 
-export function preferDistinctOwners<T extends { listing: Listing }>(
-  ranked: T[],
-  limit: number,
-): T[] {
-  const seen = new Set<string>();
-  const first: T[] = [];
-  const rest: T[] = [];
-
-  for (const entry of ranked) {
-    const owner = entry.listing.agent.owner_address?.toLowerCase() ?? '';
-    if (owner && seen.has(owner)) {
-      rest.push(entry);
-      continue;
-    }
-    if (owner) seen.add(owner);
-    first.push(entry);
-  }
-
-  return [...first, ...rest].slice(0, limit);
-}
