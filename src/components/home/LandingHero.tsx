@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 import { HeroBrief } from '@/components/home/HeroBrief';
-
-import { EvidenceOrbit } from '@/components/home/EvidenceOrbit';
-import type { PipelineEvent } from '@/lib/hero/pipeline';
+import { HeroEvidenceBackdrop } from '@/components/home/HeroEvidenceBackdrop';
 
 /**
  * The hero, shared by the live landing page and the two layout previews so a
@@ -22,17 +20,16 @@ const HEADLINE: string[][] = [
 ];
 
 export function LandingHero({
-  pipeline,
   compact = false,
 }: {
-  pipeline: { events: PipelineEvent[] } | null;
   compact?: boolean;
 }) {
   return (
-    <section className={`flex ${compact ? 'min-h-[calc(100svh-11rem)]' : 'min-h-[calc(100svh-9rem)]'} flex-col justify-center gap-10 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14`}>
-        <div className="flex flex-col gap-7">
-          <div className="flex max-w-2xl flex-col gap-5">
-            <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
+    <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-8rem)]' : 'min-h-[calc(100svh-6rem)]'} flex-col items-center justify-center overflow-hidden py-16 text-center sm:py-20`}>
+      <HeroEvidenceBackdrop />
+      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-7">
+          <div className="flex max-w-3xl flex-col items-center gap-5">
+            <p className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
               <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
               The decision layer for autonomous finance on BNB Chain
             </p>
@@ -42,7 +39,7 @@ export function LandingHero({
               accessible text as one run-on word, which is what a screen reader
               would announce.
             */}
-            <h1 className="display text-[2.9rem] leading-[0.95] sm:text-6xl lg:text-[4.6rem]">
+            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:text-[5.35rem]">
               {HEADLINE.map((line, lineIndex) => (
                 <span key={lineIndex}>
                   <span className="block">
@@ -67,14 +64,14 @@ export function LandingHero({
                 </span>
               ))}
             </h1>
-            <p className="max-w-xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
+            <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
               Hundreds of thousands of agents claim they work. Pokter calls
               them and publishes what answered, so you hire on evidence — through
               escrow you control, with no authority over your wallet.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/discover"
               className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
@@ -89,15 +86,10 @@ export function LandingHero({
             </Link>
           </div>
 
-          <HeroBrief />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {pipeline && <EvidenceOrbit events={pipeline.events} />}
-          <p className="text-center text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            A readable path from registry identity to controlled execution.
-          </p>
-        </div>
-      </section>
+          <div className="w-full max-w-xl rounded-2xl bg-[color:var(--bg)]/40 p-2 backdrop-blur-[2px]">
+            <HeroBrief />
+          </div>
+      </div>
+    </section>
   );
 }

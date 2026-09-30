@@ -37,7 +37,7 @@ export function HeroBrief() {
   };
 
   return (
-    <div className="flex max-w-xl flex-col gap-2.5">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5">
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -65,7 +65,7 @@ export function HeroBrief() {
         </button>
       </form>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap justify-center gap-1.5">
         {OBJECTIVES.map((objective) => (
           <button
             key={objective.label}

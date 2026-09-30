@@ -13,7 +13,7 @@ import { HowItWorks } from '@/components/home/HowItWorks';
 import { Reveal } from '@/components/motion/Reveal';
 import { LandingHero } from '@/components/home/LandingHero';
 import { LiveProof } from '@/components/home/LiveProof';
-import { buildPipeline, recentProbes } from '@/lib/hero/pipeline';
+import { recentProbes } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +25,10 @@ export const dynamic = 'force-dynamic';
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
 export default async function HomePage() {
-  const [stats, listings, exhibit, pipeline] = await Promise.all([
+  const [stats, listings, exhibit] = await Promise.all([
     getEcosystemStats(),
     listSearchable({ limit: 30 }).catch(() => []),
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
-    buildPipeline().catch(() => null),
   ]);
 
   const probes = recentProbes(5);
@@ -41,7 +40,7 @@ export default async function HomePage() {
         the first scroll has to reach agents; a hero holding the whole screen
         put the marketplace two screens further away than the argument needed.
       */}
-      <LandingHero pipeline={pipeline} compact />
+      <LandingHero compact />
 
       {/*
         Agents, immediately. Cutting the outcome scenes for their prose took
