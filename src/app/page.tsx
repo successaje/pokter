@@ -3,8 +3,10 @@ import Link from 'next/link';
 import {
   getComparison,
   getEcosystemStats,
+  listSearchable,
 } from '@/lib/marketplace';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
+import { HireableNow } from '@/components/home/HireableNow';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Reveal } from '@/components/motion/Reveal';
@@ -22,8 +24,9 @@ export const dynamic = 'force-dynamic';
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
 export default async function HomePage() {
-  const [stats, exhibit, pipeline] = await Promise.all([
+  const [stats, listings, exhibit, pipeline] = await Promise.all([
     getEcosystemStats(),
+    listSearchable({ limit: 30 }).catch(() => []),
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
     buildPipeline().catch(() => null),
   ]);
@@ -38,6 +41,15 @@ export default async function HomePage() {
         put the marketplace two screens further away than the argument needed.
       */}
       <LandingHero pipeline={pipeline} compact />
+
+      {/*
+        Agents, immediately. Cutting the outcome scenes for their prose took
+        the agents inside them too, and a marketplace whose front page shows
+        no agents is a worse page than a wordy one.
+      */}
+      <Reveal>
+        <HireableNow entries={listings} />
+      </Reveal>
 
       {/*
         The outcome scenes are gone, not moved.
