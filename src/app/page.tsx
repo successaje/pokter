@@ -47,11 +47,11 @@ export default async function HomePage() {
         the agents inside them too, and a marketplace whose front page shows
         no agents is a worse page than a wordy one.
       */}
-      <Reveal>
+      <Reveal className="reveal-from-right">
         <HireableNow entries={listings} />
       </Reveal>
 
-      <Reveal>
+      <Reveal className="reveal-from-left">
         <BrowseByOutcome entries={listings} />
       </Reveal>
 
@@ -66,22 +66,22 @@ export default async function HomePage() {
       */}
 
       {/* THE SCALE — the number that makes the rest necessary. */}
-      <Reveal>
+      <Reveal className="reveal-scale">
         <EcosystemPanel stats={stats} />
       </Reveal>
 
       {/* THE PROBLEM — a real agent whose pitch outruns its evidence. */}
-      <Reveal>
+      <Reveal className="reveal-from-right">
         <ClaimVsEvidence exhibit={exhibit} />
       </Reveal>
 
       {/* LIVE PROOF — the check itself, verbatim. */}
-      <Reveal>
+      <Reveal className="reveal-from-left">
         <LiveProof probes={probes} />
       </Reveal>
 
       {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}
-      <Reveal>
+      <Reveal className="reveal-scale">
         <HowItWorks />
       </Reveal>
 

@@ -82,7 +82,7 @@ export function BrowseByOutcome({ entries }: { entries: Entry[] }) {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="tablist" aria-label="Financial outcomes">
+      <div className="motion-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="tablist" aria-label="Financial outcomes">
         {CATEGORIES.map((item) => {
           const meta = OUTCOMES[item.id];
           const selected = active === item.id;
@@ -124,7 +124,7 @@ export function BrowseByOutcome({ entries }: { entries: Entry[] }) {
             </Link>
           </div>
 
-          <div className="divide-y divide-[color:var(--border)] bg-[color:var(--surface)]">
+          <div className="motion-stagger divide-y divide-[color:var(--border)] bg-[color:var(--surface)]">
             {shortlist.length > 0 ? shortlist.map((entry) => {
               const { agent } = entry.listing;
               const uptime = evidenceRate(entry);

@@ -64,7 +64,7 @@ export function HowItWorks() {
         </h2>
       </div>
 
-      <ol className="grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--border)] lg:grid-cols-5">
+      <ol className="motion-stagger grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--border)] lg:grid-cols-5">
         {STEPS.map((step, index) => (
           <li key={step.label} className="bg-[color:var(--surface)]">
             <Link

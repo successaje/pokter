@@ -84,7 +84,7 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
         </p>
       </div>
 
-      <dl className="grid divide-y divide-[color:var(--border)] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
+      <dl className="motion-stagger grid divide-y divide-[color:var(--border)] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
         {figures.map((figure) => (
           <div key={figure.label} className="flex flex-col gap-1.5 px-5 py-6">
             <dt className="tabular text-3xl font-medium leading-none tracking-tight sm:text-4xl">
