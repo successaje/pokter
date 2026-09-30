@@ -7,6 +7,7 @@ import {
 } from '@/lib/marketplace';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { HireableNow } from '@/components/home/HireableNow';
+import { BrowseByOutcome } from '@/components/home/BrowseByOutcome';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Reveal } from '@/components/motion/Reveal';
@@ -49,6 +50,10 @@ export default async function HomePage() {
       */}
       <Reveal>
         <HireableNow entries={listings} />
+      </Reveal>
+
+      <Reveal>
+        <BrowseByOutcome entries={listings} />
       </Reveal>
 
       {/*
