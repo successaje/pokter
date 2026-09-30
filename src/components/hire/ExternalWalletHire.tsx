@@ -74,6 +74,7 @@ export function ExternalWalletHire({
   const [delivery, setDelivery] = useState<
     null | 'asking' | 'asked' | 'unreachable' | 'none'
   >(null);
+  const [deliveryDetail, setDeliveryDetail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!account || !hasInjectedWallet()) return;
@@ -178,9 +179,30 @@ export function ExternalWalletHire({
               provider: hired.provider,
             }),
           });
-          setDelivery(response.ok ? 'asked' : 'unreachable');
-        } catch {
+          if (response.ok) {
+            setDelivery('asked');
+          } else {
+            /*
+             * The route refuses for five different reasons — a provider that
+             * does not match the job, a job that is not FUNDED, a registry
+             * disagreeing with the chain, a seller with no A2A card, a rate
+             * limit — and this collapsed all of them into "could not be
+             * reached". That reads as a network problem and sends nobody
+             * anywhere useful. The reason it actually gave is the thing worth
+             * showing.
+             */
+            const detail = await response
+              .json()
+              .then((body: { error?: string }) => body?.error)
+              .catch(() => null);
+            setDelivery('unreachable');
+            setDeliveryDetail(detail ?? `The seller endpoint returned ${response.status}.`);
+          }
+        } catch (caught) {
           setDelivery('unreachable');
+          setDeliveryDetail(
+            (caught as Error)?.message ?? 'The request did not complete.',
+          );
         }
       } else {
         setDelivery('none');
@@ -337,7 +359,7 @@ export function ExternalWalletHire({
                 : delivery === 'asked'
                   ? 'The seller has been asked to deliver.'
                   : delivery === 'unreachable'
-                    ? 'The seller could not be reached. Escrow is funded and stays yours until the job expires.'
+                    ? `Delivery was not requested: ${deliveryDetail ?? 'the seller could not be reached'}. Escrow is funded and stays yours until the job expires.`
                     : 'This seller publishes no delivery endpoint, so nothing was requested. Escrow is funded and stays yours until the job expires.'}
             </p>
           )}
