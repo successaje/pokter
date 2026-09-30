@@ -12,8 +12,8 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
-import { JobBrief } from '@/components/discover/JobBrief';
-import { BriefResults } from '@/components/discover/BriefResults';
+import { AskPokter } from '@/components/discover/AskPokter';
+import { AskResults } from '@/components/discover/AskResults';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
@@ -273,46 +273,41 @@ export default async function DiscoverPage({
           */}
           {/*
             One way in, not two.
-            
-            "Find my best match" and the brief answer the same question — rank
+
+            "Find my best match" and this answered the same question — rank
             this market around what I want — and stacking them asked a visitor
             to choose between two openings to the same thing before they had
-            told us anything. The brief is the simpler opening, so it is the
-            one on the page; the structured form it replaces is still reachable
-            for someone who wants to set capital and risk by hand.
+            told us anything. This is the simpler opening, so it is the one on
+            the page; the structured form it replaces is a closed details
+            underneath for someone who wants to set capital and risk by hand.
           */}
-          <div className="flex flex-col gap-2">
-            <JobBrief initial={jobBrief} />
-            {/*
-              Closed, and one line when closed. The structured form is the right
-              tool for someone who knows their capital and risk and wants to say
-              so, and the wrong first thing to show someone who has not told us
-              anything yet. A details element rather than state: it works before
-              hydration and needs no client component to hold a boolean.
-            */}
-            <details className="group">
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
-                <span>
-                  Nothing is hired from here — this only decides what you are
-                  shown.
-                </span>
-                <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
-                  <span className="group-open:hidden">
-                    Set capital and risk yourself
-                  </span>
-                  <span className="hidden group-open:inline">Hide</span>
-                </span>
-              </summary>
+          {jobBrief ? (
+            <AskResults brief={jobBrief} />
+          ) : (
+            <AskPokter initial={jobBrief} />
+          )}
 
-              <div className="mt-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2 sm:p-3">
-                <Suspense fallback={<div className="h-72" />}>
-                  <BriefForm />
-                </Suspense>
-              </div>
-            </details>
-          </div>
+          <details className="group">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
+              <span>
+                Nothing is hired from here — this only decides what you are
+                shown.
+              </span>
+              <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
+                <span className="group-open:hidden">
+                  Set capital and risk yourself
+                </span>
+                <span className="hidden group-open:inline">Hide</span>
+              </span>
+            </summary>
 
-          {jobBrief && <BriefResults brief={jobBrief} />}
+            <div className="mt-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2 sm:p-3">
+              <Suspense fallback={<div className="h-72" />}>
+                <BriefForm />
+              </Suspense>
+            </div>
+          </details>
+
 
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
