@@ -1126,6 +1126,12 @@ export function CommissionPanel({
             >
               Track activity
             </Link>
+            <Link
+              href="/my-agents"
+              className="inline-flex items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[13px] transition-colors hover:bg-[color:var(--surface-hover)]"
+            >
+              Get job updates
+            </Link>
           </div>
 
           <JobStatusTrack status={job.status} />
