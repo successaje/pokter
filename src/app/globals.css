@@ -780,46 +780,35 @@ body {
   backdrop-filter: blur(8px);
 }
 
-@keyframes hero-aurora-breathe {
-  0%, 100% { opacity: 0.58; transform: translate(-50%, -50%) scale(0.94); }
-  50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.06); }
+@keyframes hero-ambient-breathe {
+  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.98); }
+  50% { opacity: 0.82; transform: translate(-50%, -50%) scale(1.02); }
 }
 
-@keyframes hero-node-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(-0.8deg); }
-  50% { transform: translate3d(0, -10px, 0) rotate(0.8deg); }
+@keyframes hero-orbit-turn {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-@keyframes hero-route-flow {
-  to { stroke-dashoffset: -72; }
+.hero-ambient-glow {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 3%, transparent) 42%, transparent 72%);
+  filter: blur(34px);
+  animation: hero-ambient-breathe 14s ease-in-out infinite;
 }
 
-@keyframes hero-signal-a {
-  from { offset-distance: 0%; opacity: 0; }
-  12%, 88% { opacity: 1; }
-  to { offset-distance: 100%; opacity: 0; }
+.hero-ambient-orbit {
+  mask-image: linear-gradient(90deg, transparent 2%, #000 28%, #000 72%, transparent 98%);
+  animation: hero-orbit-turn 90s linear infinite;
 }
 
-.hero-aurora {
-  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 11%, transparent) 0%, color-mix(in srgb, var(--brand) 3%, transparent) 38%, transparent 70%);
-  filter: blur(26px);
-  animation: hero-aurora-breathe 12s ease-in-out infinite;
-}
+.hero-ambient-orbit-inner { animation-direction: reverse; animation-duration: 120s; }
 
-.hero-agent-node { animation: hero-node-drift 10s ease-in-out infinite; }
-.hero-route { stroke-dasharray: 5 18; animation: hero-route-flow 14s linear infinite; }
-.hero-route-b { animation-duration: 10s; animation-direction: reverse; }
-.hero-route-c { animation-duration: 12s; }
-.hero-signal { offset-rotate: 0deg; animation: hero-signal-a 6s ease-in-out infinite; }
-.signal-a { offset-path: path('M40 150 C270 140 320 330 600 350 S930 135 1160 155'); }
-.signal-b { offset-path: path('M70 565 C290 550 360 390 600 350 S900 545 1140 560'); animation-delay: -2.1s; animation-duration: 7.5s; }
-.signal-c { offset-path: path('M180 40 C290 220 470 180 600 350 S910 420 1030 40'); animation-delay: -4s; animation-duration: 9s; }
+.hero-ambient-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-aurora,
-  .hero-agent-node,
-  .hero-route,
-  .hero-signal { animation: none; }
+  .hero-ambient-glow,
+  .hero-ambient-orbit { animation: none; }
 }
 
 /* Per-word rise for the headline. */
