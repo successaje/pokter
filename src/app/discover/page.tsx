@@ -12,8 +12,10 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
-import { AskLauncher } from '@/components/discover/AskLauncher';
+import { DiscoverHero } from '@/components/discover/DiscoverHero';
+import { OutcomeCollections } from '@/components/discover/OutcomeCollections';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -217,45 +219,24 @@ export default async function DiscoverPage({
     (sum, entry) => sum + entry.listing.attestationCount,
     0,
   );
+  const categoryCounts = Object.fromEntries(
+    (['rebalancing', 'grid-trading', 'yield', 'health-factor'] as Category[]).map((category) => [
+      category,
+      browseAgents.filter(
+        (entry) =>
+          entry.listing.category === category &&
+          isPromotableAgent(entry.listing.agent),
+      ).length,
+    ]),
+  ) as Record<Category, number>;
 
   return (
     <div className="flex flex-col gap-12 pt-6">
-      <AskLauncher />
-      <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        {/*
-          A title, and nothing standing in front of it.
-
-          This was an eyebrow, a title and a paragraph — the eyebrow naming the
-          site on the site, and the paragraph describing two ways in that are
-          both visible controls a few hundred pixels below. Three pieces of
-          furniture before the first agent, none of them the agent.
-        */}
-        <div className="flex max-w-3xl flex-col gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Explore agents. Inspect the evidence.
-        </h1>
-        </div>
-        {/*
-          The header used to carry a button jumping to a collapsed panel at
-          the foot of the page. The panel now sits immediately below this, so
-          a link to it would be pointing at something already in view.
-        */}
-      </header>
+      {!shouldRun && <DiscoverHero />}
 
       {!shouldRun && stats && activity && (
         <>
-          {/*
-            Coverage first. It is three numbers on one line and it frames
-            everything under it — how much of the registry this page is
-            actually drawing from — so it costs a row and earns it.
-          */}
-          <MarketplacePulse
-            stats={stats}
-            listed={browseAgents.length}
-            answering={answering}
-            attestations={attestations}
-            activity={activity}
-          />
+          <OutcomeCollections counts={categoryCounts} selected={selectedCategory} />
 
           {/*
             The guided path, as a bar rather than a billboard.
@@ -293,6 +274,14 @@ export default async function DiscoverPage({
 
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
+
+          <MarketplacePulse
+            stats={stats}
+            listed={browseAgents.length}
+            answering={answering}
+            attestations={attestations}
+            activity={activity}
+          />
 
         </>
       )}

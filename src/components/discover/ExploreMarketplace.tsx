@@ -2,7 +2,7 @@ import { StatusState } from '@/components/ui/States';
 import Link from 'next/link';
 
 import { MarketplaceListing } from '@/components/discover/MarketplaceListing';
-import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { listSearchable } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
@@ -60,24 +60,6 @@ export function ExploreMarketplace({
           View full catalog <span aria-hidden className="ml-1">→</span>
         </Link>
       </div>
-
-      <nav aria-label="Filter marketplace by outcome" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0">
-        <Link
-          href="/discover#explore"
-          className={`tap inline-flex shrink-0 items-center rounded-full border px-4 text-xs font-medium sm:min-h-9 ${!selectedCategory ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
-        >
-          All candidates
-        </Link>
-        {CATEGORIES.map((category) => (
-          <Link
-            key={category.id}
-            href={`/discover?category=${category.id}#explore`}
-            className={`tap inline-flex shrink-0 items-center rounded-full border px-4 text-xs font-medium sm:min-h-9 ${selectedCategory === category.id ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)]'}`}
-          >
-            {category.label}
-          </Link>
-        ))}
-      </nav>
 
       {/*
         Mapped to plain rows before crossing to the client. The listing owns a
