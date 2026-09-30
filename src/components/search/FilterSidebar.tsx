@@ -119,7 +119,7 @@ export function FilterSidebar({
         );
 
         return (
-          <details key={group.label} className="group rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/55 px-3">
+          <details open={group.label === 'Evidence'} key={group.label} className="group rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/55 px-3">
             <summary className="flex cursor-pointer list-none items-center gap-2 py-3">
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 text-[13px] font-medium">
