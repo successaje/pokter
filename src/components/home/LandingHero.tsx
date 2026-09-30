@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { HeroBrief } from '@/components/home/HeroBrief';
 import { HeroEvidenceBackdrop } from '@/components/home/HeroEvidenceBackdrop';
+import { MarketplaceJourney } from '@/components/home/MarketplaceJourney';
 
 /**
  * The hero, shared by the live landing page and the two layout previews so a
@@ -22,9 +23,9 @@ export function LandingHero({
   compact?: boolean;
 }) {
   return (
-    <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-8rem)]' : 'min-h-[calc(100svh-6rem)]'} flex-col items-center justify-center overflow-hidden py-16 text-center sm:py-20`}>
+    <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-5.5rem)]' : 'min-h-[calc(100svh-4rem)]'} flex-col items-center justify-center overflow-hidden pb-2 pt-10 text-center sm:pb-3 sm:pt-12`}>
       <HeroEvidenceBackdrop />
-      <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-7">
+      <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-5 sm:gap-6">
           <div className="flex w-full flex-col items-center gap-5">
             <p className="hero-kicker flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
               <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
@@ -75,6 +76,7 @@ export function LandingHero({
             <HeroBrief />
           </div>
       </div>
+      <MarketplaceJourney />
     </section>
   );
 }

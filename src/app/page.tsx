@@ -14,7 +14,6 @@ import { Reveal } from '@/components/motion/Reveal';
 import { LandingHero } from '@/components/home/LandingHero';
 import { LiveProof } from '@/components/home/LiveProof';
 import { recentProbes } from '@/lib/hero/pipeline';
-import { MarketplaceJourney } from '@/components/home/MarketplaceJourney';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,10 +41,6 @@ export default async function HomePage() {
         put the marketplace two screens further away than the argument needed.
       */}
       <LandingHero compact />
-
-      <Reveal className="reveal-scale">
-        <MarketplaceJourney />
-      </Reveal>
 
       {/*
         Agents, immediately. Cutting the outcome scenes for their prose took
