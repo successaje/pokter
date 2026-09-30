@@ -108,7 +108,7 @@ export function ShareAgent({ name }: { name: string }) {
           : null;
 
   return (
-    <div className="absolute right-3 top-3 flex items-center gap-2 sm:right-4 sm:top-4">
+    <div className="flex items-center gap-2">
       {/*
         The outcome is a label beside the icon rather than a change of icon.
         A tick replacing the glyph says something happened; it does not say

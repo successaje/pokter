@@ -17,6 +17,7 @@ import { Wordmark } from '@/components/brand/Logo';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { InstallPokter } from '@/components/pwa/InstallPokter';
 import { usePwaInstall } from '@/components/pwa/PwaProvider';
+import { SavedNavAction } from '@/components/shell/SavedNavAction';
 
 /**
  * §11. Primary navigation.
@@ -68,6 +69,7 @@ const DESKTOP_PRIMARY = [
  * footer with the rest of the research.
  */
 const SECONDARY = [
+  { href: '/saved', label: 'Saved agents' },
   { href: '/leaderboard', label: 'Rankings' },
   /*
    * The way in for the other half of the audience.
@@ -210,6 +212,7 @@ export function Nav() {
           <span className="hidden sm:block">
             <ThemeToggle />
           </span>
+          <SavedNavAction />
           <ConnectWallet />
         </div>
       </div>

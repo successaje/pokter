@@ -8,6 +8,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
+import { SaveAgentButton } from './agent/SaveAgentButton';
 
 /**
  * §19. The marketplace card.
@@ -101,6 +102,14 @@ export function AgentCard({
 
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
+  const saveAgent = {
+    chainId: agent.chain_id,
+    tokenId: agent.token_id,
+    name: agent.name,
+    imageUrl: agent.image_url ?? null,
+    category: listing.category,
+    description,
+  };
 
   const attestations =
     attestationCount === 0 ? null : `${attestationCount} att`;
@@ -142,6 +151,7 @@ export function AgentCard({
         scroll — latent until a higher list limit surfaced that agent.
       */}
       <div className="surface-card relative flex min-w-0 flex-col md:hidden">
+        <SaveAgentButton agent={saveAgent} compact className="absolute right-2.5 top-2.5 z-10" />
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
@@ -188,7 +198,7 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <span className="flex shrink-0 items-center gap-1.5">
+            <span className="mr-9 flex shrink-0 items-center gap-1.5">
               {downRecently && (
                 <span
                   title="Answered no probes in the last 24 hours"
@@ -251,6 +261,7 @@ export function AgentCard({
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
       <div className="surface-card group relative hidden h-full min-w-0 flex-col md:flex">
+        <SaveAgentButton agent={saveAgent} compact className="absolute right-3 top-3 z-10" />
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -297,7 +308,7 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <span className="flex shrink-0 items-center gap-1.5">
+            <span className="mr-9 flex shrink-0 items-center gap-1.5">
               {downRecently && (
                 <span
                   title="Answered no probes in the last 24 hours"
