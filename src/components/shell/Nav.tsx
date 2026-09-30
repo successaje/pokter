@@ -52,6 +52,15 @@ const PRIMARY = [
   { href: '/my-agents', label: 'Activity' },
 ];
 
+// Builder Studio is a first-class desktop destination. Mobile keeps five
+// total tab-bar items and exposes it through More so the bar never compresses
+// labels or creates a sixth overflow column.
+const DESKTOP_PRIMARY = [
+  ...PRIMARY.slice(0, 3),
+  { href: '/build', label: 'Build' },
+  PRIMARY[3],
+];
+
 /*
  * Rankings is not here because it is not a destination — it is the catalogue
  * in a different order, and it switches with it on both pages. Pool check is
@@ -127,7 +136,7 @@ export function Nav() {
         </Link>
 
         <nav className="hidden min-w-0 flex-1 items-center gap-1 whitespace-nowrap md:flex">
-          {PRIMARY.map((item) => {
+          {DESKTOP_PRIMARY.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
