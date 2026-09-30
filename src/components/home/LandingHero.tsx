@@ -36,7 +36,7 @@ export function LandingHero({
               sentence. Wide screens keep the statement on one confident line;
               smaller screens wrap naturally rather than shrinking the type.
             */}
-            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:whitespace-nowrap lg:text-[clamp(4rem,6.25vw,5.35rem)]">
+            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:whitespace-nowrap lg:text-[clamp(4rem,5.15vw,4.75rem)]">
               {HEADLINE.map((word, wordIndex) => (
                 <span key={word}>
                   <span
