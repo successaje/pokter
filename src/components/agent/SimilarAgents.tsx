@@ -98,14 +98,14 @@ export async function SimilarAgents({
         </Link>
       </div>
 
-      <ul className="grid gap-2 sm:grid-cols-2">
+      <ul className="-mx-1 flex snap-x snap-proximity gap-3 overflow-x-auto px-1 pb-2 overscroll-x-contain [scrollbar-width:thin]">
         {peers.map((entry) => {
           const agent = entry.listing.agent;
           const availability = entry.record.totalProbes > 0
             ? `${Math.round((entry.record.totalAnswered / entry.record.totalProbes) * 100)}% answered`
             : 'Not measured';
           return (
-            <li key={`${agent.chain_id}:${agent.token_id}`}>
+            <li key={`${agent.chain_id}:${agent.token_id}`} className="w-[17rem] shrink-0 snap-start sm:w-[19rem]">
               <Link
                 href={`/agents/${agent.chain_id}/${agent.token_id}`}
                 className="group flex min-h-20 items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]"
