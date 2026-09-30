@@ -69,7 +69,7 @@ const SECONDARY = [
    * labelled by what it does for them rather than by its own name — nobody
    * arrives wanting a diagnostic, they arrive wanting to be listed.
    */
-  { href: '/compatibility', label: 'List your agent' },
+  { href: '/build', label: 'Build an agent' },
   { href: '/pool-check', label: 'Pool check' },
 ];
 
