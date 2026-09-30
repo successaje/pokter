@@ -6,7 +6,7 @@ import { SUPPORT_EMAIL } from '@/lib/support/contact';
 export const metadata: Metadata = {
   title: 'Privacy',
   description:
-    'Pokter runs no analytics and sets one cookie. What that leaves, stated precisely.',
+    'What Pokter stores in your browser, for verified publishers and onchain, stated precisely.',
 };
 
 function H({ children }: { children: React.ReactNode }) {
@@ -29,9 +29,10 @@ export default function PrivacyPage() {
 
       <p className="text-[color:var(--text)]">
         Pokter runs no analytics, no tracking pixels and no advertising
-        technology, and it sets one cookie, which remembers whether you chose
-        the light or dark theme. There is no account to create and no profile
-        of you to build.
+        technology. You can browse without creating an account. Pokter uses a
+        theme cookie when you choose light or dark mode and, only after a
+        publisher verifies an agent they own, a short-lived, HTTP-only builder
+        session cookie.
       </p>
       <p>
         That is unusual enough to be worth stating plainly rather than burying
@@ -70,6 +71,20 @@ export default function PrivacyPage() {
         until the thread is finished.
       </p>
 
+      <H>Verified publishers</H>
+      <p>
+        To unlock the Builder workspace, Pokter stores the public owner wallet,
+        the ERC-8004 chain and agent id, the ownership signature and the time it
+        was verified. The signature proves control of an expiring, single-use
+        challenge; it cannot move funds. The public builder page is assembled
+        from that verification and public registry, probe and job records.
+      </p>
+      <p>
+        The private Builder workspace uses a random session token stored in an
+        HTTP-only cookie. Pokter stores only a hash of that token on the server,
+        and the session expires after twelve hours or when you sign out.
+      </p>
+
       <H>Optional job notifications</H>
       <p>
         If you ask for email updates, Pokter stores your email address, the
@@ -91,9 +106,9 @@ export default function PrivacyPage() {
 
       <H>Your rights</H>
       <p>
-        Because Pokter holds no account and builds no profile, there is
-        generally nothing held about you to export or delete. If you believe
-        otherwise, write to{' '}
+        Pokter does not build an advertising profile or store your private job
+        instructions as an account history. If you want to ask about an email
+        subscription or verified-publisher record, write to{' '}
         <a className="underline decoration-dotted" href={`mailto:${SUPPORT_EMAIL}`}>
           {SUPPORT_EMAIL}
         </a>{' '}
