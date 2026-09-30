@@ -1,8 +1,9 @@
 import Link from 'next/link';
 
-import { AgentCard } from '@/components/AgentCard';
+import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { listSearchable, preferDistinctOwners } from '@/lib/marketplace';
-import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import { verdictFor } from '@/lib/search/match';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 
@@ -75,80 +76,58 @@ export async function SimilarAgents({
    * distinct publisher, then fill the remaining slots from what is left, so a
    * thin category still shows a full row.
    */
-  const peers = preferDistinctOwners(ranked, 8);
+  const peers = preferDistinctOwners(ranked, 4);
 
   if (peers.length === 0) return null;
 
   return (
     <section
       aria-labelledby="similar-agents-title"
-      className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-6 sm:p-8"
+      className="flex flex-col gap-4 border-t border-[color:var(--border)] pt-7"
     >
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-2xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">
-            Keep looking
-          </p>
-          <h2
-            id="similar-agents-title"
-            className="display mt-2 text-2xl sm:text-3xl"
-          >
-            {meta ? `Other ${meta.label.toLowerCase()} agents` : 'Similar agents'}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-            Ranked on what has been observed rather than what was declared.
-            Agents that have returned a signed price come first.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="similar-agents-title" className="text-lg font-semibold">
+          Keep looking
+        </h2>
 
         <Link
           href={CATEGORY_ROUTES[category]}
           className="text-[12px] text-[color:var(--text-muted)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
         >
-          See all {meta?.label.toLowerCase() ?? 'agents'} →
+          See all {meta?.label.toLowerCase() ?? 'similar agents'} →
         </Link>
       </div>
 
-      {/*
-        A scroller rather than a grid. Eight cards do not fit a row at any
-        width this page uses, and a grid would either truncate the set to three
-        or add a third of a page of height to a page that is already long.
-        `overscroll-x-contain` matters more than it looks: without it a sideways
-        component in a trackpad gesture scrolls past the end of the strip and
-        chains to the page, which reads as the whole page sliding away. Snap is
-        proximity rather than mandatory for the same reason — mandatory fights
-        a vertical scroll that drifts a few pixels horizontally.
-      */}
-      <ul className="-mx-6 flex snap-x snap-proximity gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:thin] sm:-mx-8 sm:px-8">
-        {peers.map((entry) => (
-          <li
-            key={`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`}
-            className="w-[19rem] shrink-0 snap-start"
-          >
-            <AgentCard
-              listing={entry.listing}
-              verdict={verdictFor(entry)}
-              record={entry.record}
-              hirable={offersDirectHire(entry)}
-            />
-          </li>
-        ))}
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {peers.map((entry) => {
+          const agent = entry.listing.agent;
+          const availability = entry.record.totalProbes > 0
+            ? `${Math.round((entry.record.totalAnswered / entry.record.totalProbes) * 100)}% answered`
+            : 'Not measured';
+          return (
+            <li key={`${agent.chain_id}:${agent.token_id}`}>
+              <Link
+                href={`/agents/${agent.chain_id}/${agent.token_id}`}
+                className="group flex min-h-20 items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)]"
+              >
+                <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-2">
+                    <strong className="line-clamp-1 text-[13px] font-semibold">{agent.name}</strong>
+                    <EvidenceBadge verdict={verdictFor(entry)} />
+                  </span>
+                  <span className="mt-1 flex items-center gap-1.5 text-[10px] text-[color:var(--text-faint)]">
+                    <span>{availability}</span>
+                    <span aria-hidden>·</span>
+                    <span>{entry.record.totalProbes} probe{entry.record.totalProbes === 1 ? '' : 's'}</span>
+                  </span>
+                </span>
+                <span aria-hidden className="text-[color:var(--text-faint)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--text)]">→</span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
-
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/agents"
-          className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          Browse all agents
-        </Link>
-        <Link
-          href="/discover"
-          className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          Find my best match
-        </Link>
-      </div>
     </section>
   );
 }
