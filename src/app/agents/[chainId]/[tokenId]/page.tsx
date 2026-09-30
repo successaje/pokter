@@ -21,6 +21,7 @@ import { DetailTabs } from '@/components/agent/DetailTabs';
 import { TrustPanel } from '@/components/agent/TrustPanel';
 import { PerformancePanel } from '@/components/agent/PerformancePanel';
 import { EconomicHistoryPanel } from '@/components/agent/EconomicHistoryPanel';
+import { VerifiedReviewsPanel } from '@/components/agent/VerifiedReviewsPanel';
 import { TrackRecordPanel } from '@/components/TrackRecordPanel';
 import { LivePanel } from '@/components/LivePanel';
 import { EvidencePanel } from '@/components/EvidencePanel';
@@ -38,6 +39,7 @@ import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
 import { getJobStore } from '@/lib/erc8183/store';
 import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
+import { getReviewStore } from '@/lib/reviews/store';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -126,6 +128,7 @@ export default async function AgentPage({
   const economicHistory = summariseEconomicHistory(
     getJobStore().byAgent(agent.chain_id, agent.token_id),
   );
+  const verifiedReviews = getReviewStore().byAgent(agent.chain_id, agent.token_id);
   const publishedEvidence = summarisePublishedEvidence(attestations);
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
@@ -384,6 +387,10 @@ export default async function AgentPage({
                     caption="ERC-8183 outcomes attributed to this ERC-8004 identity by Pokter’s immutable job envelope."
                   >
                     <EconomicHistoryPanel history={economicHistory} />
+                    <div className="mt-6 border-t border-[color:var(--border)] pt-6">
+                      <h3 className="mb-3 text-sm font-medium">Verified buyer reviews</h3>
+                      <VerifiedReviewsPanel reviews={verifiedReviews} />
+                    </div>
                   </Section>
                 ),
               },
