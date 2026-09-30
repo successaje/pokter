@@ -302,6 +302,7 @@ src/lib/
   altana/       historical sessions, revocation, fail-closed delegation policy
   erc8183/      job escrow: hire, status, settle
   wallet/       passkey wallets and the signer in use
+  notifications verified email subscriptions and a durable delivery outbox
   hero/         the landing pipeline, built from real measurements
 ```
 
@@ -348,11 +349,19 @@ and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
 operator routes from a trusted script; they fail closed when it is absent and
 the browser UI never receives it. **Use a testnet key.**
 
+Transactional job email is optional and server-only. Configure
+`RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` to enable it, with
+`NOTIFICATION_REPLY_TO` when replies should reach support. A dedicated random
+`NOTIFICATION_UNSUBSCRIBE_SECRET` is recommended; without one, the Resend key
+signs unsubscribe links and rotating it invalidates existing links. Email
+subscriptions require confirmation, are scoped to one on-chain job, exclude
+task text and never participate in escrow execution.
+
 ## Deployment
 
 Deployed on Fly.io with a persistent volume, and the volume is the point: the
 SQLite stores hold accumulated probe history, historical sessions, escrowed
-jobs, deliverables and rate-limit state. A marketplace whose evidence resets on
+jobs, deliverables, notification subscriptions/outbox and rate-limit state. A marketplace whose evidence resets on
 every deploy is not one.
 
 ```bash

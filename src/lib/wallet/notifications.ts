@@ -100,6 +100,14 @@ export function recordJobNotification(
   if (settings.browser && 'Notification' in window && Notification.permission === 'granted') {
     new Notification(item.title, { body: item.body, tag: id });
   }
+
+  // Delivery is best-effort and deliberately detached from escrow state. The
+  // server re-reads the job from chain before it queues any email.
+  void fetch('/api/notifications/event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jobId: job.jobId, agentName: job.agentName }),
+  }).catch(() => undefined);
 }
 
 export function markNotificationRead(id: string): void {

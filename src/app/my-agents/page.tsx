@@ -8,7 +8,12 @@ import { PrivateActivity } from '@/components/jobs/PrivateActivity';
  * would leak every demo user's task text and session metadata, so this page
  * is kept device-local and filtered by the connected passkey wallet.
  */
-export default function MyAgentsPage() {
+export default async function MyAgentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string | string[] }>;
+}) {
+  const emailStatus = (await searchParams).email;
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   return (
     <div className="flex flex-col gap-8 pt-6">
@@ -24,6 +29,15 @@ export default function MyAgentsPage() {
       </header>
 
       <section className="flex flex-col gap-4">
+        {typeof emailStatus === 'string' && (
+          <div className={`rounded-[var(--radius)] border px-4 py-3 text-[12px] ${emailStatus === 'verified' || emailStatus === 'unsubscribed' ? 'border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] text-[color:var(--negative)]'}`}>
+            {emailStatus === 'verified'
+              ? 'Email verified. Job updates are now active.'
+              : emailStatus === 'unsubscribed'
+                ? 'Email updates for that job have been stopped.'
+                : 'That email link is invalid or has already been used.'}
+          </div>
+        )}
         {/*
           The old "Private activity" heading and its rule sat directly above
           the tabs, giving the page two competing dividers and naming a section

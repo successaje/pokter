@@ -270,7 +270,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
           id="activity-panel-notifications"
           aria-labelledby="activity-tab-notifications"
         >
-          <NotificationCenter walletAddress={wallet.address} />
+          <NotificationCenter walletAddress={wallet.address} jobs={jobs} />
         </div>
       ) : (
         <section

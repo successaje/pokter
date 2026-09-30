@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <div>
         <h1 className="display text-3xl sm:text-4xl">Privacy</h1>
         <p className="mt-2 text-[12px] text-[color:var(--text-faint)]">
-          Last updated 29 September 2026.
+          Last updated 30 September 2026.
         </p>
       </div>
 
@@ -68,6 +68,16 @@ export default function PrivacyPage() {
       <p>
         If you email support, that message and your address exist in an inbox
         until the thread is finished.
+      </p>
+
+      <H>Optional job notifications</H>
+      <p>
+        If you ask for email updates, Pokter stores your email address, the
+        public job identifier and the hiring wallet address after you confirm
+        the verification link. The email provider processes the address only
+        to deliver transactional job updates. Emails exclude task text and
+        include a link that stops updates for that job. This data is not used
+        for marketing.
       </p>
 
       <H>Third parties your browser contacts</H>
