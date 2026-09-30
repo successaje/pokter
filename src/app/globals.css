@@ -1338,3 +1338,117 @@ h2 {
     overscroll-behavior-x: contain;
   }
 }
+
+/*
+ * Landing marketplace journey.
+ *
+ * The route is a single restrained movement, not a looping loader. It draws
+ * once as the story enters the viewport and then becomes ordinary page
+ * furniture. The neutral path remains visible when motion is unavailable,
+ * while the yellow path is the only decorative use of the action colour.
+ */
+.marketplace-journey::before {
+  content: '';
+  position: absolute;
+  inset: 18% -8% 0;
+  z-index: -1;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--surface) 45%, transparent)
+  );
+  opacity: 0.72;
+}
+
+.journey-route-base,
+.journey-route-active {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.25;
+}
+
+.journey-route-base {
+  stroke: var(--border-strong);
+  stroke-dasharray: 0.012 0.018;
+}
+
+.journey-route-active {
+  stroke: var(--brand);
+  stroke-width: 1.5;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.78;
+}
+
+.journey-check,
+.journey-spark {
+  color: var(--brand-highlight);
+  stroke: currentColor;
+}
+
+.journey-node {
+  fill: var(--brand);
+}
+
+.journey-seal {
+  fill: var(--brand-highlight-soft);
+  stroke: var(--brand-highlight);
+}
+
+@keyframes journey-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes journey-arrive {
+  from {
+    opacity: 0.35;
+    translate: 0 9px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes journey-node-arrive {
+  0%, 70% { scale: 0.45; opacity: 0.35; }
+  100% { scale: 1; opacity: 1; }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .marketplace-journey {
+      view-timeline-name: --marketplace-journey;
+      view-timeline-axis: block;
+    }
+
+    .journey-route-active {
+      animation: journey-draw linear both;
+      animation-timeline: --marketplace-journey;
+      animation-range: entry 5% cover 48%;
+    }
+
+    .journey-step {
+      animation: journey-arrive linear both;
+      animation-timeline: --marketplace-journey;
+      animation-range: entry calc(5% + var(--journey-index) * 3%) cover calc(30% + var(--journey-index) * 3%);
+    }
+
+    .journey-dot {
+      animation: journey-node-arrive linear both;
+      animation-timeline: --marketplace-journey;
+      animation-range: entry calc(9% + var(--journey-index) * 4%) cover calc(30% + var(--journey-index) * 4%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-route-active {
+    stroke-dashoffset: 0;
+  }
+
+  .journey-art {
+    transition: none;
+  }
+}
