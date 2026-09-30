@@ -10,6 +10,10 @@ import {
 } from '@/lib/wallet/external';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { shortAddress } from '@/lib/ui/format';
+import { rememberJob } from '@/lib/wallet/activity';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { parseUnits } from 'viem';
+import type { HiredJob } from '@/lib/erc8183/types';
 
 /*
  * What each signature is for, in the order they are raised.
@@ -37,11 +41,18 @@ const STEPS: { id: HireStep; label: string; detail: string }[] = [
  */
 export function ExternalWalletHire({
   provider,
+  providerLabel,
+  automatedDelivery,
+  agent,
   task,
   budgetU,
   ttlSeconds,
 }: {
   provider: `0x${string}`;
+  providerLabel?: string;
+  /** Whether this seller publishes an endpoint that can be told to deliver. */
+  automatedDelivery?: boolean;
+  agent: { chainId: number; tokenId: string; name: string };
   task: string;
   budgetU: number;
   ttlSeconds: number;
@@ -51,6 +62,9 @@ export function ExternalWalletHire({
   const [jobId, setJobId] = useState<bigint | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [atomic, setAtomic] = useState<boolean | null>(null);
+  const [delivery, setDelivery] = useState<
+    null | 'asking' | 'asked' | 'unreachable' | 'none'
+  >(null);
 
   if (!hasInjectedWallet()) return null;
 
@@ -83,6 +97,67 @@ export function ExternalWalletHire({
       setAtomic(outcome.atomic);
       setJobId(outcome.jobId);
       setStep('done');
+
+      /*
+       * A funded job nobody recorded is a funded job nobody can find.
+       *
+       * The passkey path writes the record and pings the seller; this one
+       * returned a job id and stopped, so a hire made here would have left
+       * escrow funded, the activity page empty and the seller never told to
+       * deliver — which is the state that leaves money sitting until expiry.
+       * Recorded against the connected address, because that is the wallet the
+       * chain names as this job's client.
+       */
+      const now = new Date().toISOString();
+      const hired: HiredJob = {
+        id: crypto.randomUUID(),
+        jobId: outcome.jobId.toString(),
+        chainId: WALLET_NETWORK.chainId,
+        isTestnet: WALLET_NETWORK.chainId === 97,
+        agentChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        agentName: agent.name,
+        providerLabel,
+        provider,
+        task,
+        budgetRaw: parseUnits(String(budgetU), 18).toString(),
+        expiredAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+        hiredAt: now,
+        hireTxHash: outcome.hash,
+        status: 'FUNDED',
+        statusCheckedAt: now,
+        deliverableUrl: null,
+        settleTxHash: null,
+      };
+
+      if (account) rememberJob(account, hired);
+
+      /*
+       * Told separately from the record, and failing separately too. A seller
+       * that cannot be reached does not undo a funded job, so this reports
+       * rather than throws — the escrow is real either way and the buyer needs
+       * to know which of the two happened.
+       */
+      if (automatedDelivery) {
+        setDelivery('asking');
+        try {
+          const response = await fetch('/api/notify-funded', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              agentChainId: agent.chainId,
+              tokenId: agent.tokenId,
+              jobId: hired.jobId,
+              provider: hired.provider,
+            }),
+          });
+          setDelivery(response.ok ? 'asked' : 'unreachable');
+        } catch {
+          setDelivery('unreachable');
+        }
+      } else {
+        setDelivery('none');
+      }
     } catch (caught) {
       const message = (caught as Error)?.message ?? '';
       setError(
@@ -173,11 +248,29 @@ export function ExternalWalletHire({
       )}
 
       {step === 'done' && jobId !== null && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-3 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
-          Job #{jobId.toString()} funded
-          {atomic ? ' in one batched transaction' : ' across five transactions'}.
-          Track it from your activity page.
-        </p>
+        <div className="flex flex-col gap-1.5 rounded-[var(--radius)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-3">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+            Job #{jobId.toString()} funded
+            {atomic ? ' in one batched transaction' : ' across five transactions'}
+            , and saved to this device. Track it from your activity page.
+          </p>
+          {/*
+            Whether the seller was actually told. Funding and delivery fail
+            separately, and a buyer who thinks a silent seller was asked will
+            wait out the whole window before finding out it never heard.
+          */}
+          {delivery && (
+            <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              {delivery === 'asking'
+                ? 'Asking the seller to deliver…'
+                : delivery === 'asked'
+                  ? 'The seller has been asked to deliver.'
+                  : delivery === 'unreachable'
+                    ? 'The seller could not be reached. Escrow is funded and stays yours until the job expires.'
+                    : 'This seller publishes no delivery endpoint, so nothing was requested. Escrow is funded and stays yours until the job expires.'}
+            </p>
+          )}
+        </div>
       )}
 
       {account ? (

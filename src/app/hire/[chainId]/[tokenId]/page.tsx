@@ -121,7 +121,10 @@ export default async function HirePage({
             providers[0]?.address && (
               <ExternalWalletHire
                 provider={providers[0].address as `0x${string}`}
-                task={`Pokter external-wallet walkthrough for ${agent.name}.`}
+                providerLabel={providers[0].label}
+                automatedDelivery={providers[0].automatedDelivery}
+                agent={{ chainId, tokenId, name: agent.name }}
+                task={`Analyse my position and report what you find. State every assumption and data source. Do not execute transactions.`}
                 budgetU={DEFAULT_BUDGET_U}
                 ttlSeconds={60 * 60 * 24}
               />
