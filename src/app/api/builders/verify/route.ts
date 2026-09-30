@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, verifyMessage, type Hex } from 'viem';
 
-import { createBuilderChallenge, consumeBuilderChallenge, readBuilderChallenge, saveVerifiedPublisher } from '@/lib/builders/store';
+import { BUILDER_SESSION_COOKIE, BUILDER_SESSION_SECONDS, createBuilderChallenge, createBuilderSession, consumeBuilderChallenge, readBuilderChallenge, saveVerifiedPublisher } from '@/lib/builders/store';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -45,7 +45,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (!consumeBuilderChallenge(challengeId)) {
         return NextResponse.json({ error: 'This challenge expired or was already used.' }, { status: 409 });
       }
-      return NextResponse.json({ publisher: saveVerifiedPublisher({ ...challenge, signature: signature as Hex }) });
+      const publisher = saveVerifiedPublisher({ ...challenge, signature: signature as Hex });
+      const response = NextResponse.json({ publisher });
+      response.cookies.set(BUILDER_SESSION_COOKIE, createBuilderSession(challenge.owner), {
+        httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
+        path: '/', maxAge: BUILDER_SESSION_SECONDS, priority: 'high',
+      });
+      return response;
     } catch { return NextResponse.json({ error: 'Ownership verification could not be completed.' }, { status: 502 }); }
   }
   return NextResponse.json({ error: 'Unknown verification action.' }, { status: 400 });

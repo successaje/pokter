@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Address, Hex } from 'viem';
+import { getAddress, type Address, type Hex } from 'viem';
 
 import { BUILDER_CHALLENGE_TTL_MS, builderVerificationMessage } from './verification';
 
@@ -44,6 +44,15 @@ function db(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_verified_publishers_owner
       ON verified_publishers (owner_address, verified_at DESC);
+    CREATE TABLE IF NOT EXISTS builder_sessions (
+      token_hash TEXT PRIMARY KEY,
+      owner_address TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_builder_sessions_owner
+      ON builder_sessions (owner_address, expires_at DESC);
   `);
   return database;
 }
@@ -107,4 +116,34 @@ export function verifiedPublisherByOwner(owner: Address): VerifiedPublisherIdent
   return rows.map((row) => ({
     owner, chainId: Number(row.chain_id), tokenId: String(row.token_id), verifiedAt: String(row.verified_at),
   }));
+}
+
+export const BUILDER_SESSION_COOKIE = 'pokter_builder_session';
+export const BUILDER_SESSION_SECONDS = 12 * 60 * 60;
+
+export function createBuilderSession(owner: Address): string {
+  const token = randomBytes(32).toString('base64url');
+  const now = new Date();
+  db().prepare(`INSERT INTO builder_sessions
+    (token_hash,owner_address,expires_at,created_at) VALUES (?,?,?,?)`).run(
+    hash(token), owner.toLowerCase(), new Date(now.getTime() + BUILDER_SESSION_SECONDS * 1000).toISOString(), now.toISOString(),
+  );
+  return token;
+}
+
+export function builderSessionOwner(token: string | undefined): Address | null {
+  if (!token) return null;
+  const row = db().prepare(`SELECT owner_address FROM builder_sessions
+    WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?`).get(
+    hash(token), new Date().toISOString(),
+  ) as { owner_address: string } | undefined;
+  if (!row) return null;
+  try { return getAddress(row.owner_address); } catch { return null; }
+}
+
+export function revokeBuilderSession(token: string | undefined): void {
+  if (!token) return;
+  db().prepare('UPDATE builder_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL').run(
+    new Date().toISOString(), hash(token),
+  );
 }
