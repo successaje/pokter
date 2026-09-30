@@ -42,7 +42,7 @@ const STEPS = [
     label: 'Hire',
     question: 'What exactly am I allowing it to do?',
     body: 'Nothing to your wallet. You fund one escrowed job from your own key, and the agent is paid only when it delivers.',
-    href: '/methodology',
+    href: '/agents?q=is%3Alive',
   },
   {
     label: 'Monitor',

@@ -40,8 +40,8 @@ export const FILTER_GROUPS: FilterGroup[] = [
     label: 'Endpoint',
     hint: 'Whether it answers when called',
     options: [
-      { query: 'is:live', label: 'Answering now' },
-      { query: 'is:offline', label: 'Not answering' },
+      { query: 'is:live', label: 'Has answered' },
+      { query: 'is:offline', label: 'No probe answered' },
       { query: 'is:measured', label: 'Probed by Pokter' },
       { query: 'is:unmeasured', label: 'Never probed' },
       { query: 'has:endpoint', label: 'Publishes an endpoint' },
