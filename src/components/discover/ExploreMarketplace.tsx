@@ -51,8 +51,9 @@ export function ExploreMarketplace({
             already scrolled past.
           */}
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            Every indexed agent, ranked on what has been observed rather than
-            what was declared. Filter by outcome, or read the whole set.
+            Production candidates ranked on what has been observed rather than
+            what was declared. Test and retired identities remain available in
+            the full catalog, but are never promoted here.
           </p>
         </div>
         <Link href="/agents" className="tap text-xs font-medium text-[color:var(--info)] sm:min-h-0">
@@ -65,7 +66,7 @@ export function ExploreMarketplace({
           href="/discover#explore"
           className={`tap inline-flex shrink-0 items-center rounded-full border px-4 text-xs font-medium sm:min-h-9 ${!selectedCategory ? 'border-[color:var(--brand)] bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]'}`}
         >
-          All agents
+          All candidates
         </Link>
         {CATEGORIES.map((category) => (
           <Link
