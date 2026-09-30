@@ -29,3 +29,8 @@ test('open or unfunded records do not become economic activity', () => {
   const open = { ...job('OPEN'), hireTxHash: null };
   assert.equal(summariseEconomicHistory([open]).jobs, 0);
 });
+
+test('a chain-verified funded job is counted when a relay exposes no transaction hash', () => {
+  const funded = { ...job('FUNDED'), hireTxHash: null };
+  assert.equal(summariseEconomicHistory([funded]).jobs, 1);
+});

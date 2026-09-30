@@ -21,7 +21,10 @@ export interface AgentEconomicHistory {
  * on Pokter's immutable job envelope and index.
  */
 export function summariseEconomicHistory(jobs: HiredJob[]): AgentEconomicHistory {
-  const funded = jobs.filter((job) => Boolean(job.hireTxHash) && job.status !== 'OPEN');
+  // Entry into this store is itself chain-verified. Some relayed/batched hires
+  // do not expose a transaction hash to the SDK even though the kernel reads
+  // FUNDED, so requiring a hash here would silently erase valid paid work.
+  const funded = jobs.filter((job) => job.status !== 'OPEN');
   const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
 
   return {

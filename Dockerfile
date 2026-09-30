@@ -27,6 +27,10 @@ ENV HOSTNAME=0.0.0.0
 ENV PROBE_DB_PATH=/data/probes.db
 ENV SESSION_DB_PATH=/data/sessions.db
 ENV JOB_DB_PATH=/data/jobs.db
+ENV DELIVERABLE_DB_PATH=/data/deliverables.db
+ENV RATE_LIMIT_DB_PATH=/data/rate-limit.db
+ENV NOTIFICATION_DB_PATH=/data/notifications.db
+ENV REVIEW_DB_PATH=/data/reviews.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs

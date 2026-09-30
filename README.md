@@ -366,6 +366,17 @@ SQLite stores hold accumulated probe history, historical sessions, escrowed
 jobs, deliverables, notification subscriptions/outbox and rate-limit state. A marketplace whose evidence resets on
 every deploy is not one.
 
+`REVIEW_DB_PATH` must point at the same persistent volume as the probe, job,
+notification and deliverable stores. Fly sets it to `/data/reviews.db`; do not
+leave it on the image filesystem in production.
+
+Historical ERC-8183 jobs can be repaired or imported through the guarded
+`POST /api/jobs/backfill` endpoint. It uses the same bearer `SWEEP_SECRET` as
+the scheduled evidence sweep, accepts at most 100 explicit numeric `jobIds`,
+and is a dry run unless the JSON body includes `"write": true`. Identity,
+provider, budget and status are re-read from chain; jobs without a valid Pokter
+identity envelope are skipped rather than attributed heuristically.
+
 ```bash
 flyctl deploy --now
 ```
