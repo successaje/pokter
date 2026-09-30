@@ -366,9 +366,11 @@ SQLite stores hold accumulated probe history, historical sessions, escrowed
 jobs, deliverables, notification subscriptions/outbox and rate-limit state. A marketplace whose evidence resets on
 every deploy is not one.
 
-`REVIEW_DB_PATH` must point at the same persistent volume as the probe, job,
-notification and deliverable stores. Fly sets it to `/data/reviews.db`; do not
-leave it on the image filesystem in production.
+`REVIEW_DB_PATH` and `BUILDER_DB_PATH` must point at the same persistent volume
+as the probe, job, notification and deliverable stores. Fly sets them to
+`/data/reviews.db` and `/data/builders.db`; do not leave either on the image
+filesystem in production. The builder store contains ownership-verification
+proofs and hashed, expiring dashboard sessions.
 
 Historical ERC-8183 jobs can be repaired or imported through the guarded
 `POST /api/jobs/backfill` endpoint. It uses the same bearer `SWEEP_SECRET` as
