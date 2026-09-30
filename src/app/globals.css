@@ -833,6 +833,21 @@ body {
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hero-swash-draw {
+  from { background-size: 0% 100%; }
+  to { background-size: 100% 100%; }
+}
+
+@keyframes hero-signal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 30%, transparent); opacity: 0.45; }
+  50% { box-shadow: 0 0 0 7px transparent; opacity: 0.9; }
+}
+
 .hero-ambient-glow {
   background: radial-gradient(ellipse, color-mix(in srgb, var(--brand) 7%, transparent) 0%, color-mix(in srgb, var(--brand) 2%, transparent) 42%, transparent 72%);
   filter: blur(34px);
@@ -850,6 +865,12 @@ body {
 }
 
 .hero-ambient-orbit-inner { animation-direction: reverse; animation-duration: 120s; }
+
+.hero-signal-dot {
+  animation: hero-signal-pulse 3.8s ease-in-out infinite;
+}
+
+.hero-signal-dot-late { animation-delay: -1.9s; }
 
 .hero-ambient-grain {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
@@ -881,6 +902,37 @@ body {
 .word {
   display: inline-block;
   animation: word-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-kicker,
+  .hero-copy,
+  .hero-actions,
+  .hero-brief-stage {
+    animation: hero-enter 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .hero-kicker { animation-delay: 80ms; }
+  .hero-copy { animation-delay: 520ms; }
+  .hero-actions { animation-delay: 650ms; }
+  .hero-brief-stage { animation-delay: 780ms; }
+  .swash { animation: hero-swash-draw 780ms 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  .hero-brief-form:focus-within {
+    box-shadow: 0 10px 32px color-mix(in srgb, var(--brand) 13%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word,
+  .hero-kicker,
+  .hero-copy,
+  .hero-actions,
+  .hero-brief-stage,
+  .hero-signal-dot,
+  .swash {
+    animation: none;
+  }
 }
 
 /*

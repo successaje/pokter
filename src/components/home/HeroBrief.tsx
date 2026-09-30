@@ -43,7 +43,7 @@ export function HeroBrief() {
           event.preventDefault();
           go(brief);
         }}
-        className="flex items-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-1.5 transition-colors focus-within:border-[color:var(--brand)]"
+        className="hero-brief-form flex items-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-1.5 transition-[border-color,box-shadow,transform] focus-within:-translate-y-0.5 focus-within:border-[color:var(--brand)]"
       >
         <label htmlFor="hero-brief" className="sr-only">
           What are you trying to do?
@@ -71,7 +71,7 @@ export function HeroBrief() {
             key={objective.label}
             type="button"
             onClick={() => go(objective.brief)}
-            className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--text)]"
+            className="hero-objective rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--text-muted)] transition-[color,border-color,background-color,transform] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]"
           >
             {objective.label}
           </button>

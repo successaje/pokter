@@ -26,7 +26,7 @@ export function LandingHero({
       <HeroEvidenceBackdrop />
       <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-7">
           <div className="flex w-full flex-col items-center gap-5">
-            <p className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
+            <p className="hero-kicker flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
               <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
               The decision layer for autonomous finance on BNB Chain
             </p>
@@ -49,14 +49,14 @@ export function LandingHero({
                 </span>
               ))}
             </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
+            <p className="hero-copy max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
               Hundreds of thousands of agents claim they work. Pokter calls
               them and publishes what answered, so you hire on evidence — through
               escrow you control, with no authority over your wallet.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="hero-actions flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/discover"
               className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
@@ -71,7 +71,7 @@ export function LandingHero({
             </Link>
           </div>
 
-          <div className="w-full max-w-xl rounded-2xl bg-[color:var(--bg)]/40 p-2 backdrop-blur-[2px]">
+          <div className="hero-brief-stage w-full max-w-xl rounded-2xl bg-[color:var(--bg)]/40 p-2 backdrop-blur-[2px]">
             <HeroBrief />
           </div>
       </div>
