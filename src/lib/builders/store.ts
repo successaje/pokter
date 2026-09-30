@@ -11,6 +11,13 @@ import { BUILDER_CHALLENGE_TTL_MS, builderVerificationMessage } from './verifica
 const DB_PATH = process.env.BUILDER_DB_PATH ?? './data/builders.db';
 let database: DatabaseSync | null = null;
 
+export interface VerifiedPublisherIdentity {
+  owner: Address;
+  chainId: number;
+  tokenId: string;
+  verifiedAt: string;
+}
+
 function db(): DatabaseSync {
   if (database) return database;
   mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -90,4 +97,14 @@ export function saveVerifiedPublisher(input: {
     input.owner.toLowerCase(), input.chainId, input.tokenId, input.signature, verifiedAt,
   );
   return { owner: input.owner, chainId: input.chainId, tokenId: input.tokenId, verifiedAt };
+}
+
+export function verifiedPublisherByOwner(owner: Address): VerifiedPublisherIdentity[] {
+  const rows = db().prepare(`SELECT owner_address,chain_id,token_id,verified_at
+    FROM verified_publishers WHERE owner_address=? ORDER BY verified_at DESC`).all(
+    owner.toLowerCase(),
+  ) as unknown as Array<Record<string, string | number>>;
+  return rows.map((row) => ({
+    owner, chainId: Number(row.chain_id), tokenId: String(row.token_id), verifiedAt: String(row.verified_at),
+  }));
 }
