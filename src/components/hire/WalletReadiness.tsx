@@ -9,6 +9,7 @@ import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { shortAddress } from '@/lib/ui/format';
+import { cn } from '@/lib/ui/cn';
 
 const MIN_GAS = parseEther('0.002');
 
@@ -42,9 +43,30 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
   const gasReady = native !== undefined && native >= MIN_GAS;
   const budgetRaw = parseUnits(String(requiredBudgetU), 18);
   const paymentReady = Boolean(token?.ok && token.raw >= budgetRaw);
+  const gasKnown = balance.isSuccess && native !== undefined;
+  const paymentKnown = balance.isSuccess && Boolean(token?.ok);
+  const gasLow = gasKnown && !gasReady;
+  const paymentLow = paymentKnown && !paymentReady;
+  const gasAbundant = gasReady && native !== undefined && native >= MIN_GAS * 5n;
+  const paymentAbundant = paymentReady && Boolean(token?.ok && token.raw >= budgetRaw * 3n);
+  const allReady = gasReady && paymentReady;
+  const anyLow = gasLow || paymentLow;
+  const cardTone = (ready: boolean, low: boolean) =>
+    ready
+      ? 'border-[color:var(--positive)]/40 bg-[color:var(--positive-dim)]'
+      : low
+        ? 'border-[color:var(--negative)]/45 bg-[color:var(--negative-dim)]'
+        : 'border-[color:var(--border)] bg-[color:var(--surface)]';
 
   return (
-    <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+    <section className={cn(
+      'flex flex-col gap-3 rounded-[var(--radius-lg)] border p-4 transition-colors',
+      allReady
+        ? 'border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)]/35'
+        : anyLow
+          ? 'border-[color:var(--negative)]/40 bg-[color:var(--negative-dim)]/30'
+          : 'border-[color:var(--border)] bg-[color:var(--surface)]',
+    )}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="text-xs font-medium">Wallet readiness</h2>
@@ -63,11 +85,11 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3">
+        <div className={cn('rounded-[var(--radius)] border p-3 transition-colors', cardTone(gasReady, gasLow))}>
           <p className="flex items-center justify-between gap-2 text-[11px]">
             <span>Transaction gas</span>
-            <span style={{ color: gasReady ? 'var(--positive)' : 'var(--caution)' }}>
-              {gasReady ? 'Ready' : `Needs ${NATIVE_SYMBOL}`}
+            <span className={cn('font-medium', gasReady ? 'text-[color:var(--positive)]' : gasLow ? 'text-[color:var(--negative)]' : 'text-[color:var(--text-faint)]')}>
+              {gasReady ? (gasAbundant ? 'Well funded' : 'Ready') : gasLow ? `Needs ${NATIVE_SYMBOL}` : 'Checking'}
             </span>
           </p>
           <p className="mono mt-1 text-[12px]">
@@ -75,7 +97,7 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
               ? '—'
               : `${Number(formatEther(native)).toFixed(4)} ${NATIVE_SYMBOL}`}
           </p>
-          {!gasReady &&
+          {gasLow &&
             (FAUCETS ? (
               <a
                 href={FAUCETS.native}
@@ -94,17 +116,17 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
             ))}
         </div>
 
-        <div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3">
+        <div className={cn('rounded-[var(--radius)] border p-3 transition-colors', cardTone(paymentReady, paymentLow))}>
           <p className="flex items-center justify-between gap-2 text-[11px]">
             <span>Escrow budget</span>
-            <span style={{ color: paymentReady ? 'var(--positive)' : 'var(--caution)' }}>
-              {paymentReady ? 'Ready' : 'Needs $U'}
+            <span className={cn('font-medium', paymentReady ? 'text-[color:var(--positive)]' : paymentLow ? 'text-[color:var(--negative)]' : 'text-[color:var(--text-faint)]')}>
+              {paymentReady ? (paymentAbundant ? 'Well funded' : 'Ready') : paymentLow ? 'Needs $U' : 'Checking'}
             </span>
           </p>
           <p className="mono mt-1 text-[12px]">
             {token?.ok ? `${Number(formatUnits(token.raw, token.decimals)).toFixed(3)} $U` : '—'}
           </p>
-          {!paymentReady &&
+          {paymentLow &&
             (FAUCETS ? (
               <a
                 href={FAUCETS.paymentToken}
