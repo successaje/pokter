@@ -1,6 +1,8 @@
 import 'server-only';
 
-import { getAgent } from '@/lib/scan/client';
+import { getAgent,
+  listAgents,
+} from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
@@ -20,6 +22,15 @@ export interface SweepOptions {
   perCategory?: number;
   /** Probes taken per agent per sweep. */
   samples?: number;
+  /**
+   * How deep to read the registry beyond what the marketplace lists.
+   *
+   * The roster was the four category listings and nothing else, so Pokter
+   * measured about eighty agents and reported that as its coverage. Eighty out
+   * of three hundred thousand is a sample, and a census built on a sample is
+   * describing the shortlist rather than the registry.
+   */
+  registryDepth?: number;
 }
 
 export interface SweepOutcome extends SweepRecord {
@@ -44,6 +55,7 @@ export interface SweepOutcome extends SweepRecord {
 async function buildRoster(
   chainId: ChainId,
   perCategory: number,
+  registryDepth: number,
 ): Promise<{ chainId: number; tokenId: string }[]> {
   const store = getProbeStore();
 
@@ -55,8 +67,38 @@ async function buildRoster(
     })),
   );
 
+  /*
+   * The registry itself, not just the part of it Pokter has classified.
+   *
+   * Classification is a narrower gate than measurement: an agent has to fit
+   * one of four financial categories to be listed, but any agent with an
+   * endpoint can be called. Measuring only the classified ones meant the
+   * census answered "how many of our listings answer" while being read as
+   * "how many agents on this chain answer" — a much larger claim, and the one
+   * the page is actually making.
+   *
+   * A page that fails is skipped rather than fatal: a wider roster is an
+   * improvement to coverage, not a precondition for measuring the listings.
+   */
+  const fromRegistry: { chainId: number; tokenId: string }[] = [];
+  const pageSize = 50;
+  for (let offset = 0; offset < registryDepth; offset += pageSize) {
+    const page = await listAgents({
+      chainId,
+      limit: Math.min(pageSize, registryDepth - offset),
+      offset,
+      sortBy: 'total_score',
+      sortOrder: 'desc',
+    }).catch(() => null);
+
+    if (!page?.items?.length) break;
+    for (const agent of page.items) {
+      fromRegistry.push({ chainId: agent.chain_id, tokenId: agent.token_id });
+    }
+  }
+
   const seen = new Set<string>();
-  return [...listed, ...store.trackedAgents()].filter((entry) => {
+  return [...listed, ...store.trackedAgents(), ...fromRegistry].filter((entry) => {
     const key = `${entry.chainId}:${entry.tokenId}`;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -82,15 +124,29 @@ async function buildRoster(
  */
 export const SWEEP_PER_CATEGORY = 12;
 
+/*
+ * Registry agents pulled in per sweep, beyond the listed ones.
+ *
+ * Bounded on purpose. Each entry costs a detail lookup plus its probes, and
+ * the run is on a two-hourly schedule against someone else's API — a sweep
+ * that tries to call the whole registry once is a sweep that gets rate
+ * limited and measures nothing. Ordered by the registry's own score so the
+ * depth is spent on agents most likely to be real, and the store remembers
+ * everything it has ever measured, so coverage accumulates across runs rather
+ * than being re-earned every time.
+ */
+export const SWEEP_REGISTRY_DEPTH = 150;
+
 export async function runSweep({
   chainId = BSC_MAINNET,
   perCategory = SWEEP_PER_CATEGORY,
   samples = 2,
+  registryDepth = SWEEP_REGISTRY_DEPTH,
 }: SweepOptions = {}): Promise<SweepOutcome> {
   const store = getProbeStore();
   const startedAt = new Date().toISOString();
 
-  const roster = await buildRoster(chainId, perCategory);
+  const roster = await buildRoster(chainId, perCategory, registryDepth);
 
   let probeCount = 0;
   let answered = 0;

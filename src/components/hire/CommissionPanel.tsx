@@ -39,6 +39,13 @@ import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
+import { useActiveWallet } from '@/lib/wallet/active';
+import { ExternalHireSteps } from '@/components/hire/ExternalHireSteps';
+import type { HireStep } from '@/lib/wallet/external';
+import {
+  hireFromExternalWallet,
+  revokeExternalWalletAllowance,
+} from '@/lib/wallet/external';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import {
   commissionTaskTemplates,
@@ -199,6 +206,11 @@ export function CommissionPanel({
   const [error, setError] = useState<string | null>(null);
   /** $U bought before a failure and still in the wallet, as a display amount. */
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
+  const active = useActiveWallet();
+  const [externalStep, setExternalStep] = useState<HireStep | null>(null);
+  const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revoked, setRevoked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -299,9 +311,70 @@ export function CommissionPanel({
     setSwapQuote(null);
     setError(null);
     setHeldAfterFailure(null);
+    setExternalStep(null);
+    setRevoked(false);
     /** $U bought on the way here, so a later failure can say it is still held. */
     let acquired = 0n;
     try {
+      /*
+       * Whichever wallet is selected, hired the same way from here.
+       *
+       * This was two flows in two components saying the same thing twice. The
+       * brief, the budget, the risk acceptance and the record afterwards are
+       * identical whoever signs; only the signing differs, so only the signing
+       * branches. The external route keeps its own input shape because it also
+       * carries what the lib needs to rebuild a job record on recovery.
+       */
+      if (active.mode === 'external') {
+        if (!active.address) {
+          throw new Error('Connect your browser wallet before funding.');
+        }
+
+        const outcome = await hireFromExternalWallet({
+          identityChainId: agent.chainId,
+          agentTokenId: agent.tokenId,
+          agentName: agent.name,
+          category: agent.category,
+          provider: providerAddress as `0x${string}`,
+          providerLabel: provider?.label,
+          task,
+          budgetU: budget,
+          ttlSeconds: 60 * 60 * 24,
+          onProgress: ({ step: reached, jobId: reachedId }) => {
+            setExternalStep(reached);
+            if (reachedId) setExternalJobId(reachedId);
+          },
+        });
+
+        const at = new Date().toISOString();
+        const externalJob: HiredJob = {
+          id: crypto.randomUUID(),
+          jobId: outcome.jobId.toString(),
+          chainId: WALLET_NETWORK.chainId,
+          isTestnet: WALLET_NETWORK.chainId === 97,
+          agentChainId: agent.chainId,
+          agentTokenId: agent.tokenId,
+          agentName: agent.name,
+          providerLabel: provider?.label,
+          provider: providerAddress as `0x${string}`,
+          task,
+          budgetRaw: parseUnits(String(budget), 18).toString(),
+          expiredAt: new Date(Date.now() + 60 * 60 * 24 * 1000).toISOString(),
+          hiredAt: at,
+          hireTxHash: outcome.transactionHash,
+          status: 'FUNDED',
+          statusCheckedAt: at,
+          deliverableUrl: null,
+          settleTxHash: null,
+        };
+
+        rememberJob(active.address, externalJob);
+        setJob(externalJob);
+        setState('hired');
+        await notifySeller(externalJob);
+        return;
+      }
+
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
       if (!provider?.reachable) {
         throw new Error('Choose a provider that is live on the escrow chain.');
@@ -449,6 +522,28 @@ export function CommissionPanel({
        */
       setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
+    }
+  };
+
+  /*
+   * The escape hatch for a sequence abandoned after the approval landed.
+   *
+   * Only the step-by-step path can strand one: the batched path is atomic, so
+   * it either funds or leaves nothing behind. The approval is for exactly this
+   * budget rather than an unlimited amount, and a later hire reuses or zeroes
+   * it, so the standing exposure is one job to our own escrow — but leaving
+   * someone to find `approve(0)` themselves is not an answer.
+   */
+  const revokeAllowance = async () => {
+    if (!active.address) return;
+    setRevoking(true);
+    try {
+      await revokeExternalWalletAllowance(active.address as `0x${string}`);
+      setRevoked(true);
+    } catch (caught) {
+      setError(walletActionError(caught, 'Revoking the approval'));
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -838,6 +933,18 @@ export function CommissionPanel({
                   ))}
                 </div>
 
+                {/*
+                  Where the button was, while the button cannot be pressed.
+
+                  An external hire asks a wallet to sign as many as five times,
+                  and the panel said "Funding escrow…" through all of them — so
+                  the only way to know what the third prompt was for was to
+                  read its calldata. The account of it belongs here, where the
+                  reader is already looking, rather than somewhere they would
+                  have to go and find mid-signature.
+                */}
+                {externalStep && <ExternalHireSteps step={externalStep} jobId={externalJobId} />}
+
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button type="button" onClick={() => setFlowStep('configure')} disabled={state === 'hiring'} className="min-h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-[12px] font-medium">
                     Back to edit
@@ -866,6 +973,25 @@ export function CommissionPanel({
                     Commissioning again spends it rather than swapping a second
                     time.
                   </p>
+                )}
+                {(externalStep === 'approving' || externalStep === 'funding') && (
+                  <div className="mt-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2.5">
+                    <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                      {revoked
+                        ? 'The approval is back to zero. Nothing of yours is spendable by the escrow.'
+                        : `The escrow is approved to draw ${formatBudget(budget)} and did not. Commissioning again reuses that approval, or you can take it back now.`}
+                    </p>
+                    {!revoked && (
+                      <button
+                        type="button"
+                        onClick={revokeAllowance}
+                        disabled={revoking}
+                        className="mt-2 text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted disabled:opacity-50"
+                      >
+                        {revoking ? 'Waiting for your wallet…' : 'Withdraw the approval'}
+                      </button>
+                    )}
+                  </div>
                 )}
                 <div className="mt-2 flex flex-wrap gap-3">
                   {FAUCETS && /tBNB/i.test(error) && <a href={FAUCETS.native} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open BNB testnet faucet ↗</a>}

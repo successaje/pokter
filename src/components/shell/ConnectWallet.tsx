@@ -10,9 +10,11 @@ import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { externalBalances } from '@/lib/wallet/external';
 
 function SigningIcon() {
   return (
@@ -159,6 +161,7 @@ export function ConnectWallet() {
     refetchInterval: 30_000,
   });
   const paymentBalance = balances.data?.tokens?.[0];
+
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
@@ -166,7 +169,28 @@ export function ConnectWallet() {
 
   const injected = connectors.find((c) => c.id === 'injected') ?? connectors[0];
   const wrongChain = isConnected && chain?.id !== ESCROW_CHAIN.id;
-  const connectedAddress = passkey.wallet?.address ?? address;
+  const active = useActiveWallet();
+  /*
+   * The signing wallet's address, not the first one that happens to exist.
+   *
+   * This read the passkey's whenever there was one, so a panel headed "hiring
+   * from your own wallet" printed a different account underneath it.
+   */
+  const connectedAddress = active.address ?? passkey.wallet?.address ?? address;
+  /*
+   * The balance of the wallet that will actually sign.
+   *
+   * This panel read the passkey's balance whatever was connected, so a buyer
+   * hiring from their own wallet was shown a number belonging to a different
+   * account — and the one figure this panel exists to answer, whether there is
+   * enough to hire with, was about the wrong wallet.
+   */
+  const externalBalance = useQuery({
+    queryKey: ['connect-external', address],
+    queryFn: () => externalBalances(),
+    enabled: isConnected && !wrongChain,
+    refetchInterval: 30_000,
+  });
   const anyConnected = Boolean(connectedAddress);
 
   return (
@@ -213,9 +237,25 @@ export function ConnectWallet() {
             thing in it. The explanations became the second line of the row
             they describe, where they are read in passing rather than instead.
           */}
+          {/*
+            Which wallet signs, said once, where the wallet is chosen.
+
+            This was a toggle on the hire page, which was wrong twice: picking
+            a wallet belongs where you connect one, and a hire should not ask a
+            question it can answer. Connecting a browser wallet is already a
+            deliberate act, so it decides — and the only thing left to do is
+            say so plainly here, rather than leave someone to infer it from
+            which address a signature prompt shows.
+          */}
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[11px] text-[color:var(--text-faint)]">
-              Wallet
+              {active.mode === 'external'
+                ? 'Hiring from your own wallet'
+                : active.mode === 'passkey'
+                  ? 'Hiring from your passkey wallet'
+                  : isConnected
+                    ? 'Your wallet, once it is on the right network'
+                    : 'Wallet'}
             </span>
             {connectedAddress && (
               <span className="mono text-[11px] text-[color:var(--text-faint)]">
@@ -224,7 +264,162 @@ export function ConnectWallet() {
             )}
           </div>
 
-          {passkey.wallet ? (
+          {/*
+            A connected browser wallet leads, wrong network included.
+
+            This branched on whether the wallet could sign, so one pointed at
+            another chain fell through to the passkey pitch — and somebody who
+            had connected a wallet and only needed to switch network was shown
+            "Hire without handing over a key" and two buttons for making a
+            passkey they had not asked for. The problem they actually had was
+            not on screen.
+          */}
+          {isConnected ? (
+            <div className="mt-2 flex flex-col" aria-live="polite">
+              {wrongChain ? (
+                /*
+                  The one thing standing between this wallet and a hire, said
+                  as the thing it is rather than as an empty balance. Reading
+                  "— $U · balances unavailable" is true and useless: the
+                  account is fine, it is pointed at another chain.
+                */
+                <>
+                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--caution)]">
+                    Wrong network
+                  </span>
+                  <span className="mt-1 font-[family-name:var(--font-serif)] text-[19px] leading-snug">
+                    This wallet is on {chain?.name ?? 'another chain'}.
+                  </span>
+                  <span className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                    Escrow settles on {ESCROW_CHAIN.name}. Switch and this
+                    wallet can hire — nothing else needs setting up.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => switchChain({ chainId: ESCROW_CHAIN.id })}
+                    disabled={switching}
+                    className="action-primary mt-3 inline-flex min-h-9 w-fit items-center rounded-[var(--radius)] px-4 text-[12px] font-semibold disabled:opacity-50"
+                  >
+                    {switching
+                      ? 'Waiting for your wallet…'
+                      : `Switch to ${ESCROW_CHAIN.name}`}
+                  </button>
+                </>
+              ) : (
+                <>
+              <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                Available to hire with
+              </span>
+              <span className="font-[family-name:var(--font-serif)] text-[28px] leading-tight tabular">
+                {externalBalance.data
+                  ? Number(formatUnits(externalBalance.data.payment, 18)).toFixed(2)
+                  : '—'}{' '}
+                $U
+              </span>
+              <span className="text-[11px] text-[color:var(--text-muted)]">
+                {externalBalance.isPending
+                  ? 'Reading balances…'
+                  : externalBalance.isError || !externalBalance.data
+                    ? 'Balances unavailable'
+                    : `${Number(formatEther(externalBalance.data.native)).toFixed(4)} ${NATIVE_SYMBOL} for gas`}
+                {PAYMENT_VALUE_NOTE ? ` · ${PAYMENT_VALUE_NOTE.toLowerCase()}` : ''}
+              </span>
+                </>
+              )}
+
+              {/*
+                The same rows the passkey gets, pointed at this wallet.
+                
+                Connecting a browser wallet used to leave the panel with a
+                balance and nothing else — no way to copy the address it had
+                just shown, no way to disconnect, no route to the jobs it would
+                create. The wallet that is signing is the one these act on.
+              */}
+              <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
+                <WalletRow
+                  icon={<IdentityIcon />}
+                  title="Your own wallet"
+                  detail={
+                    wrongChain
+                      ? `${shortAddress(address!)} · switch network to hire`
+                      : `${shortAddress(address!)} · signing hires`
+                  }
+                  tone={wrongChain ? 'caution' : undefined}
+                />
+                <WalletRow
+                  icon={<EscrowIcon />}
+                  title={copied ? 'Address copied' : 'Copy address'}
+                  detail={
+                    FAUCETS
+                      ? 'Copy it, then claim test tokens to hire with'
+                      : 'Copy it to top up before hiring'
+                  }
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(address!);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1500);
+                  }}
+                />
+                <WalletRow
+                  icon={<GasIcon />}
+                  title="Transactions"
+                  detail="View all activity"
+                  href="/my-agents"
+                />
+                {/*
+                  The passkey does not disappear because another wallet is
+                  connected — it steps back. Someone who created one here can
+                  still see it and switch to it by disconnecting this.
+                */}
+                {passkey.wallet ? (
+                  <WalletRow
+                    icon={<SigningIcon />}
+                    title="Passkey wallet"
+                    detail={`${shortAddress(passkey.wallet.address)} · standing by`}
+                  />
+                ) : passkey.supported ? (
+                  /*
+                    Offered, not pitched. Somebody who connected a wallet came
+                    to use it; a passkey is a second way in and belongs in the
+                    list with the others rather than as a headline they have to
+                    read past.
+                  */
+                  <WalletRow
+                    icon={<SigningIcon />}
+                    title="Passkey wallet"
+                    detail={
+                      passkey.busy === 'creating'
+                        ? 'Waiting for prompt…'
+                        : 'Optional · sign with fingerprint or face instead'
+                    }
+                    onClick={() => passkey.create()}
+                  />
+                ) : null}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-[color:var(--border)] pt-3">
+                <button
+                  type="button"
+                  onClick={() => disconnect()}
+                  className="rounded-[var(--radius)] px-1 py-1 text-[13px] font-medium transition-colors hover:text-[color:var(--negative)]"
+                >
+                  {passkey.wallet
+                    ? 'Disconnect and use passkey'
+                    : 'Disconnect wallet'}
+                </button>
+                {FAUCETS && (
+                  <a
+                    href={FAUCETS.native}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-[11px] text-[color:var(--text-faint)] underline-offset-2 hover:underline"
+                  >
+                    Faucet ↗
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : passkey.wallet ? (
             <>
               <div className="mt-2 flex flex-col" aria-live="polite">
                 <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
@@ -257,12 +452,12 @@ export function ConnectWallet() {
               <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
                 <WalletRow
                   icon={<SigningIcon />}
-                  title="Passkey security"
-                  detail="Key held in this device, never by Pokter"
+                  title="Passkey wallet"
+                  detail="Signing hires · key held in this device"
                 />
                 <WalletRow
                   icon={<IdentityIcon />}
-                  title="Browser wallet"
+                  title="Your own wallet"
                   detail={
                     switching
                       ? `Switching to ${ESCROW_CHAIN.name}…`
@@ -271,8 +466,8 @@ export function ConnectWallet() {
                         : isConnected
                           ? wrongChain
                             ? `${chain?.name ?? 'Wrong network'} — switch to ${ESCROW_CHAIN.name}`
-                            : `${shortAddress(address!)} · ${chain?.name ?? 'connected'}`
-                          : 'Recognises you; cannot sign a hire'
+                            : `${shortAddress(address!)} · signing hires`
+                          : 'Connect to hire from it instead'
                   }
                   tone={wrongChain ? 'caution' : undefined}
                   onClick={
@@ -294,7 +489,9 @@ export function ConnectWallet() {
                       : 'Copy this address to top up escrow'
                   }
                   onClick={async () => {
-                    await navigator.clipboard.writeText(passkey.wallet!.address);
+                    await navigator.clipboard.writeText(
+                      active.address ?? passkey.wallet!.address,
+                    );
                     setCopied(true);
                     window.setTimeout(() => setCopied(false), 1500);
                   }}
@@ -375,15 +572,24 @@ export function ConnectWallet() {
                 </button>
               </div>
               <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
+                {/*
+                  An equal way in, not a lesser one.
+
+                  This offered the browser wallet as something that recognises
+                  you but cannot sign a hire. That was true when only a passkey
+                  could fund an escrow and stopped being true when this one
+                  could — leaving the panel talking somebody out of a wallet
+                  they already have and can hire with today.
+                */}
                 <WalletRow
                   icon={<IdentityIcon />}
-                  title={isConnected ? 'Browser wallet' : 'Connect browser wallet'}
+                  title={isConnected ? 'Your own wallet' : 'Use my own wallet'}
                   detail={
                     isPending
                       ? 'Waiting for your wallet…'
                       : isConnected
                         ? `${shortAddress(address!)} · ${chain?.name ?? 'connected'}`
-                        : 'Recognises you; cannot sign a hire'
+                        : 'Hire from the wallet you already have'
                   }
                   onClick={
                     isConnected

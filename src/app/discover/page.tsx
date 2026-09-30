@@ -12,6 +12,7 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
+import { AskLauncher } from '@/components/discover/AskLauncher';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
@@ -219,6 +220,7 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-12 pt-6">
+      <AskLauncher />
       <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="flex max-w-3xl flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
@@ -268,47 +270,31 @@ export default async function DiscoverPage({
             advertise a form. One line states the offer, and the form is a
             click away for anyone who wants it.
           */}
-          <section id="recommend" className="scroll-mt-24">
-            <details className="group overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)]">
-              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                <span
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[color:var(--brand-ink)]"
-                  aria-hidden
-                >
-                  <svg viewBox="0 0 24 24" className="size-3.5 fill-none stroke-current" strokeWidth="2">
-                    <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
-                  </svg>
-                </span>
+          {/*
+            The structured form, closed.
+            
+            The conversational route now lives in a launcher in the corner
+            rather than as a band across the top of this page: it was costing
+            the page a card of prose before a visitor had asked for anything,
+            on a page whose job is to show agents.
+          */}
+          <details className="group">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
+              <span>Prefer to set capital and risk yourself?</span>
+              <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
+                <span className="group-open:hidden">Open the shortlist builder</span>
+                <span className="hidden group-open:inline">Hide</span>
+              </span>
+            </summary>
 
-                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-                  <span className="text-[13px] font-semibold">
-                    Find my best match
-                  </span>
-                  <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
-                    Rank the market around your outcome, capital and risk.
-                  </span>
-                </span>
+            <div className="mt-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2 sm:p-3">
+              <Suspense fallback={<div className="h-72" />}>
+                <BriefForm />
+              </Suspense>
+            </div>
+          </details>
 
-                {/*
-                  Decorative, not the hit target — the whole summary row is
-                  clickable and clears the touch floor on its own. Sized for
-                  legibility rather than for tapping.
-                */}
-                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[color:var(--brand)] px-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">
-                  Start
-                  <span aria-hidden className="transition-transform group-open:rotate-180">
-                    ⌄
-                  </span>
-                </span>
-              </summary>
 
-              <div className="border-t border-[color:var(--brand)]/30 bg-[color:var(--surface)] p-2 sm:p-3">
-                <Suspense fallback={<div className="h-72" />}>
-                  <BriefForm />
-                </Suspense>
-              </div>
-            </details>
-          </section>
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
 

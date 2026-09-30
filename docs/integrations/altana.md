@@ -93,7 +93,7 @@ npx tsx scripts/verify-tx.mts                            # verify recorded txs
   and stays revocable by public key, since revocation targets the registered
   key rather than a local object. A production deployment would hand the signer
   to the agent process at grant time.
-- **The wallet is Pokter-operated, and cannot yet be the user's.** The SDK
+- **An injected wallet cannot act as an Altana signer.** The SDK
   documents `signerFromInjected` for a browser "Connect Wallet" flow, but
   v0.8.0 does not export or implement it — only `signerFromPrivateKey` and the
   passkey signers exist. Implementing one against MetaMask is not merely
@@ -103,14 +103,20 @@ npx tsx scripts/verify-tx.mts                            # verify recorded txs
   therefore `createPasskey` + `signerFromPasskey` (WebAuthn), which would move
   session granting from the server into the browser.
 
-  Pokter connects wallets over EIP-1193 today: the connected account identifies
-  the user, gates the steps that spend or delegate, and drives network
-  switching — and the interface says plainly that the grant itself is still
-  signed by the operator key. It is labelled in the product, not only here.
+  Pokter therefore does not represent an injected wallet as an Altana wallet.
+  Its EOA hire path instead submits the ordinary ERC-8183 calls from the
+  user's selected account, and is on for any connected wallet on the escrow
+  chain. Atomic-capable wallets use EIP-5792; other
+  wallets sign the protocol sequence one transaction at a time. The latter can
+  leave an unfunded job after cancellation, so every transaction is confirmed,
+  the job id is decoded from that exact create receipt, account and chain are
+  rechecked before each call, and any residual token allowance has a revoke
+  action. This path creates no delegated session.
 - Executing a strategy call *through* a session key (as opposed to granting and
   revoking one) is not yet implemented. The SDK's ERC-8183 helpers
-  (`hireErc8183Agent`, `buildHireCalls`, `settleErc8183Job`) are the intended
-  route and are unexplored.
+  (`hireErc8183Agent`, `buildHireCalls`, `settleErc8183Job`) remain the intended
+  route. Pokter uses `buildHireCalls` as the canonical encoding source for both
+  passkey and EOA commissioning rather than maintaining a second ABI.
 
 ## Notes
 
