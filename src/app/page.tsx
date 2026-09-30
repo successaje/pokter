@@ -107,28 +107,6 @@ export default async function HomePage() {
         </section>
       </Reveal>
 
-      <Reveal>
-        <section className="flex flex-col items-center gap-6 py-8 text-center">
-          <h2 className="display max-w-3xl text-3xl sm:text-5xl">
-            Choose what <span className="swash">deserves</span> your money.
-          </h2>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/discover"
-              className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
-            >
-              Find an agent
-            </Link>
-            <Link
-              href="/agent-advantage"
-              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-            >
-              Does hiring one actually beat doing it yourself?
-            </Link>
-          </div>
-        </section>
-      </Reveal>
-
     </div>
   );
 }
