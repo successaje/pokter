@@ -5,14 +5,15 @@ import { useEffect, useState } from 'react';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
-import { readSavedAgents, subscribeToSavedAgents, type SavedAgent } from '@/lib/wallet/saved-agents';
+import { markSavedAgentAlertsRead, readSavedAgentAlerts, readSavedAgents, subscribeToSavedAgents, type SavedAgent, type SavedAgentAlert } from '@/lib/wallet/saved-agents';
 
 export function SavedAgents() {
   const [agents, setAgents] = useState<SavedAgent[]>([]);
   const [ready, setReady] = useState(false);
+  const [alerts, setAlerts] = useState<SavedAgentAlert[]>([]);
 
   useEffect(() => {
-    const refresh = () => { setAgents(readSavedAgents()); setReady(true); };
+    const refresh = () => { setAgents(readSavedAgents()); setAlerts(readSavedAgentAlerts()); setReady(true); };
     refresh();
     return subscribeToSavedAgents(refresh);
   }, []);
@@ -30,7 +31,19 @@ export function SavedAgents() {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex flex-col gap-5">
+      {alerts.some((alert) => !alert.readAt) && (
+        <section className="rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium">Saved-agent updates</h2>
+            <button type="button" onClick={markSavedAgentAlertsRead} className="text-[10px] underline decoration-dotted">Mark all read</button>
+          </div>
+          <ul className="mt-3 flex flex-col gap-2">
+            {alerts.filter((alert) => !alert.readAt).slice(0, 8).map((alert) => <li key={alert.id} className="text-[11px] leading-relaxed"><strong>{alert.title}</strong><span className="text-[color:var(--text-muted)]"> · {alert.body}</span></li>)}
+          </ul>
+        </section>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {agents.map((agent) => {
         const category = CATEGORY_BY_ID.get(agent.category as Category)?.label ?? agent.category;
         return (
@@ -50,6 +63,7 @@ export function SavedAgents() {
           </article>
         );
       })}
+      </div>
     </div>
   );
 }

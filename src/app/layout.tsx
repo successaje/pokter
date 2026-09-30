@@ -8,6 +8,7 @@ import { Footer } from '@/components/shell/Footer';
 import { SmoothHashScroll } from '@/components/shell/SmoothHashScroll';
 import { WalletProviders } from '@/lib/wallet/Providers';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
+import { SavedAgentMonitor } from '@/components/saved/SavedAgentMonitor';
 
 /*
  * Three families, each with a job.
@@ -114,6 +115,7 @@ export default async function RootLayout({
         <SmoothHashScroll />
         <PwaProvider>
           <WalletProviders>
+            <SavedAgentMonitor />
             <Nav />
 
             <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-28 pt-8 sm:px-8 md:pb-16">
