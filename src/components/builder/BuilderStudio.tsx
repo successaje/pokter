@@ -12,6 +12,16 @@ import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@
 
 type Mode = 'choose' | 'existing' | 'new';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean };
+type EndpointPreflight = {
+  endpoint: string;
+  protocol: Draft['protocol'];
+  ok: boolean;
+  latencyMs: number | null;
+  status: number | null;
+  detail: string;
+  capabilities: string[];
+  quoteCapability: boolean;
+};
 
 type Draft = {
   name: string;
@@ -81,6 +91,9 @@ export function BuilderStudio() {
     }
   });
   const [reviewing, setReviewing] = useState(false);
+  const [endpointReport, setEndpointReport] = useState<EndpointPreflight | null>(null);
+  const [endpointBusy, setEndpointBusy] = useState(false);
+  const [endpointError, setEndpointError] = useState<string | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -99,7 +112,14 @@ export function BuilderStudio() {
     { label: 'Clear name', done: draft.name.trim().length >= 3 },
     { label: 'Outcome-led description', done: draft.description.trim().length >= 40 },
     { label: 'Marketplace category', done: CATEGORIES.some((category) => category.id === draft.category) },
-    { label: 'Secure service endpoint', done: /^https:\/\//i.test(draft.endpoint.trim()) },
+    {
+      label: 'Compatible service endpoint',
+      done: Boolean(
+        endpointReport?.ok &&
+        endpointReport.endpoint === draft.endpoint.trim() &&
+        endpointReport.protocol === draft.protocol,
+      ),
+    },
     { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
@@ -169,7 +189,34 @@ export function BuilderStudio() {
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
     setReviewing(false);
+    if (key === 'endpoint' || key === 'protocol') {
+      setEndpointReport(null);
+      setEndpointError(null);
+    }
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  async function testDraftEndpoint() {
+    setEndpointBusy(true);
+    setEndpointError(null);
+    setEndpointReport(null);
+    try {
+      const response = await fetch('/api/builders/preflight', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: draft.endpoint.trim(),
+          protocol: draft.protocol,
+        }),
+      });
+      const payload = await response.json() as EndpointPreflight & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'The endpoint check could not be completed.');
+      setEndpointReport(payload);
+    } catch (reason) {
+      setEndpointError(reason instanceof Error ? reason.message : 'The endpoint check could not be completed.');
+    } finally {
+      setEndpointBusy(false);
+    }
   }
 
   return (
@@ -257,7 +304,8 @@ export function BuilderStudio() {
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/40 recommended minimum</span></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">HTTPS endpoint</span><input value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
+              <div className="flex flex-col gap-2"><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
+              {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}</div></div></div>}
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
             <div className="mt-7 rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-4"><p className="text-[12px] font-semibold text-[color:var(--caution)]">Registration is intentionally not live yet</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">This prepares and validates your public profile without creating a mainnet transaction. Registration will be enabled only after the contract path and recovery flow pass protocol review.</p></div>

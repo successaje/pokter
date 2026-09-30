@@ -388,6 +388,18 @@ async function probeOnce(
 }
 
 /**
+ * Preflight one unpublished endpoint with the exact handshake used by the
+ * marketplace sweeper. Keeping this wrapper here prevents Builder Studio from
+ * drifting into a friendlier-but-incompatible definition of "ready".
+ */
+export async function probeEndpoint(
+  endpoint: string,
+  protocol: 'a2a' | 'mcp',
+): Promise<ProbeResult> {
+  return probeOnce(endpoint, protocol);
+}
+
+/**
  * Probe an agent live. Returns a reading in the same shape as the on-chain
  * attestations we read, so the UI renders first- and third-party evidence
  * through one code path.
