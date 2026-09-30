@@ -15,6 +15,8 @@ import { TierNote } from '@/components/proof/TierNote';
 import { AgentSearch } from '@/components/search/AgentSearch';
 import { FilterSidebar } from '@/components/search/FilterSidebar';
 import { FILTER_GROUPS } from '@/lib/search/filters';
+import { rankForBrief } from '@/lib/brief/rank';
+import { BriefMatches } from '@/components/search/BriefMatches';
 
 /**
  * Rendered per request rather than pre-built.
@@ -48,6 +50,8 @@ export default async function AgentsPage({
   const params = await searchParams;
   const raw = typeof params.q === 'string' ? params.q : '';
   const query = parseQuery(raw);
+  /* Set when someone arrived from the hero having described the job. */
+  const brief = typeof params.brief === 'string' ? params.brief.trim().slice(0, 400) : '';
 
   /*
    * Fetched deep, shown shallow.
@@ -74,6 +78,16 @@ export default async function AgentsPage({
   }));
 
   const filtering = query.qualifiers.length > 0;
+
+  /*
+   * The answer to the brief, above the catalogue rather than instead of it.
+   *
+   * Someone who typed what they wanted should see agents, not a filtered view
+   * they now have to interpret — but they should also still be able to browse,
+   * because a three-item shortlist drawn from a keyword read is a suggestion
+   * and the page should not pretend otherwise.
+   */
+  const briefMatch = brief ? rankForBrief(brief, all, 3) : null;
 
   /*
    * Counted over everything indexed rather than the current result, for the
@@ -130,6 +144,18 @@ export default async function AgentsPage({
           publishers claim.
         </p>
       </header>
+
+      {briefMatch && (
+        <BriefMatches
+          brief={brief}
+          categoryLabel={
+            briefMatch.reading.category
+              ? (CATEGORY_BY_ID.get(briefMatch.reading.category)?.label ?? null)
+              : null
+          }
+          entries={briefMatch.results}
+        />
+      )}
 
       {/*
         Suppressed when the empty state below is already saying it. Filtering

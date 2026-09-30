@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import { listSearchable, preferDistinctOwners } from '@/lib/marketplace';
+import { listSearchable } from '@/lib/marketplace';
 import { verdictFor } from '@/lib/search/match';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { interpretBrief } from '@/lib/brief/interpret';
+import { rankForBrief } from '@/lib/brief/rank';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 
@@ -35,9 +35,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'A brief is required.' }, { status: 400 });
   }
 
-  const reading = interpretBrief(brief);
-  const meta = reading.category ? CATEGORY_BY_ID.get(reading.category) : null;
-
   /*
    * A registry that will not answer returns an empty match rather than a 500.
    * The panel says it found nothing, which is true and recoverable; an error
@@ -45,20 +42,10 @@ export async function GET(request: Request) {
    */
   const all = await listSearchable({ limit: 30 }).catch(() => []);
 
-  const pool = reading.category
-    ? all.filter((entry) => entry.listing.category === reading.category)
-    : all;
+  const { reading, results: ranked } = rankForBrief(brief, all, RESULTS);
+  const meta = reading.category ? CATEGORY_BY_ID.get(reading.category) : null;
 
-  const ranked = [...pool].sort((a, b) => {
-    const quoted =
-      Number(b.listing.quote != null) - Number(a.listing.quote != null);
-    if (quoted !== 0) return quoted;
-    const answered = b.record.totalAnswered - a.record.totalAnswered;
-    if (answered !== 0) return answered;
-    return b.listing.attestationCount - a.listing.attestationCount;
-  });
-
-  const results = preferDistinctOwners(ranked, RESULTS).map((entry) => {
+  const results = ranked.map((entry) => {
     const { listing, record } = entry;
     const uptime =
       record.totalProbes === 0

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { HeroBrief } from '@/components/home/HeroBrief';
 
 import { AgentDesk } from '@/components/home/AgentDesk';
 import type { PipelineEvent } from '@/lib/hero/pipeline';
@@ -67,11 +68,9 @@ export function LandingHero({
               ))}
             </h1>
             <p className="max-w-xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
-              BNB Chain has hundreds of thousands of autonomous agents. Finding
-              one was never the hard part. Pokter turns onchain activity,
-              attestations and live execution data into evidence you can check —
-              then lets you hire through escrow you control, without granting
-              anyone authority over your wallet.
+              Hundreds of thousands of agents claim they work. Pokter calls
+              them and publishes what answered, so you hire on evidence — through
+              escrow you control, with no authority over your wallet.
             </p>
           </div>
 
@@ -89,6 +88,8 @@ export function LandingHero({
               How Pokter scores agents
             </Link>
           </div>
+
+          <HeroBrief />
         </div>
 
         <div className="flex flex-col gap-2">

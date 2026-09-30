@@ -3,9 +3,7 @@ import Link from 'next/link';
 import {
   getComparison,
   getEcosystemStats,
-  listMarketplace,
 } from '@/lib/marketplace';
-import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
@@ -24,9 +22,8 @@ export const dynamic = 'force-dynamic';
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
 export default async function HomePage() {
-  const [stats, sections, exhibit, pipeline] = await Promise.all([
+  const [stats, exhibit, pipeline] = await Promise.all([
     getEcosystemStats(),
-    listMarketplace({ limit: 4 }),
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
     buildPipeline().catch(() => null),
   ]);
@@ -43,14 +40,14 @@ export default async function HomePage() {
       <LandingHero pipeline={pipeline} compact />
 
       {/*
-        Browsing first. A visitor arriving at a marketplace is looking for
-        agents, and the argument for why these agents can be believed reads
-        better as the answer to a question they have already started asking
-        than as a prologue to one they have not.
+        The outcome scenes are gone, not moved.
+
+        They asked "what are you trying to do?" across four scenes and 1,858
+        pixels — a third of this page to pose one question and answer it with a
+        rail of agents the catalogue already shows better. The question now
+        sits in the hero as an input with the same four objectives beside it,
+        and the answer is the catalogue, which is built for it.
       */}
-      <Reveal>
-        <ObjectiveSelector sections={sections} />
-      </Reveal>
 
       {/* THE SCALE — the number that makes the rest necessary. */}
       <Reveal>
