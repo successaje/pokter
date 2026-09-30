@@ -7,6 +7,7 @@ import { VERDICT_LABEL } from '@/lib/proof/engine';
 import type { Comparison } from '@/lib/marketplace';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 
 /**
  * One comparable row.
@@ -100,6 +101,49 @@ const ROWS: Row[] = [
     lowerWins: true,
   },
   {
+    label: 'Responding recently',
+    hint: 'Based on the latest 24-hour measurement window, not a live page-load probe',
+    value: (e) => {
+      const recent = e.record.windows.find((window) => window.label === '24h');
+      if (!recent || recent.probes === 0) return 'Not measured';
+      return recent.answered > 0 ? 'Yes' : 'No';
+    },
+    rank: (e) => {
+      const recent = e.record.windows.find((window) => window.label === '24h');
+      return !recent || recent.probes === 0 ? null : recent.answered > 0 ? 1 : 0;
+    },
+  },
+  {
+    label: 'Signed price',
+    hint: 'Latest price signed by the agent; expired quotes are not treated as offers',
+    value: (e) => {
+      if (!e.quote) return 'No signed quote';
+      if (!e.quoteCurrent) return 'Quote expired';
+      return formatQuotedPrice(e.quote.priceU);
+    },
+    rank: (e) => {
+      if (!e.quote || !e.quoteCurrent) return null;
+      return e.quote.priceU;
+    },
+    lowerWins: true,
+  },
+  {
+    label: 'Funded jobs',
+    hint: 'ERC-8183 jobs attributed by Pokter’s immutable identity envelope',
+    value: (e) => String(e.economicHistory.jobs),
+    rank: (e) => e.economicHistory.jobs,
+  },
+  {
+    label: 'Completed jobs',
+    value: (e) => String(e.economicHistory.completed),
+    rank: (e) => e.economicHistory.completed,
+  },
+  {
+    label: 'Verified reviews',
+    value: (e) => e.reviewAverage === null ? 'None' : `${e.reviewAverage.toFixed(1)}/5 · ${e.reviewCount}`,
+    rank: (e) => e.reviewAverage,
+  },
+  {
     label: 'Returns / drawdown',
     hint: 'Not published by any measurer',
     value: () => 'Not enough data',
@@ -128,9 +172,25 @@ function winners(row: Row, entries: Comparison[]): Set<number> {
 export function CompareTable({ entries }: { entries: Comparison[] }) {
   const categories = new Set(entries.map((e) => e.category));
   const mixed = categories.size > 1;
+  const mostEstablished = [...entries].sort((a, b) =>
+    b.economicHistory.completed - a.economicHistory.completed ||
+    b.record.days.length - a.record.days.length,
+  )[0];
+  const priced = entries.filter((entry) => entry.quote && entry.quoteCurrent);
+  const leastExpensive = [...priced].sort((a, b) => a.quote!.priceU - b.quote!.priceU)[0];
 
   return (
     <div className="flex flex-col gap-4">
+      <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
+        <h2 className="text-xs font-medium">What separates them</h2>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          <strong className="text-[color:var(--text)]">{mostEstablished.agent.name}</strong>{' '}
+          has the strongest established record here with {mostEstablished.economicHistory.completed}{' '}
+          completed {mostEstablished.economicHistory.completed === 1 ? 'job' : 'jobs'} and{' '}
+          {mostEstablished.record.days.length} observed {mostEstablished.record.days.length === 1 ? 'day' : 'days'}.
+          {leastExpensive ? <> <strong className="text-[color:var(--text)]">{leastExpensive.agent.name}</strong> has the lowest current signed quote at {formatQuotedPrice(leastExpensive.quote!.priceU)}.</> : ' None of these agents has a current signed price, so price should not decide this comparison.'}
+        </p>
+      </section>
       {mixed && (
         /* §23. Category-specific scoring means cross-category totals are not
            like-for-like, and saying so is more useful than hiding the mixture. */
