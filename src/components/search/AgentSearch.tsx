@@ -43,6 +43,11 @@ const FILTER_GROUPS: { label: string; hint: string; options: string[] }[] = [
     options: ['is:live', 'is:offline', 'is:measured', 'is:unmeasured', 'has:endpoint'],
   },
   {
+    label: 'Hiring',
+    hint: 'Price and the action Pokter can safely offer',
+    options: ['is:hireable', 'has:price', 'has:price<=0.1', 'is:escrow-only'],
+  },
+  {
     label: 'Category',
     hint: 'Publisher-declared, not observed',
     options: VOCABULARY.tags.map((tag) => `tag:${tag}`),

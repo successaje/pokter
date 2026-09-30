@@ -48,6 +48,16 @@ export const FILTER_GROUPS: FilterGroup[] = [
     ],
   },
   {
+    label: 'Hiring',
+    hint: 'Price and the action Pokter can safely offer',
+    options: [
+      { query: 'is:hireable', label: 'Available to hire' },
+      { query: 'has:price', label: 'Has current signed price' },
+      { query: 'has:price<=0.1', label: 'Priced at 0.10 $U or less' },
+      { query: 'is:escrow-only', label: 'No standing wallet access' },
+    ],
+  },
+  {
     label: 'Category',
     /* Worth saying: this is the only group sourced from the publisher. */
     hint: 'Publisher-declared, not observed',
