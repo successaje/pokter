@@ -703,7 +703,7 @@ export function CommissionPanel({
                       setSelectedTemplate(next.id);
                       setTask(next.task);
                     }}
-                    className="grid gap-2 sm:grid-cols-3"
+                    className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0"
                   >
                     {taskTemplates.map((template) => {
                       const chosen = selectedTemplate === template.id;
@@ -719,7 +719,7 @@ export function CommissionPanel({
                             setTask(template.task);
                           }}
                           className={cn(
-                            'group relative flex flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all',
+                            'group relative flex w-[15rem] shrink-0 snap-start flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all sm:w-auto sm:shrink',
                             chosen
                               ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] shadow-[0_0_0_1px_var(--brand)]'
                               : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
