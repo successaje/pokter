@@ -242,3 +242,66 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   report({ step: 'done', jobId, hash: funded.hash });
   return { jobId, transactionHash: funded.hash, callsId: null, atomic: false };
 }
+
+export interface ExternalBalances {
+  address: Address;
+  /** Gas token, raw wei. */
+  native: bigint;
+  /** Payment token, raw units (18 decimals). */
+  payment: bigint;
+}
+
+/**
+ * What the connected wallet actually holds.
+ *
+ * Both figures matter and for different reasons: the gas token pays for as
+ * many as five transactions here, and the payment token is the budget itself.
+ * A buyer with one and not the other gets a failure part way through a
+ * sequence, which is the worst place to discover a funding problem.
+ */
+export async function externalBalances(): Promise<ExternalBalances | null> {
+  let account: Address | undefined;
+  try {
+    const accounts = (await provider().request({
+      method: 'eth_accounts',
+    })) as Address[];
+    account = accounts?.[0];
+  } catch {
+    return null;
+  }
+  if (!account) return null;
+
+  const { read } = clients();
+  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+
+  /*
+   * Settled rather than awaited together: a payment-token read that fails
+   * should not hide the gas balance. A missing number is shown as unknown,
+   * which is the same rule the rest of the product follows.
+   */
+  const [native, payment] = await Promise.all([
+    read.getBalance({ address: account }).catch(() => 0n),
+    read
+      .readContract({
+        address: addresses.paymentToken as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [account],
+      })
+      .catch(() => 0n),
+  ]);
+
+  return { address: account, native, payment };
+}
+
+/** The address currently authorised, without prompting for one. */
+export async function externalAccount(): Promise<Address | null> {
+  try {
+    const accounts = (await provider().request({
+      method: 'eth_accounts',
+    })) as Address[];
+    return accounts?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}

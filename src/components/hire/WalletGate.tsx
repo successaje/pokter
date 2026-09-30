@@ -2,6 +2,8 @@
 
 import { createContext, useContext } from 'react';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { useWalletMode } from '@/lib/wallet/mode';
+import { useExternalAccount } from '@/lib/wallet/useExternalAccount';
 
 /**
  * Whether the committing action is available, and why not when it isn't.
@@ -44,10 +46,32 @@ export function WalletGate({
   children: React.ReactNode;
 }) {
   const passkey = usePasskeyWallet();
-  const selfCustody = Boolean(passkey.wallet);
-  const reason = selfCustody
+  const mode = useWalletMode();
+  const external = useExternalAccount();
+
+  /*
+   * Either wallet can fund an escrow now, so the gate asks which one is
+   * selected rather than assuming a passkey.
+   *
+   * Sessions are still passkey-only, and that is not a gap to close: granting
+   * one needs the two signatures an injected wallet refuses, which is correct
+   * behaviour on the wallet's part rather than a missing feature. A commission
+   * needs neither.
+   */
+  const ready =
+    capability === 'session'
+      ? Boolean(passkey.wallet)
+      : mode === 'external'
+        ? Boolean(external)
+        : Boolean(passkey.wallet);
+
+  const reason = ready
     ? null
-    : `Create or connect a passkey wallet to ${action}.`;
+    : capability === 'session'
+      ? `Create or connect a passkey wallet to ${action}.`
+      : mode === 'external'
+        ? `Connect your browser wallet to ${action}.`
+        : `Create or connect a passkey wallet to ${action}.`;
 
   return (
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
@@ -69,8 +93,10 @@ export function WalletGate({
                 <>
                   Discovery, evidence and this permission review stay public.
                   Use <span className="font-medium">Connect wallet</span> in the
-                  header and choose a passkey to sign on this device. Browser
-                  wallets are identity-only here and cannot authorize a session.
+                  header and choose a passkey to sign on this device. A browser
+                  wallet can fund an escrow but cannot authorize a session — a
+                  grant needs two signatures injected wallets refuse, which is
+                  the wallet protecting you rather than a feature we skipped.
                 </>
               </p>
             </div>

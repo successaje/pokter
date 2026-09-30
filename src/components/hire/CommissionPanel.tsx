@@ -39,6 +39,9 @@ import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
+import { useWalletMode } from '@/lib/wallet/mode';
+import { useExternalAccount } from '@/lib/wallet/useExternalAccount';
+import { hireFromExternalWallet } from '@/lib/wallet/external';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import {
   commissionTaskTemplates,
@@ -199,6 +202,8 @@ export function CommissionPanel({
   const [error, setError] = useState<string | null>(null);
   /** $U bought before a failure and still in the wallet, as a display amount. */
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
+  const walletMode = useWalletMode();
+  const externalAddress = useExternalAccount();
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -302,6 +307,61 @@ export function CommissionPanel({
     /** $U bought on the way here, so a later failure can say it is still held. */
     let acquired = 0n;
     try {
+      /*
+       * Whichever wallet is selected, hired the same way from here.
+       *
+       * This was two flows in two components saying the same thing twice. The
+       * brief, the budget, the risk acceptance and the record afterwards are
+       * identical whoever signs; only the signing differs, so only the signing
+       * branches. The external route keeps its own input shape because it also
+       * carries what the lib needs to rebuild a job record on recovery.
+       */
+      if (walletMode === 'external') {
+        if (!externalAddress) {
+          throw new Error('Connect your browser wallet before funding.');
+        }
+
+        const outcome = await hireFromExternalWallet({
+          identityChainId: agent.chainId,
+          agentTokenId: agent.tokenId,
+          agentName: agent.name,
+          category: agent.category,
+          provider: providerAddress as `0x${string}`,
+          providerLabel: provider?.label,
+          task,
+          budgetU: budget,
+          ttlSeconds: 60 * 60 * 24,
+        });
+
+        const at = new Date().toISOString();
+        const externalJob: HiredJob = {
+          id: crypto.randomUUID(),
+          jobId: outcome.jobId.toString(),
+          chainId: WALLET_NETWORK.chainId,
+          isTestnet: WALLET_NETWORK.chainId === 97,
+          agentChainId: agent.chainId,
+          agentTokenId: agent.tokenId,
+          agentName: agent.name,
+          providerLabel: provider?.label,
+          provider: providerAddress as `0x${string}`,
+          task,
+          budgetRaw: parseUnits(String(budget), 18).toString(),
+          expiredAt: new Date(Date.now() + 60 * 60 * 24 * 1000).toISOString(),
+          hiredAt: at,
+          hireTxHash: outcome.transactionHash,
+          status: 'FUNDED',
+          statusCheckedAt: at,
+          deliverableUrl: null,
+          settleTxHash: null,
+        };
+
+        rememberJob(externalAddress, externalJob);
+        setJob(externalJob);
+        setState('hired');
+        await notifySeller(externalJob);
+        return;
+      }
+
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
       if (!provider?.reachable) {
         throw new Error('Choose a provider that is live on the escrow chain.');
