@@ -60,7 +60,17 @@ export default async function BuilderDashboard() {
         <div className="flex items-center gap-4"><BuilderSignOutButton /><Link href={`/builders/${owner}`} className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[11px] font-medium hover:bg-[color:var(--surface-hover)]">View public profile ↗</Link></div>
       </header>
 
-      <section aria-label="Builder summary" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <nav aria-label="Builder workspace" className="-mt-4 flex items-center gap-1 overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-1.5">
+        {[
+          ['Overview', '#overview'],
+          ['Agents', '#agents'],
+          ['Jobs', '#jobs'],
+          ['Evidence', '#evidence'],
+        ].map(([label, href], index) => <a key={href} href={href} className={`shrink-0 rounded-[var(--radius)] px-3 py-2 text-[11px] font-medium transition-colors ${index === 0 ? 'bg-[color:var(--surface-hover)] text-[color:var(--text)]' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]'}`}>{label}</a>)}
+        <Link href="/build" className="ml-auto shrink-0 rounded-[var(--radius)] bg-[color:var(--brand)] px-3 py-2 text-[11px] font-semibold text-[color:var(--brand-ink)]">List agent</Link>
+      </nav>
+
+      <section id="overview" aria-label="Builder summary" className="scroll-mt-24 grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           ['Agents', agents.length], ['Online now', operations.filter((entry) => entry.online === true).length],
           ['Needs attention', needsAttention], ['Active jobs', activeJobs.length],
@@ -69,7 +79,7 @@ export default async function BuilderDashboard() {
       </section>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-        <section aria-labelledby="fleet-heading">
+        <section id="agents" aria-labelledby="fleet-heading" className="scroll-mt-24">
           <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Agent health</p><h2 id="fleet-heading" className="mt-2 text-xl font-semibold">Your live fleet</h2></div><Link href="/build" className="text-[11px] font-medium text-[color:var(--brand-strong)]">Add an agent →</Link></div>
           <div className="mt-5 flex flex-col gap-3">{operations.map(({ agent, record, recent, online }) => (
             <article key={`${agent.chain_id}:${agent.token_id}`} className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
@@ -80,9 +90,9 @@ export default async function BuilderDashboard() {
         </section>
 
         <aside className="flex flex-col gap-6">
-          <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"><div className="flex items-center justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Commissions</p><h2 className="mt-2 text-base font-semibold">Indexed agent jobs</h2></div><span className="rounded-full bg-[color:var(--caution-dim)] px-2 py-1 text-[10px] text-[color:var(--caution)]">{waitingReview.length} awaiting review</span></div><div className="mt-4 flex flex-col gap-2">{jobs.slice(0, 6).map((job) => <div key={job.id} className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-[11px] font-medium">{job.agentName}</p><span className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${statusTone(job.status)}`}>{job.status}</span></div><div className="mt-2 flex items-center justify-between text-[9px] text-[color:var(--text-muted)]"><span>Job #{job.jobId}</span><span>{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} $U</span></div></div>)}{!jobs.length && <p className="py-5 text-center text-[11px] text-[color:var(--text-muted)]">No indexed jobs for these agents yet.</p>}</div><p className="mt-4 border-t border-[color:var(--border)] pt-4 text-[9px] leading-4 text-[color:var(--text-muted)]">This is an attributed activity view. Seller delivery and settlement controls will appear here only after the provider authorization path is verified.</p></section>
+          <section id="jobs" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"><div className="flex items-center justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Commissions</p><h2 className="mt-2 text-base font-semibold">Indexed agent jobs</h2></div><span className="rounded-full bg-[color:var(--caution-dim)] px-2 py-1 text-[10px] text-[color:var(--caution)]">{waitingReview.length} awaiting review</span></div><div className="mt-4 flex flex-col gap-2">{jobs.slice(0, 6).map((job) => <div key={job.id} className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-[11px] font-medium">{job.agentName}</p><span className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${statusTone(job.status)}`}>{job.status}</span></div><div className="mt-2 flex items-center justify-between text-[9px] text-[color:var(--text-muted)]"><span>Job #{job.jobId}</span><span>{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} $U</span></div></div>)}{!jobs.length && <p className="py-5 text-center text-[11px] text-[color:var(--text-muted)]">No indexed jobs for these agents yet.</p>}</div><p className="mt-4 border-t border-[color:var(--border)] pt-4 text-[9px] leading-4 text-[color:var(--text-muted)]">This is an attributed activity view. Seller delivery and settlement controls will appear here only after the provider authorization path is verified.</p></section>
 
-          <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[11px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>
+          <section id="evidence" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[11px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>
         </aside>
       </div>
 

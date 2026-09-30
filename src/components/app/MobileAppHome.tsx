@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits } from 'viem';
@@ -20,6 +20,9 @@ import {
 import { NETWORK_LABEL, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { shortAddress } from '@/lib/ui/format';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { useActiveWallet } from '@/lib/wallet/active';
+import { externalBalances } from '@/lib/wallet/external';
+import { readSavedAgents, subscribeToSavedAgents } from '@/lib/wallet/saved-agents';
 
 type IconName = 'home' | 'discover' | 'agents' | 'activity' | 'compare' | 'shield' | 'arrow';
 
@@ -42,14 +45,29 @@ const QUICK_ACTIONS = [
 
 export function MobileAppHome() {
   const passkey = usePasskeyWallet();
-  const walletAddress = passkey.wallet?.address;
+  const activeWallet = useActiveWallet();
+  const walletAddress = activeWallet.address;
   const paymentToken = correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken;
   const balances = useQuery({
-    queryKey: ['app-wallet-balances', walletAddress, paymentToken],
-    queryFn: () => walletClient().balances({ wallet: walletAddress!, tokens: [paymentToken] }),
+    queryKey: ['app-wallet-balances', activeWallet.mode, walletAddress, paymentToken],
+    queryFn: async () => {
+      if (activeWallet.mode === 'external') {
+        const result = await externalBalances();
+        return result ? { native: result.native, payment: result.payment } : null;
+      }
+      const result = await walletClient().balances({ wallet: walletAddress!, tokens: [paymentToken] });
+      const payment = result.tokens?.[0];
+      return { native: result.native, payment: payment?.ok ? payment.raw : null };
+    },
     enabled: Boolean(walletAddress),
     refetchInterval: 30_000,
   });
+  const [savedCount, setSavedCount] = useState(0);
+  useEffect(() => {
+    const refresh = () => setSavedCount(readSavedAgents().length);
+    refresh();
+    return subscribeToSavedAgents(refresh);
+  }, []);
 
   const getJobs = useCallback(
     () => (walletAddress ? jobsForWallet(walletAddress) : noJobs()),
@@ -61,12 +79,16 @@ export function MobileAppHome() {
   );
   const jobs = useSyncExternalStore(subscribeToJobs, getJobs, noJobs);
   const sessions = useSyncExternalStore(subscribeToSessions, getSessions, noSessions);
-  const activeJobs = jobs.filter((job) => !['COMPLETED', 'REJECTED'].includes(job.status));
+  const activeJobs = jobs.filter((job) => ['OPEN', 'FUNDED', 'SUBMITTED'].includes(job.status));
+  const committedJobs = jobs.filter((job) => ['FUNDED', 'SUBMITTED'].includes(job.status));
+  const committed = committedJobs.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
+  const needsAttention = jobs.filter((job) => ['SUBMITTED', 'EXPIRED'].includes(job.status));
+  const recentJobs = [...jobs].sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt)).slice(0, 3);
   const activeSessions = sessions.filter((session) => !session.revokedAt);
-  const paymentBalance = balances.data?.tokens?.[0];
+  const paymentBalance = balances.data?.payment;
 
   return (
-    <div data-pokter-app-home className="app-home mx-auto min-h-[100svh] w-full max-w-[520px] bg-[color:var(--bg)]">
+    <div data-pokter-app-home className="app-home mx-auto min-h-[100svh] w-full max-w-[520px] bg-[color:var(--bg)] md:max-w-5xl">
       {/*
         One header, two rows. The wordmark bar and the page title used to be
         separate stacked blocks, which read as two headers sitting on top of
@@ -95,7 +117,7 @@ export function MobileAppHome() {
       </header>
       <div className="px-5 pb-1 pt-4 md:hidden">
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
-        <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your agent workspace</h1>
+        <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your personal workspace</h1>
       </div>
 
       {/*
@@ -112,7 +134,7 @@ export function MobileAppHome() {
         <section className="hidden items-start justify-between gap-4 md:flex">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
-            <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your agent workspace</h1>
+            <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your personal workspace</h1>
           </div>
           <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
             <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
@@ -123,12 +145,12 @@ export function MobileAppHome() {
         {walletAddress ? (
           <section className="overflow-hidden rounded-2xl border border-[color:var(--border-strong)] bg-[linear-gradient(145deg,var(--surface-raised),var(--surface))] shadow-[0_18px_45px_rgba(0,0,0,.14)]">
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-3">
-              <div className="flex items-center gap-2 text-xs text-[color:var(--text-secondary)]"><span className="text-[color:var(--positive)]"><AppIcon name="shield" className="size-4" /></span>Passkey wallet</div>
+              <div className="flex items-center gap-2 text-xs text-[color:var(--text-secondary)]"><span className="text-[color:var(--positive)]"><AppIcon name="shield" className="size-4" /></span>{activeWallet.mode === 'external' ? 'Your wallet' : 'Passkey wallet'}</div>
               <span className="mono text-[10px] text-[color:var(--text-muted)]">{shortAddress(walletAddress)}</span>
             </div>
             <div className="grid grid-cols-2 divide-x divide-[color:var(--border)]">
-              <div className="p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)]">Available gas</p><p className="tabular mt-2 text-lg font-medium">{balances.data ? Number(formatEther(balances.data.native)).toFixed(4) : '—'} <span className="text-xs text-[color:var(--text-muted)]">{NATIVE_SYMBOL}</span></p></div>
-              <div className="p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)]">Hiring funds</p><p className="tabular mt-2 text-lg font-medium">{paymentBalance?.ok ? Number(formatUnits(paymentBalance.raw, paymentBalance.decimals)).toFixed(2) : '—'} <span className="text-xs text-[color:var(--text-muted)]">$U</span></p></div>
+              <div className="p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)]">Available</p><p className="tabular mt-2 text-lg font-medium">{paymentBalance !== null && paymentBalance !== undefined ? Number(formatUnits(paymentBalance, 18)).toFixed(2) : '—'} <span className="text-xs text-[color:var(--text-muted)]">$U</span></p><p className="mt-1 text-[9px] text-[color:var(--text-faint)]">{balances.data ? `${Number(formatEther(balances.data.native)).toFixed(4)} ${NATIVE_SYMBOL} for gas` : 'Reading wallet balance'}</p></div>
+              <div className="p-4"><p className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--text-faint)]">Committed to jobs</p><p className="tabular mt-2 text-lg font-medium">{Number(formatUnits(committed, 18)).toFixed(2)} <span className="text-xs text-[color:var(--text-muted)]">$U</span></p><p className="mt-1 text-[9px] text-[color:var(--text-faint)]">Funded or awaiting review</p></div>
             </div>
           </section>
         ) : (
@@ -144,9 +166,36 @@ export function MobileAppHome() {
           </section>
         )}
 
+        <section className="grid grid-cols-3 gap-2" aria-label="Personal overview">
+          {[
+            { href: '/my-agents', value: walletAddress ? activeJobs.length : '—', label: 'Active jobs' },
+            { href: '/saved', value: savedCount, label: 'Saved agents' },
+            { href: '/my-agents', value: walletAddress ? needsAttention.length : '—', label: 'Need attention' },
+          ].map((item) => (
+            <Link key={item.label} href={item.href} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition-colors hover:bg-[color:var(--surface-hover)]">
+              <p className="tabular text-xl font-semibold">{item.value}</p>
+              <p className="mt-1 text-[10px] leading-tight text-[color:var(--text-muted)]">{item.label}</p>
+            </Link>
+          ))}
+        </section>
+
+        {needsAttention.length > 0 && (
+          <section className="rounded-2xl border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[color:var(--caution)]">Needs attention</p>
+            <div className="mt-3 flex flex-col gap-3">
+              {needsAttention.slice(0, 2).map((job) => (
+                <Link key={job.id} href="/my-agents" className="flex items-center justify-between gap-3">
+                  <span className="min-w-0"><span className="block truncate text-sm font-medium">{job.agentName}</span><span className="block text-[11px] text-[color:var(--text-muted)]">{job.status === 'SUBMITTED' ? 'Delivery is ready for review' : 'Job expired; check reclaim options'}</span></span>
+                  <span className="shrink-0 text-[11px] font-medium">Review →</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section>
           <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Quick actions</h2><span className="text-[10px] text-[color:var(--text-faint)]">Evidence before action</span></div>
-          <div className="grid gap-2">
+          <div className="grid gap-2 md:grid-cols-3">
             {QUICK_ACTIONS.map((action, index) => (
               <Link key={action.href} href={action.href} className="group flex min-h-[4.25rem] items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 transition-colors hover:bg-[color:var(--surface-hover)]">
                 <span className={`flex size-10 items-center justify-center rounded-xl ${index === 0 ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : 'bg-[color:var(--bg-subtle)] text-[color:var(--text-secondary)]'}`}><AppIcon name={action.icon} /></span>
@@ -165,6 +214,21 @@ export function MobileAppHome() {
           </div>
           {!walletAddress && <p className="border-t border-[color:var(--border)] px-4 py-3 text-[11px] text-[color:var(--text-faint)]">Connect your passkey wallet to load device-owned activity.</p>}
         </section>
+
+        {recentJobs.length > 0 && (
+          <section>
+            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2><Link href="/my-agents" className="text-[11px] text-[color:var(--info)]">View all</Link></div>
+            <div className="overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]">
+              {recentJobs.map((job) => (
+                <Link key={job.id} href="/my-agents" className="flex items-center gap-3 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0 hover:bg-[color:var(--surface-hover)]">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--bg-subtle)] text-[color:var(--text-muted)]"><AppIcon name="activity" className="size-4" /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-medium">{job.agentName}</span><span className="block text-[10px] text-[color:var(--text-muted)]">Job #{job.jobId} · {job.status.toLowerCase()}</span></span>
+                  <span className="text-[11px] font-medium">{Number(formatUnits(BigInt(job.budgetRaw), 18)).toFixed(2)} $U</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
