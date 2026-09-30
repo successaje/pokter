@@ -2,8 +2,8 @@
 
 import { createContext, useContext } from 'react';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
-import { useWalletMode } from '@/lib/wallet/mode';
-import { useExternalAccount } from '@/lib/wallet/useExternalAccount';
+import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { useActiveWallet } from '@/lib/wallet/active';
 
 /**
  * Whether the committing action is available, and why not when it isn't.
@@ -46,8 +46,7 @@ export function WalletGate({
   children: React.ReactNode;
 }) {
   const passkey = usePasskeyWallet();
-  const mode = useWalletMode();
-  const external = useExternalAccount();
+  const active = useActiveWallet();
 
   /*
    * Either wallet can fund an escrow now, so the gate asks which one is
@@ -59,19 +58,15 @@ export function WalletGate({
    * needs neither.
    */
   const ready =
-    capability === 'session'
-      ? Boolean(passkey.wallet)
-      : mode === 'external'
-        ? Boolean(external)
-        : Boolean(passkey.wallet);
+    capability === 'session' ? Boolean(passkey.wallet) : active.mode !== null;
 
   const reason = ready
     ? null
     : capability === 'session'
       ? `Create or connect a passkey wallet to ${action}.`
-      : mode === 'external'
-        ? `Connect your browser wallet to ${action}.`
-        : `Create or connect a passkey wallet to ${action}.`;
+      : active.wrongChain
+        ? `Switch your wallet to ${ESCROW_CHAIN.name} to ${action}.`
+        : `Connect a wallet to ${action}.`;
 
   return (
     <LockContext.Provider value={{ locked: reason !== null, reason }}>
@@ -81,7 +76,7 @@ export function WalletGate({
             <div className="flex items-center gap-3 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand)]" aria-hidden>⌁</span>
               <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-                Configure and review first. You only need a passkey wallet when you are ready to fund.
+                Configure and review first. You only need a wallet — passkey or your own — when you are ready to fund.
               </p>
             </div>
           ) : (

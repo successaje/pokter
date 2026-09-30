@@ -39,8 +39,7 @@ import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
-import { useWalletMode } from '@/lib/wallet/mode';
-import { useExternalAccount } from '@/lib/wallet/useExternalAccount';
+import { useActiveWallet } from '@/lib/wallet/active';
 import { hireFromExternalWallet } from '@/lib/wallet/external';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import {
@@ -202,8 +201,7 @@ export function CommissionPanel({
   const [error, setError] = useState<string | null>(null);
   /** $U bought before a failure and still in the wallet, as a display amount. */
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
-  const walletMode = useWalletMode();
-  const externalAddress = useExternalAccount();
+  const active = useActiveWallet();
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -316,8 +314,8 @@ export function CommissionPanel({
        * branches. The external route keeps its own input shape because it also
        * carries what the lib needs to rebuild a job record on recovery.
        */
-      if (walletMode === 'external') {
-        if (!externalAddress) {
+      if (active.mode === 'external') {
+        if (!active.address) {
           throw new Error('Connect your browser wallet before funding.');
         }
 
@@ -355,7 +353,7 @@ export function CommissionPanel({
           settleTxHash: null,
         };
 
-        rememberJob(externalAddress, externalJob);
+        rememberJob(active.address, externalJob);
         setJob(externalJob);
         setState('hired');
         await notifySeller(externalJob);

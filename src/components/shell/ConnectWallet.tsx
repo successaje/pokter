@@ -10,9 +10,11 @@ import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { externalBalances } from '@/lib/wallet/external';
 
 function SigningIcon() {
   return (
@@ -159,6 +161,7 @@ export function ConnectWallet() {
     refetchInterval: 30_000,
   });
   const paymentBalance = balances.data?.tokens?.[0];
+
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
@@ -167,7 +170,22 @@ export function ConnectWallet() {
   const injected = connectors.find((c) => c.id === 'injected') ?? connectors[0];
   const wrongChain = isConnected && chain?.id !== ESCROW_CHAIN.id;
   const connectedAddress = passkey.wallet?.address ?? address;
+  /*
+   * The balance of the wallet that will actually sign.
+   *
+   * This panel read the passkey's balance whatever was connected, so a buyer
+   * hiring from their own wallet was shown a number belonging to a different
+   * account — and the one figure this panel exists to answer, whether there is
+   * enough to hire with, was about the wrong wallet.
+   */
+  const externalBalance = useQuery({
+    queryKey: ['connect-external', address],
+    queryFn: () => externalBalances(),
+    enabled: isConnected && !wrongChain,
+    refetchInterval: 30_000,
+  });
   const anyConnected = Boolean(connectedAddress);
+  const active = useActiveWallet();
 
   return (
     <div ref={layerRef} className="relative">
@@ -213,9 +231,23 @@ export function ConnectWallet() {
             thing in it. The explanations became the second line of the row
             they describe, where they are read in passing rather than instead.
           */}
+          {/*
+            Which wallet signs, said once, where the wallet is chosen.
+
+            This was a toggle on the hire page, which was wrong twice: picking
+            a wallet belongs where you connect one, and a hire should not ask a
+            question it can answer. Connecting a browser wallet is already a
+            deliberate act, so it decides — and the only thing left to do is
+            say so plainly here, rather than leave someone to infer it from
+            which address a signature prompt shows.
+          */}
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[11px] text-[color:var(--text-faint)]">
-              Wallet
+              {active.mode === 'external'
+                ? 'Hiring from your own wallet'
+                : active.mode === 'passkey'
+                  ? 'Hiring from your passkey wallet'
+                  : 'Wallet'}
             </span>
             {connectedAddress && (
               <span className="mono text-[11px] text-[color:var(--text-faint)]">
@@ -224,7 +256,27 @@ export function ConnectWallet() {
             )}
           </div>
 
-          {passkey.wallet ? (
+          {active.mode === 'external' ? (
+            <div className="mt-2 flex flex-col" aria-live="polite">
+              <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                Available to hire with
+              </span>
+              <span className="font-[family-name:var(--font-serif)] text-[28px] leading-tight tabular">
+                {externalBalance.data
+                  ? Number(formatUnits(externalBalance.data.payment, 18)).toFixed(2)
+                  : '—'}{' '}
+                $U
+              </span>
+              <span className="text-[11px] text-[color:var(--text-muted)]">
+                {externalBalance.isPending
+                  ? 'Reading balances…'
+                  : externalBalance.isError || !externalBalance.data
+                    ? 'Balances unavailable'
+                    : `${Number(formatEther(externalBalance.data.native)).toFixed(4)} ${NATIVE_SYMBOL} for gas`}
+                {PAYMENT_VALUE_NOTE ? ` · ${PAYMENT_VALUE_NOTE.toLowerCase()}` : ''}
+              </span>
+            </div>
+          ) : passkey.wallet ? (
             <>
               <div className="mt-2 flex flex-col" aria-live="polite">
                 <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
@@ -271,8 +323,8 @@ export function ConnectWallet() {
                         : isConnected
                           ? wrongChain
                             ? `${chain?.name ?? 'Wrong network'} — switch to ${ESCROW_CHAIN.name}`
-                            : `${shortAddress(address!)} · ${chain?.name ?? 'connected'}`
-                          : 'Recognises you; cannot sign a hire'
+                            : `${shortAddress(address!)} · signing hires`
+                          : 'Connect to hire from it directly'
                   }
                   tone={wrongChain ? 'caution' : undefined}
                   onClick={

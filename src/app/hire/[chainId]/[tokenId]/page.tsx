@@ -13,8 +13,6 @@ import { PermissionReview } from '@/components/hire/PermissionReview';
 import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
-import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
-import { WalletStrip } from '@/components/wallet/WalletStrip';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import type { ChainId } from '@/lib/scan/types';
@@ -107,18 +105,6 @@ export default async function HirePage({
                 <a href="#alternatives" className="shrink-0 text-[11px] font-medium text-[color:var(--caution)] underline decoration-dotted underline-offset-4">See stronger alternatives</a>
               </section>
           )}
-          {/*
-            One wallet control, above one hire flow.
-
-            The external path used to be a second panel under the commission
-            form, doing the same job in different words — so choosing between
-            them meant reading rather than switching, and the form only ever
-            spoke to the passkey. The switch is here, the form asks it what it
-            is signing with, and the balances that can block a hire are on
-            screen before anyone starts rather than inside an error afterwards.
-          */}
-          <WalletStrip budgetU={DEFAULT_BUDGET_U} />
-
           <WalletGate action="commission work" capability="commission">
             <CommissionPanel
               agent={{
