@@ -153,16 +153,15 @@ export function AgentCard({
       <div className="surface-card relative flex min-w-0 flex-col md:hidden">
         <SaveAgentButton agent={saveAgent} compact className="absolute right-2.5 top-2.5 z-10" />
         <Link href={href} className="flex flex-col gap-2 p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
-              <div className="flex min-w-0 flex-col gap-0.5">
-                {meta && (
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                      {meta.label}
-                    </span>
-                    {fromAFleet && (
+          <div className="flex min-w-0 items-start gap-2.5 pr-10">
+            <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+            <div className="flex min-w-0 flex-col gap-0.5">
+              {meta && (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                    {meta.label}
+                  </span>
+                  {fromAFleet && (
                       /*
                         Twenty-five characters to carry one number, wrapping to
                         a second line on a card whose own name often already
@@ -192,23 +191,23 @@ export function AgentCard({
                           listings by this publisher
                         </span>
                       </span>
-                    )}
-                  </span>
-                )}
-                {name}
-              </div>
-            </div>
-            <span className="mr-9 flex shrink-0 items-center gap-1.5">
-              {downRecently && (
-                <span
-                  title="Answered no probes in the last 24 hours"
-                  className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
-                >
-                  Not answering
+                  )}
                 </span>
               )}
-              <EvidenceBadge verdict={verdict} />
-            </span>
+              {name}
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {downRecently && (
+              <span
+                title="Answered no probes in the last 24 hours"
+                className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
+              >
+                Not answering
+              </span>
+            )}
+            <EvidenceBadge verdict={verdict} />
           </div>
 
           {/*
@@ -259,20 +258,19 @@ export function AgentCard({
         </div>
       </div>
 
-      {/* ── Desktop, unchanged ────────────────────────────────────────── */}
+      {/* ── Desktop ──────────────────────────────────────────────────── */}
       <div className="surface-card group relative hidden h-full min-w-0 flex-col md:flex">
         <SaveAgentButton agent={saveAgent} compact className="absolute right-3 top-3 z-10" />
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
-              <div className="flex min-w-0 flex-col gap-1">
-                {meta && (
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                      {meta.label}
-                    </span>
-                    {fromAFleet && (
+          <div className="flex min-w-0 items-start gap-3 pr-12">
+            <AgentAvatar name={agent.name} src={agent.image_url} size="sm" />
+            <div className="flex min-w-0 flex-col gap-1">
+              {meta && (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
+                    {meta.label}
+                  </span>
+                  {fromAFleet && (
                       /*
                         Twenty-five characters to carry one number, wrapping to
                         a second line on a card whose own name often already
@@ -302,23 +300,25 @@ export function AgentCard({
                           listings by this publisher
                         </span>
                       </span>
-                    )}
-                  </span>
-                )}
-                {name}
-              </div>
-            </div>
-            <span className="mr-9 flex shrink-0 items-center gap-1.5">
-              {downRecently && (
-                <span
-                  title="Answered no probes in the last 24 hours"
-                  className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
-                >
-                  Not answering
+                  )}
                 </span>
               )}
-              <EvidenceBadge verdict={verdict} />
-            </span>
+              {name}
+            </div>
+          </div>
+
+          {/* Status has its own wrapping row. It must never compete with the
+              identity or the absolute save control for horizontal space. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {downRecently && (
+              <span
+                title="Answered no probes in the last 24 hours"
+                className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
+              >
+                Not answering
+              </span>
+            )}
+            <EvidenceBadge verdict={verdict} />
           </div>
 
           <p className="line-clamp-2 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
