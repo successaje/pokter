@@ -1,7 +1,7 @@
 /** Quiet atmosphere for the landing hero; product meaning stays foreground. */
 export function HeroEvidenceBackdrop() {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+    <div className="hero-ambient-stage pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       <div className="hero-ambient-glow absolute left-1/2 top-[48%] h-[38rem] w-[64rem] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full" />
       <div className="hero-ambient-orbit absolute left-1/2 top-[48%] aspect-[1.7/1] w-[78rem] max-w-[112vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-[color:var(--brand)]/10" />
       <div className="hero-ambient-orbit hero-ambient-orbit-inner absolute left-1/2 top-[48%] aspect-[1.65/1] w-[55rem] max-w-[84vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-dashed border-[color:var(--brand)]/10" />
