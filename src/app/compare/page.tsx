@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { StatusState } from '@/components/ui/States';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { getComparisons, listMarketplace, type Listing } from '@/lib/marketplace';
+import { getComparisons, listSearchable, type Listing } from '@/lib/marketplace';
 import { CompareTable } from '@/components/compare/CompareTable';
 import { AgentPicker, type PickerOption } from '@/components/compare/AgentPicker';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
@@ -35,26 +35,22 @@ export default async function ComparePage({
   const params = await searchParams;
   const selected = parseSelection(params.agents);
 
-  const [sections, entries] = await Promise.all([
-    listMarketplace({ limit: 4 }),
+  const [searchable, entries] = await Promise.all([
+    listSearchable({ limit: 30 }),
     getComparisons(selected),
   ]);
 
-  const pickerOptions = sections.flatMap(({ category, listings }) => {
-    const meta = CATEGORY_BY_ID.get(category);
-    return meta
-      ? listings
-          .filter((listing) => isPromotableAgent(listing.agent))
-          .map(
-            (listing): PickerOption => ({
-              key: keyFor(listing),
-              name: listing.agent.name,
-              category,
-              categoryLabel: meta.label,
-            }),
-          )
-      : [];
-  });
+  const pickerOptions = searchable
+    .map(({ listing }) => listing)
+    .filter((listing) => isPromotableAgent(listing.agent))
+    .map((listing): PickerOption => ({
+      key: keyFor(listing),
+      name: listing.agent.name,
+      imageUrl: listing.agent.image_url ?? null,
+      description: listing.agent.description?.trim() || 'No description published.',
+      category: listing.category,
+      categoryLabel: CATEGORY_BY_ID.get(listing.category)?.label ?? 'Other',
+    }));
 
   // An explicitly shared comparison remains reproducible even when it
   // contains a test or retired identity. Such identities are omitted only
@@ -69,6 +65,8 @@ export default async function ComparePage({
     pickerOptions.push({
       key,
       name: entry.agent.name,
+      imageUrl: entry.agent.image_url ?? null,
+      description: entry.agent.description?.trim() || 'No description published.',
       category: entry.category,
       categoryLabel: meta?.label ?? 'Other',
     });
