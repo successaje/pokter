@@ -3,17 +3,13 @@
 import Link from 'next/link';
 import { HeroBrief } from '@/components/home/HeroBrief';
 import { HeroEvidenceBackdrop } from '@/components/home/HeroEvidenceBackdrop';
-import { MarketplaceJourney } from '@/components/home/MarketplaceJourney';
 
 /**
  * The hero, shared by the live landing page and the two layout previews so a
  * comparison is about structure rather than about which copy got updated.
  *
- * `compact` still holds the first screen, just less of it. The hero has one
- * job — say the single thing this product is for — and a next section already
- * peeking under it steals that. What compact buys is the section starting
- * immediately after the fold rather than a screen below it, so one scroll
- * reaches the marketplace.
+ * `compact` keeps the proposition and primary actions together without making
+ * the landing page wait a full screen before showing marketplace inventory.
  */
 const HEADLINE = ['Choose', 'what', 'deserves', 'your', 'money.'] as const;
 
@@ -23,10 +19,10 @@ export function LandingHero({
   compact?: boolean;
 }) {
   return (
-    <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-5.5rem)]' : 'min-h-[calc(100svh-4rem)]'} flex-col items-center justify-center overflow-hidden pb-2 pt-10 text-center sm:pb-3 sm:pt-12`}>
+    <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-11rem)]' : 'min-h-[calc(100svh-6rem)]'} flex-col items-center justify-center overflow-hidden py-12 text-center sm:py-16`}>
       <HeroEvidenceBackdrop />
-      <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-5 sm:gap-6">
-          <div className="flex w-full flex-col items-center gap-5">
+      <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-7">
+        <div className="flex w-full flex-col items-center gap-5">
             <p className="hero-kicker flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
               <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
               The decision layer for autonomous finance on BNB Chain
@@ -55,9 +51,9 @@ export function LandingHero({
               them and publishes what answered, so you hire on evidence — through
               escrow you control, with no authority over your wallet.
             </p>
-          </div>
+        </div>
 
-          <div className="hero-actions flex flex-wrap items-center justify-center gap-3">
+        <div className="hero-actions flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/discover"
               className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
@@ -70,13 +66,12 @@ export function LandingHero({
             >
               Build an agent
             </Link>
-          </div>
+        </div>
 
-          <div className="hero-brief-stage w-full max-w-xl rounded-2xl bg-[color:var(--bg)]/40 p-2 backdrop-blur-[2px]">
-            <HeroBrief />
-          </div>
+        <div className="hero-brief-stage w-full max-w-xl rounded-2xl bg-[color:var(--bg)]/40 p-2 backdrop-blur-[2px]">
+          <HeroBrief />
+        </div>
       </div>
-      <MarketplaceJourney />
     </section>
   );
 }
