@@ -230,6 +230,29 @@ export function CommissionPanel({
 
   const provider = providers.find((p) => p.address === providerAddress);
 
+  const indexFundedJob = async (hired: HiredJob) => {
+    if (!hired.hireTxHash) return;
+    try {
+      const response = await fetch('/api/jobs/index', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jobId: hired.jobId,
+          transactionHash: hired.hireTxHash,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        console.warn(payload.error ?? 'The funded job was not added to the public index.');
+      }
+    } catch (error) {
+      // Indexing is a recoverable read-model operation. The chain transaction
+      // remains authoritative and a network failure here must never turn a
+      // successful hire into a failed hire in the buyer's UI.
+      console.warn('The funded job was not added to the public index.', error);
+    }
+  };
+
   const notifySeller = async (hired: HiredJob) => {
     if (!provider?.automatedDelivery) {
       setNotification('not-applicable');
@@ -369,6 +392,7 @@ export function CommissionPanel({
         };
 
         rememberJob(active.address, externalJob);
+        await indexFundedJob(externalJob);
         setJob(externalJob);
         setState('hired');
         await notifySeller(externalJob);
@@ -503,6 +527,7 @@ export function CommissionPanel({
         settleTxHash: null,
       };
       rememberJob(wallet.address, hired);
+      await indexFundedJob(hired);
       setJob(hired);
       setState('hired');
       await notifySeller(hired);
