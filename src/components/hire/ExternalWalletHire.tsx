@@ -64,6 +64,7 @@ export function ExternalWalletHire({
 }) {
   const [account, setAccount] = useState<string | null>(null);
   const [step, setStep] = useState<HireStep | null>(null);
+  const [failedAt, setFailedAt] = useState<HireStep | null>(null);
   const [jobId, setJobId] = useState<bigint | null>(null);
   const [lastHash, setLastHash] = useState<`0x${string}` | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +106,7 @@ export function ExternalWalletHire({
 
   const hire = async () => {
     setError(null);
+    setFailedAt(null);
     try {
       const outcome = await hireFromExternalWallet({
         identityChainId: agent.chainId,
@@ -117,6 +119,7 @@ export function ExternalWalletHire({
         budgetU,
         ttlSeconds,
         onProgress: (progress) => {
+          setFailedAt(progress.step);
           setStep(progress.step);
           if (progress.jobId) setJobId(progress.jobId);
           if (progress.hash) setLastHash(progress.hash);
@@ -209,6 +212,10 @@ export function ExternalWalletHire({
       }
     } catch (caught) {
       const message = (caught as Error)?.message ?? '';
+      // A rejected or failed provider request is no longer in flight. Keeping
+      // the last step active left the button saying “Waiting for wallet…”
+      // forever even though there was nothing left for the wallet to approve.
+      setStep(null);
       setError(
         message === 'WRONG_CHAIN'
           ? 'Your wallet changed network part way through. Nothing further was sent.'
@@ -279,7 +286,7 @@ export function ExternalWalletHire({
       <ol className="flex flex-col gap-1.5">
         {STEPS.map((entry, index) => {
           const done = activeIndex > index || step === 'done';
-          const current = step === entry.id;
+          const current = step === entry.id || (Boolean(error) && failedAt === entry.id);
           return (
             <li
               key={entry.id}
@@ -316,7 +323,7 @@ export function ExternalWalletHire({
           </p>
           {jobId !== null && (
             <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-              Job #{jobId.toString()} exists on chain. The highlighted step is
+              Job #{jobId.toString()} exists on chain. The highlighted step was
               the last action Pokter attempted; check it in the explorer before
               retrying. An unfunded job cannot draw funds and expires on its own.
             </p>
@@ -327,7 +334,7 @@ export function ExternalWalletHire({
               Inspect the last confirmed transaction ↗
             </a>
           )}
-          {(step === 'approving' || step === 'funding' || step === 'confirming') &&
+          {(failedAt === 'approving' || failedAt === 'funding' || failedAt === 'confirming') &&
             account && !revoked && (
               <button type="button" onClick={revoke} disabled={revoking}
                 className="mt-2 text-[11px] font-medium text-[color:var(--negative)] underline underline-offset-2 disabled:opacity-50">
@@ -370,10 +377,14 @@ export function ExternalWalletHire({
         <button
           type="button"
           onClick={hire}
-          disabled={running || !riskAccepted}
+          disabled={running || !riskAccepted || (Boolean(error) && jobId !== null)}
           className="action-primary inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold disabled:opacity-50"
         >
-          {running ? 'Waiting for your wallet…' : `Hire for ${budgetU} $U`}
+          {running
+            ? 'Waiting for wallet…'
+            : error && jobId !== null
+              ? 'Review the existing job first'
+              : `Hire for ${budgetU} $U`}
         </button>
       ) : (
         <button
