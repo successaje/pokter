@@ -31,7 +31,10 @@ export interface DiagnosticReport {
   chainId: ChainId;
   tokenId: string;
   name: string | null;
+  /** ERC-721 owner of the ERC-8004 identity. */
   owner: string | null;
+  /** Operational wallet published by the agent for signed interactions. */
+  agentWallet: string | null;
   checks: DiagnosticCheck[];
   observedAt: string;
 }
@@ -71,7 +74,7 @@ function identityCheck(agent: ScanAgentDetail): DiagnosticCheck {
     ? ok(
         'identity',
         'ERC-8004 identity',
-        `Registered as “${agent.name}”, owned by ${agent.agent_wallet}.`,
+        `Registered as “${agent.name}” with signing wallet ${agent.agent_wallet}.`,
       )
     : bad(
         'identity',
@@ -243,7 +246,8 @@ export async function diagnose(
     chainId,
     tokenId,
     name: agent.name ?? null,
-    owner: agent.agent_wallet ?? null,
+    owner: agent.owner_address ?? null,
+    agentWallet: agent.agent_wallet ?? null,
     checks,
     observedAt: new Date().toISOString(),
   };

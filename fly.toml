@@ -14,6 +14,9 @@ primary_region = 'iad'
   JOB_DB_PATH = '/data/jobs.db'
   DELIVERABLE_DB_PATH = '/data/deliverables.db'
   RATE_LIMIT_DB_PATH = '/data/rate-limit.db'
+  NOTIFICATION_DB_PATH = '/data/notifications.db'
+  REVIEW_DB_PATH = '/data/reviews.db'
+  BUILDER_DB_PATH = '/data/builders.db'
   ALTANA_NETWORK = 'bnb-testnet'
   # The public origin. demo-seller writes this into the deliverable URL it
   # commits on chain, so it must match the live host before anything delivers.

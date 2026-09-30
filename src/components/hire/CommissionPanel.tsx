@@ -230,6 +230,29 @@ export function CommissionPanel({
 
   const provider = providers.find((p) => p.address === providerAddress);
 
+  const indexFundedJob = async (hired: HiredJob) => {
+    if (!hired.hireTxHash) return;
+    try {
+      const response = await fetch('/api/jobs/index', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jobId: hired.jobId,
+          transactionHash: hired.hireTxHash,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        console.warn(payload.error ?? 'The funded job was not added to the public index.');
+      }
+    } catch (error) {
+      // Indexing is a recoverable read-model operation. The chain transaction
+      // remains authoritative and a network failure here must never turn a
+      // successful hire into a failed hire in the buyer's UI.
+      console.warn('The funded job was not added to the public index.', error);
+    }
+  };
+
   const notifySeller = async (hired: HiredJob) => {
     if (!provider?.automatedDelivery) {
       setNotification('not-applicable');
@@ -369,6 +392,7 @@ export function CommissionPanel({
         };
 
         rememberJob(active.address, externalJob);
+        await indexFundedJob(externalJob);
         setJob(externalJob);
         setState('hired');
         await notifySeller(externalJob);
@@ -503,6 +527,7 @@ export function CommissionPanel({
         settleTxHash: null,
       };
       rememberJob(wallet.address, hired);
+      await indexFundedJob(hired);
       setJob(hired);
       setState('hired');
       await notifySeller(hired);
@@ -703,7 +728,7 @@ export function CommissionPanel({
                       setSelectedTemplate(next.id);
                       setTask(next.task);
                     }}
-                    className="grid gap-2 sm:grid-cols-3"
+                    className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0"
                   >
                     {taskTemplates.map((template) => {
                       const chosen = selectedTemplate === template.id;
@@ -719,7 +744,7 @@ export function CommissionPanel({
                             setTask(template.task);
                           }}
                           className={cn(
-                            'group relative flex flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all',
+                            'group relative flex w-[15rem] shrink-0 snap-start flex-col gap-2 rounded-[var(--radius)] border p-3.5 text-left transition-all sm:w-auto sm:shrink',
                             chosen
                               ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] shadow-[0_0_0_1px_var(--brand)]'
                               : 'border-[color:var(--border)] bg-[color:var(--bg-subtle)] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)]',
@@ -1125,6 +1150,12 @@ export function CommissionPanel({
               )}
             >
               Track activity
+            </Link>
+            <Link
+              href="/my-agents"
+              className="inline-flex items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[13px] transition-colors hover:bg-[color:var(--surface-hover)]"
+            >
+              Get job updates
             </Link>
           </div>
 

@@ -18,6 +18,7 @@ export interface JobStore {
   record(job: HiredJob): void;
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
+  byAgent(chainId: number, tokenId: string): HiredJob[];
 }
 
 const SCHEMA = `
@@ -26,8 +27,10 @@ const SCHEMA = `
     job_id            TEXT NOT NULL,
     chain_id          INTEGER NOT NULL,
     is_testnet        INTEGER NOT NULL,
+    agent_chain_id    INTEGER,
     agent_token_id    TEXT NOT NULL,
     agent_name        TEXT NOT NULL,
+    provider_label    TEXT,
     provider          TEXT NOT NULL,
     task              TEXT NOT NULL,
     budget_raw        TEXT NOT NULL,
@@ -37,7 +40,8 @@ const SCHEMA = `
     status            TEXT NOT NULL,
     status_checked_at TEXT NOT NULL,
     deliverable_url   TEXT,
-    settle_tx_hash    TEXT
+    settle_tx_hash    TEXT,
+    dispute_tx_hash   TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
@@ -48,8 +52,10 @@ interface JobRow {
   job_id: string;
   chain_id: number;
   is_testnet: number;
+  agent_chain_id: number | null;
   agent_token_id: string;
   agent_name: string;
+  provider_label: string | null;
   provider: string;
   task: string;
   budget_raw: string;
@@ -60,6 +66,7 @@ interface JobRow {
   status_checked_at: string;
   deliverable_url: string | null;
   settle_tx_hash: string | null;
+  dispute_tx_hash: string | null;
 }
 
 function toJob(row: JobRow): HiredJob {
@@ -68,8 +75,10 @@ function toJob(row: JobRow): HiredJob {
     jobId: row.job_id,
     chainId: row.chain_id,
     isTestnet: row.is_testnet === 1,
+    agentChainId: row.agent_chain_id ?? undefined,
     agentTokenId: row.agent_token_id,
     agentName: row.agent_name,
+    providerLabel: row.provider_label ?? undefined,
     provider: row.provider as `0x${string}`,
     task: row.task,
     budgetRaw: row.budget_raw,
@@ -80,6 +89,7 @@ function toJob(row: JobRow): HiredJob {
     statusCheckedAt: row.status_checked_at,
     deliverableUrl: row.deliverable_url,
     settleTxHash: row.settle_tx_hash as `0x${string}` | null,
+    disputeTxHash: row.dispute_tx_hash as `0x${string}` | null,
   };
 }
 
@@ -91,24 +101,43 @@ class SqliteJobStore implements JobStore {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec(SCHEMA);
+    // SQLite's CREATE TABLE IF NOT EXISTS does not add columns to an existing
+    // installation. Keep the index forward-compatible without dropping the
+    // user's recorded jobs.
+    for (const statement of [
+      'ALTER TABLE jobs ADD COLUMN agent_chain_id INTEGER',
+      'ALTER TABLE jobs ADD COLUMN provider_label TEXT',
+      'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
+    ]) {
+      try {
+        this.db.exec(statement);
+      } catch (error) {
+        if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) {
+          throw error;
+        }
+      }
+    }
   }
 
   record(job: HiredJob): void {
     this.db
       .prepare(
         `INSERT OR REPLACE INTO jobs
-           (id, job_id, chain_id, is_testnet, agent_token_id, agent_name,
-            provider, task, budget_raw, expired_at, hired_at, hire_tx_hash,
-            status, status_checked_at, deliverable_url, settle_tx_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, job_id, chain_id, is_testnet, agent_chain_id, agent_token_id,
+            agent_name, provider_label, provider, task, budget_raw, expired_at,
+            hired_at, hire_tx_hash, status, status_checked_at, deliverable_url,
+            settle_tx_hash, dispute_tx_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         job.id,
         job.jobId,
         job.chainId,
         job.isTestnet ? 1 : 0,
+        job.agentChainId ?? null,
         job.agentTokenId,
         job.agentName,
+        job.providerLabel ?? null,
         job.provider,
         job.task,
         job.budgetRaw,
@@ -119,6 +148,7 @@ class SqliteJobStore implements JobStore {
         job.statusCheckedAt,
         job.deliverableUrl,
         job.settleTxHash,
+        job.disputeTxHash ?? null,
       );
   }
 
@@ -134,6 +164,18 @@ class SqliteJobStore implements JobStore {
       .prepare('SELECT * FROM jobs WHERE id = ?')
       .get(id) as unknown as JobRow | undefined;
     return row ? toJob(row) : null;
+  }
+
+  byAgent(chainId: number, tokenId: string): HiredJob[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM jobs
+         WHERE agent_token_id = ?
+           AND (agent_chain_id = ? OR (agent_chain_id IS NULL AND ? = 56))
+         ORDER BY hired_at DESC`,
+      )
+      .all(tokenId, chainId, chainId) as unknown as JobRow[];
+    return rows.map(toJob);
   }
 }
 

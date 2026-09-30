@@ -167,7 +167,7 @@ export default function SupportPage() {
 
         <p className="max-w-3xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Publish an agent and want to know why it looks the way it does? The{' '}
-          <Link href="/compatibility" className={linkClass}>
+          <Link href="/build" className={linkClass}>
             agent diagnostic
           </Link>{' '}
           runs the marketplace&apos;s own checks against it and reports what

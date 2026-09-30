@@ -7,6 +7,7 @@ import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { SessionCard } from '@/components/jobs/SessionCard';
 import { JobRow } from '@/components/jobs/JobRow';
 import { ActivitySummary } from '@/components/jobs/ActivitySummary';
+import { NotificationCenter } from '@/components/jobs/NotificationCenter';
 import { cn } from '@/lib/ui/cn';
 import {
   noSessions,
@@ -54,7 +55,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     create,
     recover,
   } = usePasskeyWallet();
-  const [tab, setTab] = useState<'jobs' | 'permissions'>('jobs');
+  const [tab, setTab] = useState<'jobs' | 'notifications' | 'permissions'>('jobs');
   const [importId, setImportId] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -193,6 +194,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
       >
         {([
           ['jobs', `Jobs${jobs.length ? ` (${jobs.length})` : ''}`],
+          ['notifications', 'Updates'],
           ['permissions', `Permissions${sessions.length ? ` (${sessions.length})` : ''}`],
         ] as const).map(([value, label]) => (
           <button
@@ -262,6 +264,14 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             )}
           </div>
         </section>
+      ) : tab === 'notifications' ? (
+        <div
+          role="tabpanel"
+          id="activity-panel-notifications"
+          aria-labelledby="activity-tab-notifications"
+        >
+          <NotificationCenter walletAddress={wallet.address} jobs={jobs} />
+        </div>
       ) : (
         <section
           role="tabpanel"

@@ -78,15 +78,9 @@ export function FilterSidebar({
         )}
       </div>
 
-      {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-2">
-          <div>
-            <h3 className="text-[13px] font-medium">{group.label}</h3>
-            <p className="mt-0.5 text-[11px] leading-snug text-[color:var(--text-faint)]">
-              {group.hint}
-            </p>
-          </div>
-
+      {groups.map((group) => {
+        const activeInGroup = group.options.filter((option) => active.has(option.query)).length;
+        const options = (
           <ul className="flex flex-col">
             {group.options.map((option) => {
               const checked = active.has(option.query);
@@ -122,8 +116,24 @@ export function FilterSidebar({
               );
             })}
           </ul>
-        </div>
-      ))}
+        );
+
+        return (
+          <details open={group.label === 'Evidence'} key={group.label} className="group rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)]/55 px-3">
+            <summary className="flex cursor-pointer list-none items-center gap-2 py-3">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 text-[13px] font-medium">
+                  {group.label}
+                  {activeInGroup > 0 && <span className="rounded-full bg-[color:var(--brand)] px-1.5 py-0.5 text-[9px] font-semibold text-[color:var(--brand-ink)]">{activeInGroup}</span>}
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-snug text-[color:var(--text-faint)]">{group.hint}</span>
+              </span>
+              <svg viewBox="0 0 20 20" aria-hidden className="size-4 shrink-0 fill-none stroke-[color:var(--text-muted)] transition-transform group-open:rotate-180" strokeWidth="1.7"><path d="m6 8 4 4 4-4" /></svg>
+            </summary>
+            <div className="border-t border-[color:var(--border)] py-2">{options}</div>
+          </details>
+        );
+      })}
     </aside>
   );
 }

@@ -39,13 +39,13 @@ export const VERDICTS: Verdict[] = [
 ];
 
 /** Non-verdict `is:` flags. */
-const IS_FLAGS = ['live', 'offline', 'measured', 'unmeasured', 'testnet', 'mainnet'];
+const IS_FLAGS = ['live', 'offline', 'measured', 'unmeasured', 'testnet', 'mainnet', 'hireable', 'escrow-only'];
 
 /** Numeric fields usable with `has:`. */
-const HAS_FIELDS = ['attestations', 'probes', 'measurers', 'score', 'days'];
+const HAS_FIELDS = ['attestations', 'probes', 'measurers', 'score', 'days', 'price'];
 
 /** Fields usable as a bare `has:` presence check. */
-const HAS_FLAGS = ['endpoint', 'description', 'attestations', 'record'];
+const HAS_FLAGS = ['endpoint', 'description', 'attestations', 'record', 'price'];
 
 const CATEGORY_ALIASES: Record<string, Category> = {
   rebalancing: 'rebalancing',

@@ -42,7 +42,7 @@ const STEPS = [
     label: 'Hire',
     question: 'What exactly am I allowing it to do?',
     body: 'Nothing to your wallet. You fund one escrowed job from your own key, and the agent is paid only when it delivers.',
-    href: '/methodology',
+    href: '/agents?q=is%3Alive',
   },
   {
     label: 'Monitor',
@@ -64,7 +64,7 @@ export function HowItWorks() {
         </h2>
       </div>
 
-      <ol className="grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--border)] lg:grid-cols-5">
+      <ol className="motion-stagger grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--border)] lg:grid-cols-5">
         {STEPS.map((step, index) => (
           <li key={step.label} className="bg-[color:var(--surface)]">
             <Link

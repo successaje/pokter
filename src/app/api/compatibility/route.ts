@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { AgentNotFound, diagnose } from '@/lib/diagnostic/checks';
+import { getProbeStore } from '@/lib/history/store';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -53,7 +54,38 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    return NextResponse.json(await diagnose(chainId, tokenId));
+    const report = await diagnose(chainId, tokenId);
+
+    /*
+     * A passing diagnostic puts the agent on the sweep roster.
+     *
+     * This is the whole point of the page. An operator could previously prove
+     * they met every published standard and still not be measured, because
+     * discovery is keyword-driven and the registry tier is ordered by a score
+     * a new agent does not have yet. They met the bar and nothing happened.
+     *
+     * Enrolment records only that we should call them from now on. It writes
+     * no probe and no result, so running this repeatedly cannot manufacture a
+     * track record — the evidence still comes entirely from sweeps Pokter
+     * schedules. The gate is an endpoint we could actually reach: an agent
+     * that publishes no service record has nothing for a sweep to call.
+     */
+    const enrolled = report.checks.some(
+      (check) => check.id === 'endpoint' && check.status === 'pass',
+    );
+    if (enrolled) {
+      try {
+        getProbeStore().enroll([{ chainId, tokenId }]);
+      } catch {
+        /*
+         * Never fail the diagnostic over this. The report is what the operator
+         * asked for; enrolment is something we do off the back of it, and a
+         * store that will not write is our problem to notice, not theirs.
+         */
+      }
+    }
+
+    return NextResponse.json({ ...report, enrolled });
   } catch (error) {
     if (error instanceof AgentNotFound) {
       return NextResponse.json(

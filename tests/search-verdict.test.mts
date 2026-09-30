@@ -144,3 +144,23 @@ test('an agent that never answered is never offered hire', () => {
   // record is asserted too: a tier change must not let one through.
   assert.equal(offersDirectHire(agent(50, 0, 5)), false);
 });
+
+test('price filters use only a current signed quote', () => {
+  const candidate = agent(20, 20, 2) as unknown as {
+    listing: { quote: { priceU: number; expiresAt: string } };
+  };
+  candidate.listing.quote = {
+    priceU: 0.1,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  assert.equal(matchesQuery(candidate as never, parseQuery('has:price')), true);
+  assert.equal(matchesQuery(candidate as never, parseQuery('has:price<=0.1')), true);
+  candidate.listing.quote.expiresAt = new Date(Date.now() - 60_000).toISOString();
+  assert.equal(matchesQuery(candidate as never, parseQuery('has:price')), false);
+});
+
+test('hire filters distinguish an actionable card from escrow safety', () => {
+  assert.equal(matchesQuery(agent(20, 20, 2), parseQuery('is:hireable')), true);
+  assert.equal(matchesQuery(agent(20, 0, 2), parseQuery('is:hireable')), false);
+  assert.equal(matchesQuery(agent(0, 0, 0), parseQuery('is:escrow-only')), true);
+});

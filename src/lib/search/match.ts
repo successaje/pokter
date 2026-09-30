@@ -110,9 +110,18 @@ function numericField(agent: SearchableAgent, field: string): number | null {
       const rate = uptime(agent.record);
       return rate === null ? null : Math.round(rate * 100);
     }
+    case 'price':
+      return currentQuote(agent)?.priceU ?? null;
     default:
       return null;
   }
+}
+
+function currentQuote(agent: SearchableAgent) {
+  const quote = agent.listing.quote;
+  if (!quote) return null;
+  if (quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now()) return null;
+  return quote;
 }
 
 function compare(value: number, op: string, target: number): boolean {
@@ -169,6 +178,13 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
           return listing.agent.chain_id === 97;
         case 'mainnet':
           return listing.agent.chain_id === 56;
+        case 'hireable':
+          return offersDirectHire(agent);
+        case 'escrow-only':
+          // Pokter's current commission path creates one ERC-8183 job and no
+          // standing wallet authority. This describes our hire path, not a
+          // capability claimed by the registry publisher.
+          return true;
         default:
           return false;
       }
@@ -192,6 +208,8 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
           return listing.attestationCount > 0;
         case 'record':
           return record.totalProbes > 0;
+        case 'price':
+          return currentQuote(agent) !== null;
         default:
           return false;
       }

@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits } from 'viem';
 import { useCallback, useState, type ReactNode } from 'react';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -48,6 +50,94 @@ function EscrowIcon() {
       <rect x="3" y="7" width="18" height="13" rx="3" />
       <path d="M7 7V5a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v2M12 11v5" />
     </svg>
+  );
+}
+
+function WorkspaceIcon({ builder = false }: { builder?: boolean }) {
+  return builder ? (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="M4 8.5 12 4l8 4.5v9L12 22l-8-4.5v-9Z" />
+      <path d="m4 8.5 8 4.5 8-4.5M12 13v9" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden className="size-4 fill-none stroke-current" strokeWidth="1.8">
+      <path d="m3 11 9-8 9 8" />
+      <path d="M5 10v10h14V10M9 20v-6h6v6" />
+    </svg>
+  );
+}
+
+function WorkspaceSwitcher({
+  builderOwner,
+  builderSessionPending,
+  current,
+  onNavigate,
+}: {
+  builderOwner?: string;
+  builderSessionPending: boolean;
+  current: 'personal' | 'builder';
+  onNavigate: () => void;
+}) {
+  return (
+    <section className="mt-3 border-y border-[color:var(--border)] py-3" aria-label="Workspace">
+      <p className="px-1 text-[9px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
+        Workspace
+      </p>
+      <div className="mt-2 grid gap-1">
+        <Link
+          href="/app"
+          onClick={onNavigate}
+          className={cn(
+            'flex items-center gap-3 rounded-[var(--radius)] px-2.5 py-2 text-left transition-colors',
+            current === 'personal'
+              ? 'bg-[color:var(--surface-hover)] text-[color:var(--text)]'
+              : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]',
+          )}
+        >
+          <WorkspaceIcon />
+          <span className="text-[12px] font-medium">Personal</span>
+          {current === 'personal' && <span className="ml-auto text-[color:var(--positive)]" aria-label="Current workspace">✓</span>}
+        </Link>
+
+        {builderOwner ? (
+          <Link
+            href="/builder"
+            onClick={onNavigate}
+            className={cn(
+              'flex items-center gap-3 rounded-[var(--radius)] px-2.5 py-2 text-left transition-colors',
+              current === 'builder'
+                ? 'bg-[color:var(--surface-hover)] text-[color:var(--text)]'
+                : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]',
+            )}
+          >
+            <WorkspaceIcon builder />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium">Builder</span>
+              <span className="mono block truncate text-[9px] text-[color:var(--text-faint)]">Verified {shortAddress(builderOwner)}</span>
+            </span>
+            {current === 'builder' && <span className="text-[color:var(--positive)]" aria-label="Current workspace">✓</span>}
+          </Link>
+        ) : builderSessionPending ? (
+          <div className="flex items-center gap-3 rounded-[var(--radius)] px-2.5 py-2 text-[color:var(--text-muted)]">
+            <WorkspaceIcon builder />
+            <span className="text-[12px] font-medium">Checking builder access…</span>
+          </div>
+        ) : (
+          <Link
+            href="/build"
+            onClick={onNavigate}
+            className="flex items-center gap-3 rounded-[var(--radius)] px-2.5 py-2 text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+          >
+            <WorkspaceIcon builder />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium">Become a builder</span>
+              <span className="block truncate text-[9px] text-[color:var(--text-faint)]">Verify an ERC-8004 agent you own</span>
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -138,6 +228,7 @@ function WalletRow({
  * equal option would imply a capability it does not have.
  */
 export function ConnectWallet() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const close = useCallback(() => setOpen(false), []);
@@ -192,6 +283,20 @@ export function ConnectWallet() {
     refetchInterval: 30_000,
   });
   const anyConnected = Boolean(connectedAddress);
+  const builderSession = useQuery<{ authenticated: boolean; owner?: string }>({
+    queryKey: ['builder-session'],
+    queryFn: async () => {
+      const response = await fetch('/api/builders/session', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error('Builder session could not be read.');
+      return response.json() as Promise<{ authenticated: boolean; owner?: string }>;
+    },
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const currentWorkspace = pathname === '/builder' ? 'builder' : 'personal';
 
   return (
     <div ref={layerRef} className="relative">
@@ -263,6 +368,13 @@ export function ConnectWallet() {
               </span>
             )}
           </div>
+
+          <WorkspaceSwitcher
+            builderOwner={builderSession.data?.authenticated ? builderSession.data.owner : undefined}
+            builderSessionPending={builderSession.isPending}
+            current={currentWorkspace}
+            onNavigate={close}
+          />
 
           {/*
             A connected browser wallet leads, wrong network included.

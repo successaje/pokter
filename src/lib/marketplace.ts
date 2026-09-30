@@ -23,6 +23,12 @@ import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
 import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
+import { getJobStore } from '@/lib/erc8183/store';
+import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { getReviewStore } from '@/lib/reviews/store';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { preferDistinctOwners } from '@/lib/agents/diversity';
+export { preferDistinctOwners };
 
 /**
  * Retrieval is deliberately hybrid.
@@ -289,6 +295,11 @@ export interface Comparison {
   proof: ProofSummary;
   record: TrackRecord;
   score: PokterScore;
+  quote: QuoteRecord | null;
+  quoteCurrent: boolean;
+  economicHistory: AgentEconomicHistory;
+  reviewCount: number;
+  reviewAverage: number | null;
 }
 
 export async function getComparison(
@@ -312,6 +323,9 @@ export async function getComparison(
   const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
   const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
   const category = classify(agent);
+  const quote = getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null;
+  const economicHistory = summariseEconomicHistory(getJobStore().byAgent(chainId, tokenId));
+  const reviews = getReviewStore().byAgent(chainId, tokenId);
 
   return {
     agent,
@@ -319,6 +333,15 @@ export async function getComparison(
     proof,
     record,
     score: computeScore({ agent, category, proof, attestations, record }),
+    quote,
+    quoteCurrent: Boolean(
+      quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
+    ),
+    economicHistory,
+    reviewCount: reviews.length,
+    reviewAverage: reviews.length
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : null,
   };
 }
 
@@ -456,7 +479,11 @@ export async function recommendedAlternatives(
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
   const ranked = listings
-    .filter((listing) => listing.agent.token_id !== excludeTokenId)
+    .filter(
+      (listing) =>
+        listing.agent.token_id !== excludeTokenId &&
+        isPromotableAgent(listing.agent),
+    )
     .map((listing) => {
       const history = store.historyFor(
         listing.agent.chain_id,
@@ -516,25 +543,4 @@ export function listingsPerOwner<T extends { listing: Listing }>(
     counts.set(owner, (counts.get(owner) ?? 0) + 1);
   }
   return counts;
-}
-
-export function preferDistinctOwners<T extends { listing: Listing }>(
-  ranked: T[],
-  limit: number,
-): T[] {
-  const seen = new Set<string>();
-  const first: T[] = [];
-  const rest: T[] = [];
-
-  for (const entry of ranked) {
-    const owner = entry.listing.agent.owner_address?.toLowerCase() ?? '';
-    if (owner && seen.has(owner)) {
-      rest.push(entry);
-      continue;
-    }
-    if (owner) seen.add(owner);
-    first.push(entry);
-  }
-
-  return [...first, ...rest].slice(0, limit);
 }

@@ -302,6 +302,7 @@ src/lib/
   altana/       historical sessions, revocation, fail-closed delegation policy
   erc8183/      job escrow: hire, status, settle
   wallet/       passkey wallets and the signer in use
+  notifications verified email subscriptions and a durable delivery outbox
   hero/         the landing pipeline, built from real measurements
 ```
 
@@ -348,12 +349,42 @@ and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
 operator routes from a trusted script; they fail closed when it is absent and
 the browser UI never receives it. **Use a testnet key.**
 
+Transactional job email is optional and server-only. Configure
+`RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` to enable it, with
+`NOTIFICATION_REPLY_TO` when replies should reach support. A dedicated random
+`NOTIFICATION_UNSUBSCRIBE_SECRET` is recommended; without one, the Resend key
+signs unsubscribe links and rotating it invalidates existing links. Email
+subscriptions require confirmation, are scoped to one on-chain job, exclude
+task text and never participate in escrow execution.
+The authenticated scheduled sweep also checks subscribed jobs against the
+escrow contract, so delivery does not depend on a buyer keeping Pokter open.
+
 ## Deployment
 
 Deployed on Fly.io with a persistent volume, and the volume is the point: the
 SQLite stores hold accumulated probe history, historical sessions, escrowed
-jobs, deliverables and rate-limit state. A marketplace whose evidence resets on
+jobs, deliverables, notification subscriptions/outbox and rate-limit state. A marketplace whose evidence resets on
 every deploy is not one.
+
+`REVIEW_DB_PATH` and `BUILDER_DB_PATH` must point at the same persistent volume
+as the probe, job, notification and deliverable stores. Fly sets them to
+`/data/reviews.db` and `/data/builders.db`; do not leave either on the image
+filesystem in production. The builder store contains ownership-verification
+proofs and hashed, expiring dashboard sessions.
+
+Historical ERC-8183 jobs can be repaired or imported through the guarded
+`POST /api/jobs/backfill` endpoint. It uses the same bearer `SWEEP_SECRET` as
+the scheduled evidence sweep, accepts at most 100 explicit numeric `jobIds`,
+and is a dry run unless the JSON body includes `"write": true`. Identity,
+provider, budget and status are re-read from chain; jobs without a valid Pokter
+identity envelope are skipped rather than attributed heuristically.
+
+Verified reviews are never hidden by report volume. `POST /api/reviews/report`
+only adds a rate-limited moderation report. The guarded
+`GET /api/reviews/moderate` lists open reports, and authenticated `PATCH`
+actions can dismiss a report, hide a review, or restore it. These endpoints use
+the same bearer `SWEEP_SECRET`; moderation retains the signed review and records
+the operator reason instead of deleting evidence.
 
 ```bash
 flyctl deploy --now

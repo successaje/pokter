@@ -29,7 +29,7 @@ export function LiveProof({ probes }: { probes: ProbeLine[] }) {
         </p>
       </div>
 
-      <ol className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)]">
+      <ol className="motion-stagger overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)]">
         {probes.map((probe, index) => (
           <li
             key={`${probe.at}-${index}`}

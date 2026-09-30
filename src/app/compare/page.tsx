@@ -1,10 +1,18 @@
+import type { Metadata } from 'next';
 import { StatusState } from '@/components/ui/States';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { getComparisons, listMarketplace, type Listing } from '@/lib/marketplace';
+import { getComparisons, listSearchable, type Listing } from '@/lib/marketplace';
 import { CompareTable } from '@/components/compare/CompareTable';
 import { AgentPicker, type PickerOption } from '@/components/compare/AgentPicker';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Compare agents',
+  description:
+    'Compare BNB Chain agents side by side using measured reliability, evidence coverage and onchain identity.',
+};
 
 /** §27. Up to four, because a fifth column stops being readable. */
 const MAX_AGENTS = 4;
@@ -27,10 +35,42 @@ export default async function ComparePage({
   const params = await searchParams;
   const selected = parseSelection(params.agents);
 
-  const [sections, entries] = await Promise.all([
-    listMarketplace({ limit: 4 }),
+  const [searchable, entries] = await Promise.all([
+    listSearchable({ limit: 30 }),
     getComparisons(selected),
   ]);
+
+  const pickerOptions = searchable
+    .map(({ listing }) => listing)
+    .filter((listing) => isPromotableAgent(listing.agent))
+    .map((listing): PickerOption => ({
+      key: keyFor(listing),
+      name: listing.agent.name,
+      imageUrl: listing.agent.image_url ?? null,
+      description: listing.agent.description?.trim() || 'No description published.',
+      category: listing.category,
+      categoryLabel: CATEGORY_BY_ID.get(listing.category)?.label ?? 'Other',
+    }));
+
+  // An explicitly shared comparison remains reproducible even when it
+  // contains a test or retired identity. Such identities are omitted only
+  // from the default chooser, never hidden from a deliberate inspection.
+  for (const entry of entries) {
+    const key = `${entry.agent.chain_id}:${entry.agent.token_id}`;
+    if (pickerOptions.some((option) => option.key === key)) continue;
+    const meta =
+      entry.category === 'unclassified'
+        ? null
+        : CATEGORY_BY_ID.get(entry.category);
+    pickerOptions.push({
+      key,
+      name: entry.agent.name,
+      imageUrl: entry.agent.image_url ?? null,
+      description: entry.agent.description?.trim() || 'No description published.',
+      category: entry.category,
+      categoryLabel: meta?.label ?? 'Other',
+    });
+  }
 
 
   return (
@@ -48,19 +88,7 @@ export default async function ComparePage({
       </header>
 
       <AgentPicker
-        options={sections.flatMap(({ category, listings }) => {
-          const meta = CATEGORY_BY_ID.get(category);
-          return meta
-            ? listings.map(
-                (listing): PickerOption => ({
-                  key: keyFor(listing),
-                  name: listing.agent.name,
-                  category,
-                  categoryLabel: meta.label,
-                }),
-              )
-            : [];
-        })}
+        options={pickerOptions}
         selected={selected}
         max={MAX_AGENTS}
       />

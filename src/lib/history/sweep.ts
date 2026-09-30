@@ -98,7 +98,21 @@ async function buildRoster(
   }
 
   const seen = new Set<string>();
-  return [...listed, ...store.trackedAgents(), ...fromRegistry].filter((entry) => {
+  /*
+   * Agents that asked to be measured, ahead of the registry tier.
+   *
+   * A newly registered agent has no score, so the registry tier — ordered by
+   * score and cut at a depth — would not reach it for a long time, and keyword
+   * discovery only finds it if its description happens to match. Enrolment is
+   * how a builder says "I exist, call me" without being able to say anything
+   * about how well it went.
+   */
+  return [
+    ...listed,
+    ...store.trackedAgents(),
+    ...store.enrolledAgents(),
+    ...fromRegistry,
+  ].filter((entry) => {
     const key = `${entry.chainId}:${entry.tokenId}`;
     if (seen.has(key)) return false;
     seen.add(key);

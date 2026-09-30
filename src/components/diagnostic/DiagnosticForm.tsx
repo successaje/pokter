@@ -39,7 +39,9 @@ const STATUS_WORD: Record<DiagnosticCheck['status'], string> = {
 export function DiagnosticForm() {
   const [tokenId, setTokenId] = useState('');
   const [chainId, setChainId] = useState('56');
-  const [report, setReport] = useState<DiagnosticReport | null>(null);
+  const [report, setReport] = useState<
+    (DiagnosticReport & { enrolled?: boolean }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -56,7 +58,7 @@ export function DiagnosticForm() {
       });
       const payload = await response.json();
       if (!response.ok) setError(payload.error ?? 'The diagnostic failed.');
-      else setReport(payload as DiagnosticReport);
+      else setReport(payload as DiagnosticReport & { enrolled?: boolean });
     } catch {
       setError('The diagnostic could not be reached.');
     } finally {
@@ -141,6 +143,38 @@ export function DiagnosticForm() {
               ? 'Nothing Pokter checks is failing. Anything marked not checked was impossible to test, not broken.'
               : `${failing.length} of ${report.checks.length} checks ${failing.length === 1 ? 'is' : 'are'} failing. Each one below says what changes if you fix it.`}
           </p>
+
+          {/*
+            What the run changed, rather than only what it found.
+
+            Before this, an operator could pass every check and leave with a
+            column of ticks and no idea that nothing had happened. The listing
+            is not gated, but discovery is keyword-driven and the registry
+            sweep is ordered by a score a new agent has not earned yet — so
+            "you are compatible" was true and useless. This says whether they
+            are now on the roster, and is careful not to promise evidence it
+            has not gathered.
+          */}
+          {report.enrolled !== undefined && (
+            <div
+              className={
+                report.enrolled
+                  ? 'rounded-[var(--radius)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] px-3 py-2.5'
+                  : 'rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] px-3 py-2.5'
+              }
+            >
+              <p className="text-[12px] font-medium">
+                {report.enrolled
+                  ? 'Added to the measurement roster'
+                  : 'Not on the measurement roster'}
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+                {report.enrolled
+                  ? 'Pokter will call this agent on every sweep from now on. Nothing from this diagnostic counts as evidence — your record is built only from sweeps we schedule, which is what makes it worth reading. Expect a verdict once there are enough probes over enough days.'
+                  : 'Pokter can only measure an agent it has an address for. Publish a service endpoint in your ERC-8004 record and run this again.'}
+              </p>
+            </div>
+          )}
 
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {report.checks.map((check) => (

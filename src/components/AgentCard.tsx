@@ -4,11 +4,11 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
 import type { Verdict } from '@/lib/proof/engine';
 import type { TrackRecord } from '@/lib/history/record';
-import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
+import { SaveAgentButton } from './agent/SaveAgentButton';
 
 /**
  * §19. The marketplace card.
@@ -93,7 +93,7 @@ export function AgentCard({
    */
   const priceLabel =
     listing.quote === undefined
-      ? 'Price not yet asked'
+      ? 'Not asked'
       : listing.quote === null
         ? 'No price quoted'
         : formatQuotedPrice(listing.quote.priceU);
@@ -102,11 +102,17 @@ export function AgentCard({
 
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
+  const saveAgent = {
+    chainId: agent.chain_id,
+    tokenId: agent.token_id,
+    name: agent.name,
+    imageUrl: agent.image_url ?? null,
+    category: listing.category,
+    description,
+  };
 
   const attestations =
-    attestationCount === 0
-      ? 'No attestations'
-      : `${attestationCount} attestation${attestationCount === 1 ? '' : 's'}`;
+    attestationCount === 0 ? null : `${attestationCount} att`;
 
   /*
    * The card answers five questions and no more: what does it do, can I
@@ -117,12 +123,7 @@ export function AgentCard({
   const availability =
     record && record.totalProbes > 0
       ? `${Math.round((record.totalAnswered / record.totalProbes) * 100)}% of ${record.totalProbes} probes`
-      : 'Not yet probed';
-
-  /* An owner is a publisher. Shown short, because the full word is an address. */
-  const publisher = agent.owner_address
-    ? shortAddress(agent.owner_address)
-    : null;
+      : 'Unprobed';
 
   /*
     FE-08. break-words alone let `mandaterebalance-agent` split as
@@ -150,6 +151,7 @@ export function AgentCard({
         scroll — latent until a higher list limit surfaced that agent.
       */}
       <div className="surface-card relative flex min-w-0 flex-col md:hidden">
+        <SaveAgentButton agent={saveAgent} compact className="absolute right-2.5 top-2.5 z-10" />
         <Link href={href} className="flex flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2.5">
@@ -196,7 +198,7 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <span className="flex shrink-0 items-center gap-1.5">
+            <span className="mr-9 flex shrink-0 items-center gap-1.5">
               {downRecently && (
                 <span
                   title="Answered no probes in the last 24 hours"
@@ -224,9 +226,11 @@ export function AgentCard({
           two, which is most of the height difference.
         */}
         <div className="flex flex-col gap-2 border-t border-[color:var(--border)] px-3 py-2.5">
+          {/* Same cut as the desktop footer: the address was never the
+              reason anyone picked one of these. */}
           <p className="tabular min-w-0 truncate text-[11px] text-[color:var(--text-faint)]">
-            {publisher ? `${publisher} · ` : ''}
             {availability}
+            {attestations ? ` · ${attestations}` : ''}
           </p>
           <div className="flex items-center justify-between gap-2">
             <span
@@ -257,6 +261,7 @@ export function AgentCard({
 
       {/* ── Desktop, unchanged ────────────────────────────────────────── */}
       <div className="surface-card group relative hidden h-full min-w-0 flex-col md:flex">
+        <SaveAgentButton agent={saveAgent} compact className="absolute right-3 top-3 z-10" />
         <Link href={href} className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -303,7 +308,7 @@ export function AgentCard({
                 {name}
               </div>
             </div>
-            <span className="flex shrink-0 items-center gap-1.5">
+            <span className="mr-9 flex shrink-0 items-center gap-1.5">
               {downRecently && (
                 <span
                   title="Answered no probes in the last 24 hours"
@@ -316,41 +321,49 @@ export function AgentCard({
             </span>
           </div>
 
-          <p className="line-clamp-3 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
+          <p className="line-clamp-2 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
             {description}
           </p>
 
-          <dl className="mt-auto flex flex-col gap-1 border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--text-faint)]">
-            <div className="flex items-baseline justify-between gap-3">
-              {/*
-                These labels are `sr-only`, which is `position: absolute`. With
-                no positioned ancestor their containing block is the document,
-                so a card sitting inside a horizontally scrolled strip placed
-                them a thousand pixels past the viewport and stretched the page
-                itself — the whole layout slid sideways on any agent page whose
-                similar-agents row was long enough to scroll. The `relative` on
-                the card root is what keeps them inside it.
-              */}
-              <dt className="sr-only">Publisher</dt>
-              <dd className="min-w-0 truncate">{publisher ?? 'Owner unknown'}</dd>
-              <dt className="sr-only">Attestations</dt>
-              <dd className="tabular shrink-0">{attestations}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
+          {/*
+            One line, not four values in a block.
+
+            The footer carried publisher, attestations, availability and price
+            on two rows. Scanning a grid, the publisher address was the one
+            nobody read — it is an identifier, not a reason to choose, and the
+            fleet chip above already says when a publisher holds many of these.
+            Dropping it leaves the three that answer "is it up, has anyone else
+            checked, what does it cost" on a single line.
+
+            These labels are `sr-only`, which is `position: absolute`. With no
+            positioned ancestor their containing block is the document, so a
+            card in a horizontally scrolled strip placed them a thousand pixels
+            past the viewport and stretched the page itself. The `relative` on
+            the card root is what keeps them inside it.
+          */}
+          <dl className="mt-auto flex items-baseline justify-between gap-3 border-t border-[color:var(--border)] pt-2.5 text-[11px] text-[color:var(--text-faint)]">
+            <div className="flex min-w-0 items-baseline gap-1.5">
               <dt className="sr-only">Availability</dt>
-              <dd className="tabular min-w-0 truncate">{availability}</dd>
-              <dt className="sr-only">Price</dt>
-              <dd
-                className={cn(
-                  'tabular shrink-0',
-                  hasPrice
-                    ? 'font-medium text-[color:var(--text-secondary)]'
-                    : 'text-[color:var(--text-faint)]',
-                )}
-              >
-                {priceLabel}
-              </dd>
+              <dd className="tabular truncate">{availability}</dd>
+              {attestations && (
+                <>
+                  <span aria-hidden>·</span>
+                  <dt className="sr-only">Attestations</dt>
+                  <dd className="tabular shrink-0">{attestations}</dd>
+                </>
+              )}
             </div>
+            <dt className="sr-only">Price</dt>
+            <dd
+              className={cn(
+                'tabular shrink-0',
+                hasPrice
+                  ? 'font-medium text-[color:var(--text-secondary)]'
+                  : 'text-[color:var(--text-faint)]',
+              )}
+            >
+              {priceLabel}
+            </dd>
           </dl>
         </Link>
 

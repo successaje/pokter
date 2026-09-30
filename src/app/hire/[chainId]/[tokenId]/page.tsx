@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { NETWORK_LABEL, REGISTRY_NETWORK_LABEL } from '@/lib/network/presentation';
 import { notFound } from 'next/navigation';
@@ -18,6 +19,12 @@ import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Hire an agent',
+  description:
+    'Describe a task, review the evidence and fund an ERC-8183 escrow commission on BNB Chain.',
+};
 
 export default async function HirePage({
   params,

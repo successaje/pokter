@@ -3,16 +3,17 @@ import Link from 'next/link';
 import {
   getComparison,
   getEcosystemStats,
-  listMarketplace,
+  listSearchable,
 } from '@/lib/marketplace';
-import { ObjectiveSelector } from '@/components/home/ObjectiveSelector';
 import { EcosystemPanel } from '@/components/home/EcosystemPanel';
+import { HireableNow } from '@/components/home/HireableNow';
+import { BrowseByOutcome } from '@/components/home/BrowseByOutcome';
 import { ClaimVsEvidence } from '@/components/home/ClaimVsEvidence';
 import { HowItWorks } from '@/components/home/HowItWorks';
 import { Reveal } from '@/components/motion/Reveal';
 import { LandingHero } from '@/components/home/LandingHero';
 import { LiveProof } from '@/components/home/LiveProof';
-import { buildPipeline, recentProbes } from '@/lib/hero/pipeline';
+import { recentProbes } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,10 @@ export const dynamic = 'force-dynamic';
 const EXHIBIT = { chainId: 56, tokenId: '292058' } as const;
 
 export default async function HomePage() {
-  const [stats, sections, exhibit, pipeline] = await Promise.all([
+  const [stats, listings, exhibit] = await Promise.all([
     getEcosystemStats(),
-    listMarketplace({ limit: 4 }),
+    listSearchable({ limit: 30 }).catch(() => []),
     getComparison(EXHIBIT.chainId, EXHIBIT.tokenId).catch(() => null),
-    buildPipeline().catch(() => null),
   ]);
 
   const probes = recentProbes(5);
@@ -40,35 +40,48 @@ export default async function HomePage() {
         the first scroll has to reach agents; a hero holding the whole screen
         put the marketplace two screens further away than the argument needed.
       */}
-      <LandingHero pipeline={pipeline} compact />
+      <LandingHero compact />
 
       {/*
-        Browsing first. A visitor arriving at a marketplace is looking for
-        agents, and the argument for why these agents can be believed reads
-        better as the answer to a question they have already started asking
-        than as a prologue to one they have not.
+        Agents, immediately. Cutting the outcome scenes for their prose took
+        the agents inside them too, and a marketplace whose front page shows
+        no agents is a worse page than a wordy one.
       */}
-      <Reveal>
-        <ObjectiveSelector sections={sections} />
+      <Reveal className="reveal-from-right">
+        <HireableNow entries={listings} />
       </Reveal>
 
+      <Reveal className="reveal-from-left">
+        <BrowseByOutcome entries={listings} />
+      </Reveal>
+
+      {/*
+        The outcome scenes are gone, not moved.
+
+        They asked "what are you trying to do?" across four scenes and 1,858
+        pixels — a third of this page to pose one question and answer it with a
+        rail of agents the catalogue already shows better. The question now
+        sits in the hero as an input with the same four objectives beside it,
+        and the answer is the catalogue, which is built for it.
+      */}
+
       {/* THE SCALE — the number that makes the rest necessary. */}
-      <Reveal>
+      <Reveal className="reveal-scale">
         <EcosystemPanel stats={stats} />
       </Reveal>
 
       {/* THE PROBLEM — a real agent whose pitch outruns its evidence. */}
-      <Reveal>
+      <Reveal className="reveal-from-right">
         <ClaimVsEvidence exhibit={exhibit} />
       </Reveal>
 
       {/* LIVE PROOF — the check itself, verbatim. */}
-      <Reveal>
+      <Reveal className="reveal-from-left">
         <LiveProof probes={probes} />
       </Reveal>
 
       {/* THE EVIDENCE ENGINE, THE DECISION, THE PERMISSION — the loop. */}
-      <Reveal>
+      <Reveal className="reveal-scale">
         <HowItWorks />
       </Reveal>
 
@@ -95,28 +108,6 @@ export default async function HomePage() {
           >
             Read how it is built →
           </Link>
-        </section>
-      </Reveal>
-
-      <Reveal>
-        <section className="flex flex-col items-center gap-6 py-8 text-center">
-          <h2 className="display max-w-3xl text-3xl sm:text-5xl">
-            Choose what <span className="swash">deserves</span> your money.
-          </h2>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/discover"
-              className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
-            >
-              Find an agent
-            </Link>
-            <Link
-              href="/agent-advantage"
-              className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-            >
-              Does hiring one actually beat doing it yourself?
-            </Link>
-          </div>
         </section>
       </Reveal>
 

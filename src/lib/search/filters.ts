@@ -40,11 +40,21 @@ export const FILTER_GROUPS: FilterGroup[] = [
     label: 'Endpoint',
     hint: 'Whether it answers when called',
     options: [
-      { query: 'is:live', label: 'Answering now' },
-      { query: 'is:offline', label: 'Not answering' },
+      { query: 'is:live', label: 'Has answered' },
+      { query: 'is:offline', label: 'No probe answered' },
       { query: 'is:measured', label: 'Probed by Pokter' },
       { query: 'is:unmeasured', label: 'Never probed' },
       { query: 'has:endpoint', label: 'Publishes an endpoint' },
+    ],
+  },
+  {
+    label: 'Hiring',
+    hint: 'Price and the action Pokter can safely offer',
+    options: [
+      { query: 'is:hireable', label: 'Available to hire' },
+      { query: 'has:price', label: 'Has current signed price' },
+      { query: 'has:price<=0.1', label: 'Priced at 0.10 $U or less' },
+      { query: 'is:escrow-only', label: 'No standing wallet access' },
     ],
   },
   {

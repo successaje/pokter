@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
+import { getErc8183Job } from '@altananetwork/sdk';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
 
 export const dynamic = 'force-dynamic';
 /** A sweep probes the whole roster; it needs more than the default budget. */
@@ -32,7 +35,19 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const outcome = await runSweep();
-    return NextResponse.json(outcome);
+    const notificationResults = await Promise.allSettled(
+      subscribedJobs().map(async ({ chainId, jobId }) => {
+        if (chainId !== ALTANA_NETWORK.chainId) return { attempted: 0, sent: 0 };
+        const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+        return notifyJobEvent({ chainId, jobId, status: job.statusName });
+      }),
+    );
+    const notifications = notificationResults.reduce(
+      (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
+      0,
+    );
+    const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
+    return NextResponse.json({ ...outcome, notifications, notificationFailures });
   } catch (error) {
     return NextResponse.json(
       { error: `Sweep failed: ${(error as Error).message}` },

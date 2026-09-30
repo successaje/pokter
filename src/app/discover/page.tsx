@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { recommend } from '@/lib/recommend/engine';
 import type { Brief, RiskTolerance } from '@/lib/recommend/types';
-import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
+import { OBJECTIVES } from '@/lib/agents/objectives';
 import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
@@ -12,8 +12,11 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
-import { AskLauncher } from '@/components/discover/AskLauncher';
+import { DiscoverHero } from '@/components/discover/DiscoverHero';
+import { OutcomeCollections } from '@/components/discover/OutcomeCollections';
+import { DiscoverResults } from '@/components/discover/DiscoverResults';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
 export const dynamic = 'force-dynamic';
@@ -197,6 +200,7 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
+  const intent = typeof params.intent === 'string' ? params.intent.trim().slice(0, 240) : '';
   const selectedCategory =
     typeof params.category === 'string' && CATEGORY_BY_ID.has(params.category as Category)
       ? params.category
@@ -217,49 +221,33 @@ export default async function DiscoverPage({
     (sum, entry) => sum + entry.listing.attestationCount,
     0,
   );
+  const categoryCounts = Object.fromEntries(
+    (['rebalancing', 'grid-trading', 'yield', 'health-factor'] as Category[]).map((category) => [
+      category,
+      browseAgents.filter(
+        (entry) =>
+          entry.listing.category === category &&
+          isPromotableAgent(entry.listing.agent),
+      ).length,
+    ]),
+  ) as Record<Category, number>;
 
   return (
     <div className="flex flex-col gap-12 pt-6">
-      <AskLauncher />
-      <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div className="flex max-w-3xl flex-col gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-          BNB Chain agent marketplace
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Explore agents. Inspect the evidence.
-        </h1>
-        {/*
-          Desktop only. On a phone this sits between the title and the
-          marketplace the page is named after, and the "Find my best match"
-          button below already says the second half of it.
-        */}
-        <p className="hidden max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
-          Browse the market immediately, or ask Pokter to build an
-          evidence-ranked shortlist around your goal, capital and risk.
-        </p>
-        </div>
-        {/*
-          The header used to carry a button jumping to a collapsed panel at
-          the foot of the page. The panel now sits immediately below this, so
-          a link to it would be pointing at something already in view.
-        */}
-      </header>
+      {!shouldRun && !intent && <DiscoverHero />}
 
-      {!shouldRun && stats && activity && (
+      {!shouldRun && intent && (
+        <DiscoverResults
+          entries={browseAgents}
+          intent={intent}
+          selectedCategory={selectedCategory as Category | null}
+          evidence={typeof params.evidence === 'string' ? params.evidence : null}
+        />
+      )}
+
+      {!shouldRun && !intent && stats && activity && (
         <>
-          {/*
-            Coverage first. It is three numbers on one line and it frames
-            everything under it — how much of the registry this page is
-            actually drawing from — so it costs a row and earns it.
-          */}
-          <MarketplacePulse
-            stats={stats}
-            listed={browseAgents.length}
-            answering={answering}
-            attestations={attestations}
-            activity={activity}
-          />
+          <OutcomeCollections counts={categoryCounts} selected={selectedCategory} />
 
           {/*
             The guided path, as a bar rather than a billboard.
@@ -297,6 +285,14 @@ export default async function DiscoverPage({
 
 
           <ExploreMarketplace agents={browseAgents} selectedCategory={selectedCategory} />
+
+          <MarketplacePulse
+            stats={stats}
+            listed={browseAgents.length}
+            answering={answering}
+            attestations={attestations}
+            activity={activity}
+          />
 
         </>
       )}

@@ -111,6 +111,11 @@
   --brand-shadow: rgba(243, 186, 47, 0.18);
   --brand-highlight: #f3ba2f;
   --brand-highlight-soft: rgba(243, 186, 47, 0.22);
+
+  /* Editorial feature surfaces. These stay warm and quiet in dark mode. */
+  --feature-glow: rgba(243, 186, 47, 0.1);
+  --feature-tint: #202019;
+  --feature-shape: rgba(243, 186, 47, 0.16);
 }
 
 @theme inline {
@@ -210,6 +215,9 @@
   --light-brand-shadow: rgba(243, 186, 47, 0.18);
   --light-brand-highlight: #d99a00;
   --light-brand-highlight-soft: #fff4cf;
+  --light-feature-glow: rgba(255, 255, 255, 0.92);
+  --light-feature-tint: #fff3c8;
+  --light-feature-shape: rgba(255, 255, 255, 0.72);
 }
 
 /* Applied only when light is actually in effect. */
@@ -244,6 +252,9 @@
   --brand-hover: var(--light-brand-hover);
   --brand-ink: var(--light-brand-ink);
   --brand-shadow: var(--light-brand-shadow);
+  --feature-glow: var(--light-feature-glow);
+  --feature-tint: var(--light-feature-tint);
+  --feature-shape: var(--light-feature-shape);
 
   color-scheme: light;
 }
@@ -280,6 +291,9 @@
     --brand-hover: var(--light-brand-hover);
     --brand-ink: var(--light-brand-ink);
     --brand-shadow: var(--light-brand-shadow);
+    --feature-glow: var(--light-feature-glow);
+    --feature-tint: var(--light-feature-tint);
+    --feature-shape: var(--light-feature-shape);
 
     color-scheme: light;
   }
@@ -608,13 +622,45 @@ body {
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .reveal {
-      animation: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      --reveal-x: 0px;
+      animation: section-arrive 1ms cubic-bezier(0.22, 1, 0.36, 1) both;
       animation-timeline: view();
-      /* Completes a little before the element is centred, so the motion is
-         finished by the time anyone is actually reading it. */
-      animation-range: entry 0% entry 42%;
+      animation-range: entry 2% entry 48%;
     }
+
+    .reveal-from-left { --reveal-x: -34px; }
+    .reveal-from-right { --reveal-x: 34px; }
+    .reveal-scale { --reveal-x: 0px; }
+
+    .motion-stagger > * {
+      animation: detail-arrive 1ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 30%;
+    }
+
+    .motion-stagger > :nth-child(2) { animation-range: entry 4% entry 34%; }
+    .motion-stagger > :nth-child(3) { animation-range: entry 8% entry 38%; }
+    .motion-stagger > :nth-child(4) { animation-range: entry 12% entry 42%; }
+    .motion-stagger > :nth-child(5) { animation-range: entry 16% entry 46%; }
   }
+}
+
+@keyframes section-arrive {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translate3d(var(--reveal-x), 30px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes detail-arrive {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /*
@@ -775,6 +821,110 @@ body {
 
 .desk { color: var(--text-secondary); }
 
+.agent-quick-view::backdrop {
+  background: rgb(11 13 18 / 0.66);
+  backdrop-filter: blur(8px);
+}
+
+/* Feature panels use theme tokens instead of literal white gradients. */
+.discover-hero,
+.spotlight-stage {
+  background:
+    radial-gradient(circle at 50% 10%, var(--feature-glow), transparent 40%),
+    linear-gradient(145deg, var(--surface-raised), var(--feature-tint));
+}
+
+.discover-hero-shape {
+  border-color: var(--feature-shape);
+  background: color-mix(in srgb, var(--feature-shape) 28%, transparent);
+}
+
+.discover-prompt {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.discover-prompt:hover {
+  background: var(--surface-hover);
+}
+
+.discover-filter-panel {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.spotlight-evidence-visual {
+  background: linear-gradient(145deg, var(--surface-raised), var(--feature-tint));
+}
+
+@keyframes hero-ambient-breathe {
+  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.98); }
+  50% { opacity: 0.82; transform: translate(-50%, -50%) scale(1.02); }
+}
+
+@keyframes hero-orbit-turn {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hero-swash-draw {
+  from { background-size: 0% 100%; }
+  to { background-size: 100% 100%; }
+}
+
+@keyframes hero-signal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 30%, transparent); opacity: 0.45; }
+  50% { box-shadow: 0 0 0 7px transparent; opacity: 0.9; }
+}
+
+.hero-ambient-glow {
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--brand) 7%, transparent) 0%, color-mix(in srgb, var(--brand) 2%, transparent) 42%, transparent 72%);
+  filter: blur(34px);
+  animation: hero-ambient-breathe 14s ease-in-out infinite;
+}
+
+.hero-ambient-stage {
+  -webkit-mask-image: radial-gradient(ellipse 74% 62% at 50% 48%, #000 0%, #000 62%, transparent 94%);
+  mask-image: radial-gradient(ellipse 74% 62% at 50% 48%, #000 0%, #000 62%, transparent 94%);
+}
+
+.hero-ambient-orbit {
+  mask-image: linear-gradient(90deg, transparent 2%, #000 28%, #000 72%, transparent 98%);
+  animation: hero-orbit-turn 90s linear infinite;
+}
+
+.hero-ambient-orbit-inner { animation-direction: reverse; animation-duration: 120s; }
+
+.hero-signal-dot {
+  animation: hero-signal-pulse 3.8s ease-in-out infinite;
+}
+
+.hero-signal-dot-late { animation-delay: -1.9s; }
+
+.hero-ambient-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
+}
+
+:root[data-theme='dark'] .hero-ambient-stage {
+  opacity: 0.56;
+}
+
+:root[data-theme='dark'] .hero-ambient-orbit {
+  border-color: color-mix(in srgb, var(--text-faint) 13%, transparent);
+}
+
+:root[data-theme='dark'] .hero-ambient-grain {
+  opacity: 0.012;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-ambient-glow,
+  .hero-ambient-orbit { animation: none; }
+}
+
 /* Per-word rise for the headline. */
 @keyframes word-rise {
   from { opacity: 0; transform: translateY(0.4em); }
@@ -784,6 +934,37 @@ body {
 .word {
   display: inline-block;
   animation: word-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-kicker,
+  .hero-copy,
+  .hero-actions,
+  .hero-brief-stage {
+    animation: hero-enter 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .hero-kicker { animation-delay: 80ms; }
+  .hero-copy { animation-delay: 520ms; }
+  .hero-actions { animation-delay: 650ms; }
+  .hero-brief-stage { animation-delay: 780ms; }
+  .swash { animation: hero-swash-draw 780ms 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  .hero-brief-form:focus-within {
+    box-shadow: 0 10px 32px color-mix(in srgb, var(--brand) 13%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word,
+  .hero-kicker,
+  .hero-copy,
+  .hero-actions,
+  .hero-brief-stage,
+  .hero-signal-dot,
+  .swash {
+    animation: none;
+  }
 }
 
 /*

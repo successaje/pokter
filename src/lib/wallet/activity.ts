@@ -2,6 +2,7 @@
 
 import type { GrantedSession } from '@/lib/altana/types';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { recordJobNotification } from '@/lib/wallet/notifications';
 
 const STORAGE_KEY = 'pokter.sessions.v1';
 const EVENT_NAME = 'pokter:sessions-changed';
@@ -93,7 +94,14 @@ export function noJobs(): HiredJob[] {
 }
 
 export function rememberJob(walletAddress: string, job: HiredJob): void {
-  const jobs = readJobs().filter(
+  const current = readJobs();
+  const previous = current.find(
+    (entry) =>
+      entry.walletAddress.toLowerCase() === walletAddress.toLowerCase() &&
+      entry.job.chainId === job.chainId &&
+      entry.job.jobId === job.jobId,
+  );
+  const jobs = current.filter(
     (entry) =>
       entry.job.id !== job.id &&
       !(
@@ -103,6 +111,7 @@ export function rememberJob(walletAddress: string, job: HiredJob): void {
       ),
   );
   writeJobs([{ walletAddress, job }, ...jobs]);
+  recordJobNotification(walletAddress, job, previous?.job.status);
 }
 
 export function updateRememberedJob(walletAddress: string, job: HiredJob): void {

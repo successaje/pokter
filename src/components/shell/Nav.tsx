@@ -17,6 +17,7 @@ import { Wordmark } from '@/components/brand/Logo';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { InstallPokter } from '@/components/pwa/InstallPokter';
 import { usePwaInstall } from '@/components/pwa/PwaProvider';
+import { SavedNavAction } from '@/components/shell/SavedNavAction';
 
 /**
  * §11. Primary navigation.
@@ -52,6 +53,15 @@ const PRIMARY = [
   { href: '/my-agents', label: 'Activity' },
 ];
 
+// Builder Studio is a first-class desktop destination. Mobile keeps five
+// total tab-bar items and exposes it through More so the bar never compresses
+// labels or creates a sixth overflow column.
+const DESKTOP_PRIMARY = [
+  ...PRIMARY.slice(0, 3),
+  { href: '/build', label: 'Build' },
+  PRIMARY[3],
+];
+
 /*
  * Rankings is not here because it is not a destination — it is the catalogue
  * in a different order, and it switches with it on both pages. Pool check is
@@ -59,7 +69,18 @@ const PRIMARY = [
  * footer with the rest of the research.
  */
 const SECONDARY = [
+  { href: '/saved', label: 'Saved agents' },
   { href: '/leaderboard', label: 'Rankings' },
+  /*
+   * The way in for the other half of the audience.
+   *
+   * Everything else in this bar is for someone choosing an agent. Builders had
+   * no route at all: the diagnostic was reachable from the footer and the
+   * support page, so the people it exists for found it by accident. It is
+   * labelled by what it does for them rather than by its own name — nobody
+   * arrives wanting a diagnostic, they arrive wanting to be listed.
+   */
+  { href: '/build', label: 'Build an agent' },
   { href: '/pool-check', label: 'Pool check' },
 ];
 
@@ -117,7 +138,7 @@ export function Nav() {
         </Link>
 
         <nav className="hidden min-w-0 flex-1 items-center gap-1 whitespace-nowrap md:flex">
-          {PRIMARY.map((item) => {
+          {DESKTOP_PRIMARY.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -191,6 +212,7 @@ export function Nav() {
           <span className="hidden sm:block">
             <ThemeToggle />
           </span>
+          <SavedNavAction />
           <ConnectWallet />
         </div>
       </div>

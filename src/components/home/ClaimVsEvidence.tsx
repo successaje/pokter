@@ -40,7 +40,7 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
         </p>
       </div>
 
-      <div className="grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--border-strong)] lg:grid-cols-2">
+      <div className="motion-stagger grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--border-strong)] lg:grid-cols-2">
         {/* The claim, presented the way a directory would present it. */}
         <article className="flex flex-col gap-4 bg-[color:var(--surface)] p-6">
           <header className="flex items-center justify-between gap-3">
