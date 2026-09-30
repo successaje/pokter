@@ -88,9 +88,19 @@ export async function GET(request: Request) {
     };
   });
 
-  const reply = meta
-    ? `Read as ${meta.label.toLowerCase()}. Top ${results.length} by what Pokter has measured — availability and published attestations, with a signed price counted first.`
-    : 'Nothing in this brief matched a category Pokter measures, so these are the best-evidenced agents across the whole indexed set rather than a guess at what you meant.';
+  const reply =
+    results.length === 0
+      ? /*
+         * Said before the empty state rather than alongside it: "Top 0 by what
+         * Pokter has measured" read as a broken matcher rather than an empty
+         * shelf, which is what it is.
+         */
+        meta
+        ? `Read as ${meta.label.toLowerCase()}, but nothing indexed under it is listed yet.`
+        : 'Nothing in the indexed set answers to this brief.'
+      : meta
+        ? `Read as ${meta.label.toLowerCase()}. Top ${results.length} by what Pokter has measured — availability and published attestations, with a signed price counted first.`
+        : 'Nothing in this brief matched a category Pokter measures, so these are the best-evidenced agents across the whole indexed set rather than a guess at what you meant.';
 
   return NextResponse.json(
     {

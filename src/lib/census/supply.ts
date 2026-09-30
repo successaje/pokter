@@ -15,9 +15,15 @@ import type { Provenance } from '@/lib/api/v1';
  * uniquely holds is the other side: it has called the registry and knows what
  * answers, which nobody can report without having done the calling.
  *
- * Each step narrows the one above it, so the numbers only fall. That shape is
- * the finding: an ERC-8004 entry is a claim that something exists, and most of
+ * The attrition steps narrow the one above them, and that shape is the
+ * finding: an ERC-8004 entry is a claim that something exists, and most of
  * those claims do not survive being checked.
+ *
+ * The classified step is not one of them. It counts what fits four financial
+ * categories, which is a different question from what answered, so it is not a
+ * subset of the step above and is marked `comparable: false` for that reason.
+ * It sits below the probe steps because measuring is the earlier act, not
+ * because it is a survival rate — read it as scope, not attrition.
  */
 export interface CensusStep {
   label: string;
@@ -92,7 +98,7 @@ export async function supplyCensus(): Promise<SupplyCensus> {
       label: 'Classified into a financial category',
       value: all.length,
       provenance: 'calculated',
-      note: 'Of those measured, the ones Pokter can place in one of the four categories it judges. An agent outside them is not worse, only outside what this marketplace can rank.',
+      note: 'The agents Pokter can place in one of the four categories it judges, and so can rank. Classification is a change of scope rather than a survival rate: a listing here need not have answered a probe, and an agent outside the four is not worse, only outside what this marketplace measures.',
       comparable: false,
     },
     {

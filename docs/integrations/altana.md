@@ -104,8 +104,9 @@ npx tsx scripts/verify-tx.mts                            # verify recorded txs
   session granting from the server into the browser.
 
   Pokter therefore does not represent an injected wallet as an Altana wallet.
-  Its feature-flagged EOA hire path instead submits the ordinary ERC-8183 calls
-  from the user's selected account. Atomic-capable wallets use EIP-5792; other
+  Its EOA hire path instead submits the ordinary ERC-8183 calls from the
+  user's selected account, and is on for any connected wallet on the escrow
+  chain. Atomic-capable wallets use EIP-5792; other
   wallets sign the protocol sequence one transaction at a time. The latter can
   leave an unfunded job after cancellation, so every transaction is confirmed,
   the job id is decoded from that exact create receipt, account and chain are

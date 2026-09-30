@@ -42,7 +42,10 @@ import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ExternalHireSteps } from '@/components/hire/ExternalHireSteps';
 import type { HireStep } from '@/lib/wallet/external';
-import { hireFromExternalWallet } from '@/lib/wallet/external';
+import {
+  hireFromExternalWallet,
+  revokeExternalWalletAllowance,
+} from '@/lib/wallet/external';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import {
   commissionTaskTemplates,
@@ -206,6 +209,8 @@ export function CommissionPanel({
   const active = useActiveWallet();
   const [externalStep, setExternalStep] = useState<HireStep | null>(null);
   const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revoked, setRevoked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -307,6 +312,7 @@ export function CommissionPanel({
     setError(null);
     setHeldAfterFailure(null);
     setExternalStep(null);
+    setRevoked(false);
     /** $U bought on the way here, so a later failure can say it is still held. */
     let acquired = 0n;
     try {
@@ -516,6 +522,28 @@ export function CommissionPanel({
        */
       setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
+    }
+  };
+
+  /*
+   * The escape hatch for a sequence abandoned after the approval landed.
+   *
+   * Only the step-by-step path can strand one: the batched path is atomic, so
+   * it either funds or leaves nothing behind. The approval is for exactly this
+   * budget rather than an unlimited amount, and a later hire reuses or zeroes
+   * it, so the standing exposure is one job to our own escrow — but leaving
+   * someone to find `approve(0)` themselves is not an answer.
+   */
+  const revokeAllowance = async () => {
+    if (!active.address) return;
+    setRevoking(true);
+    try {
+      await revokeExternalWalletAllowance(active.address as `0x${string}`);
+      setRevoked(true);
+    } catch (caught) {
+      setError(walletActionError(caught, 'Revoking the approval'));
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -945,6 +973,25 @@ export function CommissionPanel({
                     Commissioning again spends it rather than swapping a second
                     time.
                   </p>
+                )}
+                {(externalStep === 'approving' || externalStep === 'funding') && (
+                  <div className="mt-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2.5">
+                    <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                      {revoked
+                        ? 'The approval is back to zero. Nothing of yours is spendable by the escrow.'
+                        : `The escrow is approved to draw ${formatBudget(budget)} and did not. Commissioning again reuses that approval, or you can take it back now.`}
+                    </p>
+                    {!revoked && (
+                      <button
+                        type="button"
+                        onClick={revokeAllowance}
+                        disabled={revoking}
+                        className="mt-2 text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted disabled:opacity-50"
+                      >
+                        {revoking ? 'Waiting for your wallet…' : 'Withdraw the approval'}
+                      </button>
+                    )}
+                  </div>
                 )}
                 <div className="mt-2 flex flex-wrap gap-3">
                   {FAUCETS && /tBNB/i.test(error) && <a href={FAUCETS.native} target="_blank" rel="noreferrer noopener" className="text-[11px] font-medium text-[color:var(--info)] underline decoration-dotted">Open BNB testnet faucet ↗</a>}
