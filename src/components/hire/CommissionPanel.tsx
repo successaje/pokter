@@ -40,6 +40,8 @@ import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
+import { ExternalHireSteps } from '@/components/hire/ExternalHireSteps';
+import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet } from '@/lib/wallet/external';
 import { WalletReadiness } from '@/components/hire/WalletReadiness';
 import {
@@ -202,6 +204,8 @@ export function CommissionPanel({
   /** $U bought before a failure and still in the wallet, as a display amount. */
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
   const active = useActiveWallet();
+  const [externalStep, setExternalStep] = useState<HireStep | null>(null);
+  const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<
     'idle' | 'notifying' | 'accepted' | 'rejected' | 'failed' | 'not-applicable'
@@ -302,6 +306,7 @@ export function CommissionPanel({
     setSwapQuote(null);
     setError(null);
     setHeldAfterFailure(null);
+    setExternalStep(null);
     /** $U bought on the way here, so a later failure can say it is still held. */
     let acquired = 0n;
     try {
@@ -329,6 +334,10 @@ export function CommissionPanel({
           task,
           budgetU: budget,
           ttlSeconds: 60 * 60 * 24,
+          onProgress: ({ step: reached, jobId: reachedId }) => {
+            setExternalStep(reached);
+            if (reachedId) setExternalJobId(reachedId);
+          },
         });
 
         const at = new Date().toISOString();
@@ -895,6 +904,18 @@ export function CommissionPanel({
                     </div>
                   ))}
                 </div>
+
+                {/*
+                  Where the button was, while the button cannot be pressed.
+
+                  An external hire asks a wallet to sign as many as five times,
+                  and the panel said "Funding escrow…" through all of them — so
+                  the only way to know what the third prompt was for was to
+                  read its calldata. The account of it belongs here, where the
+                  reader is already looking, rather than somewhere they would
+                  have to go and find mid-signature.
+                */}
+                {externalStep && <ExternalHireSteps step={externalStep} jobId={externalJobId} />}
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button type="button" onClick={() => setFlowStep('configure')} disabled={state === 'hiring'} className="min-h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-[12px] font-medium">
