@@ -356,6 +356,8 @@ Transactional job email is optional and server-only. Configure
 signs unsubscribe links and rotating it invalidates existing links. Email
 subscriptions require confirmation, are scoped to one on-chain job, exclude
 task text and never participate in escrow execution.
+The authenticated scheduled sweep also checks subscribed jobs against the
+escrow contract, so delivery does not depend on a buyer keeping Pokter open.
 
 ## Deployment
 

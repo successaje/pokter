@@ -177,3 +177,11 @@ export async function notifyJobEvent(input: {
   }
   return { attempted: rows.length, sent };
 }
+
+export function subscribedJobs(): { chainId: number; jobId: string }[] {
+  return db().prepare(`SELECT DISTINCT chain_id,job_id FROM notification_subscriptions
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all().map((row) => {
+      const value = row as { chain_id: number; job_id: string };
+      return { chainId: value.chain_id, jobId: value.job_id };
+    });
+}
