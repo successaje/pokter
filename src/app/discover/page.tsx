@@ -14,6 +14,7 @@ import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
 import { DiscoverHero } from '@/components/discover/DiscoverHero';
 import { OutcomeCollections } from '@/components/discover/OutcomeCollections';
+import { DiscoverResults } from '@/components/discover/DiscoverResults';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 
@@ -199,6 +200,7 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
+  const intent = typeof params.intent === 'string' ? params.intent.trim().slice(0, 240) : '';
   const selectedCategory =
     typeof params.category === 'string' && CATEGORY_BY_ID.has(params.category as Category)
       ? params.category
@@ -232,9 +234,18 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-12 pt-6">
-      {!shouldRun && <DiscoverHero />}
+      {!shouldRun && !intent && <DiscoverHero />}
 
-      {!shouldRun && stats && activity && (
+      {!shouldRun && intent && (
+        <DiscoverResults
+          entries={browseAgents}
+          intent={intent}
+          selectedCategory={selectedCategory as Category | null}
+          evidence={typeof params.evidence === 'string' ? params.evidence : null}
+        />
+      )}
+
+      {!shouldRun && !intent && stats && activity && (
         <>
           <OutcomeCollections counts={categoryCounts} selected={selectedCategory} />
 

@@ -17,7 +17,7 @@ export function DiscoverHero() {
   const submit = (value: string) => {
     const intent = value.trim();
     if (!intent) return;
-    router.push(`/agents?brief=${encodeURIComponent(intent)}`);
+    router.push(`/discover?intent=${encodeURIComponent(intent)}#results`);
   };
 
   return (
