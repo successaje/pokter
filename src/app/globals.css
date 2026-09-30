@@ -790,16 +790,6 @@ body {
   50% { transform: translate3d(0, -10px, 0) rotate(0.8deg); }
 }
 
-@keyframes hero-chip-drift {
-  0%, 100% { transform: translateY(0); opacity: 0.58; }
-  50% { transform: translateY(-7px); opacity: 0.95; }
-}
-
-@keyframes hero-core-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent); }
-  50% { box-shadow: 0 0 0 28px color-mix(in srgb, var(--brand) 7%, transparent); }
-}
-
 @keyframes hero-route-flow {
   to { stroke-dashoffset: -72; }
 }
@@ -811,15 +801,13 @@ body {
 }
 
 .hero-aurora {
-  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 21%, transparent) 0%, color-mix(in srgb, var(--brand) 7%, transparent) 36%, transparent 70%);
-  filter: blur(18px);
-  animation: hero-aurora-breathe 8s ease-in-out infinite;
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 11%, transparent) 0%, color-mix(in srgb, var(--brand) 3%, transparent) 38%, transparent 70%);
+  filter: blur(26px);
+  animation: hero-aurora-breathe 12s ease-in-out infinite;
 }
 
-.hero-agent-node { animation: hero-node-drift 6s ease-in-out infinite; }
-.hero-proof-chip { animation: hero-chip-drift 7s ease-in-out infinite; }
-.hero-core { animation: hero-core-pulse 5s ease-in-out infinite; }
-.hero-route { stroke-dasharray: 7 13; animation: hero-route-flow 8s linear infinite; }
+.hero-agent-node { animation: hero-node-drift 10s ease-in-out infinite; }
+.hero-route { stroke-dasharray: 5 18; animation: hero-route-flow 14s linear infinite; }
 .hero-route-b { animation-duration: 10s; animation-direction: reverse; }
 .hero-route-c { animation-duration: 12s; }
 .hero-signal { offset-rotate: 0deg; animation: hero-signal-a 6s ease-in-out infinite; }
@@ -830,8 +818,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hero-aurora,
   .hero-agent-node,
-  .hero-proof-chip,
-  .hero-core,
   .hero-route,
   .hero-signal { animation: none; }
 }
