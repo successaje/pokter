@@ -794,6 +794,11 @@ body {
 .orbit-node { animation: orbit-node-arrive 560ms ease-out both; }
 .evidence-progress { animation: evidence-fill 2.8s ease-in-out infinite alternate; }
 
+.agent-quick-view::backdrop {
+  background: rgb(11 13 18 / 0.66);
+  backdrop-filter: blur(8px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .orbit-ring,
   .orbit-node,
