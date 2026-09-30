@@ -6,6 +6,7 @@ import { formatUnits } from 'viem';
 
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { BuilderSignOutButton } from '@/components/builder/BuilderSignOutButton';
+import { WorkspaceModeSwitch } from '@/components/workspace/WorkspaceModeSwitch';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { buildTrackRecord } from '@/lib/history/record';
@@ -56,7 +57,7 @@ export default async function BuilderDashboard() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 pb-16 pt-6 sm:gap-10 sm:pt-10">
       <header className="flex flex-col justify-between gap-5 border-b border-[color:var(--border)] pb-7 sm:flex-row sm:items-end">
-        <div><p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">Private builder operations</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your agents, in operation.</h1><p className="mt-3 text-[12px] text-[color:var(--text-secondary)]">Signed in as <span className="mono">{short(owner)}</span>. Registry ownership is re-read whenever this dashboard loads.</p></div>
+        <div><p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">Private builder operations</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your agents, in operation.</h1><p className="mt-3 text-[12px] text-[color:var(--text-secondary)]">Signed in as <span className="mono">{short(owner)}</span>. Registry ownership is re-read whenever this dashboard loads.</p><div className="mt-4"><WorkspaceModeSwitch current="builder" builderOwner={owner} /></div></div>
         <div className="flex items-center gap-4"><BuilderSignOutButton /><Link href={`/builders/${owner}`} className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[11px] font-medium hover:bg-[color:var(--surface-hover)]">View public profile ↗</Link></div>
       </header>
 

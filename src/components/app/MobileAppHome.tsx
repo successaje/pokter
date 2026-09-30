@@ -7,6 +7,7 @@ import { formatEther, formatUnits } from 'viem';
 
 import { Wordmark } from '@/components/brand/Logo';
 import { ConnectWallet } from '@/components/shell/ConnectWallet';
+import { WorkspaceModeSwitch } from '@/components/workspace/WorkspaceModeSwitch';
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
@@ -118,6 +119,9 @@ export function MobileAppHome() {
       <div className="px-5 pb-1 pt-4 md:hidden">
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
         <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your personal workspace</h1>
+        <div className="mt-4">
+          <WorkspaceModeSwitch current="personal" />
+        </div>
       </div>
 
       {/*
@@ -135,6 +139,9 @@ export function MobileAppHome() {
           <div>
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">Today</p>
             <h1 className="mt-0.5 text-2xl font-semibold tracking-[-0.035em]">Your personal workspace</h1>
+            <div className="mt-4">
+              <WorkspaceModeSwitch current="personal" />
+            </div>
           </div>
           <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">
             <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
