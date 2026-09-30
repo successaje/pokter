@@ -82,16 +82,10 @@ export function LandingHero({
               Find an agent
             </Link>
             <Link
-              href="/methodology"
+              href="/build"
               className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 py-2.5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
             >
-              How Pokter scores agents
-            </Link>
-            <Link
-              href="/build"
-              className="px-2 py-2.5 text-[12px] font-medium text-[color:var(--text-muted)] transition-colors hover:text-[color:var(--text)]"
-            >
-              Build an agent →
+              Build an agent
             </Link>
           </div>
 
