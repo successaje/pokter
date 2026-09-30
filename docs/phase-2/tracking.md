@@ -158,10 +158,14 @@ escrow client-side, so the funds and the authority are the user's throughout.
 | --- | --- |
 | Demo seller / operator (chain 97) | `0x60eF148485C2a5119fa52CA13c52E9fd98F28e87` |
 | Official team / payout wallet | `0xEF869BB780a5163E6D39E83817cD29af6DEaA784` |
+| Team passkey wallet — buyer side, end-to-end testing | `0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf` |
 
-The operator address signs Pokter's demo-seller deliveries and appears in
-historical end-to-end tests. Neither address represents organic user activity;
-exclude both from quest and campaign activity counts.
+The operator address signs Pokter's demo-seller deliveries. The team passkey
+wallet is the `client` on jobs hired while testing the buyer path end to end —
+it holds jobs #1366 and #1368, the second of which ran the full lifecycle to
+`COMPLETED` with escrow released. Both sides of those jobs are therefore ours:
+we hired and we delivered. None of these addresses represents organic user
+activity; exclude all three from quest and campaign activity counts.
 
 ---
 

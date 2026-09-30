@@ -13,6 +13,8 @@ import { PermissionReview } from '@/components/hire/PermissionReview';
 import { EvidenceSection } from '@/components/ui/EvidenceSection';
 import { CommissionPanel } from '@/components/hire/CommissionPanel';
 import { WalletGate } from '@/components/hire/WalletGate';
+import { ExternalWalletHire } from '@/components/hire/ExternalWalletHire';
+import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
 import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import type { ChainId } from '@/lib/scan/types';
@@ -105,6 +107,26 @@ export default async function HirePage({
                 <a href="#alternatives" className="shrink-0 text-[11px] font-medium text-[color:var(--caution)] underline decoration-dotted underline-offset-4">See stronger alternatives</a>
               </section>
           )}
+          {/*
+            The external-wallet path, behind a flag.
+
+            It has never moved a token — every branch in it is reasoned and
+            typechecked and none of it has been run against a chain — and the
+            failure modes are states a person then owns. So it is reachable
+            only when NEXT_PUBLIC_EXTERNAL_WALLET is set, which is how it gets
+            walked through on testnet without being offered to anyone who
+            wanders onto the page.
+          */}
+          {process.env.NEXT_PUBLIC_EXTERNAL_WALLET === '1' &&
+            providers[0]?.address && (
+              <ExternalWalletHire
+                provider={providers[0].address as `0x${string}`}
+                task={`Pokter external-wallet walkthrough for ${agent.name}.`}
+                budgetU={DEFAULT_BUDGET_U}
+                ttlSeconds={60 * 60 * 24}
+              />
+            )}
+
           <WalletGate action="commission work" capability="commission">
             <CommissionPanel
               agent={{
