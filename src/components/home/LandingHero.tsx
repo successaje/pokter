@@ -33,18 +33,21 @@ export function LandingHero({
               sentence. Wide screens keep the statement on one confident line;
               smaller screens wrap naturally rather than shrinking the type.
             */}
-            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:whitespace-nowrap lg:text-[clamp(4rem,5.15vw,4.75rem)]">
-              {HEADLINE.map((word, wordIndex) => (
-                <span key={word}>
-                  <span
-                    className={word === 'deserves' ? 'word swash' : 'word'}
-                    style={{ animationDelay: `${wordIndex * 90}ms` }}
-                  >
-                    {word}
+            <h1 className="display relative text-[3rem] leading-[0.94] sm:text-6xl lg:whitespace-nowrap lg:text-[clamp(4rem,5.15vw,4.75rem)]">
+              <span className="hero-typed-line">
+                {HEADLINE.map((word, wordIndex) => (
+                  <span key={word}>
+                    <span
+                      className={word === 'deserves' ? 'word swash' : 'word'}
+                      style={{ animationDelay: `${wordIndex * 90}ms` }}
+                    >
+                      {word}
+                    </span>
+                    {wordIndex < HEADLINE.length - 1 ? ' ' : ''}
                   </span>
-                  {wordIndex < HEADLINE.length - 1 ? ' ' : ''}
-                </span>
-              ))}
+                ))}
+              </span>
+              <span className="hero-typing-cursor" aria-hidden />
             </h1>
             <p className="hero-copy max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] sm:text-base">
               Hundreds of thousands of agents claim they work. Pokter calls
