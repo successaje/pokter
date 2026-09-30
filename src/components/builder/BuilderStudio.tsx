@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getAddress } from 'viem';
 
+import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { cn } from '@/lib/ui/cn';
@@ -97,7 +98,7 @@ export function BuilderStudio() {
   const draftChecks = [
     { label: 'Clear name', done: draft.name.trim().length >= 3 },
     { label: 'Outcome-led description', done: draft.description.trim().length >= 40 },
-    { label: 'Marketplace category', done: Boolean(draft.category) },
+    { label: 'Marketplace category', done: CATEGORIES.some((category) => category.id === draft.category) },
     { label: 'Secure service endpoint', done: /^https:\/\//i.test(draft.endpoint.trim()) },
     { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) },
   ];
@@ -111,6 +112,8 @@ export function BuilderStudio() {
       name: draft.protocol.toUpperCase(),
       endpoint: draft.endpoint.trim(),
     }],
+    tags: draft.category ? [draft.category] : [],
+    categories: draft.category ? [draft.category] : [],
     x402Support: false,
     active: true,
     supportedTrust: ['reputation'],
@@ -251,7 +254,7 @@ export function BuilderStudio() {
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Shape the public profile</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">Saved privately on this device</p></div></div>
             <div className="mt-7 grid gap-5 sm:grid-cols-2">
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose a category</option><option value="yield">Earn yield</option><option value="risk">Monitor risk</option><option value="execution">Execute strategies</option><option value="research">Research markets</option></select></label>
+              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/40 recommended minimum</span></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">HTTPS endpoint</span><input value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
@@ -269,6 +272,7 @@ export function BuilderStudio() {
                 </div>
                 <dl className="mt-5 grid gap-4 border-t border-[color:var(--positive)]/20 pt-5 sm:grid-cols-2">
                   <div><dt className="text-[10px] text-[color:var(--text-muted)]">Agent</dt><dd className="mt-1 text-[12px] font-medium">{registrationPreview.name}</dd></div>
+                  <div><dt className="text-[10px] text-[color:var(--text-muted)]">Marketplace outcome</dt><dd className="mt-1 text-[12px] font-medium">{CATEGORIES.find((category) => category.id === draft.category)?.label}</dd></div>
                   <div><dt className="text-[10px] text-[color:var(--text-muted)]">Service</dt><dd className="mt-1 text-[12px] font-medium">{registrationPreview.services[0].name} · HTTPS</dd></div>
                   <div className="sm:col-span-2"><dt className="text-[10px] text-[color:var(--text-muted)]">Public endpoint</dt><dd className="mono mt-1 break-all text-[11px]">{registrationPreview.services[0].endpoint}</dd></div>
                 </dl>
@@ -276,6 +280,23 @@ export function BuilderStudio() {
                   <summary className="cursor-pointer text-[11px] font-semibold">Inspect registration JSON</summary>
                   <pre className="mono mt-3 max-h-64 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[10px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(registrationPreview, null, 2)}</pre>
                 </details>
+                <div className="mt-5 border-t border-[color:var(--positive)]/20 pt-5">
+                  <p className="text-[11px] font-semibold">After the identity is registered</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">Return with its ERC-8004 token ID. Pokter will read the registry, test the public service and ask the owner wallet for a non-transactional signature before opening Builder operations.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('existing');
+                      setReport(null);
+                      setError(null);
+                      setTokenId('');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[color:var(--brand)] px-4 text-[12px] font-semibold text-[color:var(--brand-ink)]"
+                  >
+                    I have an agent ID <Icon name="arrow" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
