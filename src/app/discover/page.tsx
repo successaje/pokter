@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { recommend } from '@/lib/recommend/engine';
 import type { Brief, RiskTolerance } from '@/lib/recommend/types';
-import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
+import { OBJECTIVES } from '@/lib/agents/objectives';
 import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
@@ -222,22 +222,18 @@ export default async function DiscoverPage({
     <div className="flex flex-col gap-12 pt-6">
       <AskLauncher />
       <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        {/*
+          A title, and nothing standing in front of it.
+
+          This was an eyebrow, a title and a paragraph — the eyebrow naming the
+          site on the site, and the paragraph describing two ways in that are
+          both visible controls a few hundred pixels below. Three pieces of
+          furniture before the first agent, none of them the agent.
+        */}
         <div className="flex max-w-3xl flex-col gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-          BNB Chain agent marketplace
-        </p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Explore agents. Inspect the evidence.
         </h1>
-        {/*
-          Desktop only. On a phone this sits between the title and the
-          marketplace the page is named after, and the "Find my best match"
-          button below already says the second half of it.
-        */}
-        <p className="hidden max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
-          Browse the market immediately, or ask Pokter to build an
-          evidence-ranked shortlist around your goal, capital and risk.
-        </p>
         </div>
         {/*
           The header used to carry a button jumping to a collapsed panel at

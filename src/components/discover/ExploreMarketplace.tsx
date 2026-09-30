@@ -39,21 +39,21 @@ export function ExploreMarketplace({
     <section aria-labelledby="explore-title" className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
-            Explore the marketplace
-          </p>
-          <h2 id="explore-title" className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-            Agents with evidence you can inspect.
-          </h2>
           {/*
-            The studio moved above this, so telling a reader to "open the
-            recommendation studio" now points backwards at something they have
-            already scrolled past.
+            "Agents with evidence you can inspect" sat here, about five hundred
+            pixels under a page title reading "Explore agents. Inspect the
+            evidence." Two near-identical sentences on one screen read as a
+            template rather than as a thought. The page title keeps the claim;
+            this keeps the one fact the title does not carry, which is what the
+            list excludes.
           */}
+          <h2 id="explore-title" className="text-xl font-semibold tracking-tight sm:text-2xl">
+            Production candidates
+          </h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--text-muted)]">
-            Production candidates ranked on what has been observed rather than
-            what was declared. Test and retired identities remain available in
-            the full catalog, but are never promoted here.
+            Ranked on what has been observed, not what was declared. Test and
+            retired identities stay in the full catalogue and are never
+            promoted here.
           </p>
         </div>
         <Link href="/agents" className="tap text-xs font-medium text-[color:var(--info)] sm:min-h-0">

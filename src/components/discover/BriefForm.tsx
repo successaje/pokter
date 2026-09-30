@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { OBJECTIVES } from '@/components/home/ObjectiveSelector';
+import { OBJECTIVES } from '@/lib/agents/objectives';
 import type { RiskTolerance } from '@/lib/recommend/types';
 
 const CAPITAL_PRESETS = [500, 1_000, 5_000, 25_000];
