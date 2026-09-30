@@ -14,10 +14,7 @@ import { HeroEvidenceBackdrop } from '@/components/home/HeroEvidenceBackdrop';
  * immediately after the fold rather than a screen below it, so one scroll
  * reaches the marketplace.
  */
-const HEADLINE: string[][] = [
-  ['Choose', 'what', 'deserves'],
-  ['your', 'money.'],
-];
+const HEADLINE = ['Choose', 'what', 'deserves', 'your', 'money.'] as const;
 
 export function LandingHero({
   compact = false,
@@ -27,40 +24,28 @@ export function LandingHero({
   return (
     <section className={`relative isolate flex ${compact ? 'min-h-[calc(100svh-8rem)]' : 'min-h-[calc(100svh-6rem)]'} flex-col items-center justify-center overflow-hidden py-16 text-center sm:py-20`}>
       <HeroEvidenceBackdrop />
-      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-7">
-          <div className="flex max-w-3xl flex-col items-center gap-5">
+      <div className="relative z-10 flex w-full max-w-6xl flex-col items-center gap-7">
+          <div className="flex w-full flex-col items-center gap-5">
             <p className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/70 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-[color:var(--text-muted)] backdrop-blur-md sm:text-[11px]">
               <span className="size-1.5 rotate-45 bg-[color:var(--brand)]" aria-hidden />
               The decision layer for autonomous finance on BNB Chain
             </p>
             {/*
               Animated word by word. The spaces are real text nodes between the
-              spans, not CSS margins: margin spacing looks right but leaves the
-              accessible text as one run-on word, which is what a screen reader
-              would announce.
+              spans, not CSS margins, so assistive technology receives a normal
+              sentence. Wide screens keep the statement on one confident line;
+              smaller screens wrap naturally rather than shrinking the type.
             */}
-            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:text-[5.35rem]">
-              {HEADLINE.map((line, lineIndex) => (
-                <span key={lineIndex}>
-                  <span className="block">
-                  {line.map((word, wordIndex) => {
-                    const order = lineIndex * 3 + wordIndex;
-                    return (
-                      <span key={word}>
-                        <span
-                          className={word === 'deserves' ? 'word swash' : 'word'}
-                          style={{ animationDelay: `${order * 90}ms` }}
-                        >
-                          {word}
-                        </span>
-                        {wordIndex < line.length - 1 ? ' ' : ''}
-                      </span>
-                    );
-                  })}
+            <h1 className="display text-[3rem] leading-[0.94] sm:text-6xl lg:whitespace-nowrap lg:text-[clamp(4rem,6.25vw,5.35rem)]">
+              {HEADLINE.map((word, wordIndex) => (
+                <span key={word}>
+                  <span
+                    className={word === 'deserves' ? 'word swash' : 'word'}
+                    style={{ animationDelay: `${wordIndex * 90}ms` }}
+                  >
+                    {word}
                   </span>
-                  {/* Separates the lines for readers; the block break handles
-                      it visually. */}
-                  {lineIndex < HEADLINE.length - 1 ? ' ' : ''}
+                  {wordIndex < HEADLINE.length - 1 ? ' ' : ''}
                 </span>
               ))}
             </h1>
