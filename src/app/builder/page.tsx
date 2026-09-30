@@ -18,6 +18,9 @@ export const metadata: Metadata = { title: 'Builder dashboard', description: 'Pr
 
 function short(address: string) { return `${address.slice(0, 6)}…${address.slice(-4)}`; }
 
+/** Request-time boundary for the rolling operational window. */
+function thirtyDaysAgo() { return new Date(Date.now() - 30 * 86_400_000); }
+
 function statusTone(status: string) {
   if (status === 'COMPLETED') return 'text-[color:var(--positive)] bg-[color:var(--positive-dim)]';
   if (status === 'REJECTED' || status === 'EXPIRED') return 'text-[color:var(--negative)] bg-[color:var(--negative-dim)]';
@@ -40,7 +43,7 @@ export default async function BuilderDashboard() {
   const waitingReview = jobs.filter((job) => job.status === 'SUBMITTED');
   const completed = jobs.filter((job) => job.status === 'COMPLETED');
   const completedValue = completed.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
-  const since = new Date(Date.now() - 30 * 86_400_000);
+  const since = thirtyDaysAgo();
   const probeStore = getProbeStore();
   const operations = agents.map((agent) => {
     const record = buildTrackRecord(probeStore.historyFor(agent.chain_id, agent.token_id, since));
@@ -77,7 +80,7 @@ export default async function BuilderDashboard() {
         </section>
 
         <aside className="flex flex-col gap-6">
-          <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"><div className="flex items-center justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Commissions</p><h2 className="mt-2 text-base font-semibold">Indexed agent jobs</h2></div><span className="rounded-full bg-[color:var(--caution-dim)] px-2 py-1 text-[10px] text-[color:var(--caution)]">{waitingReview.length} awaiting review</span></div><div className="mt-4 flex flex-col gap-2">{jobs.slice(0, 6).map((job) => <div key={job.id} className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-[11px] font-medium">{job.agentName}</p><span className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${statusTone(job.status)}`}>{job.status}</span></div><div className="mt-2 flex items-center justify-between text-[9px] text-[color:var(--text-muted)]"><span>Job #{job.jobId}</span><span>{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} $U</span></div></div>)}{!jobs.length && <p className="py-5 text-center text-[11px] text-[color:var(--text-muted)]">No indexed jobs for these agents yet.</p>}</div><Link href="/my-agents" className="mt-4 flex justify-center border-t border-[color:var(--border)] pt-4 text-[10px] font-medium text-[color:var(--brand-strong)]">Open job activity →</Link></section>
+          <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"><div className="flex items-center justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Commissions</p><h2 className="mt-2 text-base font-semibold">Indexed agent jobs</h2></div><span className="rounded-full bg-[color:var(--caution-dim)] px-2 py-1 text-[10px] text-[color:var(--caution)]">{waitingReview.length} awaiting review</span></div><div className="mt-4 flex flex-col gap-2">{jobs.slice(0, 6).map((job) => <div key={job.id} className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-[11px] font-medium">{job.agentName}</p><span className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${statusTone(job.status)}`}>{job.status}</span></div><div className="mt-2 flex items-center justify-between text-[9px] text-[color:var(--text-muted)]"><span>Job #{job.jobId}</span><span>{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} $U</span></div></div>)}{!jobs.length && <p className="py-5 text-center text-[11px] text-[color:var(--text-muted)]">No indexed jobs for these agents yet.</p>}</div><p className="mt-4 border-t border-[color:var(--border)] pt-4 text-[9px] leading-4 text-[color:var(--text-muted)]">This is an attributed activity view. Seller delivery and settlement controls will appear here only after the provider authorization path is verified.</p></section>
 
           <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[11px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>
         </aside>
