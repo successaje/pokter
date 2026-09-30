@@ -1,137 +1,51 @@
 import {
-  createPublicClient,
-  createWalletClient,
-  custom,
-  encodeFunctionData,
-  erc20Abi,
-  http,
-  parseUnits,
-  type Address,
-  type Hex,
+  createPublicClient, createWalletClient, custom,
+  encodeFunctionData, erc20Abi, getAddress, http, parseUnits,
+  type Address, type Hex,
 } from 'viem';
+import { buildHireCalls, getErc8183Job } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
-
-/**
- * Hiring from the wallet someone already has.
- *
- * The Altana SDK cannot do this and says so: injected wallets refuse the two
- * signatures its EIP-7702 flow needs — the delegation authorization, and raw
- * 32-byte relay digests. That second refusal is correct behaviour on the
- * wallet's part, not a gap. So this path skips Altana entirely and talks to
- * the ERC-8183 kernel directly.
- *
- * What is given up is the atomic batch, and that is not a small loss. The
- * five calls become five transactions, and every failure between them leaves
- * a state a person now owns. Everything below exists to make those states
- * survivable.
- */
-
-const KERNEL_ABI = [
-  {
-    name: 'createJob',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'provider', type: 'address' },
-      { name: 'evaluator', type: 'address' },
-      { name: 'expiredAt', type: 'uint256' },
-      { name: 'description', type: 'string' },
-      { name: 'hook', type: 'address' },
-    ],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    name: 'registerJob',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'jobId', type: 'uint256' },
-      { name: 'policy', type: 'address' },
-      { name: 'optParams', type: 'bytes' },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'setBudget',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'jobId', type: 'uint256' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'optParams', type: 'bytes' },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'fund',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'jobId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'jobCounter',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }],
-  },
-] as const;
+import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 
 export type HireStep =
-  | 'connecting'
-  | 'creating'
-  | 'registering'
-  | 'budgeting'
-  | 'approving'
-  | 'funding'
-  | 'done';
+  | 'connecting' | 'creating' | 'registering' | 'budgeting'
+  | 'approving' | 'funding' | 'confirming' | 'done';
 
-export interface ExternalHireProgress {
-  step: HireStep;
-  /** The real job id, known only after createJob has been mined. */
-  jobId?: bigint;
-  hash?: Hex;
-}
-
+export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex }
 export interface ExternalHireResult {
   jobId: bigint;
-  hash: Hex;
-  /** True when the whole thing went through one wallet_sendCalls batch. */
+  transactionHash: Hex | null;
+  callsId: string | null;
   atomic: boolean;
 }
+export interface ExternalHireInput {
+  identityChainId: number;
+  agentTokenId: string;
+  agentName: string;
+  category: string;
+  provider: Address;
+  providerLabel?: string;
+  task: string;
+  budgetU: number;
+  ttlSeconds: number;
+  onProgress?: (progress: ExternalHireProgress) => void;
+}
 
-/**
- * Whatever `window.ethereum` turns out to be.
- *
- * Several extensions write to it and the last one loaded wins, so the address
- * this returns is not necessarily the wallet the person believes they are
- * using. The UI shows the connected address before anything is signed for
- * exactly that reason.
- */
-function provider(): {
+type InjectedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-} {
-  const injected = (
-    globalThis as unknown as {
-      ethereum?: {
-        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      };
-    }
-  ).ethereum;
+};
+
+function provider(): InjectedProvider {
+  const injected = (globalThis as unknown as { ethereum?: InjectedProvider }).ethereum;
   if (!injected) throw new Error('NO_WALLET');
   return injected;
 }
 
 export function hasInjectedWallet(): boolean {
-  try {
-    provider();
-    return true;
-  } catch {
-    return false;
-  }
+  try { provider(); return true; } catch { return false; }
 }
 
 function clients() {
@@ -140,254 +54,191 @@ function clients() {
     wallet: createWalletClient({ chain: WALLET_NETWORK as never, transport }),
     read: createPublicClient({
       chain: WALLET_NETWORK as never,
-      transport: http(),
+      transport: http(WALLET_NETWORK.publicRpcUrl),
     }),
   };
 }
 
 export async function connectExternalWallet(): Promise<Address> {
-  const accounts = (await provider().request({
-    method: 'eth_requestAccounts',
-  })) as Address[];
+  const accounts = (await provider().request({ method: 'eth_requestAccounts' })) as Address[];
   if (!accounts?.length) throw new Error('NO_ACCOUNT');
   await ensureChain();
-  return accounts[0];
+  return getAddress(accounts[0]);
 }
 
-/**
- * The chain, checked immediately before it matters.
- *
- * Checking once at connect is not enough: a wallet can be switched to another
- * network at any point, including between two of the five transactions, and
- * the second half of a hire landing on the wrong chain is the kind of failure
- * nobody can unpick afterwards.
- */
+export function onExternalAccountsChanged(
+  listener: (accounts: Address[]) => void,
+): () => void {
+  const injected = provider() as InjectedProvider & {
+    on?: (event: string, callback: (accounts: Address[]) => void) => void;
+    removeListener?: (event: string, callback: (accounts: Address[]) => void) => void;
+  };
+  injected.on?.('accountsChanged', listener);
+  return () => injected.removeListener?.('accountsChanged', listener);
+}
+
 export async function ensureChain(): Promise<void> {
   const chainId = (await provider().request({ method: 'eth_chainId' })) as string;
   if (Number(chainId) === WALLET_NETWORK.chainId) return;
-
   try {
     await provider().request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: `0x${WALLET_NETWORK.chainId.toString(16)}` }],
     });
-  } catch {
-    throw new Error('WRONG_CHAIN');
-  }
-
+  } catch { throw new Error('WRONG_CHAIN'); }
   const after = (await provider().request({ method: 'eth_chainId' })) as string;
   if (Number(after) !== WALLET_NETWORK.chainId) throw new Error('WRONG_CHAIN');
 }
 
-/** Whether this wallet can batch, per EIP-5792. */
-async function supportsBatching(account: Address): Promise<boolean> {
-  try {
-    const caps = (await provider().request({
-      method: 'wallet_getCapabilities',
-      params: [account],
-    })) as Record<string, { atomic?: { status?: string } } | undefined>;
-    const chainKey = `0x${WALLET_NETWORK.chainId.toString(16)}`;
-    const status = caps?.[chainKey]?.atomic?.status;
-    return status === 'supported' || status === 'ready';
-  } catch {
-    return false;
+async function assertAccount(expected: Address): Promise<void> {
+  const accounts = (await provider().request({ method: 'eth_accounts' })) as Address[];
+  if (!accounts?.length || getAddress(accounts[0]) !== getAddress(expected)) {
+    throw new Error('ACCOUNT_CHANGED');
   }
 }
 
-/**
- * Hire, from an ordinary wallet.
- *
- * Two routes. A wallet that supports EIP-5792 gets the five calls as one
- * batch, which restores the atomicity the relay used to give: predicting the
- * job id is safe there, because a collision reverts the whole thing and the
- * caller retries.
- *
- * Everything else goes one transaction at a time, and that path deliberately
- * does NOT predict the id. `buildHireCalls` bakes `jobCounter() + 1` into the
- * four calls after `createJob`, which is sound inside a batch and dangerous
- * outside one: sequentially, `createJob` can land after somebody else's and
- * take a different id, at which point setBudget, approve and fund all address
- * the job that took the predicted slot. That is not a failed hire, it is
- * funding a stranger's escrow. So the real id is read back from the receipt
- * before anything else is built.
- */
-export async function hireFromExternalWallet(input: {
-  provider: Address;
-  task: string;
-  budgetU: number;
-  /** Seconds from now until the job expires. */
-  ttlSeconds: number;
-  onProgress?: (progress: ExternalHireProgress) => void;
-}): Promise<ExternalHireResult> {
-  const { wallet, read } = clients();
-  const [account] = await wallet.getAddresses();
-  if (!account) throw new Error('NO_ACCOUNT');
+async function supportsAtomicBatch(account: Address): Promise<boolean> {
+  try {
+    const capabilities = (await provider().request({
+      method: 'wallet_getCapabilities', params: [account],
+    })) as Record<string, { atomic?: { status?: string } } | undefined>;
+    const key = `0x${WALLET_NETWORK.chainId.toString(16)}`;
+    return capabilities?.[key]?.atomic?.status === 'supported';
+  } catch { return false; }
+}
 
+async function waitForCalls(callsId: string): Promise<Hex | null> {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const result = (await provider().request({
+      method: 'wallet_getCallsStatus', params: [callsId],
+    })) as { status?: number | string; receipts?: { transactionHash?: Hex; status?: string }[] };
+    if (result.status === 200 || result.status === 'CONFIRMED') {
+      if (result.receipts?.some((receipt) => receipt.status && receipt.status !== '0x1')) {
+        throw new Error('BATCH_REVERTED');
+      }
+      return result.receipts?.at(-1)?.transactionHash ?? null;
+    }
+    if (result.status === 400 || result.status === 500 || result.status === 'FAILED') {
+      throw new Error('BATCH_REVERTED');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new Error('BATCH_CONFIRMATION_TIMEOUT');
+}
+
+async function verifyFundedJob(input: {
+  jobId: bigint; account: Address; provider: Address; budget: bigint; description: string;
+}) {
+  const job = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  if (
+    getAddress(job.client) !== getAddress(input.account) ||
+    getAddress(job.provider) !== getAddress(input.provider) ||
+    job.budget !== input.budget || job.description !== input.description ||
+    job.statusName !== 'FUNDED'
+  ) throw new Error('FUNDED_JOB_VERIFICATION_FAILED');
+}
+
+export async function revokeExternalWalletAllowance(expectedAccount: Address): Promise<Hex> {
   await ensureChain();
+  await assertAccount(expectedAccount);
+  const { wallet, read } = clients();
+  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const hash = await wallet.sendTransaction({
+    account: expectedAccount, to: addresses.paymentToken as Address,
+    data: encodeFunctionData({
+      abi: erc20Abi, functionName: 'approve',
+      args: [addresses.commerce as Address, 0n],
+    }), chain: null,
+  });
+  const receipt = await read.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('REVOKE_REVERTED');
+  return hash;
+}
 
+export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
+  const { wallet, read } = clients();
+  const [rawAccount] = await wallet.getAddresses();
+  if (!rawAccount) throw new Error('NO_ACCOUNT');
+  const account = getAddress(rawAccount);
   const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
   const budget = parseUnits(String(input.budgetU), 18);
+  if (budget <= 0n) throw new Error('INVALID_BUDGET');
+  if (!Number.isSafeInteger(input.ttlSeconds) || input.ttlSeconds <= 0) throw new Error('INVALID_EXPIRY');
   const expiredAt = BigInt(Math.floor(Date.now() / 1000) + input.ttlSeconds);
+  const description = encodePokterJobEnvelope({
+    identityChainId: input.identityChainId, agentTokenId: input.agentTokenId,
+    agentName: input.agentName, category: input.category, provider: input.provider,
+    providerLabel: input.providerLabel, task: input.task,
+  });
   const report = input.onProgress ?? (() => {});
+  await ensureChain();
+  await assertAccount(account);
 
-  /*
-   * Exactly the budget, never unlimited.
-   *
-   * An unlimited approval is the standard shortcut and the standard way funds
-   * leave a wallet later — it outlives the job, and it is only as safe as the
-   * contract holding it stays. An exact approval spent by the next call
-   * leaves nothing behind.
-   */
-  const allowance = await read.readContract({
-    address: addresses.paymentToken as Address,
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: [account, addresses.commerce as Address],
-  });
-
-  if (await supportsBatching(account)) {
-    const { buildHireCalls } = await import('@altananetwork/sdk');
-    const counter = await read.readContract({
-      address: addresses.commerce as Address,
-      abi: KERNEL_ABI,
-      functionName: 'jobCounter',
-    });
-    const jobId = counter + 1n;
-
-    report({ step: 'creating', jobId });
-    const id = (await provider().request({
-      method: 'wallet_sendCalls',
-      params: [
-        {
-          version: '2.0.0',
-          chainId: `0x${WALLET_NETWORK.chainId.toString(16)}`,
-          from: account,
-          atomicRequired: true,
-          calls: buildHireCalls({
-            addresses,
-            jobId,
-            provider: input.provider,
-            description: input.task,
-            budget,
-            expiredAt,
-          }).map((call) => ({
-            to: call.to,
-            data: call.data,
-            value: call.value ? `0x${call.value.toString(16)}` : '0x0',
-          })),
-        },
-      ],
-    })) as string;
-
-    report({ step: 'done', jobId });
-    return { jobId, hash: id as Hex, atomic: true };
-  }
-
-  // ---- Sequential. One transaction at a time, real id read from chain. ----
-
-  report({ step: 'creating' });
-  const createHash = await wallet.sendTransaction({
-    account,
-    to: addresses.commerce as Address,
-    data: encodeFunctionData({
-      abi: KERNEL_ABI,
-      functionName: 'createJob',
-      args: [
-        input.provider,
-        addresses.router as Address,
-        expiredAt,
-        input.task,
-        '0x0000000000000000000000000000000000000000',
-      ],
-    }),
-    chain: null,
-  });
-  await read.waitForTransactionReceipt({ hash: createHash });
-
-  /*
-   * The id this hire actually got, not the one it hoped for. Read after the
-   * receipt so a job created in the same block by somebody else cannot be
-   * mistaken for ours.
-   */
-  const jobId = await read.readContract({
+  const [allowance, balance] = await Promise.all([
+    read.readContract({ address: addresses.paymentToken as Address, abi: erc20Abi,
+      functionName: 'allowance', args: [account, addresses.commerce as Address] }),
+    read.readContract({ address: addresses.paymentToken as Address, abi: erc20Abi,
+      functionName: 'balanceOf', args: [account] }),
+  ]);
+  if (balance < budget) throw new Error('INSUFFICIENT_PAYMENT_TOKEN');
+  const counter = await read.readContract({
     address: addresses.commerce as Address,
-    abi: KERNEL_ABI,
+    abi: [{ name: 'jobCounter', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }],
     functionName: 'jobCounter',
   });
+  const predictedJobId = counter + 1n;
+  const predicted = buildHireCalls({ addresses, jobId: predictedJobId,
+    provider: input.provider, description, budget, expiredAt });
 
-  const send = async (step: HireStep, data: Hex, to: Address) => {
-    await ensureChain();
-    report({ step, jobId });
-    const hash = await wallet.sendTransaction({
-      account,
-      to,
-      data,
-      chain: null,
+  if (await supportsAtomicBatch(account)) {
+    const calls = [...predicted];
+    if (allowance >= budget) calls.splice(3, 1);
+    else if (allowance > 0n) calls.splice(3, 0, {
+      to: addresses.paymentToken,
+      data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
+        args: [addresses.commerce as Address, 0n] }),
     });
-    await read.waitForTransactionReceipt({ hash });
-    return hash;
-  };
-
-  await send(
-    'registering',
-    encodeFunctionData({
-      abi: KERNEL_ABI,
-      functionName: 'registerJob',
-      args: [jobId, addresses.policy as Address, '0x'],
-    }),
-    addresses.commerce as Address,
-  );
-
-  await send(
-    'budgeting',
-    encodeFunctionData({
-      abi: KERNEL_ABI,
-      functionName: 'setBudget',
-      args: [jobId, budget, '0x'],
-    }),
-    addresses.commerce as Address,
-  );
-
-  if (allowance < budget) {
-    /*
-     * A non-zero allowance is set to zero before it is set again. Some ERC-20s
-     * reject a non-zero-to-non-zero change outright, and the ones that do not
-     * carry the classic race where both the old and new allowance can be
-     * spent.
-     */
-    if (allowance > 0n) {
-      await send(
-        'approving',
-        encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [addresses.commerce as Address, 0n],
-        }),
-        addresses.paymentToken as Address,
-      );
-    }
-
-    await send(
-      'approving',
-      encodeFunctionData({
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [addresses.commerce as Address, budget],
-      }),
-      addresses.paymentToken as Address,
-    );
+    report({ step: 'creating', jobId: predictedJobId });
+    const callsId = (await provider().request({ method: 'wallet_sendCalls', params: [{
+      version: '2.0.0', chainId: `0x${WALLET_NETWORK.chainId.toString(16)}`,
+      from: account, atomicRequired: true,
+      calls: calls.map((call) => ({ to: call.to, data: call.data,
+        value: call.value ? `0x${call.value.toString(16)}` : '0x0' })),
+    }] })) as string;
+    report({ step: 'confirming', jobId: predictedJobId });
+    const transactionHash = await waitForCalls(callsId);
+    await verifyFundedJob({ jobId: predictedJobId, account,
+      provider: input.provider, budget, description });
+    report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
+    return { jobId: predictedJobId, transactionHash, callsId, atomic: true };
   }
 
-  const fundHash = await send(
-    'funding',
-    encodeFunctionData({
-      abi: KERNEL_ABI,
-      functionName: 'fund',
-      args: [jobId],
-    }),
-    addresses.commerce as Address,
-  );
+  const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
+    await ensureChain(); await assertAccount(account); report({ step, jobId });
+    const hash = await wallet.sendTransaction({ account, to, data, chain: null });
+    const receipt = await read.waitForTransactionReceipt({ hash });
+    if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
+    report({ step, jobId, hash });
+    return { hash, receipt };
+  };
 
-  report({ step: 'done', jobId, hash: fundHash });
-  return { jobId, hash: fundHash, atomic: false };
+  const created = await send('creating', predicted[0].to as Address, predicted[0].data!);
+  const jobId = jobCreatedFromReceipt(created.receipt, addresses.commerce as Address,
+    account, input.provider);
+  const calls = buildHireCalls({ addresses, jobId, provider: input.provider,
+    description, budget, expiredAt });
+  await send('registering', calls[1].to as Address, calls[1].data!, jobId);
+  await send('budgeting', calls[2].to as Address, calls[2].data!, jobId);
+  if (allowance < budget) {
+    if (allowance > 0n) await send('approving', addresses.paymentToken as Address,
+      encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
+        args: [addresses.commerce as Address, 0n] }), jobId);
+    await send('approving', calls[3].to as Address, calls[3].data!, jobId);
+  }
+  const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId);
+  report({ step: 'confirming', jobId, hash: funded.hash });
+  await verifyFundedJob({ jobId, account, provider: input.provider, budget, description });
+  report({ step: 'done', jobId, hash: funded.hash });
+  return { jobId, transactionHash: funded.hash, callsId: null, atomic: false };
 }

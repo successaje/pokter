@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   connectExternalWallet,
   hasInjectedWallet,
   hireFromExternalWallet,
+  onExternalAccountsChanged,
+  revokeExternalWalletAllowance,
   type HireStep,
 } from '@/lib/wallet/external';
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { explorerTxUrl, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { shortAddress } from '@/lib/ui/format';
 import { rememberJob } from '@/lib/wallet/activity';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
@@ -28,6 +30,7 @@ const STEPS: { id: HireStep; label: string; detail: string }[] = [
   { id: 'budgeting', label: 'Set the budget', detail: 'Records the amount. No funds move.' },
   { id: 'approving', label: 'Approve the exact budget', detail: 'Allows the escrow to draw this amount and no more.' },
   { id: 'funding', label: 'Fund the escrow', detail: 'This is the transaction that moves your money.' },
+  { id: 'confirming', label: 'Verify the job', detail: 'Reads the funded job back from chain before reporting success.' },
 ];
 
 /**
@@ -47,24 +50,42 @@ export function ExternalWalletHire({
   task,
   budgetU,
   ttlSeconds,
+  riskWarnings = [],
 }: {
   provider: `0x${string}`;
   providerLabel?: string;
   /** Whether this seller publishes an endpoint that can be told to deliver. */
   automatedDelivery?: boolean;
-  agent: { chainId: number; tokenId: string; name: string };
+  agent: { chainId: number; tokenId: string; name: string; category: string };
   task: string;
   budgetU: number;
   ttlSeconds: number;
+  riskWarnings?: string[];
 }) {
   const [account, setAccount] = useState<string | null>(null);
   const [step, setStep] = useState<HireStep | null>(null);
   const [jobId, setJobId] = useState<bigint | null>(null);
+  const [lastHash, setLastHash] = useState<`0x${string}` | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [atomic, setAtomic] = useState<boolean | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revoked, setRevoked] = useState(false);
+  const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [delivery, setDelivery] = useState<
     null | 'asking' | 'asked' | 'unreachable' | 'none'
   >(null);
+
+  useEffect(() => {
+    if (!account || !hasInjectedWallet()) return;
+    return onExternalAccountsChanged((accounts) => {
+      const next = accounts[0] ?? null;
+      if (!next || next.toLowerCase() !== account.toLowerCase()) {
+        setAccount(null);
+        setStep(null);
+        setError('The wallet account changed. Connect the account you intend to use again.');
+      }
+    });
+  }, [account]);
 
   if (!hasInjectedWallet()) return null;
 
@@ -85,13 +106,19 @@ export function ExternalWalletHire({
     setError(null);
     try {
       const outcome = await hireFromExternalWallet({
+        identityChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        agentName: agent.name,
+        category: agent.category,
         provider,
+        providerLabel,
         task,
         budgetU,
         ttlSeconds,
         onProgress: (progress) => {
           setStep(progress.step);
           if (progress.jobId) setJobId(progress.jobId);
+          if (progress.hash) setLastHash(progress.hash);
         },
       });
       setAtomic(outcome.atomic);
@@ -123,7 +150,7 @@ export function ExternalWalletHire({
         budgetRaw: parseUnits(String(budgetU), 18).toString(),
         expiredAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
         hiredAt: now,
-        hireTxHash: outcome.hash,
+        hireTxHash: outcome.transactionHash,
         status: 'FUNDED',
         statusCheckedAt: now,
         deliverableUrl: null,
@@ -163,10 +190,28 @@ export function ExternalWalletHire({
       setError(
         message === 'WRONG_CHAIN'
           ? 'Your wallet changed network part way through. Nothing further was sent.'
+          : message === 'ACCOUNT_CHANGED'
+            ? 'The selected wallet account changed. Nothing further was sent.'
+            : message === 'INSUFFICIENT_PAYMENT_TOKEN'
+              ? `This wallet does not hold enough $U for the ${budgetU} $U budget.`
           : /user rejected|denied/i.test(message)
             ? 'You declined a signature. Nothing further was sent.'
             : 'That step did not complete. Nothing after it was sent — see where it stopped below.',
       );
+    }
+  };
+
+  const revoke = async () => {
+    if (!account) return;
+    setRevoking(true);
+    setError(null);
+    try {
+      await revokeExternalWalletAllowance(account as `0x${string}`);
+      setRevoked(true);
+    } catch {
+      setError('The allowance was not revoked. Check the wallet transaction and try again.');
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -182,8 +227,8 @@ export function ExternalWalletHire({
         <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           Hires straight from your extension wallet, with no passkey to create
           and nothing to fund first. It costs {NATIVE_SYMBOL} for gas, and
-          unless your wallet can batch it asks for five signatures instead of
-          one — every step is listed below before any of them is raised.
+          unless your wallet can batch it asks for several transactions instead
+          of one. The exact number depends on its existing token allowance.
         </p>
       </div>
 
@@ -193,6 +238,21 @@ export function ExternalWalletHire({
           meant before approving anything.
         </p>
       ) : null}
+
+      {riskWarnings.length > 0 && (
+        <label className="flex items-start gap-2 rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <input
+            type="checkbox"
+            checked={riskAccepted}
+            onChange={(event) => setRiskAccepted(event.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-[color:var(--brand)]"
+          />
+          <span>
+            I understand this agent does not meet Pokter’s recommendation threshold
+            and accept the additional risk before funding escrow.
+          </span>
+        </label>
+      )}
 
       <ol className="flex flex-col gap-1.5">
         {STEPS.map((entry, index) => {
@@ -232,17 +292,28 @@ export function ExternalWalletHire({
           <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             {error}
           </p>
-          {/*
-            Where it stopped, in terms of what now exists. A half-built job is
-            recoverable and an approval left behind is not dangerous at this
-            size — but only if the person is told which of the two they have.
-          */}
           {jobId !== null && (
             <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-              Job #{jobId.toString()} exists on chain and is not funded. Nothing
-              can be drawn from it, and it expires on its own. You can import it
-              on your activity page to finish or track it.
+              Job #{jobId.toString()} exists on chain. The highlighted step is
+              the last action Pokter attempted; check it in the explorer before
+              retrying. An unfunded job cannot draw funds and expires on its own.
             </p>
+          )}
+          {lastHash && (
+            <a href={explorerTxUrl(lastHash)} target="_blank" rel="noreferrer"
+              className="mt-1.5 inline-block text-[11px] underline decoration-dotted underline-offset-2">
+              Inspect the last confirmed transaction ↗
+            </a>
+          )}
+          {(step === 'approving' || step === 'funding' || step === 'confirming') &&
+            account && !revoked && (
+              <button type="button" onClick={revoke} disabled={revoking}
+                className="mt-2 text-[11px] font-medium text-[color:var(--negative)] underline underline-offset-2 disabled:opacity-50">
+                {revoking ? 'Waiting for wallet…' : 'Revoke any remaining $U allowance'}
+              </button>
+            )}
+          {revoked && (
+            <p className="mt-1.5 text-[11px] text-[color:var(--positive)]">$U allowance revoked.</p>
           )}
         </div>
       )}
@@ -251,7 +322,7 @@ export function ExternalWalletHire({
         <div className="flex flex-col gap-1.5 rounded-[var(--radius)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-3">
           <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             Job #{jobId.toString()} funded
-            {atomic ? ' in one batched transaction' : ' across five transactions'}
+            {atomic ? ' in one atomic wallet batch' : ' through the verified transaction sequence'}
             , and saved to this device. Track it from your activity page.
           </p>
           {/*
@@ -277,7 +348,7 @@ export function ExternalWalletHire({
         <button
           type="button"
           onClick={hire}
-          disabled={running}
+          disabled={running || !riskAccepted}
           className="action-primary inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold disabled:opacity-50"
         >
           {running ? 'Waiting for your wallet…' : `Hire for ${budgetU} $U`}

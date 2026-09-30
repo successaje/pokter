@@ -150,6 +150,7 @@ always be checked against the evidence that produced it.
 | Historical Altana session grant and revocation  | **Verified on-chain; new grants disabled**      |
 | ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                           |
 | Passkey wallets (WebAuthn, user-held)            | Working                                         |
+| Direct EOA/browser-wallet ERC-8183 hiring        | Feature-flagged; testnet validation required    |
 | Standing delegated wallet authority              | **Disabled until calldata constraints exist**   |
 | Agent delivery and receipt verification          | **Verified end to end on-chain**                |
 | Performance and risk scoring                     | **Never** — [why](#what-does-not-work)          |

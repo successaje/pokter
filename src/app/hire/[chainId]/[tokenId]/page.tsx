@@ -50,6 +50,7 @@ export default async function HirePage({
     expiryDays: 7,
   });
   const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
+  const externalProvider = providers.find((provider) => provider.reachable);
   const riskWarnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow
@@ -118,15 +119,16 @@ export default async function HirePage({
             wanders onto the page.
           */}
           {process.env.NEXT_PUBLIC_EXTERNAL_WALLET === '1' &&
-            providers[0]?.address && (
+            externalProvider?.address && (
               <ExternalWalletHire
-                provider={providers[0].address as `0x${string}`}
-                providerLabel={providers[0].label}
-                automatedDelivery={providers[0].automatedDelivery}
-                agent={{ chainId, tokenId, name: agent.name }}
+                provider={externalProvider.address as `0x${string}`}
+                providerLabel={externalProvider.label}
+                automatedDelivery={externalProvider.automatedDelivery}
+                agent={{ chainId, tokenId, name: agent.name, category }}
                 task={`Analyse my position and report what you find. State every assumption and data source. Do not execute transactions.`}
                 budgetU={DEFAULT_BUDGET_U}
                 ttlSeconds={60 * 60 * 24}
+                riskWarnings={riskWarnings}
               />
             )}
 
