@@ -1,10 +1,18 @@
+import type { Metadata } from 'next';
 import { StatusState } from '@/components/ui/States';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { getComparisons, listMarketplace, type Listing } from '@/lib/marketplace';
 import { CompareTable } from '@/components/compare/CompareTable';
 import { AgentPicker, type PickerOption } from '@/components/compare/AgentPicker';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Compare agents',
+  description:
+    'Compare BNB Chain agents side by side using measured reliability, evidence coverage and onchain identity.',
+};
 
 /** §27. Up to four, because a fifth column stops being readable. */
 const MAX_AGENTS = 4;
@@ -32,6 +40,40 @@ export default async function ComparePage({
     getComparisons(selected),
   ]);
 
+  const pickerOptions = sections.flatMap(({ category, listings }) => {
+    const meta = CATEGORY_BY_ID.get(category);
+    return meta
+      ? listings
+          .filter((listing) => isPromotableAgent(listing.agent))
+          .map(
+            (listing): PickerOption => ({
+              key: keyFor(listing),
+              name: listing.agent.name,
+              category,
+              categoryLabel: meta.label,
+            }),
+          )
+      : [];
+  });
+
+  // An explicitly shared comparison remains reproducible even when it
+  // contains a test or retired identity. Such identities are omitted only
+  // from the default chooser, never hidden from a deliberate inspection.
+  for (const entry of entries) {
+    const key = `${entry.agent.chain_id}:${entry.agent.token_id}`;
+    if (pickerOptions.some((option) => option.key === key)) continue;
+    const meta =
+      entry.category === 'unclassified'
+        ? null
+        : CATEGORY_BY_ID.get(entry.category);
+    pickerOptions.push({
+      key,
+      name: entry.agent.name,
+      category: entry.category,
+      categoryLabel: meta?.label ?? 'Other',
+    });
+  }
+
 
   return (
     <div className="flex flex-col gap-10 pt-6">
@@ -48,19 +90,7 @@ export default async function ComparePage({
       </header>
 
       <AgentPicker
-        options={sections.flatMap(({ category, listings }) => {
-          const meta = CATEGORY_BY_ID.get(category);
-          return meta
-            ? listings.map(
-                (listing): PickerOption => ({
-                  key: keyFor(listing),
-                  name: listing.agent.name,
-                  category,
-                  categoryLabel: meta.label,
-                }),
-              )
-            : [];
-        })}
+        options={pickerOptions}
         selected={selected}
         max={MAX_AGENTS}
       />
