@@ -60,6 +60,16 @@ const PRIMARY = [
  */
 const SECONDARY = [
   { href: '/leaderboard', label: 'Rankings' },
+  /*
+   * The way in for the other half of the audience.
+   *
+   * Everything else in this bar is for someone choosing an agent. Builders had
+   * no route at all: the diagnostic was reachable from the footer and the
+   * support page, so the people it exists for found it by accident. It is
+   * labelled by what it does for them rather than by its own name — nobody
+   * arrives wanting a diagnostic, they arrive wanting to be listed.
+   */
+  { href: '/compatibility', label: 'List your agent' },
   { href: '/pool-check', label: 'Pool check' },
 ];
 

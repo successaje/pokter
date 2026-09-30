@@ -63,6 +63,19 @@ export interface ProbeStore {
   historyFor(chainId: number, tokenId: string, since: Date): ProbeRecord[];
   /** Agents we hold any history for, as `chainId:tokenId`. */
   trackedAgents(): { chainId: number; tokenId: string }[];
+  /**
+   * Add an agent to the sweep roster without recording anything about it.
+   *
+   * Deliberately separate from `record`. Enrolment says "call this from now
+   * on"; a probe says "this is what happened when we did". Keeping them apart
+   * is what stops a builder who runs the diagnostic repeatedly from writing
+   * their own track record — every figure Pokter publishes still comes from a
+   * sweep Pokter scheduled, which is the one claim this marketplace cannot
+   * afford to have bought.
+   */
+  enroll(agents: { chainId: number; tokenId: string }[]): void;
+  /** Agents asked to be measured, whether or not they have been yet. */
+  enrolledAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
   /** Aggregate counts for the ecosystem panel. */
   stats(): StoreStats;
@@ -112,6 +125,13 @@ const SCHEMA = `
     signer     TEXT    NOT NULL,
     quoted_at  TEXT    NOT NULL,
     expires_at TEXT,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS enrolled (
+    chain_id    INTEGER NOT NULL,
+    token_id    TEXT    NOT NULL,
+    enrolled_at TEXT    NOT NULL,
     PRIMARY KEY (chain_id, token_id)
   );
 
@@ -309,6 +329,33 @@ class SqliteProbeStore implements ProbeStore {
       .prepare('SELECT DISTINCT chain_id, token_id FROM probes')
       .all() as unknown as { chain_id: number; token_id: string }[];
 
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  enroll(agents: { chainId: number; tokenId: string }[]): void {
+    if (agents.length === 0) return;
+    const now = new Date().toISOString();
+    const insert = this.db.prepare(
+      `INSERT INTO enrolled (chain_id, token_id, enrolled_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT (chain_id, token_id) DO NOTHING`,
+    );
+    this.db.exec('BEGIN');
+    try {
+      for (const agent of agents) {
+        insert.run(agent.chainId, agent.tokenId, now);
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  enrolledAgents(): { chainId: number; tokenId: string }[] {
+    const rows = this.db
+      .prepare('SELECT chain_id, token_id FROM enrolled')
+      .all() as unknown as { chain_id: number; token_id: string }[];
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
   }
 
