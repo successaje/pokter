@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { HeroBrief } from '@/components/home/HeroBrief';
 
-import { AgentDesk } from '@/components/home/AgentDesk';
+import { EvidenceOrbit } from '@/components/home/EvidenceOrbit';
 import type { PipelineEvent } from '@/lib/hero/pipeline';
 
 /**
@@ -93,9 +93,9 @@ export function LandingHero({
         </div>
 
         <div className="flex flex-col gap-2">
-          {pipeline && <AgentDesk events={pipeline.events} />}
+          {pipeline && <EvidenceOrbit events={pipeline.events} />}
           <p className="text-center text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-            Every card is a real event with a real transaction.
+            A readable path from registry identity to controlled execution.
           </p>
         </div>
       </section>

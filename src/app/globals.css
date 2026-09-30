@@ -775,6 +775,33 @@ body {
 
 .desk { color: var(--text-secondary); }
 
+@keyframes orbit-turn {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes orbit-node-arrive {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes evidence-fill {
+  from { width: 18%; }
+  to { width: 100%; }
+}
+
+.orbit-ring { animation: orbit-turn 36s linear infinite; }
+.orbit-ring-delayed { animation-duration: 24s; animation-direction: reverse; }
+.orbit-node { animation: orbit-node-arrive 560ms ease-out both; }
+.evidence-progress { animation: evidence-fill 2.8s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-ring,
+  .orbit-node,
+  .evidence-progress { animation: none; }
+
+  .evidence-progress { width: 72%; }
+}
+
 /* Per-word rise for the headline. */
 @keyframes word-rise {
   from { opacity: 0; transform: translateY(0.4em); }
