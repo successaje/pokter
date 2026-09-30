@@ -5,6 +5,7 @@ import { MarketplaceListing } from '@/components/discover/MarketplaceListing';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { listSearchable } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 type Searchable = Awaited<ReturnType<typeof listSearchable>>[number];
 
@@ -17,8 +18,7 @@ export function ExploreMarketplace({
 }) {
   const filtered = agents.filter((entry) => {
     if (selectedCategory && entry.listing.category !== selectedCategory) return false;
-    const published = `${entry.listing.agent.name} ${entry.listing.agent.description ?? ''}`.toLowerCase();
-    return !published.includes('test deployment') && !published.includes('retired duplicate');
+    return isPromotableAgent(entry.listing.agent);
   });
   const ranked = [...filtered].sort((a, b) => {
     const aRatio = a.record.totalProbes

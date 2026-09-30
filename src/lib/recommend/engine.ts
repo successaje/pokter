@@ -9,6 +9,7 @@ import { computeScore } from '@/lib/score/engine';
 import { BSC_MAINNET } from '@/lib/scan/types';
 import type { Brief, Match, Recommendation, Rejection } from './types';
 import { MIN_PROBES, MIN_UPTIME } from './thresholds';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 
 const HISTORY_DAYS = 30;
@@ -131,6 +132,15 @@ export async function recommend(brief: Brief): Promise<Recommendation> {
     const record = buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     );
+
+    if (!isPromotableAgent(listing.agent)) {
+      rejected.push({
+        listing,
+        reason:
+          'The publisher marks this identity as a test, retired or non-production deployment, so Pokter will not recommend it.',
+      });
+      continue;
+    }
 
     const protocols = listing.agent.supported_protocols ?? [];
     if (protocols.length === 0) {

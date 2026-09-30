@@ -4,6 +4,7 @@ import { AgentCard } from '@/components/AgentCard';
 import { listSearchable, preferDistinctOwners } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 const CATEGORY_ROUTES: Record<Category, string> = {
   rebalancing: '/categories/rebalancing',
@@ -43,6 +44,7 @@ export async function SimilarAgents({
     .filter(
       (entry) =>
         entry.listing.category === category &&
+        isPromotableAgent(entry.listing.agent) &&
         !(
           entry.listing.agent.chain_id === chainId &&
           entry.listing.agent.token_id === tokenId

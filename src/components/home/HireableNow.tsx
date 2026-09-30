@@ -5,6 +5,7 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 type Entry = { listing: Listing; record: TrackRecord };
 
@@ -25,7 +26,11 @@ type Entry = { listing: Listing; record: TrackRecord };
  */
 export function HireableNow({ entries }: { entries: Entry[] }) {
   const picks = CATEGORIES.map(({ id }) => {
-    const inCategory = entries.filter((e) => e.listing.category === id);
+    const inCategory = entries.filter(
+      (entry) =>
+        entry.listing.category === id &&
+        isPromotableAgent(entry.listing.agent),
+    );
     const ranked = [...inCategory].sort((a, b) => {
       const quoted =
         Number(b.listing.quote != null) - Number(a.listing.quote != null);

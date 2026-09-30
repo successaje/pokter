@@ -23,6 +23,7 @@ import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
 import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 /**
  * Retrieval is deliberately hybrid.
@@ -456,7 +457,11 @@ export async function recommendedAlternatives(
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
   const ranked = listings
-    .filter((listing) => listing.agent.token_id !== excludeTokenId)
+    .filter(
+      (listing) =>
+        listing.agent.token_id !== excludeTokenId &&
+        isPromotableAgent(listing.agent),
+    )
     .map((listing) => {
       const history = store.historyFor(
         listing.agent.chain_id,

@@ -1,6 +1,7 @@
 import { preferDistinctOwners, type Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 
 /**
  * Turn a brief into a shortlist, in one place.
@@ -25,9 +26,12 @@ export function rankForBrief(
 ): { reading: BriefReading; results: Entry[] } {
   const reading = interpretBrief(brief);
 
+  const promotable = entries.filter((entry) =>
+    isPromotableAgent(entry.listing.agent),
+  );
   const pool = reading.category
-    ? entries.filter((entry) => entry.listing.category === reading.category)
-    : entries;
+    ? promotable.filter((entry) => entry.listing.category === reading.category)
+    : promotable;
 
   const ranked = [...pool].sort((a, b) => {
     const quoted =
@@ -40,4 +44,3 @@ export function rankForBrief(
 
   return { reading, results: preferDistinctOwners(ranked, limit) };
 }
-
