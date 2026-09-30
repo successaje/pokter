@@ -12,8 +12,7 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
-import { AskPokter } from '@/components/discover/AskPokter';
-import { AskResults } from '@/components/discover/AskResults';
+import { AskLauncher } from '@/components/discover/AskLauncher';
 import { getMarketplaceActivity } from '@/lib/discover/pulse';
 
 /** The recommendation reads accumulated history, so it is never statically cached. */
@@ -198,7 +197,6 @@ export default async function DiscoverPage({
   const params = await searchParams;
   const brief = parseBrief(params);
   const shouldRun = params.run === '1';
-  const jobBrief = typeof params.brief === 'string' ? params.brief.slice(0, 400) : '';
   const selectedCategory =
     typeof params.category === 'string' && CATEGORY_BY_ID.has(params.category as Category)
       ? params.category
@@ -222,6 +220,7 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-12 pt-6">
+      <AskLauncher />
       <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="flex max-w-3xl flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)]">
@@ -272,31 +271,18 @@ export default async function DiscoverPage({
             click away for anyone who wants it.
           */}
           {/*
-            One way in, not two.
-
-            "Find my best match" and this answered the same question — rank
-            this market around what I want — and stacking them asked a visitor
-            to choose between two openings to the same thing before they had
-            told us anything. This is the simpler opening, so it is the one on
-            the page; the structured form it replaces is a closed details
-            underneath for someone who wants to set capital and risk by hand.
+            The structured form, closed.
+            
+            The conversational route now lives in a launcher in the corner
+            rather than as a band across the top of this page: it was costing
+            the page a card of prose before a visitor had asked for anything,
+            on a page whose job is to show agents.
           */}
-          {jobBrief ? (
-            <AskResults brief={jobBrief} />
-          ) : (
-            <AskPokter initial={jobBrief} />
-          )}
-
           <details className="group">
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
-              <span>
-                Nothing is hired from here — this only decides what you are
-                shown.
-              </span>
+              <span>Prefer to set capital and risk yourself?</span>
               <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
-                <span className="group-open:hidden">
-                  Set capital and risk yourself
-                </span>
+                <span className="group-open:hidden">Open the shortlist builder</span>
                 <span className="hidden group-open:inline">Hide</span>
               </span>
             </summary>
