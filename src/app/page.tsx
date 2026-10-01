@@ -40,13 +40,15 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
-      <SetAndEarnNotice />
-      {/*
-        Compact rather than full-viewport. The page now leads with browsing, so
-        the first scroll has to reach agents; a hero holding the whole screen
-        put the marketplace two screens further away than the argument needed.
-      */}
-      <LandingHero compact />
+      <div className="flex flex-col gap-4">
+        <SetAndEarnNotice />
+        {/*
+          Compact rather than full-viewport. The page now leads with browsing, so
+          the first scroll has to reach agents; a hero holding the whole screen
+          put the marketplace two screens further away than the argument needed.
+        */}
+        <LandingHero compact />
+      </div>
 
       {/*
         Agents, immediately. Cutting the outcome scenes for their prose took

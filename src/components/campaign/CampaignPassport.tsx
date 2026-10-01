@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { summarizeCampaignHires } from '@/lib/campaign/progress';
 import { shortAddress } from '@/lib/ui/format';
@@ -9,9 +9,19 @@ import { useActiveWallet } from '@/lib/wallet/active';
 import { jobsForWallet, noJobs, subscribeToJobs } from '@/lib/wallet/activity';
 
 const REGISTRATION_KEY = 'pokter.set-and-earn.registered.v1';
+const REGISTRATION_EVENT = 'pokter:set-and-earn-registration-changed';
 
 function registrationKey(wallet: string): string {
   return `${REGISTRATION_KEY}:${wallet.toLowerCase()}`;
+}
+
+function subscribeToRegistration(listener: () => void): () => void {
+  window.addEventListener('storage', listener);
+  window.addEventListener(REGISTRATION_EVENT, listener);
+  return () => {
+    window.removeEventListener('storage', listener);
+    window.removeEventListener(REGISTRATION_EVENT, listener);
+  };
 }
 
 function Metric({ value, target, label, note }: { value: number; target: number; label: string; note: string }) {
@@ -30,18 +40,22 @@ export function CampaignPassport() {
   const getJobsSnapshot = useCallback(() => (walletAddress ? jobsForWallet(walletAddress) : noJobs()), [walletAddress]);
   const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot, noJobs);
   const progress = summarizeCampaignHires(jobs);
-  const [registered, setRegistered] = useState(false);
-
-  useEffect(() => {
-    setRegistered(Boolean(walletAddress && window.localStorage.getItem(registrationKey(walletAddress)) === 'yes'));
-  }, [walletAddress]);
+  const getRegistrationSnapshot = useCallback(
+    () => Boolean(walletAddress && window.localStorage.getItem(registrationKey(walletAddress)) === 'yes'),
+    [walletAddress],
+  );
+  const registered = useSyncExternalStore(
+    subscribeToRegistration,
+    getRegistrationSnapshot,
+    () => false,
+  );
 
   const toggleRegistered = () => {
     if (!walletAddress) return;
     const next = !registered;
-    setRegistered(next);
     if (next) window.localStorage.setItem(registrationKey(walletAddress), 'yes');
     else window.localStorage.removeItem(registrationKey(walletAddress));
+    window.dispatchEvent(new Event(REGISTRATION_EVENT));
   };
 
   return (
