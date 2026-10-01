@@ -605,7 +605,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <h2 id="path-title" className="mt-2 text-xl font-semibold">What do you have right now?</h2>
             <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-muted)]">Pick the closest answer. You can change paths without losing your draft.</p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <button type="button" onClick={() => setMode('existing')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--info-dim)] text-[color:var(--info)]"><Icon name="registry" /></span>
               <span className="mt-8 text-lg font-semibold">An agent already registered onchain</span>
@@ -621,8 +621,14 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <button type="button" onClick={() => setMode('templates')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--caution-dim)] text-[color:var(--caution)]"><Icon name="idea" /></span>
               <span className="mt-8 text-lg font-semibold">Only an idea so far</span>
-              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Choose a focused structure, then get a tailored prompt for ChatGPT, Claude or Gemini.</span>
-              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Build with AI <Icon name="arrow" /></span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start with a focused financial-agent structure, then configure its profile and runtime.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose a starting point <Icon name="arrow" /></span>
+            </button>
+            <button type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider('ChatGPT'); }} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
+              <span className="flex size-11 items-center justify-center rounded-full bg-[#8b5cf6]/10 text-[#7c3aed] dark:bg-[#a78bfa]/15 dark:text-[#c4b5fd]"><Icon name="spark" /></span>
+              <span className="mt-8 text-lg font-semibold">Build with an AI assistant</span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start immediately with a production-focused prompt for ChatGPT, Claude or Gemini.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose an assistant <Icon name="arrow" /></span>
             </button>
           </div>
           <ConnectionGuide />
@@ -809,11 +815,15 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         description="Review the complete engineering prompt before copying it into your AI assistant. It contains no wallet secrets or private keys."
         footer={aiPromptProvider ? <button type="button" onClick={() => copyAgentBuildPrompt(aiPromptProvider)} className="action-primary w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">{copiedAiProvider === aiPromptProvider ? 'Prompt copied ✓' : `Copy prompt for ${aiPromptProvider}`}</button> : undefined}
       >
+        <div className="mb-4 grid grid-cols-3 gap-2" role="group" aria-label="Choose AI assistant">
+          {(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider(provider); }} aria-pressed={aiPromptProvider === provider} className={cn('min-h-10 rounded-[var(--radius)] border px-2 text-[10px] font-semibold transition-colors', aiPromptProvider === provider ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] hover:border-[color:var(--brand)]')}>{provider}</button>)}
+        </div>
         <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
           <div className="mb-3 flex items-center justify-between gap-3"><p className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--text-muted)]">Complete prompt</p><span className="rounded-full bg-[color:var(--brand-highlight-soft)] px-2 py-1 text-[9px] font-semibold text-[color:var(--brand-strong)]">Editable after pasting</span></div>
           <pre className="mono max-h-[58vh] whitespace-pre-wrap overflow-auto rounded-[var(--radius)] bg-[color:var(--surface)] p-4 text-[10px] leading-5 text-[color:var(--text-secondary)]">{visibleAiPrompt}</pre>
         </div>
         <p className="mt-4 text-[10px] leading-5 text-[color:var(--text-muted)]">Do not paste private keys, seed phrases, production credentials, or customer data into any AI assistant. Review and test generated code before deploying it.</p>
+        {mode === 'choose' && <button type="button" onClick={() => { setAiPromptProvider(null); setMode('templates'); }} className="mt-4 flex min-h-11 w-full items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)]">Prefer a tailored prompt? Choose an agent starter →</button>}
       </Sheet>
 
       <Sheet
