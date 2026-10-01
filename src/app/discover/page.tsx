@@ -234,7 +234,35 @@ export default async function DiscoverPage({
 
   return (
     <div className="flex flex-col gap-12 pt-6">
-      {!shouldRun && !intent && <DiscoverHero />}
+      {!shouldRun && !intent && (
+        <DiscoverHero
+          topAgents={browseAgents
+            .filter((entry) => isPromotableAgent(entry.listing.agent))
+            .sort((a, b) => {
+              const aRatio = a.record.totalProbes
+                ? a.record.totalAnswered / a.record.totalProbes
+                : -1;
+              const bRatio = b.record.totalProbes
+                ? b.record.totalAnswered / b.record.totalProbes
+                : -1;
+              return bRatio - aRatio || b.record.totalProbes - a.record.totalProbes;
+            })
+            .slice(0, 3)
+            .map((entry) => ({
+              name: entry.listing.agent.name,
+              href: `/agents/${entry.listing.agent.chain_id}/${entry.listing.agent.token_id}`,
+              imageUrl: entry.listing.agent.image_url,
+              category:
+                CATEGORY_BY_ID.get(entry.listing.category)?.label ?? 'Agent',
+              score: entry.record.totalProbes
+                ? Math.round(
+                    (entry.record.totalAnswered / entry.record.totalProbes) * 100,
+                  )
+                : null,
+              probes: entry.record.totalProbes,
+            }))}
+        />
+      )}
 
       {!shouldRun && intent && (
         <DiscoverResults

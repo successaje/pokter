@@ -12,6 +12,7 @@ import { readSavedAgents, subscribeToSavedAgents } from '@/lib/wallet/saved-agen
 import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { CampaignPassport } from '@/components/campaign/CampaignPassport';
 
 function hashSeed(value: string) {
   let hash = 2166136261;
@@ -98,6 +99,10 @@ export function AccountProfile() {
         <Link href="/app" className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 transition-all hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-full bg-[color:var(--brand-dim)] text-lg">◎</span><span className="text-[color:var(--brand-strong)]">Open →</span></div><h3 className="mt-5 text-lg font-semibold">Personal</h3><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-muted)]">Discover agents, manage commissions, saved choices and notifications.</p></Link>
         <Link href={builderReady ? '/builder' : '/build'} className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 transition-all hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-full bg-[color:var(--caution-dim)] text-lg">◇</span><span className="text-[color:var(--brand-strong)]">{builderReady ? 'Open →' : 'Set up →'}</span></div><h3 className="mt-5 text-lg font-semibold">Builder</h3><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-muted)]">{builderReady ? `Verified as ${shortAddress(builder.data!.owner!)}` : 'Verify an agent identity you own to manage listings and funded work.'}</p></Link>
       </div></section>
+
+      <div className="mt-8">
+        <CampaignPassport />
+      </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,.6fr)]">
         <section aria-labelledby="wallet-heading" className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Identity and signing</p><h2 id="wallet-heading" className="mt-2 text-xl font-semibold">Wallets on this device</h2><div className="mt-5 divide-y divide-[color:var(--border)]">
