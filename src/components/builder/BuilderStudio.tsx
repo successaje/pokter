@@ -124,6 +124,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   );
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [registrationBusy, setRegistrationBusy] = useState(false);
+  const [mainnetConsent, setMainnetConsent] = useState(false);
   const [publishedAgent, setPublishedAgent] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
 
   useEffect(() => {
@@ -295,6 +296,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
 
   async function publishIdentity() {
     if (draftScore < 5 || !reviewing) return;
+    if (registrationChainId === 56 && !mainnetConsent) {
+      setRegistrationError('Confirm the BNB Chain identity transaction and gas disclosure before publishing.');
+      return;
+    }
     setRegistrationBusy(true);
     setRegistrationError(null);
     setPublishedAgent(null);
@@ -334,7 +339,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         </div>
         <div className="flex items-center gap-3 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-[11px] text-[color:var(--text-muted)]">
           <span className="size-2 rounded-full bg-[color:var(--positive)]" />
-          Registry checks are read-only
+          {mode === 'new' ? 'You approve every registry write' : 'Registry checks are read-only'}
         </div>
       </header>
 
@@ -418,15 +423,17 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} maxLength={2048} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
             {draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}
-            <div className="mt-7 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:p-5">
+            <div id="publish-identity" className="mt-7 scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:p-5">
               <div className="flex items-start gap-3">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="registry" /></span>
                 <div><p className="text-[12px] font-semibold">Publish the identity you own</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">Publishing uses two registry transactions: one mints the ERC-8004 identity, then one binds the complete profile to its new ID. It never grants Pokter wallet access and never funds a hiring escrow.</p></div>
               </div>
-              <label className="mt-4 flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={registrationChainId} disabled={registrationBusy || Boolean(registrationRecovery)} onChange={(event) => setRegistrationChainId(Number(event.target.value) as RegistryChainId)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)] disabled:opacity-60"><option value={56}>BNB Chain · public marketplace identity</option><option value={97}>BNB Testnet · rehearsal identity</option></select></label>
+              <label className="mt-4 flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={registrationChainId} disabled={registrationBusy || Boolean(registrationRecovery)} onChange={(event) => { setRegistrationChainId(Number(event.target.value) as RegistryChainId); setMainnetConsent(false); }} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)] disabled:opacity-60"><option value={56}>BNB Chain · public marketplace identity</option><option value={97}>BNB Testnet · rehearsal identity</option></select></label>
               <div className={cn('mt-4 rounded-[var(--radius)] border p-3 text-[10px] leading-5', registrationChainId === 56 ? 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] text-[color:var(--text-secondary)]' : 'border-[color:var(--info)]/25 bg-[color:var(--info-dim)] text-[color:var(--text-secondary)]')}><strong className="text-[color:var(--text)]">{registrationChainId === 56 ? 'Mainnet identity transaction.' : 'Testnet rehearsal.'}</strong> {registrationChainId === 56 ? 'You will pay BNB gas. This only publishes an identity; Pokter hiring remains on BNB Testnet.' : 'Use this to validate the registration flow. Testnet identities are not promoted in the public marketplace.'}</div>
+              {registrationChainId === 56 && reviewing && !publishedAgent && <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3"><input type="checkbox" checked={mainnetConsent} onChange={(event) => setMainnetConsent(event.target.checked)} className="mt-0.5 size-4 accent-[color:var(--brand)]"/><span className="text-[10px] leading-5 text-[color:var(--text-secondary)]">I understand this creates a public ERC-8004 identity on BNB Chain and requires two wallet-approved transactions plus BNB gas.</span></label>}
               {registrationRecovery && <div className="mt-3 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-3 text-[10px] leading-5 text-[color:var(--text-secondary)]"><strong className="text-[color:var(--info)]">Recoverable publication found.</strong> Pokter will resume the saved {registrationRecovery.agentId ? `agent #${registrationRecovery.agentId}` : 'registration transaction'} on chain {registrationRecovery.chainId}; it will not mint another identity.</div>}
               {registrationError && <p role="alert" className="mt-3 rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-5 text-[color:var(--caution)]">{registrationError}</p>}
+              {reviewing && !publishedAgent && <button type="button" disabled={registrationBusy || (registrationChainId === 56 && !mainnetConsent)} onClick={publishIdentity} className="action-primary mt-4 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50">{registrationBusy && <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-2px]" />}{registrationLabel}</button>}
               {publishedAgent && <div className="mt-3 rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-3"><p className="text-[11px] font-semibold text-[color:var(--positive)]">Agent #{publishedAgent.tokenId} is published and verified onchain.</p><div className="mt-3 flex flex-wrap gap-2"><Link href={`/agents/${publishedAgent.chainId}/${publishedAgent.tokenId}`} className="rounded-[var(--radius)] bg-[color:var(--brand)] px-3 py-2 text-[10px] font-semibold text-[color:var(--brand-ink)]">Open public profile</Link><button type="button" onClick={() => { setMode('existing'); setReport(null); setError(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[10px] font-semibold">Verify ownership</button></div></div>}
             </div>
             {reviewing && (
@@ -473,8 +480,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Draft quality</p><p className="mt-2 text-3xl font-semibold">{draftScore}/5</p></div><span className="text-[10px] text-[color:var(--text-muted)]">Auto-saved</span></div>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]"><div className="h-full rounded-full bg-[color:var(--brand)] transition-all" style={{ width: `${draftScore * 20}%` }} /></div>
             <ul className="mt-5 flex flex-col gap-3">{draftChecks.map((check) => <li key={check.label} className="flex items-center gap-3 text-[12px]"><span className={cn('flex size-5 items-center justify-center rounded-full border text-[10px]', check.done ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{check.done ? '✓' : '·'}</span>{check.label}</li>)}</ul>
-            {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <button type="button" disabled={registrationBusy || Boolean(publishedAgent)} onClick={publishIdentity} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50">{registrationBusy && <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-2px]" />}{registrationLabel}</button>}
-            <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Your wallet shows every transaction before anything is written. Pokter never receives your key.' : 'Complete every readiness check before publishing.'}</p>
+            {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <a href="#publish-identity" className="action-primary mt-6 flex w-full items-center justify-center rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">Review network & publish</a>}
+            <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : 'Complete every readiness check before publishing.'}</p>
           </aside>
         </section>
       )}

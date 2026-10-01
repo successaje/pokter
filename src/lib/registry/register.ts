@@ -17,13 +17,12 @@ import {
   custom,
   getAddress,
   http,
-  pad,
-  toEventSelector,
   type Address,
   type Hex,
-  type TransactionReceipt,
 } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
+
+import { registeredAgentIdFromReceipt } from './registration-receipt';
 
 export type RegistryChainId = 56 | 97;
 export type RegistrationStep =
@@ -57,17 +56,6 @@ type InjectedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
-const REGISTERED_EVENT = {
-  type: 'event',
-  name: 'Registered',
-  inputs: [
-    { name: 'agentId', type: 'uint256', indexed: true },
-    { name: 'agentURI', type: 'string', indexed: false },
-    { name: 'owner', type: 'address', indexed: true },
-  ],
-} as const;
-const REGISTERED_TOPIC = toEventSelector(REGISTERED_EVENT);
-
 function injectedProvider(): InjectedProvider {
   const injected = (globalThis as unknown as { ethereum?: InjectedProvider }).ethereum;
   if (!injected) throw new Error('Install or open an injected wallet to publish an identity.');
@@ -98,22 +86,6 @@ async function ensureChain(provider: InjectedProvider, chainId: RegistryChainId)
   }
 }
 
-function registeredAgentId(
-  receipt: TransactionReceipt,
-  registry: Address,
-  owner: Address,
-): bigint | undefined {
-  const registryLower = registry.toLowerCase();
-  const ownerTopic = pad(owner.toLowerCase() as Address, { size: 32 }).toLowerCase();
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== registryLower) continue;
-    if (log.topics[0]?.toLowerCase() !== REGISTERED_TOPIC.toLowerCase()) continue;
-    if (log.topics[2]?.toLowerCase() !== ownerTopic) continue;
-    if (log.topics[1]) return BigInt(log.topics[1]);
-  }
-  return undefined;
-}
-
 /**
  * Publish an ERC-8004 identity from an injected EOA wallet.
  *
@@ -125,7 +97,7 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
   owner: Address;
   agentId: bigint;
   registrationHash?: Hex;
-  profileHash: Hex;
+  profileHash?: Hex;
 }> {
   if (input.recovery && input.recovery.chainId !== input.chainId) {
     throw new Error('The saved registration belongs to a different network.');
@@ -161,7 +133,7 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
     report({ step: 'confirming-registration', chainId: input.chainId, registrationHash });
     const receipt = await read.waitForTransactionReceipt({ hash: registrationHash });
     if (receipt.status !== 'success') throw new Error('The identity registration transaction reverted.');
-    agentId = registeredAgentId(receipt, registry, owner);
+    agentId = registeredAgentIdFromReceipt(receipt, registry, owner);
     if (agentId === undefined) {
       throw new Error('Registration confirmed, but the new agent ID was not present in the registry receipt. Do not register again; inspect the transaction first.');
     }
@@ -169,6 +141,20 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
 
   const completedFile = withErc8004Registration(input.file, agentId, input.chainId);
   const completedUri = encodeErc8004AgentUri(completedFile);
+  const current = await getErc8004Agent(networkFor(input.chainId), agentId);
+  if (getAddress(current.owner) !== owner) {
+    throw new Error('The connected wallet does not own the saved ERC-8004 identity. Switch accounts before resuming.');
+  }
+  // The update may have landed even if the browser closed before it observed
+  // the receipt. Treat the exact on-chain record as completion instead of
+  // asking the owner to pay for an identical second transaction.
+  if (current.agentUri === completedUri) {
+    report({
+      step: 'done', chainId: input.chainId, registrationHash,
+      agentId: agentId.toString(),
+    });
+    return { owner, agentId, registrationHash, profileHash: undefined };
+  }
   report({
     step: 'publishing-profile', chainId: input.chainId,
     registrationHash, agentId: agentId.toString(),
