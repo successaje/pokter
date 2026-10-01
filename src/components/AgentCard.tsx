@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Listing } from '@/lib/marketplace';
 import type { Verdict } from '@/lib/proof/engine';
+import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import type { TrackRecord } from '@/lib/history/record';
 import { cn } from '@/lib/ui/cn';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
@@ -26,11 +27,20 @@ export function AgentCard({
   listing,
   verdict,
   record,
+  history,
   hirable = false,
   fleetSize,
 }: {
   listing: Listing;
   verdict: Verdict;
+  /**
+   * What became of the jobs funded against this agent, when any have been.
+   *
+   * Optional because several callers render cards from sets that carry no
+   * job index. Absent means "we hold no jobs for this agent" and the card
+   * shows nothing, which is different from zero and must stay different.
+   */
+  history?: AgentEconomicHistory;
   /**
    * What our sweeps have accumulated. The card previously showed the agent's
    * declared protocols — "A2A" — which is jargon that answers none of the
@@ -99,6 +109,26 @@ export function AgentCard({
         : formatQuotedPrice(listing.quote.priceU);
   const hasPrice = Boolean(listing.quote);
   const fromAFleet = (fleetSize ?? 1) > 1;
+
+  /*
+   * Said as an outcome, never as an accusation.
+   *
+   * Pokter does not record whether a seller was successfully told its job was
+   * funded — that is a gap on our side, not evidence against the agent — so a
+   * job that expired undelivered may mean the agent refused or may mean we
+   * never reached it. The card reports what became of the escrow and stops
+   * there. It is still worth showing: an agent answering every probe while
+   * completing nothing looked identical to one that delivers, and the first
+   * reading someone makes of a 100% badge should not be contradicted by the
+   * job history one click later.
+   */
+  const delivery =
+    history && history.jobs > 0
+      ? {
+          text: `${history.completed} of ${history.jobs} funded ${history.jobs === 1 ? 'job' : 'jobs'} completed`,
+          wanting: history.completed === 0,
+        }
+      : null;
 
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   const description = agent.description?.trim() || 'No description published.';
@@ -231,6 +261,17 @@ export function AgentCard({
             {availability}
             {attestations ? ` · ${attestations}` : ''}
           </p>
+          {delivery && (
+            <p
+              className={
+                delivery.wanting
+                  ? 'tabular text-[11px] font-medium text-[color:var(--caution)]'
+                  : 'tabular text-[11px] text-[color:var(--positive)]'
+              }
+            >
+              {delivery.text}
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2">
             <span
               className={cn(
@@ -341,6 +382,18 @@ export function AgentCard({
             past the viewport and stretched the page itself. The `relative` on
             the card root is what keeps them inside it.
           */}
+          {delivery && (
+            <p
+              className={
+                delivery.wanting
+                  ? 'tabular text-[11px] font-medium text-[color:var(--caution)]'
+                  : 'tabular text-[11px] text-[color:var(--positive)]'
+              }
+            >
+              {delivery.text}
+            </p>
+          )}
+
           <dl className="mt-auto flex items-baseline justify-between gap-3 border-t border-[color:var(--border)] pt-2.5 text-[11px] text-[color:var(--text-faint)]">
             <div className="flex min-w-0 items-baseline gap-1.5">
               <dt className="sr-only">Availability</dt>

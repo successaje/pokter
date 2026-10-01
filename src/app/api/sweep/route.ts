@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
+import { checkForNewHires } from '@/lib/alerts/hires';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
@@ -100,8 +101,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
       0,
     );
+    /*
+     * Hire watching rides the sweep because the sweep is already scheduled,
+     * already secret-guarded, and already the thing that runs when nobody is
+     * watching. A second cron would be a second thing to notice had stopped.
+     *
+     * Settled rather than awaited bare: a watcher failure must not fail the
+     * sweep, which has already done the measuring by this point.
+     */
+    const hireWatch = await checkForNewHires().catch(() => null);
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
+      hireWatch,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
       reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,

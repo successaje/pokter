@@ -1,9 +1,7 @@
 import Link from 'next/link';
 
 import { AgentCard } from '@/components/AgentCard';
-import type { Listing } from '@/lib/marketplace';
-import type { TrackRecord } from '@/lib/history/record';
-import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import { offersDirectHire, verdictFor, type SearchableAgent } from '@/lib/search/match';
 
 /**
  * What the hero's question produced, said once and then got out of the way.
@@ -25,7 +23,7 @@ export function BriefMatches({
 }: {
   brief: string;
   categoryLabel: string | null;
-  entries: { listing: Listing; record: TrackRecord }[];
+  entries: SearchableAgent[];
 }) {
   return (
     <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-4">
@@ -58,6 +56,7 @@ export function BriefMatches({
                 listing={entry.listing}
                 verdict={verdictFor(entry)}
                 record={entry.record}
+                history={entry.history}
                 hirable={offersDirectHire(entry)}
               />
             ))}

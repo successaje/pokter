@@ -19,9 +19,24 @@ export interface JobStore {
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
+  /**
+   * A named place to remember how far a watcher has already looked.
+   *
+   * Kept beside the jobs rather than in its own store because the only thing
+   * that needs it is the hire watcher, and a cursor without the rows it
+   * refers to is meaningless.
+   */
+  readCursor(name: string): string | null;
+  writeCursor(name: string, value: string): void;
 }
 
 const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS cursors (
+    name       TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS jobs (
     id                TEXT PRIMARY KEY,
     job_id            TEXT NOT NULL,
@@ -157,6 +172,23 @@ class SqliteJobStore implements JobStore {
       .prepare('SELECT * FROM jobs ORDER BY hired_at DESC')
       .all() as unknown as JobRow[];
     return rows.map(toJob);
+  }
+
+  readCursor(name: string): string | null {
+    const row = this.db
+      .prepare('SELECT value FROM cursors WHERE name = ?')
+      .get(name) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  writeCursor(name: string, value: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO cursors (name, value, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT (name) DO UPDATE SET value = excluded.value,
+                                          updated_at = excluded.updated_at`,
+      )
+      .run(name, value, new Date().toISOString());
   }
 
   byId(id: string): HiredJob | null {

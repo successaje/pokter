@@ -369,7 +369,9 @@ export async function getComparisons(keys: string[]): Promise<Comparison[]> {
  */
 export async function listSearchable(
   options: { chainId?: ChainId; limit?: number } = {},
-): Promise<{ listing: Listing; record: TrackRecord }[]> {
+): Promise<
+  { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]
+> {
   const sections = await listMarketplace(options);
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
@@ -378,6 +380,20 @@ export async function listSearchable(
   const quotes = store.quotesFor(
     all.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
   );
+
+  /*
+   * What happened to the jobs, carried at list level.
+   *
+   * It was already on the agent page and in the comparison table, which is
+   * where a reader ends up after choosing — and the choosing happens in the
+   * grid. An agent that answers every probe and completes no job looked
+   * identical there to one that delivers, because availability was the only
+   * outcome a card could show.
+   *
+   * Reads the local job index, so this costs nothing the category queries
+   * were not already paying.
+   */
+  const jobs = getJobStore();
 
   return all.map((listing) => ({
     listing: {
@@ -388,6 +404,9 @@ export async function listSearchable(
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
+    history: summariseEconomicHistory(
+      jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
+    ),
   }));
 }
 
@@ -395,7 +414,9 @@ export async function listSearchable(
 export async function listCategorySearchable(
   category: Category,
   options: { chainId?: ChainId; limit?: number } = {},
-): Promise<{ listing: Listing; record: TrackRecord }[]> {
+): Promise<
+  { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]
+> {
   const listings = await listCategory(category, options);
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
@@ -407,6 +428,20 @@ export async function listCategorySearchable(
     })),
   );
 
+  /*
+   * What happened to the jobs, carried at list level.
+   *
+   * It was already on the agent page and in the comparison table, which is
+   * where a reader ends up after choosing — and the choosing happens in the
+   * grid. An agent that answers every probe and completes no job looked
+   * identical there to one that delivers, because availability was the only
+   * outcome the card could show.
+   *
+   * Reads the local job index, so this costs nothing the category queries
+   * were not already paying.
+   */
+  const jobs = getJobStore();
+
   return listings.map((listing) => ({
     listing: {
       ...listing,
@@ -415,6 +450,9 @@ export async function listCategorySearchable(
     },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
+    ),
+    history: summariseEconomicHistory(
+      jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
   }));
 }
