@@ -2,6 +2,11 @@
 
 # dependencies
 /node_modules
+
+# The starter template is its own package; its install must never be committed.
+templates/*/node_modules
+templates/*/package-lock.json
+templates/*/.vercel
 /.pnp
 .pnp.*
 .yarn/*
@@ -32,6 +37,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+
+# Example files carry no secrets and are the setup instructions: a repo that
+# ignores them documents an environment nobody can reproduce.
+!.env.example
+!templates/*/.env.example
 
 # vercel
 .vercel

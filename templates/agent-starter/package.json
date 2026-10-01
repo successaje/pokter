@@ -1,0 +1,7 @@
+{
+  "name": "bnb-agent-starter",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "node server.js" },
+  "dependencies": { "viem": "^2.21.0" }
+}

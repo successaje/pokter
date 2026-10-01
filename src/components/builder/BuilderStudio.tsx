@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getAddress } from 'viem';
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
+import { GITHUB_REPO_URL } from '@/lib/support/contact';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
@@ -231,6 +232,28 @@ function ConnectionGuide() {
           <ul className="mt-3 flex flex-col gap-2 text-[10px] text-[color:var(--text-secondary)]">
             {['A working agent or callable tool', 'A public HTTPS endpoint', 'A wallet for the ERC-8004 identity', 'A clear output, evidence and limitations'].map((item) => <li key={item} className="flex items-center gap-2"><span className="text-[color:var(--positive)]">✓</span>{item}</li>)}
           </ul>
+          {/*
+            Said where the list is read, not later.
+
+            Everything below this point assumes the first two items are
+            already true. Somebody who has neither an agent nor a host reads
+            this list, concludes the page is not for them, and leaves — and
+            during a campaign asking people to build and list one, that is
+            the larger half of the audience walking away at the first screen.
+          */}
+          <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-secondary)]">
+            Missing the first two?{' '}
+            <a
+              href={`${GITHUB_REPO_URL}/tree/main/templates/agent-starter`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-medium text-[color:var(--info)] underline decoration-dotted"
+            >
+              Start from the agent template
+            </a>
+            : one file that serves a valid card and a wallet-signed price,
+            deployable to any Node host.
+          </p>
           <details className="mt-4 border-t border-[color:var(--border)] pt-3"><summary className="cursor-pointer text-[10px] font-semibold text-[color:var(--brand-strong)]">Show the connection contract</summary><pre className="mono mt-3 overflow-x-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[9px] leading-5 text-[color:var(--text-secondary)]">{`A2A\nGET /.well-known/agent-card.json\nPOST your endpoint · JSON-RPC 2.0\n\nMCP\nPOST your endpoint · initialize\nPOST your endpoint · tools/list`}</pre></details>
         </div>
       </div>
@@ -743,7 +766,12 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 <p className="mt-3 text-[8px] leading-4 text-[color:var(--text-muted)]">Review generated code. Never paste wallet secrets into AI tools.</p>
               </section>}
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
-              <div className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
+              <div className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes. Paste the <em>full</em> endpoint including its path — the diagnostic report shows only the origin, which on its own will not answer.</span>{/*
+                The way out for the people this step stops.
+                Everything above assumes an agent already exists and is
+                hosted; somebody who has not built one has no route forward
+                from here, which is the larger half of the audience.
+              */}<span className="text-[10px] leading-4 text-[color:var(--text-muted)]">No endpoint yet? <a href={`${GITHUB_REPO_URL}/tree/main/templates/agent-starter`} target="_blank" rel="noreferrer noopener" className="font-medium text-[color:var(--info)] underline decoration-dotted">Start from the agent template</a> — one file that serves a valid card and a wallet-signed price, deployable to any Node host.</span></div>
               {newStep === 2 && runtimeOptions && <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Runtime configuration handoff</p><p className="mt-1 text-[9px] leading-4 text-[color:var(--text-muted)]">Download the exact choices from Profile and apply them to your agent before testing its endpoint.</p></div><button type="button" onClick={downloadRuntimeConfig} disabled={!runtimeConfig.target || !runtimeConfig.policy || !runtimeConfig.output} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[10px] font-semibold disabled:opacity-40">Download config</button></div></div>}
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}{endpointReport?.safety && <details className="mt-3 border-t border-current/10 pt-2"><summary className="cursor-pointer text-[10px] font-semibold">Connection safety</summary><ul className="mt-2 grid gap-1 text-[9px] leading-4 text-[color:var(--text-muted)] sm:grid-cols-2"><li>✓ Public HTTPS only</li><li>✓ Credentials rejected</li><li>✓ DNS address pinned</li><li>✓ Private networks rejected</li><li>✓ Redirects blocked</li><li>✓ 10s / 256 KiB limits</li></ul></details>}</div></div></div>}
               {endpointReport?.ok && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2">
