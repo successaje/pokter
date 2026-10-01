@@ -52,6 +52,29 @@ function db(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_builder_notifications_owner
       ON builder_notifications (owner_address, created_at DESC);
+    CREATE TABLE IF NOT EXISTS builder_notification_subscriptions (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      owner_address TEXT NOT NULL,
+      verification_hash TEXT NOT NULL,
+      verified_at TEXT,
+      unsubscribed_at TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(email, owner_address)
+    );
+    CREATE INDEX IF NOT EXISTS idx_builder_notification_subscriptions_owner
+      ON builder_notification_subscriptions (owner_address);
+    CREATE TABLE IF NOT EXISTS builder_notification_outbox (
+      id TEXT PRIMARY KEY,
+      subscription_id TEXT NOT NULL,
+      event TEXT NOT NULL,
+      provider_id TEXT,
+      sent_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(subscription_id, event),
+      FOREIGN KEY(subscription_id) REFERENCES builder_notification_subscriptions(id)
+    );
   `);
   return database;
 }
@@ -68,12 +91,13 @@ export interface BuilderNotification {
   readAt: string | null;
 }
 
-export function recordBuilderJobEvent(input: {
-  owner: string; chainId: number; jobId: string; agentName: string;
-  status: string; expiredAt?: bigint;
-}): void {
+type BuilderJobEvent = { event: string; title: string; body: string };
+
+function builderJobEvents(input: {
+  jobId: string; agentName: string; status: string; expiredAt?: bigint;
+}): BuilderJobEvent[] {
   const status = input.status.toUpperCase();
-  const events: Array<{ event: string; title: string; body: string }> = [];
+  const events: BuilderJobEvent[] = [];
   if (status === 'FUNDED') events.push({ event: 'FUNDED', title: 'New funded job', body: `${input.agentName} has funded work ready for delivery.` });
   if (status === 'SUBMITTED') events.push({ event: 'SUBMITTED', title: 'Delivery awaiting review', body: `Job #${input.jobId} was submitted and is waiting for the buyer.` });
   if (status === 'REJECTED') events.push({ event: 'REJECTED', title: 'Delivery contested', body: `The buyer contested job #${input.jobId}. Review the job evidence.` });
@@ -83,6 +107,14 @@ export function recordBuilderJobEvent(input: {
   if (status === 'FUNDED' && secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 86_400) {
     events.push({ event: 'DEADLINE_24H', title: 'Delivery due within 24 hours', body: `Job #${input.jobId} is still funded and approaching its deadline.` });
   }
+  return events;
+}
+
+export function recordBuilderJobEvent(input: {
+  owner: string; chainId: number; jobId: string; agentName: string;
+  status: string; expiredAt?: bigint;
+}): void {
+  const events = builderJobEvents(input);
   const insert = db().prepare(`INSERT OR IGNORE INTO builder_notifications
     (id,owner_address,chain_id,job_id,agent_name,event,title,body,created_at)
     VALUES (?,?,?,?,?,?,?,?,?)`);
@@ -110,6 +142,27 @@ export function markBuilderNotificationsRead(owner: string, id?: string): number
     ? db().prepare(`UPDATE builder_notifications SET read_at=? WHERE owner_address=? AND id=? AND read_at IS NULL`).run(now, owner.toLowerCase(), id)
     : db().prepare(`UPDATE builder_notifications SET read_at=? WHERE owner_address=? AND read_at IS NULL`).run(now, owner.toLowerCase());
   return Number(result.changes);
+}
+
+export interface BuilderEmailStatus {
+  configured: boolean;
+  verified: boolean;
+  emailMasked: string | null;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '••••';
+  return `${local.slice(0, 2)}${'•'.repeat(Math.min(Math.max(local.length - 2, 2), 6))}@${domain}`;
+}
+
+export function builderEmailStatus(owner: string): BuilderEmailStatus {
+  const row = db().prepare(`SELECT email,verified_at,unsubscribed_at
+    FROM builder_notification_subscriptions WHERE owner_address=?
+    ORDER BY created_at DESC LIMIT 1`).get(owner.toLowerCase()) as
+    { email: string; verified_at: string | null; unsubscribed_at: string | null } | undefined;
+  if (!row || row.unsubscribed_at) return { configured: false, verified: false, emailMasked: null };
+  return { configured: true, verified: Boolean(row.verified_at), emailMasked: maskEmail(row.email) };
 }
 
 function hash(value: string): string {
@@ -187,10 +240,40 @@ export async function createSubscription(input: {
   });
 }
 
-export function verifySubscription(token: string): boolean {
-  const result = db().prepare(`UPDATE notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
-    WHERE verification_hash=? AND verified_at IS NULL`).run(new Date().toISOString(), hash(token));
-  return result.changes > 0;
+export async function createBuilderSubscription(input: { email: string; owner: string }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const owner = input.owner.toLowerCase();
+  const token = randomBytes(32).toString('base64url');
+  const id = randomUUID();
+  // A builder wallet has one notification destination. Replacing it revokes
+  // older destinations before the new address can be verified.
+  db().prepare(`UPDATE builder_notification_subscriptions SET unsubscribed_at=?
+    WHERE owner_address=? AND unsubscribed_at IS NULL`).run(new Date().toISOString(), owner);
+  db().prepare(`INSERT INTO builder_notification_subscriptions
+    (id,email,owner_address,verification_hash,created_at) VALUES (?,?,?,?,?)
+    ON CONFLICT(email,owner_address) DO UPDATE SET
+      verification_hash=excluded.verification_hash,
+      verified_at=NULL,
+      unsubscribed_at=NULL,
+      created_at=excluded.created_at`).run(id, email, owner, hash(token), new Date().toISOString());
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  await sendEmail({
+    to: email,
+    subject: 'Confirm Pokter builder alerts',
+    idempotencyKey: `builder-verify-${hash(`${email}:${owner}:${token}`).slice(0, 48)}`,
+    html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">Confirm builder alerts</h1><p style="font-size:14px;line-height:1.6;color:#55534d">Receive verified updates when agents owned by your connected wallet get funded work or a job changes state.</p><a href="${verifyUrl}" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">Confirm alerts</a><p style="font-size:11px;color:#77756d;margin-top:20px">No task content or wallet authority is shared by email. If you did not request this, ignore this message.</p>`),
+  });
+}
+
+export function verifySubscription(token: string): 'buyer' | 'builder' | null {
+  const now = new Date().toISOString();
+  const tokenHash = hash(token);
+  const buyer = db().prepare(`UPDATE notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  if (buyer.changes > 0) return 'buyer';
+  const builder = db().prepare(`UPDATE builder_notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  return builder.changes > 0 ? 'builder' : null;
 }
 
 function unsubscribeSecret(): string {
@@ -206,14 +289,54 @@ function unsubscribeToken(id: string): string {
   return `${id}.${createHmac('sha256', unsubscribeSecret()).update(id).digest('base64url')}`;
 }
 
-export function unsubscribe(token: string): boolean {
+export function unsubscribe(token: string): 'buyer' | 'builder' | null {
   const [id, supplied] = token.split('.');
-  if (!id || !supplied) return false;
+  if (!id || !supplied) return null;
   const expected = createHmac('sha256', unsubscribeSecret()).update(id).digest();
   let actual: Buffer;
-  try { actual = Buffer.from(supplied, 'base64url'); } catch { return false; }
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return false;
-  return db().prepare('UPDATE notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(new Date().toISOString(), id).changes > 0;
+  try { actual = Buffer.from(supplied, 'base64url'); } catch { return null; }
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  const now = new Date().toISOString();
+  const buyer = db().prepare('UPDATE notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
+  if (buyer.changes > 0) return 'buyer';
+  const builder = db().prepare('UPDATE builder_notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
+  return builder.changes > 0 ? 'builder' : null;
+}
+
+export async function notifyBuilderJobEvent(input: {
+  owner: string; chainId: number; jobId: string; agentName: string;
+  status: string; expiredAt?: bigint;
+}): Promise<{ attempted: number; sent: number }> {
+  recordBuilderJobEvent(input);
+  const events = builderJobEvents(input);
+  const rows = db().prepare(`SELECT id,email FROM builder_notification_subscriptions
+    WHERE owner_address=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(
+    input.owner.toLowerCase(),
+  ) as { id: string; email: string }[];
+  let sent = 0;
+  for (const row of rows) for (const item of events) {
+    const eventKey = `${input.chainId}:${input.jobId}:${item.event}`;
+    const proposedId = randomUUID();
+    db().prepare(`INSERT OR IGNORE INTO builder_notification_outbox
+      (id,subscription_id,event,created_at) VALUES (?,?,?,?)`).run(proposedId, row.id, eventKey, new Date().toISOString());
+    const pending = db().prepare(`SELECT id,sent_at FROM builder_notification_outbox
+      WHERE subscription_id=? AND event=?`).get(row.id, eventKey) as { id: string; sent_at: string | null };
+    if (pending.sent_at) continue;
+    const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    try {
+      const providerId = await sendEmail({
+        to: row.email,
+        subject: `Pokter builder alert: ${item.title}`,
+        idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
+        html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.6;color:#55534d">${escapeHtml(item.body)}</p><a href="${appUrl()}/builder" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">Open builder workspace</a><p style="font-size:11px;color:#77756d;margin-top:22px">Task details are intentionally excluded from email. <a href="${unsubscribeUrl}" style="color:#55534d">Stop builder alerts</a>.</p>`),
+      });
+      db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
+      sent += 1;
+    } catch (error) {
+      db().prepare('UPDATE builder_notification_outbox SET last_error=? WHERE id=?').run(String((error as Error).message).slice(0, 500), pending.id);
+    }
+  }
+  return { attempted: rows.length * events.length, sent };
 }
 
 export async function notifyJobEvent(input: {

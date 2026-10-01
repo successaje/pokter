@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { runSweep } from '@/lib/history/sweep';
 import { getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { notifyJobEvent, recordBuilderJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -56,16 +56,20 @@ export async function POST(request: Request): Promise<NextResponse> {
           getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId)),
           getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId),
         ]);
-        recordBuilderJobEvent({
+        return notifyBuilderJobEvent({
           owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
           agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
         });
-        return true;
       }),
+    );
+    const builderEmails = builderResults.reduce(
+      (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
+      0,
     );
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
+      builderEmails,
       builderNotificationFailures: builderResults.filter((result) => result.status === 'rejected').length,
     });
   } catch (error) {
