@@ -47,5 +47,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     endpoint,
     capabilities,
     quoteCapability,
+    safety: {
+      httpsRequired: true,
+      credentialsRejected: true,
+      dnsPinned: true,
+      privateNetworksRejected: true,
+      redirectsBlocked: true,
+      timeoutMs: 10_000,
+      responseLimitBytes: 256 * 1_024,
+    },
   });
 }

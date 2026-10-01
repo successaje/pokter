@@ -9,6 +9,7 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
+import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
@@ -31,6 +32,25 @@ type EndpointPreflight = {
   detail: string;
   capabilities: string[];
   quoteCapability: boolean;
+  safety: {
+    httpsRequired: boolean;
+    credentialsRejected: boolean;
+    dnsPinned: boolean;
+    privateNetworksRejected: boolean;
+    redirectsBlocked: boolean;
+    timeoutMs: number;
+    responseLimitBytes: number;
+  };
+};
+type BuilderTrial = {
+  ok: boolean;
+  protocol: Draft['protocol'];
+  capability: string;
+  latencyMs: number;
+  observedAt: string;
+  summary: string;
+  response: unknown;
+  disclaimer: string;
 };
 
 type Draft = {
@@ -168,6 +188,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [endpointReport, setEndpointReport] = useState<EndpointPreflight | null>(null);
   const [endpointBusy, setEndpointBusy] = useState(false);
   const [endpointError, setEndpointError] = useState<string | null>(null);
+  const [trialTask, setTrialTask] = useState('Return a read-only example result with sources, assumptions and explicit limitations.');
+  const [trialResult, setTrialResult] = useState<BuilderTrial | null>(null);
+  const [trialError, setTrialError] = useState<string | null>(null);
+  const [trialBusy, setTrialBusy] = useState(false);
   const [registrationProgress, setRegistrationProgress] = useState<RegistrationProgress | null>(null);
   const [registrationRecovery, setRegistrationRecovery] = useState<RegistrationRecovery | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -217,6 +241,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) && draft.image.trim().length <= 2_048 },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
+  const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: draft.name.trim(),
@@ -299,6 +324,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     if (key === 'endpoint' || key === 'protocol') {
       setEndpointReport(null);
       setEndpointError(null);
+      setTrialResult(null);
+      setTrialError(null);
     }
     setDraft((current) => ({ ...current, [key]: value }));
   }
@@ -312,6 +339,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     setDraft((current) => ({ ...current, ...draftFromBrief(brief) }));
     setEndpointReport(null);
     setEndpointError(null);
+    setTrialResult(null);
+    setTrialError(null);
     setReviewing(false);
     setBriefApplied(true);
   }
@@ -320,6 +349,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     setDraft({ ...starter.draft });
     setEndpointReport(null);
     setEndpointError(null);
+    setTrialResult(null);
+    setTrialError(null);
     setReviewing(false);
     setMode('new');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -355,6 +386,31 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       setEndpointError(reason instanceof Error ? reason.message : 'The endpoint check could not be completed.');
     } finally {
       setEndpointBusy(false);
+    }
+  }
+
+  async function runDraftTrial() {
+    if (!endpointReport?.ok) return;
+    setTrialBusy(true);
+    setTrialResult(null);
+    setTrialError(null);
+    try {
+      const response = await fetch('/api/builders/trial', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: draft.endpoint.trim(),
+          protocol: draft.protocol,
+          task: trialTask.trim(),
+        }),
+      });
+      const payload = await response.json() as BuilderTrial & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? payload.summary ?? 'The preview request failed.');
+      setTrialResult(payload);
+    } catch (reason) {
+      setTrialError(reason instanceof Error ? reason.message : 'The preview request failed.');
+    } finally {
+      setTrialBusy(false);
     }
   }
 
@@ -535,7 +591,16 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
               <div className="flex flex-col gap-2"><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
-              {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}</div></div></div>}
+              {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}{endpointReport?.safety && <details className="mt-3 border-t border-current/10 pt-2"><summary className="cursor-pointer text-[10px] font-semibold">Connection safety</summary><ul className="mt-2 grid gap-1 text-[9px] leading-4 text-[color:var(--text-muted)] sm:grid-cols-2"><li>✓ Public HTTPS only</li><li>✓ Credentials rejected</li><li>✓ DNS address pinned</li><li>✓ Private networks rejected</li><li>✓ Redirects blocked</li><li>✓ 10s / 256 KiB limits</li></ul></details>}</div></div></div>}
+              {endpointReport?.ok && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2">
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><p className="text-[12px] font-semibold">Run a private sample request</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-muted)]">Only an explicitly advertised preview, simulate or dry-run capability can be called. This result stays private and never becomes marketplace evidence.</p></div>{trialCapability && <span className="mono w-fit rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[9px]">{trialCapability}</span>}</div>
+                {trialCapability ? <>
+                  <label className="mt-4 flex flex-col gap-2"><span className="text-[10px] font-medium">Sample task</span><textarea rows={3} maxLength={500} value={trialTask} disabled={trialBusy} onChange={(event) => { setTrialTask(event.target.value); setTrialResult(null); setTrialError(null); }} className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-3 text-[11px] leading-5 outline-none focus:border-[color:var(--border-focus)]" /></label>
+                  <button type="button" onClick={runDraftTrial} disabled={trialBusy || trialTask.trim().length < 10} className="mt-3 min-h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{trialBusy ? 'Running private preview…' : 'Run private preview'}</button>
+                </> : <p className="mt-4 rounded-[var(--radius)] border border-[color:var(--info)]/20 bg-[color:var(--info-dim)] p-3 text-[10px] leading-5 text-[color:var(--text-secondary)]">No safe preview capability was advertised. Add a dedicated <span className="mono">preview</span>, <span className="mono">simulate</span> or <span className="mono">dry-run</span> skill/tool to test real output here. Pokter will not call execution capabilities such as trade, withdraw or rebalance.</p>}
+                {trialError && <p role="alert" className="mt-3 rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3 text-[10px] leading-5 text-[color:var(--negative)]">{trialError}</p>}
+                {trialResult && <div className="mt-4 rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[color:var(--positive)]">Structured preview returned</p><span className="mono text-[9px] text-[color:var(--text-muted)]">{trialResult.latencyMs} ms · {trialResult.protocol.toUpperCase()}</span></div><p className="mt-2 text-[10px] leading-5 text-[color:var(--text-secondary)]">{trialResult.summary}</p><p className="mt-2 text-[9px] leading-4 text-[color:var(--text-muted)]">{trialResult.disclaimer}</p><details className="mt-3 border-t border-[color:var(--positive)]/20 pt-3"><summary className="cursor-pointer text-[10px] font-semibold">Inspect raw response</summary><pre className="mono mt-3 max-h-56 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[9px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(trialResult.response, null, 2)}</pre></details></div>}
+              </div>}
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} maxLength={2048} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
             {draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}

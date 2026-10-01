@@ -69,10 +69,12 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 - [x] HTTPS-only endpoint requirement.
 - [x] Safe A2A or MCP handshake.
 - [x] Capability and quote-capability summary.
-- [ ] Builder-visible DNS, redirect and SSRF safety report.
+- [x] Builder-visible DNS, redirect and SSRF safety report.
 - [ ] Protocol-version and schema validation.
 - [ ] Timeout, malformed-request and empty-response tests.
-- [ ] Realistic sample-task execution.
+- [~] Private sample-task execution is available for endpoints that advertise a
+  dedicated preview, simulate or dry-run capability; fixture coverage remains
+  open.
 - [ ] Quote negotiation and payee/identity consistency test.
 - [ ] ERC-8183 and delivery-manifest compatibility test.
 - [ ] Downloadable, versioned compatibility report.
@@ -83,8 +85,8 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 - [x] Marketplace card and public profile opening preview.
 - [x] Mobile and desktop preview.
 - [ ] Private sample-request console.
-- [ ] Raw and interpreted response views.
-- [ ] Latency, protocol and failure details.
+- [x] Raw and interpreted response views.
+- [x] Latency, protocol and failure details.
 - [ ] Trial history.
 - [ ] Successful-trial gate before Pokter recommends publication.
 
