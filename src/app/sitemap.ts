@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fixed = [
     { path: '', priority: 1 },
     { path: '/discover', priority: 0.9 },
+    { path: '/set-and-earn', priority: 0.9 },
     { path: '/agents', priority: 0.9 },
     { path: '/compare', priority: 0.7 },
     { path: '/leaderboard', priority: 0.7 },

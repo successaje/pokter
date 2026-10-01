@@ -499,6 +499,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         </div>
       </header>
 
+      <aside className="rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:p-5" aria-label="Set and Earn qualification note"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Building for Set and Earn?</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">Register your campaign wallet first. The agent must be newly listed after the official announcement, remain reachable, complete three independent hires, and perform five category-consistent onchain actions across three days.</p></div><Link href="/set-and-earn" className="shrink-0 text-[11px] font-semibold text-[color:var(--brand-strong)] hover:underline">Open campaign checklist →</Link></div></aside>
+
       {mode === 'choose' && (
         <section aria-labelledby="path-title" className="flex flex-col gap-5">
           <div>

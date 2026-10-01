@@ -15,6 +15,7 @@ import { Reveal } from '@/components/motion/Reveal';
 import { LandingHero } from '@/components/home/LandingHero';
 import { LiveProof } from '@/components/home/LiveProof';
 import { recentProbes } from '@/lib/hero/pipeline';
+import { SetAndEarnNotice } from '@/components/campaign/SetAndEarnNotice';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28">
+      <SetAndEarnNotice />
       {/*
         Compact rather than full-viewport. The page now leads with browsing, so
         the first scroll has to reach agents; a hero holding the whole screen

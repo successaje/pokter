@@ -36,6 +36,7 @@ const COLUMNS = [
     heading: 'Support',
     links: [
       { label: 'Get help', href: '/support' },
+      { label: 'Set and Earn checklist', href: '/set-and-earn' },
       { label: 'Launch an agent', href: '/build' },
       { label: 'Read API', href: '/api/v1' },
       { label: 'Report a problem', href: '/support#where-to-send-what' },

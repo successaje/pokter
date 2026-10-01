@@ -9,6 +9,17 @@ can be inferred.
 Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 `[ ]` not complete, `[!]` release blocker.
 
+## Campaign activation (1 October–5 November 2026)
+
+- [x] Link the official registration before users begin qualifying actions.
+- [x] Publish the exact hire/build qualification checklist in-product.
+- [x] State that BNB Testnet hires count and token approval alone does not.
+- [x] Warn that only agents listed after the official announcement qualify.
+- [ ] Show each connected wallet's three-agent/two-marketplace hire progress.
+- [ ] Show qualifying-agent completed hires by distinct independent wallets.
+- [ ] Show five category-consistent onchain actions across three separate days.
+- [ ] Add a campaign evidence export for participant verification.
+
 ## A. Security maintenance
 
 - [x] Upgrade Next.js beyond the affected `next/og` release.
