@@ -3,12 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getAddress } from 'viem';
+import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { cn } from '@/lib/ui/cn';
+import { Sheet } from '@/components/ui/Sheet';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
+import {
+  registerIdentityFromWallet,
+  type RegistrationProgress,
+  type RegistrationRecovery,
+  type RegistryChainId,
+} from '@/lib/registry/register';
 
 type Mode = 'choose' | 'existing' | 'new';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean };
@@ -51,6 +59,7 @@ const QUALITY_EXAMPLE: Draft = {
 };
 
 const DRAFT_KEY = 'pokter-agent-draft-v1';
+const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
 function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' }) {
   const className = 'size-5 fill-none stroke-current';
@@ -103,6 +112,22 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [endpointReport, setEndpointReport] = useState<EndpointPreflight | null>(null);
   const [endpointBusy, setEndpointBusy] = useState(false);
   const [endpointError, setEndpointError] = useState<string | null>(null);
+  const [registrationProgress, setRegistrationProgress] = useState<RegistrationProgress | null>(null);
+  const [registrationRecovery, setRegistrationRecovery] = useState<RegistrationRecovery | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem(REGISTRATION_RECOVERY_KEY);
+      return stored ? JSON.parse(stored) as RegistrationRecovery : null;
+    } catch { return null; }
+  });
+  const [registrationChainId, setRegistrationChainId] = useState<RegistryChainId>(
+    registrationRecovery?.chainId ?? 56,
+  );
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [registrationBusy, setRegistrationBusy] = useState(false);
+  const [mainnetConsent, setMainnetConsent] = useState(false);
+  const [publishedAgent, setPublishedAgent] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -118,8 +143,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   }, [connected, report]);
 
   const draftChecks = [
-    { label: 'Clear name', done: draft.name.trim().length >= 3 },
-    { label: 'Outcome-led description', done: draft.description.trim().length >= 40 },
+    { label: 'Clear name', done: draft.name.trim().length >= 3 && draft.name.trim().length <= 80 },
+    { label: 'Outcome-led description', done: draft.description.trim().length >= 40 && draft.description.trim().length <= 600 },
     { label: 'Marketplace category', done: CATEGORIES.some((category) => category.id === draft.category) },
     {
       label: 'Compatible service endpoint',
@@ -129,7 +154,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         endpointReport.protocol === draft.protocol,
       ),
     },
-    { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) },
+    { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) && draft.image.trim().length <= 2_048 },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
   const registrationPreview = useMemo(() => ({
@@ -141,12 +166,25 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       name: draft.protocol.toUpperCase(),
       endpoint: draft.endpoint.trim(),
     }],
+    registrations: [],
     tags: draft.category ? [draft.category] : [],
     categories: draft.category ? [draft.category] : [],
     x402Support: false,
     active: true,
     supportedTrust: ['reputation'],
-  }), [draft]);
+  }) as Erc8004RegistrationFile, [draft]);
+
+  const registrationStep = registrationProgress?.step;
+  const registrationLabel = registrationStep === 'connecting' ? 'Connecting wallet…'
+    : registrationStep === 'switching-network' ? 'Checking network…'
+    : registrationStep === 'registering' ? 'Approve identity registration…'
+    : registrationStep === 'confirming-registration' ? 'Confirming identity…'
+    : registrationStep === 'publishing-profile' ? 'Approve profile publication…'
+    : registrationStep === 'verifying' ? 'Verifying onchain record…'
+    : registrationStep === 'done' ? 'Agent published'
+    : registrationRecovery?.agentId ? 'Resume profile publication'
+    : registrationRecovery?.registrationHash ? 'Recover registration'
+    : 'Publish ERC-8004 identity';
 
   async function runDiagnostic(event: React.FormEvent) {
     event.preventDefault();
@@ -247,6 +285,52 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     }
   }
 
+  function persistRecovery(progress: RegistrationProgress) {
+    const recovery: RegistrationRecovery = {
+      chainId: progress.chainId,
+      registrationHash: progress.registrationHash,
+      agentId: progress.agentId,
+    };
+    if (!recovery.registrationHash && !recovery.agentId) return;
+    setRegistrationRecovery(recovery);
+    try { localStorage.setItem(REGISTRATION_RECOVERY_KEY, JSON.stringify(recovery)); } catch {}
+  }
+
+  async function publishIdentity() {
+    if (draftScore < 5 || !reviewing) return;
+    if (registrationChainId === 56 && !mainnetConsent) {
+      setRegistrationError('Confirm the BNB Chain identity transaction and gas disclosure before publishing.');
+      return;
+    }
+    setRegistrationBusy(true);
+    setRegistrationError(null);
+    setPublishedAgent(null);
+    try {
+      const compatibleRecovery = registrationRecovery?.chainId === registrationChainId
+        ? registrationRecovery
+        : undefined;
+      const result = await registerIdentityFromWallet({
+        chainId: registrationChainId,
+        file: registrationPreview,
+        recovery: compatibleRecovery,
+        onProgress: (progress) => {
+          setRegistrationProgress(progress);
+          persistRecovery(progress);
+        },
+      });
+      const published = { chainId: registrationChainId, tokenId: result.agentId.toString() };
+      setPublishedAgent(published);
+      setTokenId(published.tokenId);
+      setChainId(String(published.chainId) as '56' | '97');
+      setRegistrationRecovery(null);
+      try { localStorage.removeItem(REGISTRATION_RECOVERY_KEY); } catch {}
+    } catch (reason) {
+      setRegistrationError(reason instanceof Error ? reason.message : 'The identity could not be published.');
+    } finally {
+      setRegistrationBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16 pt-6 sm:gap-10 sm:pt-10">
       <header className="grid items-end gap-6 border-b border-[color:var(--border)] pb-7 lg:grid-cols-[1fr_auto]">
@@ -257,7 +341,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         </div>
         <div className="flex items-center gap-3 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-[11px] text-[color:var(--text-muted)]">
           <span className="size-2 rounded-full bg-[color:var(--positive)]" />
-          Registry checks are read-only
+          {mode === 'new' ? 'You approve every registry write' : 'Registry checks are read-only'}
         </div>
       </header>
 
@@ -296,8 +380,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       )}
 
       {mode === 'existing' && (
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
+        <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Find your identity</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">No signature or transaction required</p></div></div>
             <form onSubmit={runDiagnostic} className="mt-6 grid gap-4 sm:grid-cols-[1fr_170px_auto] sm:items-end">
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">ERC-8004 agent ID</span><input value={tokenId} onChange={(event) => setTokenId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="265375" className="mono h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
@@ -319,7 +403,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             )}
           </div>
 
-          <aside className="h-fit rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
+          <aside className="h-fit min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
             <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Publish checklist</p>
             <ol className="mt-5 flex flex-col gap-5">{['Find the registry identity','Verify the owner wallet','Fix quality gaps','Build an independent record'].map((label, index) => <li key={label} className="flex gap-3"><span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px]', (index === 0 && report) || (index === 1 && ownsAgent) ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{(index === 0 && report) || (index === 1 && ownsAgent) ? '✓' : index + 1}</span><span className="pt-0.5 text-[12px]">{label}</span></li>)}</ol>
             {report && <div className="mt-6 border-t border-[color:var(--border)] pt-5"><button type="button" disabled={verificationStep !== 'idle' || Boolean(verifiedAt)} onClick={verifyOwner} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[12px] font-semibold hover:border-[color:var(--brand)] disabled:opacity-60"><Icon name={verifiedAt ? 'check' : 'wallet'} />{verifiedAt ? 'Publisher verified' : verificationStep === 'registry' ? 'Checking registry owner…' : verificationStep === 'signature' ? 'Waiting for wallet signature…' : verificationStep === 'verifying' ? 'Verifying signature…' : 'Verify ownership'}</button>{verifiedAt && <><p className="mt-3 text-[11px] leading-5 text-[color:var(--positive)]">Ownership verified with an expiring, single-use wallet challenge.</p><Link href="/builder" className="mt-3 flex w-full items-center justify-center rounded-[var(--radius)] bg-[color:var(--brand)] px-4 py-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">Open builder dashboard →</Link>{connected && <Link href={`/builders/${connected}`} className="mt-2 flex w-full items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-3 text-[11px] font-medium">View public profile</Link>}</>}{!verifiedAt && ownsAgent === true && <p className="mt-3 text-[11px] leading-5 text-[color:var(--text-secondary)]">Address matched. Sign the verification message to prove control.</p>}{ownsAgent === false && <p className="mt-3 text-[11px] leading-5 text-[color:var(--caution)]">This wallet does not own the identity. Switch accounts if you manage it.</p>}<p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">The message names this identity and expires after ten minutes. It cannot move funds or authorize transactions.</p></div>}
@@ -328,20 +412,25 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       )}
 
       {mode === 'new' && (
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
+        <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Shape the public profile</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">Saved privately on this device</p></div></div>
             <div className="mt-7 grid gap-5 sm:grid-cols-2">
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
-              <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/40 recommended minimum</span></label>
+              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} maxLength={80} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
+              <label className="min-w-0 flex flex-col gap-2"><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
+              <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
-              <div className="flex flex-col gap-2"><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
+              <div className="flex flex-col gap-2"><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}</div></div></div>}
-              <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
+              <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} maxLength={2048} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
             {draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}
-            <div className="mt-7 rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-4"><p className="text-[12px] font-semibold text-[color:var(--caution)]">Registration is intentionally not live yet</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">This prepares and validates your public profile without creating a mainnet transaction. Registration will be enabled only after the contract path and recovery flow pass protocol review.</p></div>
+            <div className="mt-7 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="registry" /></span>
+                <div><p className="text-[12px] font-semibold">Publish the identity you own</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">After the profile passes every check, Pokter opens a focused review with the exact record, network and wallet actions. Publishing never grants Pokter wallet access or funds a hiring escrow.</p></div>
+              </div>
+            </div>
             {reviewing && (
               <div className="mt-6 rounded-[var(--radius-lg)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-5">
                 <div className="flex items-start gap-3">
@@ -382,15 +471,40 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               </div>
             )}
           </div>
-          <aside className="h-fit rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
+          <aside className="h-fit min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
             <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Draft quality</p><p className="mt-2 text-3xl font-semibold">{draftScore}/5</p></div><span className="text-[10px] text-[color:var(--text-muted)]">Auto-saved</span></div>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]"><div className="h-full rounded-full bg-[color:var(--brand)] transition-all" style={{ width: `${draftScore * 20}%` }} /></div>
             <ul className="mt-5 flex flex-col gap-3">{draftChecks.map((check) => <li key={check.label} className="flex items-center gap-3 text-[12px]"><span className={cn('flex size-5 items-center justify-center rounded-full border text-[10px]', check.done ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{check.done ? '✓' : '·'}</span>{check.label}</li>)}</ul>
-            <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{reviewing ? 'Registration file ready' : 'Review registration file'}</button>
-            <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">Review generates a standards-aligned preview only. It cannot sign or publish.</p>
+            {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <button type="button" onClick={() => setPublishModalOpen(true)} className="action-primary mt-6 flex w-full items-center justify-center rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">Review network & publish</button>}
+            <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : 'Complete every readiness check before publishing.'}</p>
           </aside>
         </section>
       )}
+
+      <Sheet
+        open={publishModalOpen}
+        onClose={() => { if (!registrationBusy) setPublishModalOpen(false); }}
+        title={publishedAgent ? 'Agent published' : 'Review network and publish'}
+        description={publishedAgent ? `ERC-8004 identity #${publishedAgent.tokenId} is verified onchain.` : 'Confirm the exact public record and where it will be written.'}
+        footer={!publishedAgent ? (
+          <button type="button" disabled={registrationBusy || (registrationChainId === 56 && !mainnetConsent)} onClick={publishIdentity} className="action-primary w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50">{registrationBusy && <span className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-2px]" />}{registrationLabel}</button>
+        ) : undefined}
+      >
+        {publishedAgent ? (
+          <div className="rounded-[var(--radius-lg)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-5"><span className="flex size-9 items-center justify-center rounded-full bg-[color:var(--positive)] text-white"><Icon name="check" /></span><p className="mt-4 text-sm font-semibold text-[color:var(--positive)]">Agent #{publishedAgent.tokenId} is live.</p><p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">Pokter re-read the registry and verified both the owner and exact registration file.</p><div className="mt-5 flex flex-col gap-2 sm:flex-row"><Link href={`/agents/${publishedAgent.chainId}/${publishedAgent.tokenId}`} className="action-primary flex min-h-11 flex-1 items-center justify-center rounded-[var(--radius)] px-4 text-[12px] font-semibold">Open public profile</Link><button type="button" onClick={() => { setPublishModalOpen(false); setMode('existing'); setReport(null); setError(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="min-h-11 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold">Verify ownership</button></div></div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <dl className="grid gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:grid-cols-2"><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Agent</dt><dd className="mt-1 text-[12px] font-semibold">{registrationPreview.name}</dd></div><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Outcome</dt><dd className="mt-1 text-[12px] font-semibold">{CATEGORIES.find((category) => category.id === draft.category)?.label}</dd></div><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Protocol</dt><dd className="mt-1 text-[12px] font-semibold">{registrationPreview.services[0].name}</dd></div><div className="min-w-0"><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Endpoint</dt><dd className="mono mt-1 truncate text-[10px]" title={registrationPreview.services[0].endpoint}>{registrationPreview.services[0].endpoint}</dd></div></dl>
+            <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={registrationChainId} disabled={registrationBusy || Boolean(registrationRecovery)} onChange={(event) => { setRegistrationChainId(Number(event.target.value) as RegistryChainId); setMainnetConsent(false); }} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)] disabled:opacity-60"><option value={56}>BNB Chain · public marketplace identity</option><option value={97}>BNB Testnet · rehearsal identity</option></select></label>
+            <div className={cn('rounded-[var(--radius)] border p-3 text-[10px] leading-5', registrationChainId === 56 ? 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]' : 'border-[color:var(--info)]/25 bg-[color:var(--info-dim)]')}><strong>{registrationChainId === 56 ? 'Mainnet identity transaction.' : 'Testnet rehearsal.'}</strong> {registrationChainId === 56 ? 'You will pay BNB gas. This only publishes an identity; Pokter hiring remains on BNB Testnet.' : 'Testnet identities validate the flow but are not promoted in the public marketplace.'}</div>
+            {registrationChainId === 56 && <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><input type="checkbox" checked={mainnetConsent} onChange={(event) => setMainnetConsent(event.target.checked)} className="mt-0.5 size-4 accent-[color:var(--brand)]"/><span className="text-[10px] leading-5 text-[color:var(--text-secondary)]">I understand this creates a public ERC-8004 identity on BNB Chain and requires two wallet-approved transactions plus BNB gas.</span></label>}
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><span className="flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[10px] font-bold">1</span><p className="text-[11px] font-semibold">Mint the identity</p><span /><p className="text-[10px] leading-4 text-[color:var(--text-muted)]">The registry assigns the ERC-8004 agent ID.</p><span className="mt-2 flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[10px] font-bold">2</span><p className="mt-2 text-[11px] font-semibold">Bind the completed profile</p><span /><p className="text-[10px] leading-4 text-[color:var(--text-muted)]">The second transaction writes the exact profile with its assigned ID.</p></div>
+            {registrationRecovery && <div className="rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-3 text-[10px] leading-5"><strong className="text-[color:var(--info)]">Recoverable publication found.</strong> Pokter will resume {registrationRecovery.agentId ? `agent #${registrationRecovery.agentId}` : 'the confirmed transaction'} without minting another identity.</div>}
+            {registrationError && <p role="alert" className="rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-5 text-[color:var(--caution)]">{registrationError}</p>}
+            <details className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2"><summary className="cursor-pointer text-[10px] font-semibold">Inspect registration JSON</summary><pre className="mono mt-3 max-h-48 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[9px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(registrationPreview, null, 2)}</pre></details>
+          </div>
+        )}
+      </Sheet>
     </div>
   );
 }
