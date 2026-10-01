@@ -1,9 +1,9 @@
 import {
   createPublicClient, createWalletClient, custom,
-  encodeFunctionData, erc20Abi, getAddress, http, parseUnits,
+  encodeFunctionData, erc20Abi, getAddress, http, parseUnits, stringToHex,
   type Address, type Hex,
 } from 'viem';
-import { buildHireCalls, getErc8183Job } from '@altananetwork/sdk';
+import { buildHireCalls, buildSubmitCall, getErc8183Job } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
@@ -304,4 +304,34 @@ export async function externalAccount(): Promise<Address | null> {
   } catch {
     return null;
   }
+}
+
+/** Submit a prepared immutable manifest from the exact provider EOA. */
+export async function submitExternalDeliverable(input: {
+  account: Address;
+  jobId: bigint;
+  deliverable: Hex;
+  deliverableUrl: string;
+}): Promise<Hex> {
+  await ensureChain();
+  await assertAccount(input.account);
+  const { wallet, read } = clients();
+  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  if (getAddress(before.provider) !== getAddress(input.account)) throw new Error('NOT_JOB_PROVIDER');
+  if (before.statusName !== 'FUNDED') throw new Error(`JOB_${before.statusName}`);
+  if (before.expiredAt <= BigInt(Math.floor(Date.now() / 1000))) throw new Error('JOB_EXPIRED');
+  const call = buildSubmitCall({
+    addresses: correctedErc8183Addresses(WALLET_NETWORK.chainId),
+    jobId: input.jobId,
+    deliverable: input.deliverable,
+    optParams: stringToHex(JSON.stringify({ deliverable_url: input.deliverableUrl })),
+  });
+  const hash = await wallet.sendTransaction({ account: input.account, to: call.to as Address, data: call.data, chain: null });
+  const receipt = await read.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('SUBMIT_REVERTED');
+  const after = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  if (after.statusName !== 'SUBMITTED' || after.deliverable.toLowerCase() !== input.deliverable.toLowerCase()) {
+    throw new Error('SUBMISSION_VERIFICATION_FAILED');
+  }
+  return hash;
 }

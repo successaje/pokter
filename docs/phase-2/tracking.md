@@ -139,7 +139,8 @@ for convenience:
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /api/health` | Liveness. |
+| `GET /api/health` | Liveness and persistent-storage readiness. |
+| `GET /api/v1/activity` | Privacy-safe aggregate indexed, active and completed job counts plus `$U` value. No wallet or task data. |
 | `GET /api/deliverables/verify?jobId={id}` | Re-fetches the deliverable named on chain and checks its exact bytes against the committed hash. Returns `{ verified, jobId, deliverableUrl, onchainHash }`. |
 
 The verification endpoint is rate limited to 12 requests per minute per IP. If
@@ -175,7 +176,9 @@ activity; exclude all three from quest and campaign activity counts.
   same-chain A2A seller, because the third-party test seller publishes no
   discoverable runtime. Its jobs are attributable to the operator wallet above
   and should not count as organic activity.
-- **Rate limiting is in-process.** It resets on deploy and does not span
-  machines. Tell us if the campaign needs something sturdier.
+- **Rate limiting is persistent on the current machine.** Counters live in
+  SQLite on the mounted volume, so deploys do not reset them. Pokter currently
+  runs one Fly machine; horizontal scaling will require a shared rate-limit
+  store because volumes are not shared between machines.
 - **Testnet today.** Mainnet addresses are listed above and the migration is
   planned before the campaign concludes.

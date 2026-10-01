@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { getAddress } from 'viem';
 
+import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { cn } from '@/lib/ui/cn';
@@ -11,6 +12,16 @@ import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@
 
 type Mode = 'choose' | 'existing' | 'new';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean };
+type EndpointPreflight = {
+  endpoint: string;
+  protocol: Draft['protocol'];
+  ok: boolean;
+  latencyMs: number | null;
+  status: number | null;
+  detail: string;
+  capabilities: string[];
+  quoteCapability: boolean;
+};
 
 type Draft = {
   name: string;
@@ -25,6 +36,15 @@ const EMPTY_DRAFT: Draft = {
   name: '',
   description: '',
   category: '',
+  protocol: 'a2a',
+  endpoint: '',
+  image: '',
+};
+
+const QUALITY_EXAMPLE: Draft = {
+  name: 'Treasury Sentinel',
+  description: 'Monitors a BNB Chain treasury, compares risk-adjusted stablecoin yields, and returns a read-only allocation plan with source data, assumptions, and explicit loss limits.',
+  category: 'yield',
   protocol: 'a2a',
   endpoint: '',
   image: '',
@@ -59,10 +79,10 @@ function StatusMark({ status }: { status: DiagnosticCheck['status'] }) {
   );
 }
 
-export function BuilderStudio() {
-  const [mode, setMode] = useState<Mode>('choose');
-  const [tokenId, setTokenId] = useState('');
-  const [chainId, setChainId] = useState('56');
+export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
+  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
+  const [tokenId, setTokenId] = useState(initialIdentity?.tokenId ?? '');
+  const [chainId, setChainId] = useState(initialIdentity?.chainId ?? '56');
   const [report, setReport] = useState<BuilderReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +100,9 @@ export function BuilderStudio() {
     }
   });
   const [reviewing, setReviewing] = useState(false);
+  const [endpointReport, setEndpointReport] = useState<EndpointPreflight | null>(null);
+  const [endpointBusy, setEndpointBusy] = useState(false);
+  const [endpointError, setEndpointError] = useState<string | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -97,8 +120,15 @@ export function BuilderStudio() {
   const draftChecks = [
     { label: 'Clear name', done: draft.name.trim().length >= 3 },
     { label: 'Outcome-led description', done: draft.description.trim().length >= 40 },
-    { label: 'Marketplace category', done: Boolean(draft.category) },
-    { label: 'Secure service endpoint', done: /^https:\/\//i.test(draft.endpoint.trim()) },
+    { label: 'Marketplace category', done: CATEGORIES.some((category) => category.id === draft.category) },
+    {
+      label: 'Compatible service endpoint',
+      done: Boolean(
+        endpointReport?.ok &&
+        endpointReport.endpoint === draft.endpoint.trim() &&
+        endpointReport.protocol === draft.protocol,
+      ),
+    },
     { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
@@ -111,6 +141,8 @@ export function BuilderStudio() {
       name: draft.protocol.toUpperCase(),
       endpoint: draft.endpoint.trim(),
     }],
+    tags: draft.category ? [draft.category] : [],
+    categories: draft.category ? [draft.category] : [],
     x402Support: false,
     active: true,
     supportedTrust: ['reputation'],
@@ -166,7 +198,53 @@ export function BuilderStudio() {
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
     setReviewing(false);
+    if (key === 'endpoint' || key === 'protocol') {
+      setEndpointReport(null);
+      setEndpointError(null);
+    }
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function loadQualityExample() {
+    setDraft(QUALITY_EXAMPLE);
+    setEndpointReport(null);
+    setEndpointError(null);
+    setReviewing(false);
+    setMode('new');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function downloadRegistrationFile() {
+    const file = new Blob([`${JSON.stringify(registrationPreview, null, 2)}\n`], { type: 'application/json' });
+    const href = URL.createObjectURL(file);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `${draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent'}-registration.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
+  async function testDraftEndpoint() {
+    setEndpointBusy(true);
+    setEndpointError(null);
+    setEndpointReport(null);
+    try {
+      const response = await fetch('/api/builders/preflight', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: draft.endpoint.trim(),
+          protocol: draft.protocol,
+        }),
+      });
+      const payload = await response.json() as EndpointPreflight & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'The endpoint check could not be completed.');
+      setEndpointReport(payload);
+    } catch (reason) {
+      setEndpointError(reason instanceof Error ? reason.message : 'The endpoint check could not be completed.');
+    } finally {
+      setEndpointBusy(false);
+    }
   }
 
   return (
@@ -203,6 +281,10 @@ export function BuilderStudio() {
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Create a draft <Icon name="arrow" /></span>
             </button>
           </div>
+          <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-5 sm:flex-row sm:items-center">
+            <div><p className="text-[13px] font-semibold">Not an agent builder yet?</p><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">Start with a quality example to see how a buyer-focused name, outcome and safety limits should read. Pokter leaves the endpoint and image blank so a sample can never be mistaken for a working service.</p></div>
+            <button type="button" onClick={loadQualityExample} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-2.5 text-[11px] font-semibold hover:border-[color:var(--brand)]">Explore an example →</button>
+          </div>
           <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">Pokter discovers public ERC-8004 identities. Listing does not endorse an agent; reliability and reputation are measured separately.</p>
         </section>
       )}
@@ -219,7 +301,7 @@ export function BuilderStudio() {
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Find your identity</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">No signature or transaction required</p></div></div>
             <form onSubmit={runDiagnostic} className="mt-6 grid gap-4 sm:grid-cols-[1fr_170px_auto] sm:items-end">
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">ERC-8004 agent ID</span><input value={tokenId} onChange={(event) => setTokenId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="265375" className="mono h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
+              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value as '56' | '97')} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
               <button disabled={busy || !tokenId} className="action-primary h-11 rounded-[var(--radius)] px-5 text-[12px] font-semibold disabled:opacity-50">{busy ? 'Checking…' : 'Check agent'}</button>
             </form>
             {busy && <div className="mt-5 flex items-center gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3 text-[12px] text-[color:var(--text-secondary)]"><span className="size-4 animate-spin rounded-full border-2 border-[color:var(--border-strong)] border-t-[color:var(--brand)]" />Calling the published endpoint and requesting a read-only quote…</div>}
@@ -251,12 +333,14 @@ export function BuilderStudio() {
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Shape the public profile</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">Saved privately on this device</p></div></div>
             <div className="mt-7 grid gap-5 sm:grid-cols-2">
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose a category</option><option value="yield">Earn yield</option><option value="risk">Monitor risk</option><option value="execution">Execute strategies</option><option value="research">Research markets</option></select></label>
+              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/40 recommended minimum</span></label>
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">HTTPS endpoint</span><input value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
+              <div className="flex flex-col gap-2"><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
+              {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}</div></div></div>}
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
+            {draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}
             <div className="mt-7 rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-4"><p className="text-[12px] font-semibold text-[color:var(--caution)]">Registration is intentionally not live yet</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">This prepares and validates your public profile without creating a mainnet transaction. Registration will be enabled only after the contract path and recovery flow pass protocol review.</p></div>
             {reviewing && (
               <div className="mt-6 rounded-[var(--radius-lg)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-5">
@@ -269,6 +353,7 @@ export function BuilderStudio() {
                 </div>
                 <dl className="mt-5 grid gap-4 border-t border-[color:var(--positive)]/20 pt-5 sm:grid-cols-2">
                   <div><dt className="text-[10px] text-[color:var(--text-muted)]">Agent</dt><dd className="mt-1 text-[12px] font-medium">{registrationPreview.name}</dd></div>
+                  <div><dt className="text-[10px] text-[color:var(--text-muted)]">Marketplace outcome</dt><dd className="mt-1 text-[12px] font-medium">{CATEGORIES.find((category) => category.id === draft.category)?.label}</dd></div>
                   <div><dt className="text-[10px] text-[color:var(--text-muted)]">Service</dt><dd className="mt-1 text-[12px] font-medium">{registrationPreview.services[0].name} · HTTPS</dd></div>
                   <div className="sm:col-span-2"><dt className="text-[10px] text-[color:var(--text-muted)]">Public endpoint</dt><dd className="mono mt-1 break-all text-[11px]">{registrationPreview.services[0].endpoint}</dd></div>
                 </dl>
@@ -276,6 +361,24 @@ export function BuilderStudio() {
                   <summary className="cursor-pointer text-[11px] font-semibold">Inspect registration JSON</summary>
                   <pre className="mono mt-3 max-h-64 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[10px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(registrationPreview, null, 2)}</pre>
                 </details>
+                <button type="button" onClick={downloadRegistrationFile} className="mt-4 inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)]">Download registration JSON</button>
+                <div className="mt-5 border-t border-[color:var(--positive)]/20 pt-5">
+                  <p className="text-[11px] font-semibold">After the identity is registered</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">Return with its ERC-8004 token ID. Pokter will read the registry, test the public service and ask the owner wallet for a non-transactional signature before opening Builder operations.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('existing');
+                      setReport(null);
+                      setError(null);
+                      setTokenId('');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[color:var(--brand)] px-4 text-[12px] font-semibold text-[color:var(--brand-ink)]"
+                  >
+                    I have an agent ID <Icon name="arrow" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

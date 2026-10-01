@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
-import { getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { getJobStore } from '@/lib/erc8183/store';
+import { getAgent } from '@/lib/scan/client';
+import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
 /** A sweep probes the whole roster; it needs more than the default budget. */
@@ -47,7 +50,45 @@ export async function POST(request: Request): Promise<NextResponse> {
       0,
     );
     const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
-    return NextResponse.json({ ...outcome, notifications, notificationFailures });
+    const builderResults = await Promise.allSettled(
+      getJobStore().all().filter((job) => job.chainId === ALTANA_NETWORK.chainId).map(async (job) => {
+        const [onchain, agent] = await Promise.all([
+          getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId)),
+          getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId),
+        ]);
+        const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
+          ? await getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(job.jobId)).catch(() => undefined)
+          : undefined;
+        // The local row is only an index. Repair it from ERC-8183 during every
+        // sweep so Activity and Builder never depend on somebody opening a
+        // card to refresh a stale status.
+        getJobStore().record({
+          ...job,
+          provider: onchain.provider,
+          budgetRaw: onchain.budget.toString(),
+          expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
+          status: onchain.statusName,
+          statusCheckedAt: new Date().toISOString(),
+          deliverableUrl: deliverableUrl ?? job.deliverableUrl,
+        });
+        const email = await notifyBuilderJobEvent({
+          owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
+          agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
+        });
+        return { ...email, reconciled: true };
+      }),
+    );
+    const builderEmails = builderResults.reduce(
+      (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
+      0,
+    );
+    return NextResponse.json({
+      ...outcome, notifications, notificationFailures,
+      builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
+      builderEmails,
+      reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
+      builderNotificationFailures: builderResults.filter((result) => result.status === 'rejected').length,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: `Sweep failed: ${(error as Error).message}` },

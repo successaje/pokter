@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 
 import {
   getComparison,
@@ -16,6 +17,9 @@ import { LiveProof } from '@/components/home/LiveProof';
 import { recentProbes } from '@/lib/hero/pipeline';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 /**
  * The agent used as the claim-versus-evidence exhibit: a well-described

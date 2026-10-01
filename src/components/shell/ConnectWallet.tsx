@@ -369,6 +369,16 @@ export function ConnectWallet() {
             )}
           </div>
 
+          <Link
+            href="/account"
+            onClick={close}
+            className="mt-3 flex items-center gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] px-3 py-2.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+          >
+            <IdentityIcon />
+            Account
+            <span className="ml-auto text-[color:var(--text-faint)]" aria-hidden>→</span>
+          </Link>
+
           <WorkspaceSwitcher
             builderOwner={builderSession.data?.authenticated ? builderSession.data.owner : undefined}
             builderSessionPending={builderSession.isPending}

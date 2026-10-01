@@ -354,10 +354,19 @@ Transactional job email is optional and server-only. Configure
 `NOTIFICATION_REPLY_TO` when replies should reach support. A dedicated random
 `NOTIFICATION_UNSUBSCRIBE_SECRET` is recommended; without one, the Resend key
 signs unsubscribe links and rotating it invalidates existing links. Email
-subscriptions require confirmation, are scoped to one on-chain job, exclude
-task text and never participate in escrow execution.
+Buyer email subscriptions require confirmation and are scoped to one on-chain
+job. Verified builders can separately opt into owner-scoped alerts for funded
+work, delivery review, disputes, completion, expiry and approaching deadlines.
+Both flows exclude task text, use a durable deduplicated outbox and never
+participate in escrow execution.
 The authenticated scheduled sweep also checks subscribed jobs against the
-escrow contract, so delivery does not depend on a buyer keeping Pokter open.
+escrow contract, reconciles Pokter's job index and sends builder alerts, so
+delivery does not depend on either party keeping Pokter open.
+
+`GET /api/v1/activity` exposes privacy-safe aggregate adoption figures from
+that reconciled index: job counts by state, active and completed totals, and
+indexed/completed `$U` value. It returns no wallet address, email, task text or
+deliverable content.
 
 ## Deployment
 

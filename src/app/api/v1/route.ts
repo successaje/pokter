@@ -47,6 +47,11 @@ export async function GET(request: Request) {
         description:
           'One agent with its full evidence, including decoded attestations and the measurers behind them.',
       },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/activity`,
+        description: 'Privacy-preserving aggregate job and settlement activity, reconciled from ERC-8183.',
+      },
     ],
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),

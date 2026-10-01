@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<NextResponse> {
   const token = new URL(request.url).searchParams.get('token') ?? '';
-  let ok = false;
-  try { ok = unsubscribe(token); } catch { ok = false; }
-  return NextResponse.redirect(new URL(`/my-agents?email=${ok ? 'unsubscribed' : 'invalid'}`, request.url), 303);
+  let kind: 'buyer' | 'builder' | null = null;
+  try { kind = unsubscribe(token); } catch { kind = null; }
+  const destination = kind === 'builder' ? '/builder' : '/my-agents';
+  return NextResponse.redirect(new URL(`${destination}?email=${kind ? 'unsubscribed' : 'invalid'}`, request.url), 303);
 }

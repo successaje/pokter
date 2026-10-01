@@ -9,6 +9,7 @@ import { SmoothHashScroll } from '@/components/shell/SmoothHashScroll';
 import { WalletProviders } from '@/lib/wallet/Providers';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
 import { SavedAgentMonitor } from '@/components/saved/SavedAgentMonitor';
+import { siteUrl } from '@/lib/site';
 
 /*
  * Three families, each with a job.
@@ -55,9 +56,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
-  ),
+  metadataBase: new URL(siteUrl()),
   title: {
     default: 'Pokter — The agent marketplace for BNB Chain',
     template: '%s · Pokter',
@@ -103,6 +102,29 @@ export default async function RootLayout({
    */
   const theme = (await cookies()).get('pokter-theme')?.value;
   const explicit = theme === 'light' || theme === 'dark' ? theme : undefined;
+  const origin = siteUrl();
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${origin}/#organization`,
+        name: 'Pokter',
+        url: origin,
+        logo: `${origin}/brand/pokter-app-icon-512.png`,
+        sameAs: ['https://x.com/usepokter', 'https://github.com/successaje/pokter'],
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${origin}/#website`,
+        url: origin,
+        name: 'Pokter',
+        description: 'The evidence-first marketplace for autonomous financial agents on BNB Chain.',
+        publisher: { '@id': `${origin}/#organization` },
+        inLanguage: 'en',
+      },
+    ],
+  };
 
   return (
     <html
@@ -111,6 +133,12 @@ export default async function RootLayout({
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }}
+        />
+      </head>
       <body className="antialiased">
         <SmoothHashScroll />
         <PwaProvider>
