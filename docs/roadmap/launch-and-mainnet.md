@@ -36,15 +36,18 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 
 ## C. Guided preparation
 
-- [ ] Conversational agent brief.
+- [~] Structured agent brief is live; a conversational, one-question-at-a-time
+  mode remains open.
 - [ ] Ask one necessary follow-up question at a time.
-- [ ] Generate editable name, description, instructions and limitations.
+- [~] Generate editable name and description containing the declared outcome,
+  evidence and limitations; separate runtime instructions remain open.
 - [ ] Generate input, output and capability schemas.
-- [ ] Recommend A2A or MCP with a plain-language explanation.
+- [x] Recommend A2A or MCP from the builder's selected interaction model with a
+  plain-language explanation.
 - [ ] Generate a versioned ERC-8004 registration draft.
 - [ ] Identify and refuse unsupported performance claims.
-- [ ] Keep generated material private until the builder publishes it.
-- [ ] Never allow generated copy to substitute for a working endpoint.
+- [x] Keep generated material private until the builder publishes it.
+- [x] Never allow generated copy to substitute for a working endpoint.
 
 ## D. Starter kits
 
