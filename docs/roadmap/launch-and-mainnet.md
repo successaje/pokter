@@ -80,8 +80,8 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 ## F. Private trial and preview
 
 - [x] Exact registration JSON preview.
-- [ ] Marketplace card and public profile preview.
-- [ ] Mobile and desktop preview.
+- [x] Marketplace card and public profile opening preview.
+- [x] Mobile and desktop preview.
 - [ ] Private sample-request console.
 - [ ] Raw and interpreted response views.
 - [ ] Latency, protocol and failure details.

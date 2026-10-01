@@ -184,6 +184,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [mainnetConsent, setMainnetConsent] = useState(false);
   const [publishedAgent, setPublishedAgent] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
   const [briefApplied, setBriefApplied] = useState(false);
 
@@ -587,11 +589,38 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Draft quality</p><p className="mt-2 text-3xl font-semibold">{draftScore}/5</p></div><span className="text-[10px] text-[color:var(--text-muted)]">Auto-saved</span></div>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]"><div className="h-full rounded-full bg-[color:var(--brand)] transition-all" style={{ width: `${draftScore * 20}%` }} /></div>
             <ul className="mt-5 flex flex-col gap-3">{draftChecks.map((check) => <li key={check.label} className="flex items-center gap-3 text-[12px]"><span className={cn('flex size-5 items-center justify-center rounded-full border text-[10px]', check.done ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{check.done ? '✓' : '·'}</span>{check.label}</li>)}</ul>
-            {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-6 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <button type="button" onClick={() => setPublishModalOpen(true)} className="action-primary mt-6 flex w-full items-center justify-center rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">Review network & publish</button>}
+            <button type="button" disabled={!draft.name.trim() || !draft.description.trim() || !draft.category} onClick={() => setPreviewOpen(true)} className="mt-6 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">Preview buyer view</button>
+            {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-2 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <button type="button" onClick={() => setPublishModalOpen(true)} className="action-primary mt-2 flex w-full items-center justify-center rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">Review network & publish</button>}
             <p className="mt-3 text-[10px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : 'Complete every readiness check before publishing.'}</p>
           </aside>
         </section>
       )}
+
+      <Sheet
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        title="Private buyer preview"
+        description="Review the marketplace card and profile opening before publishing. Drafts are not discoverable or hireable."
+      >
+        <div className="flex justify-center rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-1" role="group" aria-label="Preview viewport">
+          {(['mobile', 'desktop'] as const).map((viewport) => <button key={viewport} type="button" onClick={() => setPreviewViewport(viewport)} aria-pressed={previewViewport === viewport} className={cn('min-h-9 flex-1 rounded-[calc(var(--radius)-2px)] px-3 text-[10px] font-semibold capitalize transition-colors', previewViewport === viewport ? 'bg-[color:var(--surface)] shadow-sm' : 'text-[color:var(--text-muted)]')}>{viewport}</button>)}
+        </div>
+        <div className="mt-5 overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg)] p-3 sm:p-5">
+          <div className={cn('mx-auto transition-[max-width] duration-200', previewViewport === 'mobile' ? 'max-w-[360px]' : 'max-w-3xl')}>
+            <div className={cn('grid gap-4', previewViewport === 'desktop' && 'sm:grid-cols-[minmax(0,1fr)_240px]')}>
+              <article className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--brand-highlight-soft)] bg-cover bg-center text-lg font-semibold text-[color:var(--brand-strong)]" style={/^https:\/\//i.test(draft.image.trim()) ? { backgroundImage: `url(${JSON.stringify(draft.image.trim()).slice(1, -1)})` } : undefined}>{!/^https:\/\//i.test(draft.image.trim()) && (draft.name.trim().charAt(0).toUpperCase() || 'A')}</div>
+                  <div className="min-w-0"><p className="text-[10px] font-medium text-[color:var(--caution)]">Awaiting measurement</p><h3 className="mt-1 truncate text-lg font-semibold">{draft.name.trim() || 'Untitled agent'}</h3><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{CATEGORIES.find((category) => category.id === draft.category)?.label ?? 'Outcome not selected'} · {draft.protocol.toUpperCase()}</p></div>
+                </div>
+                <p className="mt-5 line-clamp-4 text-[12px] leading-6 text-[color:var(--text-secondary)]">{draft.description.trim() || 'Describe the outcome buyers receive, its evidence and its limits.'}</p>
+                <div className="mt-5 border-t border-[color:var(--border)] pt-4"><p className="text-[10px] text-[color:var(--text-muted)]">No independent probes or signed price yet</p><button type="button" disabled className="mt-4 min-h-10 w-full rounded-[var(--radius)] bg-[color:var(--bg-subtle)] px-4 text-[11px] font-semibold text-[color:var(--text-muted)]">Not hireable yet</button></div>
+              </article>
+              <aside className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4"><p className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--text-muted)]">Buyer decision</p><dl className="mt-4 flex flex-col gap-4"><div><dt className="text-[9px] text-[color:var(--text-muted)]">Identity</dt><dd className="mt-1 text-[11px] font-medium">Not registered</dd></div><div><dt className="text-[9px] text-[color:var(--text-muted)]">Endpoint</dt><dd className="mt-1 text-[11px] font-medium">{endpointReport?.ok ? 'Handshake passed' : 'Not verified'}</dd></div><div><dt className="text-[9px] text-[color:var(--text-muted)]">Evidence</dt><dd className="mt-1 text-[11px] font-medium">Not measured</dd></div></dl><p className="mt-5 border-t border-[color:var(--border)] pt-4 text-[10px] leading-5 text-[color:var(--text-muted)]">New agents enter as pending. Registration alone never becomes proof of quality.</p></aside>
+            </div>
+          </div>
+        </div>
+      </Sheet>
 
       <Sheet
         open={publishModalOpen}
