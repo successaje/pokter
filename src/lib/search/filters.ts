@@ -41,6 +41,7 @@ export const FILTER_GROUPS: FilterGroup[] = [
     hint: 'Whether it answers when called',
     options: [
       { query: 'is:live', label: 'Has answered' },
+      { query: 'is:responsive', label: 'Answered recently' },
       { query: 'is:offline', label: 'No probe answered' },
       { query: 'is:measured', label: 'Probed by Pokter' },
       { query: 'is:unmeasured', label: 'Never probed' },

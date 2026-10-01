@@ -168,6 +168,10 @@ function matchesQualifier(agent: SearchableAgent, q: Qualifier): boolean {
       switch (q.value) {
         case 'live':
           return (uptime(record) ?? 0) > 0;
+        case 'responsive': {
+          const recent = record.windows.find((window) => window.label === '24h');
+          return Boolean(recent && recent.probes > 0 && (recent.ratio ?? 0) > 0);
+        }
         case 'offline':
           return record.totalProbes > 0 && uptime(record) === 0;
         case 'measured':

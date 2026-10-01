@@ -39,7 +39,7 @@ export const VERDICTS: Verdict[] = [
 ];
 
 /** Non-verdict `is:` flags. */
-const IS_FLAGS = ['live', 'offline', 'measured', 'unmeasured', 'testnet', 'mainnet', 'hireable', 'escrow-only'];
+const IS_FLAGS = ['live', 'responsive', 'offline', 'measured', 'unmeasured', 'testnet', 'mainnet', 'hireable', 'escrow-only'];
 
 /** Numeric fields usable with `has:`. */
 const HAS_FIELDS = ['attestations', 'probes', 'measurers', 'score', 'days', 'price'];

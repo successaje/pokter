@@ -40,7 +40,7 @@ const FILTER_GROUPS: { label: string; hint: string; options: string[] }[] = [
   {
     label: 'Endpoint',
     hint: 'Whether it answers when called',
-    options: ['is:live', 'is:offline', 'is:measured', 'is:unmeasured', 'has:endpoint'],
+    options: ['is:live', 'is:responsive', 'is:offline', 'is:measured', 'is:unmeasured', 'has:endpoint'],
   },
   {
     label: 'Hiring',

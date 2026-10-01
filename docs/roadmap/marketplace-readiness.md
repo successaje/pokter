@@ -28,10 +28,11 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
   - [x] Give expiry and contested work explicit non-success terminal states.
   - [ ] Add independently observed seller-contact and execution-start events.
   - [ ] Add the reclaim transaction when the commerce SDK exposes it.
-- [ ] Marketplace defaults to usable agents
-  - [ ] Default to recently responsive and hireable agents.
-  - [ ] Add Hide unresponsive and Working first controls.
-  - [ ] Add Most evidence, Completed jobs, Response time and Price sorting.
+- [~] Marketplace defaults to usable agents
+  - [x] Default to hireable, recently responsive agents with current signed prices.
+  - [x] Add a recent-response visibility control.
+  - [~] Add Most evidence, Response and Price sorting.
+  - [ ] Add Completed jobs sorting once marketplace-wide economic history is joined.
   - [ ] Preserve an explicit path to the full ERC-8004 registry.
 - [ ] Permission centre
   - [ ] Plain-language authority and prohibited-actions summary.
