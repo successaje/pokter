@@ -7,7 +7,7 @@ import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
-import type { BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
+import { builderReadinessSteps, nextBuilderAction, type BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
@@ -182,19 +182,29 @@ function LifecycleStates({
   lifecycle?: BuilderLifecycle;
   draft?: boolean;
 }) {
-  const states = [
-    { label: 'Draft', done: draft || Boolean(lifecycle?.registered), detail: draft ? 'Private on this device' : 'Public profile exists' },
-    { label: 'Registered', done: Boolean(lifecycle?.registered), detail: 'ERC-8004 identity verified' },
-    { label: 'Measured', done: Boolean(lifecycle?.measured), detail: lifecycle?.probeCount ? `${lifecycle.probeCount} probes in 90 days` : 'Probe history or independent attestation' },
-    { label: 'Listed', done: Boolean(lifecycle?.listed), detail: 'Mainnet identity is in the public catalog' },
-    { label: 'Hireable', done: Boolean(lifecycle?.hireable), detail: 'Live endpoint and signed quote verified' },
-  ];
+  const states = draft
+    ? [{ id: 'draft', label: 'Private draft', done: true, detail: 'Saved on this device', action: 'Complete the profile and runtime checks.' }, ...builderReadinessSteps(lifecycle)]
+    : builderReadinessSteps(lifecycle);
   const next = states.findIndex((state) => !state.done);
+  const nextAction = nextBuilderAction(lifecycle);
+  const progress = states.filter((state) => state.done).length;
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
-      <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><p className="mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Agent state</p><p className="mt-1 text-[11px] text-[color:var(--text-secondary)]">Facts may complete out of order; registration is never treated as performance evidence.</p></div>{lifecycle?.enrolled && <span className="w-fit rounded-full border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] px-2 py-1 text-[9px] font-medium text-[color:var(--info)]">Measurement roster</span>}</div>
-      <ol className="mt-4 grid gap-2 sm:grid-cols-5">{states.map((state, index) => <li key={state.label} className={cn('min-w-0 rounded-[var(--radius)] border p-3', state.done ? 'border-[color:var(--positive)]/25 bg-[color:var(--positive-dim)]' : index === next ? 'border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)]' : 'border-[color:var(--border)] bg-[color:var(--surface)]')}><div className="flex items-center gap-2"><span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full border text-[9px]', state.done ? 'border-[color:var(--positive)] text-[color:var(--positive)]' : index === next ? 'border-[color:var(--brand)] text-[color:var(--brand-strong)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{state.done ? '✓' : index + 1}</span><span className="truncate text-[10px] font-semibold">{state.label}</span></div><p className="mt-2 text-[9px] leading-4 text-[color:var(--text-muted)]">{state.detail}</p></li>)}</ol>
+    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+      <div className="flex flex-col justify-between gap-4 border-b border-[color:var(--border)] p-4 sm:flex-row sm:items-end sm:p-5">
+        <div className="max-w-2xl">
+          <p className="mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--brand-strong)]">Agent readiness</p>
+          <p className="mt-1 text-[12px] font-semibold">{progress} of {states.length} product checks complete</p>
+          <p className="mt-1 text-[10px] leading-5 text-[color:var(--text-muted)]">Each state comes from an observed registry, endpoint or evidence check. This does not claim BNB campaign qualification.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {lifecycle?.enrolled && <span className="w-fit rounded-full border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] px-2 py-1 text-[9px] font-medium text-[color:var(--info)]">Measurement roster</span>}
+          <span className="mono text-[9px] text-[color:var(--text-muted)]">{Math.round((progress / states.length) * 100)}%</span>
+        </div>
+      </div>
+      <div className="h-1 bg-[color:var(--bg-subtle)]"><div className="h-full bg-[color:var(--brand)] transition-[width] duration-300" style={{ width: `${(progress / states.length) * 100}%` }} /></div>
+      <ol className="grid gap-px bg-[color:var(--border)] sm:grid-cols-5">{states.map((state, index) => <li key={state.id} className={cn('min-w-0 bg-[color:var(--surface)] p-4', index === next && 'bg-[color:var(--brand-highlight-soft)]')}><div className="flex items-center gap-2"><span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full border text-[9px] font-semibold', state.done ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : index === next ? 'border-[color:var(--brand)] bg-[color:var(--surface)] text-[color:var(--brand-strong)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{state.done ? '✓' : index + 1}</span><span className="truncate text-[10px] font-semibold">{state.label}</span></div><p className="mt-3 text-[9px] leading-4 text-[color:var(--text-muted)]">{state.detail}</p></li>)}</ol>
+      {nextAction && !draft && <div className="flex flex-col justify-between gap-2 bg-[color:var(--bg-subtle)] px-4 py-3 sm:flex-row sm:items-center sm:px-5"><div><p className="text-[9px] font-semibold text-[color:var(--brand-strong)]">Next action · {nextAction.label}</p><p className="mt-0.5 text-[10px] leading-4 text-[color:var(--text-secondary)]">{nextAction.action}</p></div><Link href="/set-and-earn" className="shrink-0 text-[9px] font-semibold text-[color:var(--text-muted)] hover:text-[color:var(--brand-strong)]">Campaign requirements ↗</Link></div>}
     </div>
   );
 }
@@ -709,7 +719,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         <section className={cn('grid min-w-0 gap-6', newStep === 3 && 'lg:grid-cols-[minmax(0,1fr)_320px]')}>
           <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
             <div className="flex items-center gap-3 border-b border-[color:var(--border)] pb-5"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">{newStep + 1}</span><div><h2 className="text-base font-semibold">{['Define what it does', 'Make the profile yours', 'Connect and test the runtime', 'Review before publishing'][newStep]}</h2><p className="mt-0.5 text-[10px] text-[color:var(--text-muted)]">Your progress is saved privately on this device</p></div></div>
-            {newStep === 3 && <div className="mt-7"><LifecycleStates draft lifecycle={publishedAgent ? { registered: true, enrolled: false, measured: false, listed: publishedAgent.chainId === 56, hireable: false, probeCount: 0 } : undefined} /></div>}
+            {newStep === 3 && <div className="mt-7"><LifecycleStates draft lifecycle={publishedAgent ? { registered: true, profileReady: true, categoryReady: true, endpointReady: true, quoteReady: false, enrolled: false, measured: false, listed: publishedAgent.chainId === 56, hireable: false, probeCount: 0 } : undefined} /></div>}
             <div className={cn('mt-7 rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:p-5', newStep !== 0 && 'hidden')}>
               <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><h3 className="text-[13px] font-semibold">Turn your idea into a clear agent brief</h3><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">Answer five concrete questions. Pokter will prepare editable marketplace copy and recommend A2A or MCP. Nothing is published, and this does not build or host the agent runtime.</p></div></div>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">

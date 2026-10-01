@@ -17,6 +17,8 @@ import { FilterSidebar } from '@/components/search/FilterSidebar';
 import { FILTER_GROUPS } from '@/lib/search/filters';
 import { rankForBrief } from '@/lib/brief/rank';
 import { BriefMatches } from '@/components/search/BriefMatches';
+import { MarketplaceControls } from '@/components/search/MarketplaceControls';
+import { orderMarketplace, parseMarketplaceOrder } from '@/lib/search/order';
 
 /**
  * Rendered per request rather than pre-built.
@@ -52,6 +54,7 @@ export default async function AgentsPage({
   const query = parseQuery(raw);
   /* Set when someone arrived from the hero having described the job. */
   const brief = typeof params.brief === 'string' ? params.brief.trim().slice(0, 400) : '';
+  const order = parseMarketplaceOrder(params.sort);
 
   /*
    * Fetched deep, shown shallow.
@@ -68,9 +71,10 @@ export default async function AgentsPage({
    * stay first-class here, and depth lives behind each one.
    */
   const all = await listSearchable({ limit: 30 });
-  const matched = query.qualifiers.length
+  const filtered = query.qualifiers.length
     ? all.filter((agent) => matchesQuery(agent, query))
     : all;
+  const matched = orderMarketplace(filtered, order);
 
   const byCategory = CATEGORIES.map(({ id }) => ({
     category: id,
@@ -175,6 +179,15 @@ export default async function AgentsPage({
       <Suspense fallback={<div className="h-28" />}>
         <AgentSearch resultCount={matched.length} />
       </Suspense>
+
+      <Suspense fallback={<div className="h-16" />}>
+        <MarketplaceControls order={order} />
+      </Suspense>
+
+      <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[10px] leading-5 text-[color:var(--text-muted)]">
+        <summary className="cursor-pointer font-semibold text-[color:var(--text-secondary)]">Why this order?</summary>
+        <p className="mt-2 max-w-3xl">Recommended results prioritize agents Pokter can currently offer for hire, recent observed responses, a current wallet-signed price, and then evidence depth. Registration alone does not improve rank. Pokter-operated agents receive no first-party boost.</p>
+      </details>
 
       {/*
         Two columns from 1024px up: a standing filter shelf beside the

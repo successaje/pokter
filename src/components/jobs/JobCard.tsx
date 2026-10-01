@@ -8,6 +8,7 @@ import { formatElapsed, shortAddress, shortHash } from '@/lib/ui/format';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { supportMailto } from '@/lib/support/contact';
 import { JobStatusTrack } from './JobStatus';
+import { JobEvidenceTimeline } from './JobEvidenceTimeline';
 import { ReviewJobPanel } from './ReviewJobPanel';
 import {
   getErc8183DeliverableUrl,
@@ -249,6 +250,8 @@ export function JobCard({
       </header>
 
       <JobStatusTrack status={job.status} />
+
+      <JobEvidenceTimeline job={job} explorerBase={explorerBase} />
 
       <ReviewJobPanel job={job} />
 
