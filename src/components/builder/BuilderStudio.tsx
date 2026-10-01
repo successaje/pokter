@@ -41,6 +41,15 @@ const EMPTY_DRAFT: Draft = {
   image: '',
 };
 
+const QUALITY_EXAMPLE: Draft = {
+  name: 'Treasury Sentinel',
+  description: 'Monitors a BNB Chain treasury, compares risk-adjusted stablecoin yields, and returns a read-only allocation plan with source data, assumptions, and explicit loss limits.',
+  category: 'yield',
+  protocol: 'a2a',
+  endpoint: '',
+  image: '',
+};
+
 const DRAFT_KEY = 'pokter-agent-draft-v1';
 
 function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' }) {
@@ -196,6 +205,25 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function loadQualityExample() {
+    setDraft(QUALITY_EXAMPLE);
+    setEndpointReport(null);
+    setEndpointError(null);
+    setReviewing(false);
+    setMode('new');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function downloadRegistrationFile() {
+    const file = new Blob([`${JSON.stringify(registrationPreview, null, 2)}\n`], { type: 'application/json' });
+    const href = URL.createObjectURL(file);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `${draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent'}-registration.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
   async function testDraftEndpoint() {
     setEndpointBusy(true);
     setEndpointError(null);
@@ -253,6 +281,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Create a draft <Icon name="arrow" /></span>
             </button>
           </div>
+          <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-5 sm:flex-row sm:items-center">
+            <div><p className="text-[13px] font-semibold">Not an agent builder yet?</p><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">Start with a quality example to see how a buyer-focused name, outcome and safety limits should read. Pokter leaves the endpoint and image blank so a sample can never be mistaken for a working service.</p></div>
+            <button type="button" onClick={loadQualityExample} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-2.5 text-[11px] font-semibold hover:border-[color:var(--brand)]">Explore an example →</button>
+          </div>
           <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">Pokter discovers public ERC-8004 identities. Listing does not endorse an agent; reliability and reputation are measured separately.</p>
         </section>
       )}
@@ -308,6 +340,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}</div></div></div>}
               <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">Agent image URL</span><input value={draft.image} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
             </div>
+            {draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}
             <div className="mt-7 rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-4"><p className="text-[12px] font-semibold text-[color:var(--caution)]">Registration is intentionally not live yet</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">This prepares and validates your public profile without creating a mainnet transaction. Registration will be enabled only after the contract path and recovery flow pass protocol review.</p></div>
             {reviewing && (
               <div className="mt-6 rounded-[var(--radius-lg)] border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] p-5">
@@ -328,6 +361,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                   <summary className="cursor-pointer text-[11px] font-semibold">Inspect registration JSON</summary>
                   <pre className="mono mt-3 max-h-64 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[10px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(registrationPreview, null, 2)}</pre>
                 </details>
+                <button type="button" onClick={downloadRegistrationFile} className="mt-4 inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)]">Download registration JSON</button>
                 <div className="mt-5 border-t border-[color:var(--positive)]/20 pt-5">
                   <p className="text-[11px] font-semibold">After the identity is registered</p>
                   <p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">Return with its ERC-8004 token ID. Pokter will read the registry, test the public service and ask the owner wallet for a non-transactional signature before opening Builder operations.</p>
