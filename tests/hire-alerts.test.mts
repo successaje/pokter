@@ -29,7 +29,7 @@ test('an outside wallet is not treated as ours', () => {
   );
 });
 
-test('the three wallets declared to BNB are the three watched', () => {
+test('the wallets declared to BNB are the wallets watched', () => {
   // Pinned against docs/phase-2/tracking.md §5. If that list changes and this
   // does not, hires from a new team wallet would be reported as real users.
   assert.deepEqual(
@@ -37,6 +37,7 @@ test('the three wallets declared to BNB are the three watched', () => {
     [
       '0x3fb8779f4f42e1800f27aaec9564530bcaa852bf',
       '0x60ef148485c2a5119fa52ca13c52e9fd98f28e87',
+      '0xce515e144c33edbd1c3320fde0de6373315885ed',
       '0xef869bb780a5163e6d39e83817cd29af6deaa784',
     ].sort(),
   );

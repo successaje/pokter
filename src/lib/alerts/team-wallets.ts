@@ -15,6 +15,7 @@ export const TEAM_WALLETS: readonly string[] = [
   '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87',
   '0xEF869BB780a5163E6D39E83817cD29af6DEaA784',
   '0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf',
+  '0xcE515e144c33EDbD1c3320fde0dE6373315885eD',
 ].map((address) => getAddress(address));
 
 /** Checksum-insensitive, and false for anything that is not an address. */
