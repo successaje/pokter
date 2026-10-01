@@ -69,6 +69,7 @@ const DESKTOP_PRIMARY = [
  * footer with the rest of the research.
  */
 const SECONDARY = [
+  { href: '/account', label: 'Account' },
   { href: '/saved', label: 'Saved agents' },
   { href: '/leaderboard', label: 'Rankings' },
   /*
