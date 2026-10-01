@@ -35,6 +35,14 @@ export interface HiredJob {
   settleTxHash: Hex | null;
   /** Buyer-signed policy dispute, when the delivery was contested. */
   disputeTxHash?: Hex | null;
+  /**
+   * The transaction that pulled an expired escrow back, when one was sent.
+   *
+   * Recorded because "reclaimable" and "reclaimed" look identical on chain
+   * from a status alone — the kernel reports EXPIRED either way — and a buyer
+   * needs to know which of those happened to their money.
+   */
+  reclaimTxHash?: Hex | null;
 }
 
 /** What the UI needs to narrate the lifecycle honestly. */
