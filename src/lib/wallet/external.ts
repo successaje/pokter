@@ -246,7 +246,11 @@ export async function reclaimFromExternalWallet(input: {
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') {
-    throw new Error('The reclaim transaction reverted.');
+    throw new Error(
+      'The reclaim reverted. The most likely reason is that this escrow has ' +
+        'already been returned — check the job on the explorer before trying ' +
+        'again.',
+    );
   }
   return hash;
 }
