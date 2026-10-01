@@ -34,12 +34,13 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
   - [~] Add Most evidence, Response and Price sorting.
   - [ ] Add Completed jobs sorting once marketplace-wide economic history is joined.
   - [ ] Preserve an explicit path to the full ERC-8004 registry.
-- [ ] Permission centre
-  - [ ] Plain-language authority and prohibited-actions summary.
-  - [ ] Protocol and token allowlists.
-  - [ ] Per-transaction cap, total budget and expiry.
+- [~] Permission centre
+  - [x] Plain-language authority and prohibited-actions summary for commissions.
+  - [x] Show the exact payment token and approved escrow contract.
+  - [x] Show the exact job budget and delivery expiry.
   - [ ] Simulation where supported.
-  - [ ] One-action revocation and remaining-allowance visibility.
+  - [~] One-action revocation and remaining-allowance visibility.
+  - [ ] Add protocol and asset allowlists before delegated execution is re-enabled.
 
 ## P1 — make decisions faster
 

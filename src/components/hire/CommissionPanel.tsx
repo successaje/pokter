@@ -51,6 +51,8 @@ import {
   commissionTaskTemplates,
   type CommissionTaskTemplate,
 } from '@/lib/hire/taskTemplates';
+import { commissionAuthority } from '@/lib/hire/commission-authority';
+import { CommissionAuthorityReview } from '@/components/hire/CommissionAuthorityReview';
 
 /**
  * A provider the escrow can actually reach.
@@ -229,6 +231,14 @@ export function CommissionPanel({
   );
 
   const provider = providers.find((p) => p.address === providerAddress);
+  const commerceAddresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const authority = Number.isFinite(budget) && budget > 0
+    ? commissionAuthority({
+        paymentToken: commerceAddresses.paymentToken,
+        escrowContract: commerceAddresses.commerce,
+        budgetU: budget,
+      })
+    : null;
 
   const indexFundedJob = async (hired: HiredJob) => {
     if (!hired.hireTxHash) return;
@@ -924,6 +934,8 @@ export function CommissionPanel({
                 </dl>
 
                 <WalletReadiness requiredBudgetU={budget} />
+
+                {authority && <CommissionAuthorityReview authority={authority} />}
 
                 {riskWarnings.length > 0 && (
                   <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-4">
