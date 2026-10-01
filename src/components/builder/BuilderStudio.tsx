@@ -280,6 +280,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [briefApplied, setBriefApplied] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState({ target: '', policy: '', output: '' });
   const [copiedAiProvider, setCopiedAiProvider] = useState<AgentBuildPromptInput['provider'] | null>(null);
+  const [aiPromptProvider, setAiPromptProvider] = useState<AgentBuildPromptInput['provider'] | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -323,6 +324,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     policy: runtimeConfig.policy,
     output: runtimeConfig.output,
   }), [draft, runtimeConfig]);
+  const visibleAiPrompt = useMemo(
+    () => aiPromptProvider ? createAgentBuildPrompt({ provider: aiPromptProvider, ...aiPromptInput }) : '',
+    [aiPromptInput, aiPromptProvider],
+  );
   const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -474,9 +479,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   }
 
   async function copyAgentBuildPrompt(provider: AgentBuildPromptInput['provider']) {
-    const prompt = createAgentBuildPrompt({ provider, ...aiPromptInput });
     try {
-      await navigator.clipboard.writeText(prompt);
+      await navigator.clipboard.writeText(createAgentBuildPrompt({ provider, ...aiPromptInput }));
       setCopiedAiProvider(provider);
       window.setTimeout(() => setCopiedAiProvider((current) => current === provider ? null : current), 2_500);
     } catch {
@@ -720,7 +724,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               {newStep === 1 && runtimeOptions && <fieldset className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><legend className="px-1 text-[11px] font-semibold">Functional starter configuration</legend><p className="text-[9px] leading-4 text-[color:var(--text-muted)]">These choices become a runtime configuration handoff—not a cosmetic label. Your connected implementation must enforce them.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></fieldset>}
               {(newStep === 1 || newStep === 2) && <section className="rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:col-span-2" aria-labelledby={`ai-build-title-${newStep}`}>
                 <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><p className="mono text-[8px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">Build with AI</p><h3 id={`ai-build-title-${newStep}`} className="mt-1 text-[12px] font-semibold">Create this agent with your AI assistant</h3><p className="mt-1 max-w-2xl text-[10px] leading-5 text-[color:var(--text-secondary)]">Copy a Pokter-prepared engineering prompt containing this profile, protocol contract, security requirements, tests and deployment handoff.</p></div></div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">{(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => copyAgentBuildPrompt(provider)} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>{provider}</span><span className={cn('text-[10px]', copiedAiProvider === provider ? 'text-[color:var(--positive)]' : 'text-[color:var(--brand-strong)]')}>{copiedAiProvider === provider ? 'Copied ✓' : 'Copy prompt'}</span></button>)}</div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">{(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider(provider); }} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>{provider}</span><span className="text-[10px] text-[color:var(--brand-strong)]">View prompt →</span></button>)}</div>
                 <p className="mt-3 text-[9px] leading-4 text-[color:var(--text-muted)]">Review all generated code and never paste private keys into a chat. Pokter still requires a real deployed endpoint to pass verification.</p>
               </section>}
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
@@ -797,6 +801,20 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
           </aside>
         </section>
       )}
+
+      <Sheet
+        open={Boolean(aiPromptProvider)}
+        onClose={() => setAiPromptProvider(null)}
+        title={aiPromptProvider ? `Build with ${aiPromptProvider}` : 'Build with AI'}
+        description="Review the complete engineering prompt before copying it into your AI assistant. It contains no wallet secrets or private keys."
+        footer={aiPromptProvider ? <button type="button" onClick={() => copyAgentBuildPrompt(aiPromptProvider)} className="action-primary w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">{copiedAiProvider === aiPromptProvider ? 'Prompt copied ✓' : `Copy prompt for ${aiPromptProvider}`}</button> : undefined}
+      >
+        <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3"><p className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--text-muted)]">Complete prompt</p><span className="rounded-full bg-[color:var(--brand-highlight-soft)] px-2 py-1 text-[9px] font-semibold text-[color:var(--brand-strong)]">Editable after pasting</span></div>
+          <pre className="mono max-h-[58vh] whitespace-pre-wrap overflow-auto rounded-[var(--radius)] bg-[color:var(--surface)] p-4 text-[10px] leading-5 text-[color:var(--text-secondary)]">{visibleAiPrompt}</pre>
+        </div>
+        <p className="mt-4 text-[10px] leading-5 text-[color:var(--text-muted)]">Do not paste private keys, seed phrases, production credentials, or customer data into any AI assistant. Review and test generated code before deploying it.</p>
+      </Sheet>
 
       <Sheet
         open={previewOpen}
