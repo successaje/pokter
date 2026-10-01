@@ -1,48 +1,63 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { matchesQuery } from '../src/lib/search/match';
 import { orderMarketplace } from '../src/lib/search/order';
-import { parseQuery } from '../src/lib/search/query';
+import type { SearchableAgent } from '../src/lib/search/match';
 
-function entry({ name, probes, answered, recent, price }: { name: string; probes: number; answered: number; recent: number | null; price?: number }) {
+function agent(name: string, opts: {
+  jobs?: number; completed?: number; probes?: number; priced?: boolean; ratio?: number;
+}): SearchableAgent {
   return {
     listing: {
+      agent: { name, token_id: name, chain_id: 56 },
       attestationCount: 0,
-      confidence: 1,
-      category: 'yield',
-      agent: { chain_id: 56, token_id: name, name, supported_protocols: ['a2a'] },
-      quote: price === undefined ? null : { priceU: price, observedAt: new Date().toISOString() },
+      quote: opts.priced ? { priceU: '0.1', expiresAt: null } : null,
     },
     record: {
-      totalProbes: probes,
-      totalAnswered: answered,
-      observedDays: 2,
-      days: [],
-      windows: [{ label: '24h', days: 1, probes: recent === null ? 0 : 2, answered: recent === null ? 0 : Math.round(recent * 2), ratio: recent, medianMs: null }],
-      firstSeen: null,
-      lastSeen: null,
-      longestOutage: null,
+      totalProbes: opts.probes ?? 10,
+      totalAnswered: opts.probes ?? 10,
+      windows: [{ label: '24h', probes: 2, ratio: opts.ratio ?? 1 }],
     },
-  } as never;
+    history: opts.jobs === undefined ? undefined : {
+      jobs: opts.jobs, completed: opts.completed ?? 0,
+    },
+  } as unknown as SearchableAgent;
 }
 
-test('recommended order puts actionable and recently responsive agents first', () => {
-  const silent = entry({ name: 'silent', probes: 20, answered: 20, recent: 0 });
-  const working = entry({ name: 'working', probes: 20, answered: 20, recent: 1, price: 0.1 });
-  assert.equal(orderMarketplace([silent, working], 'recommended')[0], working);
+const names = (xs: SearchableAgent[]) => xs.map((x) => x.listing.agent.name);
+
+test('taking many jobs without finishing them does not earn the top slot', () => {
+  // The real case: one agent holds seven funded escrows and completed one.
+  const busy = agent('busy-but-undelivering', { jobs: 7, completed: 0, priced: true });
+  const quiet = agent('delivered-once', { jobs: 1, completed: 1, priced: true });
+
+  assert.deepEqual(
+    names(orderMarketplace([busy, quiet], 'completed')),
+    ['delivered-once', 'busy-but-undelivering'],
+  );
 });
 
-test('lowest price keeps unpriced agents behind signed prices', () => {
-  const unpriced = entry({ name: 'unpriced', probes: 20, answered: 20, recent: 1 });
-  const expensive = entry({ name: 'expensive', probes: 20, answered: 20, recent: 1, price: 0.5 });
-  const cheap = entry({ name: 'cheap', probes: 20, answered: 20, recent: 1, price: 0.1 });
-  assert.deepEqual(orderMarketplace([unpriced, expensive, cheap], 'price').map((item: { listing: { agent: { name: string } } }) => item.listing.agent.name), ['cheap', 'expensive', 'unpriced']);
+test('completed work outranks merely having quoted a price', () => {
+  const delivered = agent('delivered', { jobs: 2, completed: 2, priced: true });
+  const justPriced = agent('priced-only', { jobs: 0, completed: 0, priced: true });
+
+  assert.equal(
+    names(orderMarketplace([justPriced, delivered], 'recommended'))[0],
+    'delivered',
+  );
 });
 
-test('responsive means a successful observation in the recent window', () => {
-  assert.equal(matchesQuery(entry({ name: 'working', probes: 20, answered: 20, recent: 1 }), parseQuery('is:responsive')), true);
-  assert.equal(matchesQuery(entry({ name: 'stale', probes: 20, answered: 20, recent: null }), parseQuery('is:responsive')), false);
-  assert.equal(matchesQuery(entry({ name: 'down', probes: 20, answered: 20, recent: 0 }), parseQuery('is:responsive')), false);
+test('an agent with no job history still sorts, as zero completions', () => {
+  const unknown = agent('never-hired', {});
+  const delivered = agent('delivered', { jobs: 1, completed: 1 });
+
+  const out = names(orderMarketplace([unknown, delivered], 'completed'));
+  assert.deepEqual(out, ['delivered', 'never-hired']);
 });
 
+test('ordering is stable when nothing distinguishes two agents', () => {
+  const a = agent('a', { jobs: 1, completed: 1 });
+  const b = agent('b', { jobs: 1, completed: 1 });
+  assert.deepEqual(names(orderMarketplace([a, b], 'completed')), ['a', 'b']);
+  assert.deepEqual(names(orderMarketplace([b, a], 'completed')), ['b', 'a']);
+});
