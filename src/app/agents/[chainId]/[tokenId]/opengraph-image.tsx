@@ -80,7 +80,7 @@ export default async function AgentPreview({
     );
   }
 
-  const { agent, category, proof, record } = result.dossier;
+  const { agent, attestations, category, proof, record } = result.dossier;
   const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const tone = VERDICT_TONE[proof.verdict] ?? VERDICT_TONE.unproven;
 
@@ -92,9 +92,22 @@ export default async function AgentPreview({
   const facts: { label: string; value: string }[] = [
     { label: 'Availability', value: uptime ?? 'Not measured' },
     { label: 'Probes', value: String(record.totalProbes) },
+    /*
+     * Attestations, not measurers.
+     *
+     * This read `proof.measurers.length`, which counts INDEPENDENT measurers
+     * and deliberately excludes Pokter — so it is zero for every agent on
+     * this chain, by design, and the card told an operator with five
+     * published attestations that they had none. A shared card that
+     * undercounts the thing it is showing off is worse than no card.
+     *
+     * The independence story is real and belongs on /census and the agent
+     * page, where there is room to say why the top tier is empty. A preview
+     * has room for one number, and it should be the one its label names.
+     */
     {
       label: 'Attestations',
-      value: String(proof.measurers.length),
+      value: String(attestations.length),
     },
   ];
 
