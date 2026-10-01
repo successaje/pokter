@@ -103,7 +103,7 @@ jobs:
 
           echo "$robots" | grep -q 'Sitemap: https://pokter.xyz/sitemap.xml'
           echo "$sitemap" | grep -q '<loc>https://pokter.xyz</loc>'
-          echo "$homepage" | grep -q 'rel="canonical" href="https://pokter.xyz/'
+          echo "$homepage" | grep -Eq 'rel="canonical" href="https://pokter\.xyz/?"'
           echo "$homepage" | grep -q 'application/ld+json'
 
           if printf '%s\n%s' "$robots" "$sitemap" | grep -q 'localhost'; then
