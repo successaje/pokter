@@ -21,11 +21,13 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
   - [x] Show the first blocking condition and its exact next action.
   - [ ] Add independently verified campaign hires, actions and active days.
   - [ ] Add a public campaign-qualification export for reviewers.
-- [ ] Complete job execution timeline
-  - [ ] Created, quoted, funded, contacted, executing, delivered, reviewed and settled states.
-  - [ ] Attach transaction or observation evidence to every state.
-  - [ ] Distinguish onchain facts from endpoint observations.
-  - [ ] Give failures, expiry, refunds and disputes equally clear terminal states.
+- [~] Complete job execution timeline
+  - [x] Present commissioned, funded, delivered, buyer-review and settled states.
+  - [x] Attach retained transaction evidence to its corresponding state.
+  - [x] Distinguish onchain facts, receipts and pending observations.
+  - [x] Give expiry and contested work explicit non-success terminal states.
+  - [ ] Add independently observed seller-contact and execution-start events.
+  - [ ] Add the reclaim transaction when the commerce SDK exposes it.
 - [ ] Marketplace defaults to usable agents
   - [ ] Default to recently responsive and hireable agents.
   - [ ] Add Hide unresponsive and Working first controls.
@@ -69,4 +71,3 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
 - Do not introduce branded protocol vocabulary when plain language is clearer.
 - Do not imply that Pokter campaign progress is BNB Chain qualification; BNB Chain
   remains the final verifier.
-
