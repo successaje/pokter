@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { PrivateActivity } from '@/components/jobs/PrivateActivity';
+import { PrivateActivityClient } from '@/components/jobs/PrivateActivityClient';
 
 /**
  * Activity cannot be keyed by a browser connection on the server without an
@@ -49,7 +49,7 @@ export default async function MyAgentsPage({
           Device-local · signing-wallet scoped
           </p>
         </div>
-        <PrivateActivity explorerBase={explorerBase} />
+        <PrivateActivityClient explorerBase={explorerBase} />
       </section>
 
       <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">

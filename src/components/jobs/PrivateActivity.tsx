@@ -60,10 +60,11 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
   const active = useActiveWallet();
   const { isConnected: externalConnected } = useAccount();
   const { switchChain, isPending: switching } = useSwitchChain();
+  const externalReady = externalConnected;
   // A deliberately connected browser wallet remains the selected signer even
   // when it is on the wrong chain. Do not silently fall back to a passkey and
   // show another account's activity; ask for the network switch instead.
-  const walletAddress = externalConnected && active.wrongChain ? null : active.address;
+  const walletAddress = externalReady && active.wrongChain ? null : active.address;
   const [tab, setTab] = useState<'jobs' | 'notifications' | 'permissions'>('jobs');
   const [importId, setImportId] = useState('');
   const [importing, setImporting] = useState(false);
@@ -144,14 +145,14 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     return (
       <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{externalConnected ? 'Switch your connected wallet' : 'Connect your signing wallet'}</h3>
+          <h3 className="text-sm font-medium">{externalReady ? 'Switch your connected wallet' : 'Connect your signing wallet'}</h3>
           <p className="max-w-xl text-xs leading-relaxed text-[color:var(--text-faint)]">
-            {externalConnected
+            {externalReady
               ? `Activity uses the wallet that signs on ${ESCROW_CHAIN.name}. Switch networks to load its device-local jobs.`
               : 'Use the browser wallet or passkey wallet that funded your jobs. Activity is read from this device only and is never taken from another visitor’s server data.'}
           </p>
         </div>
-        {externalConnected ? (
+        {externalReady ? (
           <button type="button" disabled={switching} onClick={() => switchChain({ chainId: ESCROW_CHAIN.id })} className="action-primary rounded-[var(--radius)] px-3 py-2 text-xs font-medium disabled:opacity-50">{switching ? 'Switching network…' : `Switch to ${ESCROW_CHAIN.name}`}</button>
         ) : !ready ? (
           <p className="text-xs text-[color:var(--text-faint)]">Checking this device…</p>
