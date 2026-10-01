@@ -3,7 +3,12 @@ import {
   encodeFunctionData, erc20Abi, getAddress, http, parseUnits, stringToHex,
   type Address, type Hex,
 } from 'viem';
-import { buildHireCalls, buildSubmitCall, getErc8183Job } from '@altananetwork/sdk';
+import {
+  buildClaimRefundCall,
+  buildHireCalls,
+  buildSubmitCall,
+  getErc8183Job,
+} from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
@@ -193,6 +198,55 @@ export async function settleFromExternalWallet(input: {
   const expected = input.action === 'approve' ? 'COMPLETED' : 'REJECTED';
   if (after.statusName !== expected) {
     throw new Error(`The transaction confirmed, but the job is ${after.statusName.toLowerCase()} instead of ${expected.toLowerCase()}.`);
+  }
+  return hash;
+}
+
+/**
+ * Pull an expired escrow back to the wallet that funded it.
+ *
+ * The contract allows this once the job is past its expiry and nothing was
+ * delivered. Pokter has been telling buyers the money is "still yours to
+ * reclaim" on several screens without ever offering the action, which left
+ * six expired escrows sitting untouched and the sentence doing no work.
+ *
+ * Checked against the chain before signing rather than against our index:
+ * the index can be stale or incomplete, and the wallet is about to pay gas
+ * for a transaction that would revert.
+ */
+export async function reclaimFromExternalWallet(input: {
+  account: Address;
+  jobId: bigint;
+}): Promise<Hex> {
+  await ensureChain();
+  await assertAccount(input.account);
+
+  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  if (getAddress(before.client) !== getAddress(input.account)) {
+    throw new Error('The connected wallet did not fund this job.');
+  }
+  if (before.statusName !== 'FUNDED' && before.statusName !== 'EXPIRED') {
+    throw new Error(
+      `This job is ${before.statusName.toLowerCase()}; there is no escrow left to reclaim.`,
+    );
+  }
+  if (Number(before.expiredAt) * 1000 > Date.now()) {
+    throw new Error(
+      'This job has not expired yet. The agent still has time to deliver.',
+    );
+  }
+
+  const call = buildClaimRefundCall(WALLET_NETWORK.chainId, input.jobId);
+  const { wallet, read } = clients();
+  const hash = await wallet.sendTransaction({
+    account: input.account,
+    to: call.to as Address,
+    data: call.data as Hex,
+    chain: null,
+  });
+  const receipt = await read.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') {
+    throw new Error('The reclaim transaction reverted.');
   }
   return hash;
 }

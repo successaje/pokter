@@ -56,7 +56,8 @@ const SCHEMA = `
     status_checked_at TEXT NOT NULL,
     deliverable_url   TEXT,
     settle_tx_hash    TEXT,
-    dispute_tx_hash   TEXT
+    dispute_tx_hash   TEXT,
+    reclaim_tx_hash   TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
@@ -82,6 +83,7 @@ interface JobRow {
   deliverable_url: string | null;
   settle_tx_hash: string | null;
   dispute_tx_hash: string | null;
+  reclaim_tx_hash: string | null;
 }
 
 function toJob(row: JobRow): HiredJob {
@@ -105,6 +107,7 @@ function toJob(row: JobRow): HiredJob {
     deliverableUrl: row.deliverable_url,
     settleTxHash: row.settle_tx_hash as `0x${string}` | null,
     disputeTxHash: row.dispute_tx_hash as `0x${string}` | null,
+    reclaimTxHash: row.reclaim_tx_hash as `0x${string}` | null,
   };
 }
 
@@ -123,6 +126,7 @@ class SqliteJobStore implements JobStore {
       'ALTER TABLE jobs ADD COLUMN agent_chain_id INTEGER',
       'ALTER TABLE jobs ADD COLUMN provider_label TEXT',
       'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
+      'ALTER TABLE jobs ADD COLUMN reclaim_tx_hash TEXT',
     ]) {
       try {
         this.db.exec(statement);
@@ -141,8 +145,8 @@ class SqliteJobStore implements JobStore {
            (id, job_id, chain_id, is_testnet, agent_chain_id, agent_token_id,
             agent_name, provider_label, provider, task, budget_raw, expired_at,
             hired_at, hire_tx_hash, status, status_checked_at, deliverable_url,
-            settle_tx_hash, dispute_tx_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         job.id,
@@ -164,6 +168,7 @@ class SqliteJobStore implements JobStore {
         job.deliverableUrl,
         job.settleTxHash,
         job.disputeTxHash ?? null,
+        job.reclaimTxHash ?? null,
       );
   }
 

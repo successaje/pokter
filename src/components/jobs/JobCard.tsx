@@ -5,6 +5,7 @@ import { formatUnits, parseUnits } from 'viem';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 import { formatElapsed, shortAddress, shortHash } from '@/lib/ui/format';
+import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
 import { JOB_STAGE_COPY, type HiredJob } from '@/lib/erc8183/types';
 import { supportMailto } from '@/lib/support/contact';
 import { JobStatusTrack } from './JobStatus';
@@ -13,6 +14,7 @@ import { ReviewJobPanel } from './ReviewJobPanel';
 import {
   getErc8183DeliverableUrl,
   getErc8183Job,
+  buildClaimRefundCall,
   settleErc8183Job,
 } from '@altananetwork/sdk';
 import {
@@ -23,7 +25,10 @@ import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
-import { settleFromExternalWallet } from '@/lib/wallet/external';
+import {
+  reclaimFromExternalWallet,
+  settleFromExternalWallet,
+} from '@/lib/wallet/external';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
@@ -77,7 +82,7 @@ export function JobCard({
 }) {
   const [job, setJob] = useState(initial);
   const [busy, setBusy] = useState<
-    null | 'refresh' | 'verify' | 'approve' | 'dispute'
+    null | 'refresh' | 'verify' | 'approve' | 'dispute' | 'reclaim'
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState(false);
@@ -116,6 +121,8 @@ export function JobCard({
    */
   const fundedAt = Date.parse(job.hiredAt);
   const expiresAt = Date.parse(job.expiredAt);
+  /* Rule lives in lib so it is testable and cannot drift from other surfaces. */
+  const reclaimable = isReclaimable(job, openedAt);
   const agreedWindow = expiresAt - fundedAt;
   const waitedFor = openedAt - fundedAt;
   const quiet =
@@ -127,7 +134,7 @@ export function JobCard({
   const signer = usePasskeySigner();
   const activeWallet = useActiveWallet();
 
-  const act = async (action: 'refresh' | 'approve' | 'dispute') => {
+  const act = async (action: 'refresh' | 'approve' | 'dispute' | 'reclaim') => {
     setBusy(action);
     setError(null);
     try {
@@ -135,6 +142,7 @@ export function JobCard({
         throw new Error('Connect the signing wallet that funded this job.');
       let settleTxHash = job.settleTxHash;
       let disputeTxHash = job.disputeTxHash;
+      let reclaimTxHash = job.reclaimTxHash ?? null;
       if (action === 'approve' || action === 'dispute') {
         if (action === 'approve' && !receiptVerified) {
           throw new Error(
@@ -170,6 +178,35 @@ export function JobCard({
         else disputeTxHash = transactionHash;
       }
 
+      if (action === 'reclaim') {
+        /*
+         * Pulling an expired escrow back. Needs no review, no verification
+         * and no confirmation beyond pressing it: nothing was delivered, the
+         * expiry has passed, and the only possible destination for the money
+         * is the wallet that put it there.
+         */
+        if (activeWallet.mode === 'external') {
+          reclaimTxHash = await reclaimFromExternalWallet({
+            account: activeWallet.address,
+            jobId: BigInt(job.jobId),
+          });
+        } else {
+          if (!wallet || !signer) throw new Error('The passkey signer is unavailable.');
+          const balances = await walletClient().balances({ wallet: wallet.address });
+          if (balances.native < MIN_TRANSACTION_GAS) {
+            throw new Error(
+              `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} to reclaim this escrow.`,
+            );
+          }
+          const outcome = await walletClient().execute({
+            wallet: { address: wallet.address },
+            signer,
+            calls: [buildClaimRefundCall(WALLET_NETWORK.chainId, BigInt(job.jobId))],
+          });
+          reclaimTxHash = outcome.transactionHash ?? null;
+        }
+      }
+
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??
@@ -188,6 +225,7 @@ export function JobCard({
         deliverableUrl,
         settleTxHash,
         disputeTxHash,
+        reclaimTxHash,
       };
       if (updated.deliverableUrl !== job.deliverableUrl) {
         setReviewed(false);
@@ -288,6 +326,46 @@ export function JobCard({
             Reclaimable in {formatElapsed(expiresAt - openedAt)}. Refresh status
             re-reads the chain rather than trusting this card.
           </p>
+        </div>
+      )}
+
+      {job.reclaimTxHash && (
+        <div className="rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-3">
+          <p className="text-[11px] font-medium text-[color:var(--positive)]">
+            Escrow reclaimed
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            The budget went back to the wallet that funded it.{' '}
+            <a
+              href={`${explorerBase}/tx/${job.reclaimTxHash}`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline decoration-dotted"
+            >
+              {shortHash(job.reclaimTxHash)}
+            </a>
+          </p>
+        </div>
+      )}
+
+      {reclaimable && (
+        <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3">
+          <p className="text-[11px] font-medium text-[color:var(--caution)]">
+            This escrow expired without a delivery
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            {formatUnits(BigInt(job.budgetRaw), 18)} $U is
+            still held by the contract and is yours to take back. Nothing was
+            delivered, so nothing is owed to the agent.
+          </p>
+          <button
+            type="button"
+            onClick={() => act('reclaim')}
+            disabled={busy !== null}
+            className="action-primary mt-2.5 inline-flex min-h-9 items-center rounded-[var(--radius)] px-4 text-[12px] font-semibold disabled:opacity-50"
+          >
+            {busy === 'reclaim' ? 'Waiting for your wallet…' : 'Reclaim escrow'}
+          </button>
         </div>
       )}
 
