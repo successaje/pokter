@@ -2,6 +2,7 @@
 
 import { StatusState } from '@/components/ui/States';
 import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useAccount, useSwitchChain } from 'wagmi';
 
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { SessionCard } from '@/components/jobs/SessionCard';
@@ -19,6 +20,8 @@ import {
   subscribeToSessions,
 } from '@/lib/wallet/activity';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { useActiveWallet } from '@/lib/wallet/active';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import {
@@ -47,7 +50,6 @@ function toView(stored: GrantedSession[]): SessionView[] {
 
 export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
   const {
-    wallet,
     ready,
     supported,
     busy,
@@ -55,24 +57,31 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     create,
     recover,
   } = usePasskeyWallet();
+  const active = useActiveWallet();
+  const { isConnected: externalConnected } = useAccount();
+  const { switchChain, isPending: switching } = useSwitchChain();
+  // A deliberately connected browser wallet remains the selected signer even
+  // when it is on the wrong chain. Do not silently fall back to a passkey and
+  // show another account's activity; ask for the network switch instead.
+  const walletAddress = externalConnected && active.wrongChain ? null : active.address;
   const [tab, setTab] = useState<'jobs' | 'notifications' | 'permissions'>('jobs');
   const [importId, setImportId] = useState('');
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const getSnapshot = useCallback(
-    () => (wallet ? sessionsForWallet(wallet.address) : noSessions()),
-    [wallet],
+    () => (active.mode === 'passkey' && walletAddress ? sessionsForWallet(walletAddress) : noSessions()),
+    [active.mode, walletAddress],
   );
   const stored = useSyncExternalStore(subscribeToSessions, getSnapshot, noSessions);
   const sessions = toView(stored);
   const getJobsSnapshot = useCallback(
-    () => (wallet ? jobsForWallet(wallet.address) : noJobs()),
-    [wallet],
+    () => (walletAddress ? jobsForWallet(walletAddress) : noJobs()),
+    [walletAddress],
   );
   const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot, noJobs);
 
   const importJob = async () => {
-    if (!wallet || !/^\d+$/.test(importId)) {
+    if (!walletAddress || !/^\d+$/.test(importId)) {
       setImportError('Enter a numeric ERC-8183 job ID.');
       return;
     }
@@ -81,8 +90,8 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     try {
       const jobId = BigInt(importId);
       const onchain = await getErc8183Job(WALLET_NETWORK, jobId);
-      if (onchain.client.toLowerCase() !== wallet.address.toLowerCase()) {
-        throw new Error('This passkey wallet is not the client for that job.');
+      if (onchain.client.toLowerCase() !== walletAddress.toLowerCase()) {
+        throw new Error('The active signing wallet is not the client for that job.');
       }
       const envelope = decodePokterJobEnvelope(onchain.description);
       if (
@@ -122,7 +131,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
         settleTxHash: null,
         disputeTxHash: null,
       };
-      rememberJob(wallet.address, recovered);
+      rememberJob(walletAddress, recovered);
       setImportId('');
     } catch (error) {
       setImportError((error as Error).message);
@@ -131,18 +140,20 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
     }
   };
 
-  if (!wallet) {
+  if (!walletAddress) {
     return (
       <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">Connect your signing wallet</h3>
+          <h3 className="text-sm font-medium">{externalConnected ? 'Switch your connected wallet' : 'Connect your signing wallet'}</h3>
           <p className="max-w-xl text-xs leading-relaxed text-[color:var(--text-faint)]">
-            Use the passkey wallet that created your sessions. Activity is read
-            from this device only and is never taken from another visitor&apos;s
-            server data.
+            {externalConnected
+              ? `Activity uses the wallet that signs on ${ESCROW_CHAIN.name}. Switch networks to load its device-local jobs.`
+              : 'Use the browser wallet or passkey wallet that funded your jobs. Activity is read from this device only and is never taken from another visitor’s server data.'}
           </p>
         </div>
-        {!ready ? (
+        {externalConnected ? (
+          <button type="button" disabled={switching} onClick={() => switchChain({ chainId: ESCROW_CHAIN.id })} className="action-primary rounded-[var(--radius)] px-3 py-2 text-xs font-medium disabled:opacity-50">{switching ? 'Switching network…' : `Switch to ${ESCROW_CHAIN.name}`}</button>
+        ) : !ready ? (
           <p className="text-xs text-[color:var(--text-faint)]">Checking this device…</p>
         ) : !supported ? (
           <p className="text-xs text-[color:var(--caution)]">
@@ -195,7 +206,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
         {([
           ['jobs', `Jobs${jobs.length ? ` (${jobs.length})` : ''}`],
           ['notifications', 'Updates'],
-          ['permissions', `Permissions${sessions.length ? ` (${sessions.length})` : ''}`],
+          ...(active.mode === 'passkey' ? [['permissions', `Permissions${sessions.length ? ` (${sessions.length})` : ''}`] as const] : []),
         ] as const).map(([value, label]) => (
           <button
             key={value}
@@ -236,7 +247,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             <h4 className="text-sm font-medium">Recover an on-chain job</h4>
             <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
               Enter its ERC-8183 job ID. Pokter will import it only when the
-              connected passkey wallet is the job&apos;s on-chain client.
+              active signing wallet is the job&apos;s on-chain client.
             </p>
             <div className="flex flex-wrap gap-2">
               <input
@@ -270,7 +281,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
           id="activity-panel-notifications"
           aria-labelledby="activity-tab-notifications"
         >
-          <NotificationCenter walletAddress={wallet.address} jobs={jobs} />
+          <NotificationCenter walletAddress={walletAddress} jobs={jobs} />
         </div>
       ) : (
         <section

@@ -156,6 +156,47 @@ export async function revokeExternalWalletAllowance(expectedAccount: Address): P
   return hash;
 }
 
+/** Release or contest escrow from the exact browser wallet that funded it. */
+export async function settleFromExternalWallet(input: {
+  account: Address;
+  jobId: bigint;
+  action: 'approve' | 'dispute';
+}): Promise<Hex> {
+  await ensureChain();
+  await assertAccount(input.account);
+  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  if (getAddress(before.client) !== getAddress(input.account)) {
+    throw new Error('The connected wallet did not fund this job.');
+  }
+  if (before.statusName !== 'SUBMITTED') {
+    throw new Error(`This job is ${before.statusName.toLowerCase()} and cannot be settled.`);
+  }
+
+  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const target = input.action === 'approve' ? addresses.router : addresses.policy;
+  const data = input.action === 'approve'
+    ? encodeFunctionData({
+        abi: [{ name: 'settle', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'jobId', type: 'uint256' }, { name: 'evidence', type: 'bytes' }], outputs: [] }],
+        functionName: 'settle', args: [input.jobId, '0x'],
+      })
+    : encodeFunctionData({
+        abi: [{ name: 'dispute', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [] }],
+        functionName: 'dispute', args: [input.jobId],
+      });
+  const { wallet, read } = clients();
+  const hash = await wallet.sendTransaction({
+    account: input.account, to: target as Address, data, chain: null,
+  });
+  const receipt = await read.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('The escrow transaction reverted.');
+  const after = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const expected = input.action === 'approve' ? 'COMPLETED' : 'REJECTED';
+  if (after.statusName !== expected) {
+    throw new Error(`The transaction confirmed, but the job is ${after.statusName.toLowerCase()} instead of ${expected.toLowerCase()}.`);
+  }
+  return hash;
+}
+
 export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
   const { wallet, read } = clients();
   const [rawAccount] = await wallet.getAddresses();

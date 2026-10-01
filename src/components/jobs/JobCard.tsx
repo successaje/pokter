@@ -21,6 +21,8 @@ import {
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';
+import { useActiveWallet } from '@/lib/wallet/active';
+import { settleFromExternalWallet } from '@/lib/wallet/external';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
@@ -122,18 +124,17 @@ export function JobCard({
     !windowClosed;
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
+  const activeWallet = useActiveWallet();
 
   const act = async (action: 'refresh' | 'approve' | 'dispute') => {
     setBusy(action);
     setError(null);
     try {
-      if (!wallet)
-        throw new Error('Connect the passkey wallet that funded this job.');
-
+      if (!activeWallet.address)
+        throw new Error('Connect the signing wallet that funded this job.');
       let settleTxHash = job.settleTxHash;
       let disputeTxHash = job.disputeTxHash;
       if (action === 'approve' || action === 'dispute') {
-        if (!signer) throw new Error('The passkey signer is unavailable.');
         if (action === 'approve' && !receiptVerified) {
           throw new Error(
             'Verify the receipt against its on-chain hash first.',
@@ -143,22 +144,29 @@ export function JobCard({
           throw new Error('Review the deliverable before releasing escrow.');
         if (action === 'dispute' && !disputeConfirmed)
           throw new Error('Confirm that you intend to contest this delivery.');
-        const balances = await walletClient().balances({
-          wallet: wallet.address,
-        });
-        if (balances.native < MIN_TRANSACTION_GAS) {
-          throw new Error(
-            `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} to ${action === 'approve' ? 'release escrow' : 'open a dispute'}.`,
+        let transactionHash: `0x${string}` | null = null;
+        if (activeWallet.mode === 'external') {
+          transactionHash = await settleFromExternalWallet({
+            account: activeWallet.address,
+            jobId: BigInt(job.jobId),
+            action,
+          });
+        } else {
+          if (!wallet || !signer) throw new Error('The passkey signer is unavailable.');
+          const balances = await walletClient().balances({ wallet: wallet.address });
+          if (balances.native < MIN_TRANSACTION_GAS) {
+            throw new Error(
+              `Your passkey wallet needs at least 0.002 ${NATIVE_SYMBOL} to ${action === 'approve' ? 'release escrow' : 'open a dispute'}.`,
+            );
+          }
+          const outcome = await settleErc8183Job(
+            { address: wallet.address }, signer,
+            { jobId: BigInt(job.jobId), action }, { network: WALLET_NETWORK },
           );
+          transactionHash = outcome.transactionHash ?? null;
         }
-        const outcome = await settleErc8183Job(
-          { address: wallet.address },
-          signer,
-          { jobId: BigInt(job.jobId), action },
-          { network: WALLET_NETWORK },
-        );
-        if (action === 'approve') settleTxHash = outcome.transactionHash ?? null;
-        else disputeTxHash = outcome.transactionHash ?? null;
+        if (action === 'approve') settleTxHash = transactionHash;
+        else disputeTxHash = transactionHash;
       }
 
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
@@ -185,7 +193,7 @@ export function JobCard({
         setReceiptVerified(false);
       }
       setJob(updated);
-      updateRememberedJob(wallet.address, updated);
+      updateRememberedJob(activeWallet.address, updated);
     } catch (caught) {
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {
