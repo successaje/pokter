@@ -59,6 +59,7 @@ const PRIMARY = [
 const DESKTOP_PRIMARY = [
   ...PRIMARY.slice(0, 3),
   { href: '/build', label: 'Launch' },
+  { href: '/set-and-earn', label: '🔥 Campaign' },
   PRIMARY[3],
 ];
 
@@ -70,6 +71,7 @@ const DESKTOP_PRIMARY = [
  */
 const SECONDARY = [
   { href: '/account', label: 'Account' },
+  { href: '/set-and-earn', label: '🔥 Set and Earn' },
   { href: '/saved', label: 'Saved agents' },
   { href: '/leaderboard', label: 'Rankings' },
   /*

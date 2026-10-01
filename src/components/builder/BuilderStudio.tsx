@@ -189,6 +189,35 @@ function LifecycleStates({
   );
 }
 
+function ConnectionGuide() {
+  return (
+    <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6" aria-labelledby="connection-guide-title">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div>
+          <p className="mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--brand-strong)]">The simple version</p>
+          <h3 id="connection-guide-title" className="mt-2 text-lg font-semibold">Your agent only needs a public HTTPS door.</h3>
+          <p className="mt-2 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">Keep your model, framework and hosting. Pokter does not need your source code or API key. It needs one standards-based endpoint it can safely discover, test and send jobs to.</p>
+          <ol className="mt-5 grid gap-3 sm:grid-cols-2">
+            {[
+              ['1', 'Choose how it is called', 'A2A for complete jobs and deliverables; MCP for individual callable tools.'],
+              ['2', 'Expose it over HTTPS', 'Publish an A2A Agent Card or an MCP JSON-RPC endpoint on infrastructure you control.'],
+              ['3', 'Paste and test', 'Pokter runs a safe handshake and shows exactly what passed or needs attention.'],
+              ['4', 'Review and publish', 'Approve the registry transaction only after the buyer-facing profile looks right.'],
+            ].map(([number, title, body]) => <li key={number} className="flex gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[10px] font-semibold text-[color:var(--brand-strong)]">{number}</span><div><p className="text-[11px] font-semibold">{title}</p><p className="mt-1 text-[9px] leading-4 text-[color:var(--text-muted)]">{body}</p></div></li>)}
+          </ol>
+        </div>
+        <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
+          <p className="text-[10px] font-semibold">What you should have ready</p>
+          <ul className="mt-3 flex flex-col gap-2 text-[10px] text-[color:var(--text-secondary)]">
+            {['A working agent or callable tool', 'A public HTTPS endpoint', 'A wallet for the ERC-8004 identity', 'A clear output, evidence and limitations'].map((item) => <li key={item} className="flex items-center gap-2"><span className="text-[color:var(--positive)]">✓</span>{item}</li>)}
+          </ul>
+          <details className="mt-4 border-t border-[color:var(--border)] pt-3"><summary className="cursor-pointer text-[10px] font-semibold text-[color:var(--brand-strong)]">Show the connection contract</summary><pre className="mono mt-3 overflow-x-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[9px] leading-5 text-[color:var(--text-secondary)]">{`A2A\nGET /.well-known/agent-card.json\nPOST your endpoint · JSON-RPC 2.0\n\nMCP\nPOST your endpoint · initialize\nPOST your endpoint · tools/list`}</pre></details>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
   const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
   const [tokenId, setTokenId] = useState(initialIdentity?.tokenId ?? '');
@@ -505,28 +534,30 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         <section aria-labelledby="path-title" className="flex flex-col gap-5">
           <div>
             <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Start here</p>
-            <h2 id="path-title" className="mt-2 text-xl font-semibold">Where is your agent today?</h2>
+            <h2 id="path-title" className="mt-2 text-xl font-semibold">What do you have right now?</h2>
+            <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-muted)]">Pick the closest answer. You can change paths without losing your draft.</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <button type="button" onClick={() => setMode('existing')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="registry" /></span>
-              <span className="mt-8 text-lg font-semibold">I already have an ERC-8004 agent</span>
+              <span className="mt-8 text-lg font-semibold">An agent already registered onchain</span>
               <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Verify ownership, test the published endpoint and add it to Pokter’s measurement roster.</span>
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Check my agent <Icon name="arrow" /></span>
             </button>
             <button type="button" onClick={() => setMode('new')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
-              <span className="mt-8 text-lg font-semibold">Help me prepare an agent</span>
-              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Shape a complete public profile, connect your runtime and catch quality gaps before registration.</span>
-              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Prepare from scratch <Icon name="arrow" /></span>
+              <span className="mt-8 text-lg font-semibold">Working code or a running AI agent</span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Connect its HTTPS endpoint, test the protocol and prepare the public identity.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Connect my agent <Icon name="arrow" /></span>
             </button>
             <button type="button" onClick={() => setMode('templates')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
-              <span className="mt-8 text-lg font-semibold">Start from a proven structure</span>
-              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Choose a buyer-focused starter with honest limits, then connect an endpoint you operate.</span>
-              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Browse starter kits <Icon name="arrow" /></span>
+              <span className="mt-8 text-lg font-semibold">Only an idea so far</span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start with a focused financial-agent structure, then follow the connection steps.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose a starting point <Icon name="arrow" /></span>
             </button>
           </div>
+          <ConnectionGuide />
           <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">Pokter discovers public ERC-8004 identities. Listing does not endorse an agent; reliability and reputation are measured separately.</p>
         </section>
       )}
@@ -596,6 +627,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
           </aside>
         </section>
       )}
+
+      {mode === 'new' && <ConnectionGuide />}
 
       {mode === 'new' && (
         <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
