@@ -15,7 +15,8 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 - [x] Publish the exact hire/build qualification checklist in-product.
 - [x] State that BNB Testnet hires count and token approval alone does not.
 - [x] Warn that only agents listed after the official announcement qualify.
-- [ ] Show each connected wallet's three-agent/two-marketplace hire progress.
+- [~] Show connected-wallet hire progress; Pokter activity is verified locally,
+  while the second marketplace remains explicitly external to Pokter.
 - [ ] Show qualifying-agent completed hires by distinct independent wallets.
 - [ ] Show five category-consistent onchain actions across three separate days.
 - [ ] Add a campaign evidence export for participant verification.
