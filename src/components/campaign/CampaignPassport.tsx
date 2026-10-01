@@ -59,14 +59,14 @@ export function CampaignPassport() {
   };
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]" aria-labelledby="passport-title">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]" aria-labelledby="tracker-title">
       <div className="grid gap-5 border-b border-[color:var(--border)] bg-[linear-gradient(120deg,var(--brand-highlight-soft),transparent_65%)] p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div><div className="flex flex-wrap items-center gap-2"><p className="mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Pokter proof passport</p>{walletAddress && <span className="mono rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[9px] text-[color:var(--text-muted)]">{shortAddress(walletAddress)}</span>}</div><h2 id="passport-title" className="mt-2 text-xl font-semibold">Know what Pokter can prove.</h2><p className="mt-2 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">This passport reads escrow jobs saved on this device for the connected signing wallet. It separates verified Pokter activity from registration and other-marketplace actions that Pokter cannot independently see.</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><p className="mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Campaign proof tracker</p>{walletAddress && <span className="mono rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[9px] text-[color:var(--text-muted)]">{shortAddress(walletAddress)}</span>}</div><h2 id="tracker-title" className="mt-2 text-xl font-semibold">See what Pokter can verify.</h2><p className="mt-2 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">The tracker reads escrow jobs saved on this device for the connected signing wallet. It separates verified Pokter activity from registration and other-marketplace actions that Pokter cannot independently see.</p></div>
         <Link href="/my-agents" className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold">Open activity proof →</Link>
       </div>
 
       {!walletAddress ? (
-        <div className="p-5 sm:p-6"><p className="text-sm font-semibold">Connect the campaign wallet to load your passport.</p><p className="mt-2 text-[11px] leading-5 text-[color:var(--text-muted)]">Use the wallet control in the header. Pokter does not connect a different wallet or infer activity from another visitor.</p></div>
+        <div className="p-5 sm:p-6"><p className="text-sm font-semibold">Connect the campaign wallet to load your progress.</p><p className="mt-2 text-[11px] leading-5 text-[color:var(--text-muted)]">Use the wallet control in the header. Pokter does not connect a different wallet or infer activity from another visitor.</p></div>
       ) : (
         <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="grid gap-3 sm:grid-cols-3">
