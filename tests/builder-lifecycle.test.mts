@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { deriveBuilderLifecycle } from '../src/lib/diagnostic/builder-lifecycle';
+import { builderReadinessSteps, deriveBuilderLifecycle, nextBuilderAction } from '../src/lib/diagnostic/builder-lifecycle';
 import type { DiagnosticCheck } from '../src/lib/diagnostic/checks';
 
 const pass = (id: string): DiagnosticCheck => ({ id, label: id, status: 'pass', detail: 'observed' });
@@ -24,4 +24,25 @@ test('testnet identities are not marked as publicly listed', () => {
   const lifecycle = deriveBuilderLifecycle({ chainId: 97, checks: [pass('identity')], enrolled: true, probeCount: 2 });
   assert.equal(lifecycle.listed, false);
   assert.equal(lifecycle.measured, true);
+});
+
+test('readiness names the first substantiated blocker without claiming campaign qualification', () => {
+  const lifecycle = deriveBuilderLifecycle({
+    chainId: 97,
+    checks: [pass('identity'), pass('card'), pass('category')],
+    enrolled: false,
+    probeCount: 0,
+  });
+  assert.equal(nextBuilderAction(lifecycle)?.id, 'reachable');
+  assert.equal(builderReadinessSteps(lifecycle).some((step) => /campaign/i.test(step.label)), false);
+});
+
+test('a fully observable agent has no remaining product-readiness action', () => {
+  const lifecycle = deriveBuilderLifecycle({
+    chainId: 56,
+    checks: [pass('identity'), pass('card'), pass('category'), pass('endpoint'), pass('liveness'), pass('quote')],
+    enrolled: true,
+    probeCount: 4,
+  });
+  assert.equal(nextBuilderAction(lifecycle), null);
 });
