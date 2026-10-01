@@ -17,6 +17,7 @@ export function AgentAvatar({
   size?: 'sm' | 'lg';
 }) {
   const [failed, setFailed] = useState(false);
+  const [generatedFailed, setGeneratedFailed] = useState(false);
   const initials =
     name
       .split(/\s+/)
@@ -43,6 +44,7 @@ export function AgentAvatar({
   );
   const hue = seed % 360;
   const accentHue = (hue + 28) % 360;
+  const generatedSrc = `/api/avatars/${encodeURIComponent(`marketplace-${seed}`)}`;
 
   return (
     <div
@@ -63,6 +65,18 @@ export function AgentAvatar({
           height={72}
           referrerPolicy="no-referrer"
           onError={() => setFailed(true)}
+          className="size-full object-cover"
+        />
+      ) : !generatedFailed ? (
+        // The seed is deterministic: an agent keeps the same identity across
+        // cards, rankings and visits while no publisher image is available.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={generatedSrc}
+          alt=""
+          width={72}
+          height={72}
+          onError={() => setGeneratedFailed(true)}
           className="size-full object-cover"
         />
       ) : (
