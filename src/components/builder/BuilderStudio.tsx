@@ -10,6 +10,7 @@ import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks'
 import type { BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
+import { createAgentBuildPrompt, type AgentBuildPromptInput } from '@/lib/builder/ai-prompt';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
 import { Sheet } from '@/components/ui/Sheet';
@@ -278,6 +279,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
   const [briefApplied, setBriefApplied] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState({ target: '', policy: '', output: '' });
+  const [copiedAiProvider, setCopiedAiProvider] = useState<AgentBuildPromptInput['provider'] | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -312,6 +314,15 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
   }, [draft.category, draft.name]);
   const runtimeOptions = RUNTIME_OPTIONS[draft.category];
+  const aiPromptInput = useMemo(() => ({
+    name: draft.name.trim(),
+    description: draft.description.trim(),
+    category: CATEGORIES.find((category) => category.id === draft.category)?.label ?? draft.category,
+    protocol: draft.protocol,
+    target: runtimeConfig.target,
+    policy: runtimeConfig.policy,
+    output: runtimeConfig.output,
+  }), [draft, runtimeConfig]);
   const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -460,6 +471,17 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     anchor.download = `${draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent'}-runtime-config.json`;
     anchor.click();
     URL.revokeObjectURL(href);
+  }
+
+  async function copyAgentBuildPrompt(provider: AgentBuildPromptInput['provider']) {
+    const prompt = createAgentBuildPrompt({ provider, ...aiPromptInput });
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopiedAiProvider(provider);
+      window.setTimeout(() => setCopiedAiProvider((current) => current === provider ? null : current), 2_500);
+    } catch {
+      setEndpointError('The prompt could not be copied. Allow clipboard access and try again.');
+    }
   }
 
   async function testDraftEndpoint() {
@@ -699,6 +721,11 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
               <div className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
               {newStep === 2 && runtimeOptions && <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Runtime configuration handoff</p><p className="mt-1 text-[9px] leading-4 text-[color:var(--text-muted)]">Download the exact choices from Profile and apply them to your agent before testing its endpoint.</p></div><button type="button" onClick={downloadRuntimeConfig} disabled={!runtimeConfig.target || !runtimeConfig.policy || !runtimeConfig.output} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[10px] font-semibold disabled:opacity-40">Download config</button></div></div>}
+              {newStep === 2 && <section className="rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:col-span-2" aria-labelledby="ai-build-title">
+                <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><h3 id="ai-build-title" className="text-[12px] font-semibold">Need help creating the runtime?</h3><p className="mt-1 max-w-2xl text-[10px] leading-5 text-[color:var(--text-secondary)]">Copy a Pokter-prepared engineering prompt into the AI assistant you already use. It includes your agent brief, protocol contract, safety requirements, testing and deployment handoff.</p></div></div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">{(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => copyAgentBuildPrompt(provider)} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>{provider}</span><span className={cn('text-[10px]', copiedAiProvider === provider ? 'text-[color:var(--positive)]' : 'text-[color:var(--brand-strong)]')}>{copiedAiProvider === provider ? 'Copied ✓' : 'Copy prompt'}</span></button>)}</div>
+                <p className="mt-3 text-[9px] leading-4 text-[color:var(--text-muted)]">AI-generated code is a starting point, not proof of safety or performance. Review it, keep private keys out of chat, deploy it yourself, then return here to test the public endpoint.</p>
+              </section>}
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}{endpointReport?.safety && <details className="mt-3 border-t border-current/10 pt-2"><summary className="cursor-pointer text-[10px] font-semibold">Connection safety</summary><ul className="mt-2 grid gap-1 text-[9px] leading-4 text-[color:var(--text-muted)] sm:grid-cols-2"><li>✓ Public HTTPS only</li><li>✓ Credentials rejected</li><li>✓ DNS address pinned</li><li>✓ Private networks rejected</li><li>✓ Redirects blocked</li><li>✓ 10s / 256 KiB limits</li></ul></details>}</div></div></div>}
               {endpointReport?.ok && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2">
                 <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><p className="text-[12px] font-semibold">Run a private sample request</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-muted)]">Only an explicitly advertised preview, simulate or dry-run capability can be called. This result stays private and never becomes marketplace evidence.</p></div>{trialCapability && <span className="mono w-fit rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[9px]">{trialCapability}</span>}</div>
