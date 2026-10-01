@@ -58,7 +58,7 @@ const PRIMARY = [
 // labels or creates a sixth overflow column.
 const DESKTOP_PRIMARY = [
   ...PRIMARY.slice(0, 3),
-  { href: '/build', label: 'Build' },
+  { href: '/build', label: 'Launch' },
   PRIMARY[3],
 ];
 
@@ -81,7 +81,7 @@ const SECONDARY = [
    * labelled by what it does for them rather than by its own name — nobody
    * arrives wanting a diagnostic, they arrive wanting to be listed.
    */
-  { href: '/build', label: 'Build an agent' },
+  { href: '/build', label: 'Launch an agent' },
   { href: '/pool-check', label: 'Pool check' },
 ];
 

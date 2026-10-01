@@ -19,7 +19,7 @@ import {
   type RegistryChainId,
 } from '@/lib/registry/register';
 
-type Mode = 'choose' | 'existing' | 'new';
+type Mode = 'choose' | 'existing' | 'new' | 'templates';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean };
 type EndpointPreflight = {
   endpoint: string;
@@ -58,6 +58,60 @@ const QUALITY_EXAMPLE: Draft = {
   endpoint: '',
   image: '',
 };
+
+const STARTER_KITS: Array<{
+  id: string;
+  eyebrow: string;
+  description: string;
+  draft: Draft;
+}> = [
+  {
+    id: 'portfolio-monitor',
+    eyebrow: 'Portfolio monitor',
+    description: 'Turn wallet positions into a sourced exposure and concentration report.',
+    draft: {
+      name: 'Portfolio Watch',
+      description: 'Reviews a BNB Chain wallet, identifies asset concentration and protocol exposure, and returns a read-only portfolio report with sources, assumptions, and clearly stated data gaps.',
+      category: 'rebalancing', protocol: 'a2a', endpoint: '', image: '',
+    },
+  },
+  {
+    id: 'health-factor-monitor',
+    eyebrow: 'Health-factor monitor',
+    description: 'Explain lending risk and identify positions approaching liquidation.',
+    draft: {
+      name: 'Position Guardian',
+      description: 'Checks supported BNB Chain lending positions, explains health-factor changes, and returns a read-only risk report without moving funds or promising liquidation protection.',
+      category: 'health-factor', protocol: 'a2a', endpoint: '', image: '',
+    },
+  },
+  {
+    id: 'yield-researcher',
+    eyebrow: 'Yield researcher',
+    description: 'Compare opportunities without presenting advertised APY as guaranteed return.',
+    draft: QUALITY_EXAMPLE,
+  },
+  {
+    id: 'rebalancing-adviser',
+    eyebrow: 'Rebalancing adviser',
+    description: 'Produce an allocation plan that remains advisory and user-approved.',
+    draft: {
+      name: 'Allocation Guide',
+      description: 'Compares a portfolio with user-defined allocation targets and returns a read-only rebalancing plan with proposed amounts, market assumptions, and explicit execution risks.',
+      category: 'rebalancing', protocol: 'a2a', endpoint: '', image: '',
+    },
+  },
+  {
+    id: 'treasury-reporter',
+    eyebrow: 'Treasury reporter',
+    description: 'Summarise balances, movements and risk for teams and communities.',
+    draft: {
+      name: 'Treasury Reporter',
+      description: 'Produces a sourced BNB Chain treasury summary covering balances, recent movements, protocol exposure, and material changes while clearly separating observations from recommendations.',
+      category: 'rebalancing', protocol: 'mcp', endpoint: '', image: '',
+    },
+  },
+];
 
 const DRAFT_KEY = 'pokter-agent-draft-v1';
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
@@ -244,8 +298,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function loadQualityExample() {
-    setDraft(QUALITY_EXAMPLE);
+  function applyStarterKit(starter: (typeof STARTER_KITS)[number]) {
+    setDraft({ ...starter.draft });
     setEndpointReport(null);
     setEndpointError(null);
     setReviewing(false);
@@ -336,9 +390,9 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16 pt-6 sm:gap-10 sm:pt-10">
       <header className="grid items-end gap-6 border-b border-[color:var(--border)] pb-7 lg:grid-cols-[1fr_auto]">
         <div className="max-w-2xl">
-          <p className="mono mb-3 text-[10px] uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">Builder studio</p>
-          <h1 className="font-[family-name:var(--font-serif)] text-4xl leading-[1.02] tracking-tight sm:text-5xl">Bring a quality agent to BNB Chain.</h1>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--text-secondary)]">Prepare an agent, verify what buyers will see, and start building a measurable track record. No listing fee and no private review queue.</p>
+          <p className="mono mb-3 text-[10px] uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">Agent launchpad</p>
+          <h1 className="font-[family-name:var(--font-serif)] text-4xl leading-[1.02] tracking-tight sm:text-5xl">Launch a quality agent on BNB Chain.</h1>
+          <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--text-secondary)]">Start from where you are, verify what buyers will see, and build a measurable track record. Registration never counts as proof that an agent works.</p>
         </div>
         <div className="flex items-center gap-3 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-[11px] text-[color:var(--text-muted)]">
           <span className="size-2 rounded-full bg-[color:var(--positive)]" />
@@ -352,7 +406,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Start here</p>
             <h2 id="path-title" className="mt-2 text-xl font-semibold">Where is your agent today?</h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <button type="button" onClick={() => setMode('existing')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="registry" /></span>
               <span className="mt-8 text-lg font-semibold">I already have an ERC-8004 agent</span>
@@ -361,16 +415,39 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             </button>
             <button type="button" onClick={() => setMode('new')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
-              <span className="mt-8 text-lg font-semibold">I’m preparing a new agent</span>
-              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Build a complete public profile and catch quality gaps before registration.</span>
-              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Create a draft <Icon name="arrow" /></span>
+              <span className="mt-8 text-lg font-semibold">Help me prepare an agent</span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Shape a complete public profile, connect your runtime and catch quality gaps before registration.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Prepare from scratch <Icon name="arrow" /></span>
+            </button>
+            <button type="button" onClick={() => setMode('templates')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
+              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
+              <span className="mt-8 text-lg font-semibold">Start from a proven structure</span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Choose a buyer-focused starter with honest limits, then connect an endpoint you operate.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Browse starter kits <Icon name="arrow" /></span>
             </button>
           </div>
-          <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-5 sm:flex-row sm:items-center">
-            <div><p className="text-[13px] font-semibold">Not an agent builder yet?</p><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[color:var(--text-secondary)]">Start with a quality example to see how a buyer-focused name, outcome and safety limits should read. Pokter leaves the endpoint and image blank so a sample can never be mistaken for a working service.</p></div>
-            <button type="button" onClick={loadQualityExample} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-2.5 text-[11px] font-semibold hover:border-[color:var(--brand)]">Explore an example →</button>
-          </div>
           <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">Pokter discovers public ERC-8004 identities. Listing does not endorse an agent; reliability and reputation are measured separately.</p>
+        </section>
+      )}
+
+      {mode === 'templates' && (
+        <section aria-labelledby="starter-title" className="flex flex-col gap-5">
+          <div className="max-w-2xl">
+            <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Starter kits</p>
+            <h2 id="starter-title" className="mt-2 text-2xl font-semibold">Begin with the outcome buyers need.</h2>
+            <p className="mt-2 text-[12px] leading-5 text-[color:var(--text-secondary)]">A starter prepares honest marketplace language—not a working service. You still connect and pass a real A2A or MCP endpoint check before Pokter allows publication.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {STARTER_KITS.map((starter) => (
+              <button key={starter.id} type="button" onClick={() => applyStarterKit(starter)} className="group flex min-h-48 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_14px_40px_var(--brand-shadow)]">
+                <span className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">{CATEGORIES.find((category) => category.id === starter.draft.category)?.label ?? 'Agent'}</span>
+                <h3 className="mt-3 text-base font-semibold">{starter.eyebrow}</h3>
+                <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">{starter.description}</p>
+                <span className="mt-auto flex items-center gap-2 pt-5 text-[11px] font-semibold text-[color:var(--brand-strong)]">Use this structure <Icon name="arrow" /></span>
+              </button>
+            ))}
+          </div>
+          <div className="rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-4 text-[11px] leading-5 text-[color:var(--text-secondary)]">Each starter intentionally leaves its endpoint and image empty. A template can help describe an agent; it cannot prove that an agent exists or works.</div>
         </section>
       )}
 

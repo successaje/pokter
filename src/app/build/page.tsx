@@ -3,9 +3,9 @@ import type { Metadata } from 'next';
 import { BuilderStudio } from '@/components/builder/BuilderStudio';
 
 export const metadata: Metadata = {
-  title: 'Build an agent',
+  title: 'Launch an agent',
   description:
-    'Prepare, verify and list an ERC-8004 agent for discovery on Pokter.',
+    'Prepare, test, register and list an ERC-8004 agent for discovery on Pokter.',
 };
 
 export default async function BuildPage({
