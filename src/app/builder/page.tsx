@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { formatUnits } from 'viem';
 
-import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { BuilderFleet, type BuilderFleetAgent } from '@/components/builder/BuilderFleet';
 import { BuilderJobInbox } from '@/components/builder/BuilderJobInbox';
 import { BuilderNotifications } from '@/components/builder/BuilderNotifications';
 import { BuilderSignOutButton } from '@/components/builder/BuilderSignOutButton';
@@ -41,24 +41,37 @@ export default async function BuilderDashboard() {
   const completedValue = completed.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   const since = thirtyDaysAgo();
   const probeStore = getProbeStore();
-  const operations = agents.map((agent) => {
+  const operations: BuilderFleetAgent[] = agents.map((agent) => {
     const record = buildTrackRecord(probeStore.historyFor(agent.chain_id, agent.token_id, since));
     const recent = record.windows.find((window) => window.label === '24h');
     const online = recent && recent.probes > 0 ? recent.answered > 0 : null;
+    const agentJobs = jobs.filter((job) => `${job.agentChainId ?? 56}:${job.agentTokenId}` === `${agent.chain_id}:${agent.token_id}`);
     const listingGaps = [
       !agent.image_url,
       (agent.description?.trim().length ?? 0) < 40,
       !(agent.supported_protocols?.length),
       online === false,
     ].filter(Boolean).length;
-    return { agent, record, recent, online, listingGaps };
+    return {
+      chainId: agent.chain_id,
+      tokenId: agent.token_id,
+      name: agent.name,
+      imageUrl: agent.image_url,
+      online,
+      listingGaps,
+      probes24h: recent?.probes ?? 0,
+      probes30d: record.totalProbes,
+      attestations: agent.total_feedbacks,
+      activeJobs: agentJobs.filter((job) => ['FUNDED', 'SUBMITTED'].includes(job.status)).length,
+      completedJobs: agentJobs.filter((job) => job.status === 'COMPLETED').length,
+    };
   });
   const needsAttention = operations.filter((entry) => entry.online === false).length;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 pb-16 pt-6 sm:gap-10 sm:pt-10">
       <header className="flex flex-col justify-between gap-5 border-b border-[color:var(--border)] pb-7 sm:flex-row sm:items-end">
-        <div><p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">Private builder operations</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your agents, in operation.</h1><p className="mt-3 text-[12px] text-[color:var(--text-secondary)]">Signed in as <span className="mono">{short(owner)}</span>. Registry ownership is re-read whenever this dashboard loads.</p><div className="mt-4"><WorkspaceModeSwitch current="builder" builderOwner={owner} /></div></div>
+        <div><p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">Private builder operations</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your agents, in operation.</h1><p className="mt-3 text-[12px] text-[color:var(--text-secondary)]">Signed in as <span className="mono">{short(owner)}</span>. Owned listings are loaded from Pokter’s latest registry index.</p><div className="mt-4"><WorkspaceModeSwitch current="builder" builderOwner={owner} /></div></div>
         <div className="flex items-center gap-4"><BuilderSignOutButton /><Link href={`/builders/${owner}`} className="w-fit rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[11px] font-medium hover:bg-[color:var(--surface-hover)]">View public profile ↗</Link></div>
       </header>
 
@@ -81,16 +94,7 @@ export default async function BuilderDashboard() {
       </section>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-        <section id="agents" aria-labelledby="fleet-heading" className="scroll-mt-24">
-          <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Agent health</p><h2 id="fleet-heading" className="mt-2 text-xl font-semibold">Your live fleet</h2></div><Link href="/build" className="text-[11px] font-medium text-[color:var(--brand-strong)]">Add an agent →</Link></div>
-          <div className="mt-5 flex flex-col gap-3">{operations.map(({ agent, record, recent, online, listingGaps }) => (
-            <article key={`${agent.chain_id}:${agent.token_id}`} className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
-              <div className="flex items-start gap-3"><AgentAvatar name={agent.name} src={agent.image_url} size="sm" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold">{agent.name}</h3><span className={`size-2 rounded-full ${online === true ? 'bg-[color:var(--positive)]' : online === false ? 'bg-[color:var(--negative)]' : 'bg-[color:var(--neutral)]'}`} /><span className="text-[9px] text-[color:var(--text-muted)]">{online === true ? 'Responding' : online === false ? 'No 24h response' : 'Not measured in 24h'}</span></div><p className="mono mt-1 text-[9px] text-[color:var(--text-muted)]">{agent.chain_id}:{agent.token_id}</p></div><div className="flex shrink-0 flex-col items-end gap-2"><Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="text-[10px] font-medium text-[color:var(--brand-strong)]">Public page ↗</Link><Link href={`/build?chainId=${agent.chain_id}&tokenId=${agent.token_id}`} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-2.5 py-1.5 text-[9px] font-semibold hover:bg-[color:var(--surface-hover)]">Manage & retest</Link></div></div>
-              <div className={`mt-3 rounded-[var(--radius)] px-3 py-2 text-[9px] ${listingGaps === 0 ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]'}`}>{listingGaps === 0 ? 'Public profile and recent response checks look ready.' : `${listingGaps} listing check${listingGaps === 1 ? '' : 's'} need attention. Open management for exact fixes.`}</div>
-              <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-[color:var(--border)] pt-3 text-center"><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">24h</dt><dd className="mt-1 text-[11px] font-medium">{recent?.probes ?? 0} probes</dd></div><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">30d</dt><dd className="mt-1 text-[11px] font-medium">{record.totalProbes} probes</dd></div><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">Attestations</dt><dd className="mt-1 text-[11px] font-medium">{agent.total_feedbacks}</dd></div></dl>
-            </article>
-          ))}{!operations.length && <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-8 text-center text-[12px] text-[color:var(--text-muted)]">No agents are currently owned by this wallet.</div>}</div>
-        </section>
+        <BuilderFleet agents={operations} />
 
         <aside className="flex flex-col gap-6">
           <BuilderNotifications />

@@ -10,6 +10,7 @@ import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks'
 import { summarizeQuality } from '@/lib/builder/quality';
 import { cn } from '@/lib/ui/cn';
 import { Sheet } from '@/components/ui/Sheet';
+import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
 import {
   registerIdentityFromWallet,
@@ -399,6 +400,12 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[10px] text-[color:var(--text-muted)]">Identity owner</p><p className="mt-1 text-[12px]"><Address value={report.owner} /></p></div><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[10px] text-[color:var(--text-muted)]">Agent signing wallet</p><p className="mt-1 text-[12px]"><Address value={report.agentWallet} /></p></div></div>
                 <div><div className="mb-3 flex items-center justify-between"><h3 className="text-[13px] font-semibold">Marketplace readiness</h3><span className="text-[11px] text-[color:var(--text-muted)]">{quality.passed} passed · {quality.failed} need attention · {quality.unknown} unverified</span></div><ul className="grid gap-2">{report.checks.map((check) => <li key={check.id} className="flex gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><StatusMark status={check.status}/><div><p className="text-[12px] font-medium">{check.label}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{check.detail}</p>{check.remedy && check.status !== 'pass' && <details className="mt-2 text-[11px] text-[color:var(--text-muted)]"><summary className="cursor-pointer font-medium text-[color:var(--brand-strong)]">How to improve</summary><p className="mt-1 leading-5">{check.remedy}</p></details>}</div></li>)}</ul></div>
+                {verifiedAt && (
+                  <AgentProfileEditor
+                    chainId={report.chainId as RegistryChainId}
+                    tokenId={report.tokenId}
+                  />
+                )}
               </div>
             )}
           </div>

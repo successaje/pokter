@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { PrivateActivity } from '@/components/jobs/PrivateActivity';
+import { PrivateActivityClient } from '@/components/jobs/PrivateActivityClient';
 
 /**
  * Activity cannot be keyed by a browser connection on the server without an
@@ -46,15 +46,15 @@ export default async function MyAgentsPage({
         */}
         <div className="flex items-baseline justify-between gap-4">
           <p className="text-[11px] text-[color:var(--text-faint)]">
-            Device-local · passkey-owned
+          Device-local · signing-wallet scoped
           </p>
         </div>
-        <PrivateActivity explorerBase={explorerBase} />
+        <PrivateActivityClient explorerBase={explorerBase} />
       </section>
 
       <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
         Clearing browser storage removes this local index but does not change
-        on-chain permissions or escrow. Reconnect the client passkey and import
+        on-chain permissions or escrow. Reconnect the client wallet and import
         the job ID from your transaction receipt to recover its controls.{' '}
         <Link href="/agents" className="text-[color:var(--info)] underline decoration-dotted">
           Browse verified agents
