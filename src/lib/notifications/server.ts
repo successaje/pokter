@@ -209,8 +209,16 @@ async function sendEmail(input: {
   return payload.id;
 }
 
-function emailShell(content: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#f5f3ed;color:#171714;font-family:Arial,sans-serif"><div style="max-width:560px;margin:0 auto;padding:40px 20px"><div style="font-weight:700;font-size:20px;margin-bottom:24px">Pokter</div><div style="background:#fff;border:1px solid #dedbd1;border-radius:16px;padding:28px">${content}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin-top:18px">Pokter verifies agent evidence and coordinates escrow on BNB Chain. Never share a private key or recovery phrase by email.</p></div></body></html>`;
+function emailShell(content: string, preheader: string): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f2eb;color:#171714;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2eb"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px"><tr><td style="padding:0 4px 18px"><a href="${appUrl()}" style="color:#171714;text-decoration:none;font-size:20px;font-weight:700;letter-spacing:-.4px"><span style="display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;margin-right:9px;border-radius:8px;background:#171714;color:#f3ba2f;font-size:15px">P</span>Pokter</a></td></tr><tr><td style="background:#ffffff;border:1px solid #dedbd1;border-radius:18px;padding:32px 30px">${content}</td></tr><tr><td style="padding:18px 5px 0;color:#77756d;font-size:11px;line-height:1.65"><p style="margin:0 0 8px">Pokter is the evidence-first marketplace for autonomous financial agents on BNB Chain.</p><p style="margin:0">Security reminder: Pokter will never ask for your private key, recovery phrase, or passkey by email.</p></td></tr></table></td></tr></table></body></html>`;
+}
+
+function emailButton(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-size:14px;font-weight:700;padding:13px 19px;border-radius:10px">${escapeHtml(label)}</a>`;
+}
+
+function emailContext(rows: Array<[string, string]>): string {
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:22px 0;border-collapse:separate;border-spacing:0;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:12px">${rows.map(([label, value], index) => `<tr><td style="padding:${index ? '0 16px 12px' : '13px 16px 12px'};color:#77756d;font-size:11px;text-transform:uppercase;letter-spacing:.08em">${escapeHtml(label)}</td><td align="right" style="padding:${index ? '0 16px 12px' : '13px 16px 12px'};color:#292823;font-size:12px;font-weight:600">${escapeHtml(value)}</td></tr>`).join('')}</table>`;
 }
 
 export async function createSubscription(input: {
@@ -234,9 +242,9 @@ export async function createSubscription(input: {
   const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to: email,
-    subject: `Confirm updates for Pokter job #${input.jobId}`,
+    subject: `Confirm email updates for job #${input.jobId}`,
     idempotencyKey: `verify-${hash(`${email}:${input.chainId}:${input.jobId}:${token}`).slice(0, 48)}`,
-    html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">Confirm job updates</h1><p style="font-size:14px;line-height:1.6;color:#55534d">You asked Pokter to email you when job #${escapeHtml(input.jobId)} changes.</p><a href="${verifyUrl}" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">Confirm updates</a><p style="font-size:11px;color:#77756d;margin-top:20px">If you did not request this, ignore this email. No subscription activates until you confirm.</p>`),
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to receive important, chain-verified updates for this commission.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
   });
 }
 
@@ -259,9 +267,9 @@ export async function createBuilderSubscription(input: { email: string; owner: s
   const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to: email,
-    subject: 'Confirm Pokter builder alerts',
+    subject: 'Confirm your Pokter builder alerts',
     idempotencyKey: `builder-verify-${hash(`${email}:${owner}:${token}`).slice(0, 48)}`,
-    html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">Confirm builder alerts</h1><p style="font-size:14px;line-height:1.6;color:#55534d">Receive verified updates when agents owned by your connected wallet get funded work or a job changes state.</p><a href="${verifyUrl}" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">Confirm alerts</a><p style="font-size:11px;color:#77756d;margin-top:20px">No task content or wallet authority is shared by email. If you did not request this, ignore this message.</p>`),
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder notifications</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Keep your agent operations moving</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to receive essential updates when your agents receive funded work, approach a deadline, or move through delivery review.</p>${emailContext([['Workspace', 'Builder'], ['Source', 'Chain-verified job state']])}<div>${emailButton(verifyUrl, 'Confirm builder alerts')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">Emails never include private task content and this link grants no wallet permissions. If you did not request builder alerts, you can safely ignore this message.</p>`, 'Confirm email alerts for your Pokter builder workspace.'),
   });
 }
 
@@ -326,9 +334,9 @@ export async function notifyBuilderJobEvent(input: {
     try {
       const providerId = await sendEmail({
         to: row.email,
-        subject: `Pokter builder alert: ${item.title}`,
+        subject: `${item.title} · Job #${input.jobId}`,
         idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
-        html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.6;color:#55534d">${escapeHtml(item.body)}</p><a href="${appUrl()}/builder" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">Open builder workspace</a><p style="font-size:11px;color:#77756d;margin-top:22px">Task details are intentionally excluded from email. <a href="${unsubscribeUrl}" style="color:#55534d">Stop builder alerts</a>.</p>`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/builder`, 'Open builder workspace')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
       });
       db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
       sent += 1;
@@ -355,13 +363,12 @@ export async function notifyJobEvent(input: {
     if (pending.sent_at) continue;
     const outboxId = pending.id;
     const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
-    const agent = escapeHtml(input.agentName?.trim() || 'Your agent');
     try {
       const providerId = await sendEmail({
         to: row.email,
-        subject: `Pokter job #${input.jobId}: ${event.toLowerCase()}`,
+        subject: `Job #${input.jobId} is now ${event.toLowerCase()}`,
         idempotencyKey: `job-${input.chainId}-${input.jobId}-${event}-${row.id}`.slice(0, 256),
-        html: emailShell(`<h1 style="font-size:22px;margin:0 0 12px">Job ${escapeHtml(event.toLowerCase())}</h1><p style="font-size:14px;line-height:1.6;color:#55534d">${agent} has a verified on-chain update for job #${escapeHtml(input.jobId)}.</p><a href="${appUrl()}/my-agents" style="display:inline-block;background:#f3ba2f;color:#171714;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:9px;margin-top:8px">View activity</a><p style="font-size:11px;color:#77756d;margin-top:22px">Task details are intentionally excluded from email. <a href="${unsubscribeUrl}" style="color:#55534d">Stop updates for this job</a>.</p>`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Commission update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Job ${escapeHtml(event.toLowerCase())}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">A verified on-chain status change is available for your commission.</p>${emailContext([['Agent', input.agentName?.trim() || 'Your agent'], ['Job', `#${input.jobId}`], ['Status', event], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/my-agents`, 'Review job activity')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `A verified on-chain update is available for job #${input.jobId}.`),
       });
       db().prepare('UPDATE notification_outbox SET provider_id=?,sent_at=? WHERE id=?').run(providerId, new Date().toISOString(), outboxId);
       sent += 1;
