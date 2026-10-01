@@ -5,6 +5,7 @@ import {
   BNB_TESTNET,
   buildErc8004RegisterCall,
   buildErc8004SetAgentUriCall,
+  decodeErc8004AgentUri,
   encodeErc8004AgentUri,
   erc8183Addresses,
   getErc8004Agent,
@@ -52,6 +53,13 @@ export interface RegisterIdentityInput {
   onProgress?: (progress: RegistrationProgress) => void;
 }
 
+export type ProfileUpdateStep =
+  | 'connecting'
+  | 'switching-network'
+  | 'updating-profile'
+  | 'verifying'
+  | 'done';
+
 type InjectedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
@@ -68,6 +76,67 @@ function chainFor(chainId: RegistryChainId) {
 
 function networkFor(chainId: RegistryChainId) {
   return chainId === 56 ? BNB : BNB_TESTNET;
+}
+
+export async function readIdentityRegistration(
+  chainId: RegistryChainId,
+  agentId: string,
+): Promise<{ owner: Address; file: Erc8004RegistrationFile }> {
+  if (!/^\d+$/.test(agentId)) throw new Error('The ERC-8004 agent ID is invalid.');
+  const current = await getErc8004Agent(networkFor(chainId), BigInt(agentId));
+  try {
+    return { owner: getAddress(current.owner), file: decodeErc8004AgentUri(current.agentUri) };
+  } catch {
+    throw new Error('This identity uses an external profile URL. Pokter can verify it, but cannot safely rewrite it from the structured editor yet.');
+  }
+}
+
+/** Update one owned identity and verify the exact URI read back from chain. */
+export async function updateIdentityFromWallet(input: {
+  chainId: RegistryChainId;
+  agentId: string;
+  file: Erc8004RegistrationFile;
+  onProgress?: (step: ProfileUpdateStep) => void;
+}): Promise<{ owner: Address; transactionHash?: Hex; unchanged: boolean }> {
+  if (!/^\d+$/.test(input.agentId)) throw new Error('The ERC-8004 agent ID is invalid.');
+  const report = input.onProgress ?? (() => {});
+  const provider = injectedProvider();
+  report('connecting');
+  const accounts = await provider.request({ method: 'eth_requestAccounts' }) as Address[];
+  if (!accounts.length) throw new Error('No wallet account was selected.');
+  const owner = getAddress(accounts[0]);
+  report('switching-network');
+  await ensureChain(provider, input.chainId);
+
+  const agentId = BigInt(input.agentId);
+  const current = await getErc8004Agent(networkFor(input.chainId), agentId);
+  if (getAddress(current.owner) !== owner) {
+    throw new Error('The connected wallet is not the current owner of this ERC-8004 identity.');
+  }
+  const completedFile = withErc8004Registration(input.file, agentId, input.chainId);
+  const completedUri = encodeErc8004AgentUri(completedFile);
+  if (current.agentUri === completedUri) {
+    report('done');
+    return { owner, unchanged: true };
+  }
+
+  const chain = chainFor(input.chainId);
+  const wallet = createWalletClient({ chain, transport: custom(provider) });
+  const read = createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) });
+  const call = buildErc8004SetAgentUriCall(input.chainId, agentId, completedUri);
+  report('updating-profile');
+  const transactionHash = await wallet.sendTransaction({
+    account: owner, chain, to: call.to as Address, data: call.data as Hex,
+  });
+  const receipt = await read.waitForTransactionReceipt({ hash: transactionHash });
+  if (receipt.status !== 'success') throw new Error('The profile update transaction reverted.');
+  report('verifying');
+  const published = await getErc8004Agent(networkFor(input.chainId), agentId);
+  if (getAddress(published.owner) !== owner || published.agentUri !== completedUri) {
+    throw new Error('The registry did not return the exact profile that was approved.');
+  }
+  report('done');
+  return { owner, transactionHash, unchanged: false };
 }
 
 async function ensureChain(provider: InjectedProvider, chainId: RegistryChainId): Promise<void> {
