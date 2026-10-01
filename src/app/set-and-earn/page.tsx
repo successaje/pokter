@@ -1,175 +1,28 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata } from 'next';
+import Image from 'next/image';
 
-import { CampaignPassport } from "@/components/campaign/CampaignPassport";
+import { CampaignPassport } from '@/components/campaign/CampaignPassport';
 
 export const metadata: Metadata = {
-  title: "Set and Earn checklist",
-  description:
-    "Register, hire and build qualifying AI agents for BNB Chain Set and Earn through Pokter.",
-  alternates: { canonical: "/set-and-earn" },
+  title: 'Set and Earn progress',
+  description: 'Track the BNB Chain Set and Earn tasks Pokter can verify, then complete the remaining official requirements.',
+  alternates: { canonical: '/set-and-earn' },
 };
-const CAMPAIGN =
-  "https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn";
-const steps = [
-  {
-    n: "01",
-    title: "Register the wallet first",
-    body: "Complete BNB Chain’s registration before any qualifying task. Use the same wallet throughout the campaign.",
-    action: (
-      <a
-        href={CAMPAIGN}
-        target="_blank"
-        rel="noreferrer"
-        className="text-[color:var(--brand-strong)] hover:underline"
-      >
-        Open official registration ↗
-      </a>
-    ),
-  },
-  {
-    n: "02",
-    title: "Hire three different agents",
-    body: "Your three hires must span at least two shortlisted marketplaces. Mainnet and testnet hires count, but each must engage an agent and record a hire event—not only approve a token.",
-    action: (
-      <Link
-        href="/discover"
-        className="text-[color:var(--brand-strong)] hover:underline"
-      >
-        Find an agent on Pokter →
-      </Link>
-    ),
-  },
-  {
-    n: "03",
-    title: "Build and list one qualifying agent",
-    body: "Choose yield, grid trading, rebalancing or health-factor monitoring. Register it under ERC-8004 on chain 56 or 97, keep its agent card reachable, and list it after the official Phase 2 announcement.",
-    action: (
-      <Link
-        href="/build"
-        className="text-[color:var(--brand-strong)] hover:underline"
-      >
-        Launch an agent →
-      </Link>
-    ),
-  },
-  {
-    n: "04",
-    title: "Prove people use it",
-    body: "Receive at least three completed hires from three distinct wallets you neither own nor fund. Complete at least five category-consistent onchain actions across three separate days.",
-    action: (
-      <Link
-        href="/my-agents"
-        className="text-[color:var(--brand-strong)] hover:underline"
-      >
-        Track activity →
-      </Link>
-    ),
-  },
-];
+
+const CAMPAIGN = 'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
 
 export default function SetAndEarnPage() {
-  return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-20 pt-8 sm:pt-12">
-      <header className="grid gap-6 border-b border-[color:var(--border)] pb-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div className="max-w-3xl">
-          <p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">
-            BNB Chain · Set and Earn
-          </p>
-          <h1 className="mt-3 font-[family-name:var(--font-serif)] text-4xl leading-tight tracking-tight sm:text-5xl">
-            Register first. Then hire, build and prove real use.
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-[color:var(--text-secondary)]">
-            The campaign runs from 1 October through 5 November 2026 at 12:00
-            UTC. This page translates the official requirements into actions you
-            can take through Pokter.
-          </p>
-        </div>
-        <a
-          href={CAMPAIGN}
-          target="_blank"
-          rel="noreferrer"
-          className="action-primary inline-flex min-h-11 items-center justify-center rounded-[var(--radius)] px-5 text-[12px] font-semibold"
-        >
-          Register on BNB Chain ↗
-        </a>
-      </header>
-      <CampaignPassport />
-      <section
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        aria-label="Campaign summary"
-      >
-        {[
-          ["3", "different agents hired"],
-          ["2+", "shortlisted marketplaces"],
-          ["3", "independent completed hires"],
-          ["5 / 3", "onchain actions / days"],
-        ].map(([value, label]) => (
-          <div
-            key={label}
-            className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"
-          >
-            <p className="text-3xl font-semibold">{value}</p>
-            <p className="mt-1 text-[10px] leading-4 text-[color:var(--text-muted)]">
-              {label}
-            </p>
-          </div>
-        ))}
-      </section>
-      <section>
-        <div className="mb-5">
-          <p className="mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">
-            Qualification path
-          </p>
-          <h2 className="mt-2 text-xl font-semibold">Do these in order</h2>
-        </div>
-        <ol className="grid gap-4 lg:grid-cols-2">
-          {steps.map((step) => (
-            <li
-              key={step.n}
-              className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6"
-            >
-              <div className="flex items-start gap-4">
-                <span className="mono flex size-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[10px] font-semibold text-[color:var(--brand-strong)]">
-                  {step.n}
-                </span>
-                <div>
-                  <h3 className="text-sm font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">
-                    {step.body}
-                  </p>
-                  <p className="mt-4 text-[11px] font-semibold">
-                    {step.action}
-                  </p>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[var(--radius-lg)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-5 sm:p-6">
-          <p className="text-[12px] font-semibold text-[color:var(--caution)]">
-            Do not use an old or cosmetic agent
-          </p>
-          <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">
-            Only agents listed after the official Phase 2 announcement can
-            qualify. Cosmetic copies, duplicate registrations and agents that
-            never execute do not qualify. Keep the repository public with the
-            registry ID and chain visible.
-          </p>
-        </div>
-        <div className="rounded-[var(--radius-lg)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-5 sm:p-6">
-          <p className="text-[12px] font-semibold text-[color:var(--info)]">
-            Pokter does not decide campaign eligibility
-          </p>
-          <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">
-            BNB Chain verifies the final activity after the campaign closes.
-            Shortlisted marketplace team members are not eligible for campaign
-            merchandise. Read the official rules before acting.
-          </p>
-        </div>
-      </section>
-    </main>
-  );
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 pb-20 pt-6 sm:pt-8">
+    <header className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[radial-gradient(circle_at_82%_30%,rgba(243,186,47,.22),transparent_26%),linear-gradient(120deg,#11100c,#211b0b)] p-5 text-white sm:p-6">
+      <div className="relative z-10 max-w-3xl"><div className="flex items-center gap-2"><Image src="/integrations/bnbchain.ico" alt="BNB Chain" width={24} height={24} className="size-6 rounded-md" /><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#F3BA2F]">BNB Chain</p><span className="rounded-full border border-[#F3BA2F]/30 bg-[#F3BA2F]/10 px-2 py-1 text-[8px] font-semibold uppercase tracking-wider text-[#F3BA2F]">Live</span></div><h1 className="mt-3 font-[family-name:var(--font-serif)] text-3xl leading-tight sm:text-4xl">Set and Earn</h1><p className="mt-2 max-w-xl text-[12px] leading-5 text-white/70">Hire and build agents on BNB Chain. Follow each requirement, keep your evidence clear, and see the progress Pokter can verify.</p><div className="mt-4 flex flex-wrap items-center gap-3"><a href={CAMPAIGN} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-4 text-[10px] font-semibold text-[#171306]">Register on BNB Chain ↗</a><p className="text-[9px] text-white/50">1 Oct–5 Nov 2026 · closes 12:00 UTC</p></div></div>
+      <svg viewBox="0 0 64 64" aria-hidden className="absolute -bottom-5 right-6 hidden size-44 fill-none stroke-[#F3BA2F]/25 sm:block" strokeWidth="1.2"><path d="M11 27h42v27H11zM8 18h48v10H8zM32 18v36M19 18c-5-2-7-8-3-11 5-4 13 4 16 11M45 18c5-2 7-8 3-11-5-4-13 4-16 11" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    </header>
+
+    <CampaignPassport />
+
+    <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[11px] font-semibold">Important qualification details <span className="text-[color:var(--text-faint)] transition-transform group-open:rotate-45">＋</span></summary>
+      <div className="mt-4 grid gap-4 border-t border-[color:var(--border)] pt-4 text-[10px] leading-5 text-[color:var(--text-muted)] sm:grid-cols-2"><p><strong className="text-[color:var(--text)]">For hires:</strong> three different agents across at least two shortlisted marketplaces. A token approval alone is not a hire; the marketplace must record the hire event.</p><p><strong className="text-[color:var(--text)]">For builders:</strong> the agent must be listed after the Phase 2 announcement, keep a public repository, receive three completed hires from independent wallets, and perform five category-consistent onchain actions across three days.</p><p><strong className="text-[color:var(--text)]">No self-dealing:</strong> builder-owned or builder-funded wallets do not count as independent users. Cosmetic copies and agents that never execute do not qualify.</p><p><strong className="text-[color:var(--text)]">Final review:</strong> Pokter presents observable evidence; BNB Chain determines qualification and rewards after the campaign.</p></div>
+    </details>
+  </main>;
 }

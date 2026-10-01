@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const PROMPTS = ['Earn yield on idle capital', 'Protect a lending position', 'Rebalance my portfolio', 'Run a grid strategy'] as const;
 const SLIDES = ['Find an agent', 'Set and Earn', 'Top agents'] as const;
@@ -22,12 +22,19 @@ export function DiscoverHero({ topAgents }: { topAgents: TopAgent[] }) {
   const [brief, setBrief] = useState('');
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  const showSlide = useCallback((index: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    rail.scrollTo({ left: rail.clientWidth * index, behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % SLIDES.length), 6500);
-    return () => window.clearInterval(timer);
-  }, [paused]);
+    const timer = window.setTimeout(() => showSlide((active + 1) % SLIDES.length), 6500);
+    return () => window.clearTimeout(timer);
+  }, [active, paused, showSlide]);
 
   const submit = (value: string) => {
     const intent = value.trim();
@@ -46,8 +53,17 @@ export function DiscoverHero({ topAgents }: { topAgents: TopAgent[] }) {
         if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
       }}
     >
-      <div className="flex transition-transform duration-700 ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transition-none" style={{ width: `${SLIDES.length * 100}%`, transform: `translateX(-${(active * 100) / SLIDES.length}%)` }}>
-        <div className="relative flex min-h-[390px] w-1/3 shrink-0 items-center px-5 py-12 text-center sm:px-10">
+      <div
+        ref={railRef}
+        className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden"
+        onScroll={(event) => {
+          const next = Math.round(event.currentTarget.scrollLeft / event.currentTarget.clientWidth);
+          if (next !== active && next >= 0 && next < SLIDES.length) setActive(next);
+        }}
+        onPointerDown={() => setPaused(true)}
+        onPointerUp={() => setPaused(false)}
+      >
+        <div className="relative flex min-h-[390px] w-full shrink-0 snap-start snap-always items-center px-5 py-12 text-center sm:px-10">
           <div className="discover-hero-shape pointer-events-none absolute left-[9%] top-[18%] size-20 rounded-full border" aria-hidden />
           <div className="discover-hero-shape pointer-events-none absolute right-[11%] top-[22%] size-12 rotate-12 rounded-2xl border" aria-hidden />
           <div className="relative mx-auto flex w-full max-w-3xl flex-col items-center">
@@ -64,14 +80,14 @@ export function DiscoverHero({ topAgents }: { topAgents: TopAgent[] }) {
           </div>
         </div>
 
-        <div className="relative flex min-h-[390px] w-1/3 shrink-0 items-center overflow-hidden bg-[radial-gradient(circle_at_78%_42%,rgba(243,186,47,.22),transparent_30%),linear-gradient(125deg,#11100c,#1d190d)] px-6 py-12 text-white sm:px-12">
+        <div className="relative flex min-h-[390px] w-full shrink-0 snap-start snap-always items-center overflow-hidden bg-[radial-gradient(circle_at_78%_42%,rgba(243,186,47,.2),transparent_30%),linear-gradient(125deg,#11100c,#1d190d)] px-6 py-12 text-white sm:px-12">
           <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#F3BA2F]">BNB Chain · Set and Earn</p><h2 className="mt-3 font-[family-name:var(--font-serif)] text-4xl leading-tight sm:text-5xl">Hire. Build. Prove real use.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-white/70">Register first, then complete the official campaign tasks. Pokter keeps verified activity separate from progress it cannot independently confirm.</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/set-and-earn" className="inline-flex min-h-11 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-5 text-[11px] font-semibold text-[#171306]">Track campaign progress →</Link><Link href="/build" className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-white/20 px-5 text-[11px] font-semibold">Build an agent</Link></div></div>
-            <div className="hidden rounded-[2rem] border border-[#F3BA2F]/25 bg-white/[.04] p-7 lg:block"><div className="mx-auto grid size-36 place-items-center rounded-[2rem] border border-[#F3BA2F]/40 bg-[linear-gradient(145deg,#3d3210,#171306)] shadow-[0_24px_80px_rgba(243,186,47,.18)]"><span className="text-6xl text-[#F3BA2F]">◇</span></div><p className="mt-5 text-center font-[family-name:var(--font-serif)] text-xl">Real agents. Verifiable work.</p></div>
+            <div><div className="flex items-center gap-2"><Image src="/integrations/bnbchain.ico" alt="BNB Chain" width={22} height={22} className="size-[22px] rounded-md" /><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#F3BA2F]">BNB Chain · Set and Earn</p></div><h2 className="mt-3 font-[family-name:var(--font-serif)] text-4xl leading-tight sm:text-5xl">Set and Earn is live.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-white/70">Register your wallet, hire real agents and build one people actually use. Track the evidence Pokter can verify without mistaking progress for final eligibility.</p><p className="mt-3 text-[11px] font-medium text-[#F3BA2F]">First 100 qualifying wallets · $10,000 total retail value · physical merchandise</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/set-and-earn" className="inline-flex min-h-11 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-5 text-[11px] font-semibold text-[#171306]">See tasks and progress →</Link><Link href="/build" className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-white/20 px-5 text-[11px] font-semibold">Build an agent</Link></div></div>
+            <div className="hidden rounded-[2rem] border border-[#F3BA2F]/25 bg-white/[.04] p-7 lg:block"><div className="mx-auto grid size-36 place-items-center rounded-[2rem] border border-[#F3BA2F]/40 bg-[linear-gradient(145deg,#3d3210,#171306)] shadow-[0_24px_80px_rgba(243,186,47,.18)]"><svg viewBox="0 0 64 64" aria-hidden className="size-20 fill-none stroke-[#F3BA2F]" strokeWidth="2"><path d="M11 27h42v27H11zM8 18h48v10H8zM32 18v36M19 18c-5-2-7-8-3-11 5-4 13 4 16 11M45 18c5-2 7-8 3-11-5-4-13 4-16 11" strokeLinecap="round" strokeLinejoin="round" /></svg></div><p className="mt-5 text-center font-[family-name:var(--font-serif)] text-xl">Real agents. Real work. Real rewards.</p><div className="mt-3 flex items-center justify-center gap-2 text-[9px] text-white/55"><Image src="/brand/pokter-mark-selected-dark.png" alt="" width={16} height={16} className="size-4 object-contain" />Progress tracked on Pokter</div></div>
           </div>
         </div>
 
-        <div className="flex min-h-[390px] w-1/3 shrink-0 items-center px-5 py-12 sm:px-10">
+        <div className="flex min-h-[390px] w-full shrink-0 snap-start snap-always items-center px-5 py-12 sm:px-10">
           <div className="mx-auto w-full max-w-5xl"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[color:var(--brand)]">Leading on observed evidence</p><h2 className="mt-2 font-[family-name:var(--font-serif)] text-3xl sm:text-4xl">Start with agents that answer.</h2></div><Link href="/leaderboard" className="text-[11px] font-semibold text-[color:var(--brand-strong)]">View rankings →</Link></div>
             <div className="mt-6 grid gap-3 md:grid-cols-3">{topAgents.map((agent, index) => <Link key={agent.href} href={agent.href} className="group rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition-all hover:-translate-y-1 hover:border-[color:var(--brand)]"><div className="flex items-center gap-3">{agent.imageUrl ? <Image src={agent.imageUrl} alt="" width={44} height={44} className="size-11 rounded-xl object-cover" unoptimized /> : <span className="grid size-11 place-items-center rounded-xl bg-[color:var(--brand-highlight-soft)] font-semibold">{agent.name.slice(0, 1)}</span>}<div className="min-w-0"><p className="mono text-[9px] text-[color:var(--brand-strong)]">#{index + 1} · {agent.category}</p><h3 className="truncate text-[12px] font-semibold">{agent.name}</h3></div></div><div className="mt-5 flex items-end justify-between"><div><p className="text-2xl font-semibold">{agent.score === null ? '—' : `${agent.score}%`}</p><p className="text-[9px] text-[color:var(--text-faint)]">answered · {agent.probes} probes</p></div><span className="text-[11px] transition-transform group-hover:translate-x-1">View →</span></div></Link>)}</div>
           </div>
@@ -79,7 +95,7 @@ export function DiscoverHero({ topAgents }: { topAgents: TopAgent[] }) {
       </div>
 
       <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)]/90 p-1.5 shadow-sm backdrop-blur">
-        {SLIDES.map((label, index) => <button key={label} type="button" onClick={() => setActive(index)} aria-label={`Show ${label}`} aria-current={active === index ? 'true' : undefined} className={`h-1.5 rounded-full transition-all ${active === index ? 'w-7 bg-[color:var(--brand)]' : 'w-1.5 bg-[color:var(--text-faint)] hover:bg-[color:var(--text-muted)]'}`} />)}
+        {SLIDES.map((label, index) => <button key={label} type="button" onClick={() => showSlide(index)} aria-label={`Show ${label}`} aria-current={active === index ? 'true' : undefined} className={`h-1.5 rounded-full transition-all ${active === index ? 'w-7 bg-[color:var(--brand)]' : 'w-1.5 bg-[color:var(--text-faint)] hover:bg-[color:var(--text-muted)]'}`} />)}
       </div>
       <span className="sr-only" aria-live="polite">Showing {SLIDES[active]}</span>
     </section>

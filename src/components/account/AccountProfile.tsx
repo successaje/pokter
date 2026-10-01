@@ -101,7 +101,7 @@ export function AccountProfile() {
       </div></section>
 
       <div className="mt-8">
-        <CampaignPassport />
+        <CampaignPassport compact />
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,.6fr)]">
