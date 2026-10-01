@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 
@@ -52,6 +52,7 @@ function Stat({ value, label, href }: { value: number; label: string; href: stri
 }
 
 export function AccountProfile() {
+  const [copied, setCopied] = useState<string | null>(null);
   const active = useActiveWallet();
   const passkey = usePasskeyWallet();
   const { address: browserAddress, chain } = useAccount();
@@ -70,6 +71,11 @@ export function AccountProfile() {
   });
   const identity = address ?? browserAddress ?? passkey.wallet?.address ?? 'pokter-guest';
   const builderReady = builder.data?.authenticated && builder.data.owner;
+  async function copyAddress(value: string, key: string) {
+    await navigator.clipboard.writeText(value);
+    setCopied(key);
+    window.setTimeout(() => setCopied((current) => current === key ? null : current), 1500);
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl pb-20 pt-7 sm:pt-12">
@@ -85,9 +91,9 @@ export function AccountProfile() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,.6fr)]">
         <section aria-labelledby="wallet-heading" className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Identity and signing</p><h2 id="wallet-heading" className="mt-2 text-xl font-semibold">Wallets on this device</h2><div className="mt-5 divide-y divide-[color:var(--border)]">
-          <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Active signing wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{active.mode === 'passkey' ? 'Protected by your device passkey' : active.mode === 'external' ? 'Connected browser wallet' : 'Connect a wallet to begin'}</p></div><span className="mono text-[10px]">{address ? shortAddress(address) : 'Not connected'}</span></div>
-          {passkey.wallet && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Passkey wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">Credential stays in this device or synced passkey provider</p></div><span className="mono text-[10px]">{shortAddress(passkey.wallet.address)}</span></div>}
-          {browserAddress && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Browser wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{chain?.id === ESCROW_CHAIN.id ? `${ESCROW_CHAIN.name} · ready` : `${chain?.name ?? 'Unknown network'} · switch before transacting`}</p></div><span className="mono text-[10px]">{shortAddress(browserAddress)}</span></div>}
+          <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Active signing wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{active.mode === 'passkey' ? 'Protected by your device passkey' : active.mode === 'external' ? 'Connected browser wallet' : 'Connect a wallet to begin'}</p></div>{address ? <button type="button" onClick={() => copyAddress(address, 'active')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'active' ? 'Copied ✓' : shortAddress(address)}</button> : <span className="mono text-[10px]">Not connected</span>}</div>
+          {passkey.wallet && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Passkey wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">Credential stays in this device or synced passkey provider</p></div><button type="button" onClick={() => copyAddress(passkey.wallet!.address, 'passkey')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'passkey' ? 'Copied ✓' : shortAddress(passkey.wallet.address)}</button></div>}
+          {browserAddress && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Browser wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{chain?.id === ESCROW_CHAIN.id ? `${ESCROW_CHAIN.name} · ready` : `${chain?.name ?? 'Unknown network'} · switch before transacting`}</p></div><button type="button" onClick={() => copyAddress(browserAddress, 'browser')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'browser' ? 'Copied ✓' : shortAddress(browserAddress)}</button></div>}
         </div><p className="mt-4 text-[9px] leading-4 text-[color:var(--text-faint)]">Pokter does not create a username/password profile or hold your private keys. Account data shown here is derived from connected wallets, signed builder verification and this device.</p></section>
 
         <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/my-agents" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount} label="Unread" href="/my-agents" /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/my-agents" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link></div></div></aside>
