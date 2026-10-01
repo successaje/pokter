@@ -286,6 +286,7 @@ export default async function AgentsPage({
                         listing={entry.listing}
                         verdict={verdictFor(entry)}
                         record={entry.record}
+                        history={entry.history}
                         hirable={offersDirectHire(entry)}
                         fleetSize={fleets.get(
                           entry.listing.agent.owner_address?.toLowerCase() ?? '',

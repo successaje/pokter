@@ -1,5 +1,6 @@
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
+import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import {
   FAILING_MAX_SCORE,
   HIREABLE_VERDICTS,
@@ -18,6 +19,13 @@ import {
 export interface SearchableAgent {
   listing: Listing;
   record: TrackRecord;
+  /**
+   * What became of jobs funded against this agent, where the index holds
+   * any. Optional so a caller assembling agents without the job index still
+   * satisfies the type; the card treats absent as "no jobs on record", which
+   * is not the same as none completed.
+   */
+  history?: AgentEconomicHistory;
 }
 
 function uptime(record: TrackRecord): number | null {

@@ -197,6 +197,7 @@ export default async function CategoryPage({
                     listing={entry.listing}
                     verdict={verdictFor(entry)}
                     record={entry.record}
+                    history={entry.history}
                     hirable={offersDirectHire(entry)}
                   />
                 ))}
