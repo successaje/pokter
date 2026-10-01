@@ -41,14 +41,16 @@ jobs:
 
           notification_failures=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('notificationFailures',0))")
           builder_failures=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('builderNotificationFailures',0))")
+          reconciliation_failures=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('jobReconciliationFailures',0))")
           reconciled=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('reconciledJobs',0))")
           builder_emails=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('builderEmails',0))")
+          builder_skipped=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('builderNotificationsSkipped',0))")
 
-          if [ "$notification_failures" -ne 0 ] || [ "$builder_failures" -ne 0 ]; then
-            echo "::error::Sweep completed with notification failures: buyer=${notification_failures}, builder=${builder_failures}"
+          if [ "$notification_failures" -ne 0 ] || [ "$builder_failures" -ne 0 ] || [ "$reconciliation_failures" -ne 0 ]; then
+            echo "::error::Sweep completed with failures: buyer notifications=${notification_failures}, builder notifications=${builder_failures}, job reconciliation=${reconciliation_failures}"
             exit 1
           fi
-          echo "Reconciled $reconciled jobs and sent $builder_emails builder emails"
+          echo "Reconciled $reconciled jobs, sent $builder_emails builder emails, and skipped $builder_skipped unlinked legacy notifications"
 
       # A sweep invalidates nothing, but a deploy empties the in-memory cache,
       # and the first visitor after that pays for every registry lookup the

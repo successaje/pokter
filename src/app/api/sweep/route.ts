@@ -52,10 +52,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
     const builderResults = await Promise.allSettled(
       getJobStore().all().filter((job) => job.chainId === ALTANA_NETWORK.chainId).map(async (job) => {
-        const [onchain, agent] = await Promise.all([
-          getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId)),
-          getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId),
-        ]);
+        const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
         const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
           ? await getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(job.jobId)).catch(() => undefined)
           : undefined;
@@ -71,11 +68,32 @@ export async function POST(request: Request): Promise<NextResponse> {
           statusCheckedAt: new Date().toISOString(),
           deliverableUrl: deliverableUrl ?? job.deliverableUrl,
         });
-        const email = await notifyBuilderJobEvent({
-          owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
-          agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
-        });
-        return { ...email, reconciled: true };
+
+        // Historical demo jobs predate ERC-8004 linkage and use a descriptive
+        // slug instead of a token id. Their ERC-8183 state is still valid and
+        // must be reconciled, but there is no registry owner to notify.
+        if (!/^\d+$/.test(job.agentTokenId)) {
+          return {
+            attempted: 0, sent: 0, reconciled: true,
+            notificationSkipped: true, notificationFailed: false,
+          };
+        }
+
+        try {
+          const agent = await getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId);
+          const email = await notifyBuilderJobEvent({
+            owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
+            agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
+          });
+          return { ...email, reconciled: true, notificationSkipped: false, notificationFailed: false };
+        } catch {
+          // A temporary registry or mail-path failure must never roll back a
+          // successful read of the canonical ERC-8183 job state.
+          return {
+            attempted: 0, sent: 0, reconciled: true,
+            notificationSkipped: false, notificationFailed: true,
+          };
+        }
       }),
     );
     const builderEmails = builderResults.reduce(
@@ -87,7 +105,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
       reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
-      builderNotificationFailures: builderResults.filter((result) => result.status === 'rejected').length,
+      builderNotificationsSkipped: builderResults.filter(
+        (result) => result.status === 'fulfilled' && result.value.notificationSkipped,
+      ).length,
+      builderNotificationFailures: builderResults.filter(
+        (result) => result.status === 'fulfilled' && result.value.notificationFailed,
+      ).length,
+      jobReconciliationFailures: builderResults.filter((result) => result.status === 'rejected').length,
     });
   } catch (error) {
     return NextResponse.json(
