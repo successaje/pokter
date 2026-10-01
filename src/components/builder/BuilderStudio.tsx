@@ -10,7 +10,7 @@ import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks'
 import type { BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
-import { createAgentBuildPrompt, type AgentBuildPromptInput } from '@/lib/builder/ai-prompt';
+import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
 import { Sheet } from '@/components/ui/Sheet';
@@ -279,8 +279,8 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
   const [briefApplied, setBriefApplied] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState({ target: '', policy: '', output: '' });
-  const [copiedAiProvider, setCopiedAiProvider] = useState<AgentBuildPromptInput['provider'] | null>(null);
-  const [aiPromptProvider, setAiPromptProvider] = useState<AgentBuildPromptInput['provider'] | null>(null);
+  const [aiPromptContext, setAiPromptContext] = useState<'discovery' | 'draft' | null>(null);
+  const [aiPromptCopied, setAiPromptCopied] = useState(false);
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -324,10 +324,9 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     policy: runtimeConfig.policy,
     output: runtimeConfig.output,
   }), [draft, runtimeConfig]);
-  const visibleAiPrompt = useMemo(
-    () => aiPromptProvider ? createAgentBuildPrompt({ provider: aiPromptProvider, ...aiPromptInput }) : '',
-    [aiPromptInput, aiPromptProvider],
-  );
+  const visibleAiPrompt = useMemo(() => createAgentBuildPrompt(aiPromptContext === 'draft' ? aiPromptInput : {
+    name: '', description: '', category: '', protocol: 'a2a', target: '', policy: '', output: '',
+  }), [aiPromptContext, aiPromptInput]);
   const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -478,11 +477,11 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     URL.revokeObjectURL(href);
   }
 
-  async function copyAgentBuildPrompt(provider: AgentBuildPromptInput['provider']) {
+  async function copyAgentBuildPrompt() {
     try {
-      await navigator.clipboard.writeText(createAgentBuildPrompt({ provider, ...aiPromptInput }));
-      setCopiedAiProvider(provider);
-      window.setTimeout(() => setCopiedAiProvider((current) => current === provider ? null : current), 2_500);
+      await navigator.clipboard.writeText(visibleAiPrompt);
+      setAiPromptCopied(true);
+      window.setTimeout(() => setAiPromptCopied(false), 2_500);
     } catch {
       setEndpointError('The prompt could not be copied. Allow clipboard access and try again.');
     }
@@ -624,11 +623,11 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start with a focused financial-agent structure, then configure its profile and runtime.</span>
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose a starting point <Icon name="arrow" /></span>
             </button>
-            <button type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider('ChatGPT'); }} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
+            <button type="button" onClick={() => { setAiPromptCopied(false); setAiPromptContext('discovery'); }} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
               <span className="flex size-11 items-center justify-center rounded-full bg-[#8b5cf6]/10 text-[#7c3aed] dark:bg-[#a78bfa]/15 dark:text-[#c4b5fd]"><Icon name="spark" /></span>
               <span className="mt-8 text-lg font-semibold">Build with an AI assistant</span>
-              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start immediately with a production-focused prompt for ChatGPT, Claude or Gemini.</span>
-              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose an assistant <Icon name="arrow" /></span>
+              <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Use one model-neutral prompt to discover a distinct idea, choose its identity and build it safely.</span>
+              <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">View build prompt <Icon name="arrow" /></span>
             </button>
           </div>
           <ConnectionGuide />
@@ -730,7 +729,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               {newStep === 1 && runtimeOptions && <fieldset className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><legend className="px-1 text-[11px] font-semibold">Functional starter configuration</legend><p className="text-[9px] leading-4 text-[color:var(--text-muted)]">These choices become a runtime configuration handoff—not a cosmetic label. Your connected implementation must enforce them.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></fieldset>}
               {(newStep === 1 || newStep === 2) && <section className="rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:col-span-2" aria-labelledby={`ai-build-title-${newStep}`}>
                 <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><p className="mono text-[8px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">Build with AI</p><h3 id={`ai-build-title-${newStep}`} className="mt-1 text-[12px] font-semibold">Create this agent with your AI assistant</h3><p className="mt-1 max-w-2xl text-[10px] leading-5 text-[color:var(--text-secondary)]">Copy a Pokter-prepared engineering prompt containing this profile, protocol contract, security requirements, tests and deployment handoff.</p></div></div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">{(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider(provider); }} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>{provider}</span><span className="text-[10px] text-[color:var(--brand-strong)]">View prompt →</span></button>)}</div>
+                <button type="button" onClick={() => { setAiPromptCopied(false); setAiPromptContext('draft'); }} className="mt-4 flex min-h-11 w-full items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>Review the tailored build prompt</span><span className="text-[10px] text-[color:var(--brand-strong)]">View prompt →</span></button>
                 <p className="mt-3 text-[9px] leading-4 text-[color:var(--text-muted)]">Review all generated code and never paste private keys into a chat. Pokter still requires a real deployed endpoint to pass verification.</p>
               </section>}
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
@@ -809,21 +808,18 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       )}
 
       <Sheet
-        open={Boolean(aiPromptProvider)}
-        onClose={() => setAiPromptProvider(null)}
-        title={aiPromptProvider ? `Build with ${aiPromptProvider}` : 'Build with AI'}
-        description="Review the complete engineering prompt before copying it into your AI assistant. It contains no wallet secrets or private keys."
-        footer={aiPromptProvider ? <button type="button" onClick={() => copyAgentBuildPrompt(aiPromptProvider)} className="action-primary w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">{copiedAiProvider === aiPromptProvider ? 'Prompt copied ✓' : `Copy prompt for ${aiPromptProvider}`}</button> : undefined}
+        open={Boolean(aiPromptContext)}
+        onClose={() => setAiPromptContext(null)}
+        title="Build with an AI assistant"
+        description="Use this prompt with any capable coding assistant. It begins with discovery and naming before implementation."
+        footer={aiPromptContext ? <button type="button" onClick={copyAgentBuildPrompt} className="action-primary w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">{aiPromptCopied ? 'Prompt copied ✓' : 'Copy build prompt'}</button> : undefined}
       >
-        <div className="mb-4 grid grid-cols-3 gap-2" role="group" aria-label="Choose AI assistant">
-          {(['ChatGPT', 'Claude', 'Gemini'] as const).map((provider) => <button key={provider} type="button" onClick={() => { setCopiedAiProvider(null); setAiPromptProvider(provider); }} aria-pressed={aiPromptProvider === provider} className={cn('min-h-10 rounded-[var(--radius)] border px-2 text-[10px] font-semibold transition-colors', aiPromptProvider === provider ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]' : 'border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] hover:border-[color:var(--brand)]')}>{provider}</button>)}
-        </div>
         <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
           <div className="mb-3 flex items-center justify-between gap-3"><p className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--text-muted)]">Complete prompt</p><span className="rounded-full bg-[color:var(--brand-highlight-soft)] px-2 py-1 text-[9px] font-semibold text-[color:var(--brand-strong)]">Editable after pasting</span></div>
           <pre className="mono max-h-[58vh] whitespace-pre-wrap overflow-auto rounded-[var(--radius)] bg-[color:var(--surface)] p-4 text-[10px] leading-5 text-[color:var(--text-secondary)]">{visibleAiPrompt}</pre>
         </div>
         <p className="mt-4 text-[10px] leading-5 text-[color:var(--text-muted)]">Do not paste private keys, seed phrases, production credentials, or customer data into any AI assistant. Review and test generated code before deploying it.</p>
-        {mode === 'choose' && <button type="button" onClick={() => { setAiPromptProvider(null); setMode('templates'); }} className="mt-4 flex min-h-11 w-full items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)]">Prefer a tailored prompt? Choose an agent starter →</button>}
+        {mode === 'choose' && <button type="button" onClick={() => { setAiPromptContext(null); setMode('templates'); }} className="mt-4 flex min-h-11 w-full items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 text-[11px] font-semibold hover:border-[color:var(--brand)]">Prefer a tailored prompt? Choose an agent starter →</button>}
       </Sheet>
 
       <Sheet
