@@ -70,10 +70,10 @@ function StatusMark({ status }: { status: DiagnosticCheck['status'] }) {
   );
 }
 
-export function BuilderStudio() {
-  const [mode, setMode] = useState<Mode>('choose');
-  const [tokenId, setTokenId] = useState('');
-  const [chainId, setChainId] = useState('56');
+export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
+  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
+  const [tokenId, setTokenId] = useState(initialIdentity?.tokenId ?? '');
+  const [chainId, setChainId] = useState(initialIdentity?.chainId ?? '56');
   const [report, setReport] = useState<BuilderReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -269,7 +269,7 @@ export function BuilderStudio() {
             <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Find your identity</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">No signature or transaction required</p></div></div>
             <form onSubmit={runDiagnostic} className="mt-6 grid gap-4 sm:grid-cols-[1fr_170px_auto] sm:items-end">
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">ERC-8004 agent ID</span><input value={tokenId} onChange={(event) => setTokenId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="265375" className="mono h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value)} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
+              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value as '56' | '97')} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
               <button disabled={busy || !tokenId} className="action-primary h-11 rounded-[var(--radius)] px-5 text-[12px] font-semibold disabled:opacity-50">{busy ? 'Checking…' : 'Check agent'}</button>
             </form>
             {busy && <div className="mt-5 flex items-center gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3 text-[12px] text-[color:var(--text-secondary)]"><span className="size-4 animate-spin rounded-full border-2 border-[color:var(--border-strong)] border-t-[color:var(--brand)]" />Calling the published endpoint and requesting a read-only quote…</div>}

@@ -44,7 +44,13 @@ export default async function BuilderDashboard() {
     const record = buildTrackRecord(probeStore.historyFor(agent.chain_id, agent.token_id, since));
     const recent = record.windows.find((window) => window.label === '24h');
     const online = recent && recent.probes > 0 ? recent.answered > 0 : null;
-    return { agent, record, recent, online };
+    const listingGaps = [
+      !agent.image_url,
+      (agent.description?.trim().length ?? 0) < 40,
+      !(agent.supported_protocols?.length),
+      online === false,
+    ].filter(Boolean).length;
+    return { agent, record, recent, online, listingGaps };
   });
   const needsAttention = operations.filter((entry) => entry.online === false).length;
 
@@ -76,9 +82,10 @@ export default async function BuilderDashboard() {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
         <section id="agents" aria-labelledby="fleet-heading" className="scroll-mt-24">
           <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Agent health</p><h2 id="fleet-heading" className="mt-2 text-xl font-semibold">Your live fleet</h2></div><Link href="/build" className="text-[11px] font-medium text-[color:var(--brand-strong)]">Add an agent →</Link></div>
-          <div className="mt-5 flex flex-col gap-3">{operations.map(({ agent, record, recent, online }) => (
+          <div className="mt-5 flex flex-col gap-3">{operations.map(({ agent, record, recent, online, listingGaps }) => (
             <article key={`${agent.chain_id}:${agent.token_id}`} className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
-              <div className="flex items-start gap-3"><AgentAvatar name={agent.name} src={agent.image_url} size="sm" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold">{agent.name}</h3><span className={`size-2 rounded-full ${online === true ? 'bg-[color:var(--positive)]' : online === false ? 'bg-[color:var(--negative)]' : 'bg-[color:var(--neutral)]'}`} /><span className="text-[9px] text-[color:var(--text-muted)]">{online === true ? 'Responding' : online === false ? 'No 24h response' : 'Not measured in 24h'}</span></div><p className="mono mt-1 text-[9px] text-[color:var(--text-muted)]">{agent.chain_id}:{agent.token_id}</p></div><Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="text-[10px] font-medium text-[color:var(--brand-strong)]">Public page ↗</Link></div>
+              <div className="flex items-start gap-3"><AgentAvatar name={agent.name} src={agent.image_url} size="sm" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold">{agent.name}</h3><span className={`size-2 rounded-full ${online === true ? 'bg-[color:var(--positive)]' : online === false ? 'bg-[color:var(--negative)]' : 'bg-[color:var(--neutral)]'}`} /><span className="text-[9px] text-[color:var(--text-muted)]">{online === true ? 'Responding' : online === false ? 'No 24h response' : 'Not measured in 24h'}</span></div><p className="mono mt-1 text-[9px] text-[color:var(--text-muted)]">{agent.chain_id}:{agent.token_id}</p></div><div className="flex shrink-0 flex-col items-end gap-2"><Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="text-[10px] font-medium text-[color:var(--brand-strong)]">Public page ↗</Link><Link href={`/build?chainId=${agent.chain_id}&tokenId=${agent.token_id}`} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-2.5 py-1.5 text-[9px] font-semibold hover:bg-[color:var(--surface-hover)]">Manage & retest</Link></div></div>
+              <div className={`mt-3 rounded-[var(--radius)] px-3 py-2 text-[9px] ${listingGaps === 0 ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]'}`}>{listingGaps === 0 ? 'Public profile and recent response checks look ready.' : `${listingGaps} listing check${listingGaps === 1 ? '' : 's'} need attention. Open management for exact fixes.`}</div>
               <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-[color:var(--border)] pt-3 text-center"><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">24h</dt><dd className="mt-1 text-[11px] font-medium">{recent?.probes ?? 0} probes</dd></div><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">30d</dt><dd className="mt-1 text-[11px] font-medium">{record.totalProbes} probes</dd></div><div><dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-muted)]">Attestations</dt><dd className="mt-1 text-[11px] font-medium">{agent.total_feedbacks}</dd></div></dl>
             </article>
           ))}{!operations.length && <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-8 text-center text-[12px] text-[color:var(--text-muted)]">No agents are currently owned by this wallet.</div>}</div>
