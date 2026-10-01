@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CampaignPassport } from "@/components/campaign/CampaignPassport";
+
 export const metadata: Metadata = {
   title: "Set and Earn checklist",
   description:
@@ -92,6 +94,7 @@ export default function SetAndEarnPage() {
           Register on BNB Chain ↗
         </a>
       </header>
+      <CampaignPassport />
       <section
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         aria-label="Campaign summary"
