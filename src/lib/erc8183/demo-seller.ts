@@ -2,11 +2,12 @@ import 'server-only';
 
 import {
   encodeErc8183Manifest,
+  erc8183ManifestHash,
   getErc8183Job,
   submitErc8183Deliverable,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
-import type { Address } from 'viem';
+import { keccak256, stringToHex, type Address, type Hex } from 'viem';
 
 import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
 import { assertTestnetOnly } from '@/lib/erc8183/demo-guard';
@@ -81,8 +82,9 @@ function assertPubliclyFetchable(url: URL): void {
   }
 }
 
-function deliveryUrl(jobId: string): string {
+function deliveryUrl(jobId: string, deliverable: Hex): string {
   const url = new URL(`/api/seller/deliverables/${jobId}`, publicBaseUrl());
+  url.searchParams.set('hash', deliverable);
   assertPubliclyFetchable(url);
   return url.href;
 }
@@ -91,7 +93,7 @@ function resultFromStored(stored: StoredDeliverable): DemoDeliveryResult {
   return {
     status: 'accepted',
     jobId: stored.jobId,
-    deliverableUrl: deliveryUrl(stored.jobId),
+    deliverableUrl: deliveryUrl(stored.jobId, keccak256(stringToHex(stored.manifestText))),
     submitTxHash: stored.submitTxHash,
   };
 }
@@ -157,7 +159,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
     const result = await submitErc8183Deliverable(
       wallet,
       signer,
-      { jobId: id, manifest, deliverableUrl: deliveryUrl(jobId) },
+      { jobId: id, manifest, deliverableUrl: deliveryUrl(jobId, erc8183ManifestHash(manifest)) },
       { network: ALTANA_NETWORK },
     );
     const stored: StoredDeliverable = {

@@ -1,10 +1,12 @@
 'use client';
 
 import { formatUnits, getAddress } from 'viem';
-import { useAccount, useConnect, useSwitchChain } from 'wagmi';
+import { useState } from 'react';
+import { useAccount, useConnect, useSignMessage, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { submitExternalDeliverable } from '@/lib/wallet/external';
 
 function short(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -23,6 +25,60 @@ function jobInstruction(job: HiredJob) {
   if (job.status === 'EXPIRED') return 'Expired before delivery';
   if (job.status === 'REJECTED') return 'Delivery contested';
   return 'Waiting for escrow funding';
+}
+
+function DeliveryComposer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
+  const [content, setContent] = useState('');
+  const [status, setStatus] = useState<'idle' | 'authorizing' | 'submitting' | 'done'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const { signMessageAsync } = useSignMessage();
+
+  async function deliver() {
+    if (content.trim().length < 3 || status !== 'idle') return;
+    setError(null);
+    try {
+      setStatus('authorizing');
+      const challengeResponse = await fetch('/api/builders/deliveries', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'challenge', jobId: job.jobId }),
+      });
+      const challenge = await challengeResponse.json() as { challengeId?: string; message?: string; error?: string };
+      if (!challengeResponse.ok || !challenge.challengeId || !challenge.message) throw new Error(challenge.error ?? 'Could not authorize this delivery.');
+      const signature = await signMessageAsync({ message: challenge.message, account });
+      const prepareResponse = await fetch('/api/builders/deliveries', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'prepare', jobId: job.jobId, challengeId: challenge.challengeId, signature, content: content.trim() }),
+      });
+      const prepared = await prepareResponse.json() as { deliverable?: `0x${string}`; deliverableUrl?: string; error?: string };
+      if (!prepareResponse.ok || !prepared.deliverable || !prepared.deliverableUrl) throw new Error(prepared.error ?? 'Could not prepare the immutable delivery manifest.');
+      setStatus('submitting');
+      const transactionHash = await submitExternalDeliverable({
+        account, jobId: BigInt(job.jobId), deliverable: prepared.deliverable, deliverableUrl: prepared.deliverableUrl,
+      });
+      const confirmResponse = await fetch('/api/builders/deliveries', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm', jobId: job.jobId, transactionHash }),
+      });
+      const confirmed = await confirmResponse.json() as { error?: string };
+      if (!confirmResponse.ok) throw new Error(confirmed.error ?? 'The transaction succeeded but the index refresh failed.');
+      setStatus('done');
+    } catch (cause) {
+      setStatus('idle');
+      const message = cause instanceof Error ? cause.message : 'Delivery did not complete.';
+      setError(/rejected|denied|cancel/i.test(message) ? 'Signature or transaction cancelled. Nothing was submitted.' : message);
+    }
+  }
+
+  if (status === 'done') return <div className="rounded-[var(--radius)] bg-[color:var(--positive-dim)] px-3 py-2.5 text-[10px] font-medium text-[color:var(--positive)]">Delivery submitted and verified onchain. Refresh to see buyer-review status.</div>;
+  return (
+    <div className="mt-3 space-y-2">
+      <label className="block text-[9px] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]" htmlFor={`delivery-${job.jobId}`}>Deliverable</label>
+      <textarea id={`delivery-${job.jobId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={20_000} rows={4} placeholder="Give the buyer the completed result, relevant links, assumptions and limitations." className="w-full resize-y rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2.5 text-[11px] leading-5 outline-none focus:border-[color:var(--brand)]" />
+      <div className="flex items-center justify-between gap-3"><span className="text-[8px] text-[color:var(--text-faint)]">{content.length.toLocaleString()} / 20,000</span><button type="button" onClick={deliver} disabled={content.trim().length < 3 || status !== 'idle'} className="rounded-[var(--radius)] bg-[color:var(--brand)] px-3 py-2 text-[10px] font-semibold text-[color:var(--brand-ink)] disabled:cursor-not-allowed disabled:opacity-45">{status === 'authorizing' ? 'Authorize in wallet…' : status === 'submitting' ? 'Submit onchain…' : 'Review and submit'}</button></div>
+      {error && <p role="alert" className="rounded-[var(--radius)] bg-[color:var(--negative-dim)] px-3 py-2 text-[9px] leading-4 text-[color:var(--negative)]">{error}</p>}
+      <p className="text-[8px] leading-4 text-[color:var(--text-faint)]">Pokter stores the exact manifest bytes first. Your provider wallet then commits their hash and public URL to escrow.</p>
+    </div>
+  );
 }
 
 export function BuilderJobInbox({ jobs, owner }: { jobs: HiredJob[]; owner: string }) {
@@ -65,7 +121,7 @@ export function BuilderJobInbox({ jobs, owner }: { jobs: HiredJob[]; owner: stri
               {job.status === 'FUNDED' && (
                 <div className="mt-3 border-t border-[color:var(--border)] pt-3">
                   {providerMatches && !wrongChain ? (
-                    <div className="flex items-center gap-2 text-[10px] text-[color:var(--positive)]"><span className="size-1.5 rounded-full bg-current" />Provider wallet ready</div>
+                    <><div className="flex items-center gap-2 text-[10px] text-[color:var(--positive)]"><span className="size-1.5 rounded-full bg-current" />Provider wallet ready</div><DeliveryComposer job={job} account={connected!} /></>
                   ) : wrongChain ? (
                     <button type="button" onClick={() => switchChain({ chainId: ESCROW_CHAIN.id })} disabled={switching} className="w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-2 text-[10px] font-semibold hover:bg-[color:var(--surface-hover)] disabled:opacity-50">{switching ? 'Switching…' : `Switch to ${ESCROW_CHAIN.name}`}</button>
                   ) : !connected ? (
