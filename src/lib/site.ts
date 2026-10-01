@@ -7,6 +7,7 @@
  */
 export function siteUrl(): string {
   return (
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311'
+    process.env.NEXT_PUBLIC_APP_URL
+      ?? (process.env.NODE_ENV === 'production' ? 'https://pokter.xyz' : 'http://localhost:4311')
   ).replace(/\/$/, '');
 }
