@@ -39,6 +39,17 @@ jobs:
           fi
           echo "Recorded $probes probes"
 
+          notification_failures=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('notificationFailures',0))")
+          builder_failures=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('builderNotificationFailures',0))")
+          reconciled=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('reconciledJobs',0))")
+          builder_emails=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('builderEmails',0))")
+
+          if [ "$notification_failures" -ne 0 ] || [ "$builder_failures" -ne 0 ]; then
+            echo "::error::Sweep completed with notification failures: buyer=${notification_failures}, builder=${builder_failures}"
+            exit 1
+          fi
+          echo "Reconciled $reconciled jobs and sent $builder_emails builder emails"
+
       # A sweep invalidates nothing, but a deploy empties the in-memory cache,
       # and the first visitor after that pays for every registry lookup the
       # aggregate pages need — measured at 31s for the leaderboard against ~1s
