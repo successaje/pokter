@@ -6,6 +6,7 @@ import { formatUnits } from 'viem';
 
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { BuilderJobInbox } from '@/components/builder/BuilderJobInbox';
+import { BuilderNotifications } from '@/components/builder/BuilderNotifications';
 import { BuilderSignOutButton } from '@/components/builder/BuilderSignOutButton';
 import { WorkspaceModeSwitch } from '@/components/workspace/WorkspaceModeSwitch';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
@@ -92,6 +93,7 @@ export default async function BuilderDashboard() {
         </section>
 
         <aside className="flex flex-col gap-6">
+          <BuilderNotifications />
           <BuilderJobInbox jobs={jobs} owner={owner} />
 
           <section id="evidence" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[11px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>

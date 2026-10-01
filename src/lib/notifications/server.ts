@@ -37,8 +37,79 @@ function db(): DatabaseSync {
       UNIQUE(subscription_id, event),
       FOREIGN KEY(subscription_id) REFERENCES notification_subscriptions(id)
     );
+    CREATE TABLE IF NOT EXISTS builder_notifications (
+      id TEXT PRIMARY KEY,
+      owner_address TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      job_id TEXT NOT NULL,
+      agent_name TEXT NOT NULL,
+      event TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      read_at TEXT,
+      UNIQUE(owner_address, chain_id, job_id, event)
+    );
+    CREATE INDEX IF NOT EXISTS idx_builder_notifications_owner
+      ON builder_notifications (owner_address, created_at DESC);
   `);
   return database;
+}
+
+export interface BuilderNotification {
+  id: string;
+  chainId: number;
+  jobId: string;
+  agentName: string;
+  event: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export function recordBuilderJobEvent(input: {
+  owner: string; chainId: number; jobId: string; agentName: string;
+  status: string; expiredAt?: bigint;
+}): void {
+  const status = input.status.toUpperCase();
+  const events: Array<{ event: string; title: string; body: string }> = [];
+  if (status === 'FUNDED') events.push({ event: 'FUNDED', title: 'New funded job', body: `${input.agentName} has funded work ready for delivery.` });
+  if (status === 'SUBMITTED') events.push({ event: 'SUBMITTED', title: 'Delivery awaiting review', body: `Job #${input.jobId} was submitted and is waiting for the buyer.` });
+  if (status === 'REJECTED') events.push({ event: 'REJECTED', title: 'Delivery contested', body: `The buyer contested job #${input.jobId}. Review the job evidence.` });
+  if (status === 'COMPLETED') events.push({ event: 'COMPLETED', title: 'Escrow released', body: `Job #${input.jobId} completed and its escrow was released.` });
+  if (status === 'EXPIRED') events.push({ event: 'EXPIRED', title: 'Delivery deadline passed', body: `Job #${input.jobId} expired before completion.` });
+  const secondsLeft = input.expiredAt ? Number(input.expiredAt - BigInt(Math.floor(Date.now() / 1000))) : null;
+  if (status === 'FUNDED' && secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 86_400) {
+    events.push({ event: 'DEADLINE_24H', title: 'Delivery due within 24 hours', body: `Job #${input.jobId} is still funded and approaching its deadline.` });
+  }
+  const insert = db().prepare(`INSERT OR IGNORE INTO builder_notifications
+    (id,owner_address,chain_id,job_id,agent_name,event,title,body,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?)`);
+  for (const event of events) insert.run(
+    randomUUID(), input.owner.toLowerCase(), input.chainId, input.jobId,
+    input.agentName.slice(0, 120), event.event, event.title, event.body, new Date().toISOString(),
+  );
+}
+
+export function builderNotifications(owner: string): BuilderNotification[] {
+  const rows = db().prepare(`SELECT id,chain_id,job_id,agent_name,event,title,body,created_at,read_at
+    FROM builder_notifications WHERE owner_address=? ORDER BY created_at DESC LIMIT 100`).all(
+    owner.toLowerCase(),
+  ) as unknown as Array<Record<string, string | number | null>>;
+  return rows.map((row) => ({
+    id: String(row.id), chainId: Number(row.chain_id), jobId: String(row.job_id),
+    agentName: String(row.agent_name), event: String(row.event), title: String(row.title),
+    body: String(row.body), createdAt: String(row.created_at), readAt: row.read_at ? String(row.read_at) : null,
+  }));
+}
+
+export function markBuilderNotificationsRead(owner: string, id?: string): number {
+  const now = new Date().toISOString();
+  const result = id
+    ? db().prepare(`UPDATE builder_notifications SET read_at=? WHERE owner_address=? AND id=? AND read_at IS NULL`).run(now, owner.toLowerCase(), id)
+    : db().prepare(`UPDATE builder_notifications SET read_at=? WHERE owner_address=? AND read_at IS NULL`).run(now, owner.toLowerCase());
+  return Number(result.changes);
 }
 
 function hash(value: string): string {

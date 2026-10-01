@@ -69,6 +69,16 @@ export function AccountProfile() {
     },
     staleTime: 30_000,
   });
+  const builderInbox = useQuery<{ unread: number }>({
+    queryKey: ['builder-notifications'],
+    queryFn: async () => {
+      const response = await fetch('/api/builders/notifications', { cache: 'no-store', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Builder alerts could not be read.');
+      return response.json() as Promise<{ unread: number }>;
+    },
+    enabled: Boolean(builder.data?.authenticated),
+    staleTime: 30_000,
+  });
   const identity = address ?? browserAddress ?? passkey.wallet?.address ?? 'pokter-guest';
   const builderReady = builder.data?.authenticated && builder.data.owner;
   async function copyAddress(value: string, key: string) {
@@ -96,7 +106,7 @@ export function AccountProfile() {
           {browserAddress && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Browser wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{chain?.id === ESCROW_CHAIN.id ? `${ESCROW_CHAIN.name} · ready` : `${chain?.name ?? 'Unknown network'} · switch before transacting`}</p></div><button type="button" onClick={() => copyAddress(browserAddress, 'browser')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'browser' ? 'Copied ✓' : shortAddress(browserAddress)}</button></div>}
         </div><p className="mt-4 text-[9px] leading-4 text-[color:var(--text-faint)]">Pokter does not create a username/password profile or hold your private keys. Account data shown here is derived from connected wallets, signed builder verification and this device.</p></section>
 
-        <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/my-agents" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount} label="Unread" href="/my-agents" /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/my-agents" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link></div></div></aside>
+        <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/my-agents" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount + (builderInbox.data?.unread ?? 0)} label="Unread" href={builderReady ? '/builder#jobs' : '/my-agents'} /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/my-agents" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link>{builderReady && <Link href="/builder" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Builder alerts <span className="float-right">→</span></Link>}</div></div></aside>
       </div>
     </div>
   );

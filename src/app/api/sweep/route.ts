@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server';
 import { runSweep } from '@/lib/history/sweep';
 import { getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { notifyJobEvent, recordBuilderJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { getJobStore } from '@/lib/erc8183/store';
+import { getAgent } from '@/lib/scan/client';
+import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
 /** A sweep probes the whole roster; it needs more than the default budget. */
@@ -47,7 +50,24 @@ export async function POST(request: Request): Promise<NextResponse> {
       0,
     );
     const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
-    return NextResponse.json({ ...outcome, notifications, notificationFailures });
+    const builderResults = await Promise.allSettled(
+      getJobStore().all().filter((job) => job.chainId === ALTANA_NETWORK.chainId).map(async (job) => {
+        const [onchain, agent] = await Promise.all([
+          getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId)),
+          getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId),
+        ]);
+        recordBuilderJobEvent({
+          owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
+          agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
+        });
+        return true;
+      }),
+    );
+    return NextResponse.json({
+      ...outcome, notifications, notificationFailures,
+      builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
+      builderNotificationFailures: builderResults.filter((result) => result.status === 'rejected').length,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: `Sweep failed: ${(error as Error).message}` },
