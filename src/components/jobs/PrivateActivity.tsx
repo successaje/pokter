@@ -143,7 +143,9 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
 
   if (!walletAddress) {
     return (
-      <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-6">
+      <div className="flex flex-col gap-6">
+      <ActivitySummary jobs={[]} connected={false} />
+      <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] bg-[color:var(--surface)] p-6">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">{externalReady ? 'Switch your connected wallet' : 'Connect your signing wallet'}</h3>
           <p className="max-w-xl text-xs leading-relaxed text-[color:var(--text-faint)]">
@@ -185,6 +187,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
             {walletError}
           </p>
         )}
+      </div>
       </div>
     );
   }

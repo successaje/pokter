@@ -17,9 +17,9 @@ export default async function MyAgentsPage({
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   return (
     <div className="flex flex-col gap-8 pt-6">
-      <header className="flex max-w-2xl flex-col gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          My activity
+      <header className="flex max-w-3xl flex-col gap-3">
+        <h1 className="font-[family-name:var(--font-serif)] text-3xl font-semibold tracking-tight sm:text-4xl">
+          Your activity
         </h1>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
           Track jobs, review deliverables and manage agent permissions. Records
@@ -30,20 +30,20 @@ export default async function MyAgentsPage({
 
       <Link
         href="/set-and-earn"
-        className="group flex flex-col gap-4 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[linear-gradient(105deg,var(--brand-highlight-soft),var(--surface)_68%)] p-4 transition-colors hover:border-[color:var(--brand)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
+        className="group relative flex min-h-52 flex-col justify-center overflow-hidden rounded-[var(--radius-lg)] border border-[#F3BA2F]/25 bg-[radial-gradient(circle_at_78%_48%,rgba(243,186,47,.2),transparent_27%),linear-gradient(115deg,#11100c,#1c180c)] p-6 text-white transition-colors hover:border-[#F3BA2F]/50 sm:p-8"
       >
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color:var(--brand-dim)] text-[color:var(--brand-strong)]">
+        <div className="relative z-10 max-w-2xl">
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#F3BA2F] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#171306]">
             <svg viewBox="0 0 24 24" aria-hidden className="size-5 fill-none stroke-current" strokeWidth="1.8">
               <path d="M4 9h16v11H4zM3 6h18v4H3zM12 6v14M7.5 6C5 5 4.5 2.5 6.5 2c2.2-.6 4.4 2.1 5.5 4M16.5 6c2.5-1 3-3.5 1-4-2.2-.6-4.4 2.1-5.5 4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+            Set and Earn is live
           </span>
-          <div>
-            <div className="flex items-center gap-2"><p className="text-[12px] font-semibold">Set and Earn is live</p><span className="rounded-full bg-[color:var(--brand)] px-2 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-black">BNB Chain</span></div>
-            <p className="mt-1 text-[10px] leading-4 text-[color:var(--text-muted)]">See which campaign tasks your Pokter activity supports and what you still need to complete.</p>
-          </div>
+          <h2 className="mt-4 font-[family-name:var(--font-serif)] text-3xl leading-tight sm:text-4xl">Complete tasks. Earn rewards.</h2>
+          <p className="mt-2 max-w-xl text-[12px] leading-5 text-white/65">Hire and build real agents on BNB Chain. Track what Pokter can verify and see exactly what remains.</p>
+          <span className="mt-5 inline-flex min-h-10 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-4 text-[10px] font-semibold text-[#171306] transition-transform group-hover:translate-x-1">View Set and Earn →</span>
         </div>
-        <span className="shrink-0 text-[10px] font-semibold text-[color:var(--brand-strong)] transition-transform group-hover:translate-x-1">View progress →</span>
+        <svg viewBox="0 0 64 64" aria-hidden className="absolute -bottom-7 right-[8%] hidden size-52 fill-none stroke-[#F3BA2F]/55 lg:block" strokeWidth="1.3"><path d="M11 27h42v27H11zM8 18h48v10H8zM32 18v36M19 18c-5-2-7-8-3-11 5-4 13 4 16 11M45 18c5-2 7-8 3-11-5-4-13 4-16 11" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </Link>
 
       <section className="flex flex-col gap-4">
