@@ -32,7 +32,8 @@ Legend: `[x]` complete, `[~]` implemented but still needs the named follow-up,
 - [~] Resume a draft in the same browser; account-backed cross-device drafts
   remain open.
 - [ ] List and manage multiple drafts from the builder account.
-- [ ] Show explicit Draft, Registered, Measured, Listed and Hireable states.
+- [x] Show explicit Draft, Registered, Measured, Listed and Hireable states,
+  derived from registry, probe-history, catalog and live quote facts.
 
 ## C. Guided preparation
 

@@ -4,6 +4,7 @@ import { AgentNotFound, diagnose } from '@/lib/diagnostic/checks';
 import { getProbeStore } from '@/lib/history/store';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { deriveBuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 40;
@@ -73,9 +74,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const enrolled = report.checks.some(
       (check) => check.id === 'endpoint' && check.status === 'pass',
     );
+    const store = getProbeStore();
     if (enrolled) {
       try {
-        getProbeStore().enroll([{ chainId, tokenId }]);
+        store.enroll([{ chainId, tokenId }]);
       } catch {
         /*
          * Never fail the diagnostic over this. The report is what the operator
@@ -85,7 +87,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
-    return NextResponse.json({ ...report, enrolled });
+    let probeCount = 0;
+    try {
+      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1_000);
+      probeCount = store.historyFor(chainId, tokenId, since).length;
+    } catch {
+      // A store read failure must not turn a live diagnostic into a false claim.
+    }
+    const lifecycle = deriveBuilderLifecycle({
+      chainId,
+      checks: report.checks,
+      enrolled,
+      probeCount,
+    });
+
+    return NextResponse.json({ ...report, enrolled, lifecycle });
   } catch (error) {
     if (error instanceof AgentNotFound) {
       return NextResponse.json(
