@@ -135,15 +135,24 @@ const STARTER_KITS: Array<{
   },
 ];
 
+const RUNTIME_OPTIONS: Record<string, { target: string[]; policy: string[]; output: string[] }> = {
+  'health-factor': { target: ['Venus', 'Lista'], policy: ['Conservative', 'Balanced', 'Custom thresholds'], output: ['Risk report', 'Stress analysis', 'Action plan'] },
+  yield: { target: ['Stablecoins', 'BNB liquid staking', 'All supported assets'], policy: ['Capital preservation', 'Balanced', 'Opportunity seeking'], output: ['Opportunity comparison', 'Allocation research', 'Risk report'] },
+  rebalancing: { target: ['Wallet portfolio', 'Treasury', 'Liquidity positions'], policy: ['Drift threshold', 'Scheduled review', 'Custom mandate'], output: ['Rebalancing plan', 'Exposure report', 'Proposed trade list'] },
+  'grid-trading': { target: ['BNB / USDT', 'BTCB / USDT', 'Custom pair'], policy: ['Wide conservative grid', 'Balanced grid', 'Custom constraints'], output: ['Grid parameters', 'Scenario analysis', 'Risk-bounded plan'] },
+};
+
 const DRAFT_KEY = 'pokter-agent-draft-v1';
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
-function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' }) {
+function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' | 'code' | 'idea' }) {
   const className = 'size-5 fill-none stroke-current';
   if (name === 'registry') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z"/><path d="m4 7 8 4 8-4M12 11v10"/></svg>;
   if (name === 'spark') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></svg>;
   if (name === 'check') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="2"><path d="m5 12 4 4L19 6"/></svg>;
   if (name === 'wallet') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="M4 6.5h14a2 2 0 0 1 2 2v9H6a2 2 0 0 1-2-2v-9Z"/><path d="M4 7V5a2 2 0 0 1 2-2h11M16 12h4"/></svg>;
+  if (name === 'code') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></svg>;
+  if (name === 'idea') return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="M9 18h6M10 21h4M8.5 15.5A7 7 0 1 1 15.5 15.5C14.5 16.2 14 17 14 18h-4c0-1-.5-1.8-1.5-2.5Z" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden className={className} strokeWidth="1.8"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>;
 }
 
@@ -268,6 +277,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
   const [briefApplied, setBriefApplied] = useState(false);
+  const [runtimeConfig, setRuntimeConfig] = useState({ target: '', policy: '', output: '' });
 
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
@@ -301,6 +311,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     const base = `${draft.category || 'agent'}-${draft.name || 'pokter'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
   }, [draft.category, draft.name]);
+  const runtimeOptions = RUNTIME_OPTIONS[draft.category];
   const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -381,6 +392,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
     setReviewing(false);
+    if (key === 'category') setRuntimeConfig({ target: '', policy: '', output: '' });
     if (key === 'endpoint' || key === 'protocol') {
       setEndpointReport(null);
       setEndpointError(null);
@@ -428,6 +440,24 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     const anchor = document.createElement('a');
     anchor.href = href;
     anchor.download = `${draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent'}-registration.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
+  function downloadRuntimeConfig() {
+    const payload = {
+      schema: 'https://pokter.xyz/schemas/starter-config-v1',
+      agent: draft.name.trim(),
+      category: draft.category,
+      protocol: draft.protocol,
+      behavior: runtimeConfig,
+      note: 'Your runtime must implement and enforce these choices. Pokter verifies the public endpoint independently.',
+    };
+    const file = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+    const href = URL.createObjectURL(file);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `${draft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'agent'}-runtime-config.json`;
     anchor.click();
     URL.revokeObjectURL(href);
   }
@@ -551,19 +581,19 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <button type="button" onClick={() => setMode('existing')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="registry" /></span>
+              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--info-dim)] text-[color:var(--info)]"><Icon name="registry" /></span>
               <span className="mt-8 text-lg font-semibold">An agent already registered onchain</span>
               <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Verify ownership, test the published endpoint and add it to Pokter’s measurement roster.</span>
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Check my agent <Icon name="arrow" /></span>
             </button>
             <button type="button" onClick={() => { setNewStep(0); setMode('new'); }} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
+              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--positive-dim)] text-[color:var(--positive)]"><Icon name="code" /></span>
               <span className="mt-8 text-lg font-semibold">Working code or a running AI agent</span>
               <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Connect its HTTPS endpoint, test the protocol and prepare the public identity.</span>
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Connect my agent <Icon name="arrow" /></span>
             </button>
             <button type="button" onClick={() => setMode('templates')} className="group flex min-h-56 flex-col items-start rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-6 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_48px_var(--brand-shadow)]">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span>
+              <span className="flex size-11 items-center justify-center rounded-full bg-[color:var(--caution-dim)] text-[color:var(--caution)]"><Icon name="idea" /></span>
               <span className="mt-8 text-lg font-semibold">Only an idea so far</span>
               <span className="mt-2 max-w-sm text-[13px] leading-5 text-[color:var(--text-secondary)]">Start with a focused financial-agent structure, then follow the connection steps.</span>
               <span className="mt-auto flex items-center gap-2 pt-6 text-[12px] font-semibold text-[color:var(--brand-strong)]">Choose a starting point <Icon name="arrow" /></span>
@@ -665,8 +695,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <label className={cn('flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} maxLength={80} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
               <label className={cn('min-w-0 flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={4} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[10px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
+              {newStep === 1 && runtimeOptions && <fieldset className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><legend className="px-1 text-[11px] font-semibold">Functional starter configuration</legend><p className="text-[9px] leading-4 text-[color:var(--text-muted)]">These choices become a runtime configuration handoff—not a cosmetic label. Your connected implementation must enforce them.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[10px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></fieldset>}
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
               <div className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[10px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
+              {newStep === 2 && runtimeOptions && <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Runtime configuration handoff</p><p className="mt-1 text-[9px] leading-4 text-[color:var(--text-muted)]">Download the exact choices from Profile and apply them to your agent before testing its endpoint.</p></div><button type="button" onClick={downloadRuntimeConfig} disabled={!runtimeConfig.target || !runtimeConfig.policy || !runtimeConfig.output} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[10px] font-semibold disabled:opacity-40">Download config</button></div></div>}
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[11px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[10px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}{endpointReport?.safety && <details className="mt-3 border-t border-current/10 pt-2"><summary className="cursor-pointer text-[10px] font-semibold">Connection safety</summary><ul className="mt-2 grid gap-1 text-[9px] leading-4 text-[color:var(--text-muted)] sm:grid-cols-2"><li>✓ Public HTTPS only</li><li>✓ Credentials rejected</li><li>✓ DNS address pinned</li><li>✓ Private networks rejected</li><li>✓ Redirects blocked</li><li>✓ 10s / 256 KiB limits</li></ul></details>}</div></div></div>}
               {endpointReport?.ok && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2">
                 <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><p className="text-[12px] font-semibold">Run a private sample request</p><p className="mt-1 text-[10px] leading-5 text-[color:var(--text-muted)]">Only an explicitly advertised preview, simulate or dry-run capability can be called. This result stays private and never becomes marketplace evidence.</p></div>{trialCapability && <span className="mono w-fit rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[9px]">{trialCapability}</span>}</div>
