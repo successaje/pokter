@@ -242,16 +242,27 @@ export function AgentCard({
             </div>
           </div>
 
+          {/*
+            Record first, then today — in that order, and with the day named.
+            
+            These two read as a contradiction when the live one comes first
+            and says only "Not answering": a card announcing "Not answering"
+            beside "Reliable" looks like the page disagreeing with itself.
+            Both are true and they measure different spans, so the fix is to
+            say which is which. "Reliable · Not answering today" is one
+            coherent sentence — a good record, and down right now — and that
+            is exactly the agent a buyer most needs to not hire this morning.
+          */}
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <EvidenceBadge verdict={verdict} />
             {downRecently && (
               <span
                 title="Answered no probes in the last 24 hours"
                 className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
               >
-                Not answering
+                Not answering today
               </span>
             )}
-            <EvidenceBadge verdict={verdict} />
           </div>
 
           {/*
@@ -384,7 +395,7 @@ export function AgentCard({
                 title="Answered no probes in the last 24 hours"
                 className="rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--negative)]"
               >
-                Not answering
+                Not answering today
               </span>
             )}
             <EvidenceBadge verdict={verdict} />

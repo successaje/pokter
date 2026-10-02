@@ -324,7 +324,24 @@ export default async function AgentPage({
                 */}
                 <AgentSpec category={category} />
 
-                {agent.description && (
+                {/*
+                  A short description is just a paragraph.
+
+                  This was always a <details>, and the collapsed view clamps
+                  with CSS, so an agent whose description already fits showed
+                  "Read full description ↓" and then expanded to reveal the
+                  identical sentence. CSS cannot tell the server whether a
+                  clamp actually bit, so the length decides, and the threshold
+                  is deliberately low: being wrong in this direction shows a
+                  control that was not needed, being wrong the other way hides
+                  text. Two clamped lines hold well over this.
+                */}
+                {agent.description && agent.description.length <= 110 && (
+                  <p className="max-w-3xl break-words text-sm leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+                    {agent.description}
+                  </p>
+                )}
+                {agent.description && agent.description.length > 110 && (
                   <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
                     <summary className="cursor-pointer list-none">
                       <span className="line-clamp-2 break-words [overflow-wrap:anywhere] group-open:hidden md:line-clamp-3">

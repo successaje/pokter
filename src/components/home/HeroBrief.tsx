@@ -11,29 +11,22 @@ import { useState } from 'react';
  * question, in the place a visitor has just arrived and decided nothing. It
  * asked well and answered slowly.
  *
- * Here it is an input. The four objectives survive as chips beside it, because
- * an empty box is worse than a menu for somebody who does not yet know what to
- * type, and they are the same four categories Pokter can actually judge.
+ * Here it is an input, and only an input. The four objectives survived beside
+ * it as chips for a while, on the argument that an empty box is worse than a
+ * menu — but the page grew a Browse by outcome section two screens down that
+ * asks the same question with the same four answers and attaches real agents
+ * to each, so the menu existed twice and "Check liquidation risk" appeared
+ * word for word in both. The better one stayed.
+ *
+ * The chips also wrote the user's words for them: clicking one navigated to
+ * /agents?brief=How+close+is+my+lending+position+to+liquidation, and the
+ * results page then quoted that sentence back as though it had been typed.
+ * An example in the placeholder gives the same hint and claims nothing.
  *
  * Submitting leaves for the catalogue rather than answering in place: the
  * answer is a set of agents, the catalogue is the thing built to show a set of
  * agents, and duplicating it here would be a second worse one.
  */
-/*
- * Phrased as what arrives, not what a buyer might wish for.
- *
- * "Warn me before my lending position gets liquidated" promised monitoring.
- * Every agent behind that chip answers once, on demand, and nothing here
- * watches a position or sends an alert — so the chip was writing a cheque
- * the hire page could not cash, and the reader only found out at the
- * funding screen.
- */
-const OBJECTIVES = [
-  { label: 'Earn on idle capital', brief: 'Put my idle capital to work earning yield' },
-  { label: 'Trade to a plan', brief: 'Trade with a repeatable grid strategy rather than by impulse' },
-  { label: 'Check liquidation risk', brief: 'How close is my lending position to liquidation' },
-  { label: 'Stay in range', brief: 'Keep my portfolio weights and liquidity range where I intended' },
-] as const;
 
 export function HeroBrief() {
   const router = useRouter();
@@ -61,7 +54,7 @@ export function HeroBrief() {
           id="hero-brief"
           value={brief}
           onChange={(event) => setBrief(event.target.value)}
-          placeholder="What are you trying to do?"
+          placeholder="e.g. how close is my loan to liquidation"
           className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-[13px] outline-none placeholder:text-[color:var(--text-faint)]"
         />
         <button
@@ -74,18 +67,6 @@ export function HeroBrief() {
         </button>
       </form>
 
-      <div className="flex flex-wrap justify-center gap-1.5">
-        {OBJECTIVES.map((objective) => (
-          <button
-            key={objective.label}
-            type="button"
-            onClick={() => go(objective.brief)}
-            className="hero-objective rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11px] text-[color:var(--text-muted)] transition-[color,border-color,background-color,transform] hover:-translate-y-0.5 hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]"
-          >
-            {objective.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

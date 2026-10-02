@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { getAddress } from 'viem';
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 
@@ -16,6 +16,37 @@ import { cn } from '@/lib/ui/cn';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
+
+/** Per-browser, so the dismiss survives a reload. */
+const CAMPAIGN_NOTICE_KEY = 'pokter:builder:campaign-notice';
+const CAMPAIGN_NOTICE_EVENT = 'pokter:builder:campaign-notice-changed';
+
+function campaignNoticeDismissed() {
+  try {
+    return window.localStorage.getItem(CAMPAIGN_NOTICE_KEY) === 'dismissed';
+  } catch {
+    /* Private mode or blocked storage: the notice simply stays. */
+    return false;
+  }
+}
+
+function subscribeToCampaignNotice(listener: () => void) {
+  window.addEventListener('storage', listener);
+  window.addEventListener(CAMPAIGN_NOTICE_EVENT, listener);
+  return () => {
+    window.removeEventListener('storage', listener);
+    window.removeEventListener(CAMPAIGN_NOTICE_EVENT, listener);
+  };
+}
+
+function dismissCampaignNotice() {
+  try {
+    window.localStorage.setItem(CAMPAIGN_NOTICE_KEY, 'dismissed');
+  } catch {
+    /* Nothing to persist to; the notice stays, as it always did. */
+  }
+  window.dispatchEvent(new Event(CAMPAIGN_NOTICE_EVENT));
+}
 import {
   registerIdentityFromWallet,
   type RegistrationProgress,
@@ -241,7 +272,20 @@ function ConnectionGuide() {
 export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
   const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
   const [newStep, setNewStep] = useState(0);
-  const [campaignNoticeOpen, setCampaignNoticeOpen] = useState(true);
+  /*
+   * The dismiss button only ever set state, so the notice came back on every
+   * reload and the × was decorative. It now remembers, per browser.
+   *
+   * Read through useSyncExternalStore, the way this codebase already reads
+   * the campaign registration flag: the server snapshot is "not dismissed",
+   * so the markup hydrates open and corrects itself without a setState in an
+   * effect, and a dismissal in one tab closes it in the others.
+   */
+  const campaignNoticeOpen = !useSyncExternalStore(
+    subscribeToCampaignNotice,
+    campaignNoticeDismissed,
+    () => false,
+  );
   const [tokenId, setTokenId] = useState(initialIdentity?.tokenId ?? '');
   const [chainId, setChainId] = useState(initialIdentity?.chainId ?? '56');
   const [report, setReport] = useState<BuilderReport | null>(null);
@@ -605,7 +649,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         </div>
       </header>
 
-      {campaignNoticeOpen && <aside className="relative rounded-[var(--radius)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] px-4 py-3 pr-12" aria-label="Set and Earn notification"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">🔥 Building for Set and Earn?</p><p className="mt-0.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">Register first, then list a reachable agent and build independently verifiable usage.</p></div><Link href="/set-and-earn" className="shrink-0 text-[10px] font-semibold text-[color:var(--brand-strong)] hover:underline">View requirements →</Link></div><button type="button" onClick={() => setCampaignNoticeOpen(false)} aria-label="Dismiss Set and Earn notification" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]">×</button></aside>}
+      {campaignNoticeOpen && <aside className="relative rounded-[var(--radius)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] px-4 py-3 pr-12" aria-label="Set and Earn notification"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">🔥 Building for Set and Earn?</p><p className="mt-0.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">Register first, then list a reachable agent and build independently verifiable usage.</p></div><Link href="/set-and-earn" className="shrink-0 text-[10px] font-semibold text-[color:var(--brand-strong)] hover:underline">View requirements →</Link></div><button type="button" onClick={dismissCampaignNotice} aria-label="Dismiss Set and Earn notification" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]">×</button></aside>}
 
       {mode === 'choose' && (
         <section aria-labelledby="path-title" className="flex flex-col gap-5">
