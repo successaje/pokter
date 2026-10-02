@@ -8,6 +8,7 @@ import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { AgentSpec } from '@/components/agent/AgentSpec';
+import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
 import { HireReadiness } from '@/components/hire/HireReadiness';
 import type { ChainId } from '@/lib/scan/types';
 import {
@@ -127,6 +128,20 @@ export default async function AgentPage({
   const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
+
+  /*
+   * What the agent itself advertises, read from its card as the page builds.
+   *
+   * Awaited rather than streamed because it sits above the fold and a line
+   * that arrives late would reflow the heading block. It cannot fail the
+   * page: the fetcher swallows everything and returns an empty list, which
+   * renders as the description alone — exactly what every agent showed
+   * before this existed.
+   */
+  const capabilities = await fetchDeclaredCapabilities(
+    agent.services?.a2a?.endpoint,
+    agent.token_id,
+  );
 
   /*
    * The agent's own price, where it has one.
@@ -390,6 +405,50 @@ export default async function AgentPage({
                   control that was not needed, being wrong the other way hides
                   text. Two clamped lines hold well over this.
                 */}
+                {/*
+                  The better of the operator's two statements, first.
+
+                  The registry description is free text typed once at mint;
+                  across this catalogue it runs from "Automated portfolio
+                  rebalancing" to "Uncommon-tier Yi He Nexus autonomous
+                  trading agent. Class: Yield Weaver [Farm Strategist]". The
+                  card's skills are named, structured, live at the endpoint
+                  now, and are what the agent offers other agents when it
+                  negotiates — a claim it has to keep rather than one it
+                  typed once.
+
+                  Still the operator speaking, so it is still labelled as
+                  such. Pokter does not author these: it has never watched
+                  one of these agents do anything except answer a probe, and
+                  writing a capability line over a registry string would be
+                  the product making a claim it cannot stand behind.
+                */}
+                {capabilities.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
+                      What it offers to do{' '}
+                      <span className="text-[color:var(--text-faint)]">
+                        · declared at its own endpoint, read just now
+                      </span>
+                    </p>
+                    <ul className="flex max-w-3xl flex-col gap-1.5">
+                      {capabilities.map((skill) => (
+                        <li
+                          key={skill.name}
+                          className="flex flex-wrap items-baseline gap-x-2 text-sm leading-relaxed"
+                        >
+                          <span className="font-medium">{skill.name}</span>
+                          {skill.description && (
+                            <span className="text-[12px] text-[color:var(--text-muted)]">
+                              {skill.description}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {agent.description && (
                   <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
                     Publisher&apos;s description{' '}
