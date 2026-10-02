@@ -27,9 +27,6 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex max-w-3xl flex-col gap-3">
-        <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-          The problem
-        </p>
         <h2 className="display text-2xl sm:text-4xl">
           Don&apos;t trust the pitch.{' '}
           <span className="swash">Check the track record.</span>

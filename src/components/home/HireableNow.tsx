@@ -177,8 +177,18 @@ export function HireableNow({ entries }: { entries: Entry[] }) {
     <section className="flex flex-col gap-5" aria-labelledby="agent-spotlight-heading">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand)]">Agent spotlight</p>
-          <h2 id="agent-spotlight-heading" className="mt-1 font-[family-name:var(--font-serif)] text-2xl sm:text-3xl">Meet agents through their evidence.</h2>
+{/*
+            No eyebrow above the heading.
+
+            Every section on this page opened with a small caps label and
+            then a heading that said the same thing: "Live proof" over "This
+            is what checking an agent looks like", "Browse by outcome" over
+            "Begin with the job, not the protocol". Six of them, and a label
+            that appears on every block stops being read as a label at all —
+            it becomes texture, and it pushes the sentence that does the work
+            further down. The headings carry it alone.
+          */}
+          <h2 id="agent-spotlight-heading" className="font-[family-name:var(--font-serif)] text-2xl sm:text-3xl">Meet agents through their evidence.</h2>
           <p className="mt-2 text-sm text-[color:var(--text-muted)]">Preview what an agent does, what Pokter observed, and whether its terms are ready—without leaving this page.</p>
         </div>
         <Link href="/agents" className="text-[12px] font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2">Explore all {entries.length} agents →</Link>

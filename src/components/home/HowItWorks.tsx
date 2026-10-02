@@ -56,9 +56,6 @@ export function HowItWorks() {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex max-w-2xl flex-col gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-          How it works
-        </p>
         <h2 className="text-xl font-medium tracking-tight sm:text-2xl">
           Five steps, in the order that matters.
         </h2>
