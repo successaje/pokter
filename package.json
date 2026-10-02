@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@altananetwork/sdk": "^0.9.0",
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@tanstack/react-query": "^5.102.8",
     "clsx": "^2.1.1",
     "motion": "^13.1.1",

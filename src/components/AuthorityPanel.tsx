@@ -1,8 +1,12 @@
 import type { ScanAgentDetail } from '@/lib/scan/types';
+import { CopyableId } from '@/components/ui/CopyableId';
+import { shortAddress } from '@/lib/ui/format';
 
 interface Disclosure {
   label: string;
   value: string;
+  /** True when the value is an address, and should be shortened and copyable. */
+  address?: boolean;
   /** True when this item is something the user should weigh before delegating. */
   caution?: boolean;
 }
@@ -20,11 +24,13 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
     {
       label: 'Agent wallet',
       value: agent.agent_wallet ?? 'Not published',
+      address: Boolean(agent.agent_wallet),
       caution: !agent.agent_wallet,
     },
     {
       label: 'Owner',
       value: agent.owner_ens ?? agent.owner_address,
+      address: !agent.owner_ens && Boolean(agent.owner_address),
     },
     {
       label: 'Identity verified by registry',
@@ -56,12 +62,30 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
             className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 p-3.5"
           >
             <dt className="text-xs text-[color:var(--text-muted)]">{item.label}</dt>
-            <dd
-              className="tabular max-w-full break-all text-right text-[11px]"
-              style={{ color: item.caution ? 'var(--caution)' : 'var(--text)' }}
-            >
-              {item.value}
-            </dd>
+            {/*
+              Addresses shortened and copyable, like everywhere else.
+
+              These ran the full forty-two characters with break-all, so a
+              wallet wrapped across two lines of a narrow row and could only
+              be transcribed by hand — in the one panel whose job is letting
+              somebody check what they are about to authorise. The header has
+              shortened and copied addresses all along.
+            */}
+            {item.address ? (
+              <CopyableId
+                value={item.value}
+                label={item.label}
+                display={shortAddress(item.value)}
+                className="text-[11px]"
+              />
+            ) : (
+              <dd
+                className="tabular max-w-full text-right text-[11px] [overflow-wrap:anywhere]"
+                style={{ color: item.caution ? 'var(--caution)' : 'var(--text)' }}
+              >
+                {item.value}
+              </dd>
+            )}
           </div>
         ))}
       </dl>

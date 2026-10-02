@@ -255,12 +255,26 @@ export function AgentCard({
           two, which is most of the height difference.
         */}
         <div className="flex flex-col gap-2 border-t border-[color:var(--border)] px-3 py-2.5">
-          {/* Same cut as the desktop footer: the address was never the
-              reason anyone picked one of these. */}
-          <p className="tabular min-w-0 truncate text-[11px] text-[color:var(--text-faint)]">
+          {/*
+            The evidence line goes where the evidence is.
+
+            On desktop this sits inside the card's link, so it opens the
+            agent. Here the footer is outside that link — it has to be, since
+            it holds the hire action and a link cannot nest — which left the
+            one line a reader taps to ask "how do you know that?" doing
+            nothing at all. Same words, two behaviours, depending on screen
+            width.
+
+            Same cut as the desktop footer besides: the address was never the
+            reason anyone picked one of these.
+          */}
+          <Link
+            href={href}
+            className="tabular min-w-0 truncate text-[11px] text-[color:var(--text-faint)] underline decoration-dotted decoration-[color:var(--border-strong)] underline-offset-2"
+          >
             {availability}
             {attestations ? ` · ${attestations}` : ''}
-          </p>
+          </Link>
           {delivery && (
             <p
               className={
