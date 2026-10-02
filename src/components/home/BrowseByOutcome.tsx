@@ -81,10 +81,7 @@ export function BrowseByOutcome({ entries }: { entries: Entry[] }) {
   return (
     <section className="flex flex-col gap-5" aria-labelledby="browse-outcome-heading">
       <div className="max-w-2xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--brand)]">
-          Browse by outcome
-        </p>
-        <h2 id="browse-outcome-heading" className="mt-1 font-[family-name:var(--font-serif)] text-2xl sm:text-3xl">
+        <h2 id="browse-outcome-heading" className="font-[family-name:var(--font-serif)] text-2xl sm:text-3xl">
           Begin with the job, not the protocol.
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-muted)]">
