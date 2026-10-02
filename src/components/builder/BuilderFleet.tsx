@@ -18,6 +18,18 @@ export interface BuilderFleetAgent {
   attestations: number;
   activeJobs: number;
   completedJobs: number;
+  /** Campaign adoption, read from chain. Null when it could not be read. */
+  adoption: {
+    independentWallets: number;
+    independentTarget: number;
+    hiresMet: boolean;
+    actions: number;
+    actionsTarget: number;
+    activeDays: number;
+    daysTarget: number;
+    selfFunded: number;
+    actionsBlockedReason: string | null;
+  } | null;
 }
 
 type Filter = 'all' | 'attention' | 'work';
@@ -103,6 +115,64 @@ export function BuilderFleet({ agents }: { agents: BuilderFleetAgent[] }) {
                   <div><dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Attestations</dt><dd className="mt-1 text-[11px] font-medium">{agent.attestations}</dd></div>
                   <div><dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Completed jobs</dt><dd className="mt-1 text-[11px] font-medium">{agent.completedJobs}</dd></div>
                 </dl>
+
+                {/*
+                  The campaign's adoption bar, counted rather than asserted.
+
+                  The Set and Earn page showed "0 / 3 independently verified"
+                  and "0 / 5 actions" as fixed text — a claim about a
+                  measurement nobody had taken, and wrong for any builder who
+                  had in fact been hired. These are read from the escrow
+                  contract, because the job index records which agent was
+                  chosen but not which wallet paid.
+
+                  Hires and actions are shown apart because on Pokter they
+                  genuinely come apart: an agent registered off the escrow
+                  chain is hired, and Pokter's seller performs the delivery,
+                  so the hire is real and the action is not the agent's. A
+                  single combined score would hide the one fact a builder
+                  most needs.
+                */}
+                {agent.adoption && (
+                  <div className="mt-4 flex flex-col gap-2 border-t border-[color:var(--border)] pt-4">
+                    <p className="text-[12px] font-medium">Campaign adoption</p>
+                    <dl className="grid grid-cols-3 gap-2">
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Independent wallets</dt>
+                        <dd className={cn('tabular mt-1 text-[12px] font-medium', agent.adoption.hiresMet ? 'text-[color:var(--positive)]' : 'text-[color:var(--text)]')}>
+                          {`${agent.adoption.independentWallets} / ${agent.adoption.independentTarget}`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Agent actions</dt>
+                        <dd className="tabular mt-1 text-[12px] font-medium">
+                          {`${agent.adoption.actions} / ${agent.adoption.actionsTarget}`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Separate days</dt>
+                        <dd className="tabular mt-1 text-[12px] font-medium">
+                          {`${agent.adoption.activeDays} / ${agent.adoption.daysTarget}`}
+                        </dd>
+                      </div>
+                    </dl>
+                    {agent.adoption.actionsBlockedReason && (
+                      <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
+                        {agent.adoption.actionsBlockedReason}
+                      </p>
+                    )}
+                    {agent.adoption.selfFunded > 0 && (
+                      <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                        {`${agent.adoption.selfFunded} hire${agent.adoption.selfFunded === 1 ? '' : 's'} from your own wallet ${agent.adoption.selfFunded === 1 ? 'is' : 'are'} not counted.`}
+                      </p>
+                    )}
+                    <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
+                      Pokter can see hires made here and whether your agent
+                      signed the delivery. It cannot tell whether a buyer was
+                      funded by you — BNB checks that separately.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-2.5 sm:px-5"><span className="text-[12px] text-[color:var(--text-muted)]">Identity {agent.chainId}:{agent.tokenId}</span><Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="text-[12px] font-medium text-[color:var(--brand-strong)]">View public page ↗</Link></div>
             </article>

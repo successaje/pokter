@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { formatUnits } from 'viem';
 
 import { BuilderFleet, type BuilderFleetAgent } from '@/components/builder/BuilderFleet';
+import { readAgentAdoption } from '@/lib/builder/adoption-server';
 import { BuilderJobInbox } from '@/components/builder/BuilderJobInbox';
 import { BuilderNotifications } from '@/components/builder/BuilderNotifications';
 import { BuilderSignOutButton } from '@/components/builder/BuilderSignOutButton';
@@ -41,7 +42,20 @@ export default async function BuilderDashboard() {
   const completedValue = completed.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   const since = thirtyDaysAgo();
   const probeStore = getProbeStore();
-  const operations: BuilderFleetAgent[] = agents.map((agent) => {
+  /*
+   * Adoption is read from chain, one lookup per completed job, so it is
+   * resolved in parallel across the fleet rather than inside the map. A
+   * builder with four agents should not wait four times over.
+   */
+  const adoptions = await Promise.all(
+    agents.map((agent) =>
+      readAgentAdoption(agent.chain_id, agent.token_id, [owner]).catch(
+        () => null,
+      ),
+    ),
+  );
+
+  const operations: BuilderFleetAgent[] = agents.map((agent, index) => {
     const record = buildTrackRecord(probeStore.historyFor(agent.chain_id, agent.token_id, since));
     const recent = record.windows.find((window) => window.label === '24h');
     const online = recent && recent.probes > 0 ? recent.answered > 0 : null;
@@ -62,6 +76,7 @@ export default async function BuilderDashboard() {
       probes24h: recent?.probes ?? 0,
       probes30d: record.totalProbes,
       attestations: agent.total_feedbacks,
+      adoption: adoptions[index],
       activeJobs: agentJobs.filter((job) => ['FUNDED', 'SUBMITTED'].includes(job.status)).length,
       completedJobs: agentJobs.filter((job) => job.status === 'COMPLETED').length,
     };
