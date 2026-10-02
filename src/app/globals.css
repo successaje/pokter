@@ -58,7 +58,21 @@
   --text: #fffefa;
   --text-secondary: #cfcabb;
   --text-muted: #a6a294;
-  --text-faint: #8e8a7e;
+  /*
+   * Lightened to clear WCAG AA on every surface it is used on.
+   *
+   * At #8e8a7e this measured 4.07:1 against --surface-raised and 4.52:1
+   * against --surface — failing, or scraping, the 4.5 needed for body text.
+   * It is used 269 times, overwhelmingly for the evidence this product asks
+   * people to read, which made the least legible text on the site the text
+   * the argument depends on.
+   *
+   * #9a9589 is the smallest change that passes everywhere (4.70 on raised,
+   * 6.03 on bg) while staying clearly dimmer than --text-muted, so the
+   * hierarchy between the two survives. The light theme already passed and
+   * is untouched.
+   */
+  --text-faint: #9a9589;
 
   /* Semantics: green healthy, amber caution, red failing, blue interactive */
   --positive: #3fb97f;

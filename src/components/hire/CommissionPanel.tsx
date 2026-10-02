@@ -172,6 +172,7 @@ function readClient() {
 export function CommissionPanel({
   agent,
   providers,
+  signedQuoteU = null,
   riskWarnings = [],
 }: {
   agent: {
@@ -182,6 +183,11 @@ export function CommissionPanel({
     wallet?: string | null;
   };
   providers: ProviderChoice[];
+  /**
+   * What this agent signed for its own work, in whole $U, when the quote is
+   * still current. Null when it has never named a price or the quote lapsed.
+   */
+  signedQuoteU?: number | null;
   riskWarnings?: string[];
 }) {
   const { locked, reason } = useCommitLock();
@@ -195,7 +201,17 @@ export function CommissionPanel({
     CommissionTaskTemplate['id'] | null
   >(taskTemplates[0].id);
   const [task, setTask] = useState(taskTemplates[0].task);
-  const [budget, setBudget] = useState(DEFAULT_BUDGET_U);
+  /*
+   * The agent's own price, when it has one.
+   *
+   * This defaulted to a flat 0.10 $U regardless of what the agent had
+   * signed, so an agent advertising 0.05 on its card arrived here asking for
+   * double — the buyer picked a price and was quietly charged another. The
+   * default is the quote where one exists; the preset buttons still let it
+   * be changed, because the budget is an offer and not every agent has
+   * named one.
+   */
+  const [budget, setBudget] = useState(signedQuoteU ?? DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [flowStep, setFlowStep] = useState<'configure' | 'review'>('configure');
 
@@ -231,6 +247,14 @@ export function CommissionPanel({
   );
 
   const provider = providers.find((p) => p.address === providerAddress);
+  /*
+   * True when the escrow recipient is somebody other than the agent whose
+   * evidence the buyer just read.
+   */
+  const substituted = Boolean(
+    provider && agent.wallet &&
+      provider.address.toLowerCase() !== agent.wallet.toLowerCase(),
+  );
   const commerceAddresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
   const authority = Number.isFinite(budget) && budget > 0
     ? commissionAuthority({
@@ -693,6 +717,38 @@ export function CommissionPanel({
 
             {flowStep === 'configure' ? (
               <div className="flex flex-col gap-6 p-4 sm:p-6">
+                {/*
+                  Who performs the work, said where the work is described.
+
+                  This was disclosed at the review step, under a row labelled
+                  "Advanced". By then the reader has chosen an agent on its
+                  track record and written a brief for it, and the one fact
+                  that makes that record irrelevant to the outcome arrives
+                  last. It is not an advanced setting; it is the subject of
+                  the transaction.
+
+                  It is also not an edge case. A registry agent counts as
+                  reachable only when its identity sits on the escrow chain,
+                  and identities are on 56 while escrow is on 97 — so today
+                  this is true of every hire, not a few.
+                */}
+                {substituted && (
+                  <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3.5">
+                    <p className="text-[12px] font-medium text-[color:var(--caution)]">
+                      {provider?.label ?? 'Another agent'} performs this job, not {agent.name}
+                    </p>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+                      {agent.name} is registered on BNB Chain and its runtime
+                      does not watch the testnet where this escrow lives, so
+                      Pokter&rsquo;s own agent carries out the brief using its
+                      method. Both are written into the job record.
+                    </p>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+                      Its measured track record describes {agent.name}, not
+                      this result.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <h2 className="font-[family-name:var(--font-serif)] text-xl sm:text-2xl">What should the agent deliver?</h2>
                   <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
@@ -837,7 +893,57 @@ export function CommissionPanel({
                       </button>
                     ))}
                   </div>
-                  {PAYMENT_VALUE_NOTE && <p className="text-[10px] text-[color:var(--text-faint)]">{PAYMENT_VALUE_NOTE}</p>}
+                  {/*
+                    How paying works, beside the first price.
+
+                    A buyer arrives holding USDT and is quoted in "$U", with
+                    "Test tokens — no real value" as a 10px footnote under a
+                    24px number. Nothing said what $U is, whether real money
+                    was at stake, or where to get any — so the most
+                    decision-relevant fact on the page was also the least
+                    visible, and the next step was unobtainable.
+                  */}
+                  {PAYMENT_VALUE_NOTE && (
+                    <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3">
+                      <p className="text-[12px] font-medium">
+                        {PAYMENT_VALUE_NOTE} — you spend nothing real
+                      </p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
+                        $U is the test currency this escrow settles in. It is
+                        not your USDT and cannot be bought; it is free.
+                        {FAUCETS?.paymentTokenBot && (
+                          <>
+                            {' '}Message{' '}
+                            <a
+                              href={FAUCETS.paymentTokenBot.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="font-medium text-[color:var(--info)] underline decoration-dotted"
+                            >
+                              {FAUCETS.paymentTokenBot.handle}
+                            </a>{' '}
+                            with &ldquo;{FAUCETS.paymentTokenBot.ask}&rdquo;
+                            and it sends you some.
+                          </>
+                        )}
+                      </p>
+                      {FAUCETS && (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                          You also need a little {NATIVE_SYMBOL} for gas, from
+                          the{' '}
+                          <a
+                            href={FAUCETS.native}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="underline decoration-dotted"
+                          >
+                            BNB testnet faucet
+                          </a>
+                          .
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/*

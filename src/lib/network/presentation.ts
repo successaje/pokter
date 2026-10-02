@@ -71,13 +71,31 @@ export function explorerAddressUrl(address: string): string {
  * tells someone their funds are free, which is the most direct way to have
  * them authorise real money believing it is play money.
  */
-export const FAUCETS: { native: string; paymentToken: string } | null =
-  IS_TESTNET
-    ? {
-        native: 'https://www.bnbchain.org/en/testnet-faucet',
-        paymentToken: 'https://united-coin-u.github.io/u-faucet/',
-      }
-    : null;
+/*
+ * Where testnet funds actually come from.
+ *
+ * The $U web faucet is unreliable in practice. BNB Chain's own support bot
+ * dispenses testnet $U on request and has been the dependable route, so it
+ * leads and the web faucet stays as a fallback. The bot takes a sentence
+ * rather than a form, which is why the phrasing is carried here: somebody
+ * told to "use the bot" and left to guess the wording is being sent to a
+ * dead end politely.
+ */
+export const FAUCETS: {
+  native: string;
+  paymentToken: string;
+  paymentTokenBot: { url: string; handle: string; ask: string } | null;
+} | null = IS_TESTNET
+  ? {
+      native: 'https://www.bnbchain.org/en/testnet-faucet',
+      paymentToken: 'https://united-coin-u.github.io/u-faucet/',
+      paymentTokenBot: {
+        url: 'https://t.me/bnbchain_official_bot',
+        handle: '@bnbchain_official_bot',
+        ask: 'I would like to get U to my wallet 0xYOUR_ADDRESS',
+      },
+    }
+  : null;
 
 /**
  * Fail loudly when the server and the browser disagree about the network.

@@ -2,6 +2,13 @@
 
 # dependencies
 /node_modules
+
+# The starter template is its own package; its install must never be
+# committed. Without this, an `add -A` from the repo root sweeps in 12,577
+# vendored files, which is how it happened once.
+templates/*/node_modules
+templates/*/package-lock.json
+templates/*/.vercel
 /.pnp
 .pnp.*
 .yarn/*

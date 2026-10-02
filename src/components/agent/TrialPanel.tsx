@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { formatUnits } from 'viem';
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 
@@ -142,25 +144,53 @@ export function TrialPanel({
         </p>
       )}
 
+      {/*
+        Neutral, because nothing was delivered.
+
+        This rendered as a green success panel headed "Agent accepted the
+        negotiation", which reads as "it worked" — and what came back is a
+        price and a signature. Green belongs to real task output; a quote is
+        the agent agreeing to be asked, not an answer to the question.
+      */}
       {result && (
-        <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-4">
+        <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-[12px] font-medium text-[color:var(--positive)]">
-              {accepted ? 'Agent accepted the negotiation' : 'Signed response received'}
+            <p className="text-[12px] font-medium">
+              {accepted
+                ? 'It answered and signed a price'
+                : 'Signed response received'}
             </p>
             <span className="mono text-[10px] text-[color:var(--text-muted)]">
               {result.latencyMs}ms · A2A
             </span>
           </div>
-          <p className="text-[11px] leading-relaxed text-[color:var(--positive)]">
-            EIP-191 signature verified against provider{' '}
-            <span className="mono">{shortAddress(result.verifiedSigner)}</span>.
+          <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            The signature checks out against the agent&rsquo;s registered
+            wallet{' '}
+            <span className="mono">{shortAddress(result.verifiedSigner)}</span>,
+            so the price is the agent&rsquo;s own. This proves it is reachable
+            and what it charges — not that it does the work well.
           </p>
           <dl className="grid gap-2 text-[11px] sm:grid-cols-2">
             {terms?.price != null && (
               <div>
-                <dt className="text-[color:var(--text-faint)]">Quoted raw price</dt>
-                <dd className="mono break-all">{String(terms.price)}</dd>
+                {/*
+                  Shown as money. This printed the raw 18-decimal integer —
+                  "50000000000000000" — next to the word price, which is a
+                  number no buyer can act on.
+                */}
+                <dt className="text-[color:var(--text-faint)]">Quoted price</dt>
+                <dd className="tabular">
+                  {(() => {
+                    try {
+                      return formatQuotedPrice(
+                        Number(formatUnits(BigInt(String(terms.price)), 18)),
+                      );
+                    } catch {
+                      return String(terms.price);
+                    }
+                  })()}
+                </dd>
               </div>
             )}
             {currency.startsWith('0x') && (

@@ -122,6 +122,18 @@ export default async function HirePage({
                 wallet: agent.agent_wallet,
               }}
               providers={providers}
+              /*
+               * The last price the agent signed, current or not.
+               *
+               * Quotes lapse fifteen minutes after a sweep captures them, so
+               * requiring a live one would mean the default almost never
+               * applied and the form would keep falling back to an unrelated
+               * flat budget — the behaviour being fixed. The card already
+               * shows this number; the two must agree, and the agent's own
+               * stale price is a better starting offer than a figure it
+               * never named.
+               */
+              signedQuoteU={dossier.quote ? Number(dossier.quote.priceU) : null}
               riskWarnings={riskWarnings}
             />
           </WalletGate>

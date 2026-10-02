@@ -29,33 +29,44 @@ export interface CategoryMeta {
   accent: string;
 }
 
+/*
+ * What a buyer gets, not what the strategy is called.
+ *
+ * These blurbs described agents that act: keeping weights on target, running
+ * a ladder, moving capital, watching a loan and acting before liquidation.
+ * Nothing hired here does any of that. Every task template ends "Do not
+ * execute transactions", and delegated execution is disabled outright, so
+ * what arrives is an assessment. A category that promises management and
+ * delivers a report is the exact gap this marketplace exists to expose in
+ * other people's agents.
+ */
 export const CATEGORIES: CategoryMeta[] = [
   {
     id: 'rebalancing',
     label: 'Rebalancing',
-    blurb: 'Keeps your portfolio at target weights as prices drift.',
+    blurb: 'Reports how far your weights have drifted, and what restoring them would take.',
     question: 'Would this have kept my allocation on target without overtrading?',
     accent: 'sky',
   },
   {
     id: 'grid-trading',
     label: 'Grid Trading',
-    blurb: 'Runs a buy-low/sell-high ladder inside a price range.',
+    blurb: 'Reports whether a buy-low/sell-high range still fits how the market is moving.',
     question: 'Does its range still match how this market is actually moving?',
     accent: 'violet',
   },
   {
     id: 'yield',
     label: 'Yield Optimisation',
-    blurb: 'Moves capital toward the best risk-adjusted yield available.',
+    blurb: 'Compares yield routes, net of gas and impermanent loss.',
     question: 'Is it chasing headline APY, or net of gas and impermanent loss?',
     accent: 'emerald',
   },
   {
     id: 'health-factor',
     label: 'Health Factor',
-    blurb: 'Watches loan positions and acts before liquidation.',
-    question: 'How early does it act, and has it ever been late?',
+    blurb: 'Reports a loan\'s health factor and how far it sits from liquidation.',
+    question: 'How close is the position, and whose numbers is that from?',
     accent: 'amber',
   },
 ];

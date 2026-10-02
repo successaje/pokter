@@ -8,7 +8,7 @@ import type { Verdict } from '@/lib/proof/engine';
 
 const EXAMPLES = [
   'Earn more yield on my USDT without risking the principal',
-  'Warn me before my lending position gets liquidated',
+  'How close is my lending position to liquidation',
   'Keep my BNB/USDT liquidity position inside its range',
 ] as const;
 

@@ -196,6 +196,13 @@ export interface AgentDossier {
   record: TrackRecord;
   /** The transparent evaluation shown on the detail page. */
   score: PokterScore;
+  /**
+   * The last price this agent signed for itself, and whether it still
+   * stands. The hire form needs it: without the agent's own price it fell
+   * back to a flat budget, so an agent advertising 0.05 was funded at 0.10.
+   */
+  quote: QuoteRecord | null;
+  quoteCurrent: boolean;
 }
 
 /** How far back the detail page reads accumulated history. */
@@ -239,6 +246,10 @@ export async function getDossier(
   const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
   const category = classify(agent);
 
+  const quote =
+    getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ??
+    null;
+
   return {
     agent,
     category,
@@ -247,6 +258,10 @@ export async function getDossier(
     live,
     record,
     score: computeScore({ agent, category, proof, attestations, record, live }),
+    quote,
+    quoteCurrent: Boolean(
+      quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
+    ),
   };
 }
 

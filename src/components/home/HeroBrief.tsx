@@ -19,10 +19,19 @@ import { useState } from 'react';
  * answer is a set of agents, the catalogue is the thing built to show a set of
  * agents, and duplicating it here would be a second worse one.
  */
+/*
+ * Phrased as what arrives, not what a buyer might wish for.
+ *
+ * "Warn me before my lending position gets liquidated" promised monitoring.
+ * Every agent behind that chip answers once, on demand, and nothing here
+ * watches a position or sends an alert — so the chip was writing a cheque
+ * the hire page could not cash, and the reader only found out at the
+ * funding screen.
+ */
 const OBJECTIVES = [
   { label: 'Earn on idle capital', brief: 'Put my idle capital to work earning yield' },
   { label: 'Trade to a plan', brief: 'Trade with a repeatable grid strategy rather than by impulse' },
-  { label: 'Avoid liquidation', brief: 'Warn me before my lending position gets liquidated' },
+  { label: 'Check liquidation risk', brief: 'How close is my lending position to liquidation' },
   { label: 'Stay in range', brief: 'Keep my portfolio weights and liquidity range where I intended' },
 ] as const;
 

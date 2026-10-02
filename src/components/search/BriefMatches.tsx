@@ -61,6 +61,20 @@ export function BriefMatches({
               />
             ))}
           </div>
+          {/*
+            Said before the choice, not at the funding screen.
+
+            A reader arriving from "how close is my position to liquidation"
+            reasonably expects something that keeps watching. Nothing here
+            does: each agent answers once, when asked, and none of them can
+            touch a wallet. Learning that two screens later is how someone
+            stops at the last step.
+          */}
+          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            These answer once, when you hire them, and return a written
+            assessment. None of them watches a position, sends alerts, or
+            executes a transaction.
+          </p>
           <p className="text-[11px] text-[color:var(--text-faint)]">
             Matched on measured evidence, with a signed price counted first.
             Everything indexed is below.
