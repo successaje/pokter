@@ -54,8 +54,29 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
   const getRegistrationSnapshot = useCallback(() => Boolean(walletAddress && window.localStorage.getItem(registrationKey(walletAddress)) === 'yes'), [walletAddress]);
   const registered = useSyncExternalStore(subscribeToRegistration, getRegistrationSnapshot, () => false);
   const hireComplete = progress.distinctAgents >= 3;
-  const visibleMilestones = Number(registered) + Math.min(progress.distinctAgents, 3) / 3 + (progress.pokterMarketplaceVerified ? 0.5 : 0);
-  const visiblePercent = Math.round((visibleMilestones / 5) * 100);
+  /*
+   * Out of what Pokter can actually see, not out of five.
+   *
+   * The denominator was 5, one per official task, but only three of the
+   * five produce any signal here and one of those is worth half — so the
+   * most a wallet could ever reach was 2.5 of 5. Somebody who registered,
+   * hired three agents and had them verified saw 50% and a half-empty bar,
+   * with nothing on the page explaining what the other half was waiting
+   * for. The bar was not measuring their progress, it was measuring
+   * Pokter's visibility, and reporting the shortfall as theirs.
+   *
+   * The denominator is now that ceiling, so full means "everything Pokter
+   * can verify is done". The caption already says this is not an
+   * eligibility score, and the task list below is where the rest lives.
+   */
+  const VISIBLE_CEILING = 1 + 1 + 0.5;
+  const visibleMilestones =
+    Number(registered) +
+    Math.min(progress.distinctAgents, 3) / 3 +
+    (progress.pokterMarketplaceVerified ? 0.5 : 0);
+  const visiblePercent = Math.round(
+    (Math.min(visibleMilestones, VISIBLE_CEILING) / VISIBLE_CEILING) * 100,
+  );
 
   const toggleRegistered = () => {
     if (!walletAddress) return;
@@ -76,7 +97,7 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
         <TaskRow hat="hiring" icon="2" title="Hire three different agents" body="Across at least two shortlisted marketplaces. Pokter can only verify hires made here." status={`${Math.min(progress.distinctAgents, 3)} / 3 agents · ${progress.pokterMarketplaceVerified ? '1' : '0'} / 2 marketplaces visible`} progress={{ value: progress.distinctAgents, target: 3 }} complete={hireComplete} action={<Link href="/discover" className={actionClass}>Browse agents →</Link>} />
         {!compact && <TaskRow hat="building" icon="3" title="Build and list one quality agent" body="Publish a post-announcement yield, grid, rebalancing or health-factor agent under ERC-8004." status="Builder evidence not yet verified" tone="caution" action={<Link href="/build" className={actionClass}>Go to builder →</Link>} />}
         {!compact && <TaskRow hat="building" icon="4" title="Prove independent use" body="Reach three completed hires from three independent wallets you do not own or fund." status="0 / 3 independently verified" progress={{ value: 0, target: 3 }} tone="info" action={<Link href="/builder" className={actionClass}>Builder activity →</Link>} />}
-        {!compact && <TaskRow hat="hiring" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="0 / 5 actions · 0 / 3 days verified" progress={{ value: 0, target: 5 }} tone="info" action={<Link href="/my-agents" className={actionClass}>View proof →</Link>} />}
+        {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="0 / 5 actions · 0 / 3 days verified" progress={{ value: 0, target: 5 }} tone="info" action={<Link href="/my-agents" className={actionClass}>View proof →</Link>} />}
       </ol></div>
       {!compact && <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-5 py-3 text-[9px] leading-4 text-[color:var(--text-faint)]">Registration is self-marked and stored only on this device. Other-marketplace hires and builder activity remain pending until Pokter can verify them. <a href={CAMPAIGN} target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--brand-strong)] hover:underline">Read the official rules ↗</a></div>}
     </>
