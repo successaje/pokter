@@ -1,6 +1,6 @@
 'use client';
 
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS, NATIVE_SYMBOL, chainLabel} from '@/lib/network/presentation';
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
@@ -72,7 +72,7 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
         <div>
           <h2 className="text-xs font-medium">Wallet readiness</h2>
           <p className="mono mt-0.5 text-[10px] text-[color:var(--text-faint)]">
-            {shortAddress(wallet.address)} · chain {WALLET_NETWORK.chainId}
+            {shortAddress(wallet.address)} · {chainLabel(WALLET_NETWORK.chainId)}
           </p>
         </div>
         <button

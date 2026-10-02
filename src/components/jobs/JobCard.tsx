@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { NATIVE_SYMBOL, chainLabel} from '@/lib/network/presentation';
 
 import { formatElapsed, shortAddress, shortHash } from '@/lib/ui/format';
 import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
@@ -397,7 +397,7 @@ export function JobCard({
           </dt>
           <dd className="mt-1 break-words text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
             {job.agentName}
-            {job.agentChainId && ` · chain ${job.agentChainId}`}
+            {job.agentChainId && ` · ${chainLabel(job.agentChainId)}`}
             {job.agentTokenId !== 'unknown' && ` · token #${job.agentTokenId}`}
           </dd>
         </div>

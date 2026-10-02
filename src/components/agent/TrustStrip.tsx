@@ -1,6 +1,7 @@
 import { plural } from '@/lib/ui/plural';
 import { ProvenanceTag } from '@/components/ui/ProvenanceTag';
 import type { AgentDossier } from '@/lib/marketplace';
+import { chainLabel } from '@/lib/network/presentation';
 import {
   publishedEvidenceLine,
   summarisePublishedEvidence,
@@ -35,7 +36,7 @@ export function TrustStrip({ dossier }: { dossier: AgentDossier }) {
     {
       label: 'Identity',
       value: 'ERC-8004',
-      sub: `#${agent.token_id} · chain ${agent.chain_id}`,
+      sub: `#${agent.token_id} · ${chainLabel(agent.chain_id)}`,
       tag: (
         <ProvenanceTag
           kind="onchain"

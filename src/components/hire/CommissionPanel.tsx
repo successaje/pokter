@@ -6,8 +6,7 @@ import {
   FAUCETS,
   NATIVE_SYMBOL,
   NETWORK_LABEL,
-  PAYMENT_VALUE_NOTE,
-} from '@/lib/network/presentation';
+  PAYMENT_VALUE_NOTE, chainLabel} from '@/lib/network/presentation';
 import {
   buildSwapCalls,
   quoteBnbForPaymentToken,
@@ -1317,7 +1316,7 @@ export function CommissionPanel({
                 ERC-8004 identity
               </dt>
               <dd className="mt-1 break-words text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
-                {agent.name} · chain {agent.chainId} · token #{agent.tokenId}
+                {agent.name} · {chainLabel(agent.chainId)} · token #{agent.tokenId}
               </dd>
             </div>
             <div className="min-w-0">
