@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
 import { checkForNewHires } from '@/lib/alerts/hires';
+import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
@@ -111,9 +112,18 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const hireWatch = await checkForNewHires().catch(() => null);
 
+    /*
+     * Deliver anything whose notification never arrived. Runs after the
+     * reconciliation above, so the statuses it reads are the ones this sweep
+     * just refreshed, and caught like the watcher because a retry failing
+     * must not cost us the measurement the sweep already did.
+     */
+    const deliveryRetries = await retryStuckDeliveries().catch(() => null);
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       hireWatch,
+      deliveryRetries,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
       reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
