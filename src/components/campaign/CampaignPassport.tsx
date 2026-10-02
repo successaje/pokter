@@ -96,8 +96,20 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
         <TaskRow icon="1" title="Register your campaign wallet" body="Register before completing tasks, then use this same wallet throughout." status={registered ? 'Marked complete on this device' : walletAddress ? 'Confirmation needed' : 'Connect wallet to confirm'} complete={registered} tone="info" action={<button type="button" onClick={toggleRegistered} disabled={!walletAddress} className={`${actionClass} disabled:cursor-not-allowed disabled:opacity-45`}>{registered ? 'Undo' : 'I registered'}</button>} />
         <TaskRow hat="hiring" icon="2" title="Hire three different agents" body="Across at least two shortlisted marketplaces. Pokter can only verify hires made here." status={`${Math.min(progress.distinctAgents, 3)} / 3 agents · ${progress.pokterMarketplaceVerified ? '1' : '0'} / 2 marketplaces visible`} progress={{ value: progress.distinctAgents, target: 3 }} complete={hireComplete} action={<Link href="/discover" className={actionClass}>Browse agents →</Link>} />
         {!compact && <TaskRow hat="building" icon="3" title="Build and list one quality agent" body="Publish a post-announcement yield, grid, rebalancing or health-factor agent under ERC-8004." status="Builder evidence not yet verified" tone="caution" action={<Link href="/build" className={actionClass}>Go to builder →</Link>} />}
-        {!compact && <TaskRow hat="building" icon="4" title="Prove independent use" body="Reach three completed hires from three independent wallets you do not own or fund." status="0 / 3 independently verified" progress={{ value: 0, target: 3 }} tone="info" action={<Link href="/builder" className={actionClass}>Builder activity →</Link>} />}
-        {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="0 / 5 actions · 0 / 3 days verified" progress={{ value: 0, target: 5 }} tone="info" action={<Link href="/my-agents" className={actionClass}>View proof →</Link>} />}
+        {/*
+          Tasks 4 and 5 read "0 / 3 independently verified" and "0 / 5
+          actions · 0 / 3 days verified" as fixed text, with progress bars
+          pinned at zero. Those are claims about measurements this page had
+          not taken, and they were wrong for any builder who had in fact
+          been hired — the worst way to be wrong, because the reader has no
+          reason to doubt a number.
+
+          The counting happens on the builder page, where the owner is
+          known and the escrow contract can be read for who funded each
+          job. These two now point there instead of inventing a figure.
+        */}
+        {!compact && <TaskRow hat="building" icon="4" title="Prove independent use" body="Reach three completed hires from three independent wallets you do not own or fund." status="Counted on your builder page" tone="info" action={<Link href="/builder" className={actionClass}>Builder activity →</Link>} />}
+        {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="Counted on your builder page" tone="info" action={<Link href="/my-agents" className={actionClass}>View proof →</Link>} />}
       </ol></div>
       {!compact && <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-5 py-3 text-[9px] leading-4 text-[color:var(--text-faint)]">Registration is self-marked and stored only on this device. Other-marketplace hires and builder activity remain pending until Pokter can verify them. <a href={CAMPAIGN} target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--brand-strong)] hover:underline">Read the official rules ↗</a></div>}
     </>
