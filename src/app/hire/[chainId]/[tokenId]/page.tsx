@@ -90,11 +90,30 @@ export default async function HirePage({
             <EvidenceBadge verdict={proof.verdict} size="md" />
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--text-muted)]">
-          <span>{meta?.label ?? 'Unclassified'}</span>
-          <span aria-hidden>·</span>
-          <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1">Identity · {REGISTRY_NETWORK_LABEL}</span>
-          <span className="rounded-full border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] px-2.5 py-1 text-[color:var(--info)]">Commission · {NETWORK_LABEL}</span>
+        {/*
+          Two chains, said as a sentence instead of two chips.
+
+          These were bordered pills, one filled blue, sharing the visual
+          language of the tappable outcome chips elsewhere — so they looked
+          like controls, did nothing, and explained nothing. A reader saw
+          "Identity · BNB Chain" beside a header badge reading "BNB Testnet"
+          and had no way to learn that chain 56 is mainnet, that both are
+          correct, or why they differ.
+        */}
+        <div className="flex flex-col gap-1 text-[11px] text-[color:var(--text-muted)]">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>{meta?.label ?? 'Unclassified'}</span>
+            <span aria-hidden>·</span>
+            <span>Identity on {REGISTRY_NETWORK_LABEL}</span>
+            <span aria-hidden>·</span>
+            <span>Escrow on {NETWORK_LABEL}</span>
+          </div>
+          {REGISTRY_NETWORK_LABEL !== NETWORK_LABEL && (
+            <p className="max-w-xl leading-relaxed">
+              Two chains on purpose: the agent is registered on mainnet, while
+              the job and its money sit on testnet.
+            </p>
+          )}
         </div>
       </header>
 

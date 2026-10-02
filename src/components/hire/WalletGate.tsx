@@ -31,10 +31,14 @@ export function useCommitLock() {
  * committing to anything, so the panels now render for everyone and only the
  * button that signs is held back.
  *
- * Browsing stays public (§59). A passkey can sign its own Altana session. An
- * injected browser wallet is identity-only until Pokter has a verified signer
- * integration for it. Passkey wallets sign both session grants and escrow
- * funding on-device.
+ * Browsing stays public (§59). Either wallet funds an escrow: a passkey
+ * signs on-device, and an injected browser wallet signs the ordinary
+ * ERC-8183 calls itself. The older note here said browser wallets were
+ * identity-only, which stopped being true when the direct hire path landed.
+ *
+ * Only a session grant is passkey-bound, because it needs two signatures an
+ * injected wallet refuses — and sessions are paused anyway, so no surface
+ * currently asks for one.
  */
 export function WalletGate({
   action,
