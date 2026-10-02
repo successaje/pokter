@@ -31,6 +31,7 @@ const FILTER_GROUPS: { label: string; hint: string; options: string[] }[] = [
     hint: 'What has been observed about the agent',
     options: [
       'is:proven',
+      'is:reliable',
       'is:emerging',
       'is:observed',
       'is:unproven',

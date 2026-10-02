@@ -124,7 +124,14 @@ export async function supplyCensus(): Promise<SupplyCensus> {
       label: CATEGORY_BY_ID.get(c.id)?.label ?? c.id,
       count: all.filter((e) => e.listing.category === c.id).length,
     })),
-    byVerdict: (['proven', 'emerging', 'observed', 'unproven', 'failing'] as Verdict[]).map(
+    byVerdict: ([
+      'proven',
+      'reliable',
+      'emerging',
+      'observed',
+      'unproven',
+      'failing',
+    ] as Verdict[]).map(
       (verdict) => ({
         verdict,
         count: verdicts.filter((v) => v === verdict).length,

@@ -10,6 +10,7 @@ import { parseQuery, VERDICTS } from '../src/lib/search/query';
 import {
   FAILING_MAX_SCORE,
   PROVEN_MIN_PROBES,
+  PROVEN_MIN_SCORE,
   PROVEN_MIN_WINDOW_DAYS,
 } from '../src/lib/proof/engine';
 
@@ -53,9 +54,23 @@ test('below the coverage bar is observed', () => {
   assert.equal(verdictFor(agent(200, 200, PROVEN_MIN_WINDOW_DAYS - 0.1)), 'observed');
 });
 
-test('at the coverage bar is emerging', () => {
+test('at the coverage bar, answering everything, is reliable', () => {
   assert.equal(
     verdictFor(agent(PROVEN_MIN_PROBES, PROVEN_MIN_PROBES, PROVEN_MIN_WINDOW_DAYS)),
+    'reliable',
+  );
+});
+
+/*
+ * The card's half of the quality split. Without it the list signal returned
+ * `emerging` for two thirds of the catalogue, so a card printing "240 of 240
+ * probes" and one printing "238 of 290" carried the same badge.
+ */
+test('the card splits on rate at the same bar the engine does', () => {
+  assert.equal(verdictFor(agent(200, 200, 10)), 'reliable');
+  assert.equal(verdictFor(agent(200, Math.ceil(200 * PROVEN_MIN_SCORE), 10)), 'reliable');
+  assert.equal(
+    verdictFor(agent(200, Math.ceil(200 * PROVEN_MIN_SCORE) - 1, 10)),
     'emerging',
   );
 });
@@ -129,7 +144,7 @@ test('the card offers hire on the same verdicts the detail page does', () => {
   assert.equal(verdictFor(measuredThin), 'observed');
   assert.equal(offersDirectHire(measuredThin), true);
 
-  assert.equal(verdictFor(measuredWell), 'emerging');
+  assert.equal(verdictFor(measuredWell), 'reliable');
   assert.equal(offersDirectHire(measuredWell), true);
 
   assert.equal(verdictFor(dead), 'failing');

@@ -24,6 +24,7 @@ const BRAND = '#f3ba2f';
 
 const VERDICT_TONE: Record<string, { bg: string; fg: string }> = {
   proven: { bg: '#dff3e4', fg: '#1f6b3a' },
+  reliable: { bg: '#eef7f0', fg: '#1f6b3a' },
   emerging: { bg: '#fff4cf', fg: '#8a5e08' },
   observed: { bg: '#e6eefb', fg: '#28497f' },
   failing: { bg: '#fbe4e0', fg: '#8f2f1d' },

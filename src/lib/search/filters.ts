@@ -30,7 +30,8 @@ export const FILTER_GROUPS: FilterGroup[] = [
     hint: 'What has been observed about the agent',
     options: [
       { query: 'is:proven', label: 'Proven' },
-      { query: 'is:emerging', label: 'Emerging' },
+      { query: 'is:reliable', label: 'Reliable' },
+      { query: 'is:emerging', label: 'Intermittent' },
       { query: 'is:observed', label: 'Observed' },
       { query: 'is:unproven', label: 'Not measured' },
       { query: 'is:failing', label: 'Failing' },

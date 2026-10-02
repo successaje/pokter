@@ -32,6 +32,7 @@ export interface ParsedQuery {
 /** Exported so the public API can publish the enum it actually enforces. */
 export const VERDICTS: Verdict[] = [
   'proven',
+  'reliable',
   'emerging',
   'observed',
   'unproven',

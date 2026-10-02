@@ -45,7 +45,14 @@ const ROWS: Row[] = [
     // Ordered by how much Pokter knows, so "not measured" outranks "failing":
     // an unexamined agent is unknown, a failing one is known to be bad.
     rank: (e) =>
-      ({ proven: 4, emerging: 3, observed: 2, unproven: 1, failing: 0 })[
+      ({
+        proven: 5,
+        reliable: 4,
+        emerging: 3,
+        observed: 2,
+        unproven: 1,
+        failing: 0,
+      })[
         e.proof.verdict
       ],
   },

@@ -107,14 +107,17 @@ export function HireGate({
           {/*
             The two shortfalls say different things and had one sentence
             between them. "Real but thin" described the case that is now
-            `observed`; an `emerging` agent has been examined properly and is
+            `observed`; a `reliable` agent has been examined properly and is
             simply uncorroborated, which is a different thing to tell someone
-            about to spend money.
+            about to spend money — and an `emerging` one is examined and
+            patchy, which is a third thing again.
           */}
           {proof.verdict === 'observed' &&
             ' Its record is real but thin — treat it as a first trial, not a settled track record.'}
+          {proof.verdict === 'reliable' &&
+            ' It answers nearly every probe Pokter sends, but nobody independent has corroborated it.'}
           {proof.verdict === 'emerging' &&
-            ' It has been measured enough to judge, but nobody independent has corroborated it.'}
+            ' It misses some of the probes Pokter sends, and nobody independent has corroborated it.'}
         </p>
       </div>
 

@@ -121,7 +121,8 @@ export function Lifecycle() {
         Pokter&apos;s classifier rather than declared by you, and attestations
         come from third parties measuring you — Pokter&apos;s own probing never
         counts toward independence. An agent can do everything on this list
-        perfectly and still read Emerging until somebody else attests to it.
+        perfectly and still read Reliable rather than Proven until somebody
+        else attests to it.
       </p>
     </section>
   );
