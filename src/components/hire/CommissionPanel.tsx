@@ -1099,7 +1099,7 @@ export function CommissionPanel({
                     title={reason ?? undefined}
                     className="action-primary min-h-11 rounded-[var(--radius)] px-5 text-[13px] font-semibold"
                   >
-                    {state === 'hiring' ? (stage === 'swapping' ? 'Acquiring $U…' : 'Funding escrow…') : locked ? 'Connect passkey wallet to fund' : `Fund ${formatBudget(budget)} commission`}
+                    {state === 'hiring' ? (stage === 'swapping' ? 'Acquiring $U…' : 'Funding escrow…') : locked ? 'Connect a wallet to fund' : `Fund ${formatBudget(budget)} commission`}
                   </button>
                 </div>
               </div>

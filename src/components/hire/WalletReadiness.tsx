@@ -32,7 +32,8 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
       <section className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-4">
         <h2 className="text-xs font-medium">Wallet readiness</h2>
         <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
-          Create or recover a passkey wallet to check gas and escrow funding before signing.
+          Connect a wallet — a passkey on this device or your own browser
+          wallet — to check gas and escrow funding before signing.
         </p>
       </section>
     );

@@ -66,10 +66,19 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
         ))}
       </dl>
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
-        Altana session grants are signed by your passkey on this device; Pokter
-        never receives that key. The same passkey signs buyer-funded escrow;
-        browser wallets remain identity-only here.
+      {/*
+        One wallet concept, and only the one that exists.
+
+        This named three: a passkey, an Altana session grant, and browser
+        wallets as "identity-only". The last was simply untrue — a browser
+        wallet funds escrow directly, and has — and session grants are paused
+        and reachable from nowhere, so the paragraph explained a thing that
+        cannot happen alongside a thing that was wrong.
+      */}
+      <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        Escrow is funded by whichever wallet you connect: a passkey created on
+        this device, or your own browser wallet. Pokter holds neither key and
+        signs nothing on your behalf.
       </p>
     </div>
   );
