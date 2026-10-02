@@ -178,6 +178,24 @@ export default async function AgentPage({
    * the same source so the card cannot show one price and test another.
    */
   const priceU = dossier.quote ? Number(dossier.quote.priceU) : DEFAULT_BUDGET_U;
+
+  /*
+   * The publisher's declared source, if they published one.
+   *
+   * Lives in the registration's `services` because the ERC-8004 file has no
+   * field for it, and is matched case-insensitively since that name is a
+   * convention rather than a schema. Only https is linked: the registry is
+   * publisher-controlled text, and turning an arbitrary string into a link
+   * on a page about trust is not something to do loosely.
+   */
+  const repositoryUrl = (() => {
+    const services = agent.services ?? {};
+    const entry = Object.entries(services).find(
+      ([name]) => name.toLowerCase() === 'repository',
+    );
+    const value = entry?.[1]?.endpoint?.trim();
+    return value && /^https:\/\//i.test(value) ? value : null;
+  })();
   const priceCaption = askedPrice ? 'Price it asked for' : 'Starting from';
   const economicHistory = summariseEconomicHistory(
     getJobStore().byAgent(agent.chain_id, agent.token_id),
@@ -390,6 +408,26 @@ export default async function AgentPage({
                         </Link>
                       </span>
                     )}
+                      {/*
+                        Shown wherever a publisher provided one. The campaign
+                        requires a public repository, and an agent that moves
+                        no money but tells somebody what to do with theirs is
+                        worth being able to read.
+
+                        Read from the registration's services rather than
+                        from anything Pokter stores, so it is the publisher's
+                        own on-chain claim and checkable without us.
+                      */}
+                      {repositoryUrl && (
+                        <a
+                          href={repositoryUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
+                        >
+                          Source ↗
+                        </a>
+                      )}
                   </span>
                 </div>
 

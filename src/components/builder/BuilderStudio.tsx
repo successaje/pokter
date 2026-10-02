@@ -94,6 +94,8 @@ type Draft = {
   protocol: 'a2a' | 'mcp';
   endpoint: string;
   image: string;
+  /** Public source repository. Published on chain, never probed. */
+  repository: string;
 };
 
 const EMPTY_DRAFT: Draft = {
@@ -103,6 +105,7 @@ const EMPTY_DRAFT: Draft = {
   protocol: 'a2a',
   endpoint: '',
   image: '',
+  repository: '',
 };
 
 const QUALITY_EXAMPLE: Draft = {
@@ -112,6 +115,7 @@ const QUALITY_EXAMPLE: Draft = {
   protocol: 'a2a',
   endpoint: '',
   image: '',
+  repository: '',
 };
 
 const STARTER_KITS: Array<{
@@ -128,6 +132,7 @@ const STARTER_KITS: Array<{
       name: 'Portfolio Watch',
       description: 'Reviews a BNB Chain wallet, identifies asset concentration and protocol exposure, and returns a read-only portfolio report with sources, assumptions, and clearly stated data gaps.',
       category: 'rebalancing', protocol: 'a2a', endpoint: '', image: '',
+  repository: '',
     },
   },
   {
@@ -138,6 +143,7 @@ const STARTER_KITS: Array<{
       name: 'Position Guardian',
       description: 'Checks supported BNB Chain lending positions, explains health-factor changes, and returns a read-only risk report without moving funds or promising liquidation protection.',
       category: 'health-factor', protocol: 'a2a', endpoint: '', image: '',
+  repository: '',
     },
   },
   {
@@ -154,6 +160,7 @@ const STARTER_KITS: Array<{
       name: 'Allocation Guide',
       description: 'Compares a portfolio with user-defined allocation targets and returns a read-only rebalancing plan with proposed amounts, market assumptions, and explicit execution risks.',
       category: 'rebalancing', protocol: 'a2a', endpoint: '', image: '',
+  repository: '',
     },
   },
   {
@@ -164,6 +171,7 @@ const STARTER_KITS: Array<{
       name: 'Treasury Reporter',
       description: 'Produces a sourced BNB Chain treasury summary covering balances, recent movements, protocol exposure, and material changes while clearly separating observations from recommendations.',
       category: 'rebalancing', protocol: 'mcp', endpoint: '', image: '',
+  repository: '',
     },
   },
 ];
@@ -382,16 +390,56 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const visibleAiPrompt = useMemo(() => createAgentBuildPrompt(aiPromptContext === 'draft' ? aiPromptInput : {
     name: '', description: '', category: '', protocol: 'a2a', target: '', policy: '', output: '',
   }), [aiPromptContext, aiPromptInput]);
+  /*
+   * Only the problems worth stopping on. An empty field is not an error
+   * while the builder is still filling the form, and Pokter does not
+   * police which host a repository lives on — the campaign asks for it to
+   * be public, not for it to be GitHub.
+   */
+  const repositoryProblem = (() => {
+    const value = draft.repository.trim();
+    if (!value) return null;
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return 'That is not a complete URL. Include https://.';
+    }
+    if (url.protocol !== 'https:') return 'Use an https:// address.';
+    if (/^localhost$|^127\.|^0\.0\.0\.0$|\.local$/i.test(url.hostname)) {
+      return 'That address only resolves on your machine. Nobody else could open it.';
+    }
+    return null;
+  })();
+
   const trialCapability = selectTrialCapability(endpointReport?.capabilities ?? []);
   const registrationPreview = useMemo(() => ({
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: draft.name.trim(),
     description: draft.description.trim(),
     image: draft.image.trim(),
-    services: [{
-      name: draft.protocol.toUpperCase(),
-      endpoint: draft.endpoint.trim(),
-    }],
+    /*
+     * The repository rides along as a named service.
+     *
+     * The ERC-8004 registration schema is fixed — name, description, image,
+     * services, registrations — and has no field for source. The campaign
+     * requires the repository to be public, and a claim that lives only in
+     * Pokter's database is a claim nobody else can check, which is the
+     * opposite of the point.
+     *
+     * `services` is the one open-ended part of the file, and `probeTarget`
+     * reads only the `a2a` and `mcp` entries by name, so an extra entry is
+     * published, readable by any ERC-8004 consumer, and never called.
+     */
+    services: [
+      {
+        name: draft.protocol.toUpperCase(),
+        endpoint: draft.endpoint.trim(),
+      },
+      ...(draft.repository.trim()
+        ? [{ name: 'repository', endpoint: draft.repository.trim() }]
+        : []),
+    ],
     registrations: [],
     tags: draft.category ? [draft.category] : [],
     categories: draft.category ? [draft.category] : [],
@@ -780,6 +828,18 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <div className={cn('mx-auto mt-6 grid max-w-5xl gap-4 sm:grid-cols-2', (newStep === 0 || newStep === 3) && 'hidden')}>
               <label className={cn('flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} maxLength={80} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
               <label className={cn('min-w-0 flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[12px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
+              {/*
+                Asked here because the campaign asks for it, and because
+                somebody deciding whether to trust an agent that moves
+                nothing but tells them what to do has a fair claim on seeing
+                how it decides.
+
+                Published on chain as a named service rather than held in
+                Pokter's database: a repository claim only Pokter can see is
+                one nobody can check. It is never called -- the prober reads
+                the a2a and mcp entries by name and ignores the rest.
+              */}
+              <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[12px] font-medium">Public repository <span className="font-normal text-[color:var(--text-muted)]">· the campaign requires one</span></span><input value={draft.repository} maxLength={200} onChange={(event) => updateDraft('repository', event.target.value)} placeholder="https://github.com/you/your-agent" inputMode="url" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><span className={cn('text-[12px] leading-4', repositoryProblem ? 'text-[color:var(--caution)]' : 'text-[color:var(--text-muted)]')}>{repositoryProblem ?? 'Published with the agent so anyone can check it. Pokter never calls this URL.'}</span></label>
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={3} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[12px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
               {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Set the initial scope, operating policy and buyer deliverable. Your runtime must enforce these choices.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
               {(newStep === 1 || newStep === 2) && <section className={cn('rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4', newStep === 2 && 'sm:col-span-2')} aria-labelledby={`ai-build-title-${newStep}`}>
