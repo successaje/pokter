@@ -3,10 +3,34 @@ import Image from 'next/image';
 
 import { CampaignPassport } from '@/components/campaign/CampaignPassport';
 
+/*
+ * The card this page unfurls into when the link is shared.
+ *
+ * Without these it inherited the site-wide title and description, so a link
+ * to the campaign page previewed as the marketplace generally — the one
+ * moment somebody is deciding whether to click, spent on the wrong subject.
+ *
+ * `opengraph-image.tsx` beside this file draws the image; these are the
+ * words beside it. Both say campaign rather than catalogue.
+ */
 export const metadata: Metadata = {
   title: 'Set and Earn progress',
-  description: 'Track the BNB Chain Set and Earn tasks Pokter can verify, then complete the remaining official requirements.',
+  description:
+    'Hire and build AI agents on BNB Chain. Pokter is one of 9 marketplaces shortlisted from over 260 Build the Era entries — track the tasks it can verify, and see what remains.',
   alternates: { canonical: '/set-and-earn' },
+  openGraph: {
+    type: 'website',
+    title: 'Set and Earn — hire and build AI agents on BNB Chain',
+    description:
+      'Pokter is one of 9 shortlisted marketplaces. Track the campaign tasks Pokter can verify, then finish the official requirements. Closes 5 November, 12:00 UTC.',
+    url: '/set-and-earn',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Set and Earn — hire and build AI agents on BNB Chain',
+    description:
+      'Pokter is one of 9 shortlisted marketplaces. Track the campaign tasks Pokter can verify. Closes 5 November, 12:00 UTC.',
+  },
 };
 
 const CAMPAIGN = 'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
