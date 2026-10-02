@@ -78,10 +78,20 @@ function WorkspaceSwitcher({
   current: 'personal' | 'builder';
   onNavigate: () => void;
 }) {
+  /*
+   * "Workspace" is a word from enterprise software, and this menu is not
+   * that. It is the answer to one question — are you here to hire agents or
+   * to run the ones you built — and the label named the container instead of
+   * the choice.
+   *
+   * "Personal" also sat unexplained while "Builder" carried a line saying
+   * which address was verified, so the option a first-time reader is most
+   * likely to want was the one telling them least.
+   */
   return (
-    <section className="mt-3 border-y border-[color:var(--border)] py-3" aria-label="Workspace">
+    <section className="mt-3 border-y border-[color:var(--border)] py-3" aria-label="Switch view">
       <p className="px-1 text-[9px] font-medium uppercase tracking-[0.16em] text-[color:var(--text-faint)]">
-        Workspace
+        Switch view
       </p>
       <div className="mt-2 grid gap-1">
         <Link
@@ -95,8 +105,11 @@ function WorkspaceSwitcher({
           )}
         >
           <WorkspaceIcon />
-          <span className="text-[12px] font-medium">Personal</span>
-          {current === 'personal' && <span className="ml-auto text-[color:var(--positive)]" aria-label="Current workspace">✓</span>}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12px] font-medium">Hiring</span>
+            <span className="block truncate text-[9px] text-[color:var(--text-faint)]">Agents you have hired, and what they returned</span>
+          </span>
+          {current === 'personal' && <span className="text-[color:var(--positive)]" aria-label="Current view">✓</span>}
         </Link>
 
         {builderOwner ? (
@@ -112,10 +125,10 @@ function WorkspaceSwitcher({
           >
             <WorkspaceIcon builder />
             <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-medium">Builder</span>
+              <span className="block text-[12px] font-medium">Building</span>
               <span className="mono block truncate text-[9px] text-[color:var(--text-faint)]">Verified {shortAddress(builderOwner)}</span>
             </span>
-            {current === 'builder' && <span className="text-[color:var(--positive)]" aria-label="Current workspace">✓</span>}
+            {current === 'builder' && <span className="text-[color:var(--positive)]" aria-label="Current view">✓</span>}
           </Link>
         ) : builderSessionPending ? (
           <div className="flex items-center gap-3 rounded-[var(--radius)] px-2.5 py-2 text-[color:var(--text-muted)]">
