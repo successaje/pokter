@@ -1,5 +1,6 @@
 import { plural } from '@/lib/ui/plural';
 import type { TrackRecord } from '@/lib/history/record';
+import { buildDaySlots } from '@/lib/history/day-slots';
 
 /**
  * Daily availability across the window we actually watched.
@@ -29,21 +30,13 @@ export function ReliabilityChart({ record }: { record: TrackRecord }) {
    */
   if (observed.length < 2) return null;
 
-  const byDate = new Map(observed.map((d) => [d.date, d]));
-  const start = new Date(`${observed[0].date}T00:00:00Z`);
-  const end = new Date(`${observed[observed.length - 1].date}T00:00:00Z`);
-
-  const slots: { date: string; ratio: number | null; probes: number; answered: number }[] = [];
-  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) {
-    const date = new Date(t).toISOString().slice(0, 10);
-    const bucket = byDate.get(date);
-    slots.push({
-      date,
-      ratio: bucket?.ratio ?? null,
-      probes: bucket?.probes ?? 0,
-      answered: bucket?.answered ?? 0,
-    });
-  }
+  /*
+   * Shared with the probe grid rather than rebuilt here. The grid used to
+   * skip this step entirely and draw `record.days` straight through, so the
+   * two views of the same record disagreed about whether its days were
+   * consecutive.
+   */
+  const slots = buildDaySlots(record);
 
   const overall =
     record.totalProbes === 0
