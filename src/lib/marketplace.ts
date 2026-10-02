@@ -283,7 +283,15 @@ export async function getEcosystemStats(
 ): Promise<EcosystemStats> {
   const [page, stats] = await Promise.all([
     countAgents(chainId).catch(() => null),
-    Promise.resolve(getProbeStore().stats()),
+    /*
+     * Scoped to the same chain as the registry count beside it. These were
+     * already inconsistent — `registered` was per-chain and the measurement
+     * totals were every chain — which went unnoticed while only one chain
+     * was ever probed. Testnet probing makes that difference real, and the
+     * census sentence is "most of the registry has never answered", about
+     * one registry.
+     */
+    Promise.resolve(getProbeStore().stats(chainId)),
   ]);
 
   return {

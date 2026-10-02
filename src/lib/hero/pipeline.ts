@@ -6,6 +6,7 @@ import { getProbeStore } from '@/lib/history/store';
 import { getSessionStore } from '@/lib/altana/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { BSC_MAINNET } from '@/lib/scan/types';
 
 /**
  * The hero pipeline.
@@ -172,7 +173,12 @@ function recentEvents(
 
   const sessions = getSessionStore().all();
   const jobs = getJobStore().all();
-  const probeStats = getProbeStore().stats();
+  /*
+   * Mainnet only, like the figures beside it. This line sits on the landing
+   * page describing the registry Pokter lists from; testnet probes are a
+   * track record being built for agents nobody can hire yet.
+   */
+  const probeStats = getProbeStore().stats(BSC_MAINNET);
 
   // Agents holding up under repeated checking.
   const solid = agents

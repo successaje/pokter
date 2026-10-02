@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
+import { BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
@@ -71,6 +72,34 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const outcome = await runSweep();
+
+    /*
+     * Testnet, measured in parallel with mainnet and listed from neither.
+     *
+     * Every agent in the catalogue is registered on mainnet while escrow
+     * settles on testnet, so none of them can see a job exists and Pokter's
+     * own seller performs all of them. Agents registered on the escrow
+     * chain could deliver for themselves — but a marketplace cannot switch
+     * to them on the day it decides to, because the product is the track
+     * record and theirs would be empty.
+     *
+     * So the record starts accruing now, before any decision. Nothing is
+     * listed from it and no public figure counts it: `stats()` is scoped to
+     * one chain for exactly this reason.
+     *
+     * Shallower than the mainnet pass, deliberately. Testnet agents are far
+     * more likely to publish a reachable endpoint — 43 in a sample of 100
+     * against 7 on mainnet — so the same roster size costs several times
+     * the outbound calls and the whole sweep shares one 300s budget.
+     *
+     * Wrapped so it cannot fail the run. A measurement already taken must
+     * not be lost to an experiment running after it.
+     */
+    const testnetSweep = await runSweep({
+      chainId: BSC_TESTNET,
+      perCategory: 6,
+      registryDepth: 50,
+    }).catch(() => null);
     const notificationResults = await Promise.allSettled(
       subscribedJobs().map(async ({ chainId, jobId }) => {
         if (chainId !== ALTANA_NETWORK.chainId) return { attempted: 0, sent: 0 };
@@ -164,6 +193,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       hireWatch,
       deliveryRetries,
       stuckJobs,
+      testnetSweep,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
       reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
