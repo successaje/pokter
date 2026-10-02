@@ -194,8 +194,22 @@ export function CommissionPanel({
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
   const taskTemplates = commissionTaskTemplates(agent.category);
+  /*
+   * The default is a provider that can actually be asked to deliver, not
+   * merely one the escrow chain can reach.
+   *
+   * `reachable` only means the address lives on the escrow chain. It says
+   * nothing about whether anything will be asked to do the work, and
+   * `notifySeller` below refuses to ask a provider with no delivery
+   * endpoint. Defaulting on `reachable` meant that if the Pokter seller
+   * failed to resolve, the selection fell through to one that funds and
+   * strands.
+   */
   const [providerAddress, setProviderAddress] = useState(
-    providers.find((p) => p.reachable)?.address ?? providers[0]?.address ?? '',
+    providers.find((p) => p.reachable && p.automatedDelivery)?.address ??
+      providers.find((p) => p.reachable)?.address ??
+      providers[0]?.address ??
+      '',
   );
   const [selectedTemplate, setSelectedTemplate] = useState<
     CommissionTaskTemplate['id'] | null
@@ -251,6 +265,18 @@ export function CommissionPanel({
   );
 
   const provider = providers.find((p) => p.address === providerAddress);
+  /*
+   * The condition every gate below actually means.
+   *
+   * They all tested `reachable`, which only says the address is on the
+   * escrow chain. Funding needs more than that: something has to be
+   * reachable *and* answerable, or the escrow is paid into a job nobody is
+   * ever asked to do. One name, so a future gate cannot pick the weaker
+   * half by accident.
+   */
+  const providerCanDeliver = Boolean(
+    provider?.reachable && provider.automatedDelivery,
+  );
   /*
    * True when the escrow recipient is somebody other than the agent whose
    * evidence the buyer just read.
@@ -378,6 +404,21 @@ export function CommissionPanel({
     let acquired = 0n;
     try {
       /*
+       * Before either wallet signs anything.
+       *
+       * This check used to sit inside the passkey branch, below the external
+       * one, so a browser wallet could fund an escrow against a provider
+       * that cannot be asked to deliver — the exact failure the check
+       * exists to prevent, on the route most people use. The branches differ
+       * in who signs, not in what is safe to sign for.
+       */
+      if (!providerCanDeliver) {
+        throw new Error(
+          'Choose a provider that is live on the escrow chain and publishes a delivery endpoint.',
+        );
+      }
+
+      /*
        * Whichever wallet is selected, hired the same way from here.
        *
        * This was two flows in two components saying the same thing twice. The
@@ -438,9 +479,6 @@ export function CommissionPanel({
       }
 
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
-      if (!provider?.reachable) {
-        throw new Error('Choose a provider that is live on the escrow chain.');
-      }
       if (!Number.isFinite(budget) || budget < 0.01 || budget > 5) {
         throw new Error('The budget must be between 0.01 and 5 $U.');
       }
@@ -1021,30 +1059,64 @@ export function CommissionPanel({
                   </summary>
                   <div className="flex flex-col gap-2 border-t border-[color:var(--border)] p-3">
                     <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
-                    {providers.map((option) => (
+                    {/*
+                      A provider that cannot be asked to deliver cannot be
+                      chosen.
+
+                      "Verified testnet seller" was selectable: reachable on
+                      the escrow chain, so the Review and Hire buttons both
+                      enabled, escrow funded — and then `notifySeller` saw no
+                      delivery endpoint, returned early, and asked nobody for
+                      anything. The money sat until the job expired and the
+                      buyer reclaimed it, and the only notice came after
+                      signing. An option that takes funds and cannot complete
+                      is not an option.
+
+                      It stays visible and disabled rather than hidden. It is
+                      a real address with a real record, and quietly dropping
+                      it would leave a reader wondering where the third route
+                      went; stating that nothing can request delivery from it
+                      is the fact they need.
+                    */}
+                    {providers.map((option) => {
+                      const canDeliver = option.reachable && option.automatedDelivery;
+                      return (
                       <button
                         key={option.address}
                         type="button"
-                        onClick={() => setProviderAddress(option.address)}
-                        className={cn('flex flex-col gap-1 rounded-[var(--radius)] border p-3 text-left', providerAddress === option.address ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]' : 'border-[color:var(--border)]')}
+                        disabled={!canDeliver}
+                        aria-disabled={!canDeliver}
+                        onClick={() => canDeliver && setProviderAddress(option.address)}
+                        className={cn('flex flex-col gap-1 rounded-[var(--radius)] border p-3 text-left', providerAddress === option.address ? 'border-[color:var(--brand)] bg-[color:var(--brand-highlight-soft)]' : 'border-[color:var(--border)]', !canDeliver && 'cursor-not-allowed opacity-60')}
                       >
                         <span className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
                           {option.label}
-                          <span className={cn('rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide', option.reachable ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]')}>
-                            {option.automatedDelivery ? 'recommended' : option.reachable ? 'compatible' : 'different chain'}
+                          <span className={cn('rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide', canDeliver ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]')}>
+                            {canDeliver
+                              ? 'recommended'
+                              : option.reachable
+                                ? 'cannot be asked to deliver'
+                                : 'different chain'}
                           </span>
                         </span>
                         <span className="mono text-[10px] text-[color:var(--text-faint)]">{shortAddress(option.address)}</span>
                         <span className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">{option.note}</span>
+                        {!canDeliver && option.reachable && (
+                          <span className="text-[12px] leading-relaxed text-[color:var(--caution)]">
+                            Unavailable: it publishes no delivery endpoint, so
+                            funding this escrow would ask nobody for the work.
+                          </span>
+                        )}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </details>
 
                 <button
                   type="button"
                   onClick={() => setFlowStep('review')}
-                  disabled={!task.trim() || !Number.isFinite(budget) || budget < 0.01 || budget > 5 || !provider?.reachable}
+                  disabled={!task.trim() || !Number.isFinite(budget) || budget < 0.01 || budget > 5 || !providerCanDeliver}
                   className="action-primary flex min-h-11 w-full items-center justify-center rounded-[var(--radius)] px-5 text-[13px] font-semibold sm:w-fit sm:self-end"
                 >
                   Review commission
@@ -1140,7 +1212,7 @@ export function CommissionPanel({
                   <button
                     type="button"
                     onClick={commission}
-                    disabled={state === 'hiring' || locked || !providerAddress || !provider?.reachable || !riskAccepted || task.trim().length === 0}
+                    disabled={state === 'hiring' || locked || !providerAddress || !providerCanDeliver || !riskAccepted || task.trim().length === 0}
                     title={reason ?? undefined}
                     className="action-primary min-h-11 rounded-[var(--radius)] px-5 text-[13px] font-semibold"
                   >
