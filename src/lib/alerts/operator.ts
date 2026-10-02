@@ -1,5 +1,7 @@
 import 'server-only';
 
+export { alertChannels } from './channels';
+
 /**
  * Telling the operators something happened.
  *

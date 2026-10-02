@@ -7,7 +7,7 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
-import { sendOperatorAlert } from '@/lib/alerts/operator';
+import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { isTeamWallet } from '@/lib/alerts/team-wallets';
 
 export { TEAM_WALLETS, isTeamWallet } from '@/lib/alerts/team-wallets';
@@ -58,6 +58,16 @@ export interface HireWatchResult {
   sightings: HireSighting[];
   outsiders: number;
   alerted: boolean;
+  /*
+   * Which channels could have fired, read at the moment of the check.
+   *
+   * `alerted: false` is ambiguous on its own — it means either "nothing
+   * happened worth alerting about" or "something did and we had no way to
+   * tell you". Those are opposite situations, and the second has already
+   * happened unnoticed once. Reporting the channel state separates them in
+   * the sweep's own output.
+   */
+  channels: ReturnType<typeof alertChannels>;
   note?: string;
 }
 
@@ -95,6 +105,7 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
       sightings: [],
       outsiders: 0,
       alerted: false,
+      channels: alertChannels(),
       note: 'The job counter could not be read this run.',
     };
   }
@@ -108,6 +119,7 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
       sightings: [],
       outsiders: 0,
       alerted: false,
+      channels: alertChannels(),
       note: `First run. Watching from job #${counter.toString()} onward.`,
     };
   }
@@ -120,6 +132,7 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
       sightings: [],
       outsiders: 0,
       alerted: false,
+      channels: alertChannels(),
     };
   }
 
@@ -193,5 +206,6 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
     sightings,
     outsiders: outside.length,
     alerted,
+    channels: alertChannels(),
   };
 }
