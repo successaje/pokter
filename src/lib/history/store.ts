@@ -78,7 +78,16 @@ export interface ProbeStore {
   enrolledAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
   /** Aggregate counts for the ecosystem panel. */
-  stats(): StoreStats;
+  /**
+   * Measurement totals, optionally for one chain.
+   *
+   * The filter exists because Pokter probes more than it lists. Testnet
+   * agents are measured so a track record accrues before anything is
+   * listed from there, and folding those into the census would quietly
+   * restate what "agents monitored" means on a page whose argument is the
+   * size of the gap between registered and answering.
+   */
+  stats(chainId?: number): StoreStats;
   /** The most recent probes taken, newest first, across all agents. */
   recent(limit: number): ProbeRecord[];
 }
@@ -366,7 +375,7 @@ class SqliteProbeStore implements ProbeStore {
     return rows.map(rowToProbe);
   }
 
-  stats(): StoreStats {
+  stats(chainId?: number): StoreStats {
     const probes = this.db
       .prepare(
         `SELECT COUNT(*) AS taken,
@@ -374,9 +383,10 @@ class SqliteProbeStore implements ProbeStore {
                 COUNT(DISTINCT chain_id || ':' || token_id) AS agents,
                 COUNT(DISTINCT CASE WHEN ok = 1
                       THEN chain_id || ':' || token_id END) AS answering
-           FROM probes`,
+           FROM probes
+          WHERE (?1 IS NULL OR chain_id = ?1)`,
       )
-      .get() as unknown as {
+      .get(chainId ?? null) as unknown as {
       taken: number;
       answered: number;
       agents: number;
