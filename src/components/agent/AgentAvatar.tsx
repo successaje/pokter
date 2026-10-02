@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { avatarUrl } from '@/lib/ui/avatar-art';
 
 /**
  * Publisher-controlled images frequently come from expiring or restrictive
@@ -44,7 +45,7 @@ export function AgentAvatar({
   );
   const hue = seed % 360;
   const accentHue = (hue + 28) % 360;
-  const generatedSrc = `/api/avatars/${encodeURIComponent(`marketplace-${seed}`)}`;
+  const generatedSrc = avatarUrl(`marketplace-${seed}`);
 
   return (
     <div

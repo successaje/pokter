@@ -144,7 +144,7 @@ export function AgentPicker({
               <div key={label} className="min-w-0">
                 <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-[12px] font-semibold">{label}</h3><span className="text-[10px] text-[color:var(--text-faint)]">{group.length}</span></div>
                 <div className="flex flex-col gap-2">{visible.map(optionCard)}</div>
-                {group.length > 2 && <button type="button" onClick={() => setExpanded((current) => ({ ...current, [label]: !current[label] }))} className="mt-2 text-[11px] font-medium text-[color:var(--info)] hover:underline">{expanded[label] ? 'Show less' : `View ${group.length - 2} more`}</button>}
+                {group.length > 2 && <button type="button" onClick={() => setExpanded((current) => ({ ...current, [label]: !current[label] }))} className="mt-2 text-[11px] font-medium text-[color:var(--info)] hover:underline">{expanded[label] ? 'Show less' : 'Show more'}</button>}
               </div>
             );
           })}
