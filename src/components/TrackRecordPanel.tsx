@@ -2,6 +2,7 @@ import { StatusState } from '@/components/ui/States';
 import { ReliabilityChart } from '@/components/agent/ReliabilityChart';
 import { plural, pluralise } from '@/lib/ui/plural';
 import type { TrackRecord } from '@/lib/history/record';
+import { ProbeGrid } from '@/components/agent/ProbeGrid';
 
 function ratioColor(ratio: number | null): string {
   if (ratio === null) return 'var(--neutral)';
@@ -59,22 +60,9 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
       </dl>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-end gap-0.5" aria-hidden>
-          {record.days.map((day) => (
-            <div
-              key={day.date}
-              title={`${day.date}: ${day.answered}/${day.probes} answered`}
-              className="h-8 flex-1 rounded-sm"
-              style={{
-                minWidth: '6px',
-                background: ratioColor(day.ratio),
-                opacity: day.ratio === null ? 0.25 : 0.35 + (day.ratio ?? 0) * 0.65,
-              }}
-            />
-          ))}
-        </div>
+        <ProbeGrid record={record} />
         <p className="tabular text-[11px] text-[color:var(--text-faint)]">
-          {plural(record.days.length, 'day')} of coverage · {record.totalAnswered}/
+          Probed on {plural(record.days.length, 'day')} · {record.totalAnswered}/
           {record.totalProbes} probes answered · watched for{' '}
           {formatDuration(record.observedDays)}
         </p>
