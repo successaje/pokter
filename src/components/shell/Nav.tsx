@@ -265,7 +265,13 @@ export function MobileNav() {
         indicator without the old padding trick, which would have padded the
         inside of a rounded container and left the shadow sitting in the gap.
       */
-      className="fixed inset-x-3 z-30 mx-auto max-w-[520px] overflow-hidden rounded-[1.25rem] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]/92 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+      /*
+        Yields to the hire bar. An agent page sets data-hire-bar on <body>
+        once its sticky action is up; two fixed bars stacked at the foot of a
+        phone is more furniture than screen, and only one of them is about
+        the decision in front of the reader.
+      */
+      className="fixed inset-x-3 z-30 mx-auto max-w-[520px] overflow-hidden rounded-[1.25rem] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]/92 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden [body[data-hire-bar]_&]:hidden"
       style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       aria-label="Primary navigation"
     >

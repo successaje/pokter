@@ -64,6 +64,22 @@ export function MobileHireAction({
     };
   }, []);
 
+  /*
+   * Tell the navigation to stand down while this bar is up.
+   *
+   * Both are fixed to the bottom on a phone, and together they took 133px of
+   * a 900px viewport — two stacked bars, at the moment the reader is deciding
+   * whether to spend money. Only one of them is about that decision.
+   *
+   * Through an attribute on <body> rather than shared state, because the nav
+   * lives in the shell and this lives in a page: a context threaded between
+   * them for one boolean would be a larger change than the problem.
+   */
+  useEffect(() => {
+    document.body.toggleAttribute('data-hire-bar', showBar);
+    return () => document.body.removeAttribute('data-hire-bar');
+  }, [showBar]);
+
   const label = recommended && answeredNow ? 'Hire agent' : 'Review & hire';
   const ctaClass =
     recommended && answeredNow
