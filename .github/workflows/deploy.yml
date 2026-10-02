@@ -19,8 +19,8 @@ jobs:
   verify:
     name: Verify release
     runs-on: ubuntu-latest
-    # Raised from 20 with the build retry above: three attempts have to fit.
-    timeout-minutes: 35
+    # Two build attempts have to fit, plus lint, types, tests and audits.
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -49,25 +49,27 @@ jobs:
       - name: Run rate-limit checks
         run: npm run audit:rate-limit
 
-      # next/font resolves Newsreader and the body face over the network at
-      # build time, and that fetch has twice returned null mid-release and
-      # failed the whole deploy with "Cannot read properties of null" — on
-      # commits that built clean locally and clean on the retry. Nothing in
-      # the repository can make a third-party fetch reliable, so the release
-      # retries it rather than treating a dropped request as a broken build.
+      # The reason this retry existed is gone: the build used to resolve
+      # Newsreader and the body face over the network through
+      # next/font/google, and that fetch twice returned null mid-release and
+      # failed the deploy. The fonts are now committed and loaded with
+      # next/font/local, so the build reaches nowhere for them.
       #
-      # A real compile error still fails, three times and more slowly; the
-      # warning marks which runs needed a second go, so the flake stays
-      # visible rather than being quietly absorbed. The durable fix is to
-      # self-host the fonts and stop fetching at build time at all.
+      # One retry is kept rather than none, because a build step can still
+      # lose a registry read or a runner disk, and a second attempt costs
+      # minutes where a false red costs a release. It is two attempts now,
+      # not three — with the known flake removed there is far less to absorb,
+      # and a genuine compile error should fail quickly. The warning marks
+      # any run that needed the second go, so a new flake shows up as a
+      # pattern instead of disappearing into a green tick.
       - name: Build production application
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2; do
             if npm run build -- --webpack; then exit 0; fi
-            echo "::warning::Build attempt ${attempt} of 3 failed; retrying in 15s"
+            echo "::warning::Build attempt ${attempt} of 2 failed; retrying in 15s"
             sleep 15
           done
-          echo "::error::Build failed three times."
+          echo "::error::Build failed twice."
           exit 1
 
   deploy:
