@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
-import { DM_Mono, Manrope, Newsreader } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
@@ -16,25 +16,41 @@ import { siteUrl } from '@/lib/site';
  *
  * Until now the stylesheet asked for "Geist" and nothing ever loaded it, so
  * every page has been rendering in whatever sans the system had. These are
- * self-hosted by next/font, so they arrive without a network round trip to
- * Google and without the reflow that a late webfont causes.
+ * The files live in this repository and are loaded with next/font/local.
+ *
+ * They were next/font/google, which self-hosts the *result* but fetches the
+ * face from Google during the production build. That fetch failed twice in
+ * one week mid-release — "Cannot read properties of null" out of the font
+ * loader — on commits that built clean locally and clean on the retry, and
+ * one of those left a merge undeployed until somebody noticed by hand. A
+ * release that can fail because a third party had a bad second is not a
+ * release process, and no amount of retrying fixes the dependency itself.
+ *
+ * Newsreader and Manrope ship as variable fonts, so one file covers every
+ * weight in their range; DM Mono has no variable cut and takes one file per
+ * weight. Basic-latin subsets only, which is what the previous setup
+ * requested too: 172KB for all five.
+ *
+ * All three are SIL Open Font License 1.1 — see fonts/OFL.txt.
  *
  * Newsreader carries the display voice. It is the whole reason the design
  * reads as an editorial financial publication rather than a dashboard, and
  * it is used at heading sizes only — a serif at 11px in a dense row is worse
  * than the sans it replaced.
  */
-const display = Newsreader({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  style: ['normal', 'italic'],
+const display = localFont({
+  src: [
+    { path: './fonts/newsreader-latin.woff2', weight: '500 700', style: 'normal' },
+    { path: './fonts/newsreader-italic-latin.woff2', weight: '500 700', style: 'italic' },
+  ],
   variable: '--font-display',
   display: 'swap',
 });
 
-const sans = Manrope({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const sans = localFont({
+  src: [
+    { path: './fonts/manrope-latin.woff2', weight: '400 700', style: 'normal' },
+  ],
   variable: '--font-sans-family',
   display: 'swap',
 });
@@ -43,9 +59,11 @@ const sans = Manrope({
  * DM Mono stops at 500. The mock asks for 600 in places, which a browser can
  * only fake by smearing the glyphs, so those call sites use 500 instead.
  */
-const mono = DM_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const mono = localFont({
+  src: [
+    { path: './fonts/dm-mono-400-latin.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/dm-mono-500-latin.woff2', weight: '500', style: 'normal' },
+  ],
   variable: '--font-mono-family',
   display: 'swap',
 });
