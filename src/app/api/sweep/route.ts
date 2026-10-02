@@ -4,6 +4,7 @@ import { runSweep } from '@/lib/history/sweep';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
+import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
@@ -150,10 +151,19 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const deliveryRetries = await retryStuckDeliveries().catch(() => null);
 
+    /*
+     * After the retry, not instead of it. What matters is the jobs still
+     * unmoved once the automatic attempt has had its go — the retry trying
+     * and failing used to look identical to the retry succeeding, because
+     * neither said anything.
+     */
+    const stuckJobs = await alertStuckJobs().catch(() => null);
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
+      stuckJobs,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
       reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
