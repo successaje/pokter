@@ -122,16 +122,54 @@ export function AgentCard({
    * reading someone makes of a 100% badge should not be contradicted by the
    * job history one click later.
    */
+  /*
+   * `wanting` used to mean "completed nothing", so one completed job out of
+   * seven — a 14% completion rate — rendered in the same green as seven out
+   * of seven. Green is the colour this product uses for evidence in an
+   * agent's favour, and a record that fails six times in seven is not that.
+   *
+   * Anything short of every funded job completing is now a caution. The
+   * numbers were always shown; only the colour was arguing with them.
+   */
   const delivery =
     history && history.jobs > 0
       ? {
           text: `${history.completed} of ${history.jobs} funded ${history.jobs === 1 ? 'job' : 'jobs'} completed`,
-          wanting: history.completed === 0,
+          wanting: history.completed < history.jobs,
         }
       : null;
 
+  /*
+   * No per-card "Delivered by Pokter" badge, deliberately.
+   *
+   * The fact is real and a buyer does need it before choosing: every listed
+   * agent is registered on mainnet while escrow settles on testnet, so none
+   * of them can run the job and Pokter's own seller performs all of them.
+   * It was stated on the detail page and again on the hire form, both after
+   * the choice had been made.
+   *
+   * But it is true of 79 listings out of 79. A badge on every card is not a
+   * distinction, it is wallpaper — the same failure as a verdict tier that
+   * two thirds of the catalogue shared, and it would be read once and then
+   * never again. A universal fact belongs in the one place that speaks for
+   * the whole list, so the catalogue header says it instead, and the detail
+   * and hire pages keep their own notice where the money moves.
+   */
+
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
-  const description = agent.description?.trim() || 'No description published.';
+  /*
+   * Registry descriptions are written by operators and routinely carry
+   * OAuth callback URLs, GitHub links and NFT trait dumps. Clamped to one
+   * line, a card could spend its only sentence halfway through a URL.
+   *
+   * The links come out rather than the sentence: a URL is never the reason
+   * someone picks an agent off a list, and whatever prose sits around it
+   * usually is. The untouched text stays on the detail page under the
+   * publisher's own heading, which is where a claim belongs.
+   */
+  const description =
+    agent.description?.replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim() ||
+    'No description published.';
   const saveAgent = {
     chainId: agent.chain_id,
     tokenId: agent.token_id,
@@ -312,11 +350,12 @@ export function AgentCard({
             </p>
           )}
           <div className="flex items-center justify-between gap-2">
+            {/* The price is what the row is for, so it outweighs the button. */}
             <span
               className={cn(
-                'tabular min-w-0 truncate text-[12px]',
+                'tabular min-w-0 truncate',
                 hasPrice
-                  ? 'font-medium'
+                  ? 'text-sm font-semibold'
                   : 'text-[11px] text-[color:var(--text-faint)]',
               )}
             >
@@ -325,9 +364,9 @@ export function AgentCard({
             {hirable ? (
               <Link
                 href={hireHref}
-                className="action-primary flex shrink-0 items-center justify-center rounded-[var(--radius)] px-3.5 text-[12px] font-medium"
+                className="action-card flex shrink-0 items-center justify-center rounded-[var(--radius)] px-3.5 py-1.5 text-[12px]"
               >
-                {quoted ? 'Hire agent' : 'Offer a budget'}
+                {quoted ? 'Hire agent' : 'Hire · set a budget'}
               </Link>
             ) : (
               <span className="text-[11px] text-[color:var(--text-faint)]">
@@ -388,8 +427,15 @@ export function AgentCard({
           </div>
 
           {/* Status has its own wrapping row. It must never compete with the
-              identity or the absolute save control for horizontal space. */}
+              identity or the absolute save control for horizontal space.
+
+              Same order as the phone layout: the record, then who delivers,
+              then today. This row had the live state first, so the desktop
+              card still read "Not answering · Reliable" after the phone one
+              had been fixed — the two layouts disagreeing about the same
+              agent is the fault this card has had to be corrected for before. */}
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <EvidenceBadge verdict={verdict} />
             {downRecently && (
               <span
                 title="Answered no probes in the last 24 hours"
@@ -398,7 +444,6 @@ export function AgentCard({
                 Not answering today
               </span>
             )}
-            <EvidenceBadge verdict={verdict} />
           </div>
 
           <p className="line-clamp-2 break-words text-xs leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere]">
@@ -445,12 +490,22 @@ export function AgentCard({
                 </>
               )}
             </div>
+            {/*
+              The price outranks the line it shares.
+
+              It sat at the same 11px as the probe count in the muted
+              secondary ink, so the one number a buyer is comparing across a
+              grid was the quietest thing in the row — and the hire button
+              below it, now that it is outlined rather than gold, no longer
+              carries that weight either. A price only reads as a price when
+              it looks like one.
+            */}
             <dt className="sr-only">Price</dt>
             <dd
               className={cn(
                 'tabular shrink-0',
                 hasPrice
-                  ? 'font-medium text-[color:var(--text-secondary)]'
+                  ? 'text-sm font-semibold text-[color:var(--text)]'
                   : 'text-[color:var(--text-faint)]',
               )}
             >
@@ -469,9 +524,9 @@ export function AgentCard({
           <div className="border-t border-[color:var(--border)] px-4 py-3">
             <Link
               href={hireHref}
-              className="action-primary flex w-full items-center justify-center rounded-[var(--radius)] px-3 py-2 text-[12px] font-medium"
+              className="action-card flex w-full items-center justify-center rounded-[var(--radius)] px-3 py-2 text-[12px]"
             >
-              {quoted ? 'Hire agent' : 'Offer a budget'}
+              {quoted ? 'Hire agent' : 'Hire · set a budget'}
             </Link>
           </div>
         )}
