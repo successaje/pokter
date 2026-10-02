@@ -161,7 +161,13 @@ export function AgentCard({
   const availability =
     record && record.totalProbes > 0
       ? `${Math.round((record.totalAnswered / record.totalProbes) * 100)}% of ${record.totalProbes} probes`
-      : 'Unprobed';
+      : /*
+         * "Unprobed" is a word about our instrumentation, in the slot a reader
+         * is scanning for how often the agent answers. The badge beside it
+         * already says Not measured; this says the same thing in the register
+         * of the row it sits in.
+         */
+        'Never called yet';
 
   /*
     FE-08. break-words alone let `mandaterebalance-agent` split as

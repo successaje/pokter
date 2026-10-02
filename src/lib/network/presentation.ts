@@ -37,6 +37,24 @@ export const REGISTRY_NETWORK_LABEL = 'BNB Chain';
 export const REGISTRY_CHAIN_ID = 56;
 
 /**
+ * A chain id, written the way a reader can act on.
+ *
+ * Badges and error messages printed the number: "chain 56", "chain 97". Only
+ * someone who already knows the ecosystem can tell from that whether their
+ * money is real, which is exactly backwards — the people who need the warning
+ * are the ones who cannot read it. The same two names already exist above for
+ * the active network; this maps any id, because a page can show a mainnet
+ * registry entry and a testnet escrow at once.
+ *
+ * An unknown id keeps its number rather than guessing a name.
+ */
+export function chainLabel(chainId: number): string {
+  if (chainId === 56) return 'BNB Chain';
+  if (chainId === 97) return 'BNB Testnet';
+  return `chain ${chainId}`;
+}
+
+/**
  * What the payment token is worth.
  *
  * `NATIVE_SYMBOL` already tells the truth by becoming tBNB on testnet, but

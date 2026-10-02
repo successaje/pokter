@@ -11,6 +11,7 @@ import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { TrackRecord } from '@/lib/history/record';
 import type { Listing } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import { chainLabel } from '@/lib/network/presentation';
 
 type Entry = { listing: Listing; record: TrackRecord };
 type Spotlight = 'recommended' | 'recent';
@@ -132,7 +133,7 @@ function AgentQuickView({ entry, onClose }: { entry: Entry; onClose: () => void 
           <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">{agent.description?.trim() || 'No description published.'}</p>
           <div className="mt-auto flex flex-wrap items-center gap-2">
             <EvidenceBadge verdict={verdict} />
-            <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">ERC-8004 · chain {agent.chain_id}</span>
+            <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">ERC-8004 · {chainLabel(agent.chain_id)}</span>
             {listing.attestationCount > 0 && <span className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)]">{listing.attestationCount} attestations</span>}
           </div>
         </div>
