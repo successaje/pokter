@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import type { DiagnosticCheck, DiagnosticReport } from '@/lib/diagnostic/checks';
+import { chainLabel } from '@/lib/network/presentation';
 
 function Mark({ status }: { status: DiagnosticCheck['status'] }) {
   const shared = 'mt-0.5 size-4 shrink-0 fill-none stroke-current';
@@ -127,7 +128,7 @@ export function DiagnosticForm() {
               {report.name ?? `Token #${report.tokenId}`}
             </h2>
             <p className="text-[11px] text-[color:var(--text-faint)]">
-              chain {report.chainId} · token #{report.tokenId} · observed{' '}
+              {chainLabel(report.chainId)} · token #{report.tokenId} · observed{' '}
               {new Date(report.observedAt).toISOString().replace('T', ' ').slice(0, 19)} UTC
             </p>
           </header>
