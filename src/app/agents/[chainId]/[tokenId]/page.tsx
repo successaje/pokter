@@ -297,9 +297,17 @@ export default async function AgentPage({
                     </span>
                   </span>
                   {/*
-                    Both of these are read here and then pasted somewhere
-                    else — an explorer, a support message — so both are
-                    copyable rather than something to select by hand.
+                    The identity is read here and pasted elsewhere — an
+                    explorer, a support message — so it stays copyable.
+
+                    The publisher is a link instead. An address you can copy
+                    answers "who published this?" with forty hex characters,
+                    which is not an answer; the profile behind it lists
+                    everything else they have published, which is the only
+                    cheap way to tell a publisher with a record from one that
+                    appeared this morning. Nothing is lost by not copying it
+                    here: the same address is in the trust table below and in
+                    the identity strip, both copyable.
                   */}
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                     <CopyableId
@@ -308,21 +316,15 @@ export default async function AgentPage({
                       display={`#${agent.token_id} · ${chainLabel(agent.chain_id)}`}
                     />
                     {agent.owner_address && (
-                      <CopyableId
-                        label="Owner wallet"
-                        value={agent.owner_address}
-                        display={`Publisher ${shortAddress(agent.owner_address)}`}
-                      />
+                      <Link
+                        href={`/builders/${agent.owner_address}`}
+                        className="font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
+                      >
+                        Publisher {shortAddress(agent.owner_address)} →
+                      </Link>
                     )}
                   </span>
                 </div>
-
-                {/*
-                  Pokter's answer first, the publisher's prose second.
-                  The four rows below are facts about every agent here; the
-                  description under them is whatever its operator wrote.
-                */}
-                <AgentSpec category={category} />
 
                 {/*
                   A short description is just a paragraph.
@@ -336,6 +338,14 @@ export default async function AgentPage({
                   control that was not needed, being wrong the other way hides
                   text. Two clamped lines hold well over this.
                 */}
+                {agent.description && (
+                  <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
+                    Publisher&apos;s description{' '}
+                    <span className="text-[color:var(--text-faint)]">
+                      · their words, unedited
+                    </span>
+                  </p>
+                )}
                 {agent.description && agent.description.length <= 110 && (
                   <p className="max-w-3xl break-words text-sm leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
                     {agent.description}
@@ -359,6 +369,26 @@ export default async function AgentPage({
                     </summary>
                   </details>
                 )}
+
+                {/*
+                  The description, then the specification.
+
+                  These were the other way round, on the argument that
+                  Pokter's own facts should outrank whatever an operator
+                  wrote about itself. The order is better this way: the first
+                  question a reader has is "what is this thing", and a table
+                  of needs, returns, turnaround and coverage answers that
+                  only once you already know roughly what you are looking at.
+                  The prose sets the scene and the table pins it down.
+
+                  The reason for the old order has not gone away, though — the
+                  text above is a claim and the rows below are not. That is
+                  now carried by an attribution line on each: the prose is
+                  labelled as the publisher's, and AgentSpec says what Pokter
+                  can state. Swapping the order without those two labels
+                  would have let the operator's marketing read as ours.
+                */}
+                <AgentSpec category={category} />
 
               </div>
             </div>
