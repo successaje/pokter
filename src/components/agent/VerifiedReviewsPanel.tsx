@@ -6,7 +6,7 @@ export function VerifiedReviewsPanel({ reviews }: { reviews: VerifiedReview[] })
   if (reviews.length === 0) return (
     <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-5">
       <p className="text-sm font-medium">No verified buyer reviews yet</p>
-      <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">A review appears only after an ERC-8183 job is completed and the on-chain buyer signs the review.</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">A review appears only after an ERC-8183 job is completed and the on-chain buyer signs the review.</p>
     </div>
   );
 

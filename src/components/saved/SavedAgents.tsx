@@ -39,7 +39,7 @@ export function SavedAgents() {
             <button type="button" onClick={markSavedAgentAlertsRead} className="text-[10px] underline decoration-dotted">Mark all read</button>
           </div>
           <ul className="mt-3 flex flex-col gap-2">
-            {alerts.filter((alert) => !alert.readAt).slice(0, 8).map((alert) => <li key={alert.id} className="text-[11px] leading-relaxed"><strong>{alert.title}</strong><span className="text-[color:var(--text-muted)]"> · {alert.body}</span></li>)}
+            {alerts.filter((alert) => !alert.readAt).slice(0, 8).map((alert) => <li key={alert.id} className="text-[12px] leading-relaxed"><strong>{alert.title}</strong><span className="text-[color:var(--text-muted)]"> · {alert.body}</span></li>)}
           </ul>
         </section>
       )}

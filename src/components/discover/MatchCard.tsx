@@ -62,7 +62,7 @@ export function MatchCard({
             >
               {listing.agent.name}
             </h3>
-            <p className="line-clamp-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            <p className="line-clamp-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
               {listing.agent.description ?? 'No description published.'}
             </p>
           </div>
@@ -96,7 +96,7 @@ export function MatchCard({
           {reasons.map((reason) => (
             <li
               key={reason}
-              className="flex gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]"
+              className="flex gap-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]"
             >
               <span aria-hidden className="text-[color:var(--positive)]">
                 ✓
@@ -112,7 +112,7 @@ export function MatchCard({
           {tradeoffs.map((tradeoff) => (
             <li
               key={tradeoff}
-              className="flex gap-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+              className="flex gap-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]"
             >
               <span aria-hidden className="text-[color:var(--caution)]">
                 ⚠

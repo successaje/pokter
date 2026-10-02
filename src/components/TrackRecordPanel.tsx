@@ -81,7 +81,7 @@ export function TrackRecordPanel({ record }: { record: TrackRecord }) {
       </div>
 
       {record.longestOutage && (
-        <p className="rounded-lg border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="rounded-lg border border-[color:var(--negative)]/30 bg-[color:var(--negative)]/5 p-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Longest observed outage: {record.longestOutage.probes} consecutive failed
           {pluralise(record.longestOutage.probes, 'probe')}, from {record.longestOutage.from.slice(0, 16).replace('T', ' ')} to{' '}
           {record.longestOutage.to.slice(0, 16).replace('T', ' ')} UTC. Average

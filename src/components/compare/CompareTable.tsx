@@ -183,7 +183,7 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
     <div className="flex flex-col gap-4">
       <section className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4">
         <h2 className="text-xs font-medium">What separates them</h2>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           <strong className="text-[color:var(--text)]">{mostEstablished.agent.name}</strong>{' '}
           has the strongest established record here with {mostEstablished.economicHistory.completed}{' '}
           completed {mostEstablished.economicHistory.completed === 1 ? 'job' : 'jobs'} and{' '}
@@ -194,7 +194,7 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
       {mixed && (
         /* §23. Category-specific scoring means cross-category totals are not
            like-for-like, and saying so is more useful than hiding the mixture. */
-        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[12px] leading-relaxed text-[color:var(--caution)]">
           These agents span {categories.size} categories. A health-factor monitor
           and a grid trader are judged on different things, so treat the shared
           rows — uptime, evidence, responsiveness — as the comparable ones.
@@ -251,7 +251,7 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                 {row.label}
               </h3>
               {row.hint && (
-                <p className="mt-0.5 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                <p className="mt-0.5 text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                   {row.hint}
                 </p>
               )}
@@ -372,7 +372,7 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                       {row.label}
                     </span>
                     {row.hint && (
-                      <span className="mt-0.5 block text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                         {row.hint}
                       </span>
                     )}

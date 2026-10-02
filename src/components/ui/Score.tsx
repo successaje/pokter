@@ -129,7 +129,7 @@ export function ScorePanel({
                   </div>
                 )}
 
-                <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                   {dimension.explanation}
                 </p>
 

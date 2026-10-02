@@ -70,7 +70,7 @@ export default async function MyAgentsPage({
         <PrivateActivityClient explorerBase={explorerBase} />
       </section>
 
-      <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Clearing browser storage removes this local index but does not change
         on-chain permissions or escrow. Reconnect the client wallet and import
         the job ID from your transaction receipt to recover its controls.{' '}

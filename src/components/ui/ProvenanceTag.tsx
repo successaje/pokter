@@ -93,7 +93,7 @@ export function ProvenanceTag({
           className="absolute right-0 top-full z-20 mt-2 w-[min(18rem,calc(100vw-2.5rem))] max-w-[calc(100vw-2.5rem)] rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-3 text-left shadow-xl"
         >
           {note && (
-            <span className="mb-2 block break-words text-[11px] leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
+            <span className="mb-2 block break-words text-[12px] leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
               {note}
             </span>
           )}

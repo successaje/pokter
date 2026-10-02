@@ -9,7 +9,7 @@ export function SetAndEarnNotice() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="size-2 shrink-0 rounded-full bg-[color:var(--brand)] shadow-[0_0_0_4px_var(--brand-highlight-soft)]" />
-          <p className="min-w-0 text-[10px] leading-4 text-[color:var(--text-secondary)] sm:text-[11px]">
+          <p className="min-w-0 text-[12px] leading-4 text-[color:var(--text-secondary)] sm:text-[12px]">
             <strong className="font-semibold text-[color:var(--text)]">Set and Earn is live.</strong>{' '}
             <span className="hidden sm:inline">Register first; testnet hires count. </span>
             <span className="text-[color:var(--text-muted)]">Ends 5 Nov · 12:00 UTC</span>

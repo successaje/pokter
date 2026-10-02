@@ -159,7 +159,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
             */}
             {openGroup === group.label && (
               <div className="absolute left-0 top-full z-30 mt-1.5 hidden w-64 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)] p-2 shadow-xl md:block">
-                <p className="px-1 pb-1.5 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                <p className="px-1 pb-1.5 text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                   {group.hint}
                 </p>
                 <div className="flex flex-col">
@@ -242,7 +242,7 @@ export function AgentSearch({ resultCount }: { resultCount: number }) {
       {parsed.unknown.length > 0 && (
         /* Never silently drop a term — a filter the user thinks is applied and
            is not is worse than an error. */
-        <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
           Ignored {parsed.unknown.map((t) => `"${t}"`).join(', ')} — not a
           recognised filter. Valid prefixes are is:, has: and tag:.
         </p>

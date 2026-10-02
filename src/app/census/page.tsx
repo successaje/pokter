@@ -169,7 +169,7 @@ export default async function CensusPage() {
         )}
       </section>
 
-      <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Counts move with every sweep. How each one is produced is in the{' '}
         <Link href="/methodology" className="underline decoration-dotted underline-offset-2">
           methodology

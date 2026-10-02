@@ -112,7 +112,7 @@ export function TrialPanel({
         hidden={!expanded}
         className="flex flex-col gap-4 border-t border-[color:var(--border)] p-5"
       >
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Sends a read-only A2A negotiation request. It creates no wallet
           permission, moves no funds and executes no strategy transaction.
         </p>
@@ -139,7 +139,7 @@ export function TrialPanel({
       </button>
 
       {error && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--negative)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3 text-[12px] leading-relaxed text-[color:var(--negative)]">
           {error}
         </p>
       )}
@@ -164,7 +164,7 @@ export function TrialPanel({
               {result.latencyMs}ms · A2A
             </span>
           </div>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             The signature checks out against the agent&rsquo;s registered
             wallet{' '}
             <span className="mono">{shortAddress(result.verifiedSigner)}</span>,
@@ -212,7 +212,7 @@ export function TrialPanel({
               </div>
             )}
           </dl>
-          <p className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
             {result.disclaimer}
           </p>
         </div>

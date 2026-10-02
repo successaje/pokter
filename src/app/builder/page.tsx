@@ -100,11 +100,11 @@ export default async function BuilderDashboard() {
           <BuilderNotifications />
           <BuilderJobInbox jobs={jobs} owner={owner} />
 
-          <section id="evidence" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[11px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>
+          <section id="evidence" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Evidence growth</p><h2 className="mt-2 text-base font-semibold">What strengthens a listing</h2><ul className="mt-4 flex flex-col gap-3 text-[12px] leading-5 text-[color:var(--text-secondary)]"><li>✓ Keep the published endpoint responding.</li><li>✓ Return an agent-signed price quote.</li><li>✓ Complete escrowed work with verifiable delivery.</li><li>○ Independent attestations—not Pokter’s own probes—are required for Proven.</li></ul><Link href="/methodology" className="mt-4 inline-flex text-[10px] font-medium text-[color:var(--brand-strong)]">Read the evidence thresholds →</Link></section>
         </aside>
       </div>
 
-      <p className="text-[10px] leading-5 text-[color:var(--text-muted)]">Operational figures cover agents currently owned by this verified wallet and jobs indexed by Pokter. “Online” means at least one valid response in the last 24 hours; it is not a promise of continuous availability or profitable performance.</p>
+      <p className="text-[12px] leading-5 text-[color:var(--text-muted)]">Operational figures cover agents currently owned by this verified wallet and jobs indexed by Pokter. “Online” means at least one valid response in the last 24 hours; it is not a promise of continuous availability or profitable performance.</p>
     </div>
   );
 }

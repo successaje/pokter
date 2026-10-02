@@ -249,7 +249,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
 
           <div className="flex max-w-xl flex-col gap-2 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
             <h4 className="text-sm font-medium">Recover an on-chain job</h4>
-            <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
               Enter its ERC-8183 job ID. Pokter will import it only when the
               active signing wallet is the job&apos;s on-chain client.
             </p>
@@ -273,7 +273,7 @@ export function PrivateActivity({ explorerBase }: { explorerBase: string }) {
               </button>
             </div>
             {importError && (
-              <p className="text-[11px] leading-relaxed text-[color:var(--negative)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--negative)]">
                 {importError}
               </p>
             )}

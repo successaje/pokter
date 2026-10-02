@@ -31,7 +31,7 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
     return (
       <section className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-4">
         <h2 className="text-xs font-medium">Wallet readiness</h2>
-        <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Connect a wallet — a passkey on this device or your own browser
           wallet — to check gas and escrow funding before signing.
         </p>
@@ -145,7 +145,7 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
         </div>
       </div>
 
-      <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Session authorization only needs {NATIVE_SYMBOL}. Commissioning also
         needs the selected $U budget.
       </p>

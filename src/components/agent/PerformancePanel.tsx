@@ -80,13 +80,13 @@ export function PerformancePanel({ record }: { record: TrackRecord }) {
         </p>
         <ul className="mt-2 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
           {UNAVAILABLE.map((item) => (
-            <li key={item.label} className="text-[11px] leading-relaxed">
+            <li key={item.label} className="text-[12px] leading-relaxed">
               <span className="text-[color:var(--text-muted)]">{item.label}</span>
               <span className="text-[color:var(--text-faint)]"> — {item.why}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+        <p className="mt-3 text-[12px] leading-relaxed text-[color:var(--text-faint)]">
           Pokter does not estimate these from availability. An agent that answers
           every probe can still trade badly, and presenting uptime as though it
           were performance would be the fabrication this product argues against.

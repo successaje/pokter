@@ -148,7 +148,7 @@ export function BriefForm() {
                 {OBJECTIVE_MARKS[option.id]}
               </span>
               <span className="text-sm font-semibold">{option.label}</span>
-              <span className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[color:var(--text-muted)] lg:line-clamp-none">
+              <span className="mt-1 line-clamp-3 text-[12px] leading-relaxed text-[color:var(--text-muted)] lg:line-clamp-none">
                 {option.blurb}
               </span>
             </button>
@@ -162,7 +162,7 @@ export function BriefForm() {
             <span className="mr-2 text-[color:var(--brand)]">02</span>
             Set your context
           </h2>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
             These choices change evidence thresholds and fit—not what Pokter can
             spend or move.
           </p>
@@ -206,7 +206,7 @@ export function BriefForm() {
                 </Choice>
               ))}
             </div>
-            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
               Used only to explain fit and limitations. Pokter does not read or
               control this capital.
             </p>
@@ -227,7 +227,7 @@ export function BriefForm() {
                 </Choice>
               ))}
             </div>
-            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
               {RISKS.find((option) => option.id === risk)?.blurb}
             </p>
           </fieldset>
@@ -267,7 +267,7 @@ export function BriefForm() {
                 days
               </span>
             </label>
-            <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+            <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
               Choose any window from 1 to 365 days. We weigh whether the
               recorded history is long enough for it.
             </p>
@@ -281,7 +281,7 @@ export function BriefForm() {
             <span className="mr-2 text-[color:var(--brand)]">03</span>
             Review evidence-ranked matches
           </h2>
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
             Pokter checks registry identity, endpoint reliability, evidence depth
             and fit—then shows what did not qualify.
           </p>

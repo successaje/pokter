@@ -29,7 +29,7 @@ export function Alternatives({
     return (
       <section className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border)] p-5">
         <h2 className="text-sm font-medium">No alternative to offer</h2>
-        <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="mt-1.5 max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Nothing else in {meta?.label ?? 'this category'} has answered a probe
           recently either. That is a fact about the category rather than a gap
           in the page — browsing{' '}
@@ -59,7 +59,7 @@ export function Alternatives({
         <h2 className="text-base font-medium tracking-tight">
           {meta?.label ?? 'Same category'} agents that have been answering
         </h2>
-        <p className="max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+        <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           Ranked by the share of probes each one answered. Read from the
           accumulated record rather than a fresh probe, so the honest claim is
           that they have been answering — not that they will answer the moment

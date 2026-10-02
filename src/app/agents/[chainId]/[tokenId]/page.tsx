@@ -448,7 +448,7 @@ export default async function AgentPage({
                         {knownDefects.map((defect) => (
                           <li
                             key={defect}
-                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]"
                           >
                             {defect}
                           </li>
@@ -554,14 +554,14 @@ export default async function AgentPage({
             </div>
 
             {(!proof.recommendedForHire || !answeredNow) && (
-              <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
                 {proof.recommendedForHire
                   ? 'Strong historical evidence, but the latest live capability check failed.'
                   : 'This agent requires explicit risk acceptance before it can be hired.'}
               </p>
             )}
 
-            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
               <svg viewBox="0 0 24 24" aria-hidden className="mt-px size-3.5 shrink-0 fill-none stroke-current" strokeWidth="1.8">
                 <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
               </svg>

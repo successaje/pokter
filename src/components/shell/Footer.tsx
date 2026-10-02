@@ -162,7 +162,7 @@ export function Footer() {
             </p>
           </div>
 
-          <p className="max-w-4xl text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+          <p className="max-w-4xl text-[12px] leading-relaxed text-[color:var(--text-faint)]">
             Pokter verifies identity, endpoint behavior and published evidence;
             it does not promise agent profitability. Escrow and cryptographic
             receipts reduce counterparty risk but do not remove market or

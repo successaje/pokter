@@ -181,7 +181,7 @@ async function Results({ brief }: { brief: Brief }) {
           {result.limitations.map((limitation) => (
             <li
               key={limitation}
-              className="text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+              className="text-[12px] leading-relaxed text-[color:var(--text-muted)]"
             >
               {limitation}
             </li>

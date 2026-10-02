@@ -137,7 +137,7 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
           <p className="tabular mt-2 text-3xl leading-none sm:text-4xl">
             {pct(cost.breakEvenApr)}
           </p>
-          <p className="mt-2 max-w-lg text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="mt-2 max-w-lg text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             The agent must improve your fee capture by at least this much, on an
             annualised basis, before hiring it leaves you better off. Below that,
             you are paying to lose money more efficiently.
@@ -186,7 +186,7 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
         </div>
 
         {cost.beyondTickRange && (
-          <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--caution)]">
+          <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[12px] leading-relaxed text-[color:var(--caution)]">
             At this size the swap would move beyond the liquidity sitting at the
             current tick, so the impact above is an <strong>underestimate</strong>.
             Crossing a tick usually moves into thinner liquidity. We flag it
@@ -194,7 +194,7 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
           </p>
         )}
 
-        <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
           Costs are computed from live pool state. The benefit is not computed,
           because no agent publishes realised returns and nothing on-chain
           attributes fee capture to a rebalance decision — which is why this

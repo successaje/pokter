@@ -11,7 +11,7 @@ export function EconomicHistoryPanel({ history }: { history: AgentEconomicHistor
     return (
       <div className="rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-5">
         <p className="text-sm font-medium">No attributed paid work yet</p>
-        <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="mt-1.5 max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Pokter has not indexed a funded ERC-8183 job whose immutable envelope
           names this ERC-8004 identity. This means no verified marketplace history,
           not zero work everywhere else.
@@ -64,7 +64,7 @@ export function EconomicHistoryPanel({ history }: { history: AgentEconomicHistor
         </ul>
       </div>
 
-      <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Coverage: Pokter-indexed ERC-8183 jobs only. Statuses are last-read chain
         states; this is not a claim about work performed outside Pokter.
         {history.latestCheckedAt ? ` Latest status check: ${new Date(history.latestCheckedAt).toLocaleString()}.` : ''}

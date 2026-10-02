@@ -60,7 +60,7 @@ export function WhyNot({ rejected }: { rejected: Rejection[] }) {
               >
                 {listing.agent.name}
               </span>
-              <span className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <span className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 {reason}
               </span>
             </li>

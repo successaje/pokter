@@ -73,7 +73,7 @@ function DeliveryComposer({ job, account }: { job: HiredJob; account: `0x${strin
   return (
     <div className="mt-3 space-y-2">
       <label className="block text-[9px] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]" htmlFor={`delivery-${job.jobId}`}>Deliverable</label>
-      <textarea id={`delivery-${job.jobId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={20_000} rows={4} placeholder="Give the buyer the completed result, relevant links, assumptions and limitations." className="w-full resize-y rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2.5 text-[11px] leading-5 outline-none focus:border-[color:var(--brand)]" />
+      <textarea id={`delivery-${job.jobId}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={20_000} rows={4} placeholder="Give the buyer the completed result, relevant links, assumptions and limitations." className="w-full resize-y rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2.5 text-[12px] leading-5 outline-none focus:border-[color:var(--brand)]" />
       <div className="flex items-center justify-between gap-3"><span className="text-[8px] text-[color:var(--text-faint)]">{content.length.toLocaleString()} / 20,000</span><button type="button" onClick={deliver} disabled={content.trim().length < 3 || status !== 'idle'} className="rounded-[var(--radius)] bg-[color:var(--brand)] px-3 py-2 text-[10px] font-semibold text-[color:var(--brand-ink)] disabled:cursor-not-allowed disabled:opacity-45">{status === 'authorizing' ? 'Authorize in wallet…' : status === 'submitting' ? 'Submit onchain…' : 'Review and submit'}</button></div>
       {error && <p role="alert" className="rounded-[var(--radius)] bg-[color:var(--negative-dim)] px-3 py-2 text-[9px] leading-4 text-[color:var(--negative)]">{error}</p>}
       <p className="text-[8px] leading-4 text-[color:var(--text-faint)]">Pokter stores the exact manifest bytes first. Your provider wallet then commits their hash and public URL to escrow.</p>
@@ -98,7 +98,7 @@ export function BuilderJobInbox({ jobs, owner }: { jobs: HiredJob[]; owner: stri
         <div>
           <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Work queue</p>
           <h2 className="mt-2 text-base font-semibold">Agent commissions</h2>
-          <p className="mt-1 text-[10px] leading-4 text-[color:var(--text-muted)]">Funded work first, followed by deliveries awaiting buyer review.</p>
+          <p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Funded work first, followed by deliveries awaiting buyer review.</p>
         </div>
         {funded.length > 0 && <span className="shrink-0 rounded-full bg-[color:var(--caution-dim)] px-2.5 py-1 text-[10px] font-medium text-[color:var(--caution)]">{funded.length} to deliver</span>}
       </div>

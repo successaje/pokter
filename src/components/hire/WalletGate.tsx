@@ -90,7 +90,7 @@ export function WalletGate({
               <p className="text-[12px] font-medium">
                 Everything below is yours to read before you connect anything.
               </p>
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 <>
                   Discovery, evidence and this permission review stay public.
                   Use <span className="font-medium">Connect wallet</span> in the

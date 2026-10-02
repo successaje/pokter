@@ -70,7 +70,7 @@ export function BriefMatches({
             touch a wallet. Learning that two screens later is how someone
             stops at the last step.
           */}
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
             These answer once, when you hire them, and return a written
             assessment. None of them watches a position, sends alerts, or
             executes a transaction.

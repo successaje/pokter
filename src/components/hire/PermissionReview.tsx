@@ -44,7 +44,7 @@ export function PermissionReview({
         <h3 className="text-base font-medium text-[color:var(--caution)]">
           Delegated access is paused
         </h3>
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           {summary.delegationBlockedReason} Nothing below can be granted right
           now. You can still commission escrowed work in step 2, which pays for
           a single job and never touches your wallet&apos;s standing authority.
@@ -69,12 +69,12 @@ export function PermissionReview({
               Standing authority
             </p>
             {summary.readOnly ? (
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 None needed. This task monitors and reports without wallet
                 authority.
               </p>
             ) : (
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 None granted. Commissioning creates one escrowed job; it does
                 not authorize the agent to call from your wallet.
               </p>
@@ -110,7 +110,7 @@ export function PermissionReview({
                         {contract.methods.length === 1 ? 'call' : 'calls'}
                       </span>
                     </span>
-                    <span className="pl-5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                    <span className="pl-5 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                       {contract.capability}
                     </span>
                   </li>

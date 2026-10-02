@@ -59,7 +59,7 @@ export function HireGate({
             <li key={warning}>{warning}</li>
           ))}
         </ul>
-        <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+        <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-faint)]">
           Pokter does not recommend proceeding while these warnings remain. You
           can continue only after reviewing them and explicitly accepting the
           additional risk.
@@ -146,7 +146,7 @@ export function HireGate({
         </button>
       )}
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Nothing is granted yet. The next screen shows exactly what this agent
         would be allowed to call, and what it would be blocked from.
       </p>
