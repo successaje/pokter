@@ -316,12 +316,15 @@ export default async function AgentPage({
                       display={`#${agent.token_id} · ${chainLabel(agent.chain_id)}`}
                     />
                     {agent.owner_address && (
-                      <Link
-                        href={`/builders/${agent.owner_address}`}
-                        className="font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
-                      >
-                        Publisher {shortAddress(agent.owner_address)} →
-                      </Link>
+                      <span className="text-[color:var(--text-muted)]">
+                        Publisher{' '}
+                        <Link
+                          href={`/builders/${agent.owner_address}`}
+                          className="mono font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
+                        >
+                          {shortAddress(agent.owner_address)}
+                        </Link>
+                      </span>
                     )}
                   </span>
                 </div>
