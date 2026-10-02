@@ -18,16 +18,40 @@ export default async function MyAgentsPage({
   const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
   return (
     <div className="flex flex-col gap-8 pt-6">
-      <header className="flex max-w-3xl flex-col gap-3">
-        <h1 className="font-[family-name:var(--font-serif)] text-3xl font-semibold tracking-tight sm:text-4xl">
-          Your activity
-        </h1>
-        <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Track jobs, review deliverables and manage agent permissions. Records
-          are held on this device; an escrowed job hired elsewhere can be
-          recovered from chain by its job ID.
-        </p>
-      </header>
+      {/*
+        The way out of this page, next to its title.
+
+        Activity is where somebody lands after hiring, and it answers one
+        question — what happened to my jobs. Everything adjacent to that
+        (which wallets this device holds, whether they are hiring or
+        building, saved agents, notification settings) lives on the account
+        page, which until now was reachable only from the wallet popover in
+        the header. Somebody reading their jobs had no visible route to the
+        rest of their own account.
+
+        Top right rather than in the prose, because it is a destination and
+        not part of the sentence explaining what this page holds.
+      */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <header className="flex max-w-3xl flex-col gap-3">
+          <h1 className="font-[family-name:var(--font-serif)] text-3xl font-semibold tracking-tight sm:text-4xl">
+            Your activity
+          </h1>
+          <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
+            Track jobs, review deliverables and manage agent permissions.
+            Records are held on this device; an escrowed job hired elsewhere
+            can be recovered from chain by its job ID.
+          </p>
+        </header>
+
+        <Link
+          href="/account"
+          className="tap inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+        >
+          My account
+          <span aria-hidden>→</span>
+        </Link>
+      </div>
 
       <section className="flex flex-col gap-4">
         {typeof emailStatus === 'string' && (
