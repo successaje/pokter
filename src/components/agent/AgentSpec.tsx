@@ -31,7 +31,7 @@ export function AgentSpec({ category }: { category: Classification }) {
     },
     {
       label: 'What it needs from you',
-      value: 'The brief you write below. It is not given your wallet or any position to read.',
+      value: 'The brief you write when you hire it. It is not given your wallet or any position to read.',
     },
     {
       label: 'What arrives',
