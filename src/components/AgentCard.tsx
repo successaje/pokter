@@ -141,8 +141,16 @@ export function AgentCard({
     description,
   };
 
+  /*
+   * Spelled out. This read "3 att", an abbreviation introduced here when the
+   * footer was tightened to one line and immediately flagged by a reader who
+   * could not tell what it meant — which is the whole job of the word. The
+   * line still fits; "att" was saving four characters nobody asked for.
+   */
   const attestations =
-    attestationCount === 0 ? null : `${attestationCount} att`;
+    attestationCount === 0
+      ? null
+      : `${attestationCount} attestation${attestationCount === 1 ? '' : 's'}`;
 
   /*
    * The card answers five questions and no more: what does it do, can I
