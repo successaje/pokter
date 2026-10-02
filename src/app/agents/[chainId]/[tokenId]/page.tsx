@@ -8,6 +8,7 @@ import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { AgentSpec } from '@/components/agent/AgentSpec';
+import { HireReadiness } from '@/components/hire/HireReadiness';
 import type { ChainId } from '@/lib/scan/types';
 import {
   publishedEvidenceLine,
@@ -34,7 +35,7 @@ import { TrustStrip } from '@/components/agent/TrustStrip';
 import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { ShareAgent } from '@/components/agent/ShareAgent';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
-import { DEFAULT_BUDGET_LABEL, formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { DEFAULT_BUDGET_LABEL, DEFAULT_BUDGET_U, formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE, chainLabel} from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
@@ -156,6 +157,12 @@ export default async function AgentPage({
     ? formatQuotedPrice(Number(dossier.quote.priceU))
     : null;
   const priceLabel = askedPrice ?? DEFAULT_BUDGET_LABEL;
+  /*
+   * The number the readiness check compares a balance against. The label
+   * beside it is for reading; this is for arithmetic, and the two come from
+   * the same source so the card cannot show one price and test another.
+   */
+  const priceU = dossier.quote ? Number(dossier.quote.priceU) : DEFAULT_BUDGET_U;
   const priceCaption = askedPrice ? 'Price it asked for' : 'Starting from';
   const economicHistory = summariseEconomicHistory(
     getJobStore().byAgent(agent.chain_id, agent.token_id),
@@ -213,12 +220,54 @@ export default async function AgentPage({
 
   return (
     <div className="flex flex-col gap-6 pt-2">
-      <Link
-        href="/agents"
-        className="tap self-start text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text)] md:self-auto"
-      >
-        ← All agents
-      </Link>
+      {/*
+        Where you are, not just where you came from.
+
+        This was a single "← All agents" link. It gets you back, but it does
+        not say that this agent sits inside a category, and the category is
+        the most useful place to go next — a reader who has decided this one
+        is wrong almost always wants its neighbours rather than all 79.
+
+        The trail is the real hierarchy: the catalogue, the category page
+        that already exists at /categories/[id], then this agent. The last
+        crumb is plain text with aria-current, because a link to the page you
+        are on is a dead control.
+      */}
+      <nav aria-label="Breadcrumb" className="min-w-0">
+        <ol className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-[color:var(--text-muted)]">
+          <li>
+            <Link href="/agents" className="tap hover:text-[color:var(--text)]">
+              Agents
+            </Link>
+          </li>
+          {meta && (
+            <>
+              <li aria-hidden className="text-[color:var(--text-faint)]">
+                ›
+              </li>
+              <li>
+                <Link
+                  href={`/categories/${category}`}
+                  className="tap hover:text-[color:var(--text)]"
+                >
+                  {meta.label}
+                </Link>
+              </li>
+            </>
+          )}
+          <li aria-hidden className="text-[color:var(--text-faint)]">
+            ›
+          </li>
+          <li className="min-w-0">
+            <span
+              aria-current="page"
+              className="block truncate text-[color:var(--text)]"
+            >
+              {agent.name}
+            </span>
+          </li>
+        </ol>
+      </nav>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8">
         <div className="flex min-w-0 flex-col gap-8">
@@ -624,6 +673,12 @@ export default async function AgentPage({
                 </dd>
               </div>
             </dl>
+
+            {/*
+              What has to be true before the button below can work, answered
+              here rather than three screens into the hire flow.
+            */}
+            <HireReadiness priceU={priceU} />
 
             <div className="flex flex-col gap-2">
               <Link
