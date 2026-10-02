@@ -54,10 +54,20 @@ export function TrustPanel({
 
   const rows: TrustRow[] = [
     {
-      label: 'Identity',
+      /*
+       * Not "Identity" — the stats strip above already has a row by that
+       * name reading "ERC-8004", and both wear an onchain tag. One label,
+       * two answers, four lines apart, one of them the word "unverified":
+       * the page looked like it was arguing with itself.
+       *
+       * They are different facts. The registration is genuinely on chain;
+       * what is unverified is whether the registry checked the publisher
+       * behind it. This row names that, and stops competing for the word.
+       */
+      label: 'Registry check',
       value: agent.is_verified
         ? 'Verified by the registry'
-        : 'Self-asserted, unverified',
+        : 'Self-asserted — the registry does not check this',
       provenance: (
         <ProvenanceTag
           kind="onchain"
