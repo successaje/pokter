@@ -2,30 +2,27 @@
 
 import { FAUCETS, NATIVE_SYMBOL, chainLabel} from '@/lib/network/presentation';
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
-import { useQuery } from '@tanstack/react-query';
-import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
+import { formatEther, formatUnits } from 'viem';
 
 import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
+import { MIN_GAS, useWalletFunding } from '@/lib/wallet/use-funding';
 
-const MIN_GAS = parseEther('0.002');
+/*
+ * One definition, shared with the hire form.
+ *
+ * This threshold and the balance query behind it existed here and again in
+ * CommissionPanel, which decides from the same numbers whether to show the
+ * faucet instructions. Two copies of a rule about whether somebody can pay
+ * is one rule and one bug waiting.
+ */
 
 export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requiredBudgetU?: number }) {
   const { wallet } = usePasskeyWallet();
-  const paymentToken = correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken;
-  const balance = useQuery({
-    queryKey: ['passkey-readiness', wallet?.address, paymentToken],
-    queryFn: () =>
-      walletClient().balances({
-        wallet: wallet!.address,
-        tokens: [paymentToken],
-      }),
-    enabled: Boolean(wallet),
-    refetchInterval: 30_000,
-  });
+  const funding = useWalletFunding(wallet?.address ?? null, requiredBudgetU);
+  const balance = funding.query;
 
   if (!wallet) {
     return (
@@ -39,15 +36,8 @@ export function WalletReadiness({ requiredBudgetU = DEFAULT_BUDGET_U }: { requir
     );
   }
 
-  const token = balance.data?.tokens?.[0];
-  const native = balance.data?.native;
-  const gasReady = native !== undefined && native >= MIN_GAS;
-  const budgetRaw = parseUnits(String(requiredBudgetU), 18);
-  const paymentReady = Boolean(token?.ok && token.raw >= budgetRaw);
-  const gasKnown = balance.isSuccess && native !== undefined;
-  const paymentKnown = balance.isSuccess && Boolean(token?.ok);
-  const gasLow = gasKnown && !gasReady;
-  const paymentLow = paymentKnown && !paymentReady;
+  const { token, native, gasReady, paymentReady, gasLow, paymentLow, budgetRaw } =
+    funding;
   const gasAbundant = gasReady && native !== undefined && native >= MIN_GAS * 5n;
   const paymentAbundant = paymentReady && Boolean(token?.ok && token.raw >= budgetRaw * 3n);
   const allReady = gasReady && paymentReady;

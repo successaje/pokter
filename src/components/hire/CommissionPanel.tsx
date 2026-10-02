@@ -39,6 +39,7 @@ import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
+import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { ExternalHireSteps } from '@/components/hire/ExternalHireSteps';
 import type { HireStep } from '@/lib/wallet/external';
 import {
@@ -224,6 +225,10 @@ export function CommissionPanel({
   /** $U bought before a failure and still in the wallet, as a display amount. */
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
   const active = useActiveWallet();
+  /*
+   * Only shown when it is needed. See the note on the block itself.
+   */
+  const funding = useWalletFunding(active.address ?? wallet?.address ?? null, budget);
   const [externalStep, setExternalStep] = useState<HireStep | null>(null);
   const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
   const [revoking, setRevoking] = useState(false);
@@ -908,7 +913,8 @@ export function CommissionPanel({
                     ))}
                   </div>
                   {/*
-                    How paying works, beside the first price.
+                    How paying works, beside the first price — and only for
+                    somebody who needs it.
 
                     A buyer arrives holding USDT and is quoted in "$U", with
                     "Test tokens — no real value" as a 10px footnote under a
@@ -916,8 +922,20 @@ export function CommissionPanel({
                     was at stake, or where to get any — so the most
                     decision-relevant fact on the page was also the least
                     visible, and the next step was unobtainable.
+
+                    That argument is about somebody who cannot pay yet. For
+                    somebody already holding enough $U and enough gas, five
+                    lines explaining a currency they have and two faucets
+                    they do not need is the biggest block on the form, sitting
+                    between the price and the button. It now leaves once the
+                    wallet is funded.
+
+                    It stays while the balances are still loading and while no
+                    wallet is connected: "not funded" and "not looked yet" are
+                    the same shape, and hiding the faucet from somebody who
+                    turns out to need it is the worse of the two mistakes.
                   */}
-                  {PAYMENT_VALUE_NOTE && (
+                  {PAYMENT_VALUE_NOTE && !funding.allReady && (
                     <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3">
                       <p className="text-[12px] font-medium">
                         {PAYMENT_VALUE_NOTE} — you spend nothing real
