@@ -32,11 +32,14 @@ import { SavedNavAction } from '@/components/shell/SavedNavAction';
  *
  * Discover, Marketplace, Rankings and Compare were four top-level answers to
  * one question. Folding all of them behind Discover went too far the other
- * way: Discover is a guided flow that asks about your outcome and capital
- * before it shows anything, and someone who simply wants to read the
- * catalogue should not have to start by answering questions. So both stay,
- * named for what they are — Discover leads you to agents, Agents is the list
- * of them.
+ * way: Discover narrows by outcome and can build a shortlist against a risk
+ * bar and a horizon, and someone who simply wants to read the catalogue
+ * should not have to start by answering questions. So both stay, named for
+ * what they are — Discover leads you to agents, Agents is the list of them.
+ *
+ * Which one the landing page points at is settled: all of it goes to Agents.
+ * Discover is reached from here and from the catalogue, not by competing for
+ * the same first click.
  *
  * Rankings left the bar because it is not a destination but the same set in a
  * different order, and it now switches with the catalogue on both pages.

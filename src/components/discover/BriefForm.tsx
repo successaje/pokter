@@ -7,7 +7,6 @@ import { cn } from '@/lib/ui/cn';
 import { OBJECTIVES } from '@/lib/agents/objectives';
 import type { RiskTolerance } from '@/lib/recommend/types';
 
-const CAPITAL_PRESETS = [500, 1_000, 5_000, 25_000];
 const HORIZONS = [7, 30, 90];
 const RISKS: { id: RiskTolerance; label: string; blurb: string }[] = [
   { id: 'low', label: 'Low', blurb: 'Only agents with near-perfect uptime.' },
@@ -73,9 +72,6 @@ export function BriefForm() {
       .filter((id) => OBJECTIVES.some((option) => option.id === id));
     return requested.length > 0 ? requested : [OBJECTIVES[0].id];
   });
-  const [capital, setCapital] = useState(() =>
-    String(boundedNumber(params.get('capital'), 5000, 1, 100_000_000)),
-  );
   const [risk, setRisk] = useState<RiskTolerance>(() => {
     const requested = params.get('risk');
     return RISKS.some((option) => option.id === requested)
@@ -87,11 +83,9 @@ export function BriefForm() {
   );
 
   const submit = () => {
-    const normalizedCapital = boundedNumber(capital, 5000, 1, 100_000_000);
     const normalizedHorizon = Math.round(boundedNumber(horizon, 30, 1, 365));
     const query = new URLSearchParams({
       objective: objectives.join(','),
-      capital: String(normalizedCapital),
       risk,
       horizon: String(normalizedHorizon),
       run: '1',
@@ -168,50 +162,17 @@ export function BriefForm() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <fieldset className="flex min-w-0 flex-col gap-2.5">
-            <legend className="text-xs text-[color:var(--text-muted)]">
-              Portfolio capital
-            </legend>
-            <label className="flex items-center rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-3 focus-within:border-[color:var(--brand)]">
-              <span className="text-sm text-[color:var(--text-muted)]">$</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={capital}
-                onChange={(event) => {
-                  const value = event.target.value.replace(/[^0-9.]/g, '');
-                  if (/^\d*(?:\.\d{0,2})?$/.test(value)) setCapital(value);
-                }}
-                onBlur={() =>
-                  setCapital(
-                    String(boundedNumber(capital, 5000, 1, 100_000_000)),
-                  )
-                }
-                placeholder="5,000"
-                className="tabular min-w-0 flex-1 bg-transparent px-2 py-2 text-sm outline-none"
-                aria-label="Capital in US dollars"
-              />
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {CAPITAL_PRESETS.map((amount) => (
-                <Choice
-                  key={amount}
-                  selected={Number(capital) === amount}
-                  onClick={() => setCapital(String(amount))}
-                >
-                  <span className="tabular">
-                    ${amount.toLocaleString('en-US')}
-                  </span>
-                </Choice>
-              ))}
-            </div>
-            <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
-              Used only to explain fit and limitations. Pokter does not read or
-              control this capital.
-            </p>
-          </fieldset>
-
+        {/*
+          Capital used to sit here, first of three. It asked for a number,
+          printed it back, and the recommender then stated in its own
+          limitations that capital compatibility is not assessed — no agent in
+          the registry publishes a position size, so there was nothing to
+          assess it against. A field that changes no result is not neutral: its
+          lowest preset was $500, which told anyone with less than that they
+          were in the wrong place, and it was the widest step in a form whose
+          other two questions do real work.
+        */}
+        <div className="grid gap-6 sm:grid-cols-2">
           <fieldset className="flex min-w-0 flex-col gap-2.5">
             <legend className="text-xs text-[color:var(--text-muted)]">
               Risk tolerance

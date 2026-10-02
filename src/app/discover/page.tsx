@@ -50,7 +50,6 @@ function parseBrief(params: Record<string, string | string[] | undefined>): Brie
 
   return {
     objectives: objectives.length > 0 ? objectives : ['yield'],
-    capital: boundedParam(params.capital, 5000, 1, 100_000_000),
     risk: RISKS.includes(riskParam) ? riskParam : 'medium',
     horizon: Math.round(boundedParam(params.horizon, 30, 1, 365)),
   };
@@ -74,13 +73,6 @@ async function Results({ brief }: { brief: Brief }) {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[11px] text-[color:var(--text-muted)]">
         <span className="font-medium text-[color:var(--text)]">
           {categories}
-        </span>
-        <span className="tabular">
-          {brief.capital.toLocaleString('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 0,
-          })}
         </span>
         <span className="capitalize">{brief.risk} risk tolerance</span>
         <span className="tabular">{brief.horizon}-day horizon</span>
@@ -137,7 +129,7 @@ async function Results({ brief }: { brief: Brief }) {
           <div className="mt-4 flex flex-wrap gap-2">
             {brief.risk !== 'high' && (
               <Link
-                href={`/discover?objective=${objectiveQuery}&capital=${brief.capital}&risk=high&horizon=${brief.horizon}&run=1#matches`}
+                href={`/discover?objective=${objectiveQuery}&risk=high&horizon=${brief.horizon}&run=1#matches`}
                 className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-3 py-1.5 text-xs font-medium hover:bg-[color:var(--surface-hover)]"
               >
                 Try higher tolerance
@@ -296,7 +288,7 @@ export default async function DiscoverPage({
           */}
           <details className="group">
             <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--text-faint)]">
-              <span>Prefer to set capital and risk yourself?</span>
+              <span>Prefer to set the risk bar yourself?</span>
               <span className="ml-auto underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]">
                 <span className="group-open:hidden">Open the shortlist builder</span>
                 <span className="hidden group-open:inline">Hide</span>

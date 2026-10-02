@@ -9,8 +9,7 @@ export type RiskTolerance = 'low' | 'medium' | 'high';
 export interface Brief {
   /** One or more outcomes. Candidates are pooled and ranked across them. */
   objectives: Category[];
-  /** In USD. Used for display and disclosure, not for filtering — see below. */
-  capital: number;
+  /** Sets the uptime and probe-count bars a candidate must clear. */
   risk: RiskTolerance;
   /** Days. */
   horizon: number;

@@ -17,17 +17,19 @@ const HISTORY_DAYS = 30;
 /**
  * Things this engine genuinely cannot assess, stated plainly.
  *
- * The registry publishes no capital limits, realised returns, or drawdown, so a
- * recommendation cannot weigh them. Listing them here keeps the UI honest
+ * The registry publishes no position limits, realised returns, or drawdown, so
+ * a recommendation cannot weigh them. Listing them here keeps the UI honest
  * without weakening the parts that are real.
+ *
+ * A constant, not a function of the brief. It took one so it could print the
+ * capital figure back while telling the reader that figure was not used — the
+ * brief no longer collects it, and nothing else here varies.
  */
-function limitationsFor(brief: Brief): string[] {
-  return [
-    `Capital compatibility is not assessed. No agent in the registry publishes a minimum or maximum position size, so we cannot confirm any of these suit ${brief.capital.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })} specifically.`,
-    'Returns and drawdown are not assessed. No measurer attests to realised performance, so ranking is based on reliability and evidence rather than profit.',
-    'Reliability measures whether an agent responds, not whether its decisions are good. A perfectly available agent can still trade badly.',
-  ];
-}
+const LIMITATIONS: string[] = [
+  'Position size is not assessed. No agent in the registry publishes a minimum or maximum, so none of these can be confirmed to suit the size you have in mind.',
+  'Returns and drawdown are not assessed. No measurer attests to realised performance, so ranking is based on reliability and evidence rather than profit.',
+  'Reliability measures whether an agent responds, not whether its decisions are good. A perfectly available agent can still trade badly.',
+];
 
 /** Fit is about this brief; the Pokter Score is about the agent. They differ. */
 function assessFit(
@@ -214,6 +216,6 @@ export async function recommend(brief: Brief): Promise<Recommendation> {
     rejected,
     matched: matches.length,
     considered: candidates.length,
-    limitations: limitationsFor(brief),
+    limitations: LIMITATIONS,
   };
 }
