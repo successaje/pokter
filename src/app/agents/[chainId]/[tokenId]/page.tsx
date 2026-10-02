@@ -7,6 +7,7 @@ import { plural } from '@/lib/ui/plural';
 import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { AgentSpec } from '@/components/agent/AgentSpec';
 import type { ChainId } from '@/lib/scan/types';
 import {
   publishedEvidenceLine,
@@ -315,6 +316,13 @@ export default async function AgentPage({
                     )}
                   </span>
                 </div>
+
+                {/*
+                  Pokter's answer first, the publisher's prose second.
+                  The four rows below are facts about every agent here; the
+                  description under them is whatever its operator wrote.
+                */}
+                <AgentSpec category={category} />
 
                 {agent.description && (
                   <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
