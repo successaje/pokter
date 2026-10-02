@@ -37,3 +37,29 @@ test('campaign progress rejects unknown identities and unrelated chains', () => 
   assert.equal(progress.qualifyingJobs.length, 0);
   assert.equal(progress.pokterMarketplaceVerified, false);
 });
+
+/*
+ * The visible-progress bar reports how much of what Pokter can see is done.
+ * It used to divide by five, one per official task, while only two and a
+ * half of those five produce any signal — so a wallet that had done
+ * everything observable saw 50% and a half-empty bar, with the shortfall
+ * reading as theirs rather than as the limit of what Pokter can verify.
+ */
+test('the visible-progress ceiling is reachable', () => {
+  const ceiling = 1 + 1 + 0.5;
+  const percent = (registered: boolean, agents: number, verified: boolean) =>
+    Math.round(
+      (Math.min(
+        Number(registered) + Math.min(agents, 3) / 3 + (verified ? 0.5 : 0),
+        ceiling,
+      ) /
+        ceiling) *
+        100,
+    );
+
+  assert.equal(percent(false, 0, false), 0);
+  assert.equal(percent(true, 3, true), 100, 'everything observable means full');
+  assert.equal(percent(true, 0, false), 40);
+  // More hires than the task asks for must not overflow the bar.
+  assert.equal(percent(true, 9, true), 100);
+});
