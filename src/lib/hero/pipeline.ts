@@ -291,14 +291,39 @@ export interface ProbeLine {
  * it. These are transcripts, not samples: the latency and the response text are
  * what the endpoint actually returned.
  */
+/*
+ * One line per endpoint, newest first.
+ *
+ * This took the last N probes outright, and a sweep walks the registry
+ * endpoint by endpoint, so the newest N are frequently the same endpoint over
+ * and over. The section says "this is what checking an agent looks like" and
+ * was answering it with five copies of "Endpoint answered 405 Method Not
+ * Allowed" — in production, five rows carrying two distinct sentences between
+ * them. Repetition is not breadth, and read as a stutter rather than as
+ * evidence.
+ *
+ * Deduplicating on the endpoint costs nothing and makes the five rows five
+ * different agents. The over-fetch is bounded; an endpoint with no recorded
+ * endpoint string keeps its own row rather than collapsing every one of them
+ * together.
+ */
 export function recentProbes(limit = 5): ProbeLine[] {
-  return getProbeStore()
-    .recent(limit)
-    .map((probe) => ({
+  const seen = new Set<string>();
+  const lines: ProbeLine[] = [];
+
+  for (const probe of getProbeStore().recent(limit * 20)) {
+    const key = probe.endpoint ?? `__unkeyed:${lines.length}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push({
       ok: probe.ok,
       latencyMs: probe.latencyMs,
       detail: probe.detail,
       at: probe.probedAt,
       endpoint: probe.endpoint,
-    }));
+    });
+    if (lines.length === limit) break;
+  }
+
+  return lines;
 }

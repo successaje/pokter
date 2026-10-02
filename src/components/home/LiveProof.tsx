@@ -23,9 +23,15 @@ export function LiveProof({ probes }: { probes: ProbeLine[] }) {
           This is what checking an agent looks like.
         </h2>
         <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          The last probes Pokter took, verbatim. A probe counts as answered only
-          when the endpoint returns well-formed JSON — an HTTP 200 from a proxy
-          is not an answer.
+          {/*
+            "The last probes Pokter took" stopped being exactly true when this
+            feed began showing one line per endpoint instead of the newest
+            five outright. The difference is small and the sentence is the
+            page's own claim about its evidence, so it says which it is.
+          */}
+          The most recent probe of each of the last few agents, verbatim. A
+          probe counts as answered only when the endpoint returns well-formed
+          JSON — an HTTP 200 from a proxy is not an answer.
         </p>
       </div>
 
