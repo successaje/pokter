@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chainLabel } from '@/lib/network/presentation';
 
 /**
  * Shown when the registry could not be read.
@@ -29,7 +30,7 @@ export function RegistryUnreachable({
           The registry did not answer
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          We could not read agent #{tokenId} on chain {chainId} just now. That is
+          We could not read agent #{tokenId} on {chainLabel(chainId)} just now. That is
           not a claim it does not exist — it is us failing to ask. Reload in a
           moment.
         </p>

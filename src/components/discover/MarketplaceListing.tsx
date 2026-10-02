@@ -21,6 +21,15 @@ export interface ListingRow {
   receipts: number;
 }
 
+/*
+ * A bare "0" under a one-word label is not a reading, it is a riddle. The
+ * count is almost always zero — few registry agents carry any attestation at
+ * all — so the most common state of this cell was the least legible one.
+ */
+function receiptsValue(count: number): string {
+  return count === 0 ? 'None yet' : String(count);
+}
+
 type View = 'grid' | 'list';
 const STORAGE_KEY = 'pokter:marketplace-view';
 
@@ -201,7 +210,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
                   </div>
                   <div>
                     <dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Receipts</dt>
-                    <dd className="tabular mt-0.5 text-[11px] font-medium">{row.receipts}</dd>
+                    <dd className="tabular mt-0.5 text-[11px] font-medium">{receiptsValue(row.receipts)}</dd>
                   </div>
                 </dl>
               </Link>
@@ -255,7 +264,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
                 </div>
                 <div>
                   <dt className="text-[9px] uppercase tracking-wide text-[color:var(--text-faint)]">Receipts</dt>
-                  <dd className="tabular mt-0.5 text-[11px] font-medium">{row.receipts}</dd>
+                  <dd className="tabular mt-0.5 text-[11px] font-medium">{receiptsValue(row.receipts)}</dd>
                 </div>
               </dl>
 

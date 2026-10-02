@@ -171,8 +171,8 @@ export default async function HirePage({
 
           <EvidenceSection
             title="What hiring does not grant"
-            caption="Standing wallet authority remains disabled until every call argument is safely constrained."
-            summary="Delegated execution is paused, so this agent gets no access to your wallet."
+            caption="Pokter will not turn this on until it can constrain every argument of every call the agent could make. Until then there is nothing to configure here."
+            summary="This agent is never given your wallet. It writes you an answer; moving money stays yours to do."
             /*
               Shut by default at every width. It grants nothing today, and two
               screens of preview sat open above the escrow the page exists to

@@ -35,7 +35,7 @@ import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { ShareAgent } from '@/components/agent/ShareAgent';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
 import { DEFAULT_BUDGET_LABEL, formatQuotedPrice } from '@/lib/erc8183/pricing';
-import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
+import { PAYMENT_VALUE_NOTE, chainLabel} from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -305,7 +305,7 @@ export default async function AgentPage({
                     <CopyableId
                       label="Identity"
                       value={`${agent.chain_id}:${agent.token_id}`}
-                      display={`#${agent.token_id} · chain ${agent.chain_id}`}
+                      display={`#${agent.token_id} · ${chainLabel(agent.chain_id)}`}
                     />
                     {agent.owner_address && (
                       <CopyableId

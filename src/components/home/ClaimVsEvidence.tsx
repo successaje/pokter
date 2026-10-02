@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { formatPercent } from '@/lib/ui/format';
 import type { Comparison } from '@/lib/marketplace';
+import { chainLabel } from '@/lib/network/presentation';
 
 /**
  * The argument, made with a real agent instead of a slogan.
@@ -62,7 +63,7 @@ export function ClaimVsEvidence({ exhibit }: { exhibit: Comparison | null }) {
           <dl className="mt-auto grid grid-cols-2 gap-3 border-t border-[color:var(--border)] pt-4 text-[11px]">
             <div className="flex flex-col gap-0.5">
               <dt className="text-[color:var(--text-faint)]">Registered</dt>
-              <dd>ERC-8004, chain {agent.chain_id}</dd>
+              <dd>ERC-8004, {chainLabel(agent.chain_id)}</dd>
             </div>
             <div className="flex flex-col gap-0.5">
               <dt className="text-[color:var(--text-faint)]">Publishes</dt>
