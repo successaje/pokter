@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { PrivateActivityClient } from '@/components/jobs/PrivateActivityClient';
+import { isCampaignLive } from '@/lib/campaign/window';
 
 /**
  * Activity cannot be keyed by a browser connection on the server without an
@@ -28,24 +29,6 @@ export default async function MyAgentsPage({
         </p>
       </header>
 
-      <Link
-        href="/set-and-earn"
-        className="group relative flex min-h-52 flex-col justify-center overflow-hidden rounded-[var(--radius-lg)] border border-[#F3BA2F]/25 bg-[radial-gradient(circle_at_78%_48%,rgba(243,186,47,.2),transparent_27%),linear-gradient(115deg,#11100c,#1c180c)] p-6 text-white transition-colors hover:border-[#F3BA2F]/50 sm:p-8"
-      >
-        <div className="relative z-10 max-w-2xl">
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#F3BA2F] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#171306]">
-            <svg viewBox="0 0 24 24" aria-hidden className="size-5 fill-none stroke-current" strokeWidth="1.8">
-              <path d="M4 9h16v11H4zM3 6h18v4H3zM12 6v14M7.5 6C5 5 4.5 2.5 6.5 2c2.2-.6 4.4 2.1 5.5 4M16.5 6c2.5-1 3-3.5 1-4-2.2-.6-4.4 2.1-5.5 4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Set and Earn is live
-          </span>
-          <h2 className="mt-4 font-[family-name:var(--font-serif)] text-3xl leading-tight sm:text-4xl">Complete tasks. Earn rewards.</h2>
-          <p className="mt-2 max-w-xl text-[12px] leading-5 text-white/65">Hire and build real agents on BNB Chain. Track what Pokter can verify and see exactly what remains.</p>
-          <span className="mt-5 inline-flex min-h-10 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-4 text-[10px] font-semibold text-[#171306] transition-transform group-hover:translate-x-1">View Set and Earn →</span>
-        </div>
-        <svg viewBox="0 0 64 64" aria-hidden className="absolute -bottom-7 right-[8%] hidden size-52 fill-none stroke-[#F3BA2F]/55 lg:block" strokeWidth="1.3"><path d="M11 27h42v27H11zM8 18h48v10H8zM32 18v36M19 18c-5-2-7-8-3-11 5-4 13 4 16 11M45 18c5-2 7-8 3-11-5-4-13 4-16 11" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      </Link>
-
       <section className="flex flex-col gap-4">
         {typeof emailStatus === 'string' && (
           <div className={`rounded-[var(--radius)] border px-4 py-3 text-[12px] ${emailStatus === 'verified' || emailStatus === 'unsubscribed' ? 'border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] text-[color:var(--negative)]'}`}>
@@ -69,6 +52,36 @@ export default async function MyAgentsPage({
         </div>
         <PrivateActivityClient explorerBase={explorerBase} />
       </section>
+
+      {/*
+        Below the activity, and only while the campaign runs.
+
+        This is a 208px black-and-gold billboard, and it sat above the page's
+        own content on a page called "Your activity" — so someone arriving to
+        check a job they had paid for met an advertisement first, and someone
+        with no jobs yet met one instead of anything about their account. It
+        was also unconditional, which would have left it advertising a live
+        campaign after the campaign had closed.
+      */}
+      {isCampaignLive() && (
+        <Link
+          href="/set-and-earn"
+          className="group relative flex min-h-52 flex-col justify-center overflow-hidden rounded-[var(--radius-lg)] border border-[#F3BA2F]/25 bg-[radial-gradient(circle_at_78%_48%,rgba(243,186,47,.2),transparent_27%),linear-gradient(115deg,#11100c,#1c180c)] p-6 text-white transition-colors hover:border-[#F3BA2F]/50 sm:p-8"
+        >
+          <div className="relative z-10 max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#F3BA2F] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#171306]">
+              <svg viewBox="0 0 24 24" aria-hidden className="size-5 fill-none stroke-current" strokeWidth="1.8">
+                <path d="M4 9h16v11H4zM3 6h18v4H3zM12 6v14M7.5 6C5 5 4.5 2.5 6.5 2c2.2-.6 4.4 2.1 5.5 4M16.5 6c2.5-1 3-3.5 1-4-2.2-.6-4.4 2.1-5.5 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Set and Earn is live
+            </span>
+            <h2 className="mt-4 font-[family-name:var(--font-serif)] text-3xl leading-tight sm:text-4xl">Complete tasks. Earn rewards.</h2>
+            <p className="mt-2 max-w-xl text-[12px] leading-5 text-white/65">Hire and build real agents on BNB Chain. Track what Pokter can verify and see exactly what remains.</p>
+            <span className="mt-5 inline-flex min-h-10 items-center rounded-[var(--radius)] bg-[#F3BA2F] px-4 text-[10px] font-semibold text-[#171306] transition-transform group-hover:translate-x-1">View Set and Earn →</span>
+          </div>
+          <svg viewBox="0 0 64 64" aria-hidden className="absolute -bottom-7 right-[8%] hidden size-52 fill-none stroke-[#F3BA2F]/55 lg:block" strokeWidth="1.3"><path d="M11 27h42v27H11zM8 18h48v10H8zM32 18v36M19 18c-5-2-7-8-3-11 5-4 13 4 16 11M45 18c5-2 7-8 3-11-5-4-13 4-16 11" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </Link>
+      )}
 
       <p className="max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Clearing browser storage removes this local index but does not change

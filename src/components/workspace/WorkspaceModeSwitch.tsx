@@ -55,7 +55,7 @@ export function WorkspaceModeSwitch({
 
   return (
     <nav
-      aria-label="Workspace mode"
+      aria-label="Switch view"
       className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-1"
     >
       <Link
@@ -69,7 +69,8 @@ export function WorkspaceModeSwitch({
         )}
       >
         <ModeIcon mode="personal" />
-        Personal
+        {/* Same two words as the wallet menu's switcher; one vocabulary. */}
+        Hiring
       </Link>
       <Link
         href={builderHref}
@@ -82,7 +83,7 @@ export function WorkspaceModeSwitch({
         )}
       >
         <ModeIcon mode="builder" />
-        {verifiedBuilder || session.isPending ? 'Builder' : 'Set up builder'}
+        {verifiedBuilder || session.isPending ? 'Building' : 'Set up builder'}
       </Link>
     </nav>
   );
