@@ -301,10 +301,22 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
           >
             View {Math.min(PAGE, remaining)} more
           </button>
-          <p className="text-[11px] text-[color:var(--text-faint)]">
-            <span className="tabular">{remaining}</span> more indexed in this
-            view
-          </p>
+          {/*
+            Only when it adds something.
+
+            The button already names how many the next press reveals, so once
+            the remainder fits in a single page this line repeated it in
+            different words — "View 5 more" above "5 more indexed in this
+            view". It earns its place only while the list runs deeper than
+            one more press, which is the one time a reader wants to know how
+            far down it goes.
+          */}
+          {remaining > PAGE && (
+            <p className="text-[11px] text-[color:var(--text-faint)]">
+              <span className="tabular">{remaining}</span> more indexed in
+              this view
+            </p>
+          )}
         </div>
       )}
     </div>
