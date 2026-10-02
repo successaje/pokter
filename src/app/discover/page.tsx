@@ -213,16 +213,36 @@ export default async function DiscoverPage({
     (sum, entry) => sum + entry.listing.attestationCount,
     0,
   );
+  /*
+   * Two numbers per category, because this page shows fewer agents than the
+   * catalogue does and was reporting only its own figure.
+   *
+   * Grid Trading read "18 indexed" on /agents and "17 agents" on /discover —
+   * the same category, the same word, one click apart. Both were right:
+   * this page hides agents whose own text says things like "TEST DEPLOYMENT
+   * — not for production use", and the catalogue lists everything the
+   * registry holds. Neither said which it was counting, so it read as the
+   * product being unable to count.
+   *
+   * The card now shows the gap rather than hiding it, and says nothing at
+   * all when there is no gap.
+   */
   const categoryCounts = Object.fromEntries(
-    (['rebalancing', 'grid-trading', 'yield', 'health-factor'] as Category[]).map((category) => [
-      category,
-      browseAgents.filter(
-        (entry) =>
-          entry.listing.category === category &&
-          isPromotableAgent(entry.listing.agent),
-      ).length,
-    ]),
-  ) as Record<Category, number>;
+    (['rebalancing', 'grid-trading', 'yield', 'health-factor'] as Category[]).map((category) => {
+      const inCategory = browseAgents.filter(
+        (entry) => entry.listing.category === category,
+      );
+      return [
+        category,
+        {
+          shown: inCategory.filter((entry) =>
+            isPromotableAgent(entry.listing.agent),
+          ).length,
+          indexed: inCategory.length,
+        },
+      ];
+    }),
+  ) as Record<Category, { shown: number; indexed: number }>;
 
   return (
     <div className="flex flex-col gap-12 pt-6">

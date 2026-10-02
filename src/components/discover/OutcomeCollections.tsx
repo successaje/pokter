@@ -41,7 +41,21 @@ const OUTCOME_ICONS: Record<Category, ReactNode> = {
     ),
 };
 
-export function OutcomeCollections({ counts, selected }: { counts: Record<Category, number>; selected: string | null }) {
+/**
+ * `shown` is what this page will list; `indexed` is everything the registry
+ * holds in that category. They differ when an operator's own text marks an
+ * agent as a test deployment, which this page hides and the catalogue does
+ * not — so the card states both rather than picking one and calling it
+ * "agents", which is how the same category came to read 17 here and 18 a
+ * click away.
+ */
+function countLabel({ shown, indexed }: { shown: number; indexed: number }) {
+  return shown === indexed
+    ? `${shown} ${shown === 1 ? 'agent' : 'agents'}`
+    : `${shown} of ${indexed} indexed`;
+}
+
+export function OutcomeCollections({ counts, selected }: { counts: Record<Category, { shown: number; indexed: number }>; selected: string | null }) {
   return (
     <section aria-labelledby="outcome-collections-title" className="flex flex-col gap-5">
       <div>
@@ -69,7 +83,7 @@ export function OutcomeCollections({ counts, selected }: { counts: Record<Catego
                     AA by a hair. The count is the one number on the card, so
                     it is the wrong thing to make the least legible.
                   */}
-                  <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-2 py-1 text-[10px] tabular-nums text-[color:var(--text-muted)]">{counts[category.id]} agents</span>
+                  <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-2 py-1 text-[10px] tabular-nums text-[color:var(--text-muted)]">{countLabel(counts[category.id])}</span>
                 </span>
                 <span className="mt-2 text-xs leading-relaxed text-[color:var(--text-muted)]">{category.blurb}</span>
                 {/*
