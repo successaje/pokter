@@ -6,7 +6,7 @@ export function CommissionAuthorityReview({ authority }: { authority: Commission
   return (
     <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]" aria-labelledby="commission-authority-title">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3">
-        <div><p className="mono text-[8px] uppercase tracking-[0.15em] text-[color:var(--brand-strong)]">Authority review</p><h3 id="commission-authority-title" className="mt-1 text-[12px] font-semibold">One job, one exact budget, no wallet session</h3></div>
+        <div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--brand-strong)]">Authority review</p><h3 id="commission-authority-title" className="mt-1 text-[12px] font-semibold">One job, one exact budget, no wallet session</h3></div>
         <span className="rounded-full bg-[color:var(--positive-dim)] px-2 py-1 text-[9px] font-semibold text-[color:var(--positive)]">No standing access</span>
       </div>
       <dl className="grid gap-px bg-[color:var(--border)] text-[10px] sm:grid-cols-2">

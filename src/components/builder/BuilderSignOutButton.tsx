@@ -10,5 +10,5 @@ export function BuilderSignOutButton() {
     setBusy(true);
     try { await fetch('/api/builders/session', { method: 'DELETE' }); }
     finally { router.replace('/build'); router.refresh(); }
-  }} className="text-[10px] text-[color:var(--text-muted)] underline decoration-dotted disabled:opacity-50">{busy ? 'Signing out…' : 'Sign out'}</button>;
+  }} className="text-[12px] text-[color:var(--text-muted)] underline decoration-dotted disabled:opacity-50">{busy ? 'Signing out…' : 'Sign out'}</button>;
 }
