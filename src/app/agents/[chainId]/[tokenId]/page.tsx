@@ -33,7 +33,7 @@ import { TrustStrip } from '@/components/agent/TrustStrip';
 import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { ShareAgent } from '@/components/agent/ShareAgent';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
-import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
+import { DEFAULT_BUDGET_LABEL, formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
@@ -125,6 +125,25 @@ export default async function AgentPage({
   const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
+
+  /*
+   * The agent's own price, where it has one.
+   *
+   * Both price slots on this page printed DEFAULT_BUDGET_LABEL — Pokter's
+   * house budget — under the words "Hire price" and "Starting from". So an
+   * agent whose card advertised 0.50 $U showed 0.10 here, and a reader
+   * comparing the two pages found the marketplace disagreeing with itself
+   * about what one agent charges.
+   *
+   * They are different quantities and now say which is which: a signed quote
+   * is what the agent asked for, and the default is only where an offer
+   * starts for an agent that has never named a price.
+   */
+  const askedPrice = dossier.quote
+    ? formatQuotedPrice(Number(dossier.quote.priceU))
+    : null;
+  const priceLabel = askedPrice ?? DEFAULT_BUDGET_LABEL;
+  const priceCaption = askedPrice ? 'Price it asked for' : 'Starting from';
   const economicHistory = summariseEconomicHistory(
     getJobStore().byAgent(agent.chain_id, agent.token_id),
   );
@@ -318,7 +337,7 @@ export default async function AgentPage({
             */}
             <MobileHireAction
             href={`/hire/${agent.chain_id}/${agent.token_id}`}
-            price={DEFAULT_BUDGET_LABEL}
+            price={priceLabel}
             answeredNow={answeredNow}
             recommended={proof.recommendedForHire}
             verdictLabel={
@@ -485,10 +504,10 @@ export default async function AgentPage({
 
             <div>
               <p className="text-[11px] text-[color:var(--text-muted)]">
-                Starting from
+                {priceCaption}
               </p>
               <p className="tabular mt-1 font-[family-name:var(--font-serif)] text-3xl leading-none">
-                {DEFAULT_BUDGET_LABEL}
+                {priceLabel}
               </p>
               {/*
                 No dollar estimate. On testnet these are faucet tokens worth
