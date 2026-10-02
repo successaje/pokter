@@ -5,6 +5,7 @@ import {
   FAILING_MAX_SCORE,
   HIREABLE_VERDICTS,
   PROVEN_MIN_PROBES,
+  PROVEN_MIN_SCORE,
   PROVEN_MIN_WINDOW_DAYS,
   type Verdict,
 } from '@/lib/proof/engine';
@@ -90,7 +91,15 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
     return 'observed';
   }
 
-  return 'emerging';
+  /*
+   * And the engine's quality split, which this level can see because it is
+   * made of our own probes. Without it two thirds of the catalogue returned
+   * `emerging` — an agent answering all 240 of its probes badged the same as
+   * one missing a third of them, on cards that print both numbers directly
+   * underneath. The cap above still holds: the best this can award is
+   * `reliable`, and `proven` remains the detail page's to give.
+   */
+  return (rate ?? 0) >= PROVEN_MIN_SCORE ? 'reliable' : 'emerging';
 }
 
 function numericField(agent: SearchableAgent, field: string): number | null {

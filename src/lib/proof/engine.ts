@@ -21,9 +21,26 @@ import type { Attestation } from './attestation';
  * An agent below the first has barely been examined; one above it but short of
  * the second has been examined properly and simply has no corroboration. The
  * old vocabulary called both "emerging" and told a reader nothing.
+ *
+ * `reliable` splits the remaining bucket on quality, for the same reason.
+ * `proven` needs two independent measurers, and the registry supplies so few
+ * that the tier is all but unreachable — so everything examined and not
+ * failing collected in `emerging`: 52 of the 78 listed agents, two thirds of
+ * the catalogue wearing one word. Inside it sat 35 agents that had answered
+ * every one of roughly 240 probes across a month, beside agents missing a
+ * third of them. A badge that cannot tell those apart is not a judgement, and
+ * the number separating them is one Pokter measured itself and already prints
+ * on the card.
+ *
+ * So the band below `proven` splits at the same score the proven bar uses:
+ * `reliable` answers nearly everything and simply lacks corroboration,
+ * `emerging` is measured and patchy. The independence bar does not move — it
+ * is the argument the marketplace is built on, and lowering it to spread the
+ * histogram would be the one change that actually costs the product something.
  */
 export type Verdict =
   | 'proven'
+  | 'reliable'
   | 'emerging'
   | 'observed'
   | 'failing'
@@ -154,10 +171,11 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       ? 'failing'
       : !examined
         ? 'observed'
-        : score >= PROVEN_MIN_SCORE &&
-            measurers.length >= PROVEN_MIN_MEASURERS
-          ? 'proven'
-          : 'emerging';
+        : score < PROVEN_MIN_SCORE
+          ? 'emerging'
+          : measurers.length >= PROVEN_MIN_MEASURERS
+            ? 'proven'
+            : 'reliable';
 
   /*
    * FE-12. The probe count is the sum across every measurer, while the agent
@@ -233,7 +251,9 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       ? `Measured at ${(score * 100).toFixed(1)}% from ${evidence} This agent is failing its own measurers, so Pokter does not recommend hiring it.`
       : verdict === 'proven'
         ? `Measured at ${(score * 100).toFixed(1)}% from ${evidence} Enough independent evidence to clear the proven bar.`
-        : `Measured at ${(score * 100).toFixed(1)}% from ${evidence} Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
+        : verdict === 'reliable'
+          ? `Measured at ${(score * 100).toFixed(1)}% from ${evidence} It answers what Pokter sends it; what is missing is ${shortfalls.join(', ')}.`
+          : `Measured at ${(score * 100).toFixed(1)}% from ${evidence} Real, but not yet proven — that needs ${shortfalls.join(', ')}.`;
 
   return {
     ...base,
@@ -272,13 +292,21 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
  */
 export const HIREABLE_VERDICTS: ReadonlySet<Verdict> = new Set<Verdict>([
   'proven',
+  'reliable',
   'emerging',
   'observed',
 ]);
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   proven: 'Proven',
-  emerging: 'Emerging',
+  reliable: 'Reliable',
+  /*
+   * Labelled for what it is rather than for where it might be going.
+   * "Emerging" reads as an agent on its way up; this tier is now the one that
+   * misses probes, and the softer word was flattering exactly the agents a
+   * buyer most needs warning about.
+   */
+  emerging: 'Intermittent',
   observed: 'Observed',
   failing: 'Failing',
   /*
@@ -292,7 +320,8 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 /** One line on what each state means, for anywhere the badge needs explaining. */
 export const VERDICT_MEANING: Record<Verdict, string> = {
   proven: 'Independent measurers agree, over enough probes and a long enough window.',
-  emerging: 'Measured well enough to judge, but nobody independent has corroborated it.',
+  reliable: 'Answers nearly every probe Pokter sends, but nobody independent has corroborated it.',
+  emerging: 'Measured, and it misses probes. Nobody independent has corroborated it either.',
   observed: 'Measurement has started. Too few probes, or too short a window, to judge yet.',
   failing: 'Measured, and failing its own measurers.',
   unproven: 'Nothing has been measured. This says what Pokter lacks, not what the agent did.',

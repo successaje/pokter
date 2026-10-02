@@ -163,14 +163,26 @@ export default async function MethodologyPage() {
             {(PROVEN_MIN_SCORE * 100).toFixed(0)}%.
           </Rule>
           <Rule>
-            <span className="font-medium text-[color:var(--text)]">Emerging</span> —
-            examined against all three of those bars, but corroborated by fewer
-            than {PROVEN_MIN_MEASURERS} independent measurers.
+            <span className="font-medium text-[color:var(--text)]">Reliable</span>{' '}
+            — clears the probe, window and rate bars, but is corroborated by
+            fewer than {PROVEN_MIN_MEASURERS} independent measurers. Everything
+            Pokter can establish on its own, and nothing more.
+          </Rule>
+          <Rule>
+            <span className="font-medium text-[color:var(--text)]">
+              Intermittent
+            </span>{' '}
+            — examined over enough probes and days to judge, and answering
+            between {(FAILING_MAX_SCORE * 100).toFixed(0)}% and{' '}
+            {(PROVEN_MIN_SCORE * 100).toFixed(0)}% of them. It works, but not
+            every time you ask.
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Observed</span>{' '}
-            — real measured evidence exists, but not yet enough probes, days or
-            rate to have been examined against the Proven bar at all.
+            — real measured evidence exists, but not over enough probes or days
+            to have been examined against the Proven bar at all. Coverage only:
+            the rate is deliberately not part of this test, because an agent
+            probed hundreds of times has been examined whatever it scored.
           </Rule>
           <Rule>
             <span className="font-medium text-[color:var(--text)]">Failing</span> —

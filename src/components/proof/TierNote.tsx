@@ -20,12 +20,13 @@ import { cn } from '@/lib/ui/cn';
  */
 export function TierNote({
   proven,
-  emerging,
+  reliable,
   observed,
   className,
 }: {
   proven: number;
-  emerging: number;
+  /** Answers nearly every probe, and is short only of corroboration. */
+  reliable: number;
   /** Measured, but short of the volume the Proven bar asks for. */
   observed: number;
   className?: string;
@@ -52,11 +53,11 @@ export function TierNote({
         are now named separately and the flat denial is only reached when both
         are genuinely empty.
       */}
-      {emerging > 0 ? (
+      {reliable > 0 ? (
         <>
-          {plural(emerging, 'agent')} {emerging === 1 ? 'is' : 'are'} Emerging —
-          measured, with real evidence, but corroborated by fewer measurers than
-          that.
+          {plural(reliable, 'agent')} {reliable === 1 ? 'is' : 'are'} Reliable —
+          answering nearly every probe Pokter sends, and short only of that
+          corroboration.
         </>
       ) : observed > 0 ? (
         <>

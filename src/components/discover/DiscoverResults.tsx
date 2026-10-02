@@ -11,13 +11,13 @@ import type { Listing } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
 
 type Entry = { listing: Listing; record: TrackRecord };
-type EvidenceFilter = 'answering' | 'priced' | 'attested' | 'emerging';
+type EvidenceFilter = 'answering' | 'priced' | 'attested' | 'reliable';
 
 const EVIDENCE_FILTERS: { id: EvidenceFilter; label: string }[] = [
   { id: 'answering', label: 'Has answered probes' },
   { id: 'priced', label: 'Has signed price' },
   { id: 'attested', label: 'Has attestations' },
-  { id: 'emerging', label: 'Emerging evidence' },
+  { id: 'reliable', label: 'Answers its probes' },
 ];
 
 function hrefFor(intent: string, category: string | null, evidence: string | null) {
@@ -54,7 +54,7 @@ export function DiscoverResults({ entries, intent, selectedCategory, evidence }:
     if (evidence === 'answering' && entry.record.totalAnswered === 0) return false;
     if (evidence === 'priced' && entry.listing.quote == null) return false;
     if (evidence === 'attested' && entry.listing.attestationCount === 0) return false;
-    if (evidence === 'emerging' && verdictFor(entry) !== 'emerging') return false;
+    if (evidence === 'reliable' && verdictFor(entry) !== 'reliable') return false;
     return true;
   });
 

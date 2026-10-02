@@ -104,7 +104,7 @@ export default async function AgentsPage({
   // catalogue its publisher is rather than how much of the current filter.
   const fleets = listingsPerOwner(all);
   const provenCount = verdicts.filter((v) => v === 'proven').length;
-  const emergingCount = verdicts.filter((v) => v === 'emerging').length;
+  const reliableCount = verdicts.filter((v) => v === 'reliable').length;
   const observedCount = verdicts.filter((v) => v === 'observed').length;
   const askedForProven = query.qualifiers.some(
     (q) => stringifyQuery([q]) === 'is:proven',
@@ -196,7 +196,7 @@ export default async function AgentsPage({
       {!(askedForProven && matched.length === 0) && (
         <TierNote
           proven={provenCount}
-          emerging={emergingCount}
+          reliable={reliableCount}
           observed={observedCount}
           className="max-w-2xl"
         />
@@ -254,7 +254,7 @@ export default async function AgentsPage({
           }
           body={
             askedForProven && provenCount === 0
-              ? `That tier needs two independent measurers agreeing, and Pokter does not count its own probing as one of them. ${emergingCount} agents are Emerging — measured, but corroborated by fewer measurers than that.`
+              ? `That tier needs two independent measurers agreeing, and Pokter does not count its own probing as one of them. ${reliableCount} agents are Reliable — they answer nearly every probe Pokter sends, and are short only of that corroboration.`
               : `${all.length} agents are indexed. Loosening the evidence requirement widens the set — it does not create evidence that is missing.`
           }
         />

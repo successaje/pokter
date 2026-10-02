@@ -59,7 +59,7 @@ test('Pokter never counts toward independence', () => {
   ]);
   assert.equal(
     result.verdict,
-    'emerging',
+    'reliable',
     'our own probing plus one measurer is one measurer',
   );
 });
@@ -69,7 +69,7 @@ test('casing does not smuggle Pokter into the measurer count', () => {
     attestation({ id: 'a', measuredBy: 'measurer-one' }),
     attestation({ id: 'b', measuredBy: 'POKTER' }),
   ]);
-  assert.equal(result.verdict, 'emerging');
+  assert.equal(result.verdict, 'reliable');
 });
 
 test('a synthetic attestation with no transaction is not a measurer', () => {
@@ -79,7 +79,7 @@ test('a synthetic attestation with no transaction is not a measurer', () => {
   ]);
   assert.equal(
     result.verdict,
-    'emerging',
+    'reliable',
     'independence requires a published attestation, not an in-process one',
   );
 });
@@ -151,7 +151,7 @@ test('the independence bar is what the constant says it is', () => {
     attestation({ id: `m${i}`, measuredBy: `measurer-${i}` }),
   );
   assert.equal(summariseProof(measurers).verdict, 'proven');
-  assert.equal(summariseProof(measurers.slice(0, -1)).verdict, 'emerging');
+  assert.equal(summariseProof(measurers.slice(0, -1)).verdict, 'reliable');
 });
 
 /*
@@ -169,16 +169,20 @@ test('evidence that exists and is not bad takes the normal hire path', () => {
     attestation({ id: 'a', measuredBy: 'one' }),
     attestation({ id: 'b', measuredBy: 'two' }),
   ]);
-  const emerging = summariseProof([attestation()]);
+  const reliable = summariseProof([attestation()]);
+  const emerging = summariseProof([
+    attestation({ ratio: 0.7, method: { probes: 200, windowDays: 30 } }),
+  ]);
   const observed = summariseProof([
     attestation({ method: { probes: 20, windowDays: 2 } }),
   ]);
 
   assert.equal(proven.verdict, 'proven');
+  assert.equal(reliable.verdict, 'reliable');
   assert.equal(emerging.verdict, 'emerging');
   assert.equal(observed.verdict, 'observed');
 
-  for (const result of [proven, emerging, observed]) {
+  for (const result of [proven, reliable, emerging, observed]) {
     assert.equal(
       result.recommendedForHire,
       true,
@@ -207,6 +211,9 @@ test('every verdict states a hire path, so a new tier cannot default in', () => 
         attestation({ id: 'b', measuredBy: 'two' }),
       ]),
       summariseProof([attestation()]),
+      summariseProof([
+        attestation({ ratio: 0.7, method: { probes: 200, windowDays: 30 } }),
+      ]),
       summariseProof([attestation({ method: { probes: 20, windowDays: 2 } })]),
       summariseProof([
         attestation({ ratio: 0.2, method: { probes: 200, windowDays: 30 } }),
@@ -219,11 +226,30 @@ test('every verdict states a hire path, so a new tier cannot default in', () => 
     Object.fromEntries(byVerdict),
     {
       proven: true,
+      reliable: true,
       emerging: true,
       observed: true,
       failing: false,
       unproven: false,
     },
-    'the five states and their hire paths, stated in one place',
+    'the six states and their hire paths, stated in one place',
   );
+});
+
+/*
+ * The split that made the badge mean something.
+ *
+ * Two thirds of the listed catalogue returned `emerging`, and inside it sat
+ * agents answering every one of ~240 probes beside agents missing a third of
+ * them. These pin the boundary so the tiers cannot quietly re-merge.
+ */
+test('the quality split sits exactly on the proven score bar', () => {
+  const measured = (ratio: number) =>
+    summariseProof([
+      attestation({ ratio, method: { probes: 200, windowDays: 30 } }),
+    ]).verdict;
+
+  assert.equal(measured(PROVEN_MIN_SCORE), 'reliable', 'at the bar is reliable');
+  assert.equal(measured(PROVEN_MIN_SCORE - 0.01), 'emerging');
+  assert.equal(measured(1), 'reliable', 'a flawless record is not "emerging"');
 });
