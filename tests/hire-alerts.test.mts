@@ -48,3 +48,62 @@ test('rubbish is never silently classified as a team wallet', () => {
   assert.equal(isTeamWallet('not-an-address'), false);
   assert.equal(isTeamWallet('0x123'), false);
 });
+
+/*
+ * Whether anyone can be told.
+ *
+ * `alerted: false` means two opposite things — nothing happened, or something
+ * did and no channel existed to say so. The second has already happened
+ * unnoticed in production, so the channel state is reported separately and
+ * these pin the reading of it.
+ */
+test('a channel counts as configured only when all of its parts are set', async () => {
+  const { alertChannels } = await import('../src/lib/alerts/channels');
+  const keys = [
+    'TELEGRAM_BOT_TOKEN',
+    'TELEGRAM_ALERT_CHAT_ID',
+    'RESEND_API_KEY',
+    'NOTIFICATION_FROM_EMAIL',
+    'OPERATOR_ALERT_EMAIL',
+  ];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const set = (values: Record<string, string | undefined>) => {
+    for (const k of keys) {
+      if (values[k] === undefined) delete process.env[k];
+      else process.env[k] = values[k];
+    }
+  };
+
+  try {
+    set({});
+    assert.deepEqual(alertChannels(), {
+      telegram: false,
+      email: false,
+      any: false,
+    });
+
+    // A token with nowhere to send it is not a channel.
+    set({ TELEGRAM_BOT_TOKEN: 't' });
+    assert.equal(alertChannels().telegram, false);
+
+    set({ TELEGRAM_BOT_TOKEN: 't', TELEGRAM_ALERT_CHAT_ID: '-100' });
+    assert.deepEqual(alertChannels(), {
+      telegram: true,
+      email: false,
+      any: true,
+    });
+
+    // Email needs all three; a missing destination is the live gap.
+    set({ RESEND_API_KEY: 'k', NOTIFICATION_FROM_EMAIL: 'a@b.c' });
+    assert.equal(alertChannels().email, false, 'no destination is no channel');
+
+    set({
+      RESEND_API_KEY: 'k',
+      NOTIFICATION_FROM_EMAIL: 'a@b.c',
+      OPERATOR_ALERT_EMAIL: 'd@e.f',
+    });
+    assert.equal(alertChannels().email, true);
+  } finally {
+    set(saved as Record<string, string | undefined>);
+  }
+});

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
 import { checkForNewHires } from '@/lib/alerts/hires';
+import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
@@ -36,6 +37,35 @@ export async function POST(request: Request): Promise<NextResponse> {
   const authorization = request.headers.get('authorization');
   if (authorization !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  }
+
+  /*
+   * Prove the alert path works without waiting for the event it watches for.
+   *
+   * There was no way to tell a configured channel from a dead one except by
+   * having somebody outside the team hire an agent and seeing whether a
+   * message arrived. That is a poor test: it is rare, it cannot be repeated,
+   * and the first time it ran, it failed silently.
+   *
+   * Behind the same secret as the sweep, because it sends a real message.
+   * It runs no sweep, writes no cursor and touches no store, so it is safe
+   * to call against production as often as needed.
+   */
+  if (new URL(request.url).searchParams.get('test') === 'alert') {
+    const configured = alertChannels();
+    const delivery = await sendOperatorAlert({
+      subject: 'Pokter: alert channel test',
+      body:
+        'This is a test of the operator alert channel, triggered deliberately.\n\n' +
+        'If you are reading it, a real hire from outside the team would reach ' +
+        'you the same way. No sweep ran and nothing was recorded.',
+    });
+    return NextResponse.json({
+      test: 'alert',
+      configured,
+      delivery,
+      reached: delivery.telegram === 'sent' || delivery.email === 'sent',
+    });
   }
 
   try {
