@@ -57,8 +57,23 @@ export function LandingHero({
         </div>
 
         <div className="hero-actions flex flex-wrap items-center justify-center gap-3">
+            {/*
+              To the catalogue, like everything else on this page.
+
+              This button went to /discover while the brief input directly
+              below it posts to /agents, and so does every other route off the
+              landing page — the agent rail, the outcome rail, "Explore all
+              agents", "Browse marketplace". The hero was the one dissenter,
+              sending its most prominent click somewhere the rest of the page
+              never mentioned again, and the two destinations sat about a
+              hundred pixels apart.
+
+              /discover is not removed; it keeps its place in the nav and is
+              linked from the catalogue. It is simply no longer a second front
+              door competing with the first.
+            */}
             <Link
-              href="/discover"
+              href="/agents"
               className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
             >
               Find an agent
