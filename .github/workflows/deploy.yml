@@ -19,7 +19,8 @@ jobs:
   verify:
     name: Verify release
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20 with the build retry above: three attempts have to fit.
+    timeout-minutes: 35
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -48,8 +49,26 @@ jobs:
       - name: Run rate-limit checks
         run: npm run audit:rate-limit
 
+      # next/font resolves Newsreader and the body face over the network at
+      # build time, and that fetch has twice returned null mid-release and
+      # failed the whole deploy with "Cannot read properties of null" — on
+      # commits that built clean locally and clean on the retry. Nothing in
+      # the repository can make a third-party fetch reliable, so the release
+      # retries it rather than treating a dropped request as a broken build.
+      #
+      # A real compile error still fails, three times and more slowly; the
+      # warning marks which runs needed a second go, so the flake stays
+      # visible rather than being quietly absorbed. The durable fix is to
+      # self-host the fonts and stop fetching at build time at all.
       - name: Build production application
-        run: npm run build -- --webpack
+        run: |
+          for attempt in 1 2 3; do
+            if npm run build -- --webpack; then exit 0; fi
+            echo "::warning::Build attempt ${attempt} of 3 failed; retrying in 15s"
+            sleep 15
+          done
+          echo "::error::Build failed three times."
+          exit 1
 
   deploy:
     name: Deploy to Fly.io

@@ -59,10 +59,24 @@ const PRIMARY = [
 // Builder Studio is a first-class desktop destination. Mobile keeps five
 // total tab-bar items and exposes it through More so the bar never compresses
 // labels or creates a sixth overflow column.
-const DESKTOP_PRIMARY = [
+/*
+ * `wide` items appear only once the row can actually hold them.
+ *
+ * All six used to render from the moment the desktop bar appeared, and the
+ * bar cannot hold six at every desktop width: the right-hand cluster grows at
+ * xl, when the network pill writes itself out in full. Measured, the row
+ * needs about 900px for four links and about 1,280px for six. One breakpoint
+ * cannot satisfy both, which is why moving the single switch did not fix this
+ * — at 1,024px "Activity" still landed on top of the pill.
+ *
+ * So the two that are reachable elsewhere wait for the room. Launch is in the
+ * More menu and the footer; Campaign is in the secondary menu as Set and Earn.
+ * Neither is lost at any width, and nothing is ever painted over anything.
+ */
+const DESKTOP_PRIMARY: { href: string; label: string; wide?: boolean }[] = [
   ...PRIMARY.slice(0, 3),
-  { href: '/build', label: 'Launch' },
-  { href: '/set-and-earn', label: '🔥 Campaign' },
+  { href: '/build', label: 'Launch', wide: true },
+  { href: '/set-and-earn', label: '🔥 Campaign', wide: true },
   PRIMARY[3],
 ];
 
@@ -128,7 +142,7 @@ export function Nav() {
               else router.push('/app');
             }}
             aria-label="Go back"
-            className="-mr-3 flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)] md:hidden"
+            className="-mr-3 flex size-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--text-secondary)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)] lg:hidden"
           >
             <svg viewBox="0 0 24 24" aria-hidden className="size-[18px] fill-none stroke-current" strokeWidth="1.8">
               <path d="m15 18-6-6 6-6" />
@@ -143,7 +157,21 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 items-center gap-1 whitespace-nowrap md:flex">
+        {/*
+          The desktop bar turns on at lg, not md.
+
+          It was switching on at 768px, where the nav is handed 193px to lay
+          out 456px of links. Nothing was clipped, because this element
+          overflows visibly — the last four links simply rendered on top of
+          the network pill and the theme toggle. Every width from 768 up drew
+          the two groups over each other.
+
+          The mobile tab bar and the menu button move with it, so the band
+          that used to overlap now gets the layout built for narrow screens.
+          The two widest links then wait for xl-and-a-bit; see DESKTOP_PRIMARY
+          for why one breakpoint could not do this on its own.
+        */}
+        <nav className="hidden min-w-0 flex-1 items-center gap-1 whitespace-nowrap lg:flex">
           {DESKTOP_PRIMARY.map((item) => {
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -153,6 +181,7 @@ export function Nav() {
                 href={item.href}
                 className={cn(
                   'rounded-[var(--radius)] px-2.5 py-1.5 text-[13px] transition-colors',
+                  item.wide && 'hidden min-[1340px]:block',
                   active
                     ? 'bg-[color:var(--surface-raised)] text-[color:var(--text)]'
                     : 'text-[color:var(--text-muted)] hover:text-[color:var(--text)]',
@@ -274,7 +303,7 @@ export function MobileNav() {
         phone is more furniture than screen, and only one of them is about
         the decision in front of the reader.
       */
-      className="fixed inset-x-3 z-30 mx-auto max-w-[520px] overflow-hidden rounded-[1.25rem] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]/92 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden [body[data-hire-bar]_&]:hidden"
+      className="fixed inset-x-3 z-30 mx-auto max-w-[520px] overflow-hidden rounded-[1.25rem] border border-[color:var(--border-strong)] bg-[color:var(--surface-raised)]/92 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:hidden [body[data-hire-bar]_&]:hidden"
       style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       aria-label="Primary navigation"
     >
