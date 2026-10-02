@@ -139,6 +139,18 @@ export default async function AgentPage({
    * is what the agent asked for, and the default is only where an offer
    * starts for an agent that has never named a price.
    */
+  /*
+   * Whether this agent can actually perform a job hired here.
+   *
+   * An agent's runtime watches the chain it is registered on. Identities are
+   * on 56 and escrow is on 97, so a registry agent cannot see the job and
+   * Pokter's own seller carries out the brief instead. Everything else on
+   * this page — the probes, the attestations, the latency — describes the
+   * agent. None of it describes what a buyer would receive today, and that
+   * was only said two screens later on the hire form.
+   */
+  const deliveredByPokter = agent.chain_id !== ALTANA_NETWORK.chainId;
+
   const askedPrice = dossier.quote
     ? formatQuotedPrice(Number(dossier.quote.priceU))
     : null;
@@ -503,6 +515,11 @@ export default async function AgentPage({
             </span>
 
             <div>
+              {deliveredByPokter && (
+                <p className="mb-2 inline-flex rounded-full border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--caution)]">
+                  Delivered by Pokter on testnet
+                </p>
+              )}
               <p className="text-[11px] text-[color:var(--text-muted)]">
                 {priceCaption}
               </p>

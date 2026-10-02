@@ -969,7 +969,20 @@ export function CommissionPanel({
                   than something to press. A mark that turns when the row opens
                   says it is a control and which way it goes.
                 */}
-                <details className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+                {/*
+                  Open when somebody else will do the work.
+
+                  The alternatives were always listed in here, with labels and
+                  reasons — but behind a collapsed row marked "Advanced", so a
+                  reader told their agent is being substituted had no visible
+                  sign that a choice existed. Collapsed is right when the
+                  default is the obvious one; it is not right when the default
+                  is the surprising one.
+                */}
+                <details
+                  open={substituted}
+                  className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]"
+                >
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
                     <span className="shrink-0">Advanced · delivery route</span>
                     <span className="flex min-w-0 items-center gap-2">
