@@ -299,17 +299,16 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
             onClick={() => setVisible((count) => count + PAGE)}
             className="inline-flex min-h-11 items-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-5 text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
           >
-            View {Math.min(PAGE, remaining)} more
+            Show more
           </button>
           {/*
             Only when it adds something.
 
-            The button already names how many the next press reveals, so once
-            the remainder fits in a single page this line repeated it in
-            different words — "View 5 more" above "5 more indexed in this
-            view". It earns its place only while the list runs deeper than
-            one more press, which is the one time a reader wants to know how
-            far down it goes.
+            The button is "Show more" and says nothing about quantity, so
+            this line is the only place the depth of the list appears — and
+            it is worth saying only while there is real depth left. Once the
+            remainder fits in a single press, "12 more indexed in this view"
+            under a button that is about to show all twelve is noise.
           */}
           {remaining > PAGE && (
             <p className="text-[11px] text-[color:var(--text-faint)]">
