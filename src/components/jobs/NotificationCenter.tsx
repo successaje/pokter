@@ -109,7 +109,7 @@ export function NotificationCenter({ walletAddress, jobs }: { walletAddress: str
                     <span className="text-[13px] font-medium">{item.title}</span>
                     <span className="text-[10px] text-[color:var(--text-faint)]">{timeLabel(item.createdAt)}</span>
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     {item.body}
                   </span>
                 </span>
@@ -125,7 +125,7 @@ export function NotificationCenter({ walletAddress, jobs }: { walletAddress: str
 
       <aside className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
         <h3 className="text-sm font-medium">How to notify me</h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           In-app updates stay on this device. Browser alerts add a system notification when Pokter is open.
         </p>
         <button
@@ -146,7 +146,7 @@ export function NotificationCenter({ walletAddress, jobs }: { walletAddress: str
         </button>
         <div className="mt-4 border-t border-[color:var(--border)] pt-4">
           <p className="text-[12px] font-medium">Email updates</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+          <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-faint)]">
             Verify once for each job. Emails contain status only—not your task details.
           </p>
           {jobs.length ? (

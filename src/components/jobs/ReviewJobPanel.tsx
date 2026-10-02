@@ -66,7 +66,7 @@ export function ReviewJobPanel({ job }: { job: HiredJob }) {
         <label className="text-[11px] text-[color:var(--text-muted)]">Hire again<select value={wouldHireAgain ? 'yes' : 'no'} onChange={(event) => setWouldHireAgain(event.target.value === 'yes')} className="mt-1.5 w-full rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-2.5 text-[12px]"><option value="yes">Yes</option><option value="no">No</option></select></label>
       </div>
       <label className="text-[11px] text-[color:var(--text-muted)]">Optional comment<textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} rows={3} className="mt-1.5 w-full resize-y rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-3 text-[12px]" /></label>
-      <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">Your wallet signs the exact rating and job identity. No transaction or gas is required. Pokter verifies that the signer funded this completed ERC-8183 job.</p>
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">Your wallet signs the exact rating and job identity. No transaction or gas is required. Pokter verifies that the signer funded this completed ERC-8183 job.</p>
       {error && <p className="text-[11px] text-[color:var(--negative)]">{error}</p>}
       <button type="button" onClick={submit} disabled={state === 'signing'} className="action-primary min-h-10 rounded-[var(--radius)] px-4 text-[12px] font-medium disabled:opacity-60">{state === 'signing' ? 'Approve review in wallet…' : 'Sign and publish verified review'}</button>
     </div>

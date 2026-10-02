@@ -124,7 +124,7 @@ export default async function HirePage({
                 <h2 className="text-sm font-medium text-[color:var(--caution)]">
                   Additional review required
                 </h2>
-                <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                   {riskSummary}
                 </p>
                 </div>

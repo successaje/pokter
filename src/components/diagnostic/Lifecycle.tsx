@@ -87,7 +87,7 @@ export function Lifecycle() {
           <span className="mono">provider_sig</span> recovers to the registered
           agent wallet before keeping the price.
         </p>
-        <pre className="overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+        <pre className="overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           {QUOTE_SAMPLE}
         </pre>
       </div>

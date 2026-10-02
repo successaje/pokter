@@ -48,7 +48,7 @@ export function EvidencePanel({ attestations }: { attestations: Attestation[] })
           )}
 
           {attestation.reasoning && (
-            <p className="break-words text-[11px] leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere] mt-2">
+            <p className="break-words text-[12px] leading-relaxed text-[color:var(--text-muted)] [overflow-wrap:anywhere] mt-2">
               {attestation.reasoning}
             </p>
           )}

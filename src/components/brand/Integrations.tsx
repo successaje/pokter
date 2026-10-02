@@ -105,7 +105,7 @@ export function Integrations() {
               </span>
               <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium">{integration.name}</span>
-                <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                <span className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                   {integration.role}
                 </span>
               </span>

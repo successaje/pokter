@@ -7,6 +7,7 @@ import { plural } from '@/lib/ui/plural';
 import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { AgentSpec } from '@/components/agent/AgentSpec';
 import type { ChainId } from '@/lib/scan/types';
 import {
   publishedEvidenceLine,
@@ -33,7 +34,7 @@ import { TrustStrip } from '@/components/agent/TrustStrip';
 import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { ShareAgent } from '@/components/agent/ShareAgent';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
-import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
+import { DEFAULT_BUDGET_LABEL, formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
@@ -125,6 +126,37 @@ export default async function AgentPage({
   const dossier = result.dossier;
 
   const { agent, category, attestations, proof, live, record, score } = dossier;
+
+  /*
+   * The agent's own price, where it has one.
+   *
+   * Both price slots on this page printed DEFAULT_BUDGET_LABEL — Pokter's
+   * house budget — under the words "Hire price" and "Starting from". So an
+   * agent whose card advertised 0.50 $U showed 0.10 here, and a reader
+   * comparing the two pages found the marketplace disagreeing with itself
+   * about what one agent charges.
+   *
+   * They are different quantities and now say which is which: a signed quote
+   * is what the agent asked for, and the default is only where an offer
+   * starts for an agent that has never named a price.
+   */
+  /*
+   * Whether this agent can actually perform a job hired here.
+   *
+   * An agent's runtime watches the chain it is registered on. Identities are
+   * on 56 and escrow is on 97, so a registry agent cannot see the job and
+   * Pokter's own seller carries out the brief instead. Everything else on
+   * this page — the probes, the attestations, the latency — describes the
+   * agent. None of it describes what a buyer would receive today, and that
+   * was only said two screens later on the hire form.
+   */
+  const deliveredByPokter = agent.chain_id !== ALTANA_NETWORK.chainId;
+
+  const askedPrice = dossier.quote
+    ? formatQuotedPrice(Number(dossier.quote.priceU))
+    : null;
+  const priceLabel = askedPrice ?? DEFAULT_BUDGET_LABEL;
+  const priceCaption = askedPrice ? 'Price it asked for' : 'Starting from';
   const economicHistory = summariseEconomicHistory(
     getJobStore().byAgent(agent.chain_id, agent.token_id),
   );
@@ -285,6 +317,13 @@ export default async function AgentPage({
                   </span>
                 </div>
 
+                {/*
+                  Pokter's answer first, the publisher's prose second.
+                  The four rows below are facts about every agent here; the
+                  description under them is whatever its operator wrote.
+                */}
+                <AgentSpec category={category} />
+
                 {agent.description && (
                   <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
                     <summary className="cursor-pointer list-none">
@@ -318,7 +357,7 @@ export default async function AgentPage({
             */}
             <MobileHireAction
             href={`/hire/${agent.chain_id}/${agent.token_id}`}
-            price={DEFAULT_BUDGET_LABEL}
+            price={priceLabel}
             answeredNow={answeredNow}
             recommended={proof.recommendedForHire}
             verdictLabel={
@@ -448,7 +487,7 @@ export default async function AgentPage({
                         {knownDefects.map((defect) => (
                           <li
                             key={defect}
-                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]"
+                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]"
                           >
                             {defect}
                           </li>
@@ -484,11 +523,16 @@ export default async function AgentPage({
             </span>
 
             <div>
+              {deliveredByPokter && (
+                <p className="mb-2 inline-flex rounded-full border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--caution)]">
+                  Delivered by Pokter on testnet
+                </p>
+              )}
               <p className="text-[11px] text-[color:var(--text-muted)]">
-                Starting from
+                {priceCaption}
               </p>
               <p className="tabular mt-1 font-[family-name:var(--font-serif)] text-3xl leading-none">
-                {DEFAULT_BUDGET_LABEL}
+                {priceLabel}
               </p>
               {/*
                 No dollar estimate. On testnet these are faucet tokens worth
@@ -554,14 +598,14 @@ export default async function AgentPage({
             </div>
 
             {(!proof.recommendedForHire || !answeredNow) && (
-              <p className="text-[11px] leading-relaxed text-[color:var(--caution)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
                 {proof.recommendedForHire
                   ? 'Strong historical evidence, but the latest live capability check failed.'
                   : 'This agent requires explicit risk acceptance before it can be hired.'}
               </p>
             )}
 
-            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
               <svg viewBox="0 0 24 24" aria-hidden className="mt-px size-3.5 shrink-0 fill-none stroke-current" strokeWidth="1.8">
                 <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
               </svg>

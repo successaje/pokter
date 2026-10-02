@@ -3,6 +3,7 @@ import { StatusState } from '@/components/ui/States';
 import { Suspense } from 'react';
 
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { FAUCETS } from '@/lib/network/presentation';
 import { listSearchable,
   listingsPerOwner,
   preferDistinctOwners,
@@ -141,11 +142,36 @@ export default async function AgentsPage({
           four lines of prose between the title and the first agent, and the
           search control below states the count anyway.
         */}
+        {/*
+          What the prices are, where the prices first appear.
+          
+          Every card on this page quotes "0.05 $U" and the first plain
+          explanation of what that means lived on the hire form, past the
+          point of choosing. Somebody holding USDT reads these as dollars.
+          
+          The query syntax that was here moved out: is:proven and
+          has:probes>10 are reference material for a reader already
+          filtering, and this is the first paragraph a first-timer meets.
+          The search control below documents them where they are used.
+        */}
         <p className="hidden text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
           {all.length} agents indexed across {CATEGORIES.length} categories.
-          Filter on what has been observed — <span className="mono">is:proven</span>,{' '}
-          <span className="mono">has:probes&gt;10</span> — not just on what
-          publishers claim.
+          Prices are in <span className="mono">$U</span>, a free test token on
+          BNB Testnet — not your USDT, and nothing here spends real money.
+          {FAUCETS?.paymentTokenBot && (
+            <>
+              {' '}
+              <a
+                href={FAUCETS.paymentTokenBot.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-medium text-[color:var(--info)] underline decoration-dotted"
+              >
+                Get $U
+              </a>
+              .
+            </>
+          )}
         </p>
       </header>
 
@@ -184,7 +210,7 @@ export default async function AgentsPage({
         <MarketplaceControls order={order} />
       </Suspense>
 
-      <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[10px] leading-5 text-[color:var(--text-muted)]">
+      <details className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[12px] leading-5 text-[color:var(--text-muted)]">
         <summary className="cursor-pointer font-semibold text-[color:var(--text-secondary)]">Why this order?</summary>
         <p className="mt-2 max-w-3xl">Recommended results prioritize agents Pokter can currently offer for hire, recent observed responses, completed paid work, a current wallet-signed price, and then evidence depth. Jobs <em>taken</em> never improve rank — only jobs finished, because an agent that accepts escrow and does not deliver is the case this ordering exists to avoid rewarding. Registration alone does not improve rank. Pokter-operated agents receive no first-party boost.</p>
       </details>

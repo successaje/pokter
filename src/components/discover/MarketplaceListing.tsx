@@ -190,7 +190,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
                   <h3 title={row.name} className="mt-1 line-clamp-2 text-sm font-semibold leading-snug [overflow-wrap:anywhere]">
                     {row.name}
                   </h3>
-                  <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     {row.description}
                   </p>
                 </div>
@@ -242,7 +242,7 @@ export function MarketplaceListing({ rows }: { rows: ListingRow[] }) {
                   <span className="text-[11px] text-[color:var(--text-faint)]">
                     {row.categoryLabel}
                   </span>
-                  <span className="line-clamp-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <span className="line-clamp-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     {row.description}
                   </span>
                 </span>

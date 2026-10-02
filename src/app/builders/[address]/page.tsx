@@ -76,13 +76,13 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
         {agents.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{agents.map((agent) => (
           <Link key={`${agent.chain_id}:${agent.token_id}`} href={`/agents/${agent.chain_id}/${agent.token_id}`} className="group rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]">
             <div className="flex items-center gap-3"><AgentAvatar name={agent.name} src={agent.image_url} size="sm" /><div className="min-w-0"><h3 className="truncate text-sm font-semibold">{agent.name}</h3><p className="mono mt-1 text-[9px] text-[color:var(--text-muted)]">BNB {agent.is_testnet ? 'Testnet' : 'Chain'} · #{agent.token_id}</p></div></div>
-            <p className="mt-4 line-clamp-3 text-[11px] leading-5 text-[color:var(--text-secondary)]">{agent.description || 'No public description.'}</p>
+            <p className="mt-4 line-clamp-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">{agent.description || 'No public description.'}</p>
             <div className="mt-4 flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[10px]"><span className="text-[color:var(--text-muted)]">{agent.total_feedbacks} attestations</span><span className="font-medium text-[color:var(--brand-strong)]">View evidence →</span></div>
           </Link>
         ))}</div> : <div className="mt-5 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-8 text-center text-[12px] text-[color:var(--text-muted)]">No ERC-8004 agents are currently owned by this wallet.</div>}
       </section>
 
-      <p className="text-[10px] leading-5 text-[color:var(--text-muted)]">Job figures follow the ERC-8004 identities currently owned by this wallet and include only chain-verified jobs indexed through Pokter’s immutable job envelope. They are portfolio activity—not a claim that this publisher personally performed or earned every job, and not chain-wide totals.</p>
+      <p className="text-[12px] leading-5 text-[color:var(--text-muted)]">Job figures follow the ERC-8004 identities currently owned by this wallet and include only chain-verified jobs indexed through Pokter’s immutable job envelope. They are portfolio activity—not a claim that this publisher personally performed or earned every job, and not chain-wide totals.</p>
     </div>
   );
 }

@@ -99,7 +99,7 @@ export function AuthorityPanel({ agent }: { agent: ScanAgentDetail }) {
         and reachable from nowhere, so the paragraph explained a thing that
         cannot happen alongside a thing that was wrong.
       */}
-      <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
         Escrow is funded by whichever wallet you connect: a passkey created on
         this device, or your own browser wallet. Pokter holds neither key and
         signs nothing on your behalf.

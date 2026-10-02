@@ -758,7 +758,7 @@ export function CommissionPanel({
 
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-xs font-medium">Start from an outcome</legend>
-                  <p className="mb-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                  <p className="mb-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                     Each one writes a brief below that you can edit. None of
                     them execute anything.
                   </p>
@@ -860,7 +860,7 @@ export function CommissionPanel({
                           <span className="block text-[13px] font-semibold leading-tight">
                             {template.label}
                           </span>
-                          <span className="block text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                          <span className="block text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                             {template.description}
                           </span>
                         </button>
@@ -943,7 +943,7 @@ export function CommissionPanel({
                         )}
                       </p>
                       {FAUCETS && (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+                        <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                           You also need a little {NATIVE_SYMBOL} for gas, from
                           the{' '}
                           <a
@@ -969,7 +969,20 @@ export function CommissionPanel({
                   than something to press. A mark that turns when the row opens
                   says it is a control and which way it goes.
                 */}
-                <details className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+                {/*
+                  Open when somebody else will do the work.
+
+                  The alternatives were always listed in here, with labels and
+                  reasons — but behind a collapsed row marked "Advanced", so a
+                  reader told their agent is being substituted had no visible
+                  sign that a choice existed. Collapsed is right when the
+                  default is the obvious one; it is not right when the default
+                  is the surprising one.
+                */}
+                <details
+                  open={substituted}
+                  className="group rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]"
+                >
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
                     <span className="shrink-0">Advanced · delivery route</span>
                     <span className="flex min-w-0 items-center gap-2">
@@ -990,7 +1003,7 @@ export function CommissionPanel({
                     </span>
                   </summary>
                   <div className="flex flex-col gap-2 border-t border-[color:var(--border)] p-3">
-                    <p className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
+                    <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">The agent is the identity you evaluated. The delivery provider is the address that receives this testnet escrow and returns the work.</p>
                     {providers.map((option) => (
                       <button
                         key={option.address}
@@ -1005,7 +1018,7 @@ export function CommissionPanel({
                           </span>
                         </span>
                         <span className="mono text-[10px] text-[color:var(--text-faint)]">{shortAddress(option.address)}</span>
-                        <span className="text-[10px] leading-relaxed text-[color:var(--text-muted)]">{option.note}</span>
+                        <span className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">{option.note}</span>
                       </button>
                     ))}
                   </div>
@@ -1024,7 +1037,7 @@ export function CommissionPanel({
               <div className="flex flex-col gap-5 p-4 sm:p-6">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">Review before funding</h2>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">Confirm the outcome, protections and delivery route. Nothing moves until your passkey wallet signs the escrow transaction.</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">Confirm the outcome, protections and delivery route. Nothing moves until your passkey wallet signs the escrow transaction.</p>
                 </div>
 
                 <dl className="grid gap-px overflow-hidden rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--border)] text-[11px] lg:hidden">
@@ -1061,10 +1074,10 @@ export function CommissionPanel({
                 {riskWarnings.length > 0 && (
                   <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] p-4">
                     <p className="text-[11px] font-semibold text-[color:var(--caution)]">Additional risk acceptance required</p>
-                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-4 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                       {riskWarnings.map((warning) => <li key={warning}>{warning}</li>)}
                     </ul>
-                    <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                    <label className="mt-3 flex cursor-pointer items-start gap-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                       <input type="checkbox" checked={riskAccepted} onChange={(event) => setRiskAccepted(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[color:var(--brand)]" />
                       I understand these warnings and still want to fund this commission.
                     </label>
@@ -1072,7 +1085,7 @@ export function CommissionPanel({
                 )}
 
                 {provider?.relationship === 'separate-provider' && (
-                  <div className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] p-3 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                  <div className="rounded-[var(--radius)] border border-[color:var(--info)]/30 bg-[color:var(--info-dim)] p-3 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                     <strong>{agent.name}</strong> is the identity being evaluated. <strong>{provider.label}</strong> delivers this testnet job. Both are recorded in the immutable job envelope.
                   </div>
                 )}
@@ -1086,7 +1099,7 @@ export function CommissionPanel({
                     <div key={number} className="rounded-[var(--radius)] border border-[color:var(--border)] p-3">
                       <span className="flex size-5 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[9px] text-[color:var(--brand)]">{number}</span>
                       <p className="mt-2 text-[11px] font-medium">{label}</p>
-                      <p className="mt-0.5 text-[10px] leading-relaxed text-[color:var(--text-muted)]">{copy}</p>
+                      <p className="mt-0.5 text-[12px] leading-relaxed text-[color:var(--text-muted)]">{copy}</p>
                     </div>
                   ))}
                 </div>
@@ -1123,9 +1136,9 @@ export function CommissionPanel({
             {error && (
               <div className="border-t border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-4">
                 <p className="text-[11px] font-medium text-[color:var(--negative)]">The job was not created</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">{error}</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">{error}</p>
                 {heldAfterFailure && (
-                  <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                  <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                     The {heldAfterFailure} $U was acquired before this failed
                     and is still in your wallet. Nothing was escrowed.
                     Commissioning again spends it rather than swapping a second
@@ -1134,7 +1147,7 @@ export function CommissionPanel({
                 )}
                 {(externalStep === 'approving' || externalStep === 'funding') && (
                   <div className="mt-2 rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2.5">
-                    <p className="text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+                    <p className="text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                       {revoked
                         ? 'The approval is back to zero. Nothing of yours is spendable by the escrow.'
                         : `The escrow is approved to draw ${formatBudget(budget)} and did not. Commissioning again reuses that approval, or you can take it back now.`}
@@ -1184,7 +1197,7 @@ export function CommissionPanel({
               */}
               <div className="flex items-start justify-between gap-3 p-4"><dt className="text-[color:var(--text-faint)]">If it never delivers</dt><dd className="text-right">Escrow is reclaimable once the job expires</dd></div>
             </dl>
-            <div className="border-t border-[color:var(--border)] bg-[color:var(--positive-dim)] px-4 py-3 text-[10px] leading-relaxed text-[color:var(--positive)]">
+            <div className="border-t border-[color:var(--border)] bg-[color:var(--positive-dim)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--positive)]">
               Funds release through the job lifecycle—not when you open this page.
             </div>
           </aside>
@@ -1198,7 +1211,7 @@ export function CommissionPanel({
         that rather than take it on trust.
       */}
       {swapQuote && (
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Acquired {formatUnits(swapQuote.amountOut, 18)} $U for about{' '}
           <span className="mono">
             {Number(formatEther(swapQuote.amountIn)).toFixed(6)} {NATIVE_SYMBOL}
@@ -1294,7 +1307,7 @@ export function CommissionPanel({
 
           <JobStatusTrack status={job.status} />
 
-          <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
             {JOB_STAGE_COPY[job.status]}
           </p>
 
@@ -1369,7 +1382,7 @@ export function CommissionPanel({
                 the button implies otherwise.
               */}
               {notificationDetail && (
-                <p className="mt-1.5 text-[11px] leading-relaxed opacity-75">
+                <p className="mt-1.5 text-[12px] leading-relaxed opacity-75">
                   {notificationDetail}
                 </p>
               )}
@@ -1382,7 +1395,7 @@ export function CommissionPanel({
                 and nowhere to go.
               */}
               {notification === 'failed' && isConfigFailure && (
-                <p className="mt-2 text-[11px] leading-relaxed">
+                <p className="mt-2 text-[12px] leading-relaxed">
                   <a
                     href={supportMailto({
                       subject: 'Seller notification failed',

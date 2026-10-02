@@ -99,7 +99,7 @@ export function Transparency() {
               </span>
             </div>
 
-            <p className="flex gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            <p className="flex gap-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
               <span aria-hidden className="text-[color:var(--positive)]">
                 ✓
               </span>
@@ -107,7 +107,7 @@ export function Transparency() {
             </p>
 
             {outcome.didnt && (
-              <p className="flex gap-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="flex gap-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 <span aria-hidden className="text-[color:var(--caution)]">
                   ⚠
                 </span>

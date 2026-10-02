@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 
-const PROMPTS = ['Earn yield on idle capital', 'Protect a lending position', 'Rebalance my portfolio', 'Run a grid strategy'] as const;
+/* Questions these agents can answer, rather than jobs they cannot take on. */
+const PROMPTS = ['Where would my capital earn more', 'How close is my loan to liquidation', 'How far has my portfolio drifted', 'Does my grid range still fit'] as const;
 const SLIDES = ['Find an agent', 'Set and Earn', 'Top agents'] as const;
 
 interface TopAgent {

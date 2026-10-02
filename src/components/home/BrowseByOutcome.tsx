@@ -13,11 +13,21 @@ import type { Listing } from '@/lib/marketplace';
 
 type Entry = { listing: Listing; record: TrackRecord };
 
+/*
+ * Named for what arrives, not for what a buyer wishes would happen.
+ *
+ * These read "Monitor risk — act before liquidation", "Earn yield — put idle
+ * capital to work", "Stay allocated", "Execute a plan". Every one of them
+ * describes an agent doing something continuous to your money. Nothing here
+ * does: each agent answers once when hired, returns a written assessment,
+ * and cannot touch a wallet. The tile was the loudest promise on the page
+ * and the furthest from the product.
+ */
 const OUTCOMES: Record<Category, { verb: string; short: string; icon: string }> = {
-  yield: { verb: 'Earn yield', short: 'Put idle capital to work', icon: '↗' },
-  'health-factor': { verb: 'Monitor risk', short: 'Act before liquidation', icon: '⌁' },
-  rebalancing: { verb: 'Stay allocated', short: 'Keep target weights in range', icon: '◫' },
-  'grid-trading': { verb: 'Execute a plan', short: 'Trade a defined price range', icon: '⌗' },
+  yield: { verb: 'Compare yields', short: 'Where capital would earn more', icon: '↗' },
+  'health-factor': { verb: 'Check liquidation risk', short: 'How close a loan is', icon: '⌁' },
+  rebalancing: { verb: 'Check drift', short: 'How far weights have moved', icon: '◫' },
+  'grid-trading': { verb: 'Review a range', short: 'Whether it still fits the market', icon: '⌗' },
 };
 
 function evidenceRate(entry: Entry): number {

@@ -293,7 +293,7 @@ export function JobCard({
 
       <ReviewJobPanel job={job} />
 
-      <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
         {JOB_STAGE_COPY[job.status]}
       </p>
 
@@ -315,14 +315,14 @@ export function JobCard({
           <p className="text-[11px] font-medium text-[color:var(--caution)]">
             Nothing delivered yet
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             {job.agentName} was funded {formatElapsed(waitedFor)} ago and has
             not submitted work. Your {budget} $U has not moved: the escrow
             releases only against a submitted deliverable you approve, and if
             nothing is submitted by {job.expiredAt.slice(0, 16).replace('T', ' ')}{' '}
             UTC the budget is yours to reclaim.
           </p>
-          <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+          <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
             Reclaimable in {formatElapsed(expiresAt - openedAt)}. Refresh status
             re-reads the chain rather than trusting this card.
           </p>
@@ -334,7 +334,7 @@ export function JobCard({
           <p className="text-[11px] font-medium text-[color:var(--positive)]">
             Escrow reclaimed
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             The budget went back to the wallet that funded it.{' '}
             <a
               href={`${explorerBase}/tx/${job.reclaimTxHash}`}
@@ -353,7 +353,7 @@ export function JobCard({
           <p className="text-[11px] font-medium text-[color:var(--caution)]">
             This escrow expired without a delivery
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+          <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
             {formatUnits(BigInt(job.budgetRaw), 18)} $U is
             still held by the contract and is yours to take back. Nothing was
             delivered, so nothing is owed to the agent.
@@ -370,7 +370,7 @@ export function JobCard({
       )}
 
       {(job.status === 'FUNDED' || job.status === 'EXPIRED') && (
-        <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           {job.status === 'EXPIRED'
             ? 'The budget is yours to reclaim from the escrow contract. '
             : 'Waiting longer than you expected? '}
@@ -416,7 +416,7 @@ export function JobCard({
         <summary className="cursor-pointer text-[11px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]">
           Task brief
         </summary>
-        <pre className="mt-2 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-3 text-[10px] leading-relaxed text-[color:var(--text-secondary)]">
+        <pre className="mt-2 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg)] p-3 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           {job.task}
         </pre>
       </details>
@@ -447,7 +447,7 @@ export function JobCard({
       )}
 
       {job.deliverableUrl && !deliverableUrl && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-2.5 text-[11px] leading-relaxed text-[color:var(--caution)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-2.5 text-[12px] leading-relaxed text-[color:var(--caution)]">
           The submitted deliverable uses an unsupported or malformed URL. Do not
           release escrow until the seller provides a valid HTTP(S) deliverable.
         </p>
@@ -512,7 +512,7 @@ export function JobCard({
       </dl>
 
       {error && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-2.5 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-2.5 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           {error}
         </p>
       )}
@@ -529,7 +529,7 @@ export function JobCard({
 
         {settleable && deliverableUrl && (
           <div className="flex w-full flex-col gap-2 rounded-[var(--radius)] border border-[color:var(--border)] p-3">
-            <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+            <label className="flex items-start gap-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
               <input
                 type="checkbox"
                 checked={reviewed}
@@ -541,7 +541,7 @@ export function JobCard({
               is an on-chain approval that pays the seller.
             </label>
             {!receiptVerified && (
-              <p className="text-[10px] leading-relaxed text-[color:var(--caution)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
                 Verify the exact receipt bytes against the on-chain hash before
                 approving payment.
               </p>
@@ -556,7 +556,7 @@ export function JobCard({
             </button>
 
             <div className="mt-1 border-t border-[color:var(--border)] pt-3">
-              <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+              <label className="flex items-start gap-2 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
                 <input
                   type="checkbox"
                   checked={disputeConfirmed}
@@ -570,7 +570,7 @@ export function JobCard({
                 starts the on-chain dispute process and does not release payment.
               </label>
               {windowClosed && (
-                <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--caution)]">
+                <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--caution)]">
                   The dispute window closed when this job expired on{' '}
                   {job.expiredAt.slice(0, 10)}. The escrow was never released
                   and is still yours to reclaim.

@@ -168,7 +168,7 @@ export function SessionCard({
       </dl>
 
       {error && (
-        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-2.5 text-[11px] leading-relaxed text-[color:var(--text-secondary)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-2.5 text-[12px] leading-relaxed text-[color:var(--text-secondary)]">
           {error}
         </p>
       )}

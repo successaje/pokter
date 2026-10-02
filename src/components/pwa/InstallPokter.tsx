@@ -41,7 +41,7 @@ export function InstallPokter({ onComplete }: { onComplete?: () => void }) {
         <span aria-hidden>→</span>
       </button>
       {showIosHelp && (
-        <p className="px-3 pb-2 pt-1 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="px-3 pb-2 pt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           Tap the browser Share button, then choose <strong className="font-medium text-[color:var(--text)]">Add to Home Screen</strong>.
         </p>
       )}

@@ -60,10 +60,10 @@ function Side({
           {(ms / 1000).toFixed(2)}s
         </span>
       </div>
-      <p className="mono text-[11px] leading-relaxed text-[color:var(--text)]">
+      <p className="mono text-[12px] leading-relaxed text-[color:var(--text)]">
         {output}
       </p>
-      <p className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         {note}
       </p>
     </div>
@@ -211,13 +211,13 @@ export default function AgentAdvantagePage() {
             </div>
 
             <div className="flex flex-col gap-2 border-t border-[color:var(--border)] pt-3">
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 <span className="font-medium text-[color:var(--text-secondary)]">
                   Quality:
                 </span>{' '}
                 {experiment.quality}
               </p>
-              <p className="text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+              <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                 <span className="font-medium text-[color:var(--text-secondary)]">
                   Verdict:
                 </span>{' '}
@@ -237,7 +237,7 @@ export default function AgentAdvantagePage() {
           moved. The manual baseline reads the Venus Comptroller and per-market
           rate accessors directly.
         </p>
-        <p className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] leading-relaxed text-[color:var(--text-muted)]">
+        <p className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
           <span className="font-medium text-[color:var(--text-secondary)]">
             On &ldquo;manual time&rdquo;:
           </span>{' '}

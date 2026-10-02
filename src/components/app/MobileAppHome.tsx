@@ -169,7 +169,7 @@ export function MobileAppHome() {
               <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.recover()} className="action-primary flex-1 rounded-[var(--radius)] px-4 text-sm">{passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing passkey'}</button>
               <button type="button" disabled={!passkey.ready || !passkey.supported || passkey.busy !== null} onClick={() => passkey.create()} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-sm font-medium">Create</button>
             </div>
-            {passkey.error && <p className="mt-3 text-[11px] leading-relaxed text-[color:var(--negative)]">{passkey.error}</p>}
+            {passkey.error && <p className="mt-3 text-[12px] leading-relaxed text-[color:var(--negative)]">{passkey.error}</p>}
           </section>
         )}
 

@@ -77,12 +77,12 @@ export function HowItWorks() {
 
               <span className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium">{step.label}</span>
-                <span className="text-[11px] italic leading-relaxed text-[color:var(--text-muted)]">
+                <span className="text-[12px] italic leading-relaxed text-[color:var(--text-muted)]">
                   {step.question}
                 </span>
               </span>
 
-              <span className="mt-auto text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              <span className="mt-auto text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                 {step.body}
               </span>
             </Link>

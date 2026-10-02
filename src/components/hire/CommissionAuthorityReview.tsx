@@ -16,8 +16,8 @@ export function CommissionAuthorityReview({ authority }: { authority: Commission
         <div className="bg-[color:var(--surface)] p-3"><dt className="text-[color:var(--text-faint)]">Approved escrow</dt><dd className="mono mt-1" title={authority.escrowContract}>{shortAddress(authority.escrowContract)}</dd></div>
       </dl>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
-        <div><p className="text-[10px] font-semibold text-[color:var(--positive)]">What is allowed</p><ul className="mt-2 flex flex-col gap-1.5 text-[10px] leading-4 text-[color:var(--text-secondary)]"><li>✓ Approve at most the displayed $U budget</li><li>✓ Fund this single ERC-8183 job</li><li>✓ Withdraw an unused approval after a failed attempt</li></ul></div>
-        <div><p className="text-[10px] font-semibold text-[color:var(--negative)]">What is not allowed</p><ul className="mt-2 flex flex-col gap-1.5 text-[10px] leading-4 text-[color:var(--text-secondary)]">{authority.prohibited.map((item) => <li key={item}>✕ {item}</li>)}</ul></div>
+        <div><p className="text-[10px] font-semibold text-[color:var(--positive)]">What is allowed</p><ul className="mt-2 flex flex-col gap-1.5 text-[12px] leading-4 text-[color:var(--text-secondary)]"><li>✓ Approve at most the displayed $U budget</li><li>✓ Fund this single ERC-8183 job</li><li>✓ Withdraw an unused approval after a failed attempt</li></ul></div>
+        <div><p className="text-[10px] font-semibold text-[color:var(--negative)]">What is not allowed</p><ul className="mt-2 flex flex-col gap-1.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">{authority.prohibited.map((item) => <li key={item}>✕ {item}</li>)}</ul></div>
       </div>
       <p className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-4 py-3 text-[9px] leading-4 text-[color:var(--text-muted)]">Your wallet may show separate create, register, approve and fund prompts when atomic batching is unavailable. Every prompt remains part of this one-job sequence.</p>
     </section>

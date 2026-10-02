@@ -97,7 +97,7 @@ export function EcosystemPanel({ stats }: { stats: EcosystemStats }) {
             <dd className="text-xs text-[color:var(--text-secondary)]">
               {figure.label}
             </dd>
-            <dd className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+            <dd className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
               {figure.source}
             </dd>
           </div>

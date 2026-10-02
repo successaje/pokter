@@ -94,7 +94,7 @@ export function MarketplacePulse({
             The market, measured—not estimated.
           </h2>
         </div>
-        <p className="max-w-md text-[10px] leading-relaxed text-[color:var(--text-faint)] sm:text-right">
+        <p className="max-w-md text-[12px] leading-relaxed text-[color:var(--text-faint)] sm:text-right">
           Registry scale comes from 8004scan. Verification and activity counts
           cover only records Pokter can independently read.
         </p>

@@ -190,7 +190,7 @@ export default async function LeaderboardPage({
                 <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--brand-strong)]">
                   {award.label}
                 </span>
-                <span className="text-[10px] leading-relaxed text-[color:var(--text-faint)]">
+                <span className="text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                   {award.basis}
                 </span>
               </span>
@@ -217,7 +217,7 @@ export default async function LeaderboardPage({
                 </Link>
               </>
             ) : (
-              <span className="mt-auto text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+              <span className="mt-auto text-[12px] leading-relaxed text-[color:var(--text-faint)]">
                 {award.unavailable}
               </span>
             )}
@@ -317,7 +317,7 @@ export default async function LeaderboardPage({
         </>
       )}
 
-      <p className="max-w-3xl text-[11px] leading-relaxed text-[color:var(--text-faint)]">
+      <p className="max-w-3xl text-[12px] leading-relaxed text-[color:var(--text-faint)]">
         Ranking is not a recommendation. A high score means an agent has been
         checked and held up, not that it suits your capital, horizon or risk
         tolerance — that is what{' '}
