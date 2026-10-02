@@ -33,7 +33,17 @@ export function TrialPanel({
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<TrialReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  /*
+   * Open on arrival.
+   *
+   * This is the only thing on the page that lets somebody find out what an
+   * agent does without paying, and it was folded shut behind a one-line
+   * summary — the strongest argument the page has, presented as a footnote.
+   * The toggle stays, because the form is tall and a reader who has already
+   * decided should be able to put it away, but shut is the wrong default
+   * for the one control that costs nothing to use.
+   */
+  const [open, setOpen] = useState(true);
 
   const run = async () => {
     setState('running');
@@ -86,10 +96,10 @@ export function TrialPanel({
       >
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
           <span className="text-[13px] font-semibold">
-            Try the agent before hiring
+            Try it before you hire
           </span>
           <span className="min-w-0 truncate text-[11px] text-[color:var(--text-muted)]">
-            Read-only. No wallet, no funds, no transaction.
+            free · no wallet · read-only
           </span>
         </span>
 
@@ -112,13 +122,18 @@ export function TrialPanel({
         hidden={!expanded}
         className="flex flex-col gap-4 border-t border-[color:var(--border)] p-5"
       >
+        {/*
+          What the check actually does, in the order a reader cares about:
+          what they get, then what it cannot cost them.
+        */}
         <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-          Sends a read-only A2A negotiation request. It creates no wallet
-          permission, moves no funds and executes no strategy transaction.
+          Pokter sends one read-only message to the agent&rsquo;s own
+          endpoint and shows you what came back, signed by its registered
+          wallet. Nothing is signed by you, funded, or stored.
         </p>
 
       <label className="flex flex-col gap-2 text-xs text-[color:var(--text-muted)]">
-        Trial task
+        What to ask it
         <textarea
           rows={3}
           maxLength={500}
@@ -135,7 +150,7 @@ export function TrialPanel({
         disabled={state === 'running' || task.trim().length < 10}
         className="action-primary w-fit rounded-[var(--radius)] px-4 py-2 text-[13px]"
       >
-        {state === 'running' ? 'Asking over A2A…' : 'Run safe trial'}
+        {state === 'running' ? 'Checking…' : 'Run free check →'}
       </button>
 
       {error && (
