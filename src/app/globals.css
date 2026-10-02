@@ -428,6 +428,30 @@ body {
  * semantic colours; this treatment is reserved for forward motion such as
  * finding, trying and hiring an agent.
  */
+/*
+ * The gold action, and the second-rank one beside it.
+ *
+ * Gold means "this is the thing to do here". It stopped meaning that on the
+ * catalogue, where every card carried a gold hire button: 49 gold controls on
+ * one screen, which is a page with no primary action at all. `.action-card`
+ * is the same button at list rank — the whole card already opens the agent,
+ * so hiring from the row is an offered shortcut, not the page's headline.
+ */
+.action-card {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  border: 1px solid var(--border-strong);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.action-card:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--brand);
+}
+
 .action-primary {
   background: var(--brand);
   color: var(--brand-ink);

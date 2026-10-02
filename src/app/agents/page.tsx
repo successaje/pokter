@@ -157,7 +157,27 @@ export default async function AgentsPage({
         <p className="hidden text-sm leading-relaxed text-[color:var(--text-secondary)] md:block">
           {all.length} agents indexed across {CATEGORIES.length} categories.
           Prices are in <span className="mono">$U</span>, a free test token on
-          BNB Testnet — not your USDT, and nothing here spends real money.
+          BNB Testnet — not your USDT, and nothing here spends real money.{' '}
+          {/*
+            Who does the work, before the choosing rather than after it.
+
+            Every agent here is registered on BNB Chain while escrow settles
+            on testnet, so none of them can run the job and Pokter's own
+            seller performs all of them. That was only said on the detail
+            page and the hire form — a buyer could rank, choose and click
+            Hire entirely on one agent's measured record without learning
+            that a different party delivers.
+
+            Said once, here, because it is true of every listing: a badge
+            repeated on all of them would be read as decoration. The ranking
+            is still worth what it was — it is evidence about the agent whose
+            brief is being filled — and this sentence is the caveat on it.
+          */}
+          <span className="font-medium text-[color:var(--text)]">
+            Pokter&apos;s own seller delivers every job on testnet
+          </span>
+          , because the agents are registered on a different chain from the
+          escrow. The evidence below is still about the agent you pick.
           {FAUCETS?.paymentTokenBot && (
             <>
               {' '}
