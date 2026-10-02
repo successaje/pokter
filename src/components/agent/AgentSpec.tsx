@@ -44,7 +44,24 @@ export function AgentSpec({ category }: { category: Classification }) {
   ];
 
   return (
-    <dl className="flex max-w-3xl flex-col divide-y divide-[color:var(--border)] rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
+    <div className="flex max-w-3xl flex-col gap-2">
+      {/*
+        Attribution, not an eyebrow.
+
+        Section eyebrows that restate the heading below them were stripped
+        off the landing page for being texture. This is the opposite: it says
+        who is speaking, which nothing else on the line says. It earns its
+        place because the publisher's own description now sits directly
+        above — the two read as one voice without it, and the whole point of
+        these four rows is that they are the half nobody can overstate.
+      */}
+      <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
+        What Pokter can state{' '}
+        <span className="text-[color:var(--text-faint)]">
+          · not the publisher&apos;s claim
+        </span>
+      </p>
+      <dl className="flex flex-col divide-y divide-[color:var(--border)] rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)]">
       {rows.map((row) => (
         <div
           key={row.label}
@@ -55,7 +72,8 @@ export function AgentSpec({ category }: { category: Classification }) {
           </dt>
           <dd className="text-[12px] leading-relaxed">{row.value}</dd>
         </div>
-      ))}
-    </dl>
+        ))}
+      </dl>
+    </div>
   );
 }
