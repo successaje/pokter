@@ -3,9 +3,9 @@ import Image from 'next/image';
 import {
   CHAIN_ID,
   NETWORK_LABEL,
-  REGISTRY_CHAIN_ID,
-  REGISTRY_NETWORK_LABEL,
+  chainLabel,
 } from '@/lib/network/presentation';
+import { LISTED_CHAINS } from '@/lib/marketplace';
 
 /**
  * What the product is built on.
@@ -53,7 +53,16 @@ const INTEGRATIONS: Integration[] = [
   },
 ];
 
+/** "A (chain 56) and B (chain 97)", however many chains are listed. */
+function listChains(): string {
+  const named = LISTED_CHAINS.map((id) => `${chainLabel(id)} (chain ${id})`);
+  if (named.length < 2) return named[0] ?? '';
+  return `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`;
+}
+
 export function Integrations() {
+  const registryChains = listChains();
+
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
@@ -66,15 +75,18 @@ export function Integrations() {
           quietly dropped.
         </p>
         {/*
-          Both numbers are read from the network module rather than written
-          out. Escrow's chain is set by ALTANA_NETWORK, so a hardcoded 97
-          would quietly become false the day this runs on mainnet.
+          Every chain here is read rather than written out. Escrow's chain is
+          set by ALTANA_NETWORK and the registry side comes from the same
+          LISTED_CHAINS the catalogue is built from, so this paragraph cannot
+          drift from what Pokter actually indexes — it said identities were
+          read from mainnet alone for as long as chain 97 had been listed.
         */}
         <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-          Identity is read from the ERC-8004 registry on{' '}
-          {REGISTRY_NETWORK_LABEL} (chain {REGISTRY_CHAIN_ID}); escrow settles
-          on {NETWORK_LABEL} (chain {CHAIN_ID}). The registry is the real one —
-          the money is not yet.
+          Identity is read from the ERC-8004 registry on {registryChains}.
+          Escrow settles on {NETWORK_LABEL} (chain {CHAIN_ID}), so an agent
+          registered away from that chain cannot see the job it was hired for
+          and Pokter’s own seller delivers those. The mainnet registry is the
+          real one; the money is not yet.
         </p>
       </div>
 
