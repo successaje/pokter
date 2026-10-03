@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { PrivateActivityClient } from '@/components/jobs/PrivateActivityClient';
+import { RecoverJob } from '@/components/jobs/RecoverJob';
 import { isCampaignLive } from '@/lib/campaign/window';
 
 /**
@@ -39,8 +40,8 @@ export default async function MyAgentsPage({
           </h1>
           <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
             Track jobs, review deliverables and manage agent permissions.
-            Records are held on this device; an escrowed job hired elsewhere
-            can be recovered from chain by its job ID.
+            Records are held on this device — a job funded on another one is
+            recovered below, by its ID.
           </p>
         </header>
 
@@ -74,6 +75,14 @@ export default async function MyAgentsPage({
           Device-local · signing-wallet scoped
           </p>
         </div>
+        {/*
+          Above the list, because somebody who cannot find their job is
+          looking for the way to get it back, not scrolling an empty list
+          to see whether it is there. The sentence at the top of the page
+          promised this for a long time without offering anywhere to type.
+        */}
+        <RecoverJob />
+
         <PrivateActivityClient explorerBase={explorerBase} />
       </section>
 
