@@ -360,7 +360,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
   const [briefApplied, setBriefApplied] = useState(false);
-  const [runtimeConfig, setRuntimeConfig] = useState({ target: '', policy: '', output: '' });
+  const [runtimeConfig, setRuntimeConfig] = useState({ category: '', target: '', policy: '', output: '' });
   const [aiPromptContext, setAiPromptContext] = useState<'discovery' | 'draft' | null>(null);
   const [aiPromptCopied, setAiPromptCopied] = useState(false);
 
@@ -368,15 +368,6 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
   }, [draft]);
 
-  /*
-   * Seeded from the category, and re-seeded when it changes, because a scope
-   * or policy chosen for one outcome is not an option under another. This
-   * also covers the starter templates and a draft restored from storage,
-   * neither of which went through the select handlers.
-   */
-  useEffect(() => {
-    setRuntimeConfig(defaultRuntimeConfig(draft.category));
-  }, [draft.category]);
 
   const quality = useMemo(
     () => (report ? summarizeQuality(report.checks) : null),
@@ -407,15 +398,38 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
   }, [draft.category, draft.name]);
   const runtimeOptions = RUNTIME_OPTIONS[draft.category];
+
+  /*
+   * The selects' actual values: what the builder picked, falling back to the
+   * conservative default for the outcome.
+   *
+   * Derived rather than seeded into state by an effect. Writing defaults from
+   * an effect meant a render that set state and re-rendered immediately, and
+   * choices made under a previous outcome had to be cleared by a second
+   * writer. Stamping the category onto the stored choices makes a stale set
+   * recognisable here, so changing the outcome re-seeds with no extra pass.
+   */
+  const runtime = useMemo(() => {
+    const fallback = defaultRuntimeConfig(draft.category);
+    if (runtimeConfig.category !== draft.category) return fallback;
+    return {
+      target: runtimeConfig.target || fallback.target,
+      policy: runtimeConfig.policy || fallback.policy,
+      output: runtimeConfig.output || fallback.output,
+    };
+  }, [draft.category, runtimeConfig]);
+
+  const chooseRuntime = (key: 'target' | 'policy' | 'output', value: string) =>
+    setRuntimeConfig({ ...runtime, category: draft.category, [key]: value });
   const aiPromptInput = useMemo(() => ({
     name: draft.name.trim(),
     description: draft.description.trim(),
     category: CATEGORIES.find((category) => category.id === draft.category)?.label ?? draft.category,
     protocol: draft.protocol,
-    target: runtimeConfig.target,
-    policy: runtimeConfig.policy,
-    output: runtimeConfig.output,
-  }), [draft, runtimeConfig]);
+    target: runtime.target,
+    policy: runtime.policy,
+    output: runtime.output,
+  }), [draft, runtime]);
   const visibleAiPrompt = useMemo(() => createAgentBuildPrompt(aiPromptContext === 'draft' ? aiPromptInput : {
     name: '', description: '', category: '', protocol: 'a2a', target: '', policy: '', output: '',
   }), [aiPromptContext, aiPromptInput]);
@@ -596,7 +610,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       agent: draft.name.trim(),
       category: draft.category,
       protocol: draft.protocol,
-      behavior: runtimeConfig,
+      behavior: runtime,
       note: 'Your runtime must implement and enforce these choices. Pokter verifies the public endpoint independently.',
     };
     const file = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
@@ -869,7 +883,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               */}
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[12px] font-medium">Public repository <span className="font-normal text-[color:var(--text-muted)]">· the campaign requires one</span></span><input value={draft.repository} maxLength={200} onChange={(event) => updateDraft('repository', event.target.value)} placeholder="https://github.com/you/your-agent" inputMode="url" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><span className={cn('text-[12px] leading-4', repositoryProblem ? 'text-[color:var(--caution)]' : 'text-[color:var(--text-muted)]')}>{repositoryProblem ?? 'Published with the agent so anyone can check it. Pokter never calls this URL.'}</span></label>
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={3} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[12px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
-              {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Starting points for this outcome—change any that do not match what you are building. Your runtime must enforce whatever you choose.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
+              {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Starting points for this outcome—change any that do not match what you are building. Your runtime must enforce whatever you choose.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtime.target} onChange={(event) => chooseRuntime('target', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtime.policy} onChange={(event) => chooseRuntime('policy', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtime.output} onChange={(event) => chooseRuntime('output', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
               {(newStep === 1 || newStep === 2) && <section className={cn('rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4', newStep === 2 && 'sm:col-span-2')} aria-labelledby={`ai-build-title-${newStep}`}>
                 <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><p className="mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">Optional shortcut</p><h3 id={`ai-build-title-${newStep}`} className="mt-1 text-[12px] font-semibold">Build the runtime with AI</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-secondary)]">Get a tailored engineering prompt for any coding assistant.</p></div></div>
                 <button type="button" onClick={() => { setAiPromptCopied(false); setAiPromptContext('draft'); }} className="mt-4 flex min-h-11 w-full items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>Review the tailored build prompt</span><span className="text-[12px] text-[color:var(--brand-strong)]">View prompt →</span></button>
@@ -877,7 +891,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               </section>}
               <label className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><span className="text-[11px] font-medium">Service protocol</span><select value={draft.protocol} onChange={(event) => updateDraft('protocol', event.target.value as Draft['protocol'])} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="a2a">A2A</option><option value="mcp">MCP</option></select></label>
               <div className={cn('flex flex-col gap-2', newStep !== 2 && 'hidden')}><label htmlFor="builder-endpoint" className="text-[11px] font-medium">HTTPS endpoint</label><div className="flex gap-2"><input id="builder-endpoint" value={draft.endpoint} maxLength={2048} onChange={(event) => updateDraft('endpoint', event.target.value)} placeholder="https://agent.example/a2a" className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><button type="button" onClick={testDraftEndpoint} disabled={endpointBusy || !/^https:\/\//i.test(draft.endpoint.trim())} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">{endpointBusy ? 'Testing…' : 'Test'}</button></div><span className="text-[12px] leading-4 text-[color:var(--text-muted)]">Pokter performs the same safe protocol handshake used by marketplace probes.</span></div>
-              {newStep === 2 && runtimeOptions && <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Runtime configuration handoff</p><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Download the exact choices from Profile and apply them to your agent before testing its endpoint.</p></div><button type="button" onClick={downloadRuntimeConfig} disabled={!runtimeConfig.target || !runtimeConfig.policy || !runtimeConfig.output} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[12px] font-semibold disabled:opacity-40">Download config</button></div></div>}
+              {newStep === 2 && runtimeOptions && <div className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">Runtime configuration handoff</p><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Download the exact choices from Profile and apply them to your agent before testing its endpoint.</p></div><button type="button" onClick={downloadRuntimeConfig} disabled={!runtime.target || !runtime.policy || !runtime.output} className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 py-2 text-[12px] font-semibold disabled:opacity-40">Download config</button></div></div>}
               {(endpointReport || endpointError) && <div className={cn('rounded-[var(--radius)] border p-3 sm:col-span-2', endpointReport?.ok ? 'border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)]' : 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]')} role="status"><div className="flex items-start gap-3"><StatusMark status={endpointReport?.ok ? 'pass' : 'fail'} /><div className="min-w-0"><p className="text-[12px] font-semibold">{endpointReport?.ok ? `${draft.protocol.toUpperCase()} handshake passed` : 'Endpoint is not ready'}</p><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">{endpointError ?? endpointReport?.detail}</p>{endpointReport?.ok && <p className="mt-2 text-[12px] text-[color:var(--text-muted)]">{endpointReport.latencyMs !== null ? `${endpointReport.latencyMs} ms · ` : ''}{endpointReport.capabilities.length} declared {draft.protocol === 'mcp' ? 'tools' : 'skills'} · {endpointReport.quoteCapability ? 'quote capability declared' : 'no quote capability declared yet'}</p>}{endpointReport?.safety && <details className="mt-3 border-t border-current/10 pt-2"><summary className="cursor-pointer text-[12px] font-semibold">Connection safety</summary><ul className="mt-2 grid gap-1 text-[12px] leading-4 text-[color:var(--text-muted)] sm:grid-cols-2"><li>✓ Public HTTPS only</li><li>✓ Credentials rejected</li><li>✓ DNS address pinned</li><li>✓ Private networks rejected</li><li>✓ Redirects blocked</li><li>✓ 10s / 256 KiB limits</li></ul></details>}</div></div></div>}
               {endpointReport?.ok && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2">
                 <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div><p className="text-[12px] font-semibold">Run a private sample request</p><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">Only an explicitly advertised preview, simulate or dry-run capability can be called. This result stays private and never becomes marketplace evidence.</p></div>{trialCapability && <span className="mono w-fit rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[12px]">{trialCapability}</span>}</div>
