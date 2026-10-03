@@ -8,6 +8,7 @@ import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { getJobStore } from '@/lib/erc8183/store';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
+import { explorerBaseFor } from '@/lib/network/presentation';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,22 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
     listAgents({ chainId: 97, ownerAddress: address, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
   ]);
   const agents = pages.flatMap((page) => page.items);
+  /*
+   * The explorer for the chain this publisher actually works on.
+   *
+   * This was hardcoded to mainnet bscscan, which was right while Pokter
+   * listed mainnet only. Now that chain 97 is listed a publisher can be
+   * testnet-only, and their wallet link would have opened an empty
+   * mainnet page — the same fault just fixed on the agent page, in the
+   * one other place an address is linked.
+   *
+   * Mainnet wins when they have agents on both, because that is where
+   * anything they have spent real gas on will be.
+   */
+  const walletExplorerBase = explorerBaseFor(
+    agents.some((agent) => agent.chain_id === 56) || agents.length === 0 ? 56 : 97,
+  );
+
   const identityKeys = new Set(agents.map((agent) => `${agent.chain_id}:${agent.token_id}`));
   const jobs = getJobStore().all().filter((job) =>
     identityKeys.has(`${job.agentChainId ?? 56}:${job.agentTokenId}`) && job.status !== 'OPEN',
@@ -56,7 +73,7 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
               <p className="mt-3 max-w-xl text-[12px] leading-5 text-[color:var(--text-secondary)]">This wallet proved control through a signed, expiring Pokter challenge. Agent ownership below is read live from ERC-8004.</p>
             </div>
           </div>
-          <a href={`https://bscscan.com/address/${address}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[11px] font-medium hover:bg-[color:var(--surface-hover)]">View wallet ↗</a>
+          <a href={`${walletExplorerBase}/address/${address}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[12px] font-medium hover:bg-[color:var(--surface-hover)]">View wallet ↗</a>
         </div>
       </header>
 
