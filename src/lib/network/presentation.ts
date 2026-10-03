@@ -26,15 +26,20 @@ export const NATIVE_SYMBOL = IS_TESTNET ? 'tBNB' : 'BNB';
  */
 export const NETWORK_LABEL = IS_TESTNET ? 'BNB Testnet' : 'BNB Chain';
 
-/** The registry's network, which is mainnet even while escrow is on testnet. */
-export const REGISTRY_NETWORK_LABEL = 'BNB Chain';
-
-/**
- * Not derived from `IS_TESTNET`: the registry Pokter reads is the mainnet one
- * whatever network escrow settles on, which is the whole reason the two are
- * named separately here.
+/*
+ * There is deliberately no REGISTRY_NETWORK_LABEL or REGISTRY_CHAIN_ID here.
+ *
+ * Both existed, pinned to mainnet, on the premise that the registry Pokter
+ * reads is always chain 56. That premise ended when chain 97 was listed, and
+ * the constants outlived it: they produced dead explorer links, a publisher
+ * link that 404'd, a builder wallet link pointing at the wrong scanner, and a
+ * hire page telling 86 listings' buyers their agent was registered on a chain
+ * it was not.
+ *
+ * A registry chain belongs to an agent, not to the module. Read it from the
+ * agent or listing and render it with `chainLabel` and `explorerBaseFor`
+ * below; `LISTED_CHAINS` in marketplace.ts is the set Pokter indexes.
  */
-export const REGISTRY_CHAIN_ID = 56;
 
 /**
  * A chain id, written the way a reader can act on.
