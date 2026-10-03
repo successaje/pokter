@@ -107,17 +107,36 @@ async function buildRoster(
    * how a builder says "I exist, call me" without being able to say anything
    * about how well it went.
    */
+  /*
+   * Everything here belongs to the chain being swept.
+   *
+   * `trackedAgents` and `enrolledAgents` are stored across all chains and
+   * were taken whole. That was harmless while only one chain was ever
+   * swept, and stopped being harmless the moment a second pass was added:
+   * the testnet sweep inherited every mainnet agent ever probed, so its
+   * roster came out at 284 where its own settings allow about 74, and
+   * every mainnet agent was called twice per sweep — doubling the load on
+   * third-party endpoints this file elsewhere takes care not to hammer,
+   * and doubling the rate its probe count climbs.
+   *
+   * It also made the testnet figures unreadable as a signal, which was the
+   * entire reason for running the second pass.
+   */
+  const onThisChain = (entry: { chainId: number }) => entry.chainId === chainId;
+
   return [
     ...listed,
-    ...store.trackedAgents(),
-    ...store.enrolledAgents(),
+    ...store.trackedAgents().filter(onThisChain),
+    ...store.enrolledAgents().filter(onThisChain),
     ...fromRegistry,
-  ].filter((entry) => {
-    const key = `${entry.chainId}:${entry.tokenId}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  ]
+    .filter(onThisChain)
+    .filter((entry) => {
+      const key = `${entry.chainId}:${entry.tokenId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 /**
