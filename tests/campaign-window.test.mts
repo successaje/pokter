@@ -31,13 +31,27 @@ test('the label is derived from the timestamp and fixed to UTC', () => {
  * is 77 of the 79 listed, so the distinction decides whether a builder's
  * existing agent can qualify at all or whether they need a new one.
  */
-test('registration is inside the window only from the start date', async () => {
-  const { registeredInCampaign, CAMPAIGN_STARTS_AT } = await import(
-    '../src/lib/campaign/window'
-  );
-  const start = CAMPAIGN_STARTS_AT.getTime();
+test('eligibility is measured from the announcement, not the window start', async () => {
+  const { registeredInCampaign, CAMPAIGN_STARTS_AT, PHASE_2_ANNOUNCED_AT } =
+    await import('../src/lib/campaign/window');
+  const start = PHASE_2_ANNOUNCED_AT.getTime();
 
-  assert.equal(registeredInCampaign(new Date(start).toISOString()), true, 'the start itself counts');
+  /*
+   * The rules exclude agents listed before the announcement on X, which
+   * came a day after the window opened. Testing against the window start
+   * would pass an agent registered on 1 October that the rules reject.
+   */
+  assert.ok(
+    PHASE_2_ANNOUNCED_AT.getTime() > CAMPAIGN_STARTS_AT.getTime(),
+    'the announcement is after the window opens',
+  );
+  assert.equal(
+    registeredInCampaign(CAMPAIGN_STARTS_AT.toISOString()),
+    false,
+    'registered when the window opened, but before the announcement',
+  );
+
+  assert.equal(registeredInCampaign(new Date(start).toISOString()), true, 'the announcement moment itself counts');
   assert.equal(registeredInCampaign(new Date(start + 86_400_000).toISOString()), true);
   assert.equal(registeredInCampaign(new Date(start - 1000).toISOString()), false);
   assert.equal(registeredInCampaign('2026-09-12T10:00:00Z'), false);

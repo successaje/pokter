@@ -12,15 +12,29 @@
  * the banners that read it render on both sides.
  */
 
-/**
- * 1 October 2026 — the published start.
- *
- * Matters beyond the banner: the campaign does not count agents listed
- * before it began, so an agent registered earlier cannot qualify its owner
- * however well it performs afterwards. A builder who already had something
- * listed needs to know that before they spend a month on adoption.
- */
+/** 1 October 2026 — the published start of the campaign window. */
 export const CAMPAIGN_STARTS_AT = new Date('2026-10-01T00:00:00Z');
+
+/**
+ * The cut-off for a listing to count, which is not the campaign start.
+ *
+ * The official rules exclude "agents listed before our official Phase 2
+ * announcement on X". That announcement went out on 2 October, a day after
+ * the window opened, so the two dates are not the same and the campaign
+ * start is the wrong one to test against — using it would tell a builder
+ * who registered on 1 October that they were fine when the rules say
+ * otherwise, which is the direction that costs them the entry.
+ *
+ * The hour is approximate: X showed the post at 9pm in the reader's own
+ * timezone and exposes no machine-readable timestamp on that view. Nothing
+ * currently turns on the precision — of the 79 listed agents, 77 were
+ * registered before 1 October and none between then and now — so the
+ * uncertain band is empty. If that changes, read the exact time from the
+ * post rather than trusting this constant.
+ *
+ * https://x.com/BNBCHAIN/status/2106112011662938207
+ */
+export const PHASE_2_ANNOUNCED_AT = new Date('2026-10-02T21:00:00Z');
 
 /** 5 November 2026, 12:00 UTC — the published deadline. */
 export const CAMPAIGN_ENDS_AT = new Date('2026-11-05T12:00:00Z');
@@ -36,7 +50,7 @@ export function registeredInCampaign(createdAt: string | null | undefined): bool
   if (!createdAt) return null;
   const at = Date.parse(createdAt);
   if (!Number.isFinite(at)) return null;
-  return at >= CAMPAIGN_STARTS_AT.getTime();
+  return at >= PHASE_2_ANNOUNCED_AT.getTime();
 }
 
 /**
