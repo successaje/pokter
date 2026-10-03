@@ -3,7 +3,6 @@
 import {
   IS_TESTNET,
   NETWORK_LABEL,
-  REGISTRY_NETWORK_LABEL,
 } from '@/lib/network/presentation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -232,15 +231,18 @@ export function Nav() {
               unoptimized
             />
             {/*
-              The registry chain only once there is genuinely room. Showing it
-              from 640px made the pill wrap and dragged every nav link onto a
-              second line between roughly 768 and 1200px — the escrow network
-              is the part that must always be legible, so it is the part that
-              never moves.
+              Only the escrow network, which is the part that must always be
+              legible — it is where the money is and the one chain every hire
+              settles on.
+
+              This used to lead with "Identities: BNB Chain". That stopped
+              being true when the catalogue took on chain 97: identities now
+              sit on both chains, so the pill stated a half-truth in the one
+              place it appears on every page. Naming both chains here would
+              re-introduce the wrapping this pill was already trimmed to
+              avoid, and the registry chain is on each agent's own page where
+              it matters.
             */}
-            <span className="hidden xl:inline">
-              Identities: {REGISTRY_NETWORK_LABEL} ·{' '}
-            </span>
             <span className="hidden sm:inline">Hiring: </span>
             <span className="font-medium">{NETWORK_LABEL}</span>
           </span>
