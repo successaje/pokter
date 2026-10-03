@@ -7,6 +7,7 @@ import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import type { TrackRecord } from '@/lib/history/record';
 import { cn } from '@/lib/ui/cn';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { AgentAvatar } from './agent/AgentAvatar';
 import { EvidenceBadge } from './ui/EvidenceBadge';
 import { SaveAgentButton } from './agent/SaveAgentButton';
@@ -156,6 +157,17 @@ export function AgentCard({
    * and hire pages keep their own notice where the money moves.
    */
 
+  /*
+   * Which registry this agent came from.
+   *
+   * The catalogue now spans both chains the campaign recognises, and the
+   * two are not interchangeable: a testnet agent sits on the escrow chain
+   * and delivers its own work, a mainnet one cannot and Pokter's seller
+   * stands in. The card has to say which, or a reader comparing two rows
+   * is comparing things that behave differently with nothing to show it.
+   */
+  const onEscrowChain = agent.chain_id === ALTANA_NETWORK.chainId;
+
   const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
   /*
    * Registry descriptions are written by operators and routinely carry
@@ -293,6 +305,14 @@ export function AgentCard({
           */}
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <EvidenceBadge verdict={verdict} />
+            {onEscrowChain && (
+              <span
+                title="Registered on the escrow chain, so this agent receives and delivers the job itself."
+                className="rounded-full border border-[color:var(--info)]/35 bg-[color:var(--info-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--info)]"
+              >
+                Testnet · self-delivers
+              </span>
+            )}
             {downRecently && (
               <span
                 title="Answered no probes in the last 24 hours"
@@ -436,6 +456,14 @@ export function AgentCard({
               agent is the fault this card has had to be corrected for before. */}
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <EvidenceBadge verdict={verdict} />
+            {onEscrowChain && (
+              <span
+                title="Registered on the escrow chain, so this agent receives and delivers the job itself."
+                className="rounded-full border border-[color:var(--info)]/35 bg-[color:var(--info-dim)] px-2 py-0.5 text-[10px] font-medium text-[color:var(--info)]"
+              >
+                Testnet · self-delivers
+              </span>
+            )}
             {downRecently && (
               <span
                 title="Answered no probes in the last 24 hours"

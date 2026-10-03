@@ -44,7 +44,16 @@ export function deriveBuilderLifecycle({
   const quoteReady = passed(checks, 'quote');
   const independentlyAttested = passed(checks, 'attestations');
   const measured = probeCount > 0 || independentlyAttested;
-  const listed = chainId === 56 && registered;
+  /*
+   * Either chain the campaign recognises.
+   *
+   * This was mainnet only, so a builder who registered on testnet — the
+   * only chain where their agent can perform its own onchain actions, and
+   * therefore the only one where it can satisfy the campaign's execution
+   * bar — was told by their own dashboard that they were not listed.
+   * Pokter lists both now; see LISTED_CHAINS.
+   */
+  const listed = (chainId === 56 || chainId === 97) && registered;
   const hireable = ['identity', 'endpoint', 'liveness', 'quote'].every((id) => passed(checks, id));
   return { registered, profileReady, categoryReady, endpointReady, quoteReady, enrolled, measured, listed, hireable, probeCount };
 }

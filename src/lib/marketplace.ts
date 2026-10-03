@@ -8,7 +8,7 @@ import {
   searchAgents,
 } from '@/lib/scan/client';
 import type { ChainId, ScanAgent, ScanAgentDetail } from '@/lib/scan/types';
-import { BSC_MAINNET } from '@/lib/scan/types';
+import { BSC_MAINNET, BSC_TESTNET } from '@/lib/scan/types';
 import { classify, scoreCategories, CATEGORIES } from '@/lib/agents/categories';
 import type { Category } from '@/lib/agents/categories';
 import { toAttestation, type Attestation } from '@/lib/proof/attestation';
@@ -172,16 +172,43 @@ export const listCategory = cache(async function listCategory(
 });
 
 /** The full marketplace: every category, fetched in parallel, treated equally. */
+/**
+ * Both chains the campaign recognises, unless a caller names one.
+ *
+ * The catalogue was mainnet only, which made Pokter unusable for the half
+ * of the campaign that matters most to a builder. BNB's rules accept an
+ * agent "registered on the ERC-8004 identity registry (chain 56 or 97)",
+ * and separately require that it "has performed at least 5 onchain
+ * actions" — a bar no mainnet-registered agent can clear here, because
+ * escrow settles on testnet and Pokter's own seller performs every
+ * delivery in their place.
+ *
+ * A testnet-registered agent is on the escrow chain. It receives the job,
+ * delivers it itself, and those are its own transactions. Listing chain 97
+ * is therefore not a preference about which registry is nicer; it is the
+ * only route by which anyone building on Pokter can satisfy the build
+ * track at all.
+ *
+ * Mainnet stays listed. It is the larger registry, the census rests on it,
+ * and an agent being unable to execute does not make it uninteresting to a
+ * buyer who wants a written assessment.
+ */
+export const LISTED_CHAINS: ChainId[] = [BSC_MAINNET, BSC_TESTNET];
+
 export async function listMarketplace(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{ category: Category; listings: Listing[] }[]> {
+  const chains = options.chainId ? [options.chainId] : LISTED_CHAINS;
+
   // All four categories at once. The inner fan-out is what used to trip the
   // rate limit; with a key in place, serialising categories only adds the
   // slowest semantic query's latency four times over.
-  return mapWithConcurrency(CATEGORIES, 4, async ({ id }) => ({
-    category: id,
-    listings: await listCategory(id, options),
-  }));
+  return mapWithConcurrency(CATEGORIES, 4, async ({ id }) => {
+    const perChain = await mapWithConcurrency(chains, 2, (chainId) =>
+      listCategory(id, { ...options, chainId }).catch(() => [] as Listing[]),
+    );
+    return { category: id, listings: perChain.flat() };
+  });
 }
 
 /** Everything the detail page needs to justify or warn against a hire. */
