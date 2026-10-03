@@ -57,11 +57,19 @@ export function HeroBrief() {
           placeholder="e.g. how close is my loan to liquidation"
           className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-[13px] outline-none placeholder:text-[color:var(--text-faint)]"
         />
+        {/*
+          Submit affordance, not a second call to action.
+
+          In brand gold this matched "Find an agent" eighty-four pixels above
+          it, so the fold carried two primary buttons that led to the same
+          catalogue. It belongs to the input it sits inside, so it now reads
+          as part of that control and the hero keeps one primary.
+        */}
         <button
           type="submit"
           disabled={brief.trim().length === 0}
           aria-label="Find matching agents"
-          className="action-primary flex size-8 shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] text-[13px] font-semibold transition-opacity disabled:opacity-35"
+          className="flex size-8 shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] text-[13px] font-semibold text-[color:var(--text)] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-35"
         >
           →
         </button>
