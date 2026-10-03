@@ -151,11 +151,11 @@ export function BuilderFleet({ agents }: { agents: BuilderFleetAgent[] }) {
                     {/*
                       Timing first, because it can rule the rest out.
 
-                      The campaign does not count agents listed before it
-                      began, and 77 of the 79 listed on Pokter were
-                      registered earlier. A builder whose agent predates
-                      1 October can clear every bar below and still not
-                      qualify — they need a new listing, and the sooner they
+                      The rules do not count agents listed before the
+                      Phase 2 announcement on X, and 77 of the 79 listed on
+                      Pokter were registered before even the window opened. A builder whose agent predates
+                      the announcement can clear every bar below and still
+                      not qualify — they need a new listing, and the sooner they
                       know the more of the window they keep.
 
                       Only on the builder's own fleet, never on a public
@@ -164,7 +164,7 @@ export function BuilderFleet({ agents }: { agents: BuilderFleetAgent[] }) {
                     */}
                     {eligibleByDate === false && (
                       <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
-                        {`Registered ${registeredLabel}, before the campaign began on 1 October — this listing cannot qualify. Register a new agent to enter the build track.`}
+                        {`Registered ${registeredLabel}, before BNB Chain's Phase 2 announcement — the rules do not count agents listed before it, so this one cannot qualify. Register a new agent to enter the build track.`}
                       </p>
                     )}
                     {eligibleByDate === null && (
