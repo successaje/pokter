@@ -94,6 +94,21 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@altananetwork/sdk', 'node:sqlite', 'undici'],
 
   /*
+   * The nav calls this page Activity, and /activity is the address a visitor
+   * types to reach it, so it 404'd for the obvious guess. The page itself
+   * stays at /my-agents: the address is already in sent notification emails,
+   * in the installed app's shortcuts and in robots.txt, so moving it would
+   * need this redirect in the other direction anyway and touch fourteen files
+   * to do it.
+   */
+  async redirects() {
+    return [
+      { source: '/activity', destination: '/my-agents', permanent: false },
+      { source: '/how-it-works', destination: '/about', permanent: false },
+    ];
+  },
+
+  /*
    * The monorepo root is ambiguous here — a stray lockfile sits above this
    * directory — so Turbopack is told explicitly where the project starts.
    */
