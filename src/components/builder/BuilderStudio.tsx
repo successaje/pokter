@@ -183,6 +183,25 @@ const RUNTIME_OPTIONS: Record<string, { target: string[]; policy: string[]; outp
   'grid-trading': { target: ['BNB / USDT', 'BTCB / USDT', 'Custom pair'], policy: ['Wide conservative grid', 'Balanced grid', 'Custom constraints'], output: ['Grid parameters', 'Scenario analysis', 'Risk-bounded plan'] },
 };
 
+/**
+ * The conservative choice for a category, which is the first in each list.
+ *
+ * These three selects opened empty on a step where the template had already
+ * filled in the name, the description and the outcome — so the one place a
+ * beginner had nothing to react to was the one asking about operating policy.
+ * Defaults give them something to change rather than something to invent, and
+ * the panel says they are starting points.
+ */
+function defaultRuntimeConfig(category: string) {
+  const options = RUNTIME_OPTIONS[category];
+  if (!options) return { target: '', policy: '', output: '' };
+  return {
+    target: options.target[0] ?? '',
+    policy: options.policy[0] ?? '',
+    output: options.output[0] ?? '',
+  };
+}
+
 const DRAFT_KEY = 'pokter-agent-draft-v1';
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
@@ -349,6 +368,16 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
   }, [draft]);
 
+  /*
+   * Seeded from the category, and re-seeded when it changes, because a scope
+   * or policy chosen for one outcome is not an option under another. This
+   * also covers the starter templates and a draft restored from storage,
+   * neither of which went through the select handlers.
+   */
+  useEffect(() => {
+    setRuntimeConfig(defaultRuntimeConfig(draft.category));
+  }, [draft.category]);
+
   const quality = useMemo(
     () => (report ? summarizeQuality(report.checks) : null),
     [report],
@@ -510,7 +539,6 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
 
   function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
     setReviewing(false);
-    if (key === 'category') setRuntimeConfig({ target: '', policy: '', output: '' });
     if (key === 'endpoint' || key === 'protocol') {
       setEndpointReport(null);
       setEndpointError(null);
@@ -841,7 +869,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               */}
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[12px] font-medium">Public repository <span className="font-normal text-[color:var(--text-muted)]">· the campaign requires one</span></span><input value={draft.repository} maxLength={200} onChange={(event) => updateDraft('repository', event.target.value)} placeholder="https://github.com/you/your-agent" inputMode="url" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><span className={cn('text-[12px] leading-4', repositoryProblem ? 'text-[color:var(--caution)]' : 'text-[color:var(--text-muted)]')}>{repositoryProblem ?? 'Published with the agent so anyone can check it. Pokter never calls this URL.'}</span></label>
               <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={3} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[12px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
-              {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Set the initial scope, operating policy and buyer deliverable. Your runtime must enforce these choices.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
+              {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Starting points for this outcome—change any that do not match what you are building. Your runtime must enforce whatever you choose.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtimeConfig.target} onChange={(event) => setRuntimeConfig((current) => ({ ...current, target: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtimeConfig.policy} onChange={(event) => setRuntimeConfig((current) => ({ ...current, policy: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtimeConfig.output} onChange={(event) => setRuntimeConfig((current) => ({ ...current, output: event.target.value }))} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
               {(newStep === 1 || newStep === 2) && <section className={cn('rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4', newStep === 2 && 'sm:col-span-2')} aria-labelledby={`ai-build-title-${newStep}`}>
                 <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><p className="mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">Optional shortcut</p><h3 id={`ai-build-title-${newStep}`} className="mt-1 text-[12px] font-semibold">Build the runtime with AI</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-secondary)]">Get a tailored engineering prompt for any coding assistant.</p></div></div>
                 <button type="button" onClick={() => { setAiPromptCopied(false); setAiPromptContext('draft'); }} className="mt-4 flex min-h-11 w-full items-center justify-between rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><span>Review the tailored build prompt</span><span className="text-[12px] text-[color:var(--brand-strong)]">View prompt →</span></button>
