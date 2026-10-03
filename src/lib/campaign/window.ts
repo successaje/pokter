@@ -12,8 +12,32 @@
  * the banners that read it render on both sides.
  */
 
+/**
+ * 1 October 2026 — the published start.
+ *
+ * Matters beyond the banner: the campaign does not count agents listed
+ * before it began, so an agent registered earlier cannot qualify its owner
+ * however well it performs afterwards. A builder who already had something
+ * listed needs to know that before they spend a month on adoption.
+ */
+export const CAMPAIGN_STARTS_AT = new Date('2026-10-01T00:00:00Z');
+
 /** 5 November 2026, 12:00 UTC — the published deadline. */
 export const CAMPAIGN_ENDS_AT = new Date('2026-11-05T12:00:00Z');
+
+/**
+ * Whether an agent was registered inside the campaign window.
+ *
+ * Null when the registry reports no creation date, which is two of the
+ * seventy-nine listed today — "we cannot tell" is not "it does not count",
+ * and an agent should not be marked ineligible by a missing field.
+ */
+export function registeredInCampaign(createdAt: string | null | undefined): boolean | null {
+  if (!createdAt) return null;
+  const at = Date.parse(createdAt);
+  if (!Number.isFinite(at)) return null;
+  return at >= CAMPAIGN_STARTS_AT.getTime();
+}
 
 /**
  * Rendered from the timestamp rather than retyped beside it, so the sentence

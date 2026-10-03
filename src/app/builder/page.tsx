@@ -76,6 +76,7 @@ export default async function BuilderDashboard() {
       probes24h: recent?.probes ?? 0,
       probes30d: record.totalProbes,
       attestations: agent.total_feedbacks,
+      createdAt: agent.created_at ?? null,
       adoption: adoptions[index],
       activeJobs: agentJobs.filter((job) => ['FUNDED', 'SUBMITTED'].includes(job.status)).length,
       completedJobs: agentJobs.filter((job) => job.status === 'COMPLETED').length,
