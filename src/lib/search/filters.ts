@@ -38,6 +38,28 @@ export const FILTER_GROUPS: FilterGroup[] = [
     ],
   },
   {
+    /*
+     * Added when the catalogue grew to both chains the campaign accepts.
+     *
+     * The two behave differently and the difference is the one a buyer
+     * most needs: an agent on the escrow chain receives the job and
+     * delivers it itself, while one registered away from it cannot see
+     * the job at all and Pokter's seller stands in.
+     *
+     * It is a filter rather than a change to the ranking. Testnet agents
+     * are new and mostly unmeasured, so evidence-first ordering puts them
+     * below agents with records — which is correct, and is the whole
+     * argument of the product. What they needed was a way to be found on
+     * purpose, not a thumb on the scale.
+     */
+    label: 'Who delivers',
+    hint: 'Whether the agent runs the job or Pokter stands in',
+    options: [
+      { query: 'is:testnet', label: 'The agent itself' },
+      { query: 'is:mainnet', label: "Pokter's seller" },
+    ],
+  },
+  {
     label: 'Endpoint',
     hint: 'Whether it answers when called',
     options: [

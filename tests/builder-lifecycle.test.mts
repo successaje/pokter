@@ -20,10 +20,32 @@ test('hireability requires identity, endpoint, liveness and a signed quote', () 
   assert.equal(deriveBuilderLifecycle({ chainId: 56, checks: [...base, pass('quote')], enrolled: true, probeCount: 3 }).hireable, true);
 });
 
-test('testnet identities are not marked as publicly listed', () => {
-  const lifecycle = deriveBuilderLifecycle({ chainId: 97, checks: [pass('identity')], enrolled: true, probeCount: 2 });
-  assert.equal(lifecycle.listed, false);
-  assert.equal(lifecycle.measured, true);
+/*
+ * This asserted the opposite until the catalogue spanned both chains.
+ *
+ * It was right while Pokter listed mainnet only: calling a testnet
+ * identity "listed" would have been a claim no page supported. The
+ * campaign rules accept an agent registered on chain 56 or 97 and require
+ * it to perform its own onchain actions, which on this marketplace only a
+ * testnet agent can — so the catalogue now carries both and a testnet
+ * identity genuinely is listed.
+ *
+ * Still gated on registration: being on an accepted chain is not the same
+ * as existing in the registry.
+ */
+test('an identity on either accepted chain counts as listed once registered', () => {
+  for (const chainId of [56, 97]) {
+    const lifecycle = deriveBuilderLifecycle({ chainId, checks: [pass('identity')], enrolled: true, probeCount: 2 });
+    assert.equal(lifecycle.listed, true, `chain ${chainId} should be listed`);
+    assert.equal(lifecycle.measured, true);
+  }
+});
+
+test('an unregistered identity is not listed on either chain', () => {
+  for (const chainId of [56, 97]) {
+    const lifecycle = deriveBuilderLifecycle({ chainId, checks: [], enrolled: false, probeCount: 0 });
+    assert.equal(lifecycle.listed, false, `chain ${chainId} without registration`);
+  }
 });
 
 test('readiness names the first substantiated blocker without claiming campaign qualification', () => {

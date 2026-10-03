@@ -20,6 +20,7 @@ import { rankForBrief } from '@/lib/brief/rank';
 import { BriefMatches } from '@/components/search/BriefMatches';
 import { MarketplaceControls } from '@/components/search/MarketplaceControls';
 import { orderMarketplace, parseMarketplaceOrder } from '@/lib/search/order';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
 
 /**
  * Rendered per request rather than pre-built.
@@ -99,6 +100,16 @@ export default async function AgentsPage({
    * same reason the filter counts are: this describes the marketplace, and
    * stays true whatever the reader has narrowed to.
    */
+  /*
+   * Which half of the catalogue delivers its own work. Counted rather than
+   * assumed, because the header sentence depends on it and the mix will
+   * move as testnet listings arrive.
+   */
+  const testnetCount = all.filter(
+    (entry) => entry.listing.agent.chain_id === ALTANA_NETWORK.chainId,
+  ).length;
+  const mainnetCount = all.length - testnetCount;
+
   const verdicts = all.map((entry) => verdictFor(entry));
   // Counted over everything indexed, so a card says how much of the whole
   // catalogue its publisher is rather than how much of the current filter.
@@ -161,23 +172,28 @@ export default async function AgentsPage({
           {/*
             Who does the work, before the choosing rather than after it.
 
-            Every agent here is registered on BNB Chain while escrow settles
-            on testnet, so none of them can run the job and Pokter's own
-            seller performs all of them. That was only said on the detail
-            page and the hire form — a buyer could rank, choose and click
-            Hire entirely on one agent's measured record without learning
-            that a different party delivers.
+            This used to read "Pokter's own seller delivers every job",
+            which was true while the catalogue was mainnet only: those
+            agents are registered on a different chain from the escrow, so
+            none of them can see a job exists and Pokter delivers in their
+            place.
 
-            Said once, here, because it is true of every listing: a badge
-            repeated on all of them would be read as decoration. The ranking
-            is still worth what it was — it is evidence about the agent whose
-            brief is being filled — and this sentence is the caveat on it.
+            Testnet agents are on the escrow chain and deliver for
+            themselves, so the sentence stopped being true of every listing
+            the moment they appeared here. It now says which is which, and
+            counts rather than asserts — if the mix changes, the line
+            changes with it instead of quietly going stale.
           */}
           <span className="font-medium text-[color:var(--text)]">
-            Pokter&apos;s own seller delivers every job on testnet
+            {mainnetCount > 0 && testnetCount > 0
+              ? `${testnetCount} run on the escrow chain and deliver their own work; Pokter's seller delivers for the other ${mainnetCount}`
+              : testnetCount > 0
+                ? 'These agents run on the escrow chain and deliver their own work'
+                : "Pokter's own seller delivers every job"}
           </span>
-          , because the agents are registered on a different chain from the
-          escrow. The evidence below is still about the agent you pick.
+          {mainnetCount > 0
+            ? ', because an agent registered away from the escrow chain cannot see the job. The evidence below is about the agent you pick either way.'
+            : '. The evidence below is about the agent you pick.'}
           {FAUCETS?.paymentTokenBot && (
             <>
               {' '}
