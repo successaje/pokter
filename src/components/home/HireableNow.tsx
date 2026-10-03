@@ -8,34 +8,17 @@ import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
-import type { TrackRecord } from '@/lib/history/record';
-import type { Listing } from '@/lib/marketplace';
 import { offersDirectHire, verdictFor } from '@/lib/search/match';
+import {
+  rankedFor,
+  responseRate,
+  type SpotlightEntry,
+  type SpotlightTab,
+} from '@/lib/home/spotlight-order';
 import { chainLabel } from '@/lib/network/presentation';
 
-type Entry = { listing: Listing; record: TrackRecord };
-type Spotlight = 'recommended' | 'recent';
-
-function responseRate(entry: Entry): number {
-  if (entry.record.totalProbes === 0) return -1;
-  return entry.record.totalAnswered / entry.record.totalProbes;
-}
-
-function rankedFor(tab: Spotlight, entries: Entry[]): Entry[] {
-  return [...entries].sort((a, b) => {
-    if (tab === 'recent') {
-      const aSeen = a.record.lastSeen ? Date.parse(a.record.lastSeen) : 0;
-      const bSeen = b.record.lastSeen ? Date.parse(b.record.lastSeen) : 0;
-      if (bSeen !== aSeen) return bSeen - aSeen;
-    }
-
-    const direct = Number(offersDirectHire(b)) - Number(offersDirectHire(a));
-    if (direct !== 0) return direct;
-    const rate = responseRate(b) - responseRate(a);
-    if (rate !== 0) return rate;
-    return b.record.totalProbes - a.record.totalProbes;
-  });
-}
+type Entry = SpotlightEntry;
+type Spotlight = SpotlightTab;
 
 function EvidenceVisual({ entry }: { entry: Entry }) {
   const rate = responseRate(entry);
