@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 
 import { CampaignPassport } from '@/components/campaign/CampaignPassport';
+import { StartHiring } from '@/components/campaign/StartHiring';
 
 /*
  * The card this page unfurls into when the link is shared.
@@ -56,6 +57,17 @@ export default function SetAndEarnPage() {
     </header>
 
     <CampaignPassport />
+
+    {/*
+      After the tasks, not before them.
+
+      The list says what has to happen and tracks what Pokter can see; this
+      is where somebody acts on the first thing it asks for. Putting it
+      above would hand people a hire button before they knew registration
+      has to come first, which is the one ordering mistake the campaign
+      does not forgive.
+    */}
+    <StartHiring />
 
     <details className="group rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[11px] font-semibold">Important qualification details <span className="text-[color:var(--text-faint)] transition-transform group-open:rotate-45">＋</span></summary>
