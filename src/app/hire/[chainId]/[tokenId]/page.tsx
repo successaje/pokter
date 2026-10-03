@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { NETWORK_LABEL, REGISTRY_NETWORK_LABEL } from '@/lib/network/presentation';
+import { NETWORK_LABEL, chainLabel } from '@/lib/network/presentation';
 import { notFound } from 'next/navigation';
 
 import { loadDossier } from '@/lib/marketplace';
@@ -48,6 +48,14 @@ export default async function HirePage({
 
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
+
+  /*
+   * Which chain this agent's identity is on, read from the agent rather than
+   * assumed. The catalogue lists chain 56 and chain 97, so a constant here
+   * told every testnet agent's buyer that the identity was on mainnet and
+   * that two chains were involved when only one was.
+   */
+  const identityLabel = chainLabel(chainId);
   const summary = summarise({
     category,
     spendCapBnb: 0.05,
@@ -104,14 +112,15 @@ export default async function HirePage({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span>{meta?.label ?? 'Unclassified'}</span>
             <span aria-hidden>·</span>
-            <span>Identity on {REGISTRY_NETWORK_LABEL}</span>
+            <span>Identity on {identityLabel}</span>
             <span aria-hidden>·</span>
             <span>Escrow on {NETWORK_LABEL}</span>
           </div>
-          {REGISTRY_NETWORK_LABEL !== NETWORK_LABEL && (
+          {identityLabel !== NETWORK_LABEL && (
             <p className="max-w-xl leading-relaxed">
-              Two chains on purpose: the agent is registered on mainnet, while
-              the job and its money sit on testnet.
+              Two chains on purpose: the agent is registered on{' '}
+              {identityLabel}, while the job and its money sit on{' '}
+              {NETWORK_LABEL}.
             </p>
           )}
         </div>
