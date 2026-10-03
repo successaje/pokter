@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { cn } from '@/lib/ui/cn';
+import { registeredInCampaign } from '@/lib/campaign/window';
 
 export interface BuilderFleetAgent {
   chainId: number;
@@ -18,6 +19,8 @@ export interface BuilderFleetAgent {
   attestations: number;
   activeJobs: number;
   completedJobs: number;
+  /** ISO registration date from the registry, when it reports one. */
+  createdAt: string | null;
   /** Campaign adoption, read from chain. Null when it could not be read. */
   adoption: {
     independentWallets: number;
@@ -91,6 +94,15 @@ export function BuilderFleet({ agents }: { agents: BuilderFleetAgent[] }) {
 
       <div className="mt-4 flex flex-col gap-3">
         {visible.map((agent) => {
+          const eligibleByDate = registeredInCampaign(agent.createdAt);
+          const registeredLabel = agent.createdAt
+            ? new Date(agent.createdAt).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                timeZone: 'UTC',
+              })
+            : 'on an unknown date';
           const needsAttention = agent.online === false || agent.listingGaps > 0;
           return (
             <article key={`${agent.chainId}:${agent.tokenId}`} className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
@@ -136,6 +148,32 @@ export function BuilderFleet({ agents }: { agents: BuilderFleetAgent[] }) {
                 {agent.adoption && (
                   <div className="mt-4 flex flex-col gap-2 border-t border-[color:var(--border)] pt-4">
                     <p className="text-[12px] font-medium">Campaign adoption</p>
+                    {/*
+                      Timing first, because it can rule the rest out.
+
+                      The campaign does not count agents listed before it
+                      began, and 77 of the 79 listed on Pokter were
+                      registered earlier. A builder whose agent predates
+                      1 October can clear every bar below and still not
+                      qualify — they need a new listing, and the sooner they
+                      know the more of the window they keep.
+
+                      Only on the builder's own fleet, never on a public
+                      card: it decides nothing for a buyer, and on 77 of 79
+                      listings it would be wallpaper.
+                    */}
+                    {eligibleByDate === false && (
+                      <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
+                        {`Registered ${registeredLabel}, before the campaign began on 1 October — this listing cannot qualify. Register a new agent to enter the build track.`}
+                      </p>
+                    )}
+                    {eligibleByDate === null && (
+                      <p className="text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                        The registry reports no registration date for this
+                        agent, so Pokter cannot tell whether it predates the
+                        campaign.
+                      </p>
+                    )}
                     <dl className="grid grid-cols-3 gap-2">
                       <div>
                         <dt className="text-[10px] uppercase tracking-wide text-[color:var(--text-muted)]">Independent wallets</dt>
