@@ -38,9 +38,20 @@ export interface HiredJob {
   /**
    * The transaction that pulled an expired escrow back, when one was sent.
    *
-   * Recorded because "reclaimable" and "reclaimed" look identical on chain
-   * from a status alone — the kernel reports EXPIRED either way — and a buyer
-   * needs to know which of those happened to their money.
+   * This used to say the kernel reports EXPIRED whether or not the refund
+   * was taken, so status could never distinguish. Observation says
+   * otherwise, and `reclaim-gate` records it: a job sits at FUNDED however
+   * far past its expiry it is, and moves to EXPIRED when the refund is
+   * claimed. Three sets of jobs now agree — #1363, then #1364 and #1365,
+   * then #1372 and #1373, each of which stayed FUNDED past expiry and
+   * turned EXPIRED only once reclaimed.
+   *
+   * The hash is still worth recording. It is proof of which transaction
+   * returned the money, it survives a reclaim made from another device
+   * where this index would otherwise never learn of it, and the status
+   * reading is an observation of one deployment rather than a guarantee
+   * from the contract. See `isReclaimable` for why the gate stays
+   * deliberately generous despite all this.
    */
   reclaimTxHash?: Hex | null;
 }
