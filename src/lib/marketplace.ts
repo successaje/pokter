@@ -27,8 +27,16 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
-import { preferDistinctOwners } from '@/lib/agents/diversity';
+import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 export { preferDistinctOwners };
+
+/**
+ * How many listings one publisher may hold in a single category shelf.
+ *
+ * Two, because one shows the publisher exists and two shows they have
+ * range, while seventeen shows only that minting is cheap.
+ */
+export const MAX_LISTINGS_PER_OWNER_PER_CATEGORY = 2;
 
 /**
  * Retrieval is deliberately hybrid.
@@ -166,9 +174,15 @@ export const listCategory = cache(async function listCategory(
     // Only keep agents our own classifier agrees belong in this category.
     .filter((l) => classify(l.agent) === category);
 
-  return collapseClones(scored)
-    .sort((a, b) => rank(b) - rank(a))
-    .slice(0, limit);
+  /*
+   * Collapse, rank, then cap. The cap runs on ranked input so a publisher
+   * keeps their strongest listings rather than whichever the registry
+   * happened to return first.
+   */
+  return capPerOwner(
+    collapseClones(scored).sort((a, b) => rank(b) - rank(a)),
+    MAX_LISTINGS_PER_OWNER_PER_CATEGORY,
+  ).slice(0, limit);
 });
 
 /** The full marketplace: every category, fetched in parallel, treated equally. */
