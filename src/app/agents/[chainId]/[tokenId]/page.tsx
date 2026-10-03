@@ -37,7 +37,7 @@ import { SimilarAgents } from '@/components/agent/SimilarAgents';
 import { ShareAgent } from '@/components/agent/ShareAgent';
 import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
 import { DEFAULT_BUDGET_LABEL, DEFAULT_BUDGET_U, formatQuotedPrice } from '@/lib/erc8183/pricing';
-import { PAYMENT_VALUE_NOTE, chainLabel} from '@/lib/network/presentation';
+import { PAYMENT_VALUE_NOTE, chainLabel, explorerBaseFor} from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
 import { shortAddress } from '@/lib/ui/format';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -204,7 +204,21 @@ export default async function AgentPage({
   const publishedEvidence = summarisePublishedEvidence(attestations);
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
-  const explorerBase = ALTANA_NETWORK.explorer.replace(/\/$/, '');
+  /*
+   * The agent's own chain, not the escrow chain.
+   *
+   * This read ALTANA_NETWORK.explorer, which is testnet because escrow
+   * settles there. Everything it was used for on this page — the registry
+   * contract and the attestation transactions written against it — lives
+   * on the agent's chain instead, mainnet for most of the catalogue. So
+   * every registry and attestation link on a mainnet agent pointed at a
+   * testnet explorer, where none of it exists.
+   *
+   * There turned out to be no escrow link on this page at all, which is
+   * why nothing else needs the other base: the jobs live on the activity
+   * pages, and those pass their own.
+   */
+  const registryExplorerBase = explorerBaseFor(agent.chain_id);
   const answeredNow = live.ratio !== null && live.ratio > 0;
   const availability =
     record.totalProbes === 0
@@ -597,7 +611,7 @@ export default async function AgentPage({
                 label: 'Evidence',
                 content: (
                   <>
-                    <TrustPanel dossier={dossier} explorerBase={explorerBase} />
+                    <TrustPanel dossier={dossier} explorerBase={registryExplorerBase} />
                     <Section
                       title="Receipts"
                       summary={receiptsSummary}

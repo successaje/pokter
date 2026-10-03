@@ -48,6 +48,32 @@ export const REGISTRY_CHAIN_ID = 56;
  *
  * An unknown id keeps its number rather than guessing a name.
  */
+/**
+ * The block explorer for a given chain, which is not always the escrow one.
+ *
+ * `ALTANA_NETWORK.explorer` is testnet.bscscan.com, because escrow settles
+ * on testnet, and that is correct for job, settlement and reclaim
+ * transactions. It was also being used for the ERC-8004 registry contract
+ * and for attestation transactions, which live on the agent's own chain —
+ * mainnet for most of the catalogue. Those links pointed at a testnet
+ * explorer for mainnet data, where the address and the transactions do not
+ * exist, so every "Registry" link and every attestation receipt on a
+ * mainnet agent's page led to a not-found page.
+ *
+ * That is a bad failure for this product in particular: those links are the
+ * evidence. A reader who follows one to check a claim and finds nothing
+ * there has been given a reason to doubt the claim, by us.
+ *
+ * An unknown chain falls back to the testnet explorer rather than guessing
+ * a host. It will be wrong, but it will be a well-formed link to a real
+ * explorer rather than a broken URL, and no third chain is in use.
+ */
+export function explorerBaseFor(chainId: number): string {
+  if (chainId === 56) return 'https://bscscan.com';
+  if (chainId === 97) return 'https://testnet.bscscan.com';
+  return 'https://testnet.bscscan.com';
+}
+
 export function chainLabel(chainId: number): string {
   if (chainId === 56) return 'BNB Chain';
   if (chainId === 97) return 'BNB Testnet';

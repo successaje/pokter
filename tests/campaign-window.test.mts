@@ -66,3 +66,25 @@ test('a missing or unreadable date is unknown, not ineligible', () => {
     );
   }
 });
+
+/*
+ * Explorer links are evidence on this product, so a broken one is worse
+ * than no link: a reader who follows it to check a claim and finds nothing
+ * has been handed a reason to doubt the claim by us.
+ *
+ * The bug was one base for two chains — the escrow explorer, testnet, used
+ * for registry records and attestations that live on the agent's chain.
+ */
+test('an explorer link goes to the chain the thing is actually on', async () => {
+  const { explorerBaseFor } = await import('../src/lib/network/presentation');
+
+  assert.equal(explorerBaseFor(56), 'https://bscscan.com');
+  assert.equal(explorerBaseFor(97), 'https://testnet.bscscan.com');
+  assert.notEqual(
+    explorerBaseFor(56),
+    explorerBaseFor(97),
+    'mainnet and testnet must not share an explorer',
+  );
+  // An unknown chain still yields a usable URL rather than a broken one.
+  assert.match(explorerBaseFor(1), /^https:\/\//);
+});
