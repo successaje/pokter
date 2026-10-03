@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { formatUnits } from 'viem';
 
 import { BuilderFleet, type BuilderFleetAgent } from '@/components/builder/BuilderFleet';
@@ -25,10 +24,56 @@ function short(address: string) { return `${address.slice(0, 6)}…${address.sli
 /** Request-time boundary for the rolling operational window. */
 function thirtyDaysAgo() { return new Date(Date.now() - 30 * 86_400_000); }
 
+/*
+ * Signed out, said out loud.
+ *
+ * This used to redirect to /build. A builder who bookmarked their dashboard
+ * landed on the launchpad with no explanation, which reads as "your agents
+ * are gone" rather than "you are signed out on this browser". The session is
+ * a cookie, so it expires routinely and this is the common case, not an edge.
+ */
+function BuilderSignedOut() {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-5 pb-16 pt-16">
+      <p className="mono text-[10px] uppercase tracking-[0.17em] text-[color:var(--brand-strong)]">
+        Private builder operations
+      </p>
+      <h1 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight sm:text-4xl">
+        Sign in to see your agents.
+      </h1>
+      <p className="text-[13px] leading-6 text-[color:var(--text-secondary)]">
+        The builder dashboard is scoped to a wallet that has proved it owns its
+        listings. That proof is held in a cookie on this browser, so signing in
+        again on a new device—or after it expires—is expected. Nothing about
+        your agents, jobs or escrow has changed.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/build"
+          className="rounded-[var(--radius)] bg-[color:var(--brand)] px-4 py-2.5 text-[12px] font-semibold text-[color:var(--brand-ink)]"
+        >
+          Verify ownership
+        </Link>
+      </div>
+      <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">
+        On the launchpad, choose{' '}
+        <span className="text-[color:var(--text-secondary)]">
+          “An agent already registered onchain”
+        </span>
+        .
+      </p>
+      <p className="text-[11px] leading-5 text-[color:var(--text-muted)]">
+        Verifying is a signature, not a transaction. It costs no gas and grants
+        Pokter no control over the wallet or its listings.
+      </p>
+    </div>
+  );
+}
+
 export default async function BuilderDashboard() {
   const token = (await cookies()).get(BUILDER_SESSION_COOKIE)?.value;
   const owner = builderSessionOwner(token);
-  if (!owner) redirect('/build');
+  if (!owner) return <BuilderSignedOut />;
 
   const pages = await Promise.all([
     listAgents({ chainId: 56, ownerAddress: owner, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
