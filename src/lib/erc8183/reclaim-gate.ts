@@ -12,10 +12,18 @@
  * `EXPIRED` is observed to appear when the refund is claimed: job #1363 was
  * `FUNDED` and months past expiry until it was reclaimed, at which point it
  * became `EXPIRED`, while #1364 and #1365 — equally expired, not reclaimed —
- * stayed `FUNDED`. That is one clean observation rather than a reading of the
- * kernel, so `EXPIRED` still offers the action: wrongly offering it costs a
- * reverted transaction and the gas on it, while wrongly hiding it strands
- * somebody's money, and those are not the same mistake.
+ * stayed `FUNDED`.
+ *
+ * Two further sets have since behaved the same way. #1364 and #1365 were
+ * reclaimed and are now `EXPIRED`; #1372 and #1373 sat at `FUNDED` a day
+ * past expiry, were reclaimed, and turned `EXPIRED` within the hour. Three
+ * independent observations, no counter-example.
+ *
+ * It is still observation of one deployment rather than a reading of the
+ * kernel, so `EXPIRED` keeps offering the action. Wrongly offering it costs
+ * a reverted transaction and the gas on it; wrongly hiding it strands
+ * somebody's money. Those are not the same mistake, and no number of
+ * confirmations of the cheap direction justifies taking the expensive one.
  *
  * `now` is passed in rather than read here, because the caller is a React
  * render and reading the clock during one is impure.
