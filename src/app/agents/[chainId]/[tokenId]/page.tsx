@@ -414,12 +414,31 @@ export default async function AgentPage({
                     {agent.owner_address && (
                       <span className="text-[color:var(--text-muted)]">
                         Publisher{' '}
-                        <Link
-                          href={`/builders/${agent.owner_address}`}
+                        {/*
+                          To the explorer, on the agent's own chain.
+
+                          This linked to /builders/[address], which reads as
+                          the publisher's profile and is not: that page is
+                          for publishers who have verified themselves with
+                          Pokter, and it calls notFound for everyone else.
+                          Almost no publisher in the catalogue has verified,
+                          so almost every one of these links was a 404 —
+                          including the one holding seventeen listings.
+                          Worse than no link, because it looked checkable.
+
+                          The explorer always resolves, is the literal
+                          meaning of verifying an address, and now resolves
+                          per chain, so a mainnet publisher goes to bscscan
+                          and a testnet one to testnet.bscscan.
+                        */}
+                        <a
+                          href={`${explorerBaseFor(agent.chain_id)}/address/${agent.owner_address}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
                           className="mono font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
                         >
-                          {shortAddress(agent.owner_address)}
-                        </Link>
+                          {shortAddress(agent.owner_address)} ↗
+                        </a>
                       </span>
                     )}
                       {/*
