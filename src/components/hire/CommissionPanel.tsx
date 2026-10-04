@@ -34,7 +34,10 @@ import {
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import {
+  encodePokterJobEnvelope,
+  type PokterJobQuote,
+} from '@/lib/erc8183/job-envelope';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { walletActionError } from '@/lib/wallet/errors';
@@ -167,6 +170,63 @@ function readClient() {
     chain: WALLET_NETWORK.chainId === 56 ? bsc : bscTestnet,
     transport: http(),
   });
+}
+
+/**
+ * The seller's signed quote for the brief that is about to be funded.
+ *
+ * Only for a hire where the agent itself is the on-chain provider. When
+ * Pokter's seller carries the brief instead, the agent never reads the job
+ * and has nothing to check a quote against, so asking it to price one would
+ * be a round trip that changes nothing.
+ *
+ * Negotiated here, at funding time, with the final text: the seller signs
+ * over the request as well as the response, so a quote obtained for an
+ * earlier draft does not cover the job this is about to create.
+ */
+async function negotiateForHire(
+  chainId: number,
+  tokenId: string,
+  task: string,
+): Promise<PokterJobQuote & { priceU: number }> {
+  const response = await fetch('/api/hire/quote', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chainId, tokenId, task }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { quote?: Record<string, unknown>; error?: string }
+    | null;
+  if (!response.ok || !payload?.quote) {
+    throw new Error(
+      payload?.error ??
+        'The agent did not return a signed quote for this brief.',
+    );
+  }
+  const q = payload.quote as {
+    negotiationHash: string;
+    providerSignature: string;
+    priceRaw: string;
+    priceU: number;
+    expiresAt: string | null;
+    domain: { chainId: number; verifyingContract: string } | null;
+  };
+  /* The envelope records the expiry in epoch seconds, as the seller sent it. */
+  return {
+    negotiationHash: q.negotiationHash,
+    providerSignature: q.providerSignature,
+    priceRaw: q.priceRaw,
+    priceU: q.priceU,
+    expiresAt: q.expiresAt
+      ? Math.floor(Date.parse(q.expiresAt) / 1000)
+      : undefined,
+    domain: q.domain
+      ? {
+          chainId: q.domain.chainId,
+          verifyingContract: q.domain.verifyingContract as `0x${string}`,
+        }
+      : undefined,
+  };
 }
 
 export function CommissionPanel({
@@ -427,6 +487,23 @@ export function CommissionPanel({
        * branches. The external route keeps its own input shape because it also
        * carries what the lib needs to rebuild a job record on recovery.
        */
+      /*
+       * Negotiated before the branch, so both signing routes commit the same
+       * quote for the same text. A budget under the signed price is refused
+       * rather than quietly raised: the amount funded is the buyer's to set,
+       * and an agent that asked for more will not deliver for less.
+       */
+      let signedQuote: Awaited<ReturnType<typeof negotiateForHire>> | null = null;
+      if (provider?.relationship === 'registry-agent') {
+        signedQuote = await negotiateForHire(agent.chainId, agent.tokenId, task);
+        const quotedU = signedQuote.priceU;
+        if (Number.isFinite(quotedU) && budget < quotedU) {
+          throw new Error(
+            `${agent.name} signed a price of ${quotedU} $U for this brief and the budget is ${budget} $U. Raise the budget to at least the signed price.`,
+          );
+        }
+      }
+
       if (active.mode === 'external') {
         if (!active.address) {
           throw new Error('Connect your browser wallet before funding.');
@@ -440,6 +517,7 @@ export function CommissionPanel({
           provider: providerAddress as `0x${string}`,
           providerLabel: provider?.label,
           task,
+          quote: signedQuote ?? undefined,
           budgetU: budget,
           ttlSeconds: 60 * 60 * 24,
           onProgress: ({ step: reached, jobId: reachedId }) => {
@@ -492,6 +570,7 @@ export function CommissionPanel({
         provider: providerAddress as `0x${string}`,
         providerLabel: provider?.label,
         task,
+        quote: signedQuote ?? undefined,
       });
 
       const budgetRaw = parseUnits(String(budget), 18);

@@ -24,6 +24,16 @@ export interface AgentQuote {
   /** The wallet the signature recovered to — the agent's own. */
   signer: string;
   /**
+   * The signature itself, and what it covers.
+   *
+   * Verified and then discarded until now, which was fine while a quote was
+   * only a number to display. A job funded against this quote has to carry
+   * it back to the seller, and a seller cannot tell its own quote from a
+   * price somebody typed without the signature that proves it said so.
+   */
+  negotiationHash: string;
+  providerSignature: string;
+  /**
    * The chain and contract the signature was bound to, when the seller said.
    *
    * Read because it decides whether the quote can govern anything here. A
@@ -52,15 +62,25 @@ function responseData(payload: unknown): Record<string, unknown> | null {
   return null;
 }
 
+/**
+ * The terms every Pokter negotiation is conducted under.
+ *
+ * Exported because the hire path has to negotiate under exactly these and
+ * then fund under exactly these: the seller's signature covers the terms, so
+ * two copies that drifted apart would produce a quote that does not match
+ * the job it was obtained for, and the seller would be right to refuse it.
+ */
+export const POKTER_TERMS = {
+  deliverables: 'A JSON assessment with assumptions and data sources.',
+  quality_standards:
+    'Read-only analysis only. Execute no transaction and move no funds.',
+} as const;
+
 /** The fixed, read-only brief used to ask an agent what it charges. */
 const PRICE_ENQUIRY = {
   task_description:
     'Quote your standard deliverable so a buyer can see the price before hiring.',
-  terms: {
-    deliverables: 'A JSON assessment with assumptions and data sources.',
-    quality_standards:
-      'Read-only analysis only. Execute no transaction and move no funds.',
-  },
+  terms: POKTER_TERMS,
 } as const;
 
 /**
@@ -78,7 +98,26 @@ const PRICE_ENQUIRY = {
  */
 export async function requestQuote(
   agent: ScanAgentDetail,
-  { timeoutMs = 12_000 }: { timeoutMs?: number } = {},
+  {
+    timeoutMs = 12_000,
+    enquiry = PRICE_ENQUIRY,
+  }: {
+    timeoutMs?: number;
+    /*
+     * The brief to negotiate over, when it is not the standing price
+     * enquiry.
+     *
+     * The signature covers the request as well as the response — the hash
+     * the seller returns commits to this exact task_description and these
+     * exact terms — so a quote obtained for one brief does not govern a job
+     * funded with another. A hire therefore negotiates with the text it is
+     * about to commit on chain, not with the sweep's generic enquiry.
+     */
+    enquiry?: {
+      task_description: string;
+      terms: { deliverables: string; quality_standards: string };
+    };
+  } = {},
 ): Promise<AgentQuote | null> {
   const endpoint = agent.services?.a2a?.endpoint?.replace(
     '{agentId}',
@@ -120,7 +159,7 @@ export async function requestQuote(
             message: {
               role: 'user',
               messageId: crypto.randomUUID(),
-              parts: [{ kind: 'data', data: { skill: 'negotiate', ...PRICE_ENQUIRY } }],
+              parts: [{ kind: 'data', data: { skill: 'negotiate', ...enquiry } }],
             },
             configuration: {
               acceptedOutputModes: ['application/json'],
@@ -173,6 +212,8 @@ export async function requestQuote(
       priceU: Number(priceRaw) / 1e18,
       currency,
       quotedAt: new Date().toISOString(),
+      negotiationHash: data.negotiation_hash,
+      providerSignature: data.provider_sig,
       expiresAt:
         typeof expiry === 'number' && Number.isFinite(expiry)
           ? new Date(expiry * 1000).toISOString()

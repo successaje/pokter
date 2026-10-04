@@ -11,7 +11,10 @@ import {
 } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import {
+  encodePokterJobEnvelope,
+  type PokterJobQuote,
+} from '@/lib/erc8183/job-envelope';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 
@@ -34,6 +37,8 @@ export interface ExternalHireInput {
   provider: Address;
   providerLabel?: string;
   task: string;
+  /** The seller's signed quote, when the seller is the on-chain provider. */
+  quote?: PokterJobQuote;
   budgetU: number;
   ttlSeconds: number;
   onProgress?: (progress: ExternalHireProgress) => void;
@@ -268,7 +273,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   const description = encodePokterJobEnvelope({
     identityChainId: input.identityChainId, agentTokenId: input.agentTokenId,
     agentName: input.agentName, category: input.category, provider: input.provider,
-    providerLabel: input.providerLabel, task: input.task,
+    providerLabel: input.providerLabel, task: input.task, quote: input.quote,
   });
   const report = input.onProgress ?? (() => {});
   await ensureChain();

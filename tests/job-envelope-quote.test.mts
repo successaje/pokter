@@ -165,3 +165,40 @@ test('a quote still inside its window is usable', () => {
   const verdict = quoteUsableForEscrow({ expiresAt: 1_791_131_243 }, 97, now);
   assert.equal(verdict.usable, true);
 });
+
+/*
+ * A real quote, negotiated from weighladder-agent (97/1926) on 4 Oct 2026 —
+ * the one agent in the catalogue that both prices in the escrow's token and
+ * signs for the escrow's chain. Pinned because it is the first quote Pokter
+ * has ever been able to carry, and the shape is the seller's, not ours.
+ */
+test('a real seller quote fits the envelope and survives it', () => {
+  const live = {
+    negotiationHash:
+      '0x501174eed4e6d39a9fd8ca264a4cc44a3188d2297924b0d9a5b35b3f96d60d47',
+    providerSignature:
+      '0x98906b0bae656dff9e4733a457a25a8f5b41dff7e08f2f5475ccc8d43edc1bae0c45e5982d005228189519a48cf2ca676337fdab3d51293811c29103049543491c',
+    priceRaw: '100000000000000000',
+    expiresAt: 1791142528,
+    domain: {
+      chainId: 97,
+      verifyingContract: '0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE' as `0x${string}`,
+    },
+  };
+  const encoded = encodePokterJobEnvelope({
+    identityChainId: 97,
+    agentTokenId: '1926',
+    agentName: 'weighladder-agent',
+    category: 'rebalancing',
+    provider: '0x0aA36a8c9D3f48B4220cf88FA8819B064a389A0E' as `0x${string}`,
+    task: 'Report how far the BNB/USDT position has drifted from its range.',
+    quote: live,
+  });
+  assert.ok(new TextEncoder().encode(encoded).byteLength <= 4096);
+
+  const decoded = decodePokterJobEnvelope(encoded)?.quote;
+  assert.equal(decoded?.negotiationHash, live.negotiationHash);
+  assert.equal(decoded?.providerSignature, live.providerSignature.toLowerCase());
+  assert.equal(decoded?.domain?.chainId, 97);
+  assert.equal(quoteUsableForEscrow(live, 97).usable, true);
+});
