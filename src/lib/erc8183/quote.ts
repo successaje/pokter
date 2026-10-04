@@ -23,6 +23,16 @@ export interface AgentQuote {
   expiresAt: string | null;
   /** The wallet the signature recovered to — the agent's own. */
   signer: string;
+  /**
+   * The chain and contract the signature was bound to, when the seller said.
+   *
+   * Read because it decides whether the quote can govern anything here. A
+   * seller signing for chain 56 against the mainnet ERC-8183 deployment has
+   * quoted honestly and still described a job Pokter cannot create, and this
+   * was being parsed off the wire and dropped one line below — so the only
+   * field that answers "can this be hired" never left the function.
+   */
+  domain: { chainId: number; verifyingContract: string } | null;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -155,6 +165,9 @@ export async function requestQuote(
     });
 
     const expiry = response?.quote_expires_at;
+    /* Absent on some sellers, which is "unbound", not "bound to ours". */
+    const domainChain = data.chain_id;
+    const verifyingContract = data.verifying_contract;
     return {
       priceRaw,
       priceU: Number(priceRaw) / 1e18,
@@ -165,8 +178,16 @@ export async function requestQuote(
           ? new Date(expiry * 1000).toISOString()
           : null,
       signer,
+      domain:
+        typeof domainChain === 'number' &&
+        Number.isSafeInteger(domainChain) &&
+        domainChain > 0 &&
+        typeof verifyingContract === 'string'
+          ? { chainId: domainChain, verifyingContract }
+          : null,
     };
   } catch {
     return null;
   }
 }
+

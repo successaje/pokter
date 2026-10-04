@@ -62,7 +62,11 @@ export default async function HirePage({
     period: 'week',
     expiryDays: 7,
   });
-  const providers = await providerChoicesFor(agent, ALTANA_NETWORK.chainId);
+  const providers = await providerChoicesFor(
+    agent,
+    ALTANA_NETWORK.chainId,
+    dossier.quote,
+  );
   const riskWarnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow

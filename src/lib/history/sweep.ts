@@ -233,6 +233,7 @@ export async function runSweep({
         signer: quote.signer,
         quotedAt: quote.quotedAt,
         expiresAt: quote.expiresAt,
+        domain: quote.domain,
       });
     }
 

@@ -33,6 +33,8 @@ export interface QuoteRecord {
   signer: string;
   quotedAt: string;
   expiresAt: string | null;
+  /** The chain and contract the seller bound its signature to, if it said. */
+  domain: { chainId: number; verifyingContract: string } | null;
 }
 
 /** Summary of one sweep across the roster. */
@@ -134,6 +136,8 @@ const SCHEMA = `
     signer     TEXT    NOT NULL,
     quoted_at  TEXT    NOT NULL,
     expires_at TEXT,
+    domain_chain_id INTEGER,
+    domain_contract TEXT,
     PRIMARY KEY (chain_id, token_id)
   );
 
@@ -175,6 +179,8 @@ interface QuoteRow {
   signer: string;
   quoted_at: string;
   expires_at: string | null;
+  domain_chain_id: number | null;
+  domain_contract: string | null;
 }
 
 interface SweepRow {
@@ -208,6 +214,20 @@ class SqliteProbeStore implements ProbeStore {
     // WAL keeps a running sweep from blocking page reads.
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec(SCHEMA);
+    // CREATE TABLE IF NOT EXISTS does not add columns to a table that is
+    // already there, and the deployed index has quotes in it worth keeping.
+    for (const statement of [
+      'ALTER TABLE quotes ADD COLUMN domain_chain_id INTEGER',
+      'ALTER TABLE quotes ADD COLUMN domain_contract TEXT',
+    ]) {
+      try {
+        this.db.exec(statement);
+      } catch (error) {
+        if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) {
+          throw error;
+        }
+      }
+    }
   }
 
   record(probes: ProbeRecord[]): void {
@@ -246,15 +266,18 @@ class SqliteProbeStore implements ProbeStore {
 
     const upsert = this.db.prepare(
       `INSERT INTO quotes
-         (chain_id, token_id, price_raw, price_u, currency, signer, quoted_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         (chain_id, token_id, price_raw, price_u, currency, signer, quoted_at, expires_at,
+          domain_chain_id, domain_contract)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (chain_id, token_id) DO UPDATE SET
          price_raw = excluded.price_raw,
          price_u = excluded.price_u,
          currency = excluded.currency,
          signer = excluded.signer,
          quoted_at = excluded.quoted_at,
-         expires_at = excluded.expires_at`,
+         expires_at = excluded.expires_at,
+         domain_chain_id = excluded.domain_chain_id,
+         domain_contract = excluded.domain_contract`,
     );
 
     this.db.exec('BEGIN');
@@ -269,6 +292,8 @@ class SqliteProbeStore implements ProbeStore {
           q.signer,
           q.quotedAt,
           q.expiresAt,
+          q.domain?.chainId ?? null,
+          q.domain?.verifyingContract ?? null,
         );
       }
       this.db.exec('COMMIT');
@@ -301,6 +326,10 @@ class SqliteProbeStore implements ProbeStore {
         signer: row.signer,
         quotedAt: row.quoted_at,
         expiresAt: row.expires_at,
+        domain:
+          row.domain_chain_id && row.domain_contract
+            ? { chainId: row.domain_chain_id, verifyingContract: row.domain_contract }
+            : null,
       });
     }
     return found;
