@@ -44,3 +44,47 @@ export async function verifyNegotiationSignature(input: {
   }
   return signer;
 }
+
+/**
+ * Whether a seller's quote can govern a job funded on this escrow chain.
+ *
+ * A quote is signed against a domain. BNB LP Range Rebalancer quotes with
+ * `chain_id: 56` and a verifying contract that is the ERC-8183 commerce
+ * deployment on BNB mainnet — a contract with no code at all on testnet. Its
+ * `notify_funded` then looks for the funded job carrying that quote, on that
+ * chain, and Pokter's escrow is on 97. The quote is valid and the signature
+ * recovers; it simply does not describe any job Pokter can create.
+ *
+ * Carrying such a quote into the envelope is not harmful, but funding against
+ * it and expecting delivery is, so the reason is returned rather than a bare
+ * false: it is the difference between "this agent is broken" and "this agent
+ * does not sell on the chain we settle on", and only the second is true.
+ */
+export function quoteUsableForEscrow(
+  quote: {
+    expiresAt?: number;
+    domain?: { chainId: number; verifyingContract: Address };
+  },
+  escrowChainId: number,
+  now: Date = new Date(),
+): { usable: true } | { usable: false; reason: string } {
+  if (quote.domain && quote.domain.chainId !== escrowChainId) {
+    return {
+      usable: false,
+      reason:
+        `The seller signed this quote for chain ${quote.domain.chainId}, ` +
+        `and the escrow settles on chain ${escrowChainId}. It will not ` +
+        `recognise the funded job.`,
+    };
+  }
+  if (quote.expiresAt !== undefined) {
+    const expiresAt = quote.expiresAt * 1000;
+    if (expiresAt <= now.getTime()) {
+      return {
+        usable: false,
+        reason: 'The quote has expired. Negotiate again before funding.',
+      };
+    }
+  }
+  return { usable: true };
+}
