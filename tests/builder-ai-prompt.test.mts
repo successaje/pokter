@@ -128,3 +128,32 @@ test('it says what to do when the reference card does not load', () => {
   assert.match(prompt, /rather than inventing the shape/);
   assert.match(prompt, /showing a signed price/);
 });
+
+/*
+ * Observed on 5 Oct 2026: a probe waits ten seconds, and an agent already
+ * listed on Pokter took twenty-two to wake from a sleeping free tier. The
+ * probe it misses is recorded as a day it did not answer, so where the
+ * agent is hosted decides part of its public record before it serves
+ * anyone.
+ */
+test('it warns that a sleeping host fails the probe', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /waits ten seconds/);
+  assert.match(prompt, /host that sleeps when idle/);
+  assert.match(prompt, /recorded as a failure the agent never saw/);
+});
+
+test('it says the record is continuous, public and uneditable', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /record is continuous and public/);
+  assert.match(prompt, /no private rehearsal/i);
+  assert.match(prompt, /Nothing about the record can be edited/);
+});
+
+/* Seven now, including the one that catches an unpayable quote. */
+test('it defers the verdict to Pokter’s own checks, all seven', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /seven checks of its own/);
+  assert.match(prompt, /the quote can actually be paid from the escrow/);
+  assert.match(prompt, /do not describe it to me as working on the strength of your own tests alone/);
+});

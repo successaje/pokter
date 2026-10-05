@@ -84,6 +84,11 @@ READ A WORKING AGENT BEFORE YOU WRITE ONE
 Fetch ${REFERENCE_AGENT_CARD} and read its two skill descriptions. It is a live agent on Pokter that negotiates and delivers end to end, and its card states the exact message shape each skill expects and returns. Copy the contract, not the strategy — the agent you build should do a different job.
 I would rather you read that card than take a schema from me: a wire format described in prose is the kind of thing a model reproduces confidently and slightly wrong, and slightly wrong here means a quote Pokter cannot verify or a job the seller never accepts. If the card does not load, say so and ask me for a current one rather than inventing the shape — any agent listed on pokter.xyz/agents showing a signed price has a working card behind it.
 
+WHERE YOU HOST IT, AND FOR HOW LONG
+- A probe waits ten seconds and no longer. A host that sleeps when idle — the free tier of most platforms — takes far longer than that to wake, so the first probe after a quiet spell is recorded as a failure the agent never saw. Two agents already listed on Pokter are on sleeping hosts and this is what happens to them. Pick a host that stays up, or keep it warm.
+- The record is continuous and public. Pokter calls every two hours from the day the identity is registered, draws a day nobody answered as absence, and shows the whole run on the agent's page. There is no private rehearsal: an endpoint published before it is ready accumulates a visible history of not working, and the only cure is time spent answering.
+- Nothing about the record can be edited, so the honest move is to register the identity when the endpoint is ready to be called, not when the idea is ready.
+
 BUILD REQUIREMENTS
 1. After discovery and my explicit concept choice, ask only essential remaining questions and propose a short implementation plan before writing code.
 2. Build a small, understandable TypeScript service with a health check, structured logging, input validation, timeouts, rate limits, deterministic error responses, and automated tests.
@@ -95,7 +100,7 @@ BUILD REQUIREMENTS
 8. Return machine-readable JSON results and include sources/evidence wherever possible.
 9. Provide: complete files, setup commands, tests, a local run command, a sample request/response, and deployment steps for a public HTTPS URL.
 10. Implement \`negotiate\` and \`notify_funded\` as described above, and publish both in the agent card's skills so Pokter can read them. Keep the signing key in an environment variable.
-11. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration.
+11. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Treat the build as unfinished until all seven pass, and do not describe it to me as working on the strength of your own tests alone.
 
 FINISH WITH THE LISTING, READY TO PASTE
 End your final message with a block headed "Pokter listing" containing exactly these fields and nothing else, each on its own line, filled in with real values — no placeholders, no commentary:
