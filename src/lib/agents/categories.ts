@@ -7,15 +7,23 @@ import type { ScanAgent, ScanAgentDetail } from '@/lib/scan/types';
 export type ClassifiableAgent = ScanAgent | ScanAgentDetail;
 
 /**
- * The four agent categories the marketplace must treat equally.
- * `unclassified` is deliberately not a fifth category — it is the holding pen
- * for registry noise that does not belong in the marketplace at all.
+ * The agent categories the marketplace must treat equally.
+ * `unclassified` is deliberately not one of them — it is the holding pen for
+ * registry noise that does not belong in the marketplace at all.
+ *
+ * Token safety joined the four because an agent that screens a contract
+ * before anyone buys it had nowhere to go: it classified as noise, failed the
+ * category check, and could not be listed however well it worked. The other
+ * four all answer a question about a position somebody already holds. This
+ * one answers the question asked before there is a position, which is the
+ * earliest point at which evidence is worth anything.
  */
 export type Category =
   | 'rebalancing'
   | 'grid-trading'
   | 'yield'
-  | 'health-factor';
+  | 'health-factor'
+  | 'token-safety';
 
 export type Classification = Category | 'unclassified';
 
@@ -69,6 +77,13 @@ export const CATEGORIES: CategoryMeta[] = [
     question: 'How close is the position, and whose numbers is that from?',
     accent: 'amber',
   },
+  {
+    id: 'token-safety',
+    label: 'Token Safety',
+    blurb: 'Reports what a token contract can do to a holder before you buy it.',
+    question: 'Can I sell this again, and who can change that after I buy?',
+    accent: 'rose',
+  },
 ];
 
 export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
@@ -89,6 +104,35 @@ const SIGNALS: Record<Category, { strong: string[]; weak: string[] }> = {
   yield: {
     strong: ['yield optimi', 'yield aggregat', 'auto-compound', 'autocompound', 'apy optimi'],
     weak: ['yield', 'apy', 'apr', 'farming', 'staking', 'vault', 'lending', 'compound'],
+  },
+  'token-safety': {
+    strong: [
+      'honeypot',
+      'rug pull',
+      'rugpull',
+      'token safety',
+      'contract safety',
+      'pre-trade safety',
+      'sell tax',
+      'buy tax',
+      'mint authority',
+      'can i sell',
+      'sellability',
+    ],
+    weak: [
+      'bep-20',
+      'bep20',
+      'erc-20',
+      'scam',
+      'risk signal',
+      'lp lock',
+      'liquidity lock',
+      'ownership renounc',
+      'proxy',
+      'blacklist',
+      'screen',
+      'holder',
+    ],
   },
   'health-factor': {
     strong: [

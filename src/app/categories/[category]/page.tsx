@@ -34,6 +34,12 @@ export const dynamic = 'force-dynamic';
  * exist the page says so rather than substituting a generic metric.
  */
 const FOCUS: Record<Category, string[]> = {
+  'token-safety': [
+    'Sellability',
+    'Buy and sell tax',
+    'Ownership and mint authority',
+    'Liquidity lock',
+  ],
   rebalancing: [
     'LP range management',
     'Position maintenance',

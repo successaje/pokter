@@ -19,6 +19,11 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
  * the brand, which is the one colour here that does mean "you chose this".
  */
 const OUTCOME_ICONS: Record<Category, ReactNode> = {
+  'token-safety': (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6Z" /><path d="m9 12 2 2 4-4" />
+      </svg>
+    ),
   rebalancing: (
       <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 7h11" /><path d="m12 4 3 3-3 3" /><path d="M20 17H9" /><path d="m12 14-3 3 3 3" />

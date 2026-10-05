@@ -11,6 +11,7 @@ const CATEGORY_ROUTES: Record<Category, string> = {
   'grid-trading': '/categories/grid-trading',
   yield: '/categories/yield',
   'health-factor': '/categories/health-factor',
+  'token-safety': '/categories/token-safety',
 };
 
 /**

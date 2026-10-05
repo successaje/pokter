@@ -24,6 +24,11 @@ export interface BriefReading {
  * work.
  */
 const SIGNALS: Record<Category, string[]> = {
+  'token-safety': [
+    'honeypot', 'rug', 'scam', 'safe to buy', 'can i sell', 'sell tax',
+    'buy tax', 'token safety', 'contract', 'is this token', 'screen',
+    'mint', 'blacklist', 'liquidity lock',
+  ],
   'health-factor': [
     'liquidat', 'health factor', 'collateral', 'loan', 'borrow', 'venus',
     'aave', 'lending', 'margin call', 'safe', 'protect', 'risk of losing',

@@ -52,6 +52,7 @@ const KEYWORD_TERMS: Record<Category, string[]> = {
   'grid-trading': ['grid', 'ladder'],
   yield: ['yield', 'vault'],
   'health-factor': ['health factor', 'liquidation'],
+  'token-safety': ['honeypot', 'token safety'],
 };
 
 const DISCOVERY_QUERIES: Record<Category, string[]> = {
@@ -59,6 +60,7 @@ const DISCOVERY_QUERIES: Record<Category, string[]> = {
   'grid-trading': ['grid trading bot buy low sell high ladder'],
   yield: ['yield optimiser moving capital to the best APY'],
   'health-factor': ['health factor monitor preventing loan liquidation'],
+  'token-safety': ['token safety screen honeypot sellability contract risk'],
 };
 
 /** A marketplace listing: a registry agent plus what we can prove about it. */

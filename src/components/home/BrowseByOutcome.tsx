@@ -28,6 +28,7 @@ const OUTCOMES: Record<Category, { verb: string; short: string; icon: string }> 
   'health-factor': { verb: 'Check liquidation risk', short: 'How close a loan is', icon: '⌁' },
   rebalancing: { verb: 'Check drift', short: 'How far weights have moved', icon: '◫' },
   'grid-trading': { verb: 'Review a range', short: 'Whether it still fits the market', icon: '⌗' },
+  'token-safety': { verb: 'Screen a token', short: 'Whether it can be sold again', icon: '⛉' },
 };
 
 function evidenceRate(entry: Entry): number {
