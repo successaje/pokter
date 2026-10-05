@@ -13,7 +13,7 @@ import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { BuilderSection } from '@/components/account/BuilderSection';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
-import { CampaignPassport } from '@/components/campaign/CampaignPassport';
+import { CampaignAccountRow } from '@/components/campaign/CampaignAccountRow';
 
 function hashSeed(value: string) {
   let hash = 2166136261;
@@ -45,6 +45,62 @@ function AccountAvatar({ identity }: { identity: string }) {
         </g>
         <path d="M17 22 26 7l8 17" fill={accent} />
       </svg>
+    </div>
+  );
+}
+
+function Chip({ label, tone }: { label: string; tone: 'good' | 'warn' | 'muted' }) {
+  const palette = {
+    good: 'border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] text-[color:var(--positive)]',
+    warn: 'border-[color:var(--caution)]/40 bg-[color:var(--caution-dim)] text-[color:var(--caution)]',
+    muted: 'border-[color:var(--border)] text-[color:var(--text-muted)]',
+  }[tone];
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-medium ${palette}`}>
+      {label}
+    </span>
+  );
+}
+
+/*
+ * One row per wallet, instead of the same forty-element line written three
+ * times. The three copies had already drifted — only one of them handled
+ * the not-connected case.
+ */
+function WalletRow({
+  title,
+  note,
+  address,
+  copyKey,
+  copied,
+  onCopy,
+}: {
+  title: string;
+  note: string;
+  address: string | null;
+  copyKey: string;
+  copied: string | null;
+  onCopy: (value: string, key: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-4">
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium">{title}</p>
+        <p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{note}</p>
+      </div>
+      {address ? (
+        <button
+          type="button"
+          onClick={() => onCopy(address, copyKey)}
+          className="mono shrink-0 rounded-[var(--radius)] border border-[color:var(--border)] px-2.5 py-1.5 text-[10px] transition-colors hover:bg-[color:var(--surface-hover)]"
+        >
+          {copied === copyKey ? 'Copied ✓' : shortAddress(address)}
+        </button>
+      ) : (
+        <span className="mono shrink-0 text-[10px] text-[color:var(--text-muted)]">
+          Not connected
+        </span>
+      )}
     </div>
   );
 }
@@ -81,6 +137,17 @@ export function AccountProfile() {
     enabled: Boolean(builder.data?.authenticated),
     staleTime: 30_000,
   });
+  const owned = useQuery<{ agents: unknown[] }>({
+    queryKey: ['owned-agents', address],
+    enabled: Boolean(address),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const response = await fetch(`/api/builders/agents?address=${address}`);
+      if (!response.ok) throw new Error('Could not read your agents.');
+      return response.json() as Promise<{ agents: unknown[] }>;
+    },
+  });
+  const publishedCount = owned.data?.agents.length ?? 0;
   const identity = address ?? browserAddress ?? passkey.wallet?.address ?? 'pokter-guest';
   const builderReady = builder.data?.authenticated && builder.data.owner;
   async function copyAddress(value: string, key: string) {
@@ -91,39 +158,174 @@ export function AccountProfile() {
 
   return (
     <div className="mx-auto w-full max-w-6xl pb-20 pt-7 sm:pt-12">
+      {/*
+        The header states who you are, not what Pokter is for.
+
+        It used to carry a marketing headline and a paragraph about how the
+        avatar is generated — on a page nobody reaches without already using
+        the product. The address and the state of the wallet signing with it
+        are the facts somebody opens an account page to check, so they are
+        the header now, and the avatar explanation moved to the footnote
+        where that sort of thing belongs.
+      */}
       <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-center">
         <AccountAvatar identity={identity} />
-        <div className="min-w-0 flex-1"><p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Pokter account</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your place in the agent economy.</h1><p className="mt-3 max-w-2xl text-[12px] leading-5 text-[color:var(--text-secondary)]">One account view for the wallet that signs, the work you commissioned, and the agents you publish. Your avatar is generated from your wallet address and stays consistent without uploading personal data.</p></div>
+        <div className="min-w-0 flex-1">
+          <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">
+            Pokter account
+          </p>
+          <h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">
+            {/*
+              The address is the title when there is one, because that is the
+              account's actual name here. With nothing connected it says so
+              in the chip below rather than shouting "Not connected" at
+              display size, which reads as an error on a page that is working
+              exactly as intended.
+            */}
+            {address ? shortAddress(address) : 'Your account'}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Chip
+              tone={active.mode ? 'good' : 'muted'}
+              label={
+                active.mode === 'passkey'
+                  ? 'Passkey wallet'
+                  : active.mode === 'external'
+                    ? 'Browser wallet'
+                    : 'No wallet connected'
+              }
+            />
+            <Chip
+              tone={active.wrongChain ? 'warn' : address ? 'good' : 'muted'}
+              label={active.wrongChain ? `Switch to ${ESCROW_CHAIN.name}` : ESCROW_CHAIN.name}
+            />
+            <Chip
+              tone={builderReady ? 'good' : 'muted'}
+              label={builderReady ? 'Ownership verified' : 'Ownership not verified'}
+            />
+            {address && (
+              <button
+                type="button"
+                onClick={() => copyAddress(address, 'header')}
+                className="mono rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+              >
+                {copied === 'header' ? 'Copied ✓' : 'Copy address'}
+              </button>
+            )}
+          </div>
+        </div>
       </header>
 
-      <BuilderSection address={address ?? null} />
-
       {/*
-        The "are you hiring or building?" fork used to sit here.
+        Four counts across the top, where a sidebar used to hold three.
 
-        It asked a newcomer to classify themselves before they had done
-        either thing, and then spent a click sending them to a page the nav
-        now names outright — Activity for work you commissioned, My agents
-        for work you publish. A chooser whose two cards lead where two
-        permanent links already lead is a step, not a choice.
-
-        What it did carry that the links do not is verification state, so
-        that moved into Quick access below, where it reads as one line
-        rather than a half-page card.
+        These are the page's answer to "what do I have here", so they lead
+        rather than sit in the margin — and the fourth, agents published,
+        was missing entirely despite being half of what this product is.
+        It reuses the query key the published list below already fetches on,
+        so counting them costs no extra request.
       */}
-      <div className="mt-8">
-        <CampaignPassport compact />
-      </div>
+      <section aria-label="Your totals" className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat value={jobCount} label="Jobs" href="/activity" />
+        <Stat value={publishedCount} label="Agents published" href="/builder" />
+        <Stat value={savedCount} label="Saved" href="/saved" />
+        <Stat
+          value={unreadCount + (builderInbox.data?.unread ?? 0)}
+          label="Unread"
+          href={builderReady ? '/builder#jobs' : '/activity'}
+        />
+      </section>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,.6fr)]">
-        <section aria-labelledby="wallet-heading" className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6"><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Identity and signing</p><h2 id="wallet-heading" className="mt-2 text-xl font-semibold">Wallets on this device</h2><div className="mt-5 divide-y divide-[color:var(--border)]">
-          <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Active signing wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{active.mode === 'passkey' ? 'Protected by your device passkey' : active.mode === 'external' ? 'Connected browser wallet' : 'Connect a wallet to begin'}</p></div>{address ? <button type="button" onClick={() => copyAddress(address, 'active')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'active' ? 'Copied ✓' : shortAddress(address)}</button> : <span className="mono text-[10px]">Not connected</span>}</div>
-          {passkey.wallet && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Passkey wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">Credential stays in this device or synced passkey provider</p></div><button type="button" onClick={() => copyAddress(passkey.wallet!.address, 'passkey')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'passkey' ? 'Copied ✓' : shortAddress(passkey.wallet.address)}</button></div>}
-          {browserAddress && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Browser wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{chain?.id === ESCROW_CHAIN.id ? `${ESCROW_CHAIN.name} · ready` : `${chain?.name ?? 'Unknown network'} · switch before transacting`}</p></div><button type="button" onClick={() => copyAddress(browserAddress, 'browser')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'browser' ? 'Copied ✓' : shortAddress(browserAddress)}</button></div>}
-        </div><p className="mt-4 text-[9px] leading-4 text-[color:var(--text-faint)]">Pokter does not create a username/password profile or hold your private keys. Account data shown here is derived from connected wallets, signed builder verification and this device.</p></section>
+        <section
+          aria-labelledby="wallet-heading"
+          className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6"
+        >
+          <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">
+            Identity and signing
+          </p>
+          <h2 id="wallet-heading" className="mt-2 text-xl font-semibold">
+            Wallets on this device
+          </h2>
+          <div className="mt-5 divide-y divide-[color:var(--border)]">
+            <WalletRow
+              title="Active signing wallet"
+              note={
+                active.mode === 'passkey'
+                  ? 'Protected by your device passkey'
+                  : active.mode === 'external'
+                    ? 'Connected browser wallet'
+                    : 'Connect a wallet to begin'
+              }
+              address={address}
+              copyKey="active"
+              copied={copied}
+              onCopy={copyAddress}
+            />
+            {passkey.wallet && (
+              <WalletRow
+                title="Passkey wallet"
+                note="Credential stays in this device or synced passkey provider"
+                address={passkey.wallet.address}
+                copyKey="passkey"
+                copied={copied}
+                onCopy={copyAddress}
+              />
+            )}
+            {browserAddress && (
+              <WalletRow
+                title="Browser wallet"
+                note={
+                  chain?.id === ESCROW_CHAIN.id
+                    ? `${ESCROW_CHAIN.name} · ready`
+                    : `${chain?.name ?? 'Unknown network'} · switch before transacting`
+                }
+                address={browserAddress}
+                copyKey="browser"
+                copied={copied}
+                onCopy={copyAddress}
+              />
+            )}
+          </div>
+          <p className="mt-5 text-[9px] leading-4 text-[color:var(--text-faint)]">
+            Pokter does not create a username/password profile or hold your
+            private keys. Account data shown here is derived from connected
+            wallets, signed builder verification and this device, and your
+            avatar is generated from the address rather than uploaded.
+          </p>
+        </section>
 
-        <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/activity" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount + (builderInbox.data?.unread ?? 0)} label="Unread" href={builderReady ? '/builder#jobs' : '/activity'} /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/activity" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link><Link href="/builder" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">{builderReady ? 'Builder alerts' : 'My agents'} <span className="float-right">→</span></Link></div></div></aside>
+        <aside>
+          <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5">
+            <h2 className="text-sm font-semibold">Quick access</h2>
+            <div className="mt-3 grid gap-1 text-[11px]">
+              {[
+                ['/discover', 'Find an agent'],
+                ['/compare', 'Compare saved agents'],
+                ['/activity', 'Jobs and notifications'],
+                ['/builder', builderReady ? 'Builder alerts' : 'My agents'],
+              ].map(([href, label]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]"
+                >
+                  {label} <span className="float-right">→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/*
+            The campaign sits here, below the account's own controls, rather
+            than as a third of the page above them. It is something you are
+            doing with Pokter, not a property of who you are.
+          */}
+          <CampaignAccountRow />
+        </aside>
       </div>
+
+      <BuilderSection address={address ?? null} />
     </div>
   );
 }

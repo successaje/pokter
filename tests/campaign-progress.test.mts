@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { HiredJob } from '../src/lib/erc8183/types';
-import { summarizeCampaignHires } from '../src/lib/campaign/progress';
+import { summarizeCampaignHires, campaignVisiblePercent } from '../src/lib/campaign/progress';
 
 function job(overrides: Partial<HiredJob> = {}): HiredJob {
   return {
@@ -62,4 +62,37 @@ test('the visible-progress ceiling is reachable', () => {
   assert.equal(percent(true, 0, false), 40);
   // More hires than the task asks for must not overflow the bar.
   assert.equal(percent(true, 9, true), 100);
+});
+
+/*
+ * The percentage the passport and the account page both report.
+ *
+ * It lives in one function now because two surfaces showing the same wallet
+ * a different number is the failure this guards against.
+ */
+test('campaign progress is measured against what Pokter can verify', () => {
+  assert.equal(
+    campaignVisiblePercent({ registered: false, distinctAgents: 0, pokterMarketplaceVerified: false }),
+    0,
+  );
+  // Registering alone is 1 of the 2.5 Pokter can see.
+  assert.equal(
+    campaignVisiblePercent({ registered: true, distinctAgents: 0, pokterMarketplaceVerified: false }),
+    40,
+  );
+  // Everything visible done reads as full, not as 50% of five.
+  assert.equal(
+    campaignVisiblePercent({ registered: true, distinctAgents: 3, pokterMarketplaceVerified: true }),
+    100,
+  );
+  // Hiring more than three does not push it past full.
+  assert.equal(
+    campaignVisiblePercent({ registered: true, distinctAgents: 9, pokterMarketplaceVerified: true }),
+    100,
+  );
+  // Partial hires count proportionally.
+  assert.equal(
+    campaignVisiblePercent({ registered: false, distinctAgents: 3, pokterMarketplaceVerified: false }),
+    40,
+  );
 });

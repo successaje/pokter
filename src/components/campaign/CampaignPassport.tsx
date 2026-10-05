@@ -3,23 +3,15 @@
 import Link from 'next/link';
 import { useCallback, useSyncExternalStore, type ReactNode } from 'react';
 
-import { summarizeCampaignHires } from '@/lib/campaign/progress';
+import { campaignVisiblePercent, summarizeCampaignHires } from '@/lib/campaign/progress';
+import { REGISTRATION_EVENT, registrationKey, subscribeToRegistration } from '@/lib/campaign/registration';
 import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { jobsForWallet, noJobs, subscribeToJobs } from '@/lib/wallet/activity';
 import { CAMPAIGN_END_LABEL } from '@/lib/campaign/window';
 
 const CAMPAIGN = 'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
-const REGISTRATION_KEY = 'pokter.set-and-earn.registered.v1';
-const REGISTRATION_EVENT = 'pokter:set-and-earn-registration-changed';
 const actionClass = 'inline-flex min-h-9 items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px] font-semibold transition-colors hover:bg-[color:var(--surface-hover)]';
-
-function registrationKey(wallet: string) { return `${REGISTRATION_KEY}:${wallet.toLowerCase()}`; }
-function subscribeToRegistration(listener: () => void) {
-  window.addEventListener('storage', listener);
-  window.addEventListener(REGISTRATION_EVENT, listener);
-  return () => { window.removeEventListener('storage', listener); window.removeEventListener(REGISTRATION_EVENT, listener); };
-}
 
 function ProgressBar({ value, target, complete = false }: { value: number; target: number; complete?: boolean }) {
   return <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--border)]" aria-hidden><div className={`h-full rounded-full transition-[width] duration-500 ${complete ? 'bg-[color:var(--positive)]' : 'bg-[color:var(--brand)]'}`} style={{ width: `${Math.min(100, (value / target) * 100)}%` }} /></div>;
@@ -54,29 +46,11 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
   const getRegistrationSnapshot = useCallback(() => Boolean(walletAddress && window.localStorage.getItem(registrationKey(walletAddress)) === 'yes'), [walletAddress]);
   const registered = useSyncExternalStore(subscribeToRegistration, getRegistrationSnapshot, () => false);
   const hireComplete = progress.distinctAgents >= 3;
-  /*
-   * Out of what Pokter can actually see, not out of five.
-   *
-   * The denominator was 5, one per official task, but only three of the
-   * five produce any signal here and one of those is worth half — so the
-   * most a wallet could ever reach was 2.5 of 5. Somebody who registered,
-   * hired three agents and had them verified saw 50% and a half-empty bar,
-   * with nothing on the page explaining what the other half was waiting
-   * for. The bar was not measuring their progress, it was measuring
-   * Pokter's visibility, and reporting the shortfall as theirs.
-   *
-   * The denominator is now that ceiling, so full means "everything Pokter
-   * can verify is done". The caption already says this is not an
-   * eligibility score, and the task list below is where the rest lives.
-   */
-  const VISIBLE_CEILING = 1 + 1 + 0.5;
-  const visibleMilestones =
-    Number(registered) +
-    Math.min(progress.distinctAgents, 3) / 3 +
-    (progress.pokterMarketplaceVerified ? 0.5 : 0);
-  const visiblePercent = Math.round(
-    (Math.min(visibleMilestones, VISIBLE_CEILING) / VISIBLE_CEILING) * 100,
-  );
+  const visiblePercent = campaignVisiblePercent({
+    registered,
+    distinctAgents: progress.distinctAgents,
+    pokterMarketplaceVerified: progress.pokterMarketplaceVerified,
+  });
 
   const toggleRegistered = () => {
     if (!walletAddress) return;
