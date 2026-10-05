@@ -4,6 +4,7 @@ import localFont from 'next/font/local';
 
 import './globals.css';
 import { Nav, MobileNav } from '@/components/shell/Nav';
+import { SetAndEarnNotice } from '@/components/campaign/SetAndEarnNotice';
 import { Footer } from '@/components/shell/Footer';
 import { SmoothHashScroll } from '@/components/shell/SmoothHashScroll';
 import { WalletProviders } from '@/lib/wallet/Providers';
@@ -163,6 +164,7 @@ export default async function RootLayout({
           <WalletProviders>
             <SavedAgentMonitor />
             <Nav />
+            <SetAndEarnNotice />
 
             <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-28 pt-8 sm:px-8 md:pb-16">
               {children}
