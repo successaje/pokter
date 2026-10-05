@@ -4,6 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { readProbeTotals } from '@/lib/history/stats-query';
+
 /** One recorded probe of one agent at one moment. */
 export interface ProbeRecord {
   chainId: number;
@@ -405,22 +407,7 @@ class SqliteProbeStore implements ProbeStore {
   }
 
   stats(chainId?: number): StoreStats {
-    const probes = this.db
-      .prepare(
-        `SELECT COUNT(*) AS taken,
-                COALESCE(SUM(ok), 0) AS answered,
-                COUNT(DISTINCT chain_id || ':' || token_id) AS agents,
-                COUNT(DISTINCT CASE WHEN ok = 1
-                      THEN chain_id || ':' || token_id END) AS answering
-           FROM probes
-          WHERE (?1 IS NULL OR chain_id = ?1)`,
-      )
-      .get(chainId ?? null) as unknown as {
-      taken: number;
-      answered: number;
-      agents: number;
-      answering: number;
-    };
+    const probes = readProbeTotals(this.db, chainId);
 
     const sweeps = this.db
       .prepare('SELECT COUNT(*) AS n FROM sweeps')
