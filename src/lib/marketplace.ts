@@ -214,17 +214,44 @@ export const LISTED_CHAINS: ChainId[] = [BSC_MAINNET, BSC_TESTNET];
 export async function listMarketplace(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{ category: Category; listings: Listing[] }[]> {
+  return (await listMarketplaceWithStatus(options)).sections;
+}
+
+/**
+ * The same listing, plus whether the registry could be reached at all.
+ *
+ * Every per-category read swallows its own failure so one bad query cannot
+ * take the whole catalogue down. That is right, and it also meant an outage
+ * rendered as "no agent matches these filters" — a statement about the
+ * reader's filters when the truth was that nothing was asked. `unreachable`
+ * is true only when every read failed, so a partial outage still lists what
+ * came back.
+ */
+export async function listMarketplaceWithStatus(
+  options: { chainId?: ChainId; limit?: number } = {},
+): Promise<{
+  sections: { category: Category; listings: Listing[] }[];
+  unreachable: boolean;
+}> {
   const chains = options.chainId ? [options.chainId] : LISTED_CHAINS;
+  let attempts = 0;
+  let failures = 0;
 
   // All four categories at once. The inner fan-out is what used to trip the
   // rate limit; with a key in place, serialising categories only adds the
   // slowest semantic query's latency four times over.
-  return mapWithConcurrency(CATEGORIES, 4, async ({ id }) => {
-    const perChain = await mapWithConcurrency(chains, 2, (chainId) =>
-      listCategory(id, { ...options, chainId }).catch(() => [] as Listing[]),
-    );
+  const sections = await mapWithConcurrency(CATEGORIES, 4, async ({ id }) => {
+    const perChain = await mapWithConcurrency(chains, 2, (chainId) => {
+      attempts += 1;
+      return listCategory(id, { ...options, chainId }).catch(() => {
+        failures += 1;
+        return [] as Listing[];
+      });
+    });
     return { category: id, listings: perChain.flat() };
   });
+
+  return { sections, unreachable: attempts > 0 && failures === attempts };
 }
 
 /** Everything the detail page needs to justify or warn against a hire. */
@@ -438,7 +465,17 @@ export async function listSearchable(
 ): Promise<
   { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]
 > {
-  const sections = await listMarketplace(options);
+  return (await listSearchableWithStatus(options)).entries;
+}
+
+/** `listSearchable`, plus whether the registry answered. See `listMarketplaceWithStatus`. */
+export async function listSearchableWithStatus(
+  options: { chainId?: ChainId; limit?: number } = {},
+): Promise<{
+  entries: { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[];
+  unreachable: boolean;
+}> {
+  const { sections, unreachable } = await listMarketplaceWithStatus(options);
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
@@ -461,7 +498,7 @@ export async function listSearchable(
    */
   const jobs = getJobStore();
 
-  return all.map((listing) => ({
+  const entries = all.map((listing) => ({
     listing: {
       ...listing,
       quote:
@@ -474,6 +511,8 @@ export async function listSearchable(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
   }));
+
+  return { entries, unreachable };
 }
 
 /** One category enriched with the same track record used by search and cards. */

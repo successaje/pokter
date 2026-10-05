@@ -40,10 +40,19 @@ export function Segmented<T extends string>({
    * drawer — a 480px panel on a desktop — the viewport said there was room
    * and the panel did not, so the full labels were laid out in equal columns
    * that could not hold them and printed over one another.
+   *
+   * It is always `w-full`, and the caller's className goes to the control
+   * inside it rather than here. `container-type: inline-size` suppresses an
+   * element's intrinsic width, so a wrapper left to size itself from its
+   * contents resolves to zero — as a flex item with `w-auto` it collapsed
+   * entirely and stacked all three buttons at the same x. A percentage
+   * width is definite and does not depend on the contents, so the
+   * containment has nothing to swallow. Callers constrain the control, not
+   * the container.
    */
   return (
-    <div className={cn('@container', className)}>
-    <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col rounded-md border border-line bg-canvas-subtle p-0.5">
+    <div className="@container w-full">
+    <div role="radiogroup" aria-label={label} className={cn('grid auto-cols-fr grid-flow-col rounded-md border border-line bg-canvas-subtle p-0.5', className)}>
       {options.map((option) => {
         const selected = option.value === value;
         return (

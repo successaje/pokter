@@ -1530,3 +1530,16 @@ h2 {
 }
 .drawer-in { animation: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .sheet-in { animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/*
+ * A day nobody asked about, drawn as absence rather than as fault.
+ *
+ * The evidence strip has three colours for answered, partly answered and
+ * failed, and a fourth state that is none of those: Pokter did not call.
+ * A grey fill would sit on the same scale as the other three and read as a
+ * bad day; hatching says "no data" in a language that is not a colour,
+ * which also survives the colour-blind and forced-colours cases.
+ */
+.strip-absent {
+  background: repeating-linear-gradient(135deg, var(--border-strong) 0 1px, transparent 1px 3px);
+}
