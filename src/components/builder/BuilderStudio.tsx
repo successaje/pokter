@@ -23,6 +23,18 @@ import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyP
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { IdentityNetworkToggle } from '@/components/builder/IdentityNetworkToggle';
 import { LowBalanceHelp } from '@/components/builder/LowBalanceHelp';
+import { DraftList } from '@/components/builder/DraftList';
+import {
+  DRAFTS_KEY,
+  LEGACY_DRAFT_KEY,
+  LEGACY_PLACE_KEY,
+  listDrafts,
+  migrateLegacyDraft,
+  removeDraft,
+  upsertDraft,
+  isDraftEmpty,
+  type DraftRecord,
+} from '@/lib/builder/drafts';
 import { useChainFunding } from '@/lib/wallet/use-chain-funding';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
@@ -210,7 +222,6 @@ function defaultRuntimeConfig(category: string) {
   };
 }
 
-const DRAFT_KEY = 'pokter-agent-draft-v1';
 /*
  * Where the builder had got to, kept beside what they had written.
  *
@@ -220,7 +231,6 @@ const DRAFT_KEY = 'pokter-agent-draft-v1';
  * branches again to find where they were — which reads as the work having
  * been lost even though none of it was.
  */
-const PLACE_KEY = 'pokter-agent-place-v1';
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
 function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' | 'code' | 'idea' }) {
@@ -325,29 +335,17 @@ function ConnectionGuide() {
 }
 
 export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
-  const [place] = useState<{ mode: Mode; step: number }>(() => {
-    if (typeof window === 'undefined') return { mode: 'choose', step: 0 };
-    try {
-      const stored = localStorage.getItem(PLACE_KEY);
-      if (!stored) return { mode: 'choose', step: 0 };
-      const parsed = JSON.parse(stored) as { mode?: string; step?: number };
-      const mode = (['choose', 'existing', 'new', 'templates'] as const).find(
-        (value) => value === parsed.mode,
-      );
-      const step =
-        Number.isInteger(parsed.step) && parsed.step! >= 0 && parsed.step! <= 3
-          ? parsed.step!
-          : 0;
-      return mode ? { mode, step } : { mode: 'choose', step: 0 };
-    } catch {
-      /* Remembering where you were is a convenience, never a gate. */
-      return { mode: 'choose', step: 0 };
-    }
-  });
-  const [mode, setMode] = useState<Mode>(
-    initialIdentity ? 'existing' : place.mode,
-  );
-  const [newStep, setNewStep] = useState(initialIdentity ? 0 : place.step);
+  /*
+   * Arrivals land on the chooser, with their drafts listed above it.
+   *
+   * This used to restore the exact step somebody left on, which was right
+   * while a browser held one draft and wrong the moment it could hold
+   * several: reopening one of them silently is a guess about which, and
+   * the guess is unnecessary now that they are all on screen with a
+   * Continue beside each.
+   */
+  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
+  const [newStep, setNewStep] = useState(0);
   /*
    * The dismiss button only ever set state, so the notice came back on every
    * reload and the × was decorative. It now remembers, per browser.
@@ -370,16 +368,54 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [connected, setConnected] = useState<string | null>(null);
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [verificationStep, setVerificationStep] = useState<'idle' | 'registry' | 'signature' | 'verifying'>('idle');
-  const [draft, setDraft] = useState<Draft>(() => {
-    if (typeof window === 'undefined') return EMPTY_DRAFT;
+  /*
+   * Every draft this browser holds, and which one is open.
+   *
+   * There used to be one slot, written on every keystroke and never
+   * mentioned: a second agent silently overwrote the first, and somebody
+   * returning was shown the first-time chooser with their work restored
+   * underneath it. The id is what makes more than one possible; the
+   * legacy slot is folded in once so nobody mid-build loses theirs.
+   */
+  const [drafts, setDrafts] = useState<DraftRecord>(() => {
+    if (typeof window === 'undefined') return {};
     try {
-      const stored = localStorage.getItem(DRAFT_KEY);
-      return stored ? { ...EMPTY_DRAFT, ...JSON.parse(stored) } : EMPTY_DRAFT;
+      const stored = localStorage.getItem(DRAFTS_KEY);
+      const record = stored ? (JSON.parse(stored) as DraftRecord) : {};
+      const legacyDraft = localStorage.getItem(LEGACY_DRAFT_KEY);
+      if (!legacyDraft) return record;
+      const legacyPlace = localStorage.getItem(LEGACY_PLACE_KEY);
+      const migrated = migrateLegacyDraft(
+        record,
+        {
+          draft: { ...EMPTY_DRAFT, ...JSON.parse(legacyDraft) },
+          ...(legacyPlace ? JSON.parse(legacyPlace) : {}),
+        },
+        new Date().toISOString(),
+        `draft-${Date.now()}`,
+      );
+      /*
+       * Written before the old keys are dropped, and in that order.
+       *
+       * Migrating in state alone lost the draft outright: the record was
+       * only persisted when the open draft changed, the open draft starts
+       * empty, and the cleanup that removed the legacy keys ran anyway —
+       * so a reload found nothing in either place. Nothing is deleted
+       * until its replacement is on disk.
+       */
+      if (migrated !== record) {
+        localStorage.setItem(DRAFTS_KEY, JSON.stringify(migrated));
+        localStorage.removeItem(LEGACY_DRAFT_KEY);
+        localStorage.removeItem(LEGACY_PLACE_KEY);
+      }
+      return migrated;
     } catch {
       // A draft is a convenience. Storage being unavailable must not block the flow.
-      return EMPTY_DRAFT;
+      return {};
     }
   });
+  const [draftId, setDraftId] = useState<string>(() => `draft-${Date.now()}`);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [reviewing, setReviewing] = useState(false);
   const [endpointReport, setEndpointReport] = useState<EndpointPreflight | null>(null);
   const [endpointBusy, setEndpointBusy] = useState(false);
@@ -436,6 +472,41 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const passkeyCanPublish = Boolean(
     passkeyWallet && passkeySigner && !externalConnected,
   );
+  /* Read back what has been written, for the one view that lists it. */
+  function refreshDrafts() {
+    try {
+      const stored = localStorage.getItem(DRAFTS_KEY);
+      setDrafts(stored ? (JSON.parse(stored) as DraftRecord) : {});
+    } catch {
+      setDrafts({});
+    }
+  }
+
+  function resumeDraft(id: string) {
+    const entry = drafts[id];
+    if (!entry) return;
+    setDraftId(entry.id);
+    setDraft({ ...EMPTY_DRAFT, ...entry.draft });
+    setMode(entry.mode === 'choose' ? 'new' : entry.mode);
+    setNewStep(entry.step);
+    setEndpointReport(null);
+    setReviewing(false);
+  }
+
+  function discardDraft(id: string) {
+    const next = removeDraft(drafts, id);
+    setDrafts(next);
+    try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(next)); } catch {}
+    /* Discarding the open one leaves the builder on a blank slate, not on
+       a form still showing work that no longer exists anywhere. */
+    if (id === draftId) {
+      setDraft(EMPTY_DRAFT);
+      setDraftId(`draft-${Date.now()}`);
+      setNewStep(0);
+      setMode('choose');
+    }
+  }
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
@@ -444,13 +515,36 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [aiPromptContext, setAiPromptContext] = useState<'discovery' | 'draft' | null>(null);
   const [aiPromptCopied, setAiPromptCopied] = useState(false);
 
+  /*
+   * One write covers the draft and the place in it, because they are the
+   * same fact: where this particular agent got to. An untouched draft is
+   * not recorded at all — a list of blank entries somebody opened and
+   * left is noise, not work in progress.
+   *
+   * Storage is written from here, state is not: an effect that assigns
+   * state on every keystroke is the pattern the linter rejects, and the
+   * list only has to be accurate at the moment it is shown.
+   */
   useEffect(() => {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
-  }, [draft]);
+    if (isDraftEmpty(draft)) return;
+    try {
+      const stored = localStorage.getItem(DRAFTS_KEY);
+      const record = stored ? (JSON.parse(stored) as DraftRecord) : {};
+      localStorage.setItem(
+        DRAFTS_KEY,
+        JSON.stringify(
+          upsertDraft(record, {
+            id: draftId,
+            draft,
+            mode: mode === 'choose' ? 'new' : mode,
+            step: newStep,
+            updatedAt: new Date().toISOString(),
+          }),
+        ),
+      );
+    } catch {}
+  }, [draft, draftId, mode, newStep]);
 
-  useEffect(() => {
-    try { localStorage.setItem(PLACE_KEY, JSON.stringify({ mode, step: newStep })); } catch {}
-  }, [mode, newStep]);
 
 
   const quality = useMemo(
@@ -850,6 +944,14 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       {campaignNoticeOpen && <aside className="relative rounded-[var(--radius)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] px-4 py-3 pr-12" aria-label="Set and Earn notification"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">🔥 Building for Set and Earn?</p><p className="mt-0.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">Register first, then list a reachable agent and build independently verifiable usage.</p></div><Link href="/set-and-earn" className="shrink-0 text-[12px] font-semibold text-[color:var(--brand-strong)] hover:underline">View requirements →</Link></div><button type="button" onClick={dismissCampaignNotice} aria-label="Dismiss Set and Earn notification" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]">×</button></aside>}
 
       {mode === 'choose' && (
+        <DraftList
+          drafts={listDrafts(drafts)}
+          onResume={resumeDraft}
+          onDelete={discardDraft}
+        />
+      )}
+
+      {mode === 'choose' && (
         <section aria-labelledby="path-title" className="flex flex-col gap-5">
           <div>
             <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Start here</p>
@@ -909,7 +1011,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       )}
 
       {mode !== 'choose' && (
-        <button type="button" onClick={() => { setMode('choose'); setError(null); }} className="flex w-fit items-center gap-2 text-[12px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]">
+        <button type="button" onClick={() => { refreshDrafts(); setMode('choose'); setError(null); }} className="flex w-fit items-center gap-2 text-[12px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]">
           <span aria-hidden>←</span> Change path
         </button>
       )}
