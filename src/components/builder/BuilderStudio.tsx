@@ -716,12 +716,32 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   async function verifyOwner() {
     setError(null); setVerifiedAt(null); setVerificationStep('registry');
     try {
-      if (!hasIdentityWallet()) throw new Error('Install or open an injected wallet to verify ownership.');
+      /*
+       * Which wallet is in use, said accurately.
+       *
+       * This told everybody without an extension to install one, including
+       * somebody holding a passkey — the wallet Pokter offers so they need
+       * not. Verification here is a personal_sign and a secp256k1 recovery,
+       * and a passkey signs P256: the SDK's own signer throws rather than
+       * produce one. So the passkey case is not an installation problem and
+       * must not be described as one.
+       */
+      if (!hasIdentityWallet()) {
+        throw new Error(
+          passkeyWallet
+            ? 'Proving ownership needs a signature a passkey cannot produce, so this step needs the browser wallet that owns the identity. Publishing and hiring still work from your passkey.'
+            : 'Connect the browser wallet that owns this identity to verify it.',
+        );
+      }
       if (!report) throw new Error('Find the ERC-8004 identity first.');
       const address = await connectIdentityWallet();
       setConnected(address);
       if (!report.owner || getAddress(address) !== getAddress(report.owner)) {
-        throw new Error('The connected wallet is not the current ERC-8004 owner.');
+        throw new Error(
+          passkeyWallet && report.owner && getAddress(report.owner) === getAddress(passkeyWallet.address)
+            ? 'This identity is owned by your passkey wallet, and ownership is proved with a signature a passkey cannot produce. Nothing is wrong with the identity; this step cannot read it yet.'
+            : 'The connected wallet is not the current ERC-8004 owner.',
+        );
       }
       const challengeResponse = await fetch('/api/builders/verify', {
         method: 'POST', headers: { 'content-type': 'application/json' },
