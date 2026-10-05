@@ -68,42 +68,53 @@ function applyTheme(theme: Theme): void {
   emit();
 }
 
-const OPTIONS: { id: Theme; label: string; icon: string }[] = [
+/*
+ * One control, three states, cycled.
+ *
+ * The three states were three buttons sitting in the header at all times,
+ * which spends a permanent slot in the busiest row of the product on a
+ * preference most people set once and never revisit. Worse, two of the three
+ * were always inert: whatever the current theme is, two thirds of that
+ * control does nothing.
+ *
+ * So it shows the state it is in and advances on click. Nothing is lost —
+ * every state is still reachable, and System keeps its place in the cycle
+ * rather than being demoted to a long-press or a settings page, because
+ * following the system is the default and a default you cannot get back to
+ * is not a default.
+ *
+ * The order is light → dark → system. It reads as "lighter, darker, let the
+ * machine decide", and it means the two states somebody is most likely to be
+ * choosing between are one click apart.
+ */
+const CYCLE: { id: Theme; label: string; icon: string }[] = [
   { id: 'light', label: 'Light', icon: '☀' },
-  { id: 'system', label: 'System', icon: '◐' },
   { id: 'dark', label: 'Dark', icon: '☾' },
+  { id: 'system', label: 'System', icon: '◐' },
 ];
 
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, getTheme, getServerTheme);
 
+  const index = Math.max(0, CYCLE.findIndex((option) => option.id === theme));
+  const current = CYCLE[index]!;
+  const next = CYCLE[(index + 1) % CYCLE.length]!;
+
   return (
-    <div
-      role="radiogroup"
-      aria-label="Colour theme"
-      className="flex items-center gap-0.5 rounded-[var(--radius)] border border-[color:var(--border)] p-0.5"
+    <button
+      type="button"
+      onClick={() => applyTheme(next.id)}
+      /*
+        The label names both, because an icon-only control that changes what
+        it does each time it is pressed is otherwise unusable without sight
+        of it: a screen reader user needs to know the state as well as the
+        effect.
+      */
+      aria-label={`Colour theme: ${current.label}. Switch to ${next.label}.`}
+      title={`Theme: ${current.label} — click for ${next.label}`}
+      className="flex size-9 items-center justify-center rounded-full border border-[color:var(--border)] text-[13px] leading-none text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
     >
-      {OPTIONS.map((option) => {
-        const active = theme === option.id;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={option.label}
-            title={option.label}
-            onClick={() => applyTheme(option.id)}
-            className={
-              active
-                ? 'rounded-[4px] bg-[color:var(--surface-raised)] px-1.5 py-1 text-[11px] leading-none text-[color:var(--text)]'
-                : 'rounded-[4px] px-1.5 py-1 text-[11px] leading-none text-[color:var(--text-faint)] transition-colors hover:text-[color:var(--text-secondary)]'
-            }
-          >
-            <span aria-hidden>{option.icon}</span>
-          </button>
-        );
-      })}
-    </div>
+      <span aria-hidden>{current.icon}</span>
+    </button>
   );
 }

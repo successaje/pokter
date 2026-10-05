@@ -12,7 +12,7 @@ const COLUMNS = [
       { label: 'Browse marketplace', href: '/agents' },
       { label: 'Compare agents', href: '/compare' },
       { label: 'Rankings', href: '/leaderboard' },
-      { label: 'Activity', href: '/my-agents' },
+      { label: 'Activity', href: '/activity' },
     ],
   },
   {

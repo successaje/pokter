@@ -98,11 +98,19 @@ export function AccountProfile() {
 
       <BuilderSection address={address ?? null} />
 
-      <section aria-labelledby="workspace-heading" className="mt-8"><div className="flex items-end justify-between gap-4"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Switch view</p><h2 id="workspace-heading" className="mt-2 text-xl font-semibold">Choose how you are using Pokter</h2></div></div><div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Link href="/app" className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 transition-all hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-full bg-[color:var(--brand-dim)] text-lg">◎</span><span className="text-[color:var(--brand-strong)]">Open →</span></div><h3 className="mt-5 text-lg font-semibold">Hiring</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">Discover agents, manage commissions, saved choices and notifications.</p></Link>
-        <Link href={builderReady ? '/builder' : '/build'} className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 transition-all hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-full bg-[color:var(--caution-dim)] text-lg">◇</span><span className="text-[color:var(--brand-strong)]">{builderReady ? 'Open →' : 'Set up →'}</span></div><h3 className="mt-5 text-lg font-semibold">Building</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">{builderReady ? `Verified as ${shortAddress(builder.data!.owner!)}` : 'Verify an agent identity you own to manage listings and funded work.'}</p></Link>
-      </div></section>
+      {/*
+        The "are you hiring or building?" fork used to sit here.
 
+        It asked a newcomer to classify themselves before they had done
+        either thing, and then spent a click sending them to a page the nav
+        now names outright — Activity for work you commissioned, My agents
+        for work you publish. A chooser whose two cards lead where two
+        permanent links already lead is a step, not a choice.
+
+        What it did carry that the links do not is verification state, so
+        that moved into Quick access below, where it reads as one line
+        rather than a half-page card.
+      */}
       <div className="mt-8">
         <CampaignPassport compact />
       </div>
@@ -114,7 +122,7 @@ export function AccountProfile() {
           {browserAddress && <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-[12px] font-medium">Browser wallet</p><p className="mt-1 text-[10px] text-[color:var(--text-muted)]">{chain?.id === ESCROW_CHAIN.id ? `${ESCROW_CHAIN.name} · ready` : `${chain?.name ?? 'Unknown network'} · switch before transacting`}</p></div><button type="button" onClick={() => copyAddress(browserAddress, 'browser')} className="mono rounded-[var(--radius)] px-2 py-1 text-[10px] hover:bg-[color:var(--surface-hover)]">{copied === 'browser' ? 'Copied ✓' : shortAddress(browserAddress)}</button></div>}
         </div><p className="mt-4 text-[9px] leading-4 text-[color:var(--text-faint)]">Pokter does not create a username/password profile or hold your private keys. Account data shown here is derived from connected wallets, signed builder verification and this device.</p></section>
 
-        <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/my-agents" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount + (builderInbox.data?.unread ?? 0)} label="Unread" href={builderReady ? '/builder#jobs' : '/my-agents'} /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/my-agents" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link>{builderReady && <Link href="/builder" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Builder alerts <span className="float-right">→</span></Link>}</div></div></aside>
+        <aside><div className="grid grid-cols-3 gap-2"><Stat value={jobCount} label="Jobs" href="/activity" /><Stat value={savedCount} label="Saved" href="/saved" /><Stat value={unreadCount + (builderInbox.data?.unread ?? 0)} label="Unread" href={builderReady ? '/builder#jobs' : '/activity'} /></div><div className="mt-4 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5"><h2 className="text-sm font-semibold">Quick access</h2><div className="mt-3 grid gap-1 text-[11px]"><Link href="/discover" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Find an agent <span className="float-right">→</span></Link><Link href="/compare" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Compare saved agents <span className="float-right">→</span></Link><Link href="/activity" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">Jobs and notifications <span className="float-right">→</span></Link><Link href="/builder" className="rounded-[var(--radius)] px-3 py-2.5 hover:bg-[color:var(--surface-hover)]">{builderReady ? 'Builder alerts' : 'My agents'} <span className="float-right">→</span></Link></div></div></aside>
       </div>
     </div>
   );

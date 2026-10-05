@@ -407,7 +407,7 @@ export function ConnectWallet() {
                   icon={<GasIcon />}
                   title="Transactions"
                   detail="View all activity"
-                  href="/my-agents"
+                  href="/activity"
                 />
                 {/*
                   The passkey does not disappear because another wallet is
@@ -571,7 +571,7 @@ export function ConnectWallet() {
                   icon={<GasIcon />}
                   title="Transactions"
                   detail="View all activity"
-                  href="/my-agents"
+                  href="/activity"
                 />
               </div>
 

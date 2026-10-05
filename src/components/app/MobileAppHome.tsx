@@ -175,9 +175,9 @@ export function MobileAppHome() {
 
         <section className="grid grid-cols-3 gap-2" aria-label="Personal overview">
           {[
-            { href: '/my-agents', value: walletAddress ? activeJobs.length : '—', label: 'Active jobs' },
+            { href: '/activity', value: walletAddress ? activeJobs.length : '—', label: 'Active jobs' },
             { href: '/saved', value: savedCount, label: 'Saved agents' },
-            { href: '/my-agents', value: walletAddress ? needsAttention.length : '—', label: 'Need attention' },
+            { href: '/activity', value: walletAddress ? needsAttention.length : '—', label: 'Need attention' },
           ].map((item) => (
             <Link key={item.label} href={item.href} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition-colors hover:bg-[color:var(--surface-hover)]">
               <p className="tabular text-xl font-semibold">{item.value}</p>
@@ -191,7 +191,7 @@ export function MobileAppHome() {
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[color:var(--caution)]">Needs attention</p>
             <div className="mt-3 flex flex-col gap-3">
               {needsAttention.slice(0, 2).map((job) => (
-                <Link key={job.id} href="/my-agents" className="flex items-center justify-between gap-3">
+                <Link key={job.id} href="/activity" className="flex items-center justify-between gap-3">
                   <span className="min-w-0"><span className="block truncate text-sm font-medium">{job.agentName}</span><span className="block text-[11px] text-[color:var(--text-muted)]">{job.status === 'SUBMITTED' ? 'Delivery is ready for review' : 'Job expired; check reclaim options'}</span></span>
                   <span className="shrink-0 text-[11px] font-medium">Review →</span>
                 </Link>
@@ -214,20 +214,20 @@ export function MobileAppHome() {
         </section>
 
         <section className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Activity</h2><Link href="/my-agents" className="tap text-[11px] text-[color:var(--info)]">View all</Link></div>
+          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3"><h2 className="text-sm font-semibold">Activity</h2><Link href="/activity" className="tap text-[11px] text-[color:var(--info)]">View all</Link></div>
           <div className="grid grid-cols-2 divide-x divide-[color:var(--border)]">
-            <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeJobs.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Active jobs</p></Link>
-            <Link href="/my-agents" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeSessions.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Wallet sessions</p></Link>
+            <Link href="/activity" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeJobs.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Active jobs</p></Link>
+            <Link href="/activity" className="p-4"><p className="tabular text-2xl font-semibold">{walletAddress ? activeSessions.length : '—'}</p><p className="mt-1 text-[11px] text-[color:var(--text-muted)]">Wallet sessions</p></Link>
           </div>
           {!walletAddress && <p className="border-t border-[color:var(--border)] px-4 py-3 text-[11px] text-[color:var(--text-faint)]">Connect your passkey wallet to load device-owned activity.</p>}
         </section>
 
         {recentJobs.length > 0 && (
           <section>
-            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2><Link href="/my-agents" className="text-[11px] text-[color:var(--info)]">View all</Link></div>
+            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2><Link href="/activity" className="text-[11px] text-[color:var(--info)]">View all</Link></div>
             <div className="overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]">
               {recentJobs.map((job) => (
-                <Link key={job.id} href="/my-agents" className="flex items-center gap-3 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0 hover:bg-[color:var(--surface-hover)]">
+                <Link key={job.id} href="/activity" className="flex items-center gap-3 border-t border-[color:var(--border)] px-4 py-3 first:border-t-0 hover:bg-[color:var(--surface-hover)]">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--bg-subtle)] text-[color:var(--text-muted)]"><AppIcon name="activity" className="size-4" /></span>
                   <span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-medium">{job.agentName}</span><span className="block text-[10px] text-[color:var(--text-muted)]">Job #{job.jobId} · {job.status.toLowerCase()}</span></span>
                   <span className="text-[11px] font-medium">{Number(formatUnits(BigInt(job.budgetRaw), 18)).toFixed(2)} $U</span>

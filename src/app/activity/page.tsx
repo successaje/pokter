@@ -10,7 +10,7 @@ import { isCampaignLive } from '@/lib/campaign/window';
  * would leak every demo user's task text and session metadata, so this page
  * is kept device-local and filtered by the connected passkey wallet.
  */
-export default async function MyAgentsPage({
+export default async function ActivityPage({
   searchParams,
 }: {
   searchParams: Promise<{ email?: string | string[] }>;

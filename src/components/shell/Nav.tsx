@@ -17,6 +17,7 @@ import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { InstallPokter } from '@/components/pwa/InstallPokter';
 import { usePwaInstall } from '@/components/pwa/PwaProvider';
 import { SavedNavAction } from '@/components/shell/SavedNavAction';
+import { AccountNavAction } from '@/components/shell/AccountNavAction';
 
 /**
  * §11. Primary navigation.
@@ -52,7 +53,7 @@ const PRIMARY = [
   { href: '/discover', label: 'Discover' },
   { href: '/agents', label: 'Agents' },
   { href: '/compare', label: 'Compare' },
-  { href: '/my-agents', label: 'Activity' },
+  { href: '/activity', label: 'Activity' },
 ];
 
 // Builder Studio is a first-class desktop destination. Mobile keeps five
@@ -74,9 +75,23 @@ const PRIMARY = [
  */
 const DESKTOP_PRIMARY: { href: string; label: string; wide?: boolean }[] = [
   ...PRIMARY.slice(0, 3),
-  { href: '/build', label: 'Launch', wide: true },
-  { href: '/set-and-earn', label: '🔥 Campaign', wide: true },
   PRIMARY[3],
+  /*
+   * The two halves of "my stuff", named apart.
+   *
+   * Activity is the work you commissioned; My agents is the work you
+   * publish. They used to be one destination reached by entering Account,
+   * choosing whether you were hiring or building, and then — if hiring —
+   * flipping a toggle. Three decisions to reach a list, and the first of
+   * them asks a newcomer to classify themselves before they have done
+   * either thing.
+   *
+   * Launch left this bar in the same move. It is the button on the My
+   * agents page, the first thing in the More menu, and in the footer; a
+   * fourth copy of it was competing with the page that now leads to it.
+   */
+  { href: '/builder', label: 'My agents', wide: true },
+  { href: '/set-and-earn', label: '🔥 Campaign', wide: true },
 ];
 
 /*
@@ -87,6 +102,7 @@ const DESKTOP_PRIMARY: { href: string; label: string; wide?: boolean }[] = [
  */
 const SECONDARY = [
   { href: '/account', label: 'Account' },
+  { href: '/builder', label: 'My agents' },
   { href: '/set-and-earn', label: '🔥 Set and Earn' },
   { href: '/saved', label: 'Saved agents' },
   { href: '/leaderboard', label: 'Rankings' },
@@ -109,7 +125,7 @@ const INSTALLED_PRIMARY = [
   { href: '/app', label: 'Home' },
   { href: '/discover', label: 'Discover' },
   { href: '/agents', label: 'Agents' },
-  { href: '/my-agents', label: 'Activity' },
+  { href: '/activity', label: 'Activity' },
 ];
 
 function MobileNavIcon({ href }: { href: string }) {
@@ -246,10 +262,14 @@ export function Nav() {
             <span className="hidden sm:inline">Hiring: </span>
             <span className="font-medium">{NETWORK_LABEL}</span>
           </span>
-          <span className="hidden sm:block">
-            <ThemeToggle />
-          </span>
+          {/*
+            Shown at every width. It was hidden below 640px because three
+            buttons in a row could not share the header with the network
+            pill; one can.
+          */}
+          <ThemeToggle />
           <SavedNavAction />
+          <AccountNavAction />
           <ConnectWallet />
         </div>
       </div>

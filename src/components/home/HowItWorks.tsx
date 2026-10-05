@@ -48,7 +48,7 @@ const STEPS = [
     label: 'Monitor',
     question: 'What is it doing right now?',
     body: 'Every escrowed job and its lifecycle, each state change linked to the transaction that caused it.',
-    href: '/my-agents',
+    href: '/activity',
   },
 ];
 

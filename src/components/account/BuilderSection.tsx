@@ -33,7 +33,18 @@ interface OwnedAgent {
  * all, could not see their own published work. Signing is still what any
  * action needs.
  */
-export function BuilderSection({ address }: { address: string | null }) {
+export function BuilderSection({
+  address,
+  /*
+   * On its own page the surrounding header already says "My agents", so the
+   * section's eyebrow and title would be the same words twice in a column.
+   * The Create button is not a duplicate and stays either way.
+   */
+  standalone = false,
+}: {
+  address: string | null;
+  standalone?: boolean;
+}) {
   /*
    * Drafts live in this browser, so they are subscribed to rather than
    * copied into state on mount: an effect that assigns state is the
@@ -61,13 +72,18 @@ export function BuilderSection({ address }: { address: string | null }) {
   const nothingYet = !owned.isLoading && agents.length === 0 && drafts.length === 0;
 
   return (
-    <section aria-labelledby="builder-heading" className="mt-8">
+    <section aria-labelledby="builder-heading" className={standalone ? '' : 'mt-8'}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">
-            Building
-          </p>
-          <h2 id="builder-heading" className="mt-2 text-xl font-semibold">
+          {!standalone && (
+            <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">
+              Building
+            </p>
+          )}
+          <h2
+            id="builder-heading"
+            className={standalone ? 'sr-only' : 'mt-2 text-xl font-semibold'}
+          >
             Agents you publish
           </h2>
         </div>

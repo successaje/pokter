@@ -109,7 +109,7 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
           job. These two now point there instead of inventing a figure.
         */}
         {!compact && <TaskRow hat="building" icon="4" title="Prove independent use" body="Reach three completed hires from three independent wallets you do not own or fund." status="Counted on your builder page" tone="info" action={<Link href="/builder" className={actionClass}>Builder activity →</Link>} />}
-        {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="Counted on your builder page" tone="info" action={<Link href="/my-agents" className={actionClass}>View proof →</Link>} />}
+        {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="Counted on your builder page" tone="info" action={<Link href="/activity" className={actionClass}>View proof →</Link>} />}
       </ol></div>
       {!compact && <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-5 py-3 text-[9px] leading-4 text-[color:var(--text-faint)]">Registration is self-marked and stored only on this device. Other-marketplace hires and builder activity remain pending until Pokter can verify them. <a href={CAMPAIGN} target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--brand-strong)] hover:underline">Read the official rules ↗</a></div>}
     </>

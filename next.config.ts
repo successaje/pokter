@@ -94,12 +94,18 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@altananetwork/sdk', 'node:sqlite', 'undici'],
 
   /*
-   * The nav calls this page Activity, and /activity is the address a visitor
-   * types to reach it, so it 404'd for the obvious guess. The page itself
-   * stays at /my-agents: the address is already in sent notification emails,
-   * in the installed app's shortcuts and in robots.txt, so moving it would
-   * need this redirect in the other direction anyway and touch fourteen files
-   * to do it.
+   * The hiring activity page now lives at /activity, which is what the nav
+   * has always called it and what a visitor types to reach it.
+   *
+   * It used to sit at /my-agents and the redirect ran the other way, on the
+   * reasoning that the address was already in sent emails and the installed
+   * app's shortcuts. That held until the nav gained a genuine "My agents"
+   * destination for the agents somebody publishes — at which point a link
+   * labelled Activity pointing at /my-agents, beside a link labelled My
+   * agents pointing somewhere else, was a trap for whoever edits this next.
+   *
+   * Nothing breaks: the redirect below carries every already-sent email and
+   * every installed shortcut, query string intact, to the same content.
    */
   async redirects() {
     return [
@@ -115,7 +121,7 @@ const nextConfig: NextConfig = {
         destination: '/agents/:chainId/:tokenId?hire=1',
         permanent: false,
       },
-      { source: '/activity', destination: '/my-agents', permanent: false },
+      { source: '/my-agents', destination: '/activity', permanent: false },
       { source: '/how-it-works', destination: '/about', permanent: false },
     ];
   },

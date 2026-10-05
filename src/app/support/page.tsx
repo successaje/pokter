@@ -87,7 +87,7 @@ export default function SupportPage() {
           If a job has not been delivered, the escrow has its own answers:
           contest the delivery to open a dispute, or reclaim the budget once
           the job expires. Both are on-chain actions you take from{' '}
-          <Link href="/my-agents" className={linkClass}>
+          <Link href="/activity" className={linkClass}>
             your activity
           </Link>
           , with your own wallet. We can help you read what the chain says
