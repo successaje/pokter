@@ -76,7 +76,16 @@ export function Drawer({
             width,
           )}
         >
-          <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+          {/*
+            Room above the title on a desktop.
+
+            The panel is full height, so its heading landed hard against the
+            top edge of the screen — level with the browser chrome and above
+            where every page on the site starts its own content. A sheet
+            rising from the bottom of a phone does not have that problem, so
+            the inset is only added where the drawer reaches the top.
+          */}
+          <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:pt-8">
             <div className="min-w-0">
               <h2 id={titleId} className="text-title">
                 {title}
