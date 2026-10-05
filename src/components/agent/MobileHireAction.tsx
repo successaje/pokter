@@ -20,6 +20,7 @@ import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
  */
 export function MobileHireAction({
   price,
+  priceCaption,
   answeredNow,
   recommended,
   verdictLabel,
@@ -27,6 +28,14 @@ export function MobileHireAction({
 }: {
   /** e.g. "0.10 $U" — the real escrow price, not a placeholder. */
   price: string;
+  /*
+   * What that figure is. A price the agent signed and a budget the buyer
+   * sets are different quantities, and calling both "Hire price" told
+   * somebody an agent charges 0.10 $U when it had never named a price at
+   * all. The rail beside this on desktop already made the distinction; this
+   * card is the only thing a phone sees, so it has to make it too.
+   */
+  priceCaption: string;
   answeredNow: boolean;
   recommended: boolean;
   verdictLabel: string;
@@ -95,7 +104,7 @@ export function MobileHireAction({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
-              Hire price
+              {priceCaption}
             </p>
             <p className="tabular mt-1 text-2xl font-semibold leading-none">
               {price}

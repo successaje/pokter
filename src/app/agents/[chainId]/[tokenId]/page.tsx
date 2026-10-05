@@ -1,117 +1,103 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
-import { plural } from '@/lib/ui/plural';
-import { loadDossier } from '@/lib/marketplace';
-import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { AgentSpec } from '@/components/agent/AgentSpec';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
-import { HireReadiness } from '@/components/hire/HireReadiness';
-import { HireButton, HireDrawer } from '@/components/hire/HireDrawer';
+import { loadDossier, recommendedAlternatives } from '@/lib/marketplace';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
-import type { ChainId } from '@/lib/scan/types';
-import {
-  publishedEvidenceLine,
-  summarisePublishedEvidence,
-} from '@/lib/proof/published';
-import { VERDICT_LABEL } from '@/lib/proof/engine';
-
-import { EvidenceBadge } from '@/components/ui/EvidenceBadge';
-import { EvidenceSection as Section } from '@/components/ui/EvidenceSection';
-import { ScorePanel } from '@/components/ui/Score';
-import { DetailTabs } from '@/components/agent/DetailTabs';
-import { TrustPanel } from '@/components/agent/TrustPanel';
-import { PerformancePanel } from '@/components/agent/PerformancePanel';
-import { EconomicHistoryPanel } from '@/components/agent/EconomicHistoryPanel';
-import { VerifiedReviewsPanel } from '@/components/agent/VerifiedReviewsPanel';
-import { TrackRecordPanel } from '@/components/TrackRecordPanel';
-import { LivePanel } from '@/components/LivePanel';
-import { EvidencePanel } from '@/components/EvidencePanel';
-import { AuthorityPanel } from '@/components/AuthorityPanel';
-import { TrialPanel } from '@/components/agent/TrialPanel';
-import { AgentAvatar } from '@/components/agent/AgentAvatar';
-import { MobileHireAction } from '@/components/agent/MobileHireAction';
-import { TrustStrip } from '@/components/agent/TrustStrip';
-import { SimilarAgents } from '@/components/agent/SimilarAgents';
-import { ShareAgent } from '@/components/agent/ShareAgent';
-import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
-import { DEFAULT_BUDGET_LABEL, DEFAULT_BUDGET_U, formatQuotedPrice } from '@/lib/erc8183/pricing';
-import { PAYMENT_VALUE_NOTE, chainLabel, explorerBaseFor} from '@/lib/network/presentation';
-import { CopyableId } from '@/components/ui/CopyableId';
-import { shortAddress } from '@/lib/ui/format';
 import { getJobStore } from '@/lib/erc8183/store';
 import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
+import { DEFAULT_BUDGET_LABEL, formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { getReviewStore } from '@/lib/reviews/store';
+import { sampleDelivery } from '@/lib/agent/sample-delivery';
+import { deliveryTimes } from '@/lib/agent/delivery-times';
+import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells } from '@/lib/history/strip';
+import { VERDICT_LABEL, VERDICT_MEANING } from '@/lib/proof/engine';
+import { publishedEvidenceLine, summarisePublishedEvidence } from '@/lib/proof/published';
+import { PAYMENT_VALUE_NOTE, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import type { ChainId } from '@/lib/scan/types';
+import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
+import { plural } from '@/lib/ui/plural';
+import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
+import { ShareAgent } from '@/components/agent/ShareAgent';
+import { DeliverySample } from '@/components/agent/DeliverySample';
+import { MobileHireAction } from '@/components/agent/MobileHireAction';
+import { TrialPanel } from '@/components/agent/TrialPanel';
+import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
+import { Status } from '@/components/ui/Status';
+import { DefinitionList } from '@/components/ui/Definition';
+import { CopyableId } from '@/components/ui/CopyableId';
+import { Strip } from '@/components/find/Strip';
+import { HireButton, HireDrawer } from '@/components/hire/HireDrawer';
 
-/** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
 
+const VERDICT_TONE = {
+  proven: 'positive',
+  reliable: 'positive',
+  emerging: 'caution',
+  observed: 'info',
+  failing: 'negative',
+  unproven: 'neutral',
+} as const;
 
-/**
- * What a shared agent link looks like when it is unfurled.
- *
- * Every agent link previewed as the generic site card — same title, same
- * image, same sentence — which made a share worth about as much as a bare
- * URL. Shipping a share button while every link unfurled identically was
- * half a feature.
- *
- * The description carries the evidence rather than the operator's pitch,
- * because the pitch is the thing this product exists to check. A preview
- * showing "Proven · 96% over 288 probes" and one showing "Not measured" are
- * different claims, and the difference should survive being pasted into a
- * chat window.
- *
- * Failures degrade to the site defaults rather than throwing: an unfurl is
- * not worth a 500 on the page itself.
- */
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ chainId: string; tokenId: string }>;
 }): Promise<Metadata> {
-  const { chainId: rawChainId, tokenId } = await params;
-  const chainId = Number(rawChainId) as ChainId;
-  if (chainId !== 56 && chainId !== 97) return {};
-
-  const result = await loadDossier(chainId, tokenId);
-  if (result.state !== 'ok') return {};
-
-  const { agent, category, proof, record } = result.dossier;
-  const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
-
-  const measured =
-    record.totalProbes === 0
-      ? 'Not measured by Pokter yet'
-      : `${((record.totalAnswered / record.totalProbes) * 100).toFixed(1)}% of ${plural(record.totalProbes, 'probe')} answered`;
-
-  const description = [
-    `${VERDICT_LABEL[proof.verdict]} · ${measured}.`,
-    meta ? `${meta.label} agent on BNB Chain.` : 'Agent on BNB Chain.',
-    'Evidence you can check before you hire.',
-  ].join(' ');
-
-  const title = `${agent.name} — ${VERDICT_LABEL[proof.verdict]}`;
-  const url = `/agents/${chainId}/${tokenId}`;
-
+  const { chainId, tokenId } = await params;
+  const result = await loadDossier(Number(chainId) as ChainId, tokenId);
+  if (result.state !== 'ok') return { title: 'Agent' };
+  const { agent } = result.dossier;
   return {
-    title,
-    description,
-    alternates: { canonical: url },
-    openGraph: { title, description, url, type: 'profile' },
-    twitter: { card: 'summary_large_image', title, description },
+    title: agent.name,
+    description: (agent.description ?? '').trim().slice(0, 160) || `What Pokter has observed about ${agent.name}.`,
   };
 }
 
+/** One titled band of the dossier. The lead says what the numbers under it are. */
+function Section({
+  id,
+  title,
+  lead,
+  children,
+}: {
+  id: string;
+  title: string;
+  lead?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-24 flex flex-col gap-4">
+      <div>
+        <h2 id={`${id}-h`} className="text-title">
+          {title}
+        </h2>
+        {lead && <p className="mt-0.5 text-body-s text-ink-muted">{lead}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /**
- * §20. The agent dossier.
+ * One agent, as a document rather than a tab strip.
  *
- * Ordered by the question a user actually asks, in order: what is this, can it
- * be trusted, what has it done, and only then what would hiring it grant. The
- * Pokter Score sits near the top but is never the last word — the panels below
- * it are the working, and the score links back to them.
+ * This page used to be a header, a row of tabs and fourteen panels, each
+ * with its own heading, border and explanation of itself. A reader deciding
+ * whether to hire had to visit three tabs to learn whether the thing
+ * answers, what it charges and whether anyone has paid it — and the panels
+ * disagreed about emphasis, because each had been written to stand alone.
+ *
+ * It reads top to bottom now: what you get, try it, the record, paid work,
+ * identity. The decision travels in a rail that stays with you, and the
+ * detail that only some readers want is behind disclosures rather than
+ * behind tabs, so the page still prints and still finds on Ctrl-F.
  */
 export default async function AgentPage({
   params,
@@ -124,771 +110,458 @@ export default async function AgentPage({
 
   const result = await loadDossier(chainId, tokenId);
   if (result.state === 'missing') notFound();
-  if (result.state === 'unreachable') {
-    return <RegistryUnreachable chainId={chainId} tokenId={tokenId} />;
-  }
-  const dossier = result.dossier;
-
-  const { agent, category, attestations, proof, live, record, score } = dossier;
+  if (result.state === 'unreachable') return <RegistryUnreachable chainId={chainId} tokenId={tokenId} />;
+  const { agent, category, attestations, proof, live, record, score, quote } = result.dossier;
 
   /*
-   * What the agent itself advertises, read from its card as the page builds.
-   *
-   * Awaited rather than streamed because it sits above the fold and a line
-   * that arrives late would reflow the heading block. It cannot fail the
-   * page: the fetcher swallows everything and returns an empty list, which
-   * renders as the description alone — exactly what every agent showed
-   * before this existed.
+   * Read together. Each of these is an independent round trip — the agent's
+   * own card, the provider list, the stored deliveries, the chain's
+   * submission times — and serialising them made the dossier as slow as
+   * their sum rather than as their longest.
    */
-  const capabilities = await fetchDeclaredCapabilities(
-    agent.services?.a2a?.endpoint,
-    agent.token_id,
-  );
+  const [capabilities, providers, sample, delivery] = await Promise.all([
+    fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id),
+    providerChoicesFor(agent, ALTANA_NETWORK.chainId),
+    Promise.resolve(sampleDelivery(agent.chain_id, agent.token_id)),
+    deliveryTimes(agent.chain_id, agent.token_id),
+  ]);
+  const history = summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
+  const reviews = getReviewStore().byAgent(agent.chain_id, agent.token_id);
+  const published = summarisePublishedEvidence(attestations);
 
+  const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
+  const answeredNow = live.ratio !== null && live.ratio > 0;
+  const sinceAnswer = daysSinceLastAnswer(record);
+  const stale = sinceAnswer !== null && sinceAnswer > STALE_AFTER_DAYS && !answeredNow;
+  const rate = record.totalProbes ? record.totalAnswered / record.totalProbes : null;
+  const month = record.windows.find((window) => window.label === '30d');
   /*
-   * The agent's own price, where it has one.
-   *
-   * Both price slots on this page printed DEFAULT_BUDGET_LABEL — Pokter's
-   * house budget — under the words "Hire price" and "Starting from". So an
-   * agent whose card advertised 0.50 $U showed 0.10 here, and a reader
-   * comparing the two pages found the marketplace disagreeing with itself
-   * about what one agent charges.
-   *
-   * They are different quantities and now say which is which: a signed quote
-   * is what the agent asked for, and the default is only where an offer
-   * starts for an agent that has never named a price.
-   */
-  /*
-   * Whether this agent can actually perform a job hired here.
-   *
-   * An agent's runtime watches the chain it is registered on. Identities are
-   * on 56 and escrow is on 97, so a registry agent cannot see the job and
-   * Pokter's own seller carries out the brief instead. Everything else on
-   * this page — the probes, the attestations, the latency — describes the
-   * agent. None of it describes what a buyer would receive today, and that
-   * was only said two screens later on the hire form.
+   * An agent's runtime watches the chain it is registered on. Identities sit
+   * on 56 and escrow on 97, so a registry agent cannot see the job and
+   * Pokter's own seller carries out the brief instead. Everything else here
+   * describes the agent; none of it describes what a buyer receives today.
    */
   const deliveredByPokter = agent.chain_id !== ALTANA_NETWORK.chainId;
-
-  const askedPrice = dossier.quote
-    ? formatQuotedPrice(Number(dossier.quote.priceU))
-    : null;
-  const priceLabel = askedPrice ?? DEFAULT_BUDGET_LABEL;
   /*
-   * The number the readiness check compares a balance against. The label
-   * beside it is for reading; this is for arithmetic, and the two come from
-   * the same source so the card cannot show one price and test another.
+   * A signed quote is what this agent asked for; the default is only where
+   * an offer starts for one that has never named a price. Both slots used to
+   * print the house budget under the words "Hire price", so an agent whose
+   * card advertised 0.50 $U showed 0.10 here.
    */
-  const priceU = dossier.quote ? Number(dossier.quote.priceU) : DEFAULT_BUDGET_U;
-
-  /*
-   * The publisher's declared source, if they published one.
-   *
-   * Lives in the registration's `services` because the ERC-8004 file has no
-   * field for it, and is matched case-insensitively since that name is a
-   * convention rather than a schema. Only https is linked: the registry is
-   * publisher-controlled text, and turning an arbitrary string into a link
-   * on a page about trust is not something to do loosely.
-   */
-  const repositoryUrl = (() => {
-    const services = agent.services ?? {};
-    const entry = Object.entries(services).find(
-      ([name]) => name.toLowerCase() === 'repository',
-    );
-    const value = entry?.[1]?.endpoint?.trim();
-    return value && /^https:\/\//i.test(value) ? value : null;
-  })();
-  const priceCaption = askedPrice ? 'Price it asked for' : 'Starting from';
-  const economicHistory = summariseEconomicHistory(
-    getJobStore().byAgent(agent.chain_id, agent.token_id),
-  );
-  const verifiedReviews = getReviewStore().byAgent(agent.chain_id, agent.token_id);
-  const publishedEvidence = summarisePublishedEvidence(attestations);
-  const meta =
-    category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
-  /*
-   * The agent's own chain, not the escrow chain.
-   *
-   * This read ALTANA_NETWORK.explorer, which is testnet because escrow
-   * settles there. Everything it was used for on this page — the registry
-   * contract and the attestation transactions written against it — lives
-   * on the agent's chain instead, mainnet for most of the catalogue. So
-   * every registry and attestation link on a mainnet agent pointed at a
-   * testnet explorer, where none of it exists.
-   *
-   * There turned out to be no escrow link on this page at all, which is
-   * why nothing else needs the other base: the jobs live on the activity
-   * pages, and those pass their own.
-   */
-  const registryExplorerBase = explorerBaseFor(agent.chain_id);
-  const answeredNow = live.ratio !== null && live.ratio > 0;
-
-  /*
-   * The hire step is a drawer over this page rather than a page of its own.
-   *
-   * Committing money used to mean leaving the evidence behind to go and read
-   * a form, which is a strange thing for a marketplace whose whole argument
-   * is the record on this screen. The drawer keeps it a dismissal away.
-   */
-  const providers = await providerChoicesFor(
-    agent,
-    ALTANA_NETWORK.chainId,
-    dossier.quote,
-  );
+  const signedPrice = quote ? formatQuotedPrice(Number(quote.priceU)) : null;
+  const priceLabel = signedPrice ?? DEFAULT_BUDGET_LABEL;
+  const recommendedNow = proof.recommendedForHire && answeredNow;
   const riskWarnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
-    ...(!answeredNow
-      ? ['The agent did not answer Pokter’s current live protocol probe.']
-      : []),
+    ...(!answeredNow ? ['The agent did not answer Pokter’s live check when this page loaded.'] : []),
   ];
+  const alternatives =
+    riskWarnings.length > 0
+      ? await recommendedAlternatives(category === 'unclassified' ? 'health-factor' : category, tokenId).catch(() => [])
+      : [];
   const availability =
     record.totalProbes === 0
-      ? 'Not measured'
-      : `${((record.totalAnswered / record.totalProbes) * 100).toFixed(1)}% uptime`;
-
-  const knownDefects = [
-    ...new Set([
-      ...(live.method.knownDefects ?? []),
-      ...proof.disclosedDefects,
-    ]),
-  ];
-
-  /*
-   * §10 Level 2: one line of real substance per collapsed section, so a phone
-   * user can skip a section on evidence rather than on faith. Every one of
-   * these is a measured count — where nothing was measured they say so, rather
-   * than rendering a confident zero.
-   */
-  /*
-   * Days here is `record.days.length` — days that actually carried a probe —
-   * and not `observedDays`, which is the fractional calendar span between the
-   * first and last. The span rendered raw as "7.177851539351852 days", and
-   * rounding it would still have contradicted the trust panel directly below,
-   * which counts observed days. Two different true numbers for one set of
-   * probes reads as a mistake, so both places now make the same, more
-   * conservative claim.
-   */
-  const probeSummary =
-    record.totalProbes === 0
-      ? 'No probes recorded yet.'
-      : `Answered ${record.totalAnswered} of ${record.totalProbes} probes over ${plural(
-          record.days.length,
-          'day',
-        )}.`;
-  const liveSummary = answeredNow
-    ? 'Answered our probe when you opened this page.'
-    : 'Did not answer our probe when you opened this page.';
-  const receiptsSummary = `${publishedEvidenceLine(publishedEvidence)}.`;
-  const defectsSummary =
-    knownDefects.length === 0
-      ? 'No measurer has disclosed its limitations.'
-      : `${knownDefects.length} disclosed ${
-          knownDefects.length === 1 ? 'limitation' : 'limitations'
-        }, ours included.`;
+      ? { tone: 'neutral' as const, word: 'Never called' }
+      : answeredNow
+        ? { tone: 'positive' as const, word: 'Answering now' }
+        : sinceAnswer === null
+          ? { tone: 'negative' as const, word: 'Has never answered' }
+          : stale
+            ? { tone: 'negative' as const, word: `Quiet for ${plural(sinceAnswer, 'day')}` }
+            : { tone: 'caution' as const, word: 'Not answering right now' };
+  const description = (agent.description ?? '').trim();
+  const explorer = explorerBaseFor(agent.chain_id);
+  const knownDefects = [...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects])];
+  const evidenceLine =
+    rate === null
+      ? 'Pokter has not called this agent yet.'
+      : `${Math.round(rate * 100)}% of ${plural(record.totalProbes, 'check')} answered.`;
 
   return (
-    <div className="flex flex-col gap-6 pt-2">
-      {/*
-        Where you are, not just where you came from.
-
-        This was a single "← All agents" link. It gets you back, but it does
-        not say that this agent sits inside a category, and the category is
-        the most useful place to go next — a reader who has decided this one
-        is wrong almost always wants its neighbours rather than all 79.
-
-        The trail is the real hierarchy: the catalogue, the category page
-        that already exists at /categories/[id], then this agent. The last
-        crumb is plain text with aria-current, because a link to the page you
-        are on is a dead control.
-      */}
-      <nav aria-label="Breadcrumb" className="min-w-0">
-        <ol className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-[color:var(--text-muted)]">
-          <li>
-            <Link href="/agents" className="tap hover:text-[color:var(--text)]">
-              Agents
+    <div className="pb-24 pt-6 sm:pt-8 lg:pb-16">
+      <nav aria-label="Breadcrumb" className="mb-4 text-small text-ink-muted">
+        <Link href="/discover" className="hover:text-ink">
+          Find
+        </Link>
+        {meta && (
+          <>
+            <span aria-hidden className="mx-1.5 text-ink-faint">/</span>
+            <Link href={`/discover?category=${category}`} className="hover:text-ink">
+              {meta.label}
             </Link>
-          </li>
-          {meta && (
-            <>
-              <li aria-hidden className="text-[color:var(--text-faint)]">
-                ›
-              </li>
-              <li>
-                <Link
-                  href={`/categories/${category}`}
-                  className="tap hover:text-[color:var(--text)]"
-                >
-                  {meta.label}
-                </Link>
-              </li>
-            </>
-          )}
-          <li aria-hidden className="text-[color:var(--text-faint)]">
-            ›
-          </li>
-          <li className="min-w-0">
-            <span
-              aria-current="page"
-              className="block truncate text-[color:var(--text)]"
-            >
-              {agent.name}
-            </span>
-          </li>
-        </ol>
+          </>
+        )}
       </nav>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8">
-        <div className="flex min-w-0 flex-col gap-8">
-          <header className="relative flex min-w-0 flex-col gap-5 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-6">
-            {/*
-              Top corner of the identity card, out of the reading order of the
-              name and its badges. It belongs to the whole card rather than to
-              any one line in it, and the hire column would have hidden it
-              below 1024px — exactly the widths where a platform share sheet
-              exists.
-            */}
-            <div className="absolute right-4 top-4 z-10 flex items-center gap-2 sm:right-5 sm:top-5">
-              <SaveAgentButton agent={{ chainId: agent.chain_id, tokenId: agent.token_id, name: agent.name, imageUrl: agent.image_url ?? null, category, description: agent.description?.trim() || 'No description published.' }} compact />
-              <ShareAgent name={agent.name} />
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <AgentAvatar name={agent.name} src={agent.image_url} />
+          <div className="min-w-0">
+            <h1 className="break-words text-page [overflow-wrap:anywhere]">{agent.name}</h1>
+            <p className="mt-0.5 text-body-s text-ink-muted">
+              {meta?.label ?? 'Unclassified'} · registered on {chainLabel(agent.chain_id)}
+              {agent.owner_username ? ` · by ${agent.owner_username}` : ''}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Status tone={VERDICT_TONE[proof.verdict]}>{VERDICT_LABEL[proof.verdict]}</Status>
+              <Status tone={availability.tone} live={answeredNow}>
+                {availability.word}
+              </Status>
+              {deliveredByPokter && (
+                <span className="text-small text-ink-muted">Delivered through Pokter’s seller</span>
+              )}
             </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <SaveAgentButton
+            agent={{
+              chainId: agent.chain_id,
+              tokenId: agent.token_id,
+              name: agent.name,
+              imageUrl: agent.image_url ?? null,
+              category,
+              description: description || 'No description published.',
+            }}
+            compact
+          />
+          <ShareAgent name={agent.name} />
+          <div className="hidden lg:block">
+            <HireButton variant={recommendedNow ? 'primary' : 'caution'}>
+              {recommendedNow ? `Hire for ${priceLabel}` : 'Review and hire'}
+            </HireButton>
+          </div>
+        </div>
+      </header>
 
-            <div className="flex min-w-0 max-w-4xl items-start gap-4 pr-20">
-              <AgentAvatar name={agent.name} src={agent.image_url} />
-              <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <p className="text-[11px] uppercase tracking-widest text-[color:var(--text-muted)]">
-                  {meta?.label ?? 'Unclassified'}
+      {/*
+        The phone's copy of the decision: a card here, and a sticky bar once
+        that card scrolls away. It sets data-hire-bar on the body, which is
+        how the mobile tab bar knows to stand down rather than stacking two
+        fixed bars at the foot of a phone.
+      */}
+      <div className="mt-6 lg:hidden">
+        <MobileHireAction
+          price={priceLabel}
+          priceCaption={signedPrice ? 'Its signed price' : 'Starting budget, you set it'}
+          answeredNow={answeredNow}
+          recommended={proof.recommendedForHire}
+          verdictLabel={VERDICT_LABEL[proof.verdict]}
+          evidenceLine={evidenceLine}
+        />
+      </div>
+
+      <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex min-w-0 flex-col gap-8">
+          <Section id="what" title="What you get">
+            <DefinitionList
+              items={[
+                { term: 'It covers', detail: meta?.blurb ?? 'Outside the kinds of work Pokter judges.' },
+                { term: 'You give it', detail: 'A written brief. It is not given your wallet or any position to read.' },
+                { term: 'You receive', detail: 'One written assessment, delivered with a hash on chain.' },
+                {
+                  term: 'It can move funds',
+                  detail: 'No. Nothing you sign grants it any access, and the escrow pays only on delivery.',
+                },
+              ]}
+            />
+            {description && (
+              /*
+                The publisher's own words, folded away and labelled as theirs.
+                It is the one block on this page Pokter has not checked, and
+                it used to open the dossier — so the least verified thing was
+                the first thing read.
+              */
+              <details className="group rounded-md border border-line bg-canvas-subtle">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-body-s [&::-webkit-details-marker]:hidden">
+                  <span>
+                    In the publisher’s own words <span className="text-ink-faint">· not checked by Pokter</span>
+                  </span>
+                  <span aria-hidden className="text-ink-faint transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="border-t border-line px-4 py-3 text-body-s leading-relaxed text-ink-secondary [overflow-wrap:anywhere]">
+                  {description}
                 </p>
-                <h1 className="break-words text-2xl font-semibold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-3xl">
-                  {agent.name}
-                </h1>
+                {capabilities.length > 0 && (
+                  <ul className="flex flex-col gap-1 border-t border-line px-4 py-3 text-body-s">
+                    <li className="text-small text-ink-faint">Skills it declares at its endpoint right now</li>
+                    {capabilities.map((skill) => (
+                      <li key={skill.name}>
+                        <span className="font-medium">{skill.name}</span>
+                        {skill.description && <span className="text-ink-muted"> · {skill.description}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </details>
+            )}
+          </Section>
 
-                {/*
-              FE-06. These two badges used to sit bare and adjacent, so
-              "Proven" beside "Not responding" read as a contradiction. They
-              are not: one is the accumulated verdict, the other is this
-              second's probe, and that distinction is the thing this product
-              cares about most. Naming each one draws it.
-            */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                      Evidence
-                    </span>
-                    <EvidenceBadge
-                      verdict={proof.verdict}
-                      size="md"
-                      label={
-                        proof.verdict === 'proven'
-                          ? 'Historically proven'
-                          : undefined
-                      }
-                    />
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[color:var(--text-faint)]">
-                      Right now
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-                      style={{
-                        borderColor: answeredNow
-                          ? 'color-mix(in srgb, var(--positive) 35%, transparent)'
-                          : 'color-mix(in srgb, var(--negative) 35%, transparent)',
-                        background: answeredNow
-                          ? 'var(--positive-dim)'
-                          : 'var(--negative-dim)',
-                        color: answeredNow
-                          ? 'var(--positive)'
-                          : 'var(--negative)',
-                      }}
-                    >
-                      <span
-                        aria-hidden
-                        className={
-                          answeredNow
-                            ? 'live-dot size-1.5 rounded-full bg-current'
-                            : 'size-1.5 rounded-full bg-current'
-                        }
-                      />
-                      {answeredNow ? 'Live check passed' : 'Live check failed'}
-                    </span>
-                  </span>
-                  {/*
-                    The identity is read here and pasted elsewhere — an
-                    explorer, a support message — so it stays copyable.
+          {agent.services?.a2a?.endpoint && (
+            <Section id="try" title="Try it for free" lead="One read-only question to its endpoint. No wallet, nothing stored.">
+              <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
+            </Section>
+          )}
 
-                    The publisher is a link instead. An address you can copy
-                    answers "who published this?" with forty hex characters,
-                    which is not an answer; the profile behind it lists
-                    everything else they have published, which is the only
-                    cheap way to tell a publisher with a record from one that
-                    appeared this morning. Nothing is lost by not copying it
-                    here: the same address is in the trust table below and in
-                    the identity strip, both copyable.
-                  */}
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <Section
+            id="record"
+            title="The record"
+            lead="What happened when Pokter called it, every two hours, for the last thirty days."
+          >
+            <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4">
+              <Strip cells={stripCells(record, 30)} size="lg" className="[&>li]:w-auto [&>li]:flex-1" />
+              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-body-s">
+                <p>
+                  <span className="tabular font-semibold">{rate === null ? '—' : `${Math.round(rate * 100)}%`}</span>{' '}
+                  <span className="text-ink-muted">of {plural(record.totalProbes, 'check')} answered</span>
+                </p>
+                <p className="text-ink-muted">
+                  {month?.medianMs != null ? `Answers in ${formatMs(month.medianMs)} (median)` : 'No answer time yet'}
+                  {record.longestOutage ? ` · longest silence ${plural(record.longestOutage.probes, 'check')}` : ''}
+                </p>
+              </div>
+              <p className="text-body-s leading-relaxed text-ink-secondary">{proof.rationale}</p>
+            </div>
+            <DefinitionList
+              columns={2}
+              dense
+              items={[
+                ...record.windows.map((window) => ({
+                  term: `Last ${window.label}`,
+                  detail: window.probes ? `${Math.round((window.ratio ?? 0) * 100)}% of ${window.probes}` : 'Not checked',
+                  note: window.medianMs != null ? `${formatMs(window.medianMs)} median` : undefined,
+                })),
+                {
+                  term: 'Just now',
+                  detail: live.probes.length ? `${live.answered} of ${live.probes.length} answered` : 'Not probed',
+                  note:
+                    live.medianMs != null
+                      ? `${formatMs(live.medianMs)} over ${live.protocol.toUpperCase()}`
+                      : 'Checked when this page loaded',
+                },
+                {
+                  term: 'On chain',
+                  detail: publishedEvidenceLine(published),
+                  note: published.total ? 'Every attestation links to its transaction below' : 'No independent measurer yet',
+                },
+                {
+                  term: 'Pokter score',
+                  detail: score.overall === null ? 'Not computable' : `${Math.round(score.overall)} / 100`,
+                  note: `${score.measuredDimensions} of ${score.totalDimensions} dimensions measured`,
+                },
+              ]}
+            />
+            <p className="text-small text-ink-muted">{VERDICT_MEANING[proof.verdict]}</p>
+            {attestations.length > 0 && (
+              <details className="group rounded-md border border-line">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-body-s [&::-webkit-details-marker]:hidden">
+                  <span>{plural(attestations.length, 'attestation')} on chain</span>
+                  <span aria-hidden className="text-ink-faint transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <ul className="hairline border-t border-line text-body-s">
+                  {attestations.slice(0, 12).map((attestation) => (
+                    <li key={attestation.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2">
+                      <span className="min-w-0">
+                        <span className="font-medium">{attestation.measuredBy ?? 'Unnamed measurer'}</span>
+                        <span className="text-ink-muted">
+                          {' '}
+                          · {attestation.dimension}
+                          {attestation.window ? ` · ${attestation.window}` : ''}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <span className="tabular">
+                          {attestation.ratio === null ? '—' : `${Math.round(attestation.ratio * 100)}%`}
+                        </span>
+                        {attestation.transactionHash && (
+                          <a
+                            href={`${explorer}/tx/${attestation.transactionHash}`}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="text-small text-ink-muted prose-link"
+                          >
+                            Transaction
+                          </a>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {knownDefects.length > 0 && (
+              <details className="group rounded-md border border-line">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-body-s [&::-webkit-details-marker]:hidden">
+                  <span>How the measurers could be wrong</span>
+                  <span aria-hidden className="text-ink-faint transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <ul className="hairline border-t border-line text-body-s text-ink-secondary">
+                  {knownDefects.map((defect) => (
+                    <li key={defect} className="px-4 py-2">
+                      {defect}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </Section>
+
+          <Section id="work" title="Paid work" lead="Jobs funded against this agent through Pokter, and what came back.">
+            <DefinitionList
+              columns={2}
+              dense
+              items={[
+                { term: 'Funded jobs', detail: history.jobs ? String(history.jobs) : 'None yet' },
+                {
+                  term: 'Completed',
+                  detail: history.jobs ? `${history.completed} of ${history.jobs}` : '—',
+                  note: history.rejected
+                    ? `${history.rejected} contested`
+                    : history.expired
+                      ? `${history.expired} expired unfilled`
+                      : undefined,
+                },
+                {
+                  term: 'Delivers in',
+                  detail: delivery.medianMs === null ? 'No delivery yet' : formatDelivery(delivery.medianMs),
+                  note: delivery.samples ? `median of ${plural(delivery.samples, 'job')}` : undefined,
+                },
+                {
+                  term: 'Buyer reviews',
+                  detail: reviews.length
+                    ? `${(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)} of 5`
+                    : 'None yet',
+                  note: reviews.length ? plural(reviews.length, 'signed review') : 'Signed by buyers after settlement',
+                },
+              ]}
+            />
+            {sample && <DeliverySample sample={sample} />}
+          </Section>
+
+          <Section id="identity" title="Identity" lead="Read from the registry. For checking, not for deciding.">
+            <DefinitionList
+              dense
+              items={[
+                {
+                  term: 'Registry id',
+                  detail: (
                     <CopyableId
                       label="Identity"
                       value={`${agent.chain_id}:${agent.token_id}`}
                       display={`#${agent.token_id} · ${chainLabel(agent.chain_id)}`}
                     />
-                    {agent.owner_address && (
-                      <span className="text-[color:var(--text-muted)]">
-                        Publisher{' '}
-                        {/*
-                          To the explorer, on the agent's own chain.
-
-                          This linked to /builders/[address], which reads as
-                          the publisher's profile and is not: that page is
-                          for publishers who have verified themselves with
-                          Pokter, and it calls notFound for everyone else.
-                          Almost no publisher in the catalogue has verified,
-                          so almost every one of these links was a 404 —
-                          including the one holding seventeen listings.
-                          Worse than no link, because it looked checkable.
-
-                          The explorer always resolves, is the literal
-                          meaning of verifying an address, and now resolves
-                          per chain, so a mainnet publisher goes to bscscan
-                          and a testnet one to testnet.bscscan.
-                        */}
-                        <a
-                          href={`${explorerBaseFor(agent.chain_id)}/address/${agent.owner_address}`}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="mono font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
-                        >
-                          {shortAddress(agent.owner_address)} ↗
-                        </a>
-                      </span>
-                    )}
-                      {/*
-                        Shown wherever a publisher provided one. The campaign
-                        requires a public repository, and an agent that moves
-                        no money but tells somebody what to do with theirs is
-                        worth being able to read.
-
-                        Read from the registration's services rather than
-                        from anything Pokter stores, so it is the publisher's
-                        own on-chain claim and checkable without us.
-                      */}
-                      {repositoryUrl && (
-                        <a
-                          href={repositoryUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="font-medium text-[color:var(--info)] underline decoration-dotted underline-offset-2 hover:text-[color:var(--text)]"
-                        >
-                          Source ↗
-                        </a>
-                      )}
-                  </span>
-                </div>
-
-                {/*
-                  A short description is just a paragraph.
-
-                  This was always a <details>, and the collapsed view clamps
-                  with CSS, so an agent whose description already fits showed
-                  "Read full description ↓" and then expanded to reveal the
-                  identical sentence. CSS cannot tell the server whether a
-                  clamp actually bit, so the length decides, and the threshold
-                  is deliberately low: being wrong in this direction shows a
-                  control that was not needed, being wrong the other way hides
-                  text. Two clamped lines hold well over this.
-                */}
-                {/*
-                  The better of the operator's two statements, first.
-
-                  The registry description is free text typed once at mint;
-                  across this catalogue it runs from "Automated portfolio
-                  rebalancing" to "Uncommon-tier Yi He Nexus autonomous
-                  trading agent. Class: Yield Weaver [Farm Strategist]". The
-                  card's skills are named, structured, live at the endpoint
-                  now, and are what the agent offers other agents when it
-                  negotiates — a claim it has to keep rather than one it
-                  typed once.
-
-                  Still the operator speaking, so it is still labelled as
-                  such. Pokter does not author these: it has never watched
-                  one of these agents do anything except answer a probe, and
-                  writing a capability line over a registry string would be
-                  the product making a claim it cannot stand behind.
-                */}
-                {capabilities.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
-                      What it offers to do{' '}
-                      <span className="text-[color:var(--text-faint)]">
-                        · declared at its own endpoint, read just now
-                      </span>
-                    </p>
-                    <ul className="flex max-w-3xl flex-col gap-1.5">
-                      {capabilities.map((skill) => (
-                        <li
-                          key={skill.name}
-                          className="flex flex-wrap items-baseline gap-x-2 text-sm leading-relaxed"
-                        >
-                          <span className="font-medium">{skill.name}</span>
-                          {skill.description && (
-                            <span className="text-[12px] text-[color:var(--text-muted)]">
-                              {skill.description}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {agent.description && (
-                  <p className="text-[11px] font-medium text-[color:var(--text-muted)]">
-                    Publisher&apos;s description{' '}
-                    <span className="text-[color:var(--text-faint)]">
-                      · their words, unedited
-                    </span>
-                  </p>
-                )}
-                {agent.description && agent.description.length <= 110 && (
-                  <p className="max-w-3xl break-words text-sm leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere]">
-                    {agent.description}
-                  </p>
-                )}
-                {agent.description && agent.description.length > 110 && (
-                  <details className="group max-w-3xl text-sm leading-relaxed text-[color:var(--text-secondary)]">
-                    <summary className="cursor-pointer list-none">
-                      <span className="line-clamp-2 break-words [overflow-wrap:anywhere] group-open:hidden md:line-clamp-3">
-                        {agent.description}
-                      </span>
-                      <span className="mt-1.5 inline-flex text-[11px] font-medium text-[color:var(--text-muted)] group-open:hidden">
-                        Read full description ↓
-                      </span>
-                      <span className="hidden break-words [overflow-wrap:anywhere] group-open:inline">
-                        {agent.description}
-                      </span>
-                      <span className="mt-1.5 hidden text-[11px] font-medium text-[color:var(--text-muted)] group-open:block">
-                        Show less ↑
-                      </span>
-                    </summary>
-                  </details>
-                )}
-
-                {/*
-                  The description, then the specification.
-
-                  These were the other way round, on the argument that
-                  Pokter's own facts should outrank whatever an operator
-                  wrote about itself. The order is better this way: the first
-                  question a reader has is "what is this thing", and a table
-                  of needs, returns, turnaround and coverage answers that
-                  only once you already know roughly what you are looking at.
-                  The prose sets the scene and the table pins it down.
-
-                  The reason for the old order has not gone away, though — the
-                  text above is a claim and the rows below are not. That is
-                  now carried by an attribution line on each: the prose is
-                  labelled as the publisher's, and AgentSpec says what Pokter
-                  can state. Swapping the order without those two labels
-                  would have let the operator's marketing read as ours.
-                */}
-                <AgentSpec category={category} />
-
-              </div>
-            </div>
-
-            <p className="hidden max-w-3xl break-words border-l-2 border-[color:var(--brand)] pl-4 text-xs leading-relaxed text-[color:var(--text-secondary)] [overflow-wrap:anywhere] lg:block">
-              {proof.rationale}
-            </p>
-
-            {/*
-            §5. The hire decision sits directly under the identity on a phone,
-            not four screens below it. It carries a measured line as well as a
-            price, so the first thing in reach is not a bare CTA.
-            */}
-            <MobileHireAction
-            price={priceLabel}
-            answeredNow={answeredNow}
-            recommended={proof.recommendedForHire}
-            verdictLabel={
-            answeredNow ? 'Live check passed' : 'Live check failed'
-            }
-            evidenceLine={probeSummary}
+                  ),
+                },
+                {
+                  term: 'Owner',
+                  detail: <CopyableId label="Owner" value={agent.owner_address} display={shortAddress(agent.owner_address)} />,
+                },
+                {
+                  term: 'Agent wallet',
+                  detail: agent.agent_wallet ? (
+                    <CopyableId label="Agent wallet" value={agent.agent_wallet} display={shortAddress(agent.agent_wallet)} />
+                  ) : (
+                    'Not published'
+                  ),
+                },
+                {
+                  term: 'Endpoint',
+                  detail: live.endpoint ? <span className="mono break-all text-small">{live.endpoint}</span> : 'None published',
+                  note: live.protocol !== 'none' ? live.protocol.toUpperCase() : undefined,
+                },
+                {
+                  term: 'Explorer',
+                  detail: (
+                    <a
+                      href={`${explorer}/address/${agent.contract_address}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="prose-link"
+                    >
+                      Registry contract on BscScan
+                    </a>
+                  ),
+                },
+              ]}
             />
-
-            {/*
-              The old three-cell grid said the same things without saying
-              where any of them came from, and hid on phones because it could
-              not fit. This replaces it: the same facts plus identity, each
-              carrying its source, at every width.
-            */}
-            <TrustStrip dossier={dossier} />
-          </header>
-
-          {agent.services?.a2a?.endpoint && (
-            <div id="try" className="scroll-mt-28">
-              <TrialPanel agent={{ chainId, tokenId, name: agent.name }} />
-            </div>
-          )}
-
-          {/*
-            Tabs rather than one long scroll.
-            
-            The evidence here is deep by design, and stacking all of it meant a
-            reader chasing one question — is it live, who vouches for it, what
-            would hiring allow — scrolled through the answers to the other
-            three to reach it. The depth is the product; making someone wade
-            through it was never part of the argument.
-
-            Grouped by the question each answers rather than by which component
-            renders it, which is why reliability holds three panels and
-            permissions holds one.
-          */}
-          <DetailTabs
-            tabs={[
-              {
-                id: 'evidence',
-                label: 'Evidence',
-                content: (
-                  <>
-                    <TrustPanel dossier={dossier} explorerBase={registryExplorerBase} />
-                    <Section
-                      title="Receipts"
-                      summary={receiptsSummary}
-                      caption="Published on-chain receipts, with named and unattributed measurers distinguished. Every row links to its transaction."
-                    >
-                      <EvidencePanel attestations={attestations} />
-                    </Section>
-                  </>
-                ),
-              },
-              {
-                id: 'paid-work',
-                label: 'Paid work',
-                content: (
-                  <Section
-                    title="Verified marketplace history"
-                    summary={
-                      economicHistory.jobs === 0
-                        ? 'No attributed funded jobs in Pokter’s index.'
-                        : `${economicHistory.completed} completed of ${economicHistory.jobs} funded jobs.`
-                    }
-                    caption="ERC-8183 outcomes attributed to this ERC-8004 identity by Pokter’s immutable job envelope."
-                  >
-                    <EconomicHistoryPanel history={economicHistory} />
-                    <div className="mt-6 border-t border-[color:var(--border)] pt-6">
-                      <h3 className="mb-3 text-sm font-medium">Verified buyer reviews</h3>
-                      <VerifiedReviewsPanel reviews={verifiedReviews} />
-                    </div>
-                  </Section>
-                ),
-              },
-              {
-                id: 'reliability',
-                label: 'Reliability',
-                content: (
-                  <>
-                    <PerformancePanel record={record} />
-                    <Section
-                      title="Watch it work"
-                      summary={liveSummary}
-                      caption="Probed live when you loaded this page. Our own measurement, not a claim by the agent."
-                    >
-                      <LivePanel live={live} />
-                    </Section>
-                    <Section
-                      title="Track record"
-                      summary={probeSummary}
-                      caption="What repeated sweeps have accumulated, rather than a single sample."
-                    >
-                      <TrackRecordPanel record={record} />
-                    </Section>
-                  </>
-                ),
-              },
-              {
-                id: 'permissions',
-                label: 'Permissions',
-                content: (
-                  <Section
-                    title="Permissions and spending limits"
-                    summary="What hiring would and would not allow."
-                    caption="Stated plainly, including what the registry does not disclose."
-                  >
-                    <AuthorityPanel agent={agent} />
-                  </Section>
-                ),
-              },
-              {
-                id: 'limitations',
-                label: 'Limitations',
-                content: (
-                  <Section
-                    title="How the measurers could be wrong"
-                    summary={defectsSummary}
-                    caption="Limitations disclosed by the measurers themselves, ours included."
-                  >
-                    {knownDefects.length === 0 ? (
-                      <p className="text-xs text-[color:var(--text-faint)]">
-                        No measurer has disclosed its limitations.
-                      </p>
-                    ) : (
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {knownDefects.map((defect) => (
-                          <li
-                            key={defect}
-                            className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]"
-                          >
-                            {defect}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </Section>
-                ),
-              },
-            ]}
-          />
+          </Section>
         </div>
 
-        <aside
-          className="sticky top-20 hidden flex-col gap-3 lg:flex"
-          aria-label="Hire this agent"
-        >
-          <div className="surface-card flex flex-col gap-4 p-5">
-            {/*
-              Status first, because it changes what the rest of the card is
-              worth. This is the live probe taken when the page loaded, not a
-              stored flag.
-            */}
-            <span
-              className={
-                answeredNow
-                  ? 'inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--positive)]/35 bg-[color:var(--positive-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--positive)]'
-                  : 'inline-flex w-fit items-center gap-1.5 rounded-full border border-[color:var(--negative)]/35 bg-[color:var(--negative-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--negative)]'
-              }
-            >
-              <span aria-hidden className="size-1.5 rounded-full bg-current" />
-              {answeredNow ? 'Answering now' : 'Not answering'}
-            </span>
-
+        {/*
+          The decision, kept beside the evidence rather than at the end of
+          it. Sticky because the reader is scrolling through reasons to say
+          yes or no, and the control that acts on the answer should not
+          require scrolling back.
+        */}
+        <aside className="sticky top-[68px] hidden flex-col gap-4 lg:flex" aria-label="Hire">
+          <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-5">
             <div>
-              {deliveredByPokter && (
-                <p className="mb-2 inline-flex rounded-full border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--caution)]">
-                  Delivered by Pokter on testnet
-                </p>
-              )}
-              <p className="text-[11px] text-[color:var(--text-muted)]">
-                {priceCaption}
-              </p>
-              <p className="tabular mt-1 font-[family-name:var(--font-serif)] text-3xl leading-none">
-                {priceLabel}
-              </p>
-              {/*
-                No dollar estimate. On testnet these are faucet tokens worth
-                nothing, and converting them to a currency figure would dress
-                up a number that has no price.
-              */}
-              {PAYMENT_VALUE_NOTE && (
-                <p className="mt-1.5 text-[11px] text-[color:var(--text-faint)]">
-                  {PAYMENT_VALUE_NOTE}
-                </p>
-              )}
+              <p className="text-small text-ink-muted">{signedPrice ? 'Its signed price' : 'Starting budget, you set it'}</p>
+              <p className="tabular mt-0.5 text-display font-semibold tracking-tight">{priceLabel}</p>
+              {PAYMENT_VALUE_NOTE && <p className="text-caption text-ink-faint">{PAYMENT_VALUE_NOTE}</p>}
             </div>
-
-            <dl className="flex flex-col gap-2.5 border-t border-[color:var(--border)] pt-4 text-[12px]">
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[color:var(--text-muted)]">Escrow</dt>
-                <dd className="mono">ERC-8183</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[color:var(--text-muted)]">Evidence</dt>
-                <dd>
-                  <EvidenceBadge verdict={proof.verdict} />
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[color:var(--text-muted)]">Availability</dt>
-                <dd className="tabular">{availability}</dd>
-              </div>
-              {/*
-                The old row here read "Spend ceiling — set at approval", which
-                implied a ceiling gets set. Delegated execution is paused, so
-                nothing is granted at all, and saying so is both simpler and
-                the more reassuring of the two.
-              */}
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-[color:var(--text-muted)]">Wallet access</dt>
-                <dd className="text-right font-medium text-[color:var(--positive)]">
-                  None
-                </dd>
-              </div>
-            </dl>
-
-            {/*
-              What has to be true before the button below can work, answered
-              here rather than three screens into the hire flow.
-            */}
-            <HireReadiness priceU={priceU} />
-
-            <div className="flex flex-col gap-2">
-              <HireButton
-                block
-                size="lg"
-                variant={
-                  proof.recommendedForHire && answeredNow ? 'primary' : 'caution'
-                }
-              >
-                {proof.recommendedForHire && answeredNow
-                  ? 'Hire agent'
-                  : 'Review risks and hire'}
-              </HireButton>
-
-              <Link
-                href={`/compare?agents=${agent.chain_id}:${agent.token_id}`}
-                className="block w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-3 text-center text-[13px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-              >
-                Add to compare
-              </Link>
-            </div>
-
-            {(!proof.recommendedForHire || !answeredNow) && (
-              <p className="text-[12px] leading-relaxed text-[color:var(--caution)]">
+            <DefinitionList
+              dense
+              items={[
+                {
+                  term: 'Delivers in',
+                  detail: delivery.medianMs === null ? 'No delivery yet' : formatDelivery(delivery.medianMs),
+                },
+                { term: 'Delivered by', detail: deliveredByPokter ? 'Pokter’s seller, carrying your brief' : 'The agent itself' },
+                { term: 'Wallet access', detail: <span className="font-medium text-positive">None</span> },
+              ]}
+            />
+            <HireButton variant={recommendedNow ? 'primary' : 'caution'} block>
+              {recommendedNow ? 'Hire' : 'Review risks and hire'}
+            </HireButton>
+            {!recommendedNow && (
+              <p className="text-small leading-relaxed text-caution">
                 {proof.recommendedForHire
-                  ? 'Strong historical evidence, but the latest live capability check failed.'
-                  : 'This agent requires explicit risk acceptance before it can be hired.'}
+                  ? 'Strong record, but it did not answer when this page loaded.'
+                  : 'Below the bar. Hiring asks you to accept that in writing.'}
               </p>
             )}
-
-            <p className="flex items-start gap-2 border-t border-[color:var(--border)] pt-4 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-              <svg viewBox="0 0 24 24" aria-hidden className="mt-px size-3.5 shrink-0 fill-none stroke-current" strokeWidth="1.8">
-                <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
-              </svg>
-              Funds stay in escrow until you accept the delivery.
+            <p className="border-t border-line pt-3 text-small leading-relaxed text-ink-muted">
+              Exactly the budget goes into escrow for this one job. It reaches the agent when you accept the delivery and
+              comes back if nothing arrives.{' '}
+              {agent.services?.a2a?.endpoint && (
+                <a href="#try" className="text-ink prose-link">
+                  Try it free first.
+                </a>
+              )}
             </p>
           </div>
-
-          <ScorePanel score={score} label="Evidence score" />
+          {alternatives.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-lg border border-line bg-canvas-subtle p-4">
+              <p className="text-small font-medium">Stronger in this category</p>
+              <ul className="flex flex-col gap-1.5 text-body-s">
+                {alternatives.slice(0, 3).map((alternative) => (
+                  <li key={alternative.listing.agent.token_id} className="flex items-center justify-between gap-3">
+                    <Link
+                      href={`/agents/${alternative.listing.agent.chain_id}/${alternative.listing.agent.token_id}`}
+                      className="min-w-0 truncate text-ink prose-link"
+                    >
+                      {alternative.listing.agent.name}
+                    </Link>
+                    <span className="tabular shrink-0 text-small text-ink-muted">
+                      {alternative.probes ? `${Math.round((alternative.answered / alternative.probes) * 100)}% of ${alternative.probes}` : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
       </div>
 
-      <SimilarAgents
-        category={category}
-        chainId={agent.chain_id}
-        tokenId={agent.token_id}
-      />
-
-      <HireDrawer
-        agent={{
-          chainId: agent.chain_id,
-          tokenId: agent.token_id,
-          name: agent.name,
-          category,
-          wallet: agent.agent_wallet,
-        }}
-        providers={providers}
-        signedQuoteU={dossier.quote ? Number(dossier.quote.priceU) : null}
-        riskWarnings={riskWarnings}
-      />
+      <Suspense fallback={null}>
+        <HireDrawer
+          agent={{ chainId, tokenId, name: agent.name, category, wallet: agent.agent_wallet }}
+          providers={providers}
+          signedQuoteU={quote ? Number(quote.priceU) : null}
+          riskWarnings={riskWarnings}
+        />
+      </Suspense>
     </div>
   );
 }
