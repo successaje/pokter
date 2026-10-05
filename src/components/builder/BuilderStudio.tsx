@@ -422,6 +422,22 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     try { return getAddress(connected) === getAddress(report.owner); } catch { return false; }
   }, [connected, report]);
 
+  const avatarSeeds = useMemo(() => {
+    const base = `${draft.category || 'agent'}-${draft.name || 'pokter'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
+  }, [draft.category, draft.name]);
+  /*
+   * One of these is in use whether or not anybody picked it.
+   *
+   * The image was the only draft check a builder could fail by doing
+   * nothing, and it blocked publishing with six avatars on screen that
+   * looked like decoration. The first is now the standing choice, derived
+   * rather than written into the draft: writing it would mean a keystroke
+   * in the name field silently changing a field the builder had chosen,
+   * and an effect that sets state on render is what the linter rejects.
+   */
+  const defaultAvatar = `https://pokter.xyz${avatarUrl(avatarSeeds[0])}`;
+  const chosenImage = draft.image.trim() || defaultAvatar;
   const draftChecks = [
     { label: 'Clear name', done: draft.name.trim().length >= 3 && draft.name.trim().length <= 80 },
     { label: 'Outcome-led description', done: draft.description.trim().length >= 40 && draft.description.trim().length <= 600 },
@@ -434,16 +450,12 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         endpointReport.protocol === draft.protocol,
       ),
     },
-    { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) && draft.image.trim().length <= 2_048 },
+    { label: 'Public agent image', done: /^https:\/\//i.test(chosenImage) && chosenImage.length <= 2_048 },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
   const missingDraftChecks = draftChecks
     .filter((check) => !check.done)
     .map((check) => check.label);
-  const avatarSeeds = useMemo(() => {
-    const base = `${draft.category || 'agent'}-${draft.name || 'pokter'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
-  }, [draft.category, draft.name]);
   const runtimeOptions = RUNTIME_OPTIONS[draft.category];
 
   /*
@@ -507,7 +519,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: draft.name.trim(),
     description: draft.description.trim(),
-    image: draft.image.trim(),
+    image: chosenImage,
     /*
      * The repository rides along as a named service.
      *
@@ -536,7 +548,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     x402Support: false,
     active: true,
     supportedTrust: ['reputation'],
-  }) as Erc8004RegistrationFile, [draft]);
+  }) as Erc8004RegistrationFile, [draft, chosenImage]);
 
   const registrationStep = registrationProgress?.step;
   const registrationLabel = registrationStep === 'connecting' ? 'Connecting wallet…'
@@ -949,7 +961,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 {trialError && <p role="alert" className="mt-3 rounded-[var(--radius)] border border-[color:var(--negative)]/30 bg-[color:var(--negative-dim)] p-3 text-[12px] leading-5 text-[color:var(--negative)]">{trialError}</p>}
                 {trialResult && <div className="mt-4 rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[color:var(--positive-dim)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[color:var(--positive)]">Structured preview returned</p><span className="mono text-[12px] text-[color:var(--text-muted)]">{trialResult.latencyMs} ms · {trialResult.protocol.toUpperCase()}</span></div><p className="mt-2 text-[12px] leading-5 text-[color:var(--text-secondary)]">{trialResult.summary}</p><p className="mt-2 text-[12px] leading-4 text-[color:var(--text-muted)]">{trialResult.disclaimer}</p><details className="mt-3 border-t border-[color:var(--positive)]/20 pt-3"><summary className="cursor-pointer text-[12px] font-semibold">Inspect raw response</summary><pre className="mono mt-3 max-h-56 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(trialResult.response, null, 2)}</pre></details></div>}
               </div>}
-              <fieldset className={cn('rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4', newStep !== 1 && 'hidden')}><legend className="sr-only">Choose an agent identity</legend><p className="text-[11px] font-semibold">Choose an identity</p><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Select unique Pokter artwork or add your own image.</p><div className="mt-4 flex flex-wrap gap-2">{avatarSeeds.map((seed) => { const publicUrl = `https://pokter.xyz${avatarUrl(seed)}`; return <button key={seed} type="button" onClick={() => updateDraft('image', publicUrl)} aria-label={`Choose avatar ${seed.slice(-1)}`} aria-pressed={draft.image === publicUrl} className={cn('size-12 rounded-[var(--radius)] border bg-cover bg-center transition-all', draft.image === publicUrl ? 'border-[color:var(--brand)] ring-2 ring-[color:var(--brand)]/20' : 'border-[color:var(--border)] hover:-translate-y-0.5 hover:border-[color:var(--brand)]')} style={{ backgroundImage: `url(${avatarUrl(seed)})` }} />; })}</div></fieldset>
+              <fieldset className={cn('rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4', newStep !== 1 && 'hidden')}><legend className="sr-only">Choose an agent identity</legend><p className="text-[11px] font-semibold">Choose an identity</p><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">{draft.image.trim() ? 'This is the image buyers will see.' : 'The first is in use unless you pick another, or add your own below.'}</p><div className="mt-4 flex flex-wrap gap-2">{avatarSeeds.map((seed) => { const publicUrl = `https://pokter.xyz${avatarUrl(seed)}`; const selected = chosenImage === publicUrl; return <button key={seed} type="button" onClick={() => updateDraft('image', publicUrl)} aria-label={`Choose avatar ${seed.slice(-1)}`} aria-pressed={selected} className={cn('relative size-12 rounded-[var(--radius)] border-2 bg-cover bg-center transition-all', selected ? 'border-[color:var(--brand)] ring-2 ring-[color:var(--brand)]/30 ring-offset-2 ring-offset-[color:var(--bg-subtle)]' : 'border-transparent opacity-60 hover:-translate-y-0.5 hover:opacity-100')} style={{ backgroundImage: `url(${avatarUrl(seed)})` }}>{selected && <span aria-hidden className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-[color:var(--brand)] text-[11px] font-bold text-[color:var(--brand-ink)] shadow">✓</span>}</button>; })}</div></fieldset>
               <details className={cn('sm:col-span-2', newStep !== 1 && 'hidden')}><summary className="cursor-pointer text-[12px] font-semibold text-[color:var(--brand-strong)]">Use my own image instead</summary><label className="mt-3 flex flex-col gap-2"><span className="text-[12px] text-[color:var(--text-muted)]">Public HTTPS image URL</span><input value={draft.image} maxLength={2048} onChange={(event) => updateDraft('image', event.target.value)} placeholder="https://agent.example/avatar.png" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label></details>
             </div>
             {newStep === 1 && draft.name === QUALITY_EXAMPLE.name && !draft.endpoint && !draft.image && <div className="mt-5 rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-4"><p className="text-[11px] font-semibold text-[color:var(--info)]">Example loaded—not a live agent</p><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">The profile demonstrates useful marketplace language. Add an endpoint you operate and an image you control; Pokter will not mark the draft ready until the endpoint passes a real protocol handshake.</p></div>}
