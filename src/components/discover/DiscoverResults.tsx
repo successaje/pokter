@@ -35,7 +35,7 @@ function toRow(entry: Entry): ListingRow {
   return {
     key: `${agent.chain_id}:${agent.token_id}`,
     href: `/agents/${agent.chain_id}/${agent.token_id}`,
-    hireHref: offersDirectHire(entry) ? `/hire/${agent.chain_id}/${agent.token_id}` : null,
+    hireHref: offersDirectHire(entry) ? `/agents/${agent.chain_id}/${agent.token_id}?hire=1` : null,
     name: agent.name,
     imageUrl: agent.image_url,
     categoryLabel: CATEGORY_BY_ID.get(entry.listing.category)?.label ?? 'Agent',

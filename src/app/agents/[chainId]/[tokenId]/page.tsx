@@ -606,7 +606,6 @@ export default async function AgentPage({
             price, so the first thing in reach is not a bare CTA.
             */}
             <MobileHireAction
-            href={`/hire/${agent.chain_id}/${agent.token_id}`}
             price={priceLabel}
             answeredNow={answeredNow}
             recommended={proof.recommendedForHire}

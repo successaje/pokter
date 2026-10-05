@@ -103,6 +103,18 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      /*
+       * Hiring is a drawer over the dossier now, not a page of its own, so
+       * this address opens it instead of loading a second implementation of
+       * the same step. The query is what HireDrawer reads on arrival, which
+       * is why it exists — links into the hire step, from anywhere, still
+       * land on the hire step.
+       */
+      {
+        source: '/hire/:chainId/:tokenId',
+        destination: '/agents/:chainId/:tokenId?hire=1',
+        permanent: false,
+      },
       { source: '/activity', destination: '/my-agents', permanent: false },
       { source: '/how-it-works', destination: '/about', permanent: false },
     ];

@@ -80,7 +80,7 @@ export function ExploreMarketplace({
               key: `${agent.chain_id}:${agent.token_id}`,
               href: `/agents/${agent.chain_id}/${agent.token_id}`,
               hireHref: offersDirectHire(entry)
-                ? `/hire/${agent.chain_id}/${agent.token_id}`
+                ? `/agents/${agent.chain_id}/${agent.token_id}?hire=1`
                 : null,
               name: agent.name,
               imageUrl: agent.image_url,

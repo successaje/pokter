@@ -130,7 +130,7 @@ function AgentQuickView({ entry, onClose }: { entry: Entry; onClose: () => void 
             </span>
             <div className="flex gap-2">
               <Link href={`/agents/${agent.chain_id}/${agent.token_id}`} className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-xs font-medium">Full evidence</Link>
-              {hirable && <Link href={`/hire/${agent.chain_id}/${agent.token_id}`} className="action-primary rounded-[var(--radius)] px-4 py-2.5 text-xs font-semibold">{listing.quote ? 'Hire agent' : 'Offer budget'}</Link>}
+              {hirable && <Link href={`/agents/${agent.chain_id}/${agent.token_id}?hire=1`} className="action-primary rounded-[var(--radius)] px-4 py-2.5 text-xs font-semibold">{listing.quote ? 'Hire agent' : 'Offer budget'}</Link>}
             </div>
           </div>
         </div>

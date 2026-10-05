@@ -168,7 +168,7 @@ export function AgentCard({
    */
   const onEscrowChain = agent.chain_id === ALTANA_NETWORK.chainId;
 
-  const hireHref = `/hire/${agent.chain_id}/${agent.token_id}`;
+  const hireHref = `/agents/${agent.chain_id}/${agent.token_id}?hire=1`;
   /*
    * Registry descriptions are written by operators and routinely carry
    * OAuth callback URLs, GitHub links and NFT trait dumps. Clamped to one

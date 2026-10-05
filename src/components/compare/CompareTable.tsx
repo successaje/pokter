@@ -346,7 +346,7 @@ export function CompareTable({ entries }: { entries: Comparison[] }) {
                       <div className="mt-1 flex flex-col gap-1.5">
                         {entry.proof.recommendedForHire ? (
                           <Link
-                            href={`/hire/${entry.agent.chain_id}/${entry.agent.token_id}`}
+                            href={`/agents/${entry.agent.chain_id}/${entry.agent.token_id}?hire=1`}
                             className="action-primary block rounded-[var(--radius)] px-3 py-2 text-center text-[12px]"
                           >
                             Hire agent

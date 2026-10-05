@@ -133,7 +133,7 @@ export async function StartHiring() {
               </span>
 
               <Link
-                href={`/hire/${agent.chain_id}/${agent.token_id}`}
+                href={`/agents/${agent.chain_id}/${agent.token_id}?hire=1`}
                 className="action-card shrink-0 rounded-[var(--radius)] px-4 py-2 text-[12px]"
               >
                 Hire

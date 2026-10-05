@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { HireButton } from '@/components/hire/HireDrawer';
 import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 
 /**
@@ -19,14 +19,12 @@ import { PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
  * already used. The desktop dossier keeps its own sidebar CTA untouched.
  */
 export function MobileHireAction({
-  href,
   price,
   answeredNow,
   recommended,
   verdictLabel,
   evidenceLine,
 }: {
-  href: string;
   /** e.g. "0.10 $U" — the real escrow price, not a placeholder. */
   price: string;
   answeredNow: boolean;
@@ -81,10 +79,12 @@ export function MobileHireAction({
   }, [showBar]);
 
   const label = recommended && answeredNow ? 'Hire agent' : 'Review & hire';
-  const ctaClass =
-    recommended && answeredNow
-      ? 'action-primary w-full rounded-[var(--radius)] px-4 py-3 text-center text-sm'
-      : 'w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-3 text-center text-sm font-medium text-[color:var(--caution)]';
+  /*
+   * The drawer's own button carries the look, so the tone is all this needs
+   * to decide. Keeping a parallel set of classes here would mean two places
+   * deciding what a cautioned hire looks like, and they would drift.
+   */
+  const ctaVariant = recommended && answeredNow ? 'primary' : 'caution';
 
   return (
     <>
@@ -114,12 +114,12 @@ export function MobileHireAction({
           </span>
         </div>
 
-        <Link href={href} className={cn('mt-4 block', ctaClass)}>
+        <HireButton block size="lg" variant={ctaVariant} className="mt-4">
           {label}
-        </Link>
+        </HireButton>
 
         {/*
-          Dolphin's equivalent card says "Escrow Protected" and stops. The
+          A badge saying the escrow is protected stops at the mechanism. The
           line below is the difference: what Pokter actually observed, stated
           where the money decision is made rather than four screens down.
         */}
@@ -160,18 +160,13 @@ export function MobileHireAction({
               {answeredNow ? 'Live check passed' : 'Live check failed'}
             </p>
           </div>
-          <Link
-            href={href}
-            tabIndex={showBar ? undefined : -1}
-            className={cn(
-              'shrink-0 rounded-[var(--radius)] px-4 py-2 text-center text-xs',
-              recommended && answeredNow
-                ? 'action-primary'
-                : 'border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] font-medium text-[color:var(--caution)]',
-            )}
+          <HireButton
+            size="sm"
+            variant={ctaVariant}
+            className={cn('shrink-0', !showBar && 'pointer-events-none')}
           >
             {label}
-          </Link>
+          </HireButton>
         </div>
       </div>
     </>

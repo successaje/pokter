@@ -1,7 +1,7 @@
 import type { Address } from 'viem';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
-import type { ProviderChoice } from '@/components/hire/CommissionPanel';
+import type { ProviderChoice } from '@/components/hire/useHire';
 import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { quotePayableWith } from '@/lib/erc8183/payable';
