@@ -17,6 +17,9 @@ import { avatarUrl } from '@/lib/ui/avatar-art';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
+import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
+import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 /** Per-browser, so the dismiss survives a reload. */
 const CAMPAIGN_NOTICE_KEY = 'pokter:builder:campaign-notice';
@@ -396,6 +399,16 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   const [mainnetConsent, setMainnetConsent] = useState(false);
   const [publishedAgent, setPublishedAgent] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const { wallet: passkeyWallet } = usePasskeyWallet();
+  const passkeySigner = usePasskeySigner();
+  /*
+   * A passkey can publish only where its client is configured, and only
+   * when no browser wallet is present to prefer. An injected wallet stays
+   * first because it is the one that can also publish on mainnet.
+   */
+  const passkeyCanPublish = Boolean(
+    passkeyWallet && passkeySigner && !hasIdentityWallet(),
+  );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const [brief, setBrief] = useState<LaunchBrief>(EMPTY_BRIEF);
@@ -767,6 +780,14 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         chainId: registrationChainId,
         file: registrationPreview,
         recovery: compatibleRecovery,
+        signer:
+          passkeyCanPublish && passkeyWallet && passkeySigner
+            ? passkeyRegistrySigner({
+                wallet: { address: passkeyWallet.address },
+                signer: passkeySigner,
+                chainId: registrationChainId,
+              })
+            : undefined,
         onProgress: (progress) => {
           setRegistrationProgress(progress);
           persistRecovery(progress);
@@ -1094,6 +1115,19 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <div className={cn('rounded-[var(--radius)] border p-3 text-[12px] leading-5', registrationChainId === 56 ? 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]' : 'border-[color:var(--info)]/25 bg-[color:var(--info-dim)]')}><strong>{registrationChainId === 56 ? 'Mainnet identity transaction.' : 'Testnet rehearsal.'}</strong> {registrationChainId === 56 ? 'You will pay BNB gas. This only publishes an identity; Pokter hiring remains on BNB Testnet.' : 'Testnet identities validate the flow but are not promoted in the public marketplace.'}</div>
             {registrationChainId === 56 && <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><input type="checkbox" checked={mainnetConsent} onChange={(event) => setMainnetConsent(event.target.checked)} className="mt-0.5 size-4 accent-[color:var(--brand)]"/><span className="text-[12px] leading-5 text-[color:var(--text-secondary)]">I understand this creates a public ERC-8004 identity on BNB Chain and requires two wallet-approved transactions plus BNB gas.</span></label>}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><span className="flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[12px] font-bold">1</span><p className="text-[11px] font-semibold">Mint the identity</p><span /><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">The registry assigns the ERC-8004 agent ID.</p><span className="mt-2 flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[12px] font-bold">2</span><p className="mt-2 text-[11px] font-semibold">Bind the completed profile</p><span /><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">The second transaction writes the exact profile with its assigned ID.</p></div>
+            {/*
+              Which wallet signs, said before the button rather than after it.
+
+              Publishing reached for the injected wallet unconditionally, so
+              somebody holding a passkey — the thing Pokter offers precisely
+              so they need not hold a key — learned it would not work by
+              pressing publish and reading a thrown error.
+            */}
+            <p className="rounded-[var(--radius)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">
+              {passkeyCanPublish
+                ? <>Signed by your passkey wallet <span className="mono">{passkeyWallet ? `${passkeyWallet.address.slice(0, 6)}…${passkeyWallet.address.slice(-4)}` : ''}</span>. Two confirmations, and it needs {NATIVE_SYMBOL} for gas.</>
+                : <>Signed by your browser wallet. Two confirmations, and it needs gas on the selected network.</>}
+            </p>
             {registrationRecovery && <div className="rounded-[var(--radius)] border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] p-3 text-[12px] leading-5"><strong className="text-[color:var(--info)]">Recoverable publication found.</strong> Pokter will resume {registrationRecovery.agentId ? `agent #${registrationRecovery.agentId}` : 'the confirmed transaction'} without minting another identity.</div>}
             {registrationError && <p role="alert" className="rounded-[var(--radius)] border border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)] p-3 text-[12px] leading-5 text-[color:var(--caution)]">{registrationError}</p>}
             <details className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2"><summary className="cursor-pointer text-[12px] font-semibold">Inspect registration JSON</summary><pre className="mono mt-3 max-h-48 overflow-auto rounded-[var(--radius)] bg-[color:var(--bg)] p-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">{JSON.stringify(registrationPreview, null, 2)}</pre></details>

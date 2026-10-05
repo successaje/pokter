@@ -46,11 +46,50 @@ export interface RegistrationProgress extends RegistrationRecovery {
   profileHash?: Hex;
 }
 
+/**
+ * Whatever can put these two transactions on chain.
+ *
+ * Registration is two sends and a receipt read; everything else here —
+ * encoding, parsing the assigned id, resuming a half-finished mint — is the
+ * same whoever signs. It was written against `window.ethereum` directly, so
+ * a passkey wallet could hire an agent and not publish one, which is the
+ * wrong way round for a marketplace that offers passkeys so people need not
+ * hold a key.
+ */
+export interface RegistrySigner {
+  address: Address;
+  /** Called once before the first send. */
+  prepare(): Promise<void>;
+  send(call: { to: Address; data: Hex }): Promise<Hex>;
+}
+
 export interface RegisterIdentityInput {
   chainId: RegistryChainId;
   file: Erc8004RegistrationFile;
   recovery?: RegistrationRecovery;
   onProgress?: (progress: RegistrationProgress) => void;
+  /** Defaults to the injected browser wallet. */
+  signer?: RegistrySigner;
+}
+
+/** The browser wallet, which is what this did before it could do anything else. */
+export async function injectedRegistrySigner(
+  chainId: RegistryChainId,
+): Promise<RegistrySigner> {
+  const provider = injectedProvider();
+  const accounts = (await provider.request({
+    method: 'eth_requestAccounts',
+  })) as Address[];
+  if (!accounts.length) throw new Error('No wallet account was selected.');
+  const address = getAddress(accounts[0]);
+  const chain = chainFor(chainId);
+  const wallet = createWalletClient({ chain, transport: custom(provider) });
+  return {
+    address,
+    prepare: () => ensureChain(provider, chainId),
+    send: (call) =>
+      wallet.sendTransaction({ account: address, chain, to: call.to, data: call.data }),
+  };
 }
 
 export type ProfileUpdateStep =
@@ -172,16 +211,13 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
     throw new Error('The saved registration belongs to a different network.');
   }
   const report = input.onProgress ?? (() => {});
-  const provider = injectedProvider();
   report({ step: 'connecting', chainId: input.chainId, ...input.recovery });
-  const accounts = await provider.request({ method: 'eth_requestAccounts' }) as Address[];
-  if (!accounts.length) throw new Error('No wallet account was selected.');
-  const owner = getAddress(accounts[0]);
+  const signer = input.signer ?? (await injectedRegistrySigner(input.chainId));
+  const owner = signer.address;
   report({ step: 'switching-network', chainId: input.chainId, ...input.recovery });
-  await ensureChain(provider, input.chainId);
+  await signer.prepare();
 
   const chain = chainFor(input.chainId);
-  const wallet = createWalletClient({ chain, transport: custom(provider) });
   const read = createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) });
   const registry = erc8183Addresses(input.chainId).registry;
   let registrationHash = input.recovery?.registrationHash;
@@ -192,9 +228,7 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
     if (!registrationHash) {
       report({ step: 'registering', chainId: input.chainId });
       const call = buildErc8004RegisterCall(input.chainId, initialUri);
-      registrationHash = await wallet.sendTransaction({
-        account: owner,
-        chain,
+      registrationHash = await signer.send({
         to: call.to as Address,
         data: call.data as Hex,
       });
@@ -229,9 +263,7 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
     registrationHash, agentId: agentId.toString(),
   });
   const updateCall = buildErc8004SetAgentUriCall(input.chainId, agentId, completedUri);
-  const profileHash = await wallet.sendTransaction({
-    account: owner,
-    chain,
+  const profileHash = await signer.send({
     to: updateCall.to as Address,
     data: updateCall.data as Hex,
   });
