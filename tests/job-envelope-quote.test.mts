@@ -200,5 +200,16 @@ test('a real seller quote fits the envelope and survives it', () => {
   assert.equal(decoded?.negotiationHash, live.negotiationHash);
   assert.equal(decoded?.providerSignature, live.providerSignature.toLowerCase());
   assert.equal(decoded?.domain?.chainId, 97);
-  assert.equal(quoteUsableForEscrow(live, 97).usable, true);
+  /*
+   * Judged at the moment the seller issued it, not at the moment the suite
+   * runs: the quote carries a real fifteen-minute expiry, so asserting
+   * against the wall clock made this pass on the day it was written and
+   * fail every day after.
+   */
+  const issuedAt = new Date((live.expiresAt - 60) * 1000);
+  assert.equal(quoteUsableForEscrow(live, 97, issuedAt).usable, true);
+  assert.equal(
+    quoteUsableForEscrow(live, 97, new Date((live.expiresAt + 60) * 1000)).usable,
+    false,
+  );
 });
