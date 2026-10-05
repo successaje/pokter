@@ -104,3 +104,55 @@ export function draftProgress(draft: DraftFields): { done: number; total: number
   ];
   return { done: checks.filter(Boolean).length, total: checks.length };
 }
+
+/*
+ * Reading drafts as an external store.
+ *
+ * The same shape this codebase already uses for jobs and notifications:
+ * localStorage is shared mutable state outside React, so it is subscribed
+ * to rather than copied into state by an effect — which also means a
+ * draft discarded in one tab disappears from the account page in another.
+ *
+ * The snapshot is cached against the raw string because
+ * `useSyncExternalStore` compares by identity: parsing afresh on every
+ * call would hand React a new array each time and spin.
+ */
+const DRAFTS_EVENT = 'pokter:drafts';
+let snapshotSource: string | null = null;
+let snapshotValue: StoredDraft[] = [];
+const EMPTY: StoredDraft[] = [];
+
+export function subscribeToDrafts(listener: () => void): () => void {
+  window.addEventListener(DRAFTS_EVENT, listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    window.removeEventListener(DRAFTS_EVENT, listener);
+    window.removeEventListener('storage', listener);
+  };
+}
+
+export function draftsSnapshot(): StoredDraft[] {
+  try {
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    if (raw === snapshotSource) return snapshotValue;
+    snapshotSource = raw;
+    snapshotValue = raw ? listDrafts(JSON.parse(raw) as DraftRecord) : EMPTY;
+    return snapshotValue;
+  } catch {
+    return EMPTY;
+  }
+}
+
+/** The server has no browser storage, so it renders the empty case. */
+export function draftsServerSnapshot(): StoredDraft[] {
+  return EMPTY;
+}
+
+/** Tell this tab's listeners; other tabs hear the storage event. */
+export function announceDraftsChanged(): void {
+  try {
+    window.dispatchEvent(new Event(DRAFTS_EVENT));
+  } catch {
+    /* Nothing to announce to outside a browser. */
+  }
+}

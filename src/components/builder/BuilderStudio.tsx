@@ -33,6 +33,7 @@ import {
   removeDraft,
   upsertDraft,
   isDraftEmpty,
+  announceDraftsChanged,
   type DraftRecord,
 } from '@/lib/builder/drafts';
 import { useChainFunding } from '@/lib/wallet/use-chain-funding';
@@ -496,7 +497,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   function discardDraft(id: string) {
     const next = removeDraft(drafts, id);
     setDrafts(next);
-    try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(next));
+      announceDraftsChanged();
+    } catch {}
     /* Discarding the open one leaves the builder on a blank slate, not on
        a form still showing work that no longer exists anywhere. */
     if (id === draftId) {
@@ -542,6 +546,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
           }),
         ),
       );
+      announceDraftsChanged();
     } catch {}
   }, [draft, draftId, mode, newStep]);
 

@@ -11,6 +11,7 @@ import { notificationsForWallet, subscribeToNotifications } from '@/lib/wallet/n
 import { readSavedAgents, subscribeToSavedAgents } from '@/lib/wallet/saved-agents';
 import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
+import { BuilderSection } from '@/components/account/BuilderSection';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { CampaignPassport } from '@/components/campaign/CampaignPassport';
 
@@ -94,6 +95,8 @@ export function AccountProfile() {
         <AccountAvatar identity={identity} />
         <div className="min-w-0 flex-1"><p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Pokter account</p><h1 className="mt-2 font-[family-name:var(--font-serif)] text-4xl tracking-tight sm:text-5xl">Your place in the agent economy.</h1><p className="mt-3 max-w-2xl text-[12px] leading-5 text-[color:var(--text-secondary)]">One account view for the wallet that signs, the work you commissioned, and the agents you publish. Your avatar is generated from your wallet address and stays consistent without uploading personal data.</p></div>
       </header>
+
+      <BuilderSection address={address ?? null} />
 
       <section aria-labelledby="workspace-heading" className="mt-8"><div className="flex items-end justify-between gap-4"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Switch view</p><h2 id="workspace-heading" className="mt-2 text-xl font-semibold">Choose how you are using Pokter</h2></div></div><div className="mt-4 grid gap-3 md:grid-cols-2">
         <Link href="/app" className="group rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-5 transition-all hover:-translate-y-0.5 hover:border-[color:var(--brand)]"><div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-full bg-[color:var(--brand-dim)] text-lg">◎</span><span className="text-[color:var(--brand-strong)]">Open →</span></div><h3 className="mt-5 text-lg font-semibold">Hiring</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">Discover agents, manage commissions, saved choices and notifications.</p></Link>
