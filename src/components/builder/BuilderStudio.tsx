@@ -203,6 +203,16 @@ function defaultRuntimeConfig(category: string) {
 }
 
 const DRAFT_KEY = 'pokter-agent-draft-v1';
+/*
+ * Where the builder had got to, kept beside what they had written.
+ *
+ * The draft itself has always survived a reload; the position in the wizard
+ * did not. So someone who had filled in three steps came back to their words
+ * intact and the path chooser on screen, and had to click through the
+ * branches again to find where they were — which reads as the work having
+ * been lost even though none of it was.
+ */
+const PLACE_KEY = 'pokter-agent-place-v1';
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
 function Icon({ name }: { name: 'registry' | 'spark' | 'check' | 'arrow' | 'wallet' | 'code' | 'idea' }) {
@@ -298,8 +308,29 @@ function ConnectionGuide() {
 }
 
 export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
-  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
-  const [newStep, setNewStep] = useState(0);
+  const [place] = useState<{ mode: Mode; step: number }>(() => {
+    if (typeof window === 'undefined') return { mode: 'choose', step: 0 };
+    try {
+      const stored = localStorage.getItem(PLACE_KEY);
+      if (!stored) return { mode: 'choose', step: 0 };
+      const parsed = JSON.parse(stored) as { mode?: string; step?: number };
+      const mode = (['choose', 'existing', 'new', 'templates'] as const).find(
+        (value) => value === parsed.mode,
+      );
+      const step =
+        Number.isInteger(parsed.step) && parsed.step! >= 0 && parsed.step! <= 3
+          ? parsed.step!
+          : 0;
+      return mode ? { mode, step } : { mode: 'choose', step: 0 };
+    } catch {
+      /* Remembering where you were is a convenience, never a gate. */
+      return { mode: 'choose', step: 0 };
+    }
+  });
+  const [mode, setMode] = useState<Mode>(
+    initialIdentity ? 'existing' : place.mode,
+  );
+  const [newStep, setNewStep] = useState(initialIdentity ? 0 : place.step);
   /*
    * The dismiss button only ever set state, so the notice came back on every
    * reload and the × was decorative. It now remembers, per browser.
@@ -367,6 +398,10 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch {}
   }, [draft]);
+
+  useEffect(() => {
+    try { localStorage.setItem(PLACE_KEY, JSON.stringify({ mode, step: newStep })); } catch {}
+  }, [mode, newStep]);
 
 
   const quality = useMemo(
