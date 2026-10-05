@@ -8,7 +8,7 @@ import { OBJECTIVES } from '@/lib/agents/objectives';
 import { BriefForm } from '@/components/discover/BriefForm';
 import { MatchCard } from '@/components/discover/MatchCard';
 import { WhyNot } from '@/components/discover/WhyNot';
-import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
+import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { MarketplacePulse } from '@/components/discover/MarketplacePulse';
 import { ExploreMarketplace } from '@/components/discover/ExploreMarketplace';
@@ -227,8 +227,17 @@ export default async function DiscoverPage({
    * The card now shows the gap rather than hiding it, and says nothing at
    * all when there is no gap.
    */
+  /*
+   * Counted for every category there is, read from the list itself.
+   *
+   * This held its own copy of the four category ids, cast to Category[] —
+   * and a cast is a promise the compiler stops checking. Adding a fifth
+   * left the cards iterating five and the counts holding four, so the new
+   * one destructured undefined and took the whole page down with it while
+   * every typed map elsewhere was updated for free.
+   */
   const categoryCounts = Object.fromEntries(
-    (['rebalancing', 'grid-trading', 'yield', 'health-factor'] as Category[]).map((category) => {
+    CATEGORIES.map(({ id: category }) => {
       const inCategory = browseAgents.filter(
         (entry) => entry.listing.category === category,
       );

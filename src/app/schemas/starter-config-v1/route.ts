@@ -1,3 +1,5 @@
+import { CATEGORIES } from '@/lib/agents/categories';
+
 const starterConfigSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $id: 'https://pokter.xyz/schemas/starter-config-v1',
@@ -9,7 +11,13 @@ const starterConfigSchema = {
   properties: {
     schema: { const: 'https://pokter.xyz/schemas/starter-config-v1' },
     agent: { type: 'string', minLength: 1, maxLength: 80 },
-    category: { enum: ['rebalancing', 'grid-trading', 'yield', 'health-factor'] },
+    /*
+     * Derived, because this is published: a schema that lists four
+     * categories while the marketplace classifies into five rejects a
+     * handoff Pokter itself produced, and the mismatch would surface in
+     * somebody else's validator rather than ours.
+     */
+    category: { enum: CATEGORIES.map((category) => category.id) },
     protocol: { enum: ['a2a', 'mcp'] },
     behavior: {
       type: 'object',

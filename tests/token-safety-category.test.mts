@@ -50,3 +50,20 @@ test('an unrelated agent is still unclassified', () => {
     'unclassified',
   );
 });
+
+/*
+ * The failure this exists to stop: /discover built its counts from its own
+ * hardcoded list of four ids cast to Category[], while the cards iterated
+ * CATEGORIES. A cast is a promise the compiler stops checking, so adding a
+ * fifth category left the page destructuring undefined and it went down in
+ * production while every properly typed map updated for free.
+ */
+test('anything keyed by category must cover every category', () => {
+  const counts = Object.fromEntries(
+    CATEGORIES.map((category) => [category.id, { shown: 0, indexed: 0 }]),
+  );
+  for (const category of CATEGORIES) {
+    assert.ok(counts[category.id], `no entry for ${category.id}`);
+  }
+  assert.equal(Object.keys(counts).length, CATEGORIES.length);
+});
