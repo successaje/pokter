@@ -65,14 +65,25 @@ export function SendTokens({
   const most = token === 'native' ? sendableNative(nativeBalance) : paymentBalance;
 
   if (!open) {
+    /*
+     * Drawn as an action, not another row of reporting.
+     *
+     * It sat in the same ghost outline as the rows above it, which are all
+     * statements — this wallet holds, this address copies — so the one
+     * control that moves money read as a fourth label.
+     */
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="tap mt-1 w-full rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2.5 text-left text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+        className="tap mt-2 flex w-full items-center gap-2.5 rounded-[var(--radius)] border border-[color:var(--brand)]/40 bg-[color:var(--brand-highlight-soft)] px-3 py-2.5 text-left text-[12px] font-semibold text-[color:var(--brand-strong)] transition-colors hover:bg-[color:var(--brand-highlight)]"
       >
+        <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-[var(--radius)] bg-[color:var(--brand)]/15">
+          <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h13" /><path d="m12 5 7 7-7 7" />
+          </svg>
+        </span>
         Send tokens
-        <span className="ml-auto float-right text-[color:var(--text-faint)]" aria-hidden>→</span>
       </button>
     );
   }

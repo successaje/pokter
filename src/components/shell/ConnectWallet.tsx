@@ -9,6 +9,8 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
 import { SendTokens } from '@/components/wallet/SendTokens';
+import { LowBalanceHelp } from '@/components/builder/LowBalanceHelp';
+import { GAS_RESERVE } from '@/lib/wallet/send-rules';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
@@ -69,6 +71,7 @@ function WalletRow({
   href,
   onClick,
   tone,
+  accent,
 }: {
   icon: ReactNode;
   title: string;
@@ -76,15 +79,30 @@ function WalletRow({
   href?: string;
   onClick?: () => void;
   tone?: 'caution';
+  /*
+   * A hue per kind of row.
+   *
+   * Every icon was the same faint grey, so the column read as texture and
+   * the eye had to fall back on the words to tell a signing wallet from a
+   * copy button. Colour here is a second channel on top of the label and
+   * the glyph, never the only one carrying the meaning.
+   */
+  accent?: 'brand' | 'positive' | 'info';
 }) {
   const body = (
     <>
       <span
         className={cn(
-          'shrink-0',
+          'grid size-8 shrink-0 place-items-center rounded-[var(--radius)]',
           tone === 'caution'
-            ? 'text-[color:var(--caution)]'
-            : 'text-[color:var(--text-faint)]',
+            ? 'bg-[color:var(--caution-dim)] text-[color:var(--caution)]'
+            : accent === 'positive'
+              ? 'bg-[color:var(--positive-dim)] text-[color:var(--positive)]'
+              : accent === 'info'
+                ? 'bg-[color:var(--info-dim)] text-[color:var(--info)]'
+                : accent === 'brand'
+                  ? 'bg-[color:var(--brand-highlight-soft)] text-[color:var(--brand-strong)]'
+                  : 'bg-[color:var(--bg-subtle)] text-[color:var(--text-muted)]',
         )}
       >
         {icon}
@@ -361,6 +379,7 @@ export function ConnectWallet() {
               <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
                 <WalletRow
                   icon={<IdentityIcon />}
+                  accent="brand"
                   title="Your own wallet"
                   detail={
                     wrongChain
@@ -371,6 +390,7 @@ export function ConnectWallet() {
                 />
                 <WalletRow
                   icon={<EscrowIcon />}
+                  accent="info"
                   title={copied ? 'Address copied' : 'Copy address'}
                   detail={
                     FAUCETS
@@ -397,6 +417,7 @@ export function ConnectWallet() {
                 {passkey.wallet ? (
                   <WalletRow
                     icon={<SigningIcon />}
+                  accent="positive"
                     title="Passkey wallet"
                     detail={`${shortAddress(passkey.wallet.address)} · standing by`}
                   />
@@ -409,6 +430,7 @@ export function ConnectWallet() {
                   */
                   <WalletRow
                     icon={<SigningIcon />}
+                  accent="positive"
                     title="Passkey wallet"
                     detail={
                       passkey.busy === 'creating'
@@ -430,16 +452,7 @@ export function ConnectWallet() {
                     ? 'Disconnect and use passkey'
                     : 'Disconnect wallet'}
                 </button>
-                {FAUCETS && (
-                  <a
-                    href={FAUCETS.native}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-[11px] text-[color:var(--text-faint)] underline-offset-2 hover:underline"
-                  >
-                    Faucet ↗
-                  </a>
-                )}
+
               </div>
             </div>
           ) : passkey.wallet ? (
@@ -475,11 +488,13 @@ export function ConnectWallet() {
               <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
                 <WalletRow
                   icon={<SigningIcon />}
+                  accent="positive"
                   title="Passkey wallet"
                   detail="Signing hires · key held in this device"
                 />
                 <WalletRow
                   icon={<IdentityIcon />}
+                  accent="brand"
                   title="Your own wallet"
                   detail={
                     switching
@@ -505,6 +520,7 @@ export function ConnectWallet() {
                 />
                 <WalletRow
                   icon={<EscrowIcon />}
+                  accent="info"
                   title={copied ? 'Address copied' : 'Copy address'}
                   detail={
                     FAUCETS
@@ -524,6 +540,24 @@ export function ConnectWallet() {
                   a passkey held and offered no way to move it, which makes
                   it somewhere funds arrive and do not leave.
                 */}
+                {/*
+                  The faucet, where emptiness is discovered.
+
+                  This was a link to the BNB testnet faucet page, which
+                  gates on the address having mainnet history — so for a
+                  passkey minted minutes ago it is a dead end that looks
+                  like a way out. The bot answers a message instead, and
+                  the message is written here with the address already in
+                  it.
+                */}
+                {/*
+                  Known to be empty, not merely unmeasured. Defaulting the
+                  balance to zero while the request is in flight would show
+                  a faucet to somebody who is already funded.
+                */}
+                {FAUCETS?.paymentTokenBot && balances.isSuccess && balances.data?.native !== undefined && balances.data.native < GAS_RESERVE && (
+                  <LowBalanceHelp address={passkey.wallet!.address} />
+                )}
                 {passkey.wallet && passkeySigner && (
                   <SendTokens
                     wallet={{ address: passkey.wallet.address }}
@@ -552,16 +586,7 @@ export function ConnectWallet() {
                 >
                   Forget on this device
                 </button>
-                {FAUCETS && (
-                  <a
-                    href={FAUCETS.native}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-[11px] text-[color:var(--text-faint)] underline-offset-2 hover:underline"
-                  >
-                    Faucet ↗
-                  </a>
-                )}
+
               </div>
             </>
           ) : !passkey.ready ? (
@@ -620,6 +645,7 @@ export function ConnectWallet() {
                 */}
                 <WalletRow
                   icon={<IdentityIcon />}
+                  accent="brand"
                   title={isConnected ? 'Your own wallet' : 'Use my own wallet'}
                   detail={
                     isPending
