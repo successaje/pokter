@@ -8,9 +8,10 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
+import { SendTokens } from '@/components/wallet/SendTokens';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -148,6 +149,7 @@ export function ConnectWallet() {
   });
 
   const passkey = usePasskeyWallet();
+  const passkeySigner = usePasskeySigner();
   const paymentToken = correctedErc8183Addresses(
     WALLET_NETWORK.chainId,
   ).paymentToken;
@@ -517,6 +519,20 @@ export function ConnectWallet() {
                     window.setTimeout(() => setCopied(false), 1500);
                   }}
                 />
+                {/*
+                  Sending, for the wallet that can. The panel reported what
+                  a passkey held and offered no way to move it, which makes
+                  it somewhere funds arrive and do not leave.
+                */}
+                {passkey.wallet && passkeySigner && (
+                  <SendTokens
+                    wallet={{ address: passkey.wallet.address }}
+                    signer={passkeySigner}
+                    nativeBalance={balances.data?.native ?? 0n}
+                    paymentBalance={paymentBalance?.ok ? paymentBalance.raw : 0n}
+                    onSent={() => void balances.refetch()}
+                  />
+                )}
                 <WalletRow
                   icon={<GasIcon />}
                   title="Transactions"
