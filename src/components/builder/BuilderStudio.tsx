@@ -17,8 +17,13 @@ import { avatarUrl } from '@/lib/ui/avatar-art';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
+import { useAccount } from 'wagmi';
+
 import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
+import { IdentityNetworkToggle } from '@/components/builder/IdentityNetworkToggle';
+import { LowBalanceHelp } from '@/components/builder/LowBalanceHelp';
+import { useChainFunding } from '@/lib/wallet/use-chain-funding';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 /** Per-browser, so the dismiss survives a reload. */
@@ -391,23 +396,45 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       return stored ? JSON.parse(stored) as RegistrationRecovery : null;
     } catch { return null; }
   });
+  const { wallet: passkeyWallet } = usePasskeyWallet();
+  const passkeySigner = usePasskeySigner();
+  /*
+   * Default to the chain the signer can actually sign for.
+   *
+   * The select opened on mainnet for everyone. A passkey cannot sign there,
+   * so a passkey holder was shown a network they could not use, asked to
+   * accept a mainnet gas disclosure for a transaction that would never be
+   * sent, and only then refused. Recovery still wins: a half-finished mint
+   * belongs to the chain it started on.
+   *
+   * Keyed on the passkey existing, not on which wallet will sign. Deciding
+   * that needs wagmi's connection state, which is not settled on the render
+   * this initialiser runs in, and biasing a holder of both toward the chain
+   * both can use is the harmless way to be wrong.
+   */
   const [registrationChainId, setRegistrationChainId] = useState<RegistryChainId>(
-    registrationRecovery?.chainId ?? 56,
+    registrationRecovery?.chainId ?? 97,
   );
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [registrationBusy, setRegistrationBusy] = useState(false);
   const [mainnetConsent, setMainnetConsent] = useState(false);
   const [publishedAgent, setPublishedAgent] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const { wallet: passkeyWallet } = usePasskeyWallet();
-  const passkeySigner = usePasskeySigner();
   /*
-   * A passkey can publish only where its client is configured, and only
-   * when no browser wallet is present to prefer. An injected wallet stays
-   * first because it is the one that can also publish on mainnet.
+   * Connected, not merely installed.
+   *
+   * This asked whether an injected provider existed, which it does on any
+   * machine with a wallet extension — so a passkey holder who had never
+   * connected that extension was still routed to it, and the path this
+   * exists to offer could not be reached. A connected browser wallet is
+   * still preferred, because it is the one that can also publish on
+   * mainnet; an unconnected one is not a wallet, it is an installation.
    */
+  const externalConnected = useAccount().isConnected;
+  const signingAddress = passkeyWallet?.address ?? connected ?? null;
+  const identityFunding = useChainFunding(signingAddress as `0x${string}` | null);
   const passkeyCanPublish = Boolean(
-    passkeyWallet && passkeySigner && !hasIdentityWallet(),
+    passkeyWallet && passkeySigner && !externalConnected,
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
@@ -1111,8 +1138,16 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         ) : (
           <div className="flex flex-col gap-4">
             <dl className="grid gap-3 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:grid-cols-2"><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Agent</dt><dd className="mt-1 text-[12px] font-semibold">{registrationPreview.name}</dd></div><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Outcome</dt><dd className="mt-1 text-[12px] font-semibold">{CATEGORIES.find((category) => category.id === draft.category)?.label}</dd></div><div><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Protocol</dt><dd className="mt-1 text-[12px] font-semibold">{registrationPreview.services[0].name}</dd></div><div className="min-w-0"><dt className="text-[9px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">Endpoint</dt><dd className="mono mt-1 truncate text-[12px]" title={registrationPreview.services[0].endpoint}>{registrationPreview.services[0].endpoint}</dd></div></dl>
-            <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={registrationChainId} disabled={registrationBusy || Boolean(registrationRecovery)} onChange={(event) => { setRegistrationChainId(Number(event.target.value) as RegistryChainId); setMainnetConsent(false); }} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)] disabled:opacity-60"><option value={56}>BNB Chain · public marketplace identity</option><option value={97}>BNB Testnet · rehearsal identity</option></select></label>
-            <div className={cn('rounded-[var(--radius)] border p-3 text-[12px] leading-5', registrationChainId === 56 ? 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]' : 'border-[color:var(--info)]/25 bg-[color:var(--info-dim)]')}><strong>{registrationChainId === 56 ? 'Mainnet identity transaction.' : 'Testnet rehearsal.'}</strong> {registrationChainId === 56 ? 'You will pay BNB gas. This only publishes an identity; Pokter hiring remains on BNB Testnet.' : 'Testnet identities validate the flow but are not promoted in the public marketplace.'}</div>
+            <IdentityNetworkToggle
+              value={registrationChainId}
+              disabled={registrationBusy || Boolean(registrationRecovery)}
+              funding={identityFunding}
+              onChange={(chainId) => { setRegistrationChainId(chainId); setMainnetConsent(false); }}
+            />
+            {identityFunding[registrationChainId].funded === false && signingAddress && registrationChainId === 97 && (
+              <LowBalanceHelp address={signingAddress} />
+            )}
+            <div className={cn('rounded-[var(--radius)] border p-3 text-[12px] leading-5', registrationChainId === 56 ? 'border-[color:var(--caution)]/30 bg-[color:var(--caution-dim)]' : 'border-[color:var(--info)]/25 bg-[color:var(--info-dim)]')}><strong>{registrationChainId === 56 ? 'Mainnet identity transaction.' : 'Testnet identity.'}</strong> {registrationChainId === 56 ? 'You will pay BNB gas. This only publishes an identity; Pokter hiring remains on BNB Testnet.' : 'Hiring settles here, so this is where an agent earns its own record. Gas is test currency.'}</div>
             {registrationChainId === 56 && <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><input type="checkbox" checked={mainnetConsent} onChange={(event) => setMainnetConsent(event.target.checked)} className="mt-0.5 size-4 accent-[color:var(--brand)]"/><span className="text-[12px] leading-5 text-[color:var(--text-secondary)]">I understand this creates a public ERC-8004 identity on BNB Chain and requires two wallet-approved transactions plus BNB gas.</span></label>}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-[var(--radius)] border border-[color:var(--border)] p-3"><span className="flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[12px] font-bold">1</span><p className="text-[11px] font-semibold">Mint the identity</p><span /><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">The registry assigns the ERC-8004 agent ID.</p><span className="mt-2 flex size-6 items-center justify-center rounded-full bg-[color:var(--brand-highlight-soft)] text-[12px] font-bold">2</span><p className="mt-2 text-[11px] font-semibold">Bind the completed profile</p><span /><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">The second transaction writes the exact profile with its assigned ID.</p></div>
             {/*

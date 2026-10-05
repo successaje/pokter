@@ -133,15 +133,28 @@ export function explorerAddressUrl(address: string): string {
 export const FAUCETS: {
   native: string;
   paymentToken: string;
-  paymentTokenBot: { url: string; handle: string; ask: string } | null;
+  paymentTokenBot: {
+    url: string;
+    handle: string;
+    /** Both carry ADDRESS, replaced with the wallet asking. */
+    ask: string;
+    nativeAsk: string;
+  } | null;
 } | null = IS_TESTNET
   ? {
       native: 'https://www.bnbchain.org/en/testnet-faucet',
       paymentToken: 'https://united-coin-u.github.io/u-faucet/',
+      /*
+       * Both asks, because a wallet short of gas and a wallet short of $U
+       * are different problems with the same remedy, and somebody told to
+       * "get funds" has to work out which one they are missing and how to
+       * phrase it. ADDRESS is substituted with the wallet actually in use.
+       */
       paymentTokenBot: {
         url: 'https://t.me/bnbchain_official_bot',
         handle: '@bnbchain_official_bot',
-        ask: 'I would like to get U to my wallet 0xYOUR_ADDRESS',
+        ask: 'I would like to get U to my wallet ADDRESS',
+        nativeAsk: 'I would like to get tBNB on BNB Smart Chain Testnet to my wallet ADDRESS',
       },
     }
   : null;
