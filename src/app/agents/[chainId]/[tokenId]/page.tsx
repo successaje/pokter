@@ -10,6 +10,8 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { AgentSpec } from '@/components/agent/AgentSpec';
 import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
 import { HireReadiness } from '@/components/hire/HireReadiness';
+import { HireButton, HireDrawer } from '@/components/hire/HireDrawer';
+import { providerChoicesFor } from '@/lib/erc8183/providers';
 import type { ChainId } from '@/lib/scan/types';
 import {
   publishedEvidenceLine,
@@ -220,6 +222,25 @@ export default async function AgentPage({
    */
   const registryExplorerBase = explorerBaseFor(agent.chain_id);
   const answeredNow = live.ratio !== null && live.ratio > 0;
+
+  /*
+   * The hire step is a drawer over this page rather than a page of its own.
+   *
+   * Committing money used to mean leaving the evidence behind to go and read
+   * a form, which is a strange thing for a marketplace whose whole argument
+   * is the record on this screen. The drawer keeps it a dismissal away.
+   */
+  const providers = await providerChoicesFor(
+    agent,
+    ALTANA_NETWORK.chainId,
+    dossier.quote,
+  );
+  const riskWarnings = [
+    ...(!proof.recommendedForHire ? [proof.rationale] : []),
+    ...(!answeredNow
+      ? ['The agent did not answer Pokter’s current live protocol probe.']
+      : []),
+  ];
   const availability =
     record.totalProbes === 0
       ? 'Not measured'
@@ -811,18 +832,17 @@ export default async function AgentPage({
             <HireReadiness priceU={priceU} />
 
             <div className="flex flex-col gap-2">
-              <Link
-                href={`/hire/${agent.chain_id}/${agent.token_id}`}
-                className={
-                  proof.recommendedForHire && answeredNow
-                    ? 'action-primary block w-full rounded-[var(--radius)] px-4 py-3 text-center text-[13px]'
-                    : 'block w-full rounded-[var(--radius)] border border-[color:var(--caution)]/45 bg-[color:var(--caution-dim)] px-4 py-3 text-center text-[13px] font-medium text-[color:var(--caution)] transition-colors hover:border-[color:var(--caution)]'
+              <HireButton
+                block
+                size="lg"
+                variant={
+                  proof.recommendedForHire && answeredNow ? 'primary' : 'caution'
                 }
               >
                 {proof.recommendedForHire && answeredNow
                   ? 'Hire agent'
                   : 'Review risks and hire'}
-              </Link>
+              </HireButton>
 
               <Link
                 href={`/compare?agents=${agent.chain_id}:${agent.token_id}`}
@@ -856,6 +876,19 @@ export default async function AgentPage({
         category={category}
         chainId={agent.chain_id}
         tokenId={agent.token_id}
+      />
+
+      <HireDrawer
+        agent={{
+          chainId: agent.chain_id,
+          tokenId: agent.token_id,
+          name: agent.name,
+          category,
+          wallet: agent.agent_wallet,
+        }}
+        providers={providers}
+        signedQuoteU={dossier.quote ? Number(dossier.quote.priceU) : null}
+        riskWarnings={riskWarnings}
       />
     </div>
   );

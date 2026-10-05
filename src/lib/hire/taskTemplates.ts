@@ -1,6 +1,14 @@
 export interface CommissionTaskTemplate {
   id: 'analyse' | 'recommend' | 'monitor';
   label: string;
+  /*
+   * What the segmented control shows on a narrow screen.
+   *
+   * The three full labels are the longest set anywhere in the app, and the
+   * control lays them out in equal columns without wrapping — so on a phone
+   * they printed on top of one another in the middle of the hire step.
+   */
+  short: string;
   description: string;
   task: string;
 }
@@ -44,18 +52,21 @@ export function commissionTaskTemplates(
     {
       id: 'analyse',
       label: 'Analyse my position',
+      short: 'Analyse',
       description: 'A read-only assessment with sources and assumptions.',
       task: `Analyse ${context.subject}. Report ${context.evidence}. State every assumption and data source. Do not execute transactions.`,
     },
     {
       id: 'recommend',
       label: 'Recommend an action',
+      short: 'Recommend',
       description: 'A decision-ready proposal without wallet execution.',
       task: `Review ${context.subject} and recommend a specific action. Include ${context.evidence}, plus ${context.risk}. Do not execute transactions.`,
     },
     {
       id: 'monitor',
       label: 'Produce a monitoring report',
+      short: 'Monitor',
       description: 'Thresholds, warning conditions and next checks.',
       task: `Produce a monitoring report for ${context.subject}. Include ${context.evidence}, the warning thresholds to watch, and ${context.risk}. Do not execute transactions.`,
     },

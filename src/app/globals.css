@@ -53,6 +53,8 @@
   --border: #34342c;
   --border-strong: #46463c;
   --border-focus: #f3ba2f;
+  /* The hire drawer floats above the page and needs to read as above it. */
+  --shadow-overlay: 0 24px 60px -24px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.4);
 
   /* Text ramp */
   --text: #fffefa;
@@ -154,6 +156,54 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-serif-stack);
+
+  /*
+   * Shorter names for the colours already above, and a named type scale.
+   *
+   * Not a second palette: every one of these points at the same variable
+   * the longer name does, so a component written against `border-line`
+   * and one written against `border-[color:var(--border)]` render
+   * identically and both follow the theme. They exist because the hire
+   * drawer and the primitives it brought were written against these
+   * names, and renaming four hundred class attributes to say the same
+   * thing would be a diff nobody could review.
+   */
+  --color-canvas: var(--bg);
+  --color-canvas-subtle: var(--bg-subtle);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-line-focus: var(--border-focus);
+  --color-ink: var(--text);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-faint: var(--text-faint);
+  --color-positive-dim: var(--positive-dim);
+  --color-caution-dim: var(--caution-dim);
+  --color-negative-dim: var(--negative-dim);
+  --color-info-dim: var(--info-dim);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-highlight: var(--brand-highlight);
+  --color-brand-highlight-soft: var(--brand-highlight-soft);
+  --color-brand-dim: var(--brand-highlight-soft);
+
+  /* One scale, in pixels, so a size means the same thing on every screen. */
+  --text-caption: 11px;
+  --text-caption--line-height: 1.4;
+  --text-small: 12px;
+  --text-small--line-height: 1.45;
+  --text-body-s: 13px;
+  --text-body-s--line-height: 1.5;
+  --text-body: 14px;
+  --text-body--line-height: 1.55;
+  --text-lead: 16px;
+  --text-lead--line-height: 1.5;
+  --text-title: 18px;
+  --text-title--line-height: 1.35;
+  --text-page: 22px;
+  --text-page--line-height: 1.25;
 }
 
 /*
@@ -180,6 +230,8 @@
    * a cool grey ground made the same layout read as a dashboard, which is
    * what this direction is moving away from.
    */
+  /* Softer than the dark theme's, because a light ground shows a shadow more. */
+  --shadow-overlay: 0 24px 60px -24px rgba(17, 17, 16, 0.28), 0 2px 8px rgba(17, 17, 16, 0.08);
   --light-bg: #f5f2e9;
   --light-bg-subtle: #efebe0;
   --light-surface: #fffefa;
@@ -1462,3 +1514,19 @@ h2 {
     overscroll-behavior-x: contain;
   }
 }
+
+/*
+ * The hire drawer's entrance: in from the right on a desktop, up from the
+ * bottom on a phone. Both respect the reduced-motion rule below, which
+ * already disables animation globally for anyone who asked for that.
+ */
+@keyframes drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.drawer-in { animation: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.sheet-in { animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
