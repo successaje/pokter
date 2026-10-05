@@ -264,7 +264,16 @@ function LifecycleStates({
         <div className="max-w-2xl">
           <p className="mono text-[9px] uppercase tracking-[0.15em] text-[color:var(--brand-strong)]">Agent readiness</p>
           <p className="mt-1 text-[12px] font-semibold">{progress} of {states.length} product checks complete</p>
-          <p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">Each state comes from an observed registry, endpoint or evidence check. This does not claim BNB campaign qualification.</p>
+          {/*
+            Says which way this list runs.
+
+            It reads 1 of 6 for every draft, because an identity, a signed
+            price and an independent measurement only exist once the agent
+            is published and probed. Shown beside a disabled publish button
+            it looked like the thing blocking publication, which made the
+            flow appear to be a loop with no way out.
+          */}
+          <p className="mt-1 text-[12px] leading-5 text-[color:var(--text-muted)]">Most of these complete after publishing: Pokter observes them once the agent is registered and reachable. They are not conditions for publishing. Each state comes from an observed registry, endpoint or evidence check, and none of it claims BNB campaign qualification.</p>
         </div>
         <div className="flex items-center gap-2">
           {lifecycle?.enrolled && <span className="w-fit rounded-full border border-[color:var(--info)]/25 bg-[color:var(--info-dim)] px-2 py-1 text-[12px] font-medium text-[color:var(--info)]">Measurement roster</span>}
@@ -428,6 +437,9 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
     { label: 'Public agent image', done: /^https:\/\//i.test(draft.image.trim()) && draft.image.trim().length <= 2_048 },
   ];
   const draftScore = draftChecks.filter((check) => check.done).length;
+  const missingDraftChecks = draftChecks
+    .filter((check) => !check.done)
+    .map((check) => check.label);
   const avatarSeeds = useMemo(() => {
     const base = `${draft.category || 'agent'}-${draft.name || 'pokter'}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     return Array.from({ length: 6 }, (_, index) => `${base}-${index + 1}`);
@@ -994,7 +1006,19 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <ul className="mt-5 flex flex-col gap-3">{draftChecks.map((check) => <li key={check.label} className="flex items-center gap-3 text-[12px]"><span className={cn('flex size-5 items-center justify-center rounded-full border text-[12px]', check.done ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{check.done ? '✓' : '·'}</span>{check.label}</li>)}</ul>
             <button type="button" disabled={!draft.name.trim() || !draft.description.trim() || !draft.category} onClick={() => setPreviewOpen(true)} className="mt-6 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[11px] font-semibold transition-colors hover:border-[color:var(--brand)] disabled:cursor-not-allowed disabled:opacity-40">Preview buyer view</button>
             {!reviewing ? <button type="button" disabled={draftScore < 5} onClick={() => setReviewing(true)} className="action-primary mt-2 w-full rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">Review registration</button> : <button type="button" onClick={() => setPublishModalOpen(true)} className="action-primary mt-2 flex w-full items-center justify-center rounded-[var(--radius)] px-4 py-3 text-[12px] font-semibold">Review network & publish</button>}
-            <p className="mt-3 text-[12px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : 'Complete every readiness check before publishing.'}</p>
+            {/*
+              Name what is missing, and name it from the list that is actually
+              the gate.
+
+              This said "complete every readiness check", which is the panel
+              beside it — the one that reads 1 of 6 and includes an identity,
+              a signed price and an independent measurement. Those are
+              consequences of publishing, not conditions for it, so somebody
+              who read the sentence and looked where it pointed concluded they
+              were permanently stuck. The gate is the draft list on this card,
+              and until now it never said which of the five was unmet.
+            */}
+            <p className="mt-3 text-[12px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : missingDraftChecks.length > 0 ? `Still needed before publishing: ${missingDraftChecks.join(', ').toLowerCase()}.` : 'Every draft check is met.'}</p>
           </aside>
         </section>
       )}
