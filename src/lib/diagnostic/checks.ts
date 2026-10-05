@@ -6,6 +6,10 @@ import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { requestQuote } from '@/lib/erc8183/quote';
 import { classify, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
 
 /**
  * One thing Pokter tried to observe, and what happened.
@@ -153,6 +157,11 @@ export async function diagnose(
         'Signed price quote',
         'Not attempted: a quote is negotiated over the endpoint.',
       ),
+      unknown(
+        'quote-settles',
+        'Quote can be paid',
+        'Not attempted: there is no quote to check against the escrow.',
+      ),
     );
   } else {
     const reading = await probeAgent(agent, { samples: 2 });
@@ -209,6 +218,63 @@ export async function diagnose(
             'Publish the `negotiate` skill and return `negotiation_hash` and `provider_sig` with a price and currency. Pokter discards any price whose signature does not recover to your registered wallet, and lists you with no price at all.',
           ),
     );
+    /*
+     * A quote that verifies and still cannot govern a job.
+     *
+     * The check above ends at "the agent signed a price", which is where
+     * the marketplace used to stop looking — and ten of the thirteen
+     * agents that have ever quoted price their work in the mainnet token
+     * while escrow settles on testnet, so the money can never move. One
+     * more signs for chain 56 against the mainnet commerce contract. Each
+     * reads as a healthy listing and cannot be bought, and the builder has
+     * no way to discover that from their own agent.
+     */
+    const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+    const escrow = ALTANA_NETWORK.chainId;
+    if (!quote) {
+      checks.push(
+        unknown(
+          'quote-settles',
+          'Quote can be paid',
+          'Not attempted: no quote was returned to check.',
+        ),
+      );
+    } else if (!quotePayableWith(quote.currency, paymentToken)) {
+      checks.push(
+        bad(
+          'quote-settles',
+          'Quote can be paid',
+          `Priced in ${quote.currency}, which is not the token escrow settles in on chain ${escrow}.`,
+          `Quote in the payment token of chain ${escrow}. A price in another chain's currency is signed honestly and still cannot be paid from this escrow, so the job would never be funded against you.`,
+        ),
+      );
+    } else {
+      const usable = quoteUsableForEscrow(
+        {
+          expiresAt: quote.expiresAt ? Date.parse(quote.expiresAt) / 1000 : undefined,
+          domain: quote.domain
+            ? { chainId: quote.domain.chainId, verifyingContract: quote.domain.verifyingContract as `0x${string}` }
+            : undefined,
+        },
+        escrow,
+      );
+      checks.push(
+        usable.usable
+          ? ok(
+              'quote-settles',
+              'Quote can be paid',
+              quote.domain
+                ? `Priced in the escrow token and signed for chain ${quote.domain.chainId}, which is where the job is funded.`
+                : 'Priced in the escrow token, and the quote is not bound to another chain.',
+            )
+          : bad(
+              'quote-settles',
+              'Quote can be paid',
+              usable.reason,
+              `Bind the quote's signing domain to chain ${escrow}. Pokter funds jobs there, so a quote signed for anywhere else describes a job it cannot create.`,
+            ),
+      );
+    }
   }
 
   const category = classify(agent);
