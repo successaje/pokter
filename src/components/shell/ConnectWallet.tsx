@@ -503,11 +503,11 @@ export function ConnectWallet() {
                 />
                 <WalletRow
                   icon={<EscrowIcon />}
-                  title={copied ? 'Address copied' : 'Add funds'}
+                  title={copied ? 'Address copied' : 'Copy address'}
                   detail={
                     FAUCETS
-                      ? 'Copy the address, then claim test tokens'
-                      : 'Copy this address to top up escrow'
+                      ? 'Paste it where you claim test tokens'
+                      : 'Paste it wherever you top this wallet up'
                   }
                   onClick={async () => {
                     await navigator.clipboard.writeText(
