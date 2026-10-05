@@ -22,6 +22,22 @@ export type AgentBuildPromptInput = {
  * that writes it.
  */
 const ESCROW_CHAIN_ID = 97;
+
+/**
+ * A live agent that negotiates and delivers, offered as the reference.
+ *
+ * Linked rather than transcribed. A schema copied into this file is a
+ * schema that goes stale silently, and the failure it produces — a quote
+ * Pokter cannot verify — looks like a bug in the new agent rather than a
+ * bug in the instructions it was built from. The card is public and Pokter
+ * already reads it every two hours.
+ *
+ * It is one example, not a dependency: the prompt tells the model what to
+ * do when it does not load, because this is somebody else's endpoint on a
+ * host that sleeps and it may one day not be there.
+ */
+const REFERENCE_AGENT_CARD =
+  'https://weigh-ladder-agent.onrender.com/.well-known/agent-card.json';
 const ESCROW_CHAIN_NAME = 'BNB Smart Chain Testnet';
 
 export function createAgentBuildPrompt(input: AgentBuildPromptInput) {
@@ -63,6 +79,10 @@ Pokter lists an agent on six checks: ERC-8004 identity, a published endpoint, an
 - \`notify_funded\` receives the funded job id, verifies the job on chain carries the agent's own signed quote, answers immediately with accepted or rejected, and does the work afterwards. Do not block the reply on the work.
 - Delivery is an on-chain submit against the ERC-8183 job carrying the deliverable's hash, so a buyer can check the file is the one committed to. Returning JSON over HTTP is not delivery and will not release escrow.
 - A quote is short-lived. State its expiry and honour it.
+
+READ A WORKING AGENT BEFORE YOU WRITE ONE
+Fetch ${REFERENCE_AGENT_CARD} and read its two skill descriptions. It is a live agent on Pokter that negotiates and delivers end to end, and its card states the exact message shape each skill expects and returns. Copy the contract, not the strategy — the agent you build should do a different job.
+I would rather you read that card than take a schema from me: a wire format described in prose is the kind of thing a model reproduces confidently and slightly wrong, and slightly wrong here means a quote Pokter cannot verify or a job the seller never accepts. If the card does not load, say so and ask me for a current one rather than inventing the shape — any agent listed on pokter.xyz/agents showing a signed price has a working card behind it.
 
 BUILD REQUIREMENTS
 1. After discovery and my explicit concept choice, ask only essential remaining questions and propose a short implementation plan before writing code.

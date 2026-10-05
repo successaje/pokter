@@ -108,3 +108,23 @@ test('the listing block offers only categories Pokter actually has', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
   assert.match(prompt, /rebalancing, grid-trading, yield, health-factor/);
 });
+
+/*
+ * The one part of the contract the prompt deliberately does not describe.
+ * A wire format written out in prose is reproduced confidently and slightly
+ * wrong, and slightly wrong here means a quote Pokter cannot verify — so
+ * the prompt sends the model to read a card that works instead.
+ */
+test('it sends the model to read a live agent card for the message shapes', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /\.well-known\/agent-card\.json/);
+  assert.match(prompt, /negotiates and delivers end to end/);
+  assert.match(prompt, /Copy the contract, not the strategy/);
+});
+
+test('it says what to do when the reference card does not load', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /If the card does not load/);
+  assert.match(prompt, /rather than inventing the shape/);
+  assert.match(prompt, /showing a signed price/);
+});
