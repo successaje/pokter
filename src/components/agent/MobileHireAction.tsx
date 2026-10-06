@@ -30,10 +30,11 @@ export function MobileHireAction({
   price: string;
   /*
    * What that figure is. A price the agent signed and a budget the buyer
-   * sets are different quantities, and calling both "Hire price" told
-   * somebody an agent charges 0.10 $U when it had never named a price at
-   * all. The rail beside this on desktop already made the distinction; this
-   * card is the only thing a phone sees, so it has to make it too.
+   * sets are different quantities, and "Hire price" over the house default
+   * told somebody an agent charges 0.10 $U when it had never named a price
+   * at all. The desktop rail already drew this distinction and computed the
+   * caption; the phone card is the only thing a small screen sees, so it
+   * has to make it too.
    */
   priceCaption: string;
   answeredNow: boolean;
