@@ -13,6 +13,8 @@ import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/bri
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
+import { Field, Input, Select, Textarea, describedBy } from '@/components/ui/Field';
+import { Segmented } from '@/components/ui/Segmented';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
@@ -1092,18 +1094,100 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
             <div className={cn('mt-7 rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:p-5', newStep !== 0 && 'hidden')}>
               <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><h3 className="text-[13px] font-semibold">Turn your idea into a clear agent brief</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">Answer five concrete questions. Pokter will prepare editable marketplace copy and recommend A2A or MCP. Nothing is published, and this does not build or host the agent runtime.</p></div></div>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <label className="min-w-0 flex flex-col gap-2"><span className="text-[11px] font-medium">What financial outcome does it support?</span><select value={brief.outcome} onChange={(event) => updateBrief('outcome', event.target.value)} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
-                <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Who is it for?</span><input value={brief.audience} maxLength={100} onChange={(event) => updateBrief('audience', event.target.value)} placeholder="BNB Chain treasury teams" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-                <label className="flex flex-col gap-2 sm:col-span-2"><span className="text-[11px] font-medium">What single task does it complete?</span><input value={brief.task} maxLength={180} onChange={(event) => updateBrief('task', event.target.value)} placeholder="Compare supported stablecoin positions and produce a risk-adjusted allocation plan" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-                <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">What evidence is returned?</span><input value={brief.evidence} maxLength={160} onChange={(event) => updateBrief('evidence', event.target.value)} placeholder="sources, assumptions and data timestamps" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-                <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">What will it not do?</span><input value={brief.limits} maxLength={160} onChange={(event) => updateBrief('limits', event.target.value)} placeholder="move funds or guarantee returns" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-                <fieldset className="sm:col-span-2"><legend className="text-[11px] font-medium">How will other products use it?</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{([{ value: 'task', title: 'Complete a task', detail: 'A buyer sends a job and receives a result · A2A' }, { value: 'tool', title: 'Expose callable tools', detail: 'A client discovers and invokes specific functions · MCP' }] as const).map((option) => <label key={option.value} className={cn('cursor-pointer rounded-[var(--radius)] border p-3 transition-colors', brief.interaction === option.value ? 'border-[color:var(--brand)] bg-[color:var(--surface)]' : 'border-[color:var(--border)]')}><input type="radio" name="brief-interaction" value={option.value} checked={brief.interaction === option.value} onChange={() => updateBrief('interaction', option.value)} className="sr-only"/><span className="block text-[11px] font-semibold">{option.title}</span><span className="mt-1 block text-[12px] leading-4 text-[color:var(--text-muted)]">{option.detail}</span></label>)}</div></fieldset>
+                <Field id="brief-outcome" label="What financial outcome does it support?" className="min-w-0">
+                  <Select
+                    id="brief-outcome"
+                    value={brief.outcome}
+                    onChange={(event) => updateBrief('outcome', event.target.value)}
+                    className="bg-surface"
+                  >
+                    <option value="">Choose an outcome</option>
+                    {CATEGORIES.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field id="brief-audience" label="Who is it for?">
+                  <Input
+                    id="brief-audience"
+                    value={brief.audience}
+                    maxLength={100}
+                    onChange={(event) => updateBrief('audience', event.target.value)}
+                    placeholder="BNB Chain treasury teams"
+                    className="bg-surface"
+                  />
+                </Field>
+                <Field id="brief-task" label="What single task does it complete?" className="sm:col-span-2">
+                  <Input
+                    id="brief-task"
+                    value={brief.task}
+                    maxLength={180}
+                    onChange={(event) => updateBrief('task', event.target.value)}
+                    placeholder="Compare supported stablecoin positions and produce a risk-adjusted allocation plan"
+                    className="bg-surface"
+                  />
+                </Field>
+                <Field id="brief-evidence" label="What evidence is returned?">
+                  <Input
+                    id="brief-evidence"
+                    value={brief.evidence}
+                    maxLength={160}
+                    onChange={(event) => updateBrief('evidence', event.target.value)}
+                    placeholder="sources, assumptions and data timestamps"
+                    className="bg-surface"
+                  />
+                </Field>
+                <Field id="brief-limits" label="What will it not do?">
+                  <Input
+                    id="brief-limits"
+                    value={brief.limits}
+                    maxLength={160}
+                    onChange={(event) => updateBrief('limits', event.target.value)}
+                    placeholder="move funds or guarantee returns"
+                    className="bg-surface"
+                  />
+                </Field>
+                {/*
+                  Two choices, so a segmented control rather than two cards
+                  of radio prose. The detail each card carried — who sends
+                  what to whom — is the protocol's own definition and reads
+                  better once, under the control, than twice beside it.
+                */}
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-small font-medium">How will other products use it?</span>
+                  <Segmented
+                    label="How other products use it"
+                    value={brief.interaction}
+                    onChange={(value) => updateBrief('interaction', value)}
+                    options={[
+                      { value: 'task', label: 'Complete a task (A2A)', short: 'A2A' },
+                      { value: 'tool', label: 'Expose tools (MCP)', short: 'MCP' },
+                    ]}
+                    className="w-full sm:w-auto"
+                  />
+                  <p className="text-small text-ink-muted">
+                    {brief.interaction === 'task'
+                      ? 'A buyer sends a job and receives a result.'
+                      : 'A client discovers and invokes specific functions.'}
+                  </p>
+                </div>
               </div>
               <div className="mt-5 flex flex-col gap-3 border-t border-[color:var(--brand)]/20 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">Your endpoint and image are never invented or replaced.</p><button type="button" onClick={applyLaunchBrief} disabled={!brief.outcome || !brief.audience.trim() || !brief.task.trim() || !brief.evidence.trim() || !brief.limits.trim()} className="action-primary min-h-10 rounded-[var(--radius)] px-4 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{briefApplied ? 'Brief applied ✓' : 'Prepare editable draft'}</button></div>
             </div>
             <div className={cn('mx-auto mt-6 grid max-w-5xl gap-4 sm:grid-cols-2', (newStep === 0 || newStep === 3) && 'hidden')}>
-              <label className={cn('flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Agent name</span><input value={draft.name} maxLength={80} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className={cn('min-w-0 flex flex-col gap-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">Primary financial outcome</span><select value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} className="h-11 min-w-0 w-full rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="">Choose an outcome</option>{CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select><span className="text-[12px] leading-4 text-[color:var(--text-muted)]">Use the outcome buyers will browse—not the implementation technique.</span></label>
+              <Field id="draft-name" label="Agent name" className={cn(newStep !== 1 && 'hidden')}>
+                <Input id="draft-name" value={draft.name} maxLength={80} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Treasury Sentinel" className="bg-canvas" />
+              </Field>
+              <Field id="draft-category" label="Primary financial outcome" hint="Use the outcome buyers will browse — not the implementation technique." className={cn('min-w-0', newStep !== 1 && 'hidden')}>
+                <Select id="draft-category" value={draft.category} onChange={(event) => updateDraft('category', event.target.value)} aria-describedby={describedBy('draft-category')} className="bg-canvas">
+                  <option value="">Choose an outcome</option>
+                  {CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </Select>
+              </Field>
               {/*
                 Asked here because the campaign asks for it, and because
                 somebody deciding whether to trust an agent that moves
@@ -1115,8 +1199,42 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 one nobody can check. It is never called -- the prober reads
                 the a2a and mcp entries by name and ignores the rest.
               */}
-              <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[12px] font-medium">Public repository <span className="font-normal text-[color:var(--text-muted)]">· the campaign requires one</span></span><input value={draft.repository} maxLength={200} onChange={(event) => updateDraft('repository', event.target.value)} placeholder="https://github.com/you/your-agent" inputMode="url" className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /><span className={cn('text-[12px] leading-4', repositoryProblem ? 'text-[color:var(--caution)]' : 'text-[color:var(--text-muted)]')}>{repositoryProblem ?? 'Published with the agent so anyone can check it. Pokter never calls this URL.'}</span></label>
-              <label className={cn('flex flex-col gap-2 sm:col-span-2', newStep !== 1 && 'hidden')}><span className="text-[11px] font-medium">What does it deliver?</span><textarea value={draft.description} maxLength={600} onChange={(event) => updateDraft('description', event.target.value)} rows={3} placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans." className="resize-none rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] p-3 text-sm leading-6 outline-none focus:border-[color:var(--border-focus)]"/><span className="text-right text-[12px] text-[color:var(--text-muted)]">{draft.description.trim().length}/600 · 40 minimum</span></label>
+              <Field
+                id="draft-repository"
+                label="Public repository"
+                hint={repositoryProblem ?? 'Published with the agent so anyone can check it. Pokter never calls this URL.'}
+                error={repositoryProblem ?? undefined}
+                className={cn('sm:col-span-2', newStep !== 1 && 'hidden')}
+              >
+                <Input
+                  id="draft-repository"
+                  value={draft.repository}
+                  maxLength={200}
+                  onChange={(event) => updateDraft('repository', event.target.value)}
+                  placeholder="https://github.com/you/your-agent"
+                  inputMode="url"
+                  aria-invalid={Boolean(repositoryProblem) || undefined}
+                  aria-describedby={describedBy('draft-repository', { error: Boolean(repositoryProblem) })}
+                  className="mono bg-canvas"
+                />
+              </Field>
+              <Field
+                id="draft-description"
+                label="What does it deliver?"
+                hint={`${draft.description.trim().length}/600 · 40 minimum`}
+                className={cn('sm:col-span-2', newStep !== 1 && 'hidden')}
+              >
+                <Textarea
+                  id="draft-description"
+                  value={draft.description}
+                  maxLength={600}
+                  rows={3}
+                  onChange={(event) => updateDraft('description', event.target.value)}
+                  placeholder="Explain the buyer’s outcome, the inputs required and the limits. Avoid slogans."
+                  aria-describedby={describedBy('draft-description')}
+                  className="bg-canvas"
+                />
+              </Field>
               {newStep === 1 && runtimeOptions && <div className="rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-4 sm:col-span-2"><div><h3 className="text-[11px] font-semibold">Configure its first job</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Starting points for this outcome—change any that do not match what you are building. Your runtime must enforce whatever you choose.</p></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Scope</span><select value={runtime.target} onChange={(event) => chooseRuntime('target', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose scope</option>{runtimeOptions.target.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Operating policy</span><select value={runtime.policy} onChange={(event) => chooseRuntime('policy', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose policy</option>{runtimeOptions.policy.map((option) => <option key={option}>{option}</option>)}</select></label><label className="flex flex-col gap-2"><span className="text-[12px] font-medium">Primary deliverable</span><select value={runtime.output} onChange={(event) => chooseRuntime('output', event.target.value)} className="h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[12px]"><option value="">Choose output</option>{runtimeOptions.output.map((option) => <option key={option}>{option}</option>)}</select></label></div></div>}
               {(newStep === 1 || newStep === 2) && <section className={cn('rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4', newStep === 2 && 'sm:col-span-2')} aria-labelledby={`ai-build-title-${newStep}`}>
                 <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><p className="mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">Optional shortcut</p><h3 id={`ai-build-title-${newStep}`} className="mt-1 text-[12px] font-semibold">Build the runtime with AI</h3><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-secondary)]">Get a tailored engineering prompt for any coding assistant.</p></div></div>
