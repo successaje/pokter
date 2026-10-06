@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import type { FindRow } from '@/lib/find/rows';
@@ -18,6 +18,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { DefinitionList } from '@/components/ui/Definition';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
 import { Strip } from './Strip';
+import { AgentSpotlight } from './AgentSpotlight';
 
 type Segment = 'hirable' | 'answering' | 'all';
 type Sort = 'recommended' | 'answering' | 'price' | 'evidence' | 'completed';
@@ -84,6 +85,8 @@ export function FindWorkbench({ rows, unreachable }: { rows: FindRow[]; unreacha
   const [selectedKey, setSelectedKey] = useState<string | null>(params.get('a'));
   const [compare, setCompare] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  /* "Or search all N agents" puts the cursor where the next action is. */
+  const searchRef = useRef<HTMLInputElement>(null);
 
   /*
    * The URL follows the controls, so a view can be shared and the back
@@ -124,6 +127,15 @@ export function FindWorkbench({ rows, unreachable }: { rows: FindRow[]; unreacha
     return sortRows(filtered, sort);
   }, [rows, segment, category, deferredQuery, sort]);
 
+  /*
+   * Untouched means nothing has been asked yet: no words typed, no
+   * category, the default segment, and no agent chosen from a shared link.
+   * Sort is deliberately not part of it — changing the order of a list you
+   * have not filtered is still browsing.
+   */
+  const untouched =
+    !deferredQuery.trim() && category === 'all' && segment === 'hirable' && !selectedKey;
+
   const selected = visible.find((row) => row.key === selectedKey) ?? visible[0] ?? null;
   const compared = compare.map((key) => rows.find((row) => row.key === key)).filter((row): row is FindRow => Boolean(row));
 
@@ -133,6 +145,22 @@ export function FindWorkbench({ rows, unreachable }: { rows: FindRow[]; unreacha
 
   return (
     <div className="flex flex-col gap-5">
+      {/*
+        Discover before the workbench.
+
+        On arrival this page is a cold table, so the agents come first: one
+        pick and a few rails of them. The moment anybody searches, picks a
+        category or arrives on a shared link, it is gone and the list is the
+        whole page — by then the reader has said what they want and a
+        showcase would only sit between them and it.
+      */}
+      {untouched && (
+        <AgentSpotlight
+          rows={rows}
+          onBrowse={() => searchRef.current?.focus({ preventScroll: false })}
+        />
+      )}
+
       {/* ── Controls ──────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -160,6 +188,7 @@ export function FindWorkbench({ rows, unreachable }: { rows: FindRow[]; unreacha
             <path d="m20 20-4.5-4.5" strokeLinecap="round" />
           </svg>
           <Input
+            ref={searchRef}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
