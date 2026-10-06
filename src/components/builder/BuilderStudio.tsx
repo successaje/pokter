@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getAddress } from 'viem';
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 
@@ -47,35 +47,7 @@ import { useChainFunding } from '@/lib/wallet/use-chain-funding';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 /** Per-browser, so the dismiss survives a reload. */
-const CAMPAIGN_NOTICE_KEY = 'pokter:builder:campaign-notice';
-const CAMPAIGN_NOTICE_EVENT = 'pokter:builder:campaign-notice-changed';
 
-function campaignNoticeDismissed() {
-  try {
-    return window.localStorage.getItem(CAMPAIGN_NOTICE_KEY) === 'dismissed';
-  } catch {
-    /* Private mode or blocked storage: the notice simply stays. */
-    return false;
-  }
-}
-
-function subscribeToCampaignNotice(listener: () => void) {
-  window.addEventListener('storage', listener);
-  window.addEventListener(CAMPAIGN_NOTICE_EVENT, listener);
-  return () => {
-    window.removeEventListener('storage', listener);
-    window.removeEventListener(CAMPAIGN_NOTICE_EVENT, listener);
-  };
-}
-
-function dismissCampaignNotice() {
-  try {
-    window.localStorage.setItem(CAMPAIGN_NOTICE_KEY, 'dismissed');
-  } catch {
-    /* Nothing to persist to; the notice stays, as it always did. */
-  }
-  window.dispatchEvent(new Event(CAMPAIGN_NOTICE_EVENT));
-}
 import {
   registerIdentityFromWallet,
   type RegistrationProgress,
@@ -342,7 +314,13 @@ function ConnectionGuide() {
   );
 }
 
-export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId: '56' | '97'; tokenId: string } }) {
+export function BuilderStudio({
+  initialIdentity,
+  campaignLive = false,
+}: {
+  initialIdentity?: { chainId: '56' | '97'; tokenId: string };
+  campaignLive?: boolean;
+}) {
   /*
    * Arrivals land on the chooser, with their drafts listed above it.
    *
@@ -364,20 +342,6 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
    */
   const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'existing');
   const [newStep, setNewStep] = useState(0);
-  /*
-   * The dismiss button only ever set state, so the notice came back on every
-   * reload and the × was decorative. It now remembers, per browser.
-   *
-   * Read through useSyncExternalStore, the way this codebase already reads
-   * the campaign registration flag: the server snapshot is "not dismissed",
-   * so the markup hydrates open and corrects itself without a setState in an
-   * effect, and a dismissal in one tab closes it in the others.
-   */
-  const campaignNoticeOpen = !useSyncExternalStore(
-    subscribeToCampaignNotice,
-    campaignNoticeDismissed,
-    () => false,
-  );
   const [tokenId, setTokenId] = useState(initialIdentity?.tokenId ?? '');
   const [chainId, setChainId] = useState(initialIdentity?.chainId ?? '56');
   const [report, setReport] = useState<BuilderReport | null>(null);
@@ -972,19 +936,59 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16 pt-6 sm:gap-10 sm:pt-10">
-      <header className="grid items-end gap-6 border-b border-[color:var(--border)] pb-7 lg:grid-cols-[1fr_auto]">
-        <div className="max-w-2xl">
-          <p className="mono mb-3 text-[10px] uppercase tracking-[0.18em] text-[color:var(--brand-strong)]">Agent launchpad</p>
-          <h1 className="font-[family-name:var(--font-serif)] text-4xl leading-[1.02] tracking-tight sm:text-5xl">Launch a quality agent on BNB Chain.</h1>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--text-secondary)]">Start from where you are, verify what buyers will see, and build a measurable track record. Registration never counts as proof that an agent works.</p>
-        </div>
-        <div className="flex items-center gap-3 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-[11px] text-[color:var(--text-muted)]">
-          <span className="size-2 rounded-full bg-[color:var(--positive)]" />
-          {mode === 'new' ? 'You approve every registry write' : 'Registry checks are read-only'}
-        </div>
+      {/*
+        A title and a line, not a billboard.
+
+        This opened with an eyebrow, a 48px serif headline, a two-line
+        paragraph and a status pill — a quarter of the first screen spent
+        introducing a page that only people who already mean to list an
+        agent ever reach. They know why they are here; what they need is
+        the form.
+      */}
+      <header className="flex flex-col gap-1.5 border-b border-[color:var(--border)] pb-6">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">List an agent</h1>
+        <p className="max-w-2xl text-body-s leading-relaxed text-ink-muted">
+          Register it, pass the checks, and Pokter calls it every two hours
+          from then on. Listing is never proof that it works; the record is.
+        </p>
       </header>
 
-      {campaignNoticeOpen && <aside className="relative rounded-[var(--radius)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] px-4 py-3 pr-12" aria-label="Set and Earn notification"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">🔥 Building for Set and Earn?</p><p className="mt-0.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">Register first, then list a reachable agent and build independently verifiable usage.</p></div><Link href="/set-and-earn" className="shrink-0 text-[12px] font-semibold text-[color:var(--brand-strong)] hover:underline">View requirements →</Link></div><button type="button" onClick={dismissCampaignNotice} aria-label="Dismiss Set and Earn notification" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]">×</button></aside>}
+      {/*
+        Collapsed, and honest about what it cannot do for you.
+
+        This was an open box selling the campaign, and unconditional, so
+        it would have gone on advertising one that had closed. The thing a
+        builder most needs from it is the part that costs nothing to learn
+        now and everything to learn late: a Pokter hire produces a written
+        assessment, which is not one of the on-chain actions the campaign
+        counts.
+      */}
+      {campaignLive && (
+        <details className="group rounded-[var(--radius-lg)] border border-caution/40 bg-caution-dim">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-body-s font-medium text-caution [&::-webkit-details-marker]:hidden">
+            Set and Earn counts on-chain actions, and a Pokter hire is a report.
+            <span aria-hidden className="text-caution transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <div className="flex flex-col gap-2 border-t border-caution/30 px-4 py-3 text-body-s leading-relaxed text-ink-secondary">
+            <p>
+              A qualifying agent must perform at least five on-chain actions
+              over three separate days, consistent with its category. Every
+              task a buyer funds here asks for a read-only assessment, so
+              hires through Pokter will not produce those actions for you.
+            </p>
+            <p>
+              Listing here still gives you the discoverable card, the live
+              checks and the hires by other wallets the rules also ask for.
+              For the five actions your agent must act on chain from its own
+              wallet as well, read from the chain and your public repository
+              rather than from Pokter.{' '}
+              <Link href="/set-and-earn" className="font-medium text-ink prose-link">
+                What Pokter can verify
+              </Link>
+            </p>
+          </div>
+        </details>
+      )}
 
       {/*
         Always on screen, so the path is a control rather than a page you
@@ -992,11 +996,19 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         where the explanation of each path now lives.
       */}
       {mode !== 'choose' && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-2">
           <Segmented
             label="What you are starting from"
             value={mode}
             onChange={(value) => {
+              /*
+                Re-read on the way through. The list is held in this
+                component's state, so a draft started or discarded in
+                another tab is invisible until something reloads it —
+                and changing path is the moment somebody expects to see
+                what they have.
+              */
+              refreshDrafts();
               if (value === 'new') setNewStep(0);
               setMode(value);
             }}
@@ -1005,7 +1017,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               { value: 'new' as const, label: 'New agent', short: 'New' },
               { value: 'templates' as const, label: 'Start from a template', short: 'Template' },
             ]}
-            className="w-full sm:w-fit"
+            className="w-full"
           />
           <button
             type="button"
@@ -1096,11 +1108,12 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
         </section>
       )}
 
-      {mode !== 'choose' && (
-        <button type="button" onClick={() => { refreshDrafts(); setMode('choose'); setError(null); }} className="flex w-fit items-center gap-2 text-[12px] text-[color:var(--text-muted)] hover:text-[color:var(--text)]">
-          <span aria-hidden>←</span> Change path
-        </button>
-      )}
+      {/*
+        "Change path" used to live here, because the path was a page you
+        had left. It is a switch at the top of the screen now, always
+        visible, so a second control for the same move is one more thing
+        to read and one more place for the two to disagree.
+      */}
 
       {mode === 'existing' && (
         /*
@@ -1129,7 +1142,13 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                   className="mono bg-canvas"
                 />
               </Field>
-              <div className="flex flex-col gap-1.5">
+              {/*
+                A definite width, because Segmented's container query needs
+                one. `container-type: inline-size` suppresses an element's
+                intrinsic width, so as an auto-width flex item this
+                collapsed to 79px and its two labels spilled out of it.
+              */}
+              <div className="flex flex-col gap-1.5 sm:w-60">
                 <span className="text-small font-medium">Registered on</span>
                 <Segmented
                   label="Identity network"
@@ -1139,7 +1158,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                     { value: '56' as const, label: 'BNB Chain', short: 'Mainnet' },
                     { value: '97' as const, label: 'BNB Testnet', short: 'Testnet' },
                   ]}
-                  className="w-full sm:w-fit"
+                  className="w-full"
                 />
               </div>
               <Button type="submit" variant="primary" disabled={!tokenId} loading={busy} className="sm:mb-px">
