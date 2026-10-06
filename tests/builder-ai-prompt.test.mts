@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createAgentBuildPrompt } from '../src/lib/builder/ai-prompt';
+import { FAUCETS } from '../src/lib/network/presentation';
 
 test('creates a category-aware A2A build prompt with safety constraints', () => {
   const prompt = createAgentBuildPrompt({
@@ -156,4 +157,39 @@ test('it defers the verdict to Pokter’s own checks, all seven', () => {
   assert.match(prompt, /seven checks of its own/);
   assert.match(prompt, /the quote can actually be paid from the escrow/);
   assert.match(prompt, /do not describe it to me as working on the strength of your own tests alone/);
+});
+
+/*
+ * The build prompt has to tell somebody how to fund the wallet, because
+ * registering the identity and submitting a delivery are both transactions
+ * and an empty wallet fails at the step the assistant has just called done.
+ *
+ * Pinned against the faucet constants rather than against literal strings:
+ * the point is that the prompt hands over the exact wording the bot expects,
+ * and that it is the same wording the wallet panel shows. A copy that drifts
+ * is worse than no instructions, because it fails quietly.
+ */
+test('the build prompt says how to get gas and the payment token', () => {
+  const prompt = createAgentBuildPrompt({
+    name: '', description: '', category: '', protocol: 'a2a',
+  });
+
+  if (!FAUCETS) {
+    // Mainnet has no faucet and no business advertising one.
+    assert.ok(!/Telegram/i.test(prompt));
+    return;
+  }
+
+  const bot = FAUCETS.paymentTokenBot;
+  assert.ok(bot, 'the testnet config is expected to carry a bot');
+  assert.ok(prompt.includes(bot!.handle));
+  assert.ok(prompt.includes(bot!.url));
+
+  // The asks are handed over ready to send, with the placeholder replaced.
+  assert.ok(prompt.includes(bot!.nativeAsk.replace('ADDRESS', '0xMY_WALLET')));
+  assert.ok(prompt.includes(bot!.ask.replace('ADDRESS', '0xMY_WALLET')));
+  assert.ok(!prompt.includes('ADDRESS'), 'the placeholder must not survive into the prompt');
+
+  // And it must say when to check, not merely where to go.
+  assert.match(prompt, /funded before you tell me to register/);
 });
