@@ -15,6 +15,8 @@ import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
 import { Field, Input, Select, Textarea, describedBy } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
+import { StagedProgress } from '@/components/ui/Progress';
+import { CheckLadder } from './CheckLadder';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { Sheet } from '@/components/ui/Sheet';
 import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
@@ -1052,7 +1054,25 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
               <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value as '56' | '97')} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
               <button disabled={busy || !tokenId} className="action-primary h-11 rounded-[var(--radius)] px-5 text-[12px] font-semibold disabled:opacity-50">{busy ? 'Checking…' : 'Check agent'}</button>
             </form>
-            {busy && <div className="mt-5 flex items-center gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3 text-[12px] text-[color:var(--text-secondary)]"><span className="size-4 animate-spin rounded-full border-2 border-[color:var(--border-strong)] border-t-[color:var(--brand)]" />Calling the published endpoint and requesting a read-only quote…</div>}
+            {/*
+              Three named stages rather than one spinner. The diagnostic
+              does three separable things and the slowest is the network
+              call to somebody else's endpoint, so a builder watching this
+              should be able to tell "your agent has not answered yet" from
+              "Pokter is still reading the registry" — the first is their
+              problem to fix and the second is not.
+            */}
+            {busy && (
+              <StagedProgress
+                current={1}
+                className="mt-5 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-4"
+                stages={[
+                  { id: 'read', label: 'Reading the registry' },
+                  { id: 'call', label: 'Calling the published endpoint', detail: 'And asking for a read-only quote.' },
+                  { id: 'score', label: 'Scoring the answers' },
+                ]}
+              />
+            )}
             {error && <p role="alert" className="mt-5 rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[12px] text-[color:var(--caution)]">{error}</p>}
 
             {report && quality && (
@@ -1063,7 +1083,16 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[12px] text-[color:var(--text-muted)]">Identity owner</p><p className="mt-1 text-[12px]"><Address value={report.owner} /></p></div><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[12px] text-[color:var(--text-muted)]">Agent signing wallet</p><p className="mt-1 text-[12px]"><Address value={report.agentWallet} /></p></div></div>
                 <LifecycleStates lifecycle={report.lifecycle} />
-                <div><div className="mb-3 flex items-center justify-between"><h3 className="text-[13px] font-semibold">Marketplace readiness</h3><span className="text-[11px] text-[color:var(--text-muted)]">{quality.passed} passed · {quality.failed} need attention · {quality.unknown} unverified</span></div><ul className="grid gap-2">{report.checks.map((check) => <li key={check.id} className="flex gap-3 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-3"><StatusMark status={check.status}/><div><p className="text-[12px] font-medium">{check.label}</p><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">{check.detail}</p>{check.remedy && check.status !== 'pass' && <details className="mt-2 text-[11px] text-[color:var(--text-muted)]"><summary className="cursor-pointer font-medium text-[color:var(--brand-strong)]">How to improve</summary><p className="mt-1 leading-5">{check.remedy}</p></details>}</div></li>)}</ul></div>
+                {/*
+                  The same report, as a ladder a builder climbs in the
+                  order they would fix it. The flat list printed each
+                  check's own label and left the reader to work out which
+                  mattered first; the rungs are named for what they prove —
+                  registered, reachable, answers, discoverable, priced —
+                  and the remedy sits under the rung that failed. Checks
+                  that describe a listing rather than gate it fall below.
+                */}
+                <CheckLadder checks={report.checks} />
                 {verifiedAt && (
                   <AgentProfileEditor
                     chainId={report.chainId as RegistryChainId}
