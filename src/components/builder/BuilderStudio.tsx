@@ -18,6 +18,7 @@ import { Field, Input, Select, Textarea, describedBy } from '@/components/ui/Fie
 import { Segmented } from '@/components/ui/Segmented';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
+import { Drawer } from '@/components/ui/Drawer';
 import { StagedProgress } from '@/components/ui/Progress';
 import { CheckLadder } from './CheckLadder';
 import { avatarUrl } from '@/lib/ui/avatar-art';
@@ -55,7 +56,7 @@ import {
   type RegistryChainId,
 } from '@/lib/registry/register';
 
-type Mode = 'choose' | 'existing' | 'new' | 'templates';
+type Mode = 'choose' | 'existing' | 'new' | 'templates' | 'ai';
 type BuilderReport = DiagnosticReport & { enrolled?: boolean; lifecycle?: BuilderLifecycle };
 type EndpointPreflight = {
   endpoint: string;
@@ -397,6 +398,7 @@ export function BuilderStudio({
     }
   });
   const hydrated = useHydrated();
+  const draftCount = Object.keys(drafts).length;
   const [draftId, setDraftId] = useState<string>(() => `draft-${Date.now()}`);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [reviewing, setReviewing] = useState(false);
@@ -500,6 +502,7 @@ export function BuilderStudio({
   const [runtimeConfig, setRuntimeConfig] = useState({ category: '', target: '', policy: '', output: '' });
   const [aiPromptContext, setAiPromptContext] = useState<'discovery' | 'draft' | null>(null);
   const [aiPromptCopied, setAiPromptCopied] = useState(false);
+  const [draftsOpen, setDraftsOpen] = useState(false);
 
   /*
    * One write covers the draft and the place in it, because they are the
@@ -522,7 +525,7 @@ export function BuilderStudio({
           upsertDraft(record, {
             id: draftId,
             draft,
-            mode: mode === 'choose' ? 'new' : mode,
+            mode: mode === 'choose' || mode === 'ai' ? 'new' : mode,
             step: newStep,
             updatedAt: new Date().toISOString(),
           }),
@@ -945,12 +948,36 @@ export function BuilderStudio({
         agent ever reach. They know why they are here; what they need is
         the form.
       */}
-      <header className="flex flex-col gap-1.5 border-b border-[color:var(--border)] pb-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">List an agent</h1>
-        <p className="max-w-2xl text-body-s leading-relaxed text-ink-muted">
-          Register it, pass the checks, and Pokter calls it every two hours
-          from then on. Listing is never proof that it works; the record is.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[color:var(--border)] pb-6">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">List an agent</h1>
+          <p className="max-w-2xl text-body-s leading-relaxed text-ink-muted">
+            Register it, pass the checks, and Pokter calls it every two hours
+            from then on. Listing is never proof that it works; the record is.
+          </p>
+        </div>
+        {/*
+          Drafts live behind one control up here rather than as a panel
+          between the switch and the work. They are not a step of listing
+          an agent — they are everything you have not finished — so they
+          belong beside the title, with a count, and open into a place of
+          their own.
+
+          Only once there is something in them: an empty shelf announcing
+          it is empty is worse than no shelf.
+        */}
+        {hydrated && draftCount > 0 && (
+          <button
+            type="button"
+            onClick={() => { refreshDrafts(); setDraftsOpen(true); }}
+            className="tap-safe inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-body-s font-medium transition-colors hover:bg-surface-hover"
+          >
+            Drafts
+            <span className="tabular rounded-full bg-canvas-subtle px-1.5 text-caption text-ink-muted">
+              {draftCount}
+            </span>
+          </button>
+        )}
       </header>
 
       {/*
@@ -1016,6 +1043,7 @@ export function BuilderStudio({
               { value: 'existing' as const, label: 'Already registered', short: 'Registered' },
               { value: 'new' as const, label: 'New agent', short: 'New' },
               { value: 'templates' as const, label: 'Start from a template', short: 'Template' },
+              { value: 'ai' as const, label: 'Build with AI', short: 'AI' },
             ]}
             className="w-full"
           />
@@ -1041,13 +1069,7 @@ export function BuilderStudio({
         client pass made the markup disagree with the HTML React was
         matching against and threw the whole tree away.
       */}
-      {hydrated && (
-        <DraftList
-          drafts={listDrafts(drafts)}
-          onResume={resumeDraft}
-          onDelete={discardDraft}
-        />
-      )}
+
 
       {mode === 'choose' && (
         <section aria-labelledby="path-title" className="flex flex-col gap-5">
@@ -1118,6 +1140,60 @@ export function BuilderStudio({
             ))}
           </ul>
           <div className="rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-4 text-[12px] leading-5 text-[color:var(--text-secondary)]">Each starter intentionally leaves its endpoint and image empty. A template can help describe an agent; it cannot prove that an agent exists or works.</div>
+        </section>
+      )}
+
+      {mode === 'ai' && (
+        /*
+          The prompt as a path, not a pop-up.
+
+          It was reachable only as a card on the chooser that opened a
+          sheet over whatever you were doing — so the way most people
+          without an agent would actually start was the one way in that
+          was not a path. It is a tab beside the other three, and reads
+          as a page.
+
+          The prompt itself is model-neutral and unchanged: the same text
+          the sheet shows from inside the wizard, where it is filled in
+          with the draft you have. Here there is no draft yet, so it is
+          the discovery version.
+        */
+        <section aria-labelledby="ai-title" className="flex flex-col gap-3">
+          <div>
+            <h2 id="ai-title" className="text-title">Build with an AI assistant</h2>
+            <p className="mt-0.5 text-body-s text-ink-muted">
+              One prompt for any capable coding assistant. It starts with
+              deciding what the agent is for and what to call it, then builds
+              and lists it. Paste it and answer its questions.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+              <p className="mono text-caption uppercase tracking-wide text-ink-faint">Complete prompt</p>
+              <Button size="sm" variant="primary" onClick={copyAgentBuildPrompt}>
+                {aiPromptCopied ? 'Copied ✓' : 'Copy prompt'}
+              </Button>
+            </div>
+            <pre className="mono max-h-[26rem] overflow-auto whitespace-pre-wrap bg-canvas-subtle p-4 text-small leading-5 text-ink-secondary">
+              {visibleAiPrompt}
+            </pre>
+          </div>
+          <Callout tone="caution" title="Before you paste it anywhere">
+            Never give an assistant a private key, a seed phrase, production
+            credentials or customer data. Read what it writes before you run
+            it: listing an agent is a transaction you sign.
+          </Callout>
+          <p className="text-small text-ink-muted">
+            Once it has built something,{' '}
+            <button
+              type="button"
+              onClick={() => { setNewStep(0); setMode('new'); }}
+              className="font-medium text-ink prose-link"
+            >
+              come back and list it
+            </button>
+            .
+          </p>
         </section>
       )}
 
@@ -1590,6 +1666,19 @@ export function BuilderStudio({
         </section>
         </div>
       )}
+
+      <Drawer
+        open={draftsOpen}
+        onClose={() => setDraftsOpen(false)}
+        title="Drafts"
+        description="Agents you started on this device and have not published. Nothing here is on a chain yet."
+      >
+        <DraftList
+          drafts={listDrafts(drafts)}
+          onResume={(id) => { setDraftsOpen(false); resumeDraft(id); }}
+          onDelete={discardDraft}
+        />
+      </Drawer>
 
       <Sheet
         open={Boolean(aiPromptContext)}
