@@ -9,6 +9,10 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
 import { explorerBaseFor } from '@/lib/network/presentation';
+import { getProbeStore } from '@/lib/history/store';
+import { quotePayableWith } from '@/lib/erc8183/payable';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,13 +30,31 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
   if (!isAddress(rawAddress)) notFound();
   const address = getAddress(rawAddress);
   const proofs = verifiedPublisherByOwner(address);
-  if (!proofs.length) notFound();
 
   const pages = await Promise.all([
     listAgents({ chainId: 56, ownerAddress: address, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
     listAgents({ chainId: 97, ownerAddress: address, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
   ]);
   const agents = pages.flatMap((page) => page.items);
+  /*
+   * A publisher page for publishers who have not signed in.
+   *
+   * It used to exist only for a wallet that had proved control, which
+   * meant the page describing someone's published work was unreachable
+   * for almost everybody who has published any — and this is the public
+   * profile, linked as such, built entirely from the registry and the job
+   * index. Both are public. Who owns an identity is printed on every
+   * agent page already.
+   *
+   * It is the same reasoning the builder dashboard and the account page
+   * were changed on: proving control is what acting needs, not what
+   * reading needs. Only the verified badge is withheld, because that one
+   * is a claim about proof.
+   *
+   * A wallet that owns nothing still has no page — there would be nothing
+   * on it.
+   */
+  if (!proofs.length && agents.length === 0) notFound();
   /*
    * The explorer for the chain this publisher actually works on.
    *
@@ -47,6 +69,29 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
    */
   const walletExplorerBase = explorerBaseFor(
     agents.some((agent) => agent.chain_id === 56) || agents.length === 0 ? 56 : 97,
+  );
+
+  /*
+   * Which of this publisher's prices the escrow can actually pay.
+   *
+   * The catalogue withholds Hire from these and the agent page explains
+   * why, but neither is a page a publisher visits about their own work.
+   * This is, so it is the one place the diagnosis reaches the only person
+   * who can fix it — and the fix is one constant in their negotiate
+   * handler.
+   */
+  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  const paymentTokenOf56 = correctedErc8183Addresses(56).paymentToken;
+  const quotes = getProbeStore().quotesFor(
+    agents.map((agent) => ({ chainId: agent.chain_id, tokenId: agent.token_id })),
+  );
+  const unpayable = new Set(
+    agents
+      .map((agent) => `${agent.chain_id}:${agent.token_id}`)
+      .filter((key) => {
+        const quote = quotes.get(key);
+        return quote ? !quotePayableWith(quote.currency, paymentToken) : false;
+      }),
   );
 
   const identityKeys = new Set(agents.map((agent) => `${agent.chain_id}:${agent.token_id}`));
@@ -67,10 +112,10 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight sm:text-4xl">Publisher {short(address)}</h1>
-                <span className="rounded-full bg-[color:var(--positive-dim)] px-2.5 py-1 text-[10px] font-medium text-[color:var(--positive)]">Wallet verified</span>
+                {proofs.length > 0 && <span className="rounded-full bg-[color:var(--positive-dim)] px-2.5 py-1 text-[10px] font-medium text-[color:var(--positive)]">Wallet verified</span>}
               </div>
               <p className="mono mt-2 break-all text-[11px] text-[color:var(--text-muted)]">{address}</p>
-              <p className="mt-3 max-w-xl text-[12px] leading-5 text-[color:var(--text-secondary)]">This wallet proved control through a signed, expiring Pokter challenge. Agent ownership below is read live from ERC-8004.</p>
+              <p className="mt-3 max-w-xl text-[12px] leading-5 text-[color:var(--text-secondary)]">{proofs.length > 0 ? 'This wallet proved control through a signed, expiring Pokter challenge. Agent ownership below is read live from ERC-8004.' : 'Read from the ERC-8004 registry and Pokter\u2019s job index, both public. This wallet has not signed a Pokter ownership challenge, so nothing here is a claim about who controls it.'}</p>
             </div>
           </div>
           <a href={`${walletExplorerBase}/address/${address}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2.5 text-[12px] font-medium hover:bg-[color:var(--surface-hover)]">View wallet ↗</a>
@@ -94,6 +139,18 @@ export default async function BuilderProfile({ params }: { params: Promise<{ add
           <Link key={`${agent.chain_id}:${agent.token_id}`} href={`/agents/${agent.chain_id}/${agent.token_id}`} className="group rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]">
             <div className="flex items-center gap-3"><AgentAvatar name={agent.name} src={agent.image_url} size="sm" /><div className="min-w-0"><h3 className="truncate text-sm font-semibold">{agent.name}</h3><p className="mono mt-1 text-[9px] text-[color:var(--text-muted)]">BNB {agent.is_testnet ? 'Testnet' : 'Chain'} · #{agent.token_id}</p></div></div>
             <p className="mt-4 line-clamp-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">{agent.description || 'No public description.'}</p>
+            {/*
+              Said on the card, not behind a click. A publisher scanning
+              their own portfolio should be able to see which listings are
+              unsellable without opening each one, and the sentence names
+              the two addresses because that is the whole of the fix.
+            */}
+            {unpayable.has(`${agent.chain_id}:${agent.token_id}`) && (
+              <p className="mt-3 rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] px-3 py-2 text-[11px] leading-4 text-[color:var(--caution)]">
+                Not hireable: it quotes <span className="mono">{short(paymentTokenOf56)}</span>, but escrow pays{' '}
+                <span className="mono">{short(paymentToken)}</span>. Quote the escrow chain&rsquo;s token to be hireable.
+              </p>
+            )}
             <div className="mt-4 flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[10px]"><span className="text-[color:var(--text-muted)]">{agent.total_feedbacks} attestations</span><span className="font-medium text-[color:var(--brand-strong)]">View evidence →</span></div>
           </Link>
         ))}</div> : <div className="mt-5 rounded-[var(--radius-lg)] border border-dashed border-[color:var(--border-strong)] p-8 text-center text-[12px] text-[color:var(--text-muted)]">No ERC-8004 agents are currently owned by this wallet.</div>}
