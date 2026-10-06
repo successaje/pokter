@@ -51,7 +51,19 @@ export function JobRow({
   const budget = Number(formatUnits(BigInt(job.budgetRaw), 18)).toFixed(2);
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+    /*
+      A stable anchor, so a link can land on one job.
+      
+      The expandable panel below is keyed by useId, which React regenerates
+      per render and per client — fine for aria-controls, useless as an
+      address. The job id is the one name this row has that anything
+      outside it can know, and the hire flow needs it: somebody who has
+      just funded a job arrives here looking for that job, not for a list.
+    */
+    <div
+      id={`job-${job.jobId}`}
+      className="scroll-mt-24 overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

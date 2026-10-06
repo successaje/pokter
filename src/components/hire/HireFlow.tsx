@@ -85,7 +85,16 @@ export function HireFlow({ agent, providers, signedQuoteU, riskWarnings, onClose
           ]}
         />
         <div className="flex flex-col gap-2">
-          <Button href={`/jobs/${job.jobId}`} variant="primary" block>
+          {/*
+            To the activity page, anchored on this job.
+
+            This pointed at /jobs/<id>, a route that does not exist here —
+            so the one link offered immediately after somebody funded an
+            escrow returned a 404. It came across with the hire drawer from
+            a branch that has that page; this codebase keeps jobs on the
+            activity page, and each row now carries its id as an anchor.
+          */}
+          <Button href={`/activity#job-${job.jobId}`} variant="primary" block>
             Open the job
           </Button>
           <Button onClick={onClose} block>

@@ -48,8 +48,15 @@ export function HireError({ hire }: { hire: Hire }) {
       {checkJobsFirst && (
         <p>
           Before trying again, open{' '}
-          <Link href="/jobs" className="font-medium underline underline-offset-2">
-            Jobs
+          {/*
+            /jobs does not exist here; this is the activity page. The dead
+            link mattered more than most: it appears when funding may or
+            may not have gone through, and the sentence around it tells
+            somebody to check before paying again. A 404 at that moment is
+            an invitation to fund twice.
+          */}
+          <Link href="/activity" className="font-medium underline underline-offset-2">
+            your activity
           </Link>
           . If the money moved, the job is there and funding it twice would create a second one.
         </p>
