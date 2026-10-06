@@ -16,6 +16,8 @@ import { cn } from '@/lib/ui/cn';
 import { useHydrated } from '@/lib/ui/use-hydrated';
 import { Field, Input, Select, Textarea, describedBy } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
+import { Button } from '@/components/ui/Button';
+import { Callout } from '@/components/ui/Callout';
 import { StagedProgress } from '@/components/ui/Progress';
 import { CheckLadder } from './CheckLadder';
 import { avatarUrl } from '@/lib/ui/avatar-art';
@@ -1101,26 +1103,61 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       )}
 
       {mode === 'existing' && (
-        <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
-            <div className="flex items-center gap-3"><span className="flex size-7 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">1</span><div><h2 className="font-semibold">Find your identity</h2><p className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">No signature or transaction required</p></div></div>
-            <form onSubmit={runDiagnostic} className="mt-6 grid gap-4 sm:grid-cols-[1fr_170px_auto] sm:items-end">
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">ERC-8004 agent ID</span><input value={tokenId} onChange={(event) => setTokenId(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="265375" className="mono h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-sm outline-none focus:border-[color:var(--border-focus)]" /></label>
-              <label className="flex flex-col gap-2"><span className="text-[11px] font-medium">Identity network</span><select value={chainId} onChange={(event) => setChainId(event.target.value as '56' | '97')} className="h-11 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--bg)] px-3 text-[12px] outline-none focus:border-[color:var(--border-focus)]"><option value="56">BNB Chain</option><option value="97">BNB Testnet</option></select></label>
-              <button disabled={busy || !tokenId} className="action-primary h-11 rounded-[var(--radius)] px-5 text-[12px] font-semibold disabled:opacity-50">{busy ? 'Checking…' : 'Check agent'}</button>
+        /*
+          Stacked cards, not one card with everything inside it.
+
+          The whole path used to live in a single bordered panel, so the
+          lookup form, the report, the ladder and the profile editor read
+          as one undifferentiated block with rules drawn through it. They
+          are separate things that arrive at separate times — the form is
+          there immediately, the rest only after a check runs — and each
+          now owns its own surface, in the order they appear.
+        */
+        <section className="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <form
+              onSubmit={runDiagnostic}
+              className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 sm:flex-row sm:items-end"
+            >
+              <Field id="token-id" label="ERC-8004 agent id" className="flex-1">
+                <Input
+                  id="token-id"
+                  value={tokenId}
+                  onChange={(event) => setTokenId(event.target.value.replace(/\D/g, ''))}
+                  inputMode="numeric"
+                  placeholder="265375"
+                  className="mono bg-canvas"
+                />
+              </Field>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-small font-medium">Registered on</span>
+                <Segmented
+                  label="Identity network"
+                  value={chainId}
+                  onChange={(value) => setChainId(value)}
+                  options={[
+                    { value: '56' as const, label: 'BNB Chain', short: 'Mainnet' },
+                    { value: '97' as const, label: 'BNB Testnet', short: 'Testnet' },
+                  ]}
+                  className="w-full sm:w-fit"
+                />
+              </div>
+              <Button type="submit" variant="primary" disabled={!tokenId} loading={busy} className="sm:mb-px">
+                Run the checks
+              </Button>
             </form>
+
             {/*
               Three named stages rather than one spinner. The diagnostic
               does three separable things and the slowest is the network
               call to somebody else's endpoint, so a builder watching this
-              should be able to tell "your agent has not answered yet" from
-              "Pokter is still reading the registry" — the first is their
-              problem to fix and the second is not.
+              can tell "your agent has not answered yet" from "Pokter is
+              still reading the registry" — the first is theirs to fix.
             */}
             {busy && (
               <StagedProgress
                 current={1}
-                className="mt-5 rounded-[var(--radius)] bg-[color:var(--bg-subtle)] p-4"
+                className="rounded-[var(--radius-lg)] border border-line bg-canvas-subtle p-4"
                 stages={[
                   { id: 'read', label: 'Reading the registry' },
                   { id: 'call', label: 'Calling the published endpoint', detail: 'And asking for a read-only quote.' },
@@ -1128,13 +1165,32 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 ]}
               />
             )}
-            {error && <p role="alert" className="mt-5 rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-3 text-[12px] text-[color:var(--caution)]">{error}</p>}
+
+            {error && (
+              <Callout tone="caution" title="The check stopped">
+                {error}
+              </Callout>
+            )}
 
             {report && quality && (
-              <div className="mt-8 flex flex-col gap-6 border-t border-[color:var(--border)] pt-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                  <div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Identity found</p><h3 className="mt-1 font-[family-name:var(--font-serif)] text-2xl">{report.name ?? `Agent #${report.tokenId}`}</h3><Link href={`/agents/${report.chainId}/${report.tokenId}`} className="mt-2 inline-flex text-[11px] text-[color:var(--info)] hover:underline">View public profile ↗</Link></div>
-                  <div className="rounded-[var(--radius)] bg-[color:var(--bg-subtle)] px-4 py-3 text-right"><p className="text-2xl font-semibold">{quality.score}%</p><p className="text-[12px] text-[color:var(--text-muted)]">checks observed</p></div>
+              <>
+                <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-lg)] border border-line bg-surface p-4 sm:flex-row sm:items-start">
+                  <div className="min-w-0">
+                    <p className="mono text-caption uppercase tracking-wide text-ink-faint">Identity found</p>
+                    <h3 className="mt-1 truncate font-[family-name:var(--font-serif)] text-2xl">
+                      {report.name ?? `Agent #${report.tokenId}`}
+                    </h3>
+                    <Link
+                      href={`/agents/${report.chainId}/${report.tokenId}`}
+                      className="mt-2 inline-flex text-small text-ink-muted prose-link"
+                    >
+                      View public profile ↗
+                    </Link>
+                  </div>
+                  <div className="shrink-0 rounded-[var(--radius)] bg-canvas-subtle px-4 py-3 text-right">
+                    <p className="tabular text-2xl font-semibold">{quality.score}%</p>
+                    <p className="text-small text-ink-muted">checks observed</p>
+                  </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[12px] text-[color:var(--text-muted)]">Identity owner</p><p className="mt-1 text-[12px]"><Address value={report.owner} /></p></div><div className="rounded-[var(--radius)] border border-[color:var(--border)] p-3"><p className="text-[12px] text-[color:var(--text-muted)]">Agent signing wallet</p><p className="mt-1 text-[12px]"><Address value={report.agentWallet} /></p></div></div>
                 <LifecycleStates lifecycle={report.lifecycle} />
@@ -1142,10 +1198,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                   The same report, as a ladder a builder climbs in the
                   order they would fix it. The flat list printed each
                   check's own label and left the reader to work out which
-                  mattered first; the rungs are named for what they prove —
-                  registered, reachable, answers, discoverable, priced —
-                  and the remedy sits under the rung that failed. Checks
-                  that describe a listing rather than gate it fall below.
+                  mattered first; the rungs are named for what they prove.
                 */}
                 <CheckLadder checks={report.checks} />
                 {verifiedAt && (
@@ -1154,14 +1207,27 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                     tokenId={report.tokenId}
                   />
                 )}
-              </div>
+              </>
             )}
           </div>
 
-          <aside className="h-fit min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20">
-            <p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Publish checklist</p>
-            <ol className="mt-5 flex flex-col gap-5">{['Find the registry identity','Verify the owner wallet','Fix quality gaps','Build an independent record'].map((label, index) => <li key={label} className="flex gap-3"><span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full border text-[12px]', (index === 0 && report) || (index === 1 && ownsAgent) ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{(index === 0 && report) || (index === 1 && ownsAgent) ? '✓' : index + 1}</span><span className="pt-0.5 text-[12px]">{label}</span></li>)}</ol>
+          {/*
+            The aside leads with the one thing to do next, not with a map
+            of everything. Verifying is what unlocks the rest of this
+            path, so it is the first thing in the column and the checklist
+            sits under it as context rather than above it as a preamble.
+          */}
+          <aside className="flex h-fit min-w-0 flex-col gap-3 rounded-[var(--radius-lg)] border border-line bg-canvas-subtle p-5 lg:sticky lg:top-20">
+            <p className="text-body-s font-medium">Prove it is yours</p>
+            <p className="text-small leading-relaxed text-ink-muted">
+              A single-use message signed by the owner wallet. It cannot move
+              funds or approve anything, and it expires in ten minutes.
+            </p>
             {report && <div className="mt-6 border-t border-[color:var(--border)] pt-5"><button type="button" disabled={verificationStep !== 'idle' || Boolean(verifiedAt)} onClick={verifyOwner} className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-4 py-3 text-[12px] font-semibold hover:border-[color:var(--brand)] disabled:opacity-60"><Icon name={verifiedAt ? 'check' : 'wallet'} />{verifiedAt ? 'Publisher verified' : verificationStep === 'registry' ? 'Checking registry owner…' : verificationStep === 'signature' ? 'Waiting for wallet signature…' : verificationStep === 'verifying' ? 'Verifying signature…' : 'Verify ownership'}</button>{verifiedAt && <><p className="mt-3 text-[12px] leading-5 text-[color:var(--positive)]">Ownership verified with an expiring, single-use wallet challenge.</p><Link href="/builder" className="mt-3 flex w-full items-center justify-center rounded-[var(--radius)] bg-[color:var(--brand)] px-4 py-3 text-[12px] font-semibold text-[color:var(--brand-ink)]">Open builder dashboard →</Link>{connected && <Link href={`/builders/${connected}`} className="mt-2 flex w-full items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-3 text-[11px] font-medium">View public profile</Link>}</>}{!verifiedAt && ownsAgent === true && <p className="mt-3 text-[12px] leading-5 text-[color:var(--text-secondary)]">Address matched. Sign the verification message to prove control.</p>}{ownsAgent === false && <p className="mt-3 text-[12px] leading-5 text-[color:var(--caution)]">This wallet does not own the identity. Switch accounts if you manage it.</p>}<p className="mt-3 text-[12px] leading-4 text-[color:var(--text-muted)]">The message names this identity and expires after ten minutes. It cannot move funds or authorize transactions.</p></div>}
+            <div className="mt-2 border-t border-line pt-4">
+              <p className="mono text-caption uppercase tracking-wide text-ink-faint">Publish checklist</p>
+              <ol className="mt-5 flex flex-col gap-5">{['Find the registry identity','Verify the owner wallet','Fix quality gaps','Build an independent record'].map((label, index) => <li key={label} className="flex gap-3"><span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full border text-[12px]', (index === 0 && report) || (index === 1 && ownsAgent) ? 'border-[color:var(--positive)] bg-[color:var(--positive-dim)] text-[color:var(--positive)]' : 'border-[color:var(--border-strong)] text-[color:var(--text-muted)]')}>{(index === 0 && report) || (index === 1 && ownsAgent) ? '✓' : index + 1}</span><span className="pt-0.5 text-[12px]">{label}</span></li>)}</ol>
+            </div>
           </aside>
         </section>
       )}
@@ -1173,7 +1239,30 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       {mode === 'new' && (
         <section className={cn('grid min-w-0 gap-6', newStep === 3 && 'lg:grid-cols-[minmax(0,1fr)_320px]')}>
           <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
-            <div className="flex items-center gap-3 border-b border-[color:var(--border)] pb-5"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand)] text-[12px] font-bold text-[color:var(--brand-ink)]">{newStep + 1}</span><div><h2 className="text-base font-semibold">{['Define what it does', 'Make the profile yours', 'Connect and test the runtime', 'Review before publishing'][newStep]}</h2><p className="mt-0.5 text-[12px] text-[color:var(--text-muted)]">Your progress is saved privately on this device</p></div></div>
+            {/*
+              Title and lead, no circled number: the step nav directly
+              above already numbers and ticks each step, and two counters
+              for one position disagree the moment either is edited.
+
+              Each step says what it is for. The lead used to be the same
+              sentence on all four — that the draft is saved on this
+              device — which is reassurance rather than orientation, and
+              it now sits once in the footer beside the controls it
+              reassures about.
+            */}
+            <div className="border-b border-[color:var(--border)] pb-5">
+              <h2 className="text-title">
+                {['Define what it does', 'Make the profile yours', 'Connect and test the runtime', 'Review before publishing'][newStep]}
+              </h2>
+              <p className="mt-0.5 text-body-s text-ink-muted">
+                {[
+                  'What it does, for whom, and what it will not do.',
+                  'The card buyers will read.',
+                  'The endpoint Pokter will call.',
+                  'The exact record, and where it is written.',
+                ][newStep]}
+              </p>
+            </div>
             {newStep === 3 && <div className="mt-7"><LifecycleStates draft lifecycle={publishedAgent ? { registered: true, profileReady: true, categoryReady: true, endpointReady: true, quoteReady: false, enrolled: false, measured: false, listed: publishedAgent.chainId === 56, hireable: false, probeCount: 0 } : undefined} /></div>}
             <div className={cn('mt-7 rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:p-5', newStep !== 0 && 'hidden')}>
               <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><h3 className="text-[13px] font-semibold">Turn your idea into a clear agent brief</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">Answer five concrete questions. Pokter will prepare editable marketplace copy and recommend A2A or MCP. Nothing is published, and this does not build or host the agent runtime.</p></div></div>
@@ -1387,7 +1476,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
                 </div>
               </div>
             )}
-            <div className="mt-7 flex items-center justify-between border-t border-[color:var(--border)] pt-5"><button type="button" disabled={newStep === 0} onClick={() => moveToNewStep(newStep - 1)} className="min-h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-[11px] font-semibold disabled:opacity-30">← Back</button>{newStep < 3 && <button type="button" onClick={() => moveToNewStep(newStep + 1)} disabled={(newStep === 1 && (!draft.name.trim() || draft.description.trim().length < 40 || !draft.category)) || (newStep === 2 && !endpointReport?.ok)} className="action-primary min-h-10 rounded-[var(--radius)] px-5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{newStep === 0 ? 'Continue to profile' : newStep === 1 ? 'Connect runtime' : 'Review agent'} →</button>}</div>
+            <div className="mt-7 flex items-center justify-between border-t border-[color:var(--border)] pt-5"><button type="button" disabled={newStep === 0} onClick={() => moveToNewStep(newStep - 1)} className="min-h-10 rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 text-[11px] font-semibold disabled:opacity-30">← Back</button><span className="text-small text-ink-faint">Draft saved on this device</span>{newStep < 3 && <button type="button" onClick={() => moveToNewStep(newStep + 1)} disabled={(newStep === 1 && (!draft.name.trim() || draft.description.trim().length < 40 || !draft.category)) || (newStep === 2 && !endpointReport?.ok)} className="action-primary min-h-10 rounded-[var(--radius)] px-5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{newStep === 0 ? 'Continue to profile' : newStep === 1 ? 'Connect runtime' : 'Review agent'} →</button>}</div>
           </div>
           <aside className={cn('h-fit min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--bg-subtle)] p-5 lg:sticky lg:top-20', newStep !== 3 && 'hidden')}>
             <div className="flex items-end justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.15em] text-[color:var(--text-muted)]">Draft quality</p><p className="mt-2 text-3xl font-semibold">{draftScore}/5</p></div><span className="text-[12px] text-[color:var(--text-muted)]">Auto-saved</span></div>
