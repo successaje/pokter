@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { useCallback, useSyncExternalStore } from 'react';
 
-import { campaignVisiblePercent, summarizeCampaignHires } from '@/lib/campaign/progress';
+import { campaignVisibleNote, campaignVisiblePercent, summarizeCampaignHires } from '@/lib/campaign/progress';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobsForWallet, subscribeToJobs } from '@/lib/wallet/activity';
 import { registrationKey, subscribeToRegistration } from '@/lib/campaign/registration';
@@ -73,8 +73,7 @@ export function CampaignAccountRow() {
         />
       </div>
       <p className="mt-2.5 text-[11px] leading-4 text-[color:var(--text-muted)]">
-        Of what Pokter can verify. BNB Chain makes the final eligibility
-        decision.
+        {campaignVisibleNote(percent)}
       </p>
       <span className="mt-3 inline-block text-[11px] font-semibold text-[color:var(--brand-strong)]">
         View all tasks →

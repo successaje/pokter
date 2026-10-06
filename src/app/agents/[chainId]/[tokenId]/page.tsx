@@ -7,6 +7,8 @@ import { plural } from '@/lib/ui/plural';
 import { loadDossier } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { quotePayableWith } from '@/lib/erc8183/payable';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { AgentSpec } from '@/components/agent/AgentSpec';
 import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
 import { HireReadiness } from '@/components/hire/HireReadiness';
@@ -178,6 +180,23 @@ export default async function AgentPage({
    */
   const deliveredByPokter = agent.chain_id !== ALTANA_NETWORK.chainId;
 
+  /*
+   * Whether the price it signed is in money this escrow can pay.
+   *
+   * The catalogue withholds Hire from an agent whose quote is denominated
+   * in another chain's token, because funding one buys a job the seller
+   * cannot accept. This page has to reach the same answer about the same
+   * agent — a list that says no beside a page that says "review risks and
+   * hire" is the disagreement the hireability rule exists to prevent — and
+   * it is the page's job to say why, which the list has no room for.
+   */
+  const quotePayable = dossier.quote
+    ? quotePayableWith(
+        dossier.quote.currency,
+        correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken,
+      )
+    : null;
+
   const askedPrice = dossier.quote
     ? formatQuotedPrice(Number(dossier.quote.priceU))
     : null;
@@ -252,6 +271,15 @@ export default async function AgentPage({
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow
       ? ['The agent did not answer Pokter’s current live protocol probe.']
+      : []),
+    /*
+     * Not a risk, a certainty, so it is stated first among them and the
+     * hire is withheld below rather than merely warned about.
+     */
+    ...(quotePayable === false
+      ? [
+          'The price this agent signed is in another chain’s token, which this escrow cannot pay. Funding the job would buy work the seller is unable to accept.',
+        ]
       : []),
   ];
   const availability =
@@ -618,6 +646,25 @@ export default async function AgentPage({
             not four screens below it. It carries a measured line as well as a
             price, so the first thing in reach is not a bare CTA.
             */}
+            {/*
+              The phone's copy of the same refusal. The rail that explains
+              it is desktop-only, so without this a phone would still be
+              offered the hire the catalogue and the desktop page both
+              withhold — the disagreement moved rather than fixed.
+            */}
+            {quotePayable === false ? (
+              <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-4 lg:hidden">
+                <p className="text-[12px] font-semibold text-[color:var(--caution)]">
+                  Not hireable at this price
+                </p>
+                <p className="mt-1.5 text-[11px] leading-5 text-[color:var(--text-secondary)]">
+                  It signed a price in another chain’s token, which this escrow
+                  cannot pay. Nothing is wrong with the agent — it answers and
+                  it quotes — but the job could not be accepted, so Pokter does
+                  not offer the hire.
+                </p>
+              </div>
+            ) : (
             <MobileHireAction
             price={priceLabel}
             priceCaption={priceCaption}
@@ -628,6 +675,7 @@ export default async function AgentPage({
             }
             evidenceLine={probeSummary}
             />
+            )}
 
             {/*
               The old three-cell grid said the same things without saying
@@ -886,17 +934,44 @@ export default async function AgentPage({
             <HireReadiness priceU={priceU} />
 
             <div className="flex flex-col gap-2">
-              <HireButton
-                block
-                size="lg"
-                variant={
-                  proof.recommendedForHire && answeredNow ? 'primary' : 'caution'
-                }
-              >
-                {proof.recommendedForHire && answeredNow
-                  ? 'Hire agent'
-                  : 'Review risks and hire'}
-              </HireButton>
+              {/*
+                No button when the price cannot be paid.
+                
+                Everything else this page withholds is a judgement about
+                risk, and a reader is allowed to overrule those. This is
+                not one: the escrow holds a different token from the one
+                the agent asked for, so funding the job buys work the
+                seller has no way to accept, and the money sits locked
+                until the deadline passes. Offering "review risks and
+                hire" over that is offering a choice that has only one
+                outcome.
+              */}
+              {quotePayable === false ? (
+                <div className="rounded-[var(--radius)] border border-[color:var(--caution)]/35 bg-[color:var(--caution-dim)] p-4">
+                  <p className="text-[12px] font-semibold text-[color:var(--caution)]">
+                    Not hireable at this price
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-5 text-[color:var(--text-secondary)]">
+                    It signed a price in another chain’s token, which this
+                    escrow cannot pay. Nothing is wrong with the agent — it
+                    answers and it quotes — but the job could not be accepted,
+                    so Pokter does not offer the hire. Its publisher can fix
+                    this by quoting in the escrow chain’s payment token.
+                  </p>
+                </div>
+              ) : (
+                <HireButton
+                  block
+                  size="lg"
+                  variant={
+                    proof.recommendedForHire && answeredNow ? 'primary' : 'caution'
+                  }
+                >
+                  {proof.recommendedForHire && answeredNow
+                    ? 'Hire agent'
+                    : 'Review risks and hire'}
+                </HireButton>
+              )}
 
               <Link
                 href={`/compare?agents=${agent.chain_id}:${agent.token_id}`}

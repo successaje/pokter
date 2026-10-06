@@ -24,10 +24,13 @@ function agent(
   totalAnswered: number,
   observedDays: number,
   attestationCount = 1,
+  /** Undefined where the agent has never quoted, which is most of them. */
+  quotePayable: boolean | undefined = undefined,
 ) {
   return {
     listing: {
       attestationCount,
+      quotePayable,
       category: 'yield',
       agent: { chain_id: 56, token_id: '1', name: 'test-agent' },
     },
@@ -178,4 +181,29 @@ test('hire filters distinguish an actionable card from escrow safety', () => {
   assert.equal(matchesQuery(agent(20, 20, 2), parseQuery('is:hireable')), true);
   assert.equal(matchesQuery(agent(20, 0, 2), parseQuery('is:hireable')), false);
   assert.equal(matchesQuery(agent(0, 0, 0), parseQuery('is:escrow-only')), true);
+});
+
+/*
+ * The gap this closes: the catalogue called 72 agents hireable while three
+ * had ever been paid. An agent quoting in another chain's token answers
+ * every probe and signs an honest price, and the escrow still cannot pay
+ * it — the buyer funds, the seller never accepts, the job expires.
+ *
+ * The distinction matters as much as the rule. Quoting nothing is not a
+ * payment problem: the buyer sets the budget and those hires settle, which
+ * is where the completed work in the index actually came from. Only a
+ * price that exists and cannot be paid withholds the button.
+ */
+test('a price the escrow cannot pay is not an offer to hire', () => {
+  // Answers everything, has never quoted: the buyer names the budget.
+  assert.equal(offersDirectHire(agent(200, 200, 10)), true);
+
+  // Answers everything, quotes in a token this escrow holds none of.
+  assert.equal(offersDirectHire(agent(200, 200, 10, 1, false)), false);
+
+  // Answers everything and quotes in the escrow's own token.
+  assert.equal(offersDirectHire(agent(200, 200, 10, 1, true)), true);
+
+  // A failing record is refused whatever its price is denominated in.
+  assert.equal(offersDirectHire(agent(200, 10, 10, 1, true)), false);
 });

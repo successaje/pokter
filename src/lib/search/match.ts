@@ -266,5 +266,20 @@ export function offersDirectHire(entry: SearchableAgent): boolean {
    * own note above says it exists to prevent.
    */
   if (!HIREABLE_VERDICTS.has(verdictFor(entry))) return false;
+  /*
+   * A price nothing can pay is not an offer.
+   *
+   * This asked only whether the agent answers, so the catalogue called 72
+   * agents hireable while three had ever been paid. An agent that quotes
+   * in another chain's token answers every probe, signs an honest price,
+   * and still cannot be paid out of this escrow: the buyer's money goes
+   * in, the seller never accepts, and the job expires. Of the quotes
+   * Pokter holds, every one is denominated in the mainnet token.
+   *
+   * Only a quote that exists and is unpayable disqualifies. An agent that
+   * has never named a price is untouched — the buyer sets the budget, and
+   * those hires settle, which is where the completed work came from.
+   */
+  if (entry.listing.quotePayable === false) return false;
   return entry.record.totalProbes > 0 && entry.record.totalAnswered > 0;
 }

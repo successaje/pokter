@@ -18,6 +18,9 @@ import { mapWithConcurrency } from '@/lib/concurrency';
 import { cache } from 'react';
 
 import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
+import { quotePayableWith } from '@/lib/erc8183/payable';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
@@ -79,6 +82,41 @@ export interface Listing {
    * different facts about an agent.
    */
   quote?: QuoteRecord | null;
+  /**
+   * Whether that quote is in money this escrow can actually pay.
+   *
+   * Undefined where the caller did not join the quote store, and where the
+   * agent has never quoted — "it names no price" is not a payment problem,
+   * because the buyer sets the budget and the job settles anyway.
+   *
+   * It is false for a quote denominated in another chain's token, which is
+   * the common case: the two ERC-8183 deployments settle in different
+   * contracts, a seller quotes in whichever it thinks it settles in, and a
+   * quote in chain 56's $U verifies perfectly and still cannot be paid out
+   * of a chain 97 escrow. Nothing about the agent looks wrong — it answers
+   * every probe and signs an honest price — so this is the one fact that
+   * separates a listing that can complete a hire from one that cannot.
+   */
+  quotePayable?: boolean;
+}
+
+/**
+ * Whether a quote is denominated in the token this escrow settles in.
+ *
+ * Only the currency. A missing or mismatched signing domain also stops a
+ * hire, but that is re-negotiated at funding time by the quote route,
+ * which refuses on a mismatch — and no seller in the catalogue publishes a
+ * domain today, so treating its absence as unhireable would empty the
+ * list on a rule the funding step already enforces properly. The currency
+ * is the part nothing downstream can repair: the escrow holds one token
+ * and pays out in it.
+ *
+ * Undefined, not false, when there is no quote to judge.
+ */
+function payable(quote: QuoteRecord | undefined): boolean | undefined {
+  if (!quote) return undefined;
+  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  return quotePayableWith(quote.currency, paymentToken);
 }
 
 function dedupe(agents: ScanAgent[]): ScanAgent[] {
@@ -503,6 +541,9 @@ export async function listSearchableWithStatus(
       ...listing,
       quote:
         quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? null,
+      quotePayable: payable(
+        quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`),
+      ),
     },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
@@ -552,6 +593,9 @@ export async function listCategorySearchable(
       ...listing,
       quote:
         quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? null,
+      quotePayable: payable(
+        quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`),
+      ),
     },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
