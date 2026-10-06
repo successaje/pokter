@@ -60,9 +60,8 @@ function fundingSection(): string {
   if (!FAUCETS) return '';
   const bot = FAUCETS.paymentTokenBot;
   const viaBot = bot
-    ? `- Both come from the same Telegram bot, ${bot.handle} (${bot.url}). Tell me to open it and send, substituting the wallet that will own the identity:
-  - for gas: "${bot.nativeAsk.replace('ADDRESS', '0xMY_WALLET')}"
-  - for the payment token: "${bot.ask.replace('ADDRESS', '0xMY_WALLET')}"
+    ? `- Both come from the same Telegram bot, ${bot.handle} (${bot.url}), and it takes both in one message. Tell me to open it and send, with my own wallet in place of the address:
+  "${bot.bothAsk.replace('ADDRESS', '0xMY_WALLET')}"
 - The web faucet at ${FAUCETS.native} is the alternative for gas, but it asks the wallet to have mainnet history, so a fresh wallet will be turned away and the bot is the reliable route. ${FAUCETS.paymentToken} is the alternative for the payment token.`
     : `- Gas comes from ${FAUCETS.native} and the payment token from ${FAUCETS.paymentToken}.`;
 

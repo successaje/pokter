@@ -136,9 +136,11 @@ export const FAUCETS: {
   paymentTokenBot: {
     url: string;
     handle: string;
-    /** Both carry ADDRESS, replaced with the wallet asking. */
+    /** All carry ADDRESS, replaced with the wallet asking. */
     ask: string;
     nativeAsk: string;
+    /** One message for both, when a wallet is short of each. */
+    bothAsk: string;
   } | null;
 } | null = IS_TESTNET
   ? {
@@ -155,6 +157,15 @@ export const FAUCETS: {
         handle: '@bnbchain_official_bot',
         ask: 'I would like to get U to my wallet ADDRESS',
         nativeAsk: 'I would like to get tBNB on BNB Smart Chain Testnet to my wallet ADDRESS',
+        /*
+         * The bot takes both in one message. The single asks stay because
+         * the wallet panel asks for whichever token is actually short,
+         * and sending somebody to request a token they already hold is
+         * noise; this one is for the case where they have neither, which
+         * is every wallet that has just been made.
+         */
+        bothAsk:
+          'I would like to get tBNB and U on BNB Smart Chain Testnet to my wallet ADDRESS',
       },
     }
   : null;

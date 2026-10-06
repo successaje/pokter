@@ -185,9 +185,12 @@ test('the build prompt says how to get gas and the payment token', () => {
   assert.ok(prompt.includes(bot!.handle));
   assert.ok(prompt.includes(bot!.url));
 
-  // The asks are handed over ready to send, with the placeholder replaced.
-  assert.ok(prompt.includes(bot!.nativeAsk.replace('ADDRESS', '0xMY_WALLET')));
-  assert.ok(prompt.includes(bot!.ask.replace('ADDRESS', '0xMY_WALLET')));
+  /*
+   * One message, because the bot takes both. Two separate asks would have
+   * somebody message it twice for a wallet that is short of each, which is
+   * every wallet made for this.
+   */
+  assert.ok(prompt.includes(bot!.bothAsk.replace('ADDRESS', '0xMY_WALLET')));
   assert.ok(!prompt.includes('ADDRESS'), 'the placeholder must not survive into the prompt');
 
   // And it must say when to check, not merely where to go.
