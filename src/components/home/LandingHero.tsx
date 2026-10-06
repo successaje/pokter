@@ -58,22 +58,22 @@ export function LandingHero({
 
         <div className="hero-actions flex flex-wrap items-center justify-center gap-3">
             {/*
-              To the catalogue, like everything else on this page.
+              To Discover, which is now the page this button is named after.
 
-              This button went to /discover while the brief input directly
-              below it posts to /agents, and so does every other route off the
-              landing page — the agent rail, the outcome rail, "Explore all
-              agents", "Browse marketplace". The hero was the one dissenter,
-              sending its most prominent click somewhere the rest of the page
-              never mentioned again, and the two destinations sat about a
-              hundred pixels apart.
+              It pointed at the catalogue because Discover used to be a
+              brief — three questions before any agent appeared — and a hero
+              button leading there competed with the brief input a hundred
+              pixels below it. Both halves of that have gone: Discover is
+              the find workbench, its own heading reads "Find an agent", and
+              it is where searching, filtering and comparing happen.
 
-              /discover is not removed; it keeps its place in the nav and is
-              linked from the catalogue. It is simply no longer a second front
-              door competing with the first.
+              The catalogue keeps the links that mean the catalogue —
+              "Explore all agents" and "Browse marketplace" lower down — and
+              the brief input below still posts there, because ranking
+              against a brief is what /agents does.
             */}
             <Link
-              href="/agents"
+              href="/discover"
               className="rounded-[var(--radius)] bg-[color:var(--brand)] px-5 py-2.5 text-[13px] font-semibold text-[color:var(--brand-ink)] transition-transform duration-150 hover:-translate-y-0.5"
             >
               Find an agent
