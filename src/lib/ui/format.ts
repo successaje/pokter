@@ -80,3 +80,12 @@ export function shortHash(hash: string, chars = 6): string {
 export function shortAddress(address: string): string {
   return shortHash(address, 4);
 }
+
+/** A delivery duration a buyer can plan around: seconds, minutes, hours or days, never milliseconds. */
+export function formatDelivery(ms: number): string {
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))} s`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`;
+  const hours = ms / 3_600_000;
+  if (hours < 48) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} h`;
+  return `${Math.round(hours / 24)} d`;
+}

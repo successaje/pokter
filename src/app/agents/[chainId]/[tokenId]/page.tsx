@@ -41,10 +41,13 @@ import { SaveAgentButton } from '@/components/agent/SaveAgentButton';
 import { DEFAULT_BUDGET_LABEL, DEFAULT_BUDGET_U, formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { PAYMENT_VALUE_NOTE, chainLabel, explorerBaseFor} from '@/lib/network/presentation';
 import { CopyableId } from '@/components/ui/CopyableId';
-import { shortAddress } from '@/lib/ui/format';
+import { formatDelivery, shortAddress } from '@/lib/ui/format';
 import { getJobStore } from '@/lib/erc8183/store';
 import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
 import { getReviewStore } from '@/lib/reviews/store';
+import { deliveryTimes } from '@/lib/agent/delivery-times';
+import { sampleDelivery } from '@/lib/agent/sample-delivery';
+import { DeliverySample } from '@/components/agent/DeliverySample';
 
 /** The live probe is taken per request, so this page is never cached. */
 export const dynamic = 'force-dynamic';
@@ -140,10 +143,15 @@ export default async function AgentPage({
    * renders as the description alone — exactly what every agent showed
    * before this existed.
    */
-  const capabilities = await fetchDeclaredCapabilities(
-    agent.services?.a2a?.endpoint,
-    agent.token_id,
-  );
+  /*
+   * Read together rather than one after another. The agent's own card and
+   * the chain's submission times are independent round trips, and
+   * serialising them made the dossier as slow as their sum.
+   */
+  const [capabilities, delivery] = await Promise.all([
+    fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id),
+    deliveryTimes(agent.chain_id, agent.token_id),
+  ]);
 
   /*
    * The agent's own price, where it has one.
@@ -203,6 +211,11 @@ export default async function AgentPage({
     getJobStore().byAgent(agent.chain_id, agent.token_id),
   );
   const verifiedReviews = getReviewStore().byAgent(agent.chain_id, agent.token_id);
+  /*
+   * The most recent thing this agent actually delivered, read from the
+   * stored manifest rather than described. Local, so it costs no request.
+   */
+  const sample = sampleDelivery(agent.chain_id, agent.token_id);
   const publishedEvidence = summarisePublishedEvidence(attestations);
   const meta =
     category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
@@ -676,6 +689,21 @@ export default async function AgentPage({
                     caption="ERC-8183 outcomes attributed to this ERC-8004 identity by Pokter’s immutable job envelope."
                   >
                     <EconomicHistoryPanel history={economicHistory} />
+                    {/*
+                      One thing it actually delivered, under the count of
+                      how many it has. The panel above says how many jobs
+                      settled; this says what settling produced, which is
+                      the question a buyer is really asking. The hash is
+                      recomputed from the exact bytes the chain committed
+                      to, so the figure shown is checkable rather than
+                      quoted back from our own record.
+                    */}
+                    {sample && (
+                      <div className="mt-6 border-t border-[color:var(--border)] pt-6">
+                        <h3 className="mb-3 text-sm font-medium">A delivery it made</h3>
+                        <DeliverySample sample={sample} />
+                      </div>
+                    )}
                     <div className="mt-6 border-t border-[color:var(--border)] pt-6">
                       <h3 className="mb-3 text-sm font-medium">Verified buyer reviews</h3>
                       <VerifiedReviewsPanel reviews={verifiedReviews} />
@@ -800,6 +828,32 @@ export default async function AgentPage({
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[color:var(--text-muted)]">Escrow</dt>
                 <dd className="mono">ERC-8183</dd>
+              </div>
+              {/*
+                How long past deliveries took, read from the chain's own
+                submittedAt rather than from anything the publisher said.
+                It belongs beside the price because the two together are
+                the offer — what it costs and when it lands — and a buyer
+                asked to lock funds in escrow is entitled to the second
+                before agreeing, not after.
+
+                The sample count rides along so a median of one reads as a
+                median of one.
+              */}
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[color:var(--text-muted)]">Delivers in</dt>
+                <dd className="tabular text-right">
+                  {delivery.medianMs === null ? (
+                    <span className="text-[color:var(--text-muted)]">No delivery yet</span>
+                  ) : (
+                    <>
+                      {formatDelivery(delivery.medianMs)}
+                      <span className="block text-[10px] text-[color:var(--text-faint)]">
+                        median of {plural(delivery.samples, 'job')}
+                      </span>
+                    </>
+                  )}
+                </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-[color:var(--text-muted)]">Evidence</dt>
