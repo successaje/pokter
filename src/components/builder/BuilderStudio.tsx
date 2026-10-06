@@ -1088,22 +1088,35 @@ export function BuilderStudio({
       )}
 
       {mode === 'templates' && (
-        <section aria-labelledby="starter-title" className="flex flex-col gap-5">
-          <div className="max-w-2xl">
-            <p className="mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--text-muted)]">Starter kits</p>
-            <h2 id="starter-title" className="mt-2 text-2xl font-semibold">Begin with the outcome buyers need.</h2>
-            <p className="mt-2 text-[12px] leading-5 text-[color:var(--text-secondary)]">A starter prepares honest marketplace language—not a working service. You still connect and pass a real A2A or MCP endpoint check before Pokter allows publication.</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        /*
+          A list, not a wall of cards.
+
+          Five starters in a three-column grid of 48px-tall panels, each
+          with its own category eyebrow and a "Use this structure" link,
+          spent most of a screen on five short sentences. They are five
+          choices of the same kind, differing only in wording, which is
+          what a list is for — and the eyebrow repeated a category the
+          starter is about to set for you anyway.
+        */
+        <section aria-labelledby="starter-title" className="flex flex-col gap-3">
+          <h2 id="starter-title" className="sr-only">Starter kits</h2>
+          <p className="text-body-s text-ink-muted">
+            Five shapes that fit the kinds of work Pokter judges. Each fills
+            the name, description and category; you bring the endpoint.
+          </p>
+          <ul className="hairline overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
             {STARTER_KITS.map((starter) => (
-              <button key={starter.id} type="button" onClick={() => applyStarterKit(starter)} className="group flex min-h-48 flex-col rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_14px_40px_var(--brand-shadow)]">
-                <span className="mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--brand-strong)]">{CATEGORIES.find((category) => category.id === starter.draft.category)?.label ?? 'Agent'}</span>
-                <h3 className="mt-3 text-base font-semibold">{starter.eyebrow}</h3>
-                <p className="mt-2 text-[12px] leading-5 text-[color:var(--text-secondary)]">{starter.description}</p>
-                <span className="mt-auto flex items-center gap-2 pt-5 text-[11px] font-semibold text-[color:var(--brand-strong)]">Use this structure <Icon name="arrow" /></span>
-              </button>
+              <li key={starter.id} className="flex items-center gap-4 px-4 py-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-body-s font-medium">{starter.eyebrow}</span>
+                  <span className="block text-small text-ink-muted">{starter.description}</span>
+                </span>
+                <Button size="sm" onClick={() => applyStarterKit(starter)}>
+                  Use
+                </Button>
+              </li>
             ))}
-          </div>
+          </ul>
           <div className="rounded-[var(--radius)] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--bg-subtle)] p-4 text-[12px] leading-5 text-[color:var(--text-secondary)]">Each starter intentionally leaves its endpoint and image empty. A template can help describe an agent; it cannot prove that an agent exists or works.</div>
         </section>
       )}
@@ -1251,11 +1264,59 @@ export function BuilderStudio({
         </section>
       )}
 
-      {mode === 'new' && <nav id="builder-wizard" aria-label="Agent launch progress" className="scroll-mt-20 overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"><ol className="flex min-w-max items-center">{['Define', 'Profile', 'Connect & test', 'Review & publish'].map((label, index) => <li key={label} className="flex items-center"><button type="button" onClick={() => index <= newStep && moveToNewStep(index)} disabled={index > newStep} aria-current={newStep === index ? 'step' : undefined} className={cn('flex min-h-10 items-center gap-2 rounded-[var(--radius)] px-3 text-[12px] font-semibold transition-colors', newStep === index ? 'bg-[color:var(--brand)] text-[color:var(--brand-ink)]' : index < newStep ? 'text-[color:var(--positive)] hover:bg-[color:var(--surface-hover)]' : 'cursor-not-allowed text-[color:var(--text-faint)]')}><span className="grid size-5 place-items-center rounded-full border border-current text-[12px]">{index < newStep ? '✓' : index + 1}</span>{label}</button>{index < 3 && <span className="mx-1 h-px w-5 bg-[color:var(--border)]" />}</li>)}</ol></nav>}
-
       {mode === 'new' && newStep === 2 && <ConnectionGuide />}
 
+      {/*
+        The steps beside the work, not in a bar above it.
+
+        A horizontal strip in its own bordered card spent a band of the
+        page on four words and a progress line, and its brand-filled
+        active pill made the navigation louder than the form it was
+        navigating. In a column they stay in view while the panel is
+        filled, and the only emphasis is a tick for done and a raised
+        surface for where you are. Below lg there is no column to put
+        them in, so they stay a scrolling row.
+      */}
       {mode === 'new' && (
+        <div id="builder-wizard" className="grid scroll-mt-20 items-start gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+          <ol
+            className="flex gap-1 overflow-x-auto [scrollbar-width:none] lg:sticky lg:top-20 lg:flex-col [&::-webkit-scrollbar]:hidden"
+            aria-label="Agent launch progress"
+          >
+            {['Define', 'Profile', 'Connect and test', 'Review and publish'].map((label, index) => {
+              const done = index < newStep;
+              const current = index === newStep;
+              return (
+                <li key={label}>
+                  <button
+                    type="button"
+                    onClick={() => index <= newStep && moveToNewStep(index)}
+                    disabled={index > newStep}
+                    aria-current={current ? 'step' : undefined}
+                    className={cn(
+                      'flex w-full items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-body-s transition-colors',
+                      current
+                        ? 'bg-surface font-medium text-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
+                        : done
+                          ? 'text-ink hover:bg-surface-hover'
+                          : 'text-ink-faint',
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'grid size-5 shrink-0 place-items-center rounded-full border text-[10px] font-bold',
+                        done ? 'border-positive bg-positive text-canvas' : current ? 'border-ink' : 'border-line-strong',
+                      )}
+                    >
+                      {done ? '✓' : index + 1}
+                    </span>
+                    {label}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         <section className={cn('grid min-w-0 gap-6', newStep === 3 && 'lg:grid-cols-[minmax(0,1fr)_320px]')}>
           <div className="min-w-0 rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 sm:p-7">
             {/*
@@ -1283,8 +1344,17 @@ export function BuilderStudio({
               </p>
             </div>
             {newStep === 3 && <div className="mt-7"><LifecycleStates draft lifecycle={publishedAgent ? { registered: true, profileReady: true, categoryReady: true, endpointReady: true, quoteReady: false, enrolled: false, measured: false, listed: publishedAgent.chainId === 56, hireable: false, probeCount: 0 } : undefined} /></div>}
-            <div className={cn('mt-7 rounded-[var(--radius-lg)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] p-4 sm:p-5', newStep !== 0 && 'hidden')}>
-              <div className="flex items-start gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--brand-strong)]"><Icon name="spark" /></span><div><h3 className="text-[13px] font-semibold">Turn your idea into a clear agent brief</h3><p className="mt-1 text-[12px] leading-5 text-[color:var(--text-secondary)]">Answer five concrete questions. Pokter will prepare editable marketplace copy and recommend A2A or MCP. Nothing is published, and this does not build or host the agent runtime.</p></div></div>
+            {/*
+              No amber panel around the questions.
+
+              They sat inside a brand-coloured box introduced by an icon
+              and a paragraph explaining that answering five questions
+              produces editable copy — which is what the step's own lead
+              says, one line above. A highlight around the only content
+              on the step highlights nothing, and the heading inside it
+              competed with the heading above it.
+            */}
+            <div className={cn(newStep !== 0 && 'hidden')}>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 <Field id="brief-outcome" label="What financial outcome does it support?" className="min-w-0">
                   <Select
@@ -1366,7 +1436,7 @@ export function BuilderStudio({
                   </p>
                 </div>
               </div>
-              <div className="mt-5 flex flex-col gap-3 border-t border-[color:var(--brand)]/20 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">Your endpoint and image are never invented or replaced.</p><button type="button" onClick={applyLaunchBrief} disabled={!brief.outcome || !brief.audience.trim() || !brief.task.trim() || !brief.evidence.trim() || !brief.limits.trim()} className="action-primary min-h-10 rounded-[var(--radius)] px-4 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{briefApplied ? 'Brief applied ✓' : 'Prepare editable draft'}</button></div>
+              <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-[12px] leading-4 text-[color:var(--text-muted)]">Your endpoint and image are never invented or replaced.</p><button type="button" onClick={applyLaunchBrief} disabled={!brief.outcome || !brief.audience.trim() || !brief.task.trim() || !brief.evidence.trim() || !brief.limits.trim()} className="action-primary min-h-10 rounded-[var(--radius)] px-4 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-40">{briefApplied ? 'Brief applied ✓' : 'Prepare editable draft'}</button></div>
             </div>
             <div className={cn('mx-auto mt-6 grid max-w-5xl gap-4 sm:grid-cols-2', (newStep === 0 || newStep === 3) && 'hidden')}>
               <Field id="draft-name" label="Agent name" className={cn(newStep !== 1 && 'hidden')}>
@@ -1518,6 +1588,7 @@ export function BuilderStudio({
             <p className="mt-3 text-[12px] leading-4 text-[color:var(--text-muted)]">{reviewing ? 'Choose the network and approve publishing beside its disclosure.' : missingDraftChecks.length > 0 ? `Still needed before publishing: ${missingDraftChecks.join(', ').toLowerCase()}.` : 'Every draft check is met.'}</p>
           </aside>
         </section>
+        </div>
       )}
 
       <Sheet
