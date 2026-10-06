@@ -13,6 +13,7 @@ import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/bri
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { cn } from '@/lib/ui/cn';
+import { useHydrated } from '@/lib/ui/use-hydrated';
 import { Field, Input, Select, Textarea, describedBy } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
 import { StagedProgress } from '@/components/ui/Progress';
@@ -349,7 +350,17 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
    * the guess is unnecessary now that they are all on screen with a
    * Continue beside each.
    */
-  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'choose');
+  /*
+   * Lands on a form, not on a question.
+   *
+   * The first screen used to be "what do you have right now?" and four
+   * cards, which is a page you read before you can begin. The three answers
+   * are a switch, and the switch is always on screen, so changing your mind
+   * costs one click instead of a trip back. The chooser still exists for
+   * anybody who wants the longer explanation — it is reachable below rather
+   * than mandatory above.
+   */
+  const [mode, setMode] = useState<Mode>(initialIdentity ? 'existing' : 'existing');
   const [newStep, setNewStep] = useState(0);
   /*
    * The dismiss button only ever set state, so the notice came back on every
@@ -419,6 +430,7 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
       return {};
     }
   });
+  const hydrated = useHydrated();
   const [draftId, setDraftId] = useState<string>(() => `draft-${Date.now()}`);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [reviewing, setReviewing] = useState(false);
@@ -972,7 +984,50 @@ export function BuilderStudio({ initialIdentity }: { initialIdentity?: { chainId
 
       {campaignNoticeOpen && <aside className="relative rounded-[var(--radius)] border border-[color:var(--brand)]/30 bg-[color:var(--brand-highlight-soft)] px-4 py-3 pr-12" aria-label="Set and Earn notification"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[11px] font-semibold">🔥 Building for Set and Earn?</p><p className="mt-0.5 text-[12px] leading-4 text-[color:var(--text-secondary)]">Register first, then list a reachable agent and build independently verifiable usage.</p></div><Link href="/set-and-earn" className="shrink-0 text-[12px] font-semibold text-[color:var(--brand-strong)] hover:underline">View requirements →</Link></div><button type="button" onClick={dismissCampaignNotice} aria-label="Dismiss Set and Earn notification" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--surface)] hover:text-[color:var(--text)]">×</button></aside>}
 
-      {mode === 'choose' && (
+      {/*
+        Always on screen, so the path is a control rather than a page you
+        passed through. "Not sure" leads to the longer chooser, which is
+        where the explanation of each path now lives.
+      */}
+      {mode !== 'choose' && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Segmented
+            label="What you are starting from"
+            value={mode}
+            onChange={(value) => {
+              if (value === 'new') setNewStep(0);
+              setMode(value);
+            }}
+            options={[
+              { value: 'existing' as const, label: 'Already registered', short: 'Registered' },
+              { value: 'new' as const, label: 'New agent', short: 'New' },
+              { value: 'templates' as const, label: 'Start from a template', short: 'Template' },
+            ]}
+            className="w-full sm:w-fit"
+          />
+          <button
+            type="button"
+            onClick={() => setMode('choose')}
+            className="tap-safe text-small text-ink-muted underline decoration-dotted underline-offset-4 hover:text-ink"
+          >
+            Not sure where to start?
+          </button>
+        </div>
+      )}
+
+      {/*
+        Drafts, wherever you are. They used to show only on the chooser,
+        so landing straight in a form meant work saved on this device was
+        invisible until you went back.
+      */}
+      {/*
+        Only after hydration. The record behind this is read from
+        localStorage by a useState initialiser, which the server runs
+        empty and the client runs full, so rendering it on the first
+        client pass made the markup disagree with the HTML React was
+        matching against and threw the whole tree away.
+      */}
+      {hydrated && (
         <DraftList
           drafts={listDrafts(drafts)}
           onResume={resumeDraft}
