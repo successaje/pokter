@@ -8,9 +8,9 @@ import { REGISTRATION_EVENT, registrationKey, subscribeToRegistration } from '@/
 import { shortAddress } from '@/lib/ui/format';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { jobsForWallet, noJobs, subscribeToJobs } from '@/lib/wallet/activity';
-import { CAMPAIGN_END_LABEL } from '@/lib/campaign/window';
+import { CAMPAIGN_END_LABEL, CAMPAIGN_RULES_URL } from '@/lib/campaign/window';
 
-const CAMPAIGN = 'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
+
 const actionClass = 'inline-flex min-h-9 items-center justify-center rounded-[var(--radius)] border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-3 text-[10px] font-semibold transition-colors hover:bg-[color:var(--surface-hover)]';
 
 function ProgressBar({ value, target, complete = false }: { value: number; target: number; complete?: boolean }) {
@@ -60,7 +60,7 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
   };
 
   return <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border-strong)] bg-[color:var(--surface)]" aria-labelledby="tracker-title">
-    <div className="grid gap-3 border-b border-[color:var(--border)] p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Pokter-visible progress</p>{walletAddress && <span className="mono rounded-full border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-2 py-1 text-[9px] text-[color:var(--text-muted)]">{shortAddress(walletAddress)}</span>}</div><h2 id="tracker-title" className="mt-2 text-xl font-semibold">Your Set and Earn progress</h2><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Verified Pokter activity and checkpoints saved on this device. BNB Chain makes the final eligibility decision.</p></div>{compact ? <Link href="/set-and-earn" className={actionClass}>View all tasks →</Link> : <a href={CAMPAIGN} target="_blank" rel="noreferrer" className={actionClass}>Official campaign guide ↗</a>}</div>
+    <div className="grid gap-3 border-b border-[color:var(--border)] p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="mono text-[9px] uppercase tracking-[0.16em] text-[color:var(--brand-strong)]">Pokter-visible progress</p>{walletAddress && <span className="mono rounded-full border border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-2 py-1 text-[9px] text-[color:var(--text-muted)]">{shortAddress(walletAddress)}</span>}</div><h2 id="tracker-title" className="mt-2 text-xl font-semibold">Your Set and Earn progress</h2><p className="mt-1 text-[12px] leading-4 text-[color:var(--text-muted)]">Verified Pokter activity and checkpoints saved on this device. BNB Chain makes the final eligibility decision.</p></div>{compact ? <Link href="/set-and-earn" className={actionClass}>View all tasks →</Link> : <a href={CAMPAIGN_RULES_URL} target="_blank" rel="noreferrer" className={actionClass}>Official campaign guide ↗</a>}</div>
 
     {!walletAddress && <div className="border-b border-[color:var(--border)] bg-[color:var(--info-dim)] px-5 py-3"><p className="text-[10px] font-semibold text-[color:var(--info)]">Connect your campaign wallet to load verified progress.</p><p className="mt-1 text-[9px] leading-4 text-[color:var(--text-muted)]">You can still review every task below. Use the same wallet you registered with BNB Chain.</p></div>}
     <>
@@ -85,7 +85,7 @@ export function CampaignPassport({ compact = false }: { compact?: boolean }) {
         {!compact && <TaskRow hat="building" icon="4" title="Prove independent use" body="Reach three completed hires from three independent wallets you do not own or fund." status="Counted on your builder page" tone="info" action={<Link href="/builder" className={actionClass}>Builder activity →</Link>} />}
         {!compact && <TaskRow hat="building" icon="5" title="Complete category activity" body="Record five category-consistent onchain actions over three separate days." status="Counted on your builder page" tone="info" action={<Link href="/activity" className={actionClass}>View proof →</Link>} />}
       </ol></div>
-      {!compact && <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-5 py-3 text-[9px] leading-4 text-[color:var(--text-faint)]">Registration is self-marked and stored only on this device. Other-marketplace hires and builder activity remain pending until Pokter can verify them. <a href={CAMPAIGN} target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--brand-strong)] hover:underline">Read the official rules ↗</a></div>}
+      {!compact && <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-subtle)] px-5 py-3 text-[9px] leading-4 text-[color:var(--text-faint)]">Registration is self-marked and stored only on this device. Other-marketplace hires and builder activity remain pending until Pokter can verify them. <a href={CAMPAIGN_RULES_URL} target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--brand-strong)] hover:underline">Read the official rules ↗</a></div>}
     </>
   </section>;
 }

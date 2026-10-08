@@ -72,3 +72,14 @@ export const CAMPAIGN_END_LABEL = `Ends ${CAMPAIGN_ENDS_AT.toLocaleDateString(
 export function isCampaignLive(now: Date = new Date()): boolean {
   return now.getTime() <= CAMPAIGN_ENDS_AT.getTime();
 }
+
+/**
+ * BNB Chain's own rules page — the authority for every campaign claim
+ * Pokter makes.
+ *
+ * Shared because three surfaces link to it and a campaign URL that drifts
+ * between them sends somebody to a 404 at the moment they are checking
+ * whether to trust what we said about the rules.
+ */
+export const CAMPAIGN_RULES_URL =
+  'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
