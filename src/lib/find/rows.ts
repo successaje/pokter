@@ -4,6 +4,7 @@ import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
 import type { Verdict } from '@/lib/proof/engine';
 import { offersDirectHire, verdictFor, type SearchableAgent } from '@/lib/search/match';
+import { catalogueSuggestion, suggestionsByCategory, type Suggestion } from '@/lib/find/suggested';
 
 /**
  * One agent as the Find list needs it: every field already a string or a
@@ -31,6 +32,12 @@ export interface FindRow {
   /** The last price the agent signed, in $U, or null when it never has. */
   priceU: number | null;
   priceLabel: string;
+  /**
+   * What to put in the budget box when the agent has never signed a price.
+   * Never a quote: see `suggestionsByCategory`. Null only when the agent has
+   * a signed price, where a suggestion would be noise beside the real thing.
+   */
+  suggested: Suggestion | null;
   /** Whether that signature is still inside its validity window. */
   priceFresh: boolean;
   hirable: boolean;
@@ -39,7 +46,11 @@ export interface FindRow {
   owner: string;
 }
 
-export function toFindRow(entry: SearchableAgent, now = Date.now()): FindRow {
+export function toFindRow(
+  entry: SearchableAgent,
+  now = Date.now(),
+  suggested: Suggestion | null = null,
+): FindRow {
   const { listing, record, history } = entry;
   const { agent } = listing;
   const meta = CATEGORY_BY_ID.get(listing.category);
@@ -66,6 +77,7 @@ export function toFindRow(entry: SearchableAgent, now = Date.now()): FindRow {
     answeringToday: Boolean(today && today.probes > 0 && (today.ratio ?? 0) > 0),
     priceU,
     priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'You set the budget',
+    suggested: priceU !== null ? null : suggested,
     priceFresh,
     hirable: offersDirectHire(entry),
     deliveredByPokter: agent.chain_id !== ALTANA_NETWORK.chainId,
@@ -77,7 +89,17 @@ export function toFindRow(entry: SearchableAgent, now = Date.now()): FindRow {
 /** The whole index as rows, stamped with one clock so every strip ends on the same day. */
 export function findRows(entries: SearchableAgent[]): FindRow[] {
   const now = Date.now();
-  return entries.map((entry) => toFindRow(entry, now));
+  const byCategory = suggestionsByCategory(
+    entries.flatMap((entry) =>
+      entry.listing.quote
+        ? [{ category: entry.listing.category, priceU: Number(entry.listing.quote.priceU) }]
+        : [],
+    ),
+  );
+  const fallback = catalogueSuggestion(byCategory);
+  return entries.map((entry) =>
+    toFindRow(entry, now, byCategory.get(entry.listing.category) ?? fallback),
+  );
 }
 
 export { STALE_AFTER_DAYS };

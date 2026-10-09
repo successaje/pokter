@@ -9,6 +9,7 @@ import type { HireStep } from '@/lib/wallet/external';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
+import { suggestionNote, type Suggestion } from '@/lib/find/suggested';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Checkbox, Textarea } from '@/components/ui/Field';
@@ -39,8 +40,8 @@ const EXTERNAL_STAGES: { id: HireStep; label: string }[] = [
  * asks for the two things the escrow records, the confirm step reads the
  * whole order back and names what will be signed, and done is a receipt.
  */
-export function HireFlow({ agent, providers, signedQuoteU, riskWarnings, onClose }: { agent: HireAgent; providers: ProviderChoice[]; signedQuoteU: number | null; riskWarnings: string[]; onClose: () => void }) {
-  const hire = useHire({ agent, providers, signedQuoteU, riskWarnings });
+export function HireFlow({ agent, providers, signedQuoteU, suggestion, riskWarnings, onClose }: { agent: HireAgent; providers: ProviderChoice[]; signedQuoteU: number | null; suggestion: Suggestion | null; riskWarnings: string[]; onClose: () => void }) {
+  const hire = useHire({ agent, providers, signedQuoteU, suggestedU: suggestion?.u ?? null, riskWarnings });
   const sponsored = useGasSponsorship();
   const [changingProvider, setChangingProvider] = useState(false);
   const busy = hire.state === 'hiring';
@@ -138,7 +139,15 @@ export function HireFlow({ agent, providers, signedQuoteU, riskWarnings, onClose
             ))}
           </div>
           <p className={cn('text-small', hire.budgetValid ? 'text-ink-muted' : 'text-negative')}>
-            {hire.budgetValid ? `${signedQuoteU !== null ? `The agent signed ${formatBudget(signedQuoteU)}.` : 'No signed price; you set it.'} Between ${BUDGET_MIN} and ${BUDGET_MAX} $U. Released only when you accept the delivery.` : `Enter between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`}
+            {hire.budgetValid
+              ? `${
+                  signedQuoteU !== null
+                    ? `The agent signed ${formatBudget(signedQuoteU)}.`
+                    : suggestion
+                      ? `No signed price. ${suggestionNote(suggestion)}`
+                      : 'No signed price; you set it.'
+                } Between ${BUDGET_MIN} and ${BUDGET_MAX} $U. Released only when you accept the delivery.`
+              : `Enter between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`}
           </p>
         </div>
 

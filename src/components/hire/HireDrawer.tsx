@@ -6,10 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { Drawer } from '@/components/ui/Drawer';
 import { setHireOpen, useHireOpen } from './hire-open';
 import { HireFlow } from './HireFlow';
+import type { Suggestion } from '@/lib/find/suggested';
 import type { HireAgent, ProviderChoice } from './useHire';
 
 /** The hire step, as a drawer over the agent page. `?hire=1` opens it on arrival. */
-export function HireDrawer(props: { agent: HireAgent; providers: ProviderChoice[]; signedQuoteU: number | null; riskWarnings: string[] }) {
+export function HireDrawer(props: { agent: HireAgent; providers: ProviderChoice[]; signedQuoteU: number | null; suggestion: Suggestion | null; riskWarnings: string[] }) {
   const open = useHireOpen();
   const params = useSearchParams();
   useEffect(() => {

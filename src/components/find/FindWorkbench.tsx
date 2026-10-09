@@ -8,6 +8,7 @@ import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import type { FindRow } from '@/lib/find/rows';
 import { VERDICT_LABEL, VERDICT_MEANING } from '@/lib/proof/engine';
 import { cn } from '@/lib/ui/cn';
+import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { formatMs } from '@/lib/ui/format';
 import { plural } from '@/lib/ui/plural';
 import { Button } from '@/components/ui/Button';
@@ -284,14 +285,24 @@ export function FindWorkbench({ rows, unreachable }: { rows: FindRow[]; unreacha
                         <span className="mt-1.5 flex items-center gap-3 lg:hidden">
                           <Strip cells={row.cells} />
                           <span className="tabular text-small text-ink-muted">{percent(row.rate)}</span>
-                          <span className="ml-auto tabular text-small font-medium text-ink">{row.priceU !== null ? row.priceLabel : 'Set budget'}</span>
+                          <span
+                          className={cn('ml-auto tabular text-small', row.priceU !== null ? 'font-medium text-ink' : 'text-ink-muted')}
+                          title={row.priceU === null && row.suggested ? suggestionNote(row.suggested, row.categoryLabel) : undefined}
+                        >
+                          {row.priceU !== null ? row.priceLabel : row.suggested ? suggestionLabel(row.suggested) : 'Set budget'}
+                        </span>
                         </span>
                       </div>
                       <div className="hidden items-center gap-2 lg:flex">
                         <Strip cells={row.cells} />
                         <span className="tabular text-small text-ink-muted">{percent(row.rate)}</span>
                       </div>
-                      <span className={cn('hidden text-right tabular text-body-s lg:block', row.priceU !== null ? 'font-medium text-ink' : 'text-ink-faint')}>{row.priceU !== null ? row.priceLabel : 'Set budget'}</span>
+                      <span
+                        className={cn('hidden text-right tabular text-body-s lg:block', row.priceU !== null ? 'font-medium text-ink' : 'text-ink-muted')}
+                        title={row.priceU === null && row.suggested ? suggestionNote(row.suggested, row.categoryLabel) : undefined}
+                      >
+                        {row.priceU !== null ? row.priceLabel : row.suggested ? suggestionLabel(row.suggested) : 'Set budget'}
+                      </span>
                       <span className="hidden text-right tabular text-body-s text-ink-secondary lg:block">{row.medianMs === null ? '—' : formatMs(row.medianMs)}</span>
                       <span className={cn('hidden text-right tabular text-body-s lg:block', row.paid.jobs === 0 ? 'text-ink-faint' : row.paid.completed < row.paid.jobs ? 'text-caution' : 'text-ink-secondary')}>
                         {row.paid.jobs === 0 ? '—' : `${row.paid.completed}/${row.paid.jobs}`}

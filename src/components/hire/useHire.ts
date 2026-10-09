@@ -145,11 +145,18 @@ export function useHire({
   agent,
   providers,
   signedQuoteU = null,
+  suggestedU = null,
   riskWarnings = [],
 }: {
   agent: HireAgent;
   providers: ProviderChoice[];
   signedQuoteU?: number | null;
+  /**
+   * What the box opens on when the agent has never signed a price. A median
+   * of what this category actually charges, not a quote — see
+   * `suggestionsByCategory`. Null falls back to the flat default.
+   */
+  suggestedU?: number | null;
   riskWarnings?: string[];
 }) {
   const { wallet } = usePasskeyWallet();
@@ -167,7 +174,7 @@ export function useHire({
     taskTemplates[0].id,
   );
   const [task, setTaskState] = useState(taskTemplates[0].task);
-  const [budget, setBudget] = useState(signedQuoteU ?? DEFAULT_BUDGET_U);
+  const [budget, setBudget] = useState(signedQuoteU ?? suggestedU ?? DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [screen, setScreen] = useState<HireScreen>('describe');
 

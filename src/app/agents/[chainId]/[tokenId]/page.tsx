@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { plural } from '@/lib/ui/plural';
-import { loadDossier } from '@/lib/marketplace';
+import { loadDossier, suggestedBudgetFor } from '@/lib/marketplace';
 import { RegistryUnreachable } from '@/components/ui/RegistryUnreachable';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { quotePayableWith } from '@/lib/erc8183/payable';
@@ -190,11 +190,9 @@ export default async function AgentPage({
    * hire" is the disagreement the hireability rule exists to prevent — and
    * it is the page's job to say why, which the list has no room for.
    */
+  const escrowPaymentToken = correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken;
   const quotePayable = dossier.quote
-    ? quotePayableWith(
-        dossier.quote.currency,
-        correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken,
-      )
+    ? quotePayableWith(dossier.quote.currency, escrowPaymentToken)
     : null;
 
   const askedPrice = dossier.quote
@@ -267,6 +265,16 @@ export default async function AgentPage({
     ALTANA_NETWORK.chainId,
     dossier.quote,
   );
+  /*
+     Only when there is no signed price. An agent that quoted has a real
+     number; putting a category median beside it would be inventing a second
+     opinion about a price its own wallet already signed.
+  */
+  const suggestion =
+    dossier.quote || category === 'unclassified'
+      ? null
+      : await suggestedBudgetFor(category, { chainId });
+
   const riskWarnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow
@@ -663,6 +671,11 @@ export default async function AgentPage({
                   it quotes — but the job could not be accepted, so Pokter does
                   not offer the hire.
                 </p>
+                <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">
+                  Publishing this agent? Quote in{' '}
+                  <span className="mono break-all">{escrowPaymentToken}</span>{' '}
+                  and it becomes hireable on the next sweep.
+                </p>
               </div>
             ) : (
             <MobileHireAction
@@ -955,9 +968,27 @@ export default async function AgentPage({
                     It signed a price in another chain’s token, which this
                     escrow cannot pay. Nothing is wrong with the agent — it
                     answers and it quotes — but the job could not be accepted,
-                    so Pokter does not offer the hire. Its publisher can fix
-                    this by quoting in the escrow chain’s payment token.
+                    so Pokter does not offer the hire.
                   </p>
+                  {/*
+                    The publisher is the only person who can fix this, and
+                    until now the page told them a fix existed without saying
+                    what it was. Nobody can act on "quote in the escrow
+                    chain's payment token" without the token. There is no
+                    contact channel to send it down, so it goes here, on the
+                    page they are likeliest to open.
+                  */}
+                  <p className="mt-2 text-[11px] leading-5 text-[color:var(--text-secondary)]">
+                    Publishing this agent? Return this currency from your
+                    quote and the listing becomes hireable on the next sweep,
+                    with no re-registration:
+                  </p>
+                  <p className="mono mt-1.5 break-all rounded-[var(--radius)] bg-[color:var(--surface)] p-2 text-[11px] leading-4">
+                    {escrowPaymentToken}
+                  </p>
+                  <Link href="/build" className="mt-2 inline-flex text-[11px] font-semibold text-[color:var(--brand-strong)]">
+                    Check it against every listing rule ↗
+                  </Link>
                 </div>
               ) : (
                 <HireButton
@@ -1017,6 +1048,7 @@ export default async function AgentPage({
         }}
         providers={providers}
         signedQuoteU={dossier.quote ? Number(dossier.quote.priceU) : null}
+        suggestion={suggestion}
         riskWarnings={riskWarnings}
       />
     </div>

@@ -16,6 +16,11 @@ import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { cache } from 'react';
+import {
+  catalogueSuggestion,
+  suggestionsByCategory,
+  type Suggestion,
+} from '@/lib/find/suggested';
 
 import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
 import { quotePayableWith } from '@/lib/erc8183/payable';
@@ -555,6 +560,36 @@ export async function listSearchableWithStatus(
 
   return { entries, unreachable };
 }
+
+/**
+ * The figure the hire drawer opens on when the agent has never signed one.
+ *
+ * Reads one category rather than the catalogue, because the agent page holds
+ * a dossier and nothing else, and loading 162 listings to derive a single
+ * number would make every agent page pay for the one case where it has no
+ * price. `listCategory` is request-cached, so a page that already listed the
+ * category pays nothing twice.
+ *
+ * Falls back to the catalogue-wide default when a category has too few
+ * signed prices to have a median worth the name. See `suggestionsByCategory`
+ * for why this is never presented as a quote.
+ */
+export const suggestedBudgetFor = cache(async function suggestedBudgetFor(
+  category: Category,
+  options: { chainId?: ChainId } = {},
+): Promise<Suggestion> {
+  const listings = await listCategory(category, options);
+  const quotes = getProbeStore().quotesFor(
+    listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
+  );
+  const priced: { category: string; priceU: number }[] = [];
+  for (const listing of listings) {
+    const quote = quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`);
+    if (quote) priced.push({ category, priceU: Number(quote.priceU) });
+  }
+  const byCategory = suggestionsByCategory(priced);
+  return byCategory.get(category) ?? catalogueSuggestion(byCategory);
+});
 
 /** One category enriched with the same track record used by search and cards. */
 export async function listCategorySearchable(

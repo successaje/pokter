@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { FindRow } from '@/lib/find/rows';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { AgentAvatar } from '@/components/agent/AgentAvatar';
+import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { Button } from '@/components/ui/Button';
 import { Status } from '@/components/ui/Status';
 import { plural } from '@/lib/ui/plural';
@@ -171,9 +172,24 @@ export function AgentSpotlight({ rows, onBrowse }: { rows: FindRow[]; onBrowse: 
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:w-44">
           <p className="text-small text-ink-muted">
-            {featured.priceU !== null ? 'Its signed price' : 'You set the budget'}
+            {featured.priceU !== null ? 'Its signed price' : 'Suggested to start'}
           </p>
-          <p className="tabular -mt-1 text-xl font-semibold">{featured.priceLabel}</p>
+          {/*
+            This printed "You set the budget" as both the label and the
+            figure, so the panel said the same sentence twice and named no
+            number at all. The suggestion is the number; the label says who
+            stands behind it, and nobody does.
+          */}
+          <p
+            className="tabular -mt-1 text-xl font-semibold"
+            title={featured.priceU === null && featured.suggested ? suggestionNote(featured.suggested, featured.categoryLabel) : undefined}
+          >
+            {featured.priceU !== null
+              ? featured.priceLabel
+              : featured.suggested
+                ? suggestionLabel(featured.suggested)
+                : featured.priceLabel}
+          </p>
           <Button href={`/agents/${featured.chainId}/${featured.tokenId}?hire=1`} variant="primary" size="sm" block>
             Hire
           </Button>
@@ -221,10 +237,10 @@ export function AgentSpotlight({ rows, onBrowse }: { rows: FindRow[]; onBrowse: 
                     </span>
                     <span
                       className={
-                        row.priceU !== null ? 'tabular text-small font-medium text-ink' : 'text-small text-ink-faint'
+                        row.priceU !== null ? 'tabular text-small font-medium text-ink' : 'tabular text-small text-ink-muted'
                       }
                     >
-                      {row.priceU !== null ? row.priceLabel : 'Set budget'}
+                      {row.priceU !== null ? row.priceLabel : row.suggested ? suggestionLabel(row.suggested) : 'Set budget'}
                     </span>
                   </span>
                 </Link>
