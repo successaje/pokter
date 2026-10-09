@@ -6,8 +6,13 @@ import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { StartHiring } from '@/components/campaign/StartHiring';
 
 const TITLE = 'How to complete Set and Earn';
+/*
+ * Under 125 characters. Social cards truncate around there on mobile, and
+ * a sentence cut mid-clause reads as carelessness on the one page whose
+ * job is to be shared.
+ */
 const DESCRIPTION =
-  'The two things a wallet has to do to qualify for BNB Chain’s Set and Earn, what counts, and the three build checks most agents fail. Closes 5 November, 12:00 UTC.';
+  'Register, fund, hire three agents across two marketplaces, list one of your own. Closes 5 November, 12:00 UTC.';
 
 /*
  * openGraph and twitter are set explicitly, not left to `title` and
@@ -25,6 +30,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/set-and-earn/guide' },
   openGraph: {
     type: 'article',
+    /* Declaring openGraph here replaces the root block rather than merging
+       into it, so siteName has to be repeated or the card goes out
+       anonymous — Discord and Slack show it above the title. */
+    siteName: 'Pokter',
     title: TITLE,
     description: DESCRIPTION,
     url: '/set-and-earn/guide',

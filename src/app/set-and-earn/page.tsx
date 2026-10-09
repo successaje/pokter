@@ -23,9 +23,14 @@ export const metadata: Metadata = {
   alternates: { canonical: '/set-and-earn' },
   openGraph: {
     type: 'website',
+    /* Repeated because a page-level openGraph block replaces the root's
+       instead of merging into it, and without this the card is anonymous
+       wherever the site name is shown above the title. */
+    siteName: 'Pokter',
     title: 'Set and Earn — hire and build AI agents on BNB Chain',
+    /* Kept under 125 characters so mobile cards do not truncate it. */
     description:
-      'Pokter is one of 9 shortlisted marketplaces. Track the campaign tasks Pokter can verify, then finish the official requirements. Closes 5 November, 12:00 UTC.',
+      'One of 9 shortlisted marketplaces. Hire agents, list your own, track what Pokter can verify. Closes 5 Nov, 12:00 UTC.',
     url: '/set-and-earn',
   },
   twitter: {
