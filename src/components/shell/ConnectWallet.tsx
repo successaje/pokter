@@ -645,11 +645,19 @@ export function ConnectWallet() {
                 The same address you use everywhere else, so the record you
                 build here is yours to take anywhere. Pokter never holds a key.
               </p>
+              {/*
+                No button at all when nothing can connect.
+                Disabled, it still read "Scan with your wallet app" directly
+                above "No browser wallet found" — the panel promising a QR
+                code and denying one in the same breath. A sentence on its
+                own is the honest version.
+              */}
+              {primaryConnector && (
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={isPending || !primaryConnector}
-                  onClick={primaryConnector ? () => connect({ connector: primaryConnector }) : undefined}
+                  disabled={isPending}
+                  onClick={() => connect({ connector: primaryConnector })}
                   className="rounded-[var(--radius)] bg-[color:var(--text)] px-3 py-2 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {isPending
@@ -669,6 +677,7 @@ export function ConnectWallet() {
                   </button>
                 )}
               </div>
+              )}
               {!primaryConnector && (
                 <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                   {hydrated
