@@ -48,14 +48,41 @@ type InjectedProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
-function provider(): InjectedProvider {
-  const injected = (globalThis as unknown as { ethereum?: InjectedProvider }).ethereum;
-  if (!injected) throw new Error('NO_WALLET');
-  return injected;
+/**
+ * The provider every call below signs through.
+ *
+ * This read `window.ethereum` and nothing else, which was correct while the
+ * only browser wallets were desktop extensions. A WalletConnect session
+ * never touches `window.ethereum`: the wallet is on a phone and the pairing
+ * lives in the connector. Left as it was, adding the connector would have
+ * produced the worst version of this — connecting appears to work, the
+ * address shows in the header, and every hire fails at the first signature
+ * against an extension that was never there.
+ *
+ * So the connected provider is registered here when wagmi establishes a
+ * session, and `window.ethereum` is the fallback for the plain injected
+ * case before anything has connected.
+ */
+let connectedProvider: InjectedProvider | null = null;
+
+/** Called by `ExternalProviderBridge` whenever the wagmi connector changes. */
+export function setExternalProvider(next: InjectedProvider | null): void {
+  connectedProvider = next;
 }
 
+function injectedProvider(): InjectedProvider | null {
+  return (globalThis as unknown as { ethereum?: InjectedProvider }).ethereum ?? null;
+}
+
+function provider(): InjectedProvider {
+  const resolved = connectedProvider ?? injectedProvider();
+  if (!resolved) throw new Error('NO_WALLET');
+  return resolved;
+}
+
+/** Whether anything can sign: a live session, or an extension to open one with. */
 export function hasInjectedWallet(): boolean {
-  try { provider(); return true; } catch { return false; }
+  return Boolean(connectedProvider ?? injectedProvider());
 }
 
 function clients() {

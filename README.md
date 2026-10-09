@@ -349,6 +349,12 @@ and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
 operator routes from a trusted script; they fail closed when it is absent and
 the browser UI never receives it. **Use a testnet key.**
 
+`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` enables WalletConnect alongside the
+injected connector. Without it the connect panel offers desktop extensions
+only, which is no route at all on a phone — mobile wallets expose no injected
+provider. Get a project id free from the WalletConnect dashboard; it is
+public by design, identifying the relay app rather than authorising anything.
+
 Transactional job email is optional and server-only. Configure
 `RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` to enable it, with
 `NOTIFICATION_REPLY_TO` when replies should reach support. A dedicated random

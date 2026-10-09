@@ -16,9 +16,10 @@ import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
+import { useHydrated } from '@/lib/ui/use-hydrated';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
-import { externalBalances } from '@/lib/wallet/external';
+import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
 
 function SigningIcon() {
   return (
@@ -188,7 +189,27 @@ export function ConnectWallet() {
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching } = useSwitchChain();
 
-  const injected = connectors.find((c) => c.id === 'injected') ?? connectors[0];
+  /*
+   * Two ways in, because a phone has no injected provider.
+   *
+   * Registration is not availability: wagmi lists the injected connector
+   * whether or not an extension exists, so picking it off `connectors` by id
+   * would have offered "Connect wallet" to every phone and failed at the
+   * prompt. What matters is whether anything is actually on `window`, which
+   * is a browser fact and so is read after hydration — before that the
+   * server and the client disagree, and the panel is the one place that
+   * disagreement would be visible.
+   */
+  const hydrated = useHydrated();
+  const hasInjected =
+    hydrated && typeof window !== 'undefined' && Boolean(hasInjectedWallet());
+  const injected = hasInjected
+    ? (connectors.find((c) => c.id === 'injected') ?? null)
+    : null;
+  const walletConnectConnector =
+    connectors.find((c) => c.id === 'walletConnect') ?? null;
+  const primaryConnector =
+    injected ?? walletConnectConnector ?? connectors.find((c) => c.id === 'injected') ?? null;
   const wrongChain = isConnected && chain?.id !== ESCROW_CHAIN.id;
   const active = useActiveWallet();
   /*
@@ -513,8 +534,8 @@ export function ConnectWallet() {
                       ? () => switchChain({ chainId: ESCROW_CHAIN.id })
                       : isConnected
                         ? () => disconnect()
-                        : injected
-                          ? () => connect({ connector: injected })
+                        : primaryConnector
+                          ? () => connect({ connector: primaryConnector })
                           : undefined
                   }
                 />
@@ -617,16 +638,35 @@ export function ConnectWallet() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={isPending || !injected}
-                  onClick={injected ? () => connect({ connector: injected }) : undefined}
+                  disabled={isPending || !primaryConnector}
+                  onClick={primaryConnector ? () => connect({ connector: primaryConnector }) : undefined}
                   className="rounded-[var(--radius)] bg-[color:var(--text)] px-3 py-2 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  {isPending ? 'Waiting for your wallet…' : 'Connect wallet'}
+                  {isPending
+                    ? 'Waiting for your wallet…'
+                    : injected
+                      ? 'Connect wallet'
+                      : 'Scan with your wallet app'}
                 </button>
+                {injected && walletConnectConnector && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => connect({ connector: walletConnectConnector })}
+                    className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+                  >
+                    Use a phone wallet
+                  </button>
+                )}
               </div>
-              {!injected && (
+              {!primaryConnector && (
                 <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
                   No browser wallet found. Install one, or use a passkey below.
+                </p>
+              )}
+              {!injected && walletConnectConnector && (
+                <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                  Opens a QR code for MetaMask, Trust or any WalletConnect wallet.
                 </p>
               )}
 
