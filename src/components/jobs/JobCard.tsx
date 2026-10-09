@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { NATIVE_SYMBOL, chainLabel} from '@/lib/network/presentation';
 
@@ -134,6 +134,109 @@ export function JobCard({
   const signer = usePasskeySigner();
   const activeWallet = useActiveWallet();
 
+  /*
+   * The chain read on its own, with no button state attached.
+   *
+   * Refresh and the background poll want exactly the same two calls; only
+   * the manual press should blank the error line or disable the controls,
+   * so the poll calls this directly and the handler wraps it.
+   */
+  const syncFromChain = useCallback(
+    async (hashes?: {
+      settleTxHash?: HiredJob['settleTxHash'];
+      disputeTxHash?: HiredJob['disputeTxHash'];
+      reclaimTxHash?: HiredJob['reclaimTxHash'];
+    }) => {
+      const owner = activeWallet.address;
+      if (!owner) return;
+      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
+      const deliverableUrl =
+        job.deliverableUrl ??
+        (current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED'
+          ? await getErc8183DeliverableUrl(
+              WALLET_NETWORK,
+              BigInt(job.jobId),
+            ).catch(() => undefined)
+          : undefined) ??
+        null;
+      const updated: HiredJob = {
+        ...job,
+        status: current.statusName,
+        statusCheckedAt: new Date().toISOString(),
+        deliverableUrl,
+        settleTxHash: hashes?.settleTxHash ?? job.settleTxHash,
+        disputeTxHash: hashes?.disputeTxHash ?? job.disputeTxHash,
+        reclaimTxHash: hashes?.reclaimTxHash ?? job.reclaimTxHash ?? null,
+      };
+      if (updated.deliverableUrl !== job.deliverableUrl) {
+        setReviewed(false);
+        setReceiptVerified(false);
+      }
+      setJob(updated);
+      updateRememberedJob(owner, updated);
+    },
+    [activeWallet.address, job],
+  );
+
+  /*
+   * Re-read the job while it is waiting on somebody else.
+   *
+   * Status was only ever read when the button was pressed, which asked a
+   * buyer to poll a chain by hand to find out whether the work they paid
+   * for had arrived. The card already knows how to read it; it just never
+   * did so on its own.
+   *
+   * Only OPEN and FUNDED. Those are the states that change without the
+   * buyer doing anything — FUNDED to SUBMITTED is the seller delivering,
+   * which is the whole reason anyone was pressing Refresh. SUBMITTED waits
+   * on the buyer to accept, and COMPLETED, REJECTED and EXPIRED do not move
+   * again, so polling them would be a request per thirty seconds for an
+   * answer that cannot change.
+   *
+   * Paused while a transaction is in flight, so a poll cannot overwrite
+   * state mid-signature, and paused while the tab is hidden, because an
+   * abandoned background tab should not keep an RPC busy for hours. It
+   * reads once on becoming visible again, which is when somebody is
+   * actually looking.
+   *
+   * The row only mounts this card while it is expanded, so this is bounded
+   * to the one job being read rather than every job in the list.
+   */
+  const POLL_MS = 30_000;
+  const watching = job.status === 'OPEN' || job.status === 'FUNDED';
+  /*
+   * Held in a ref so the interval is not torn down and rebuilt on every
+   * tick: syncFromChain depends on the job, and each poll replaces the
+   * job, which would otherwise restart the timer every thirty seconds and
+   * never let a full interval elapse. Assigned in an effect rather than
+   * during render, which the linter is right to refuse.
+   */
+  const syncRef = useRef(syncFromChain);
+  useEffect(() => {
+    syncRef.current = syncFromChain;
+  }, [syncFromChain]);
+
+  useEffect(() => {
+    if (!watching || busy !== null) return;
+    let stopped = false;
+    const tick = () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      /* A background read must never surface an error the reader did not
+         ask for: a flaky RPC is not news, and the next tick retries. */
+      void syncRef.current().catch(() => {});
+    };
+    const timer = window.setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [watching, busy]);
+
   const act = async (action: 'refresh' | 'approve' | 'dispute' | 'reclaim') => {
     setBusy(action);
     setError(null);
@@ -207,32 +310,7 @@ export function JobCard({
         }
       }
 
-      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
-      const deliverableUrl =
-        job.deliverableUrl ??
-        (current.statusName === 'SUBMITTED' ||
-        current.statusName === 'COMPLETED'
-          ? await getErc8183DeliverableUrl(
-              WALLET_NETWORK,
-              BigInt(job.jobId),
-            ).catch(() => undefined)
-          : undefined) ??
-        null;
-      const updated: HiredJob = {
-        ...job,
-        status: current.statusName,
-        statusCheckedAt: new Date().toISOString(),
-        deliverableUrl,
-        settleTxHash,
-        disputeTxHash,
-        reclaimTxHash,
-      };
-      if (updated.deliverableUrl !== job.deliverableUrl) {
-        setReviewed(false);
-        setReceiptVerified(false);
-      }
-      setJob(updated);
-      updateRememberedJob(activeWallet.address, updated);
+      await syncFromChain({ settleTxHash, disputeTxHash, reclaimTxHash });
     } catch (caught) {
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {
