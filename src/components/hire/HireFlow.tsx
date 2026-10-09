@@ -15,6 +15,7 @@ import { Checkbox, Textarea } from '@/components/ui/Field';
 import { DefinitionList } from '@/components/ui/Definition';
 import { Segmented } from '@/components/ui/Segmented';
 import { StagedProgress } from '@/components/ui/Progress';
+import { CampaignWalletNote } from './CampaignWalletNote';
 import { ReadinessRow } from './ReadinessRow';
 import { HireError } from './HireError';
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from './useHire';
@@ -220,6 +221,8 @@ export function HireFlow({ agent, providers, signedQuoteU, riskWarnings, onClose
           <Checkbox label="I understand and still want to fund this job." checked={hire.riskAccepted} onChange={(event) => hire.setRiskAccepted(event.target.checked)} />
         </Callout>
       )}
+
+      <CampaignWalletNote mode={hire.active.mode} />
 
       <div className="flex flex-col gap-2 border-t border-line pt-4">
         <p className="text-body-s font-medium">{hire.locked ? 'To sign, you need' : 'Ready to sign'}</p>

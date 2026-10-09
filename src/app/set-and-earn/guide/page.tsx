@@ -131,6 +131,19 @@ export default function SetAndEarnGuide() {
           One wallet per person; operating several means disqualification
           rather than having the extras ignored.
         </p>
+        <div className="rounded-[var(--radius-lg)] border border-caution/40 bg-caution/5 p-4">
+          <p className="text-body-s font-medium">
+            Register an ordinary wallet, not a Pokter passkey.
+          </p>
+          <p className="mt-2 text-small leading-5 text-ink-secondary">
+            Our passkey sign-in is the fastest way to hire here, and the wrong
+            choice for this campaign: a passkey only works on the domain that
+            created it, so its address cannot be reused on a second
+            marketplace. Since the campaign wants hires across more than one
+            and counts a second wallet as grounds for disqualification, use an
+            extension or mobile wallet for everything you register.
+          </p>
+        </div>
         <a
           href={CAMPAIGN_RULES_URL}
           target="_blank"
