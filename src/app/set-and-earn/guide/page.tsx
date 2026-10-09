@@ -5,11 +5,35 @@ import { CAMPAIGN_RULES_URL, isCampaignLive } from '@/lib/campaign/window';
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { StartHiring } from '@/components/campaign/StartHiring';
 
+const TITLE = 'How to complete Set and Earn';
+const DESCRIPTION =
+  'The two things a wallet has to do to qualify for BNB Chain’s Set and Earn, what counts, and the three build checks most agents fail. Closes 5 November, 12:00 UTC.';
+
+/*
+ * openGraph and twitter are set explicitly, not left to `title` and
+ * `description`.
+ *
+ * Next fills the document title and meta description from those two, and
+ * nothing else — the social tags keep falling through to the root layout.
+ * Shared as it was, this page produced a card reading "Pokter — Choose what
+ * deserves your money", which says nothing about the campaign to somebody
+ * deciding whether to click.
+ */
 export const metadata: Metadata = {
-  title: 'How to complete Set and Earn',
-  description:
-    'The two things a wallet has to do to qualify for BNB Chain’s Set and Earn, what counts, and the three checks most agents fail.',
+  title: TITLE,
+  description: DESCRIPTION,
   alternates: { canonical: '/set-and-earn/guide' },
+  openGraph: {
+    type: 'article',
+    title: TITLE,
+    description: DESCRIPTION,
+    url: '/set-and-earn/guide',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 /** One numbered step. The number is decoration; the heading carries the meaning. */
