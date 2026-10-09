@@ -209,8 +209,17 @@ export function ConnectWallet() {
     : null;
   const walletConnectConnector =
     connectors.find((c) => c.id === 'walletConnect') ?? null;
-  const primaryConnector =
-    injected ?? walletConnectConnector ?? connectors.find((c) => c.id === 'injected') ?? null;
+  /*
+   * No silent third choice.
+   *
+   * This fell back to the injected connector when neither an extension nor
+   * WalletConnect was available, which made the button enabled and labelled
+   * "Scan with your wallet app" on a phone with no relay configured — a
+   * promise of a QR code that connects to an extension that is not there
+   * and reports nothing. Worse than the blank it replaced. When there is
+   * genuinely no way in, the panel says so.
+   */
+  const primaryConnector = injected ?? walletConnectConnector;
   const wrongChain = isConnected && chain?.id !== ESCROW_CHAIN.id;
   const active = useActiveWallet();
   /*
@@ -662,7 +671,9 @@ export function ConnectWallet() {
               </div>
               {!primaryConnector && (
                 <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-                  No browser wallet found. Install one, or use a passkey below.
+                  {hydrated
+                    ? 'No browser wallet found. On a computer, install one; on a phone, use a passkey below.'
+                    : 'Checking for a wallet…'}
                 </p>
               )}
               {!injected && walletConnectConnector && (
