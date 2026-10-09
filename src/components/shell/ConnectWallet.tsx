@@ -589,79 +589,85 @@ export function ConnectWallet() {
 
               </div>
             </>
-          ) : !passkey.ready ? (
-            <p className="mt-3 text-[12px] text-[color:var(--text-faint)]">
-              Checking…
-            </p>
-          ) : !passkey.supported ? (
-            <p className="mt-3 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-              This browser cannot use passkeys. They need WebAuthn over a secure
-              connection.
-            </p>
           ) : (
             <>
               {/*
-                Nothing to weigh up here, so nothing is presented as a choice.
-                A passkey wallet is the only one that can sign a hire; the
-                browser wallet is an extra, and it sits below as a row rather
-                than beside this as an equal.
+                The wallet leads; the passkey is the fallback.
+
+                These were the other way round, because for a while a passkey
+                was the only thing that could sign a hire. Two things changed.
+                A browser wallet can fund an escrow now, so the passkey is no
+                longer load-bearing. And a passkey is bound to the domain that
+                made it, so the address it mints exists on Pokter and nowhere
+                else — which is a quiet trap for anybody building a record
+                that has to be legible somewhere other than here.
+
+                So the default is the wallet somebody already has and can
+                carry off this site. The passkey is still a genuine way in,
+                offered below for people who have no wallet at all, with the
+                one thing about it that can cost them stated plainly.
               */}
               <p className="mt-2 font-[family-name:var(--font-serif)] text-[19px] leading-snug">
-                Hire without handing over a key.
+                Hire with the wallet you already have.
               </p>
               <p className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
-                The key is made in this device and stays there, so signing asks
-                for your fingerprint or face and Pokter never holds it.
+                The same address you use everywhere else, so the record you
+                build here is yours to take anywhere. Pokter never holds a key.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={passkey.busy !== null}
-                  onClick={() => passkey.create()}
+                  disabled={isPending || !injected}
+                  onClick={injected ? () => connect({ connector: injected }) : undefined}
                   className="rounded-[var(--radius)] bg-[color:var(--text)] px-3 py-2 text-[12px] font-medium text-[color:var(--bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
-                  {passkey.busy === 'creating'
-                    ? 'Waiting for prompt…'
-                    : 'Create passkey wallet'}
-                </button>
-                <button
-                  type="button"
-                  disabled={passkey.busy !== null}
-                  onClick={() => passkey.recover()}
-                  className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
-                >
-                  {passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing'}
+                  {isPending ? 'Waiting for your wallet…' : 'Connect wallet'}
                 </button>
               </div>
-              <div className="mt-3 flex flex-col border-t border-[color:var(--border)] pt-1">
-                {/*
-                  An equal way in, not a lesser one.
+              {!injected && (
+                <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                  No browser wallet found. Install one, or use a passkey below.
+                </p>
+              )}
 
-                  This offered the browser wallet as something that recognises
-                  you but cannot sign a hire. That was true when only a passkey
-                  could fund an escrow and stopped being true when this one
-                  could — leaving the panel talking somebody out of a wallet
-                  they already have and can hire with today.
-                */}
-                <WalletRow
-                  icon={<IdentityIcon />}
-                  accent="brand"
-                  title={isConnected ? 'Your own wallet' : 'Use my own wallet'}
-                  detail={
-                    isPending
-                      ? 'Waiting for your wallet…'
-                      : isConnected
-                        ? `${shortAddress(address!)} · ${chain?.name ?? 'connected'}`
-                        : 'Hire from the wallet you already have'
-                  }
-                  onClick={
-                    isConnected
-                      ? () => disconnect()
-                      : injected
-                        ? () => connect({ connector: injected })
-                        : undefined
-                  }
-                />
+              <div className="mt-3 border-t border-[color:var(--border)] pt-3">
+                <p className="text-[12px] font-medium">No wallet? Sign with a passkey</p>
+                {!passkey.ready ? (
+                  <p className="mt-1 text-[12px] text-[color:var(--text-faint)]">Checking…</p>
+                ) : !passkey.supported ? (
+                  <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                    This browser cannot use passkeys. They need WebAuthn over a
+                    secure connection.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--text-muted)]">
+                      A key made in this device, so signing asks for your
+                      fingerprint or face. It only works on Pokter — if you are
+                      entering Set and Earn, connect a wallet instead.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={passkey.busy !== null}
+                        onClick={() => passkey.create()}
+                        className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+                      >
+                        {passkey.busy === 'creating'
+                          ? 'Waiting for prompt…'
+                          : 'Create passkey wallet'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={passkey.busy !== null}
+                        onClick={() => passkey.recover()}
+                        className="rounded-[var(--radius)] border border-[color:var(--border)] px-3 py-2 text-[12px] transition-colors hover:bg-[color:var(--surface-hover)] disabled:opacity-50"
+                      >
+                        {passkey.busy === 'recovering' ? 'Waiting…' : 'Use existing'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
