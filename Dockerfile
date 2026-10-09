@@ -10,8 +10,30 @@ FROM node:24-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Build-time only: the registry key is baked into nothing, but Next reads
-# NEXT_PUBLIC_* at build time and the rest at runtime.
+# NEXT_PUBLIC_* has to be here, not in fly.toml.
+#
+# Next inlines these into the client bundle while it compiles; fly.toml's
+# [env] block sets the machine's runtime environment, which the already-built
+# JavaScript never consults. Declaring them there and nowhere else compiled
+# every one of them to `undefined`.
+#
+# It stayed invisible because the two that existed both had harmless
+# fallbacks on the apex domain: NEXT_PUBLIC_APP_URL is mostly read on the
+# server, where runtime env does apply, and passkeyRpId() falls back to
+# window.location.hostname, which on pokter.xyz is the value the variable
+# would have supplied. On www.pokter.xyz it is not — which is the exact case
+# the variable was added to handle, so the feature was off precisely where it
+# was needed. WalletConnect is what finally showed it: a missing project id
+# drops the connector outright, with no fallback to hide behind.
+#
+# None of the three is a secret. Each ships inside the client bundle by
+# design, so they are plain build args rather than mounted secrets.
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_PASSKEY_RP_ID
+ARG NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_PASSKEY_RP_ID=$NEXT_PUBLIC_PASSKEY_RP_ID
+ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=$NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

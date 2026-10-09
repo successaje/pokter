@@ -3,6 +3,12 @@ app = 'pokter'
 primary_region = 'iad'
 
 [build]
+  # Compiled into the client bundle, not read from the machine at runtime.
+  # See the Dockerfile's builder stage for why these cannot live in [env].
+  [build.args]
+    NEXT_PUBLIC_APP_URL = 'https://pokter.xyz'
+    NEXT_PUBLIC_PASSKEY_RP_ID = 'pokter.xyz'
+    NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID = 'd8f9d3b75a1facd7447f8440becd4093'
 
 [env]
   PORT = '8080'
