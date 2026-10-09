@@ -23,9 +23,18 @@ function contentSecurityPolicy(): string {
     `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
+    /*
+     * WalletConnect's modal is a web component that ships its own typeface
+     * from fonts.reown.com. Blocked, the pairing dialog still works and
+     * renders in a fallback face, with eight CSP violations in the console
+     * for anybody debugging something else.
+     */
+    "font-src 'self' data: https://fonts.reown.com",
     // Chain RPC, the registry indexer and the wallet relay are all https, and
-    // the dev server's hot-reload channel is a websocket.
+    // the dev server's hot-reload channel is a websocket. `wss:` is what
+    // carries WalletConnect: its pairing runs over a socket to
+    // relay.walletconnect.org, and without it the modal opens, draws no QR
+    // and disables its own copy-link button.
     `connect-src 'self' https:${dev ? ' ws: wss:' : ' wss:'}`,
     "frame-ancestors 'none'",
     "frame-src 'none'",

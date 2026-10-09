@@ -20,6 +20,7 @@ import { useHydrated } from '@/lib/ui/use-hydrated';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
+import { walletActionError } from '@/lib/wallet/errors';
 
 function SigningIcon() {
   return (
@@ -185,7 +186,7 @@ export function ConnectWallet() {
   const paymentBalance = balances.data?.tokens?.[0];
 
   const { address, isConnected, chain } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
+  const { connect, connectors, isPending, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching } = useSwitchChain();
 
@@ -710,6 +711,19 @@ export function ConnectWallet() {
                 )}
               </div>
             </>
+          )}
+
+          {/*
+            A connect that throws used to show nothing at all.
+            WalletConnect loads its provider lazily, so a missing dependency
+            or an unreachable relay fails at the click rather than at build:
+            the button depresses, nothing opens, and the panel sits there
+            looking fine. Whatever the cause, the reader gets told.
+          */}
+          {connectError && (
+            <p className="mt-3 text-[12px] leading-relaxed text-[color:var(--negative)]">
+              {walletActionError(connectError, 'Connecting')}
+            </p>
           )}
 
           {passkey.error && (
