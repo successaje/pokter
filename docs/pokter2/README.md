@@ -137,8 +137,8 @@ A review of the rebuilt UI against the backend found 14 issues, all fixed:
 
 - `useHire.commission()` refuses to run on an invalid budget, an unaccepted risk or an empty task, whoever calls it. The failure banner no longer offers a one-click retry that skips the confirmation.
 - The payment confirmation covers amount, task **and recipient**.
-- Gas sponsorship tops up only smart-account (passkey) wallets with code, not throwaway EOAs.
-- **Quotes must bind their terms.** `negotiationTermsBound` re-derives `negotiation_hash` exactly as BNB's reference SDK does (canonical JSON of task, terms, price, currency, expiry, chain binding). Stored quotes are dropped unless it matches. The trial says plainly whether the signature covers the price. It is checked against live agents #2554 and #2555 and in `tests/negotiation-binding.test.mts`.
+- Gas sponsorship refuses foreign contract code but allows no-code addresses and EIP-7702 delegations, because a new passkey wallet's upgrade is counterfactual and lands with its first (sponsored) transaction. A first pass required code and would have refused every new passkey buyer; a second review caught that. Plain EOAs therefore remain eligible, and the abuse limits are the $U holding rule plus persistent per-wallet, per-client and daily caps. Mainnet sponsorship stays off unless explicitly enabled. Robustly identifying Pokter passkey wallets (for example, recording them at creation) is still open.
+- **Quotes must bind their terms and Pokter's own brief.** `negotiationTermsBound` re-derives `negotiation_hash` exactly as BNB's reference SDK does (canonical JSON of task, terms, price, currency, expiry, chain binding). Stored quotes are dropped unless it matches. The trial says plainly whether the signature covers the price. It is checked against live agents #2554 and #2555 and in `tests/negotiation-binding.test.mts`.
 - Registration recovery is per draft, with "Start over instead". The profile editor uses one service index for read, check and write, and changes only the category tag.
 - Smaller fixes:
   - category labels in Studio;

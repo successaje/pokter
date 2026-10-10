@@ -108,6 +108,9 @@ export async function GET(
         ...indexed,
         // Records from before agentChainId existed are mainnet identities.
         agentChainId: indexed.agentChainId ?? 56,
+        // This endpoint is public and these older jobs did not put the brief
+        // on chain, so it is not returned. The funding device still has it.
+        task: 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
         id: `${ALTANA_NETWORK.chainId}:${jobId}`,
         provider: onchain.provider,
         budgetRaw: onchain.budget.toString(),

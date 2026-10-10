@@ -211,7 +211,7 @@ export async function requestQuote(
      */
     if (!negotiationTermsBound(data, enquiry.task_description)) return null;
 
-    const expiry = response?.quote_expires_at;
+    const expiry = data.quote_expires_at || response?.quote_expires_at;
     /* Absent on some sellers, which is "unbound", not "bound to ours". */
     const domainChain = data.chain_id;
     const verifyingContract = data.verifying_contract;

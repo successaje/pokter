@@ -138,14 +138,18 @@ export async function sponsorGas(rawAddress: string, clientKey: string): Promise
   if (balance >= GAS_FLOOR) return { status: 'held', balance };
 
   /*
-   * Only smart-account wallets (Pokter's passkey wallets are EIP-7702
-   * accounts) are topped up. A plain externally owned address has no code,
-   * and browser wallets pay their own gas anyway, so refusing them closes
-   * the cheapest way to farm free BNB with throwaway keys.
+   * A new passkey wallet has no code yet: its EIP-7702 upgrade is
+   * counterfactual and lands with its first transaction, which is exactly
+   * the one sponsorship pays for. So no code is allowed, as is a 7702
+   * delegation designator (0xef0100…). Any other contract code is refused:
+   * a contract is never a buyer's passkey wallet. The $U holding rule and
+   * persistent per-wallet, per-client and daily caps below remain the
+   * abuse limits, and mainnet sponsorship stays off unless explicitly
+   * enabled.
    */
   const code = await chain.getCode({ address }).catch(() => undefined);
-  if (!code || code === '0x') {
-    return { status: 'refused', reason: 'Pokter covers gas for passkey wallets only. A browser wallet pays its own network fee.' };
+  if (code && code !== '0x' && !code.toLowerCase().startsWith('0xef0100')) {
+    return { status: 'refused', reason: 'Pokter covers gas for passkey wallets only.' };
   }
 
   const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);

@@ -6,7 +6,8 @@ import { cn } from '@/lib/ui/cn';
 import type { AgentOps } from './data';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-const fmtTime = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+// UTC on both server and client, so the server render hydrates cleanly.
+const fmtTime = (iso: string) => `${new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
 
 /**
  * Jobs funded per week: one series, so one ink colour and no legend; the

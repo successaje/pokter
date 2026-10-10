@@ -38,7 +38,22 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   const [error, setError] = useState<string | null>(null);
   // Once the submission is on chain it must never be sent again; only the
   // index confirmation is retried.
-  const [submittedTx, setSubmittedTx] = useState<`0x${string}` | null>(null);
+  const storeKey = `pokter.delivery-submitted.${job.jobId}`;
+  const [submittedTx, setSubmittedTxState] = useState<`0x${string}` | null>(() => {
+    try {
+      return (window.sessionStorage.getItem(storeKey) as `0x${string}` | null) ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const setSubmittedTx = (hash: `0x${string}`) => {
+    setSubmittedTxState(hash);
+    try {
+      window.sessionStorage.setItem(storeKey, hash);
+    } catch {
+      /* Kept in memory only. */
+    }
+  };
   const { signMessageAsync } = useSignMessage();
 
   const post = async (body: unknown) => {
@@ -54,11 +69,16 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         await post({ action: 'confirm', jobId: job.jobId, transactionHash });
+        try {
+          window.sessionStorage.removeItem(storeKey);
+        } catch {
+          /* Nothing stored. */
+        }
         setStage('done');
         return;
       } catch (cause) {
         lastError = cause as Error;
-        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
       }
     }
     setStage('idle');

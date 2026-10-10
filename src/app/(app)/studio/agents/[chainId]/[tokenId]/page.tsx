@@ -125,7 +125,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
               <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
-              <Readout label="Refunded jobs" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
+              <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
               <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
             </dl>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

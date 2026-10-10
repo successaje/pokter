@@ -102,6 +102,7 @@ export function quoteUsableForEscrow(
  * when it actually is.
  */
 function sortValue(v: unknown): unknown {
+  if (typeof v === 'number' && !Number.isFinite(v)) throw new TypeError('canonicalJson: non-finite number');
   if (Array.isArray(v)) return v.map(sortValue);
   if (v !== null && typeof v === 'object') {
     const out: Record<string, unknown> = {};
@@ -135,9 +136,13 @@ export function negotiationContent(envelope: Record<string, unknown>, sentTask?:
   const request = (envelope.request ?? {}) as Record<string, unknown>;
   if (!response.accepted) return null;
   const t = (response.terms ?? {}) as Record<string, unknown>;
-  const price = typeof t.price === 'string' ? t.price : '';
-  const currency = typeof t.currency === 'string' ? t.currency : '';
+  // As the reference: `price || ''`, hashed with whatever type it carries.
+  const price = t.price || '';
+  const currency = t.currency || '';
   if (!price || !currency) return null;
+  // The signature must cover the brief Pokter actually sent, not whatever
+  // brief the envelope echoes back (a replayed receipt for another task).
+  if (sentTask !== undefined && typeof request.task_description === 'string' && request.task_description !== sentTask) return null;
   const terms: Record<string, unknown> = {
     deliverables: sanitizeForClaim(t.deliverables ?? ''),
     quality_standards: sanitizeForClaim(t.quality_standards ?? ''),
@@ -156,7 +161,8 @@ export function negotiationContent(envelope: Record<string, unknown>, sentTask?:
   const expires = envelope.quote_expires_at || response.quote_expires_at;
   if (expires !== undefined && expires !== null) content.quote_expires_at = expires;
   if (envelope.chain_id !== undefined && envelope.chain_id !== null) content.chain_id = envelope.chain_id;
-  if (typeof envelope.verifying_contract === 'string') {
+  if (envelope.verifying_contract !== undefined && envelope.verifying_contract !== null) {
+    if (typeof envelope.verifying_contract !== 'string') return null;
     try {
       content.verifying_contract = getAddress(envelope.verifying_contract);
     } catch {
@@ -172,5 +178,10 @@ export function negotiationTermsBound(envelope: Record<string, unknown>, sentTas
   if (typeof hash !== 'string') return false;
   const content = negotiationContent(envelope, sentTask);
   if (!content) return false;
+  try {
+    canonicalJson(content);
+  } catch {
+    return false;
+  }
   return keccak256(toBytes(canonicalJson(content))).toLowerCase() === hash.toLowerCase();
 }

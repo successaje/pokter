@@ -45,3 +45,10 @@ test('a declined negotiation binds nothing', () => {
 test('canonical JSON sorts keys and escapes non-ASCII', () => {
   assert.equal(canonicalJson({ b: 1, a: 'é' }), '{"a":"\\u00e9","b":1}');
 });
+
+test('a receipt echoing a different brief is not bound to the brief Pokter sent', () => {
+  const e = envelope('100000000000000000');
+  e.negotiation_hash = keccak256(toBytes(canonicalJson(negotiationContent(e)!)));
+  assert.equal(negotiationTermsBound(e, 'Assess [risk]'), true);
+  assert.equal(negotiationTermsBound(e, 'A completely different task'), false);
+});

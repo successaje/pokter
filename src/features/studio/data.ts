@@ -141,7 +141,7 @@ export function loadAgentOps(chainId: number, tokenId: string, jobs: HiredJob[])
     money: {
       releasedU: jobs.filter((j) => j.status === 'COMPLETED').reduce((s, j) => s + u(j.budgetRaw), 0),
       escrowedU: jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED').reduce((s, j) => s + u(j.budgetRaw), 0),
-      refundedJobs: jobs.filter((j) => Boolean(j.reclaimTxHash)).length,
+      refundedJobs: jobs.filter((j) => j.status === 'EXPIRED' || Boolean(j.reclaimTxHash)).length,
       disputedJobs: jobs.filter((j) => j.status === 'REJECTED').length,
     },
   };
