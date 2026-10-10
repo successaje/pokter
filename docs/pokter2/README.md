@@ -159,6 +159,16 @@ Also added afterwards:
 - a base `grid-cols-1` on every responsive grid, after a phone overflow;
 - the light "not measured" tone raised to AA. Every text token now meets AA on every ground in both themes.
 
+## Jobs follow the wallet
+
+The job index keeps each job's funding wallet (`client`), read from the
+contract and never from a caller. `GET /api/jobs?client=` lists one
+wallet's jobs; `useMyJobs` merges them with the browser's own, so a hire
+shows on every device the wallet connects from. Three writers fill it: the
+hire's own indexing, `POST /api/jobs/[jobId]/sync` after a settle, dispute or
+reclaim, and the scheduled sweep for older rows. Recovering a job
+(`GET /api/jobs/[jobId]`) adds a funded Pokter job the index lacks.
+
 ## Set and Earn while it runs
 
 All gated on `isCampaignLive()`:
@@ -166,7 +176,9 @@ All gated on `isCampaignLive()`:
 - a section on the home page linking to the guide and to progress;
 - the guide at `/set-and-earn`, with progress at `#progress`;
 - a guide link in the app sidebar, and passkey warnings on the hire pay step
-  and the progress card.
+  and the progress card;
+- the browser wallet listed first and marked Recommended wherever a wallet
+  is chosen, since a passkey's address only works on Pokter.
 
 Static pages can outlive the deadline, so the root layout's boot script
 hides the strip in the browser once it has passed (or once dismissed),
@@ -188,11 +200,13 @@ Delete them or give them a page; do not let them drift.
 
 ## Not verified, or not done
 
-- **A testnet hire was run by hand and worked** (10 October). Settlement,
-  review, delivery and agent registration from the new UI have not been run
-  yet; they call the unchanged `useJobActions`, `registerIdentityFromWallet`,
-  `updateIdentityFromWallet` and delivery APIs. See
-  [`TEST-PLAN.md`](TEST-PLAN.md).
+- **Live on pokter.xyz since 10 October** (PR #36, then #37 to #40).
+  Run by hand on testnet: a hire with a browser wallet, settlement and a
+  review. Not yet run from the new UI: a passkey hire with sponsored gas,
+  a dispute, a reclaim after a missed deadline, Builder Studio registration,
+  profile updates and hand delivery. They call the unchanged
+  `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet`
+  and delivery APIs. See [`TEST-PLAN.md`](TEST-PLAN.md), sections 3, 4 and 6.
 - Wallet libraries (wagmi, viem, the Altana passkey SDK) are no longer in the
   root layout. They wrap only `(app)` and `(flow)`, and the public header's
   account control is a lazily loaded island with its own provider. First-load
