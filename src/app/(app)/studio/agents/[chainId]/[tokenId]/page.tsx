@@ -8,6 +8,7 @@ import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
 import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { ProfileEditor } from '@/features/studio/ProfileEditor';
+import { StudioTabBar, StudioTabHint, StudioTabPanel } from '@/features/studio/StudioTabs';
 import { ImportAgent, NoSession } from '@/features/studio/StudioClient';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -73,6 +74,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
 
   return (
     <>
+      <StudioTabHint />
       {crumbs}
       <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
@@ -104,8 +106,10 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
         </Notice>
       )}
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-10">
+      <StudioTabBar />
+      <div id="studio-tab-panels" className="pt-8">
+        <StudioTabPanel id="health">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <section aria-labelledby="health-title" className="flex flex-col gap-4">
             <h2 id="health-title" className="t-label">
               Health, last 30 days
@@ -117,45 +121,6 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
             </div>
             {agent.probes30d > 0 ? <ProbeStrip cells={agent.cells} className="h-8 [&>span]:flex-1" /> : <p className="text-[13px] text-ink-3">Not probed yet. Pokter enrols endpoints that pass the compatibility check.</p>}
           </section>
-
-          <section aria-labelledby="ops-title" className="flex flex-col gap-5">
-            <h2 id="ops-title" className="t-label">
-              Operations
-            </h2>
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
-              <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
-              <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
-              <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
-            </dl>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <WeeklyJobs weeks={ops.weeks} />
-              <LatencyTrend points={ops.latency} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-[13px] font-medium">Probe log, last 20</span>
-              <ProbeLog probes={ops.probes} />
-            </div>
-          </section>
-
-          <section aria-labelledby="jobs-title" className="flex flex-col gap-3">
-            <h2 id="jobs-title" className="t-label">
-              Customer jobs
-            </h2>
-            <DeliveryInbox jobs={mine} />
-          </section>
-
-          <section aria-labelledby="edit-title" className="flex flex-col gap-4">
-            <div>
-              <h2 id="edit-title" className="t-h3">
-                Public profile
-              </h2>
-              <p className="text-[13px] text-ink-3">Stored on chain in the ERC-8004 registry. Changes cost one transaction.</p>
-            </div>
-            <ProfileEditor chainId={agent.chainId as 56 | 97} tokenId={agent.tokenId} />
-          </section>
-        </div>
-
         <aside className="flex flex-col gap-6">
           {ad && (
             <section aria-labelledby="adoption-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
@@ -183,6 +148,48 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
             </Link>
           </section>
         </aside>
+          </div>
+        </StudioTabPanel>
+        <StudioTabPanel id="operations">
+          <section aria-labelledby="ops-title" className="flex flex-col gap-5">
+            <h2 id="ops-title" className="t-label">
+              Operations
+            </h2>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
+              <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
+            </dl>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <WeeklyJobs weeks={ops.weeks} />
+              <LatencyTrend points={ops.latency} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-medium">Probe log, last 20</span>
+              <ProbeLog probes={ops.probes} />
+            </div>
+          </section>
+        </StudioTabPanel>
+        <StudioTabPanel id="jobs">
+          <section aria-labelledby="jobs-title" className="flex flex-col gap-3">
+            <h2 id="jobs-title" className="t-label">
+              Customer jobs
+            </h2>
+            <DeliveryInbox jobs={mine} />
+          </section>
+        </StudioTabPanel>
+        <StudioTabPanel id="profile">
+          <section aria-labelledby="edit-title" className="flex flex-col gap-4">
+            <div>
+              <h2 id="edit-title" className="t-h3">
+                Public profile
+              </h2>
+              <p className="text-[13px] text-ink-3">Stored on chain in the ERC-8004 registry. Changes cost one transaction.</p>
+            </div>
+            <ProfileEditor chainId={agent.chainId as 56 | 97} tokenId={agent.tokenId} />
+          </section>
+        </StudioTabPanel>
       </div>
     </>
   );

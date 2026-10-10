@@ -432,17 +432,3 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
 .tab-in-right { animation: tab-in-right 340ms var(--ease-out) both; }
 .tab-in-left { animation: tab-in-left 340ms var(--ease-out) both; }
 
-/* ---------- Agent tabs before hydration ----------
- * Set by an inline script from the URL hash so a shared tab link paints the
- * right panel first; removed once React owns the tabs.
- */
-html[data-agent-tab="evidence"] #agent-panel-overview { display: none; }
-html[data-agent-tab="evidence"] #agent-panel-evidence { display: block; }
-html[data-agent-tab="work"] #agent-panel-overview { display: none; }
-html[data-agent-tab="work"] #agent-panel-work { display: block; }
-html[data-agent-tab="pricing"] #agent-panel-overview { display: none; }
-html[data-agent-tab="pricing"] #agent-panel-pricing { display: block; }
-html[data-agent-tab="permissions"] #agent-panel-overview { display: none; }
-html[data-agent-tab="permissions"] #agent-panel-permissions { display: block; }
-html[data-agent-tab="technical"] #agent-panel-overview { display: none; }
-html[data-agent-tab="technical"] #agent-panel-technical { display: block; }
