@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import { CATEGORIES } from '@/lib/agents/categories';
+import { isCampaignLive } from '@/lib/campaign/window';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
 import type { StoredDraft } from '@/lib/builder/drafts';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
@@ -185,7 +186,7 @@ function StepConfigure({ d }: { d: AgentDraft }) {
         </Field>
       </div>
 
-      <Field label="Source repository" hint="Optional, public. Buyers trust what they can read." error={d.repositoryProblem ?? undefined} optional>
+      <Field label="Source repository" hint={isCampaignLive() ? 'Public. Optional for Pokter, but a Set and Earn build entry needs one.' : 'Optional, public. Buyers trust what they can read.'} error={d.repositoryProblem ?? undefined} optional>
         {(p) => <Input {...p} value={d.draft.repository} onChange={(e) => d.update('repository', e.target.value)} placeholder="https://github.com/you/agent" />}
       </Field>
     </div>
@@ -357,6 +358,19 @@ function StepPublish({ d }: { d: AgentDraft }) {
           <p>
             Owner: <span className="t-readout">{shortAddress(d.signingAddress)}</span> ({d.passkeyCanPublish ? 'passkey wallet' : 'browser wallet'})
           </p>
+          {d.passkeyCanPublish && isCampaignLive() && (
+            <Notice
+              tone="watch"
+              title="This agent would not count for Set and Earn"
+              action={
+                <Button size="s" intent="secondary" onClick={() => openConnect('that you registered for Set and Earn')}>
+                  Connect it
+                </Button>
+              }
+            >
+              A build entry must be owned by your registered campaign wallet, and a passkey wallet cannot be that wallet. Connect the browser or mobile wallet you registered before publishing; ownership cannot be moved later from here.
+            </Notice>
+          )}
           <p className={cn('text-[13px]', funded === false ? 'text-watch' : 'text-ink-3')}>
             {funded === false ? `This wallet needs about 0.002 ${d.network === 56 ? 'BNB' : NATIVE_SYMBOL} for the two transactions.` : funded ? 'Enough gas for both transactions.' : 'Checking gas…'}
           </p>
