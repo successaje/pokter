@@ -10,7 +10,7 @@ import { SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { TrialPanel } from '@/features/agent/TrialPanel';
-import { AgentTabBar, AgentTabPanel } from '@/features/agent/AgentTabs';
+import { AgentTabBar, AgentTabHint, AgentTabPanel } from '@/features/agent/AgentTabs';
 import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { CompareToggle } from '@/features/compare/CompareControls';
@@ -204,6 +204,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         </div>
       </div>
 
+      <AgentTabHint />
       <AgentTabBar />
 
       <div className="frame grid grid-cols-1 gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">

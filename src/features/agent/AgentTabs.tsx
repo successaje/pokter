@@ -61,6 +61,11 @@ export function AgentTabBar() {
   const active = useActiveTab();
   const bar = useRef<HTMLDivElement>(null);
 
+  // React owns the tabs from here; drop the pre-hydration hint.
+  useEffect(() => {
+    delete document.documentElement.dataset.agentTab;
+  }, []);
+
   const choose = (id: AgentTabId) => {
     select(id);
     // Bring the content top back under the bar if the reader had scrolled past it.
@@ -142,4 +147,15 @@ export function AgentTabPanel({ id, children }: { id: AgentTabId; children: Reac
       {children}
     </div>
   );
+}
+
+/**
+ * Runs before first paint: marks <html> with the tab named in the hash so CSS
+ * can show that panel before React hydrates. Tab ids only; anything else in
+ * the hash is ignored.
+ */
+export function AgentTabHint() {
+  const ids = JSON.stringify(AGENT_TABS.map((t) => t.id));
+  const code = `(function(){var h=location.hash.slice(1);if(${ids}.indexOf(h)>0)document.documentElement.dataset.agentTab=h;})();`;
+  return <script dangerouslySetInnerHTML={{ __html: code }} />;
 }
