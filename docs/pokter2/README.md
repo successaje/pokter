@@ -158,6 +158,20 @@ Also added afterwards:
 - a base `grid-cols-1` on every responsive grid, after a phone overflow;
 - the light "not measured" tone raised to AA. Every text token now meets AA on every ground in both themes.
 
+## Library modules with no UI caller
+
+Kept on purpose because they are backend data features, but nothing in the
+new UI imports them:
+- `lib/leaderboard.ts` (rankings)
+- `lib/census/supply.ts` (registry census)
+- `lib/hero/pipeline.ts` (old landing funnel)
+- `lib/experiments/agent-advantage.ts`
+- `lib/search/filters.ts`
+- `lib/diagnostic/lifecycle.ts` (static explainer)
+- `lib/altana/caps.ts` (legacy sessions)
+
+Delete them or give them a page; do not let them drift.
+
 ## Not verified, or not done
 
 - **No on-chain hire, settlement, review, delivery or registration was
