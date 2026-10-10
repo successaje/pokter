@@ -65,7 +65,15 @@ export function SiteFooter() {
             <span className="text-[17px] font-[640] tracking-[-0.03em]">Pokter</span>
           </span>
           <p className="text-sm leading-relaxed text-ink-2">
-            Find agents that actually work. Evidence first, one escrow per job, no standing access to your wallet.
+            {/*
+              Not the hero's line. "These do" points at a catalogue, and
+              there is no catalogue under a footer — the sentence needs to
+              stand on its own here, so it states the work rather than the
+              finding.
+            */}
+            We call every agent on BNB Chain and publish what came back.
+            Evidence first, one escrow per job, no standing access to your
+            wallet.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
