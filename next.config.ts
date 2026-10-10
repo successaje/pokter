@@ -128,7 +128,6 @@ const nextConfig: NextConfig = {
       ['/categories/:category', '/discover?category=:category'],
       ['/leaderboard', '/discover?sort=evidence'],
       ['/census', '/methodology'],
-      ['/agent-advantage', '/methodology'],
       ['/app', '/workspace'],
       ['/activity', '/workspace/jobs'],
       ['/my-agents', '/workspace'],

@@ -129,7 +129,7 @@ ever rendered as HTML.
   sheet), workspace and studio empty states, studio import running the live
   compatibility check, studio create wizard from a template.
 - Legacy redirects return 307 to their new homes.
-- `npm run smoke` (with `BASE_URL` set to a running server) checks 39 routes: status, key content, redirect targets and no error shell. It passes.
+- `npm run smoke` (with `BASE_URL` set to a running server) checks 40 routes: status, key content, redirect targets and no error shell. It passes.
 - Real settled job #1352 (pre-envelope) and expired job #1372 render read-only from chain via job recovery.
 
 ## Review fixes (second pass)
@@ -165,7 +165,6 @@ Kept on purpose because they are backend data features, but nothing in the
 new UI imports them:
 - `lib/leaderboard.ts` (rankings)
 - `lib/hero/pipeline.ts` (old landing funnel)
-- `lib/experiments/agent-advantage.ts`
 - `lib/search/filters.ts`
 - `lib/diagnostic/lifecycle.ts` (static explainer)
 - `lib/altana/caps.ts` (legacy sessions)

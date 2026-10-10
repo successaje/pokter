@@ -23,6 +23,7 @@ const CHECKS: Check[] = [
   { path: '/support', expect: 200 },
   { path: '/build', expect: 200 },
   { path: '/pool-check', expect: 200 },
+  { path: '/agent-advantage', expect: 200, contains: 'annualisation trap' },
   { path: '/set-and-earn', expect: 200 },
   { path: '/terms', expect: 200 },
   { path: '/privacy', expect: 200 },
