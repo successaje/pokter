@@ -1,1545 +1,398 @@
 @import "tailwindcss";
 
 /*
- * Pokter's visual system.
+ * Pokter 2 — the Instrument system.
  *
- * Every step of the text ramp clears WCAG AA (4.5:1) against the surface it
- * sits on, in both themes. The de-emphasised steps were originally chosen by
- * eye and measured at 2.4-3.0:1 — legible to someone with good vision on a
- * good screen, and not to everyone else. Contrast was verified numerically
- * rather than judged.
+ * Pokter is a measuring instrument for agents, so the interface is built
+ * from what instruments are built from: a calm ground, hairline rules,
+ * readouts in a monospace face, and colour that only ever reports a state.
  *
- * Dark-first, near-black ground, borders that are barely there. Colour is
- * reserved almost entirely for evidence states and performance direction, so
- * that a green or red on this page always carries meaning rather than
- * decoration. Most of the interface stays neutral on purpose.
+ *   Ground     warm paper (light) / graphite (dark): never pure white or black
+ *   Ink        three steps, each AA or better on every ground it sits on
+ *   Rules      hairlines do the work boxes usually do
+ *   Signal     the yellow proof tile from the mark: brand, focus of the page,
+ *              "this was checked". Never a status.
+ *   Evidence   ok / watch / info / bad / none: only for measured states
+ *
+ * Theme: `data-theme` on <html> is stamped from a cookie during SSR, so
+ * there is no flash. With no cookie the system preference decides.
  */
+
 :root {
-  /*
-   * Three roles. Newsreader speaks at display sizes, Manrope carries the
-   * body, DM Mono takes labels, eyebrows and anything numeric that wants to
-   * line up in a column.
-   *
-   * These resolve to the self-hosted families next/font sets up in the root
-   * layout; the fallbacks matter only for the first paint of a cold cache.
-   */
-  /*
-   * Deliberately not named --font-display: next/font sets that one on <html>,
-   * which is the same element as :root, so a stack referring to it by that
-   * name would refer to itself and resolve to nothing.
-   */
-  --font-serif-stack: var(--font-display), Georgia, "Times New Roman", serif;
-  --font-geist-sans: var(--font-sans-family), ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", sans-serif;
-  --font-geist-mono: var(--font-mono-family), "SFMono-Regular", Consolas,
-    "Liberation Mono", monospace;
+  --font-ui: var(--font-instrument), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-readout: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  /*
-   * Ground and surfaces.
-   *
-   * The design is light-first, so dark is a translation of it rather than a
-   * separate palette: the ground is the mock's own dark band and everything
-   * above it keeps that warmth instead of drifting to the cool slate this
-   * used to be. A neutral grey beside a cream light theme reads as two
-   * different products.
-   */
-  --bg: #17170f;
-  --bg-subtle: #1c1c14;
-  --surface: #24241f;
-  --surface-raised: #2c2c26;
-  --surface-hover: #33332c;
+  --paper: #f3f1eb;
+  --raised: #fbfaf6;
+  --sunken: #eae7df;
+  --ink: #16171a;
+  --ink-2: #48494d;
+  --ink-3: #66665f;
+  --rule: #dcd8cd;
+  --rule-strong: #bfbaad;
+  --overlay: rgb(22 23 26 / 0.42);
 
-  /* Borders carry real weight in this design rather than hinting at an edge. */
-  --border: #34342c;
-  --border-strong: #46463c;
-  --border-focus: #f3ba2f;
-  /* The hire drawer floats above the page and needs to read as above it. */
-  --shadow-overlay: 0 24px 60px -24px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --signal: #f0b90b;
+  --signal-ink: #16171a;
+  --signal-wash: #f7e7ad;
 
-  /* Text ramp */
-  --text: #fffefa;
-  --text-secondary: #cfcabb;
-  --text-muted: #a6a294;
-  /*
-   * Lightened to clear WCAG AA on every surface it is used on.
-   *
-   * At #8e8a7e this measured 4.07:1 against --surface-raised and 4.52:1
-   * against --surface — failing, or scraping, the 4.5 needed for body text.
-   * It is used 269 times, overwhelmingly for the evidence this product asks
-   * people to read, which made the least legible text on the site the text
-   * the argument depends on.
-   *
-   * #9a9589 is the smallest change that passes everywhere (4.70 on raised,
-   * 6.03 on bg) while staying clearly dimmer than --text-muted, so the
-   * hierarchy between the two survives. The light theme already passed and
-   * is untouched.
-   */
-  --text-faint: #9a9589;
+  --ok: #1d7446;
+  --ok-wash: #dcebdd;
+  --watch: #8d5c00;
+  --watch-wash: #f1e4c4;
+  --info: #2c5a88;
+  --info-wash: #dde5ee;
+  --bad: #ad3427;
+  --bad-wash: #f2dbd5;
+  --none: #6e6d66;
+  --none-wash: #e6e3db;
 
-  /* Semantics: green healthy, amber caution, red failing, blue interactive */
-  --positive: #3fb97f;
-  --positive-dim: #1d3d30;
-  --caution: #d9a441;
-  --caution-dim: #3b3021;
-  --negative: #e05a52;
-  --negative-dim: #3d2422;
-  --info: #4d84e2;
-  --info-dim: #1c2a41;
-  --neutral: #6e7987;
+  --shadow-lift: 0 1px 0 rgb(22 23 26 / 0.04), 0 12px 32px -12px rgb(22 23 26 / 0.18);
+  --shadow-float: 0 1px 0 rgb(22 23 26 / 0.05), 0 24px 64px -20px rgb(22 23 26 / 0.32);
 
-  /* The design sits at 10-11px for cards and a full pill for chips. */
-  --radius: 9px;
-  --radius-lg: 11px;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
 
-  /*
-   * Brand highlight.
-   *
-   * Deliberately NOT a semantic colour. Colour in this product carries meaning
-   * — green healthy, amber caution, red failing — so a brand accent that
-   * reused any of those hues as *text* would make a warning ambiguous. This is
-   * a background swash sitting behind display type on the landing page only,
-   * never on a status, a metric or a control.
-   */
-  /*
-   * Chart marks, kept apart from the action colours on purpose.
-   *
-   * Two reasons. The brand yellow is reserved for forward motion, and a
-   * chart is data rather than an action. And it does not survive the light
-   * theme: #f3ba2f measures 1.75:1 on the cream surface, well under the 3:1
-   * a meaningful graphic needs, so bars drawn in it would be close to
-   * invisible on exactly the theme this design leads with. These values were
-   * measured against each theme's own surface rather than picked to match.
-   */
-  --chart-bar: #f3ba2f;
-  --chart-bar-failed: #c1543f;
-  --chart-track: #34342c;
-
-  --brand: #f3ba2f;
-  --brand-hover: #f7c94f;
-  /*
-   * Brand yellow that can be read as text. --brand measures 1.58:1 on the
-   * cream surface, so eyebrows set in it were invisible on the theme this
-   * design leads with; on the dark theme the yellow already carries 10.19:1
-   * and needs no darkening. Measured against each theme's own surface.
-   */
-  --brand-strong: #f3ba2f;
-  --brand-ink: #1d1d1b;
-  --brand-shadow: rgba(243, 186, 47, 0.18);
-  --brand-highlight: #f3ba2f;
-  --brand-highlight-soft: rgba(243, 186, 47, 0.22);
-
-  /* Editorial feature surfaces. These stay warm and quiet in dark mode. */
-  --feature-glow: rgba(243, 186, 47, 0.1);
-  --feature-tint: #202019;
-  --feature-shape: rgba(243, 186, 47, 0.16);
-}
-
-@theme inline {
-  --color-bg: var(--bg);
-  --color-bg-subtle: var(--bg-subtle);
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-surface-hover: var(--surface-hover);
-  --color-border-subtle: var(--border);
-  --color-border-strong: var(--border-strong);
-  --color-text: var(--text);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-  --color-text-faint: var(--text-faint);
-  --color-positive: var(--positive);
-  --color-caution: var(--caution);
-  --color-negative: var(--negative);
-  --color-info: var(--info);
-  --color-chart-bar: var(--chart-bar);
-  --color-chart-bar-failed: var(--chart-bar-failed);
-  --color-chart-track: var(--chart-track);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-serif-stack);
-
-  /*
-   * Shorter names for the colours already above, and a named type scale.
-   *
-   * Not a second palette: every one of these points at the same variable
-   * the longer name does, so a component written against `border-line`
-   * and one written against `border-[color:var(--border)]` render
-   * identically and both follow the theme. They exist because the hire
-   * drawer and the primitives it brought were written against these
-   * names, and renaming four hundred class attributes to say the same
-   * thing would be a diff nobody could review.
-   */
-  --color-canvas: var(--bg);
-  --color-canvas-subtle: var(--bg-subtle);
-  --color-line: var(--border);
-  --color-line-strong: var(--border-strong);
-  --color-line-focus: var(--border-focus);
-  --color-ink: var(--text);
-  --color-ink-secondary: var(--text-secondary);
-  --color-ink-muted: var(--text-muted);
-  --color-ink-faint: var(--text-faint);
-  --color-positive-dim: var(--positive-dim);
-  --color-caution-dim: var(--caution-dim);
-  --color-negative-dim: var(--negative-dim);
-  --color-info-dim: var(--info-dim);
-  --color-brand: var(--brand);
-  --color-brand-hover: var(--brand-hover);
-  --color-brand-strong: var(--brand-strong);
-  --color-brand-ink: var(--brand-ink);
-  --color-brand-highlight: var(--brand-highlight);
-  --color-brand-highlight-soft: var(--brand-highlight-soft);
-  --color-brand-dim: var(--brand-highlight-soft);
-
-  /* One scale, in pixels, so a size means the same thing on every screen. */
-  --text-caption: 11px;
-  --text-caption--line-height: 1.4;
-  --text-small: 12px;
-  --text-small--line-height: 1.45;
-  --text-body-s: 13px;
-  --text-body-s--line-height: 1.5;
-  --text-body: 14px;
-  --text-body--line-height: 1.55;
-  --text-lead: 16px;
-  --text-lead--line-height: 1.5;
-  --text-title: 18px;
-  --text-title--line-height: 1.35;
-  --text-page: 22px;
-  --text-page--line-height: 1.25;
-}
-
-/*
- * Light theme.
- *
- * Not an inversion of the dark palette — inverting produces grey text on white
- * and washed-out semantics. Text and semantic colours are darkened for contrast
- * against white, while the dim backgrounds become pale tints rather than dark
- * ones, so a "positive" badge stays legible in both themes.
- *
- * Precedence: explicit choice wins, then the system preference, then dark. The
- * :not() guard is what lets a user who chose dark keep it on a light system.
- */
-:root[data-theme='light'],
-:root:not([data-theme='dark']) {
-  /*
-   * The mirror of the dark ramp. A white card cannot lift any further, so the
-   * ground drops instead — #fbfbfc left four points between them, which only
-   * a border could carry.
-   */
-  /*
-   * Read from the design prototype rather than guessed: a warm cream ground
-   * with a warmer-than-white card sitting on it. The warmth is the point —
-   * a cool grey ground made the same layout read as a dashboard, which is
-   * what this direction is moving away from.
-   */
-  /* Softer than the dark theme's, because a light ground shows a shadow more. */
-  --shadow-overlay: 0 24px 60px -24px rgba(17, 17, 16, 0.28), 0 2px 8px rgba(17, 17, 16, 0.08);
-  --light-bg: #f5f2e9;
-  --light-bg-subtle: #efebe0;
-  --light-surface: #fffefa;
-  --light-surface-raised: #fffefa;
-  --light-surface-hover: #faf7ef;
-
-  /* Borders are part of this design, not a fallback for weak contrast. */
-  --light-border: #dfddd4;
-  --light-border-strong: #cbc7ba;
-
-  --light-text: #1d1d1b;
-  --light-text-secondary: #4a483f;
-  --light-text-muted: #6c6a63;
-  /*
-   * #85837a measured 3.77:1 on the card surface, under the 4.5 AA floor, and
-   * this token carries small metadata — probe counts, timestamps, publisher
-   * addresses — where the floor actually applies.
-   *
-   * Checked against both grounds, not just the card: some of this text sits
-   * on the cream page rather than on a surface, and the cream is the harder
-   * of the two. 5.30:1 on the card, 4.78:1 on the page.
-   */
-  --light-text-faint: #6d6b61;
-
-  --light-positive: #1c6b45;
-  --light-positive-dim: #e6f2ea;
-  --light-caution: #8c6400;
-  --light-caution-dim: #fff4cf;
-  --light-negative: #a33a2c;
-  --light-negative-dim: #fbebe7;
-  --light-info: #3b64b1;
-  --light-info-dim: #eaf0fa;
-  --light-neutral: #6c6a63;
-
-  /*
-   * #f3ba2f is BNB's own yellow, which is where the design takes it from.
-   * Slightly warmer and lighter than the #f0b90b this used before.
-   */
-  --light-chart-bar: #b87f00;
-  --light-chart-bar-failed: #a33a2c;
-  --light-chart-track: #e6e3d9;
-
-  --light-brand: #f3ba2f;
-  --light-brand-strong: #8a5e08;
-  --light-brand-hover: #e5a916;
-  --light-brand-ink: #1d1d1b;
-  --light-brand-shadow: rgba(243, 186, 47, 0.18);
-  --light-brand-highlight: #d99a00;
-  --light-brand-highlight-soft: #fff4cf;
-  --light-feature-glow: rgba(255, 255, 255, 0.92);
-  --light-feature-tint: #fff3c8;
-  --light-feature-shape: rgba(255, 255, 255, 0.72);
-}
-
-/* Applied only when light is actually in effect. */
-:root[data-theme='light'] {
-  --bg: var(--light-bg);
-  --bg-subtle: var(--light-bg-subtle);
-  --surface: var(--light-surface);
-  --surface-raised: var(--light-surface-raised);
-  --surface-hover: var(--light-surface-hover);
-  --border: var(--light-border);
-  --border-strong: var(--light-border-strong);
-  --text: var(--light-text);
-  --text-secondary: var(--light-text-secondary);
-  --text-muted: var(--light-text-muted);
-  --text-faint: var(--light-text-faint);
-  --positive: var(--light-positive);
-  --positive-dim: var(--light-positive-dim);
-  --caution: var(--light-caution);
-  --caution-dim: var(--light-caution-dim);
-  --negative: var(--light-negative);
-  --negative-dim: var(--light-negative-dim);
-  --info: var(--light-info);
-  --info-dim: var(--light-info-dim);
-  --neutral: var(--light-neutral);
-  --brand-highlight: var(--light-brand-highlight);
-  --brand-highlight-soft: var(--light-brand-highlight-soft);
-  --chart-bar: var(--light-chart-bar);
-  --chart-bar-failed: var(--light-chart-bar-failed);
-  --chart-track: var(--light-chart-track);
-  --brand: var(--light-brand);
-  --brand-strong: var(--light-brand-strong);
-  --brand-hover: var(--light-brand-hover);
-  --brand-ink: var(--light-brand-ink);
-  --brand-shadow: var(--light-brand-shadow);
-  --feature-glow: var(--light-feature-glow);
-  --feature-tint: var(--light-feature-tint);
-  --feature-shape: var(--light-feature-shape);
+  --header-h: 60px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: var(--light-bg);
-    --bg-subtle: var(--light-bg-subtle);
-    --surface: var(--light-surface);
-    --surface-raised: var(--light-surface-raised);
-    --surface-hover: var(--light-surface-hover);
-    --border: var(--light-border);
-    --border-strong: var(--light-border-strong);
-    --text: var(--light-text);
-    --text-secondary: var(--light-text-secondary);
-    --text-muted: var(--light-text-muted);
-    --text-faint: var(--light-text-faint);
-    --positive: var(--light-positive);
-    --positive-dim: var(--light-positive-dim);
-    --caution: var(--light-caution);
-    --caution-dim: var(--light-caution-dim);
-    --negative: var(--light-negative);
-    --negative-dim: var(--light-negative-dim);
-    --info: var(--light-info);
-    --info-dim: var(--light-info-dim);
-    --neutral: var(--light-neutral);
-    --brand-highlight: var(--light-brand-highlight);
-    --brand-highlight-soft: var(--light-brand-highlight-soft);
-    --chart-bar: var(--light-chart-bar);
-    --chart-bar-failed: var(--light-chart-bar-failed);
-    --chart-track: var(--light-chart-track);
-    --brand: var(--light-brand);
-    --brand-strong: var(--light-brand-strong);
-    --brand-hover: var(--light-brand-hover);
-    --brand-ink: var(--light-brand-ink);
-    --brand-shadow: var(--light-brand-shadow);
-    --feature-glow: var(--light-feature-glow);
-    --feature-tint: var(--light-feature-tint);
-    --feature-shape: var(--light-feature-shape);
+:root[data-theme="dark"] {
+  --paper: #141517;
+  --raised: #1b1c1f;
+  --sunken: #0f1012;
+  --ink: #edebe4;
+  --ink-2: #b9b7af;
+  --ink-3: #95938b;
+  --rule: #2b2c30;
+  --rule-strong: #3d3e43;
+  --overlay: rgb(0 0 0 / 0.6);
+  --signal-wash: #3a3115;
+  --ok: #63c08c;
+  --ok-wash: #1a2a20;
+  --watch: #e3aa3e;
+  --watch-wash: #2e2614;
+  --info: #84abd6;
+  --info-wash: #1a2330;
+  --bad: #ee7d6d;
+  --bad-wash: #331c19;
+  --none: #95938b;
+  --none-wash: #232427;
+  --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
+  color-scheme: dark;
+}
 
-    color-scheme: light;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #141517;
+    --raised: #1b1c1f;
+    --sunken: #0f1012;
+    --ink: #edebe4;
+    --ink-2: #b9b7af;
+    --ink-3: #95938b;
+    --rule: #2b2c30;
+    --rule-strong: #3d3e43;
+    --overlay: rgb(0 0 0 / 0.6);
+    --signal-wash: #3a3115;
+    --ok: #63c08c;
+    --ok-wash: #1a2a20;
+    --watch: #e3aa3e;
+    --watch-wash: #2e2614;
+    --info: #84abd6;
+    --info-wash: #1a2330;
+    --bad: #ee7d6d;
+    --bad-wash: #331c19;
+    --none: #95938b;
+    --none-wash: #232427;
+    --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+    --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
+    color-scheme: dark;
   }
 }
 
-html {
-  color-scheme: dark;
+@theme inline {
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-readout);
 
-  /*
-   * Scroll behaviour is deliberately NOT smooth here.
-   *
-   * `scroll-behavior: smooth` on the root made every route change land part way
-   * down the new page: the App Router scrolls to the top on navigation, the
-   * declaration turned that into an animation, and the incoming render
-   * interrupted it. Leaving a page scrolled to 1200 and arriving at the next
-   * one at 89 is a broken product, and it was caused by an in-page nicety.
-   *
-   * The glide the chips on Discover wanted now lives in `SmoothHashScroll`,
-   * which applies it to same-page anchors only and leaves the router alone.
-   */
+  --color-paper: var(--paper);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-signal-wash: var(--signal-wash);
+  --color-ok: var(--ok);
+  --color-ok-wash: var(--ok-wash);
+  --color-watch: var(--watch);
+  --color-watch-wash: var(--watch-wash);
+  --color-info: var(--info);
+  --color-info-wash: var(--info-wash);
+  --color-bad: var(--bad);
+  --color-bad-wash: var(--bad-wash);
+  --color-none: var(--none);
+  --color-none-wash: var(--none-wash);
 
-  /*
-   * The document does not hand a sideways gesture to the browser.
-   *
-   * Containing overscroll on the individual strips was not enough: a gesture
-   * that starts anywhere else on the page never touches them, and the browser
-   * answers a horizontal swipe over an unscrollable document with its
-   * back-forward navigation, which slides the whole page away. On the agent
-   * page — which carries a card strip and a tab rail, so a sideways gesture is
-   * the natural thing to try — that reads as the layout coming apart.
-   *
-   * `contain` rather than `none`: the strips keep their own scrolling and the
-   * page keeps its bounce, only the chain out to browser navigation is cut.
-   * The cost is the swipe-back gesture within the site, which is a fair trade
-   * against losing a filtered marketplace view to an accidental flick, and the
-   * browser's own back button is untouched.
-   */
-  overscroll-behavior-x: contain;
+  --radius-s: var(--radius-s);
+  --radius-m: var(--radius-m);
+  --radius-l: var(--radius-l);
+
+  --shadow-lift: var(--shadow-lift);
+  --shadow-float: var(--shadow-float);
+
+  --ease-out: var(--ease-out);
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
+/* ---------- Base ---------- */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--header-h) + 16px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-/* Installed mobile windows extend beneath device chrome. Desktop values are
-   zero, so these safe-area offsets do not alter the website layout. */
-@media (display-mode: standalone) and (max-width: 767px) {
-  body {
-    min-height: 100svh;
-  }
-
-  header {
-    padding-top: env(safe-area-inset-top);
-  }
-
-  /* The floated bar carries the safe-area inset on its `bottom` offset, so
-     padding it here would pad the inside of a rounded container instead. */
-
-  /* Marketing and legal detail remain available on the public website. The
-     installed product keeps task routes focused and app-like. */
-  body > footer {
-    display: none;
-  }
-}
-
-/*
- * `/app` is the installed product home, not another marketing page.
- *
- * Scoped to phone widths. The route is publicly reachable, so anyone can open
- * it on a desktop — and there it was replacing a header carrying six
- * navigation links with one carrying a wordmark and nothing else, which left
- * a page with no way out of itself. On a wide screen the ordinary site chrome
- * is the right chrome, and the app shell stands down.
- */
-@media (max-width: 767px) {
-  /*
-   * The tab bar deliberately stays. Hiding it here left /app with no
-   * navigation at all once MobileAppHome's duplicate bar was removed —
-   * undoing the consistency fix it was part of. The app shell replaces the
-   * site header and footer; it does not replace the way out of a page.
-   */
-  body:has([data-pokter-app-home]) > header,
-  body:has([data-pokter-app-home]) > footer {
-    display: none;
-  }
-
-  body:has([data-pokter-app-home]) > main {
-    width: 100%;
-    max-width: none;
-    min-height: 100svh;
-    /* Room for the floated tab bar, which now shows here too. */
-    padding: 0 0 calc(5.5rem + env(safe-area-inset-bottom));
-  }
-}
-
-/*
- * The pinned bar at the top of /app. It sizes to its own content and only needs
- * to clear the notch; the fixed height this used to carry clipped whatever grew
- * inside it.
- */
-.app-safe-top {
-  padding-top: calc(0.75rem + env(safe-area-inset-top));
-}
-
-.app-safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/*
- * Primary product actions use the BNB-family yellow. Statuses keep their own
- * semantic colours; this treatment is reserved for forward motion such as
- * finding, trying and hiring an agent.
- */
-/*
- * The gold action, and the second-rank one beside it.
- *
- * Gold means "this is the thing to do here". It stopped meaning that on the
- * catalogue, where every card carried a gold hire button: 49 gold controls on
- * one screen, which is a page with no primary action at all. `.action-card`
- * is the same button at list rank — the whole card already opens the agent,
- * so hiring from the row is an offered shortcut, not the page's headline.
- */
-.action-card {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 600;
-  border: 1px solid var(--border-strong);
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-.action-card:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--brand);
-}
-
-.action-primary {
-  background: var(--brand);
-  color: var(--brand-ink);
-  font-weight: 600;
-  box-shadow: 0 8px 24px var(--brand-shadow);
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease,
-    opacity 150ms ease;
-}
-
-.action-primary:hover:not(:disabled) {
-  background: var(--brand-hover);
-  box-shadow: 0 10px 28px var(--brand-shadow);
-  transform: translateY(-1px);
-}
-
-.action-primary:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.action-primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  box-shadow: none;
-}
-
-.pokter-mark-on-light {
-  display: none;
-}
-
-:root[data-theme='light'] .pokter-mark-on-dark {
-  display: none;
-}
-
-:root[data-theme='light'] .pokter-mark-on-light {
-  display: block;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) .pokter-mark-on-dark {
-    display: none;
-  }
-
-  :root:not([data-theme='dark']) .pokter-mark-on-light {
-    display: block;
-  }
-}
-
-/*
- * Figures line up in columns when they share a width. Applied to every metric,
- * score and percentage in the product.
- */
-.tabular {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
-.mono {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
 ::selection {
-  background: var(--info-dim);
-  color: var(--text);
+  background: var(--signal);
+  color: var(--signal-ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--border-focus);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Native range controls otherwise inherit a browser-blue accent that clashes
-   with the BNB/Pokter palette. Keep the native input semantics and keyboard
-   behavior while making its track and thumb consistent in both themes. */
-.branded-range {
+a { color: inherit; text-decoration: none; }
+
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+img { max-width: 100%; }
+
+/* ---------- Type ---------- */
+
+/*
+ * One family at two temperatures. Display sizes run Instrument Sans slightly
+ * condensed and tightly tracked; working sizes run it at normal width.
+ */
+.t-display {
+  font-size: clamp(2.6rem, 1.4rem + 5.2vw, 5.4rem);
+  line-height: 0.98;
+  letter-spacing: -0.038em;
+  font-weight: 560;
+  font-stretch: 86%;
+  font-variation-settings: "wdth" 86;
+  text-wrap: balance;
+}
+
+.t-h1 {
+  font-size: clamp(1.9rem, 1.4rem + 1.6vw, 2.6rem);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  font-weight: 580;
+  font-variation-settings: "wdth" 90;
+  text-wrap: balance;
+}
+
+.t-h2 {
+  font-size: clamp(1.45rem, 1.2rem + 0.8vw, 1.85rem);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  font-weight: 580;
+  font-variation-settings: "wdth" 92;
+  text-wrap: balance;
+}
+
+.t-h3 {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.t-lede {
+  font-size: clamp(1.02rem, 0.95rem + 0.35vw, 1.2rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.t-body { font-size: 0.9375rem; line-height: 1.6; text-wrap: pretty; }
+.t-small { font-size: 0.8125rem; line-height: 1.5; }
+
+/* Specimen label: the instrument's own captions. */
+.t-label {
+  font-family: var(--font-readout);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.t-readout {
+  font-family: var(--font-readout);
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.01em;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+.prose-measure { max-width: 66ch; }
+
+/* ---------- Layout ---------- */
+
+.frame {
   width: 100%;
-  height: 1.25rem;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  accent-color: var(--brand);
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+@media (min-width: 640px) { .frame { padding-inline: 28px; } }
+@media (min-width: 1024px) { .frame { padding-inline: 40px; } }
+
+.rule-t { border-top: 1px solid var(--rule); }
+.rule-b { border-bottom: 1px solid var(--rule); }
+
+/* A ruled list: rows separated by hairlines rather than boxed. */
+.ruled > * + * { border-top: 1px solid var(--rule); }
+
+/* ---------- Links ---------- */
+
+.link {
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 160ms var(--ease-out);
+}
+.link:hover { text-decoration-color: currentColor; }
+
+/* ---------- Proof tile (brand signal) ---------- */
+
+.tile {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  background: var(--signal);
+  border-radius: 2px;
+  flex: none;
 }
 
-.branded-range::-webkit-slider-runnable-track {
-  height: 0.3rem;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+/* ---------- Skeletons ---------- */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--sunken) 0%, color-mix(in oklab, var(--sunken) 60%, var(--raised)) 50%, var(--sunken) 100%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-s);
+  animation: skeleton 1.6s linear infinite;
+}
+@keyframes skeleton {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
-.branded-range::-webkit-slider-thumb {
-  width: 1rem;
-  height: 1rem;
-  margin-top: -0.4rem;
-  appearance: none;
-  border-radius: 999px;
-  border: 2px solid var(--bg);
-  background: var(--brand);
-  box-shadow: 0 0 0 1px var(--border-strong);
+/* ---------- Motion ---------- */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes scan {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
 }
 
-.branded-range::-moz-range-track {
-  height: 0.3rem;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-}
+.anim-rise { animation: rise 520ms var(--ease-out) both; }
+.anim-fade { animation: fade 360ms var(--ease-out) both; }
+.pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
 
-.branded-range::-moz-range-progress {
-  height: 0.3rem;
-  border-radius: 999px;
-  background: var(--brand);
-}
-
-.branded-range::-moz-range-thumb {
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 999px;
-  border: 2px solid var(--bg);
-  background: var(--brand);
-  box-shadow: 0 0 0 1px var(--border-strong);
-}
-
-.branded-range:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-/* §93: motion is an enhancement, never a requirement for comprehension. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 1ms !important;
     scroll-behavior: auto !important;
   }
 }
 
-/*
- * Staggered entrance.
- *
- * Deliberately CSS rather than JS: content must never depend on a script
- * running to become visible. `animation-fill-mode: both` holds the final state,
- * and the reduced-motion rule above collapses the duration so the element
- * simply appears.
+/* ---------- Dialog ---------- */
+
+dialog.sheet {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+}
+dialog.sheet::backdrop { background: var(--overlay); animation: fade 200ms var(--ease-out); }
+dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
+
+/* ---------- Scrollbars ---------- */
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---------- Safe areas ---------- */
+
+.pb-safe { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+/* ---------- Inverse scope ----------
+ * A section that always reads dark, whatever the theme. Re-declares the
+ * tokens so every utility inside resolves against the dark ground.
  */
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.rise-in {
-  animation: rise-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-
-/*
- * Highlight swash.
- *
- * Sits behind the text baseline rather than over it, so the words keep their
- * own contrast ratio and stay legible in both themes — a translucent overlay
- * would drag light text toward the highlight colour and fail the ramp the rest
- * of the system holds to.
- */
-.swash {
-  position: relative;
-  display: inline;
-  background-image: linear-gradient(
-    to top,
-    var(--brand-highlight-soft) 0,
-    var(--brand-highlight-soft) 0.36em,
-    transparent 0.36em
-  );
-  background-repeat: no-repeat;
-  padding-inline: 0.06em;
-}
-
-/* Display type for the landing hero: tighter and heavier than body headings. */
-.display {
-  letter-spacing: -0.035em;
-  line-height: 0.98;
-  font-weight: 620;
-}
-
-
-/*
- * Scroll-driven entrance.
- *
- * Guarded by @supports so that a browser without scroll timelines renders the
- * element plainly rather than leaving it at opacity 0 forever — the failure
- * mode of every JavaScript reveal that does not load. The reduced-motion rule
- * above collapses the duration, so the element simply appears.
- */
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .reveal {
-      --reveal-x: 0px;
-      animation: section-arrive 1ms cubic-bezier(0.22, 1, 0.36, 1) both;
-      animation-timeline: view();
-      animation-range: entry 2% entry 48%;
-    }
-
-    .reveal-from-left { --reveal-x: -34px; }
-    .reveal-from-right { --reveal-x: 34px; }
-    .reveal-scale { --reveal-x: 0px; }
-
-    .motion-stagger > * {
-      animation: detail-arrive 1ms cubic-bezier(0.22, 1, 0.36, 1) both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 30%;
-    }
-
-    .motion-stagger > :nth-child(2) { animation-range: entry 4% entry 34%; }
-    .motion-stagger > :nth-child(3) { animation-range: entry 8% entry 38%; }
-    .motion-stagger > :nth-child(4) { animation-range: entry 12% entry 42%; }
-    .motion-stagger > :nth-child(5) { animation-range: entry 16% entry 46%; }
-  }
-}
-
-@keyframes section-arrive {
-  from {
-    opacity: 0;
-    filter: blur(8px);
-    transform: translate3d(var(--reveal-x), 30px, 0) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes detail-arrive {
-  from { opacity: 0; transform: translateY(18px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/*
- * Live indicator.
- *
- * The only looping animation in the product, and it earns that by carrying
- * meaning: it marks data measured at request time, as opposed to the
- * accumulated history shown everywhere else. A pulse on a static number would
- * be decoration.
- */
-@keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.82); }
-}
-
-.live-dot {
-  animation: live-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-
-/*
- * The verification floor.
- *
- * A sweep passes over the tiles and each tile brightens on a stagger, so the
- * grid reads as being scanned rather than decorated. Both are motion-reduced
- * away by the rule at the top of this file, and neither carries information
- * that is unavailable without them — the tile colours and the legend say
- * everything the animation does.
- */
-@keyframes floor-sweep {
-  0% { transform: translateX(-120%); opacity: 0; }
-  12% { opacity: 1; }
-  88% { opacity: 1; }
-  100% { transform: translateX(120%); opacity: 0; }
-}
-
-.floor-sweep {
-  position: absolute;
-  inset: 0;
-  width: 42%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--brand-highlight-soft),
-    transparent
-  );
-  animation: floor-sweep 5.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-  pointer-events: none;
-}
-
-@keyframes tile-check {
-  0%, 82%, 100% { opacity: 0.72; }
-  86% { opacity: 1; }
-}
-
-.floor-tile {
-  animation: tile-check 5.5s ease-in-out infinite;
-}
-
-.floor-tile:hover {
-  animation-play-state: paused;
-  opacity: 1;
-}
-
-
-/*
- * Pipeline motion.
- *
- * Stages settle in sequence and rejects peel off to the side, so the eye reads
- * the narrowing as it happens. Both are one-shot: a hero that loops forever
- * competes with the page for attention, and this one has said what it has to
- * say within about four seconds.
- */
-@keyframes stage-settle {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes reject-peel {
-  0% { opacity: 0; transform: translateX(-6px); }
-  35% { opacity: 1; transform: none; }
-  100% { opacity: 0.55; transform: translateX(6px); }
-}
-
-@keyframes capsule-clasp {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stage-row { animation: stage-settle 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .reject-card { animation: reject-peel 900ms ease-out both; }
-  .capsule-chip { animation: capsule-clasp 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-}
-
-
-/*
- * The hero scene.
- *
- * Idle motion only: the agent breathes, the antenna marks that it is checking,
- * the evidence bars fill and the verdict lands. Nothing travels far, because a
- * hero that keeps moving competes with the page for attention. All of it is
- * ornamental — the event cards carry the information, and they stay readable
- * with motion disabled.
- */
-@keyframes desk-breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
-
-@keyframes antenna-check {
-  0%, 70%, 100% { opacity: 1; r: 4.5; }
-  82% { opacity: 0.35; r: 6; }
-}
-
-@keyframes bar-fill {
-  from { transform: scaleX(0.15); }
-  to { transform: scaleX(1); }
-}
-
-@keyframes tick-land {
-  0%, 55% { opacity: 0; transform: scale(0.7); }
-  70% { opacity: 1; transform: scale(1.12); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes sheet-shuffle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-2px) rotate(-2deg); }
-}
-
-@keyframes card-drift {
-  0% { opacity: 0; transform: translateY(10px) scale(0.96); }
-  14%, 86% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-10px) scale(0.98); }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .desk-agent { animation: desk-breathe 4.2s ease-in-out infinite; }
-  .desk-monitor { animation: desk-breathe 4.2s ease-in-out infinite reverse; }
-  .antenna { animation: antenna-check 3.1s ease-in-out infinite; }
-
-  /* Bars grow from their left edge as the evidence is gathered. */
-  .bar { transform-origin: 98px center; animation: bar-fill 900ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .bar-1 { animation-delay: 260ms; }
-  .bar-2 { animation-delay: 420ms; }
-  .bar-3 { animation-delay: 580ms; }
-
-  .tick { transform-origin: 208px 78px; animation: tick-land 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-  .sheet-1 { animation: sheet-shuffle 5.5s ease-in-out infinite; transform-origin: 68px 123px; }
-  .sheet-2 { animation: sheet-shuffle 6.4s ease-in-out infinite reverse; transform-origin: 252px 124px; }
-
-  /* Cards cycle so the scene keeps reporting rather than freezing. */
-  /* Long enough that six staggered cards all get their moment. */
-  .event-card { animation: card-drift 9.6s ease-in-out infinite both; }
-}
-
-.desk { color: var(--text-secondary); }
-
-.agent-quick-view::backdrop {
-  background: rgb(11 13 18 / 0.66);
-  backdrop-filter: blur(8px);
-}
-
-/* Feature panels use theme tokens instead of literal white gradients. */
-.discover-hero,
-.spotlight-stage {
-  background:
-    radial-gradient(circle at 50% 10%, var(--feature-glow), transparent 40%),
-    linear-gradient(145deg, var(--surface-raised), var(--feature-tint));
-}
-
-.discover-hero-shape {
-  border-color: var(--feature-shape);
-  background: color-mix(in srgb, var(--feature-shape) 28%, transparent);
-}
-
-.discover-prompt {
-  border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-}
-
-.discover-prompt:hover {
-  background: var(--surface-hover);
-}
-
-.discover-filter-panel {
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-}
-
-.spotlight-evidence-visual {
-  background: linear-gradient(145deg, var(--surface-raised), var(--feature-tint));
-}
-
-@keyframes hero-ambient-breathe {
-  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.98); }
-  50% { opacity: 0.82; transform: translate(-50%, -50%) scale(1.02); }
-}
-
-@keyframes hero-orbit-turn {
-  to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-@keyframes hero-enter {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes hero-swash-draw {
-  from { background-size: 0% 100%; }
-  to { background-size: 100% 100%; }
-}
-
-@keyframes hero-signal-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 30%, transparent); opacity: 0.45; }
-  50% { box-shadow: 0 0 0 7px transparent; opacity: 0.9; }
-}
-
-@keyframes hero-type-reveal {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-
-@keyframes hero-cursor-travel {
-  from { left: 0; }
-  to { left: 100%; }
-}
-
-@keyframes hero-cursor-fade {
-  0%, 70% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes hero-flow-pass {
-  from { stroke-dashoffset: 1.15; opacity: 0; }
-  12% { opacity: 0.72; }
-  82% { opacity: 0.72; }
-  to { stroke-dashoffset: -0.18; opacity: 0; }
-}
-
-.hero-ambient-glow {
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--brand) 7%, transparent) 0%, color-mix(in srgb, var(--brand) 2%, transparent) 42%, transparent 72%);
-  filter: blur(34px);
-  animation: hero-ambient-breathe 14s ease-in-out infinite;
-}
-
-.hero-ambient-stage {
-  -webkit-mask-image: radial-gradient(ellipse 74% 62% at 50% 48%, #000 0%, #000 62%, transparent 94%);
-  mask-image: radial-gradient(ellipse 74% 62% at 50% 48%, #000 0%, #000 62%, transparent 94%);
-}
-
-.hero-flow-map {
-  color: var(--brand);
-  opacity: 0.38;
-}
-
-.hero-flow-map marker path {
-  fill: currentColor;
-}
-
-.hero-flow-path,
-.hero-flow-signal {
-  fill: none;
-  vector-effect: non-scaling-stroke;
-}
-
-.hero-flow-path {
-  stroke: color-mix(in srgb, var(--brand) 22%, transparent);
-  stroke-width: 1;
-}
-
-.hero-flow-signal {
-  stroke: color-mix(in srgb, var(--brand) 72%, transparent);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-dasharray: 0.1 0.9;
-  stroke-dashoffset: 1.15;
-  animation: hero-flow-pass 2.8s cubic-bezier(.2,.65,.3,1) .35s both;
-}
-
-.hero-flow-signal-right { animation-delay: .72s; }
-
-.hero-ambient-orbit {
-  mask-image: linear-gradient(90deg, transparent 2%, #000 28%, #000 72%, transparent 98%);
-  animation: hero-orbit-turn 90s linear infinite;
-}
-
-.hero-ambient-orbit-inner { animation-direction: reverse; animation-duration: 120s; }
-
-.hero-signal-dot {
-  animation: hero-signal-pulse 3.8s ease-in-out infinite;
-}
-
-.hero-signal-dot-late { animation-delay: -1.9s; }
-
-.hero-ambient-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
-}
-
-:root[data-theme='dark'] .hero-ambient-stage {
-  opacity: 0.56;
-}
-
-:root[data-theme='dark'] .hero-ambient-orbit {
-  border-color: color-mix(in srgb, var(--text-faint) 13%, transparent);
-}
-
-:root[data-theme='dark'] .hero-ambient-grain {
-  opacity: 0.012;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-ambient-glow,
-  .hero-ambient-orbit { animation: none; }
-}
-
-/* Per-word rise for the headline. */
-@keyframes word-rise {
-  from { opacity: 0; transform: translateY(0.4em); }
-  to { opacity: 1; transform: none; }
-}
-
-.word {
-  display: inline-block;
-  animation: word-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.hero-typed-line { position: relative; }
-
-.hero-typing-cursor { display: none; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .hero-kicker,
-  .hero-copy,
-  .hero-actions,
-  .hero-brief-stage {
-    animation: hero-enter 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .hero-kicker { animation-delay: 80ms; }
-  .hero-copy { animation-delay: 520ms; }
-  .hero-actions { animation-delay: 650ms; }
-  .hero-brief-stage { animation-delay: 780ms; }
-  .swash { animation: hero-swash-draw 780ms 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-  .hero-brief-form:focus-within {
-    box-shadow: 0 10px 32px color-mix(in srgb, var(--brand) 13%, transparent);
-  }
-}
-
-@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
-  .hero-typed-line {
-    display: inline-block;
-    animation: hero-type-reveal 1.25s steps(34, end) 160ms both;
-  }
-
-  .hero-typed-line .word { animation: none; }
-
-  .hero-typed-line .swash {
-    animation: hero-swash-draw 620ms 1.32s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .hero-typing-cursor {
-    position: absolute;
-    bottom: 0.08em;
-    left: 0;
-    display: block;
-    width: 0.035em;
-    height: 0.82em;
-    background: var(--brand);
-    animation:
-      hero-cursor-travel 1.25s steps(34, end) 160ms both,
-      hero-cursor-fade 680ms ease 1.48s forwards;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .word,
-  .hero-kicker,
-  .hero-copy,
-  .hero-actions,
-  .hero-brief-stage,
-  .hero-signal-dot,
-  .hero-flow-signal,
-  .hero-typed-line,
-  .hero-typing-cursor,
-  .swash {
-    animation: none;
-  }
-}
-
-/*
- * Clearance for the floated mobile tab bar.
- *
- * `main` carries its own bottom padding, but the footer sits outside it and
- * was left with none — the last 66px of it ended up trapped behind the bar
- * with the page already scrolled to its end, so there was no way to reveal
- * it. Scoped to the width where the bar actually exists, and includes the
- * safe-area inset because the bar is offset by it too.
- */
-@media (max-width: 767px) {
-  body > footer {
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
-  }
-}
-
-/*
- * The detail page's hire bar, kept clear of the floated tab bar.
- *
- * A class rather than an inline style, because the offset has to change at
- * the breakpoint where the tab bar disappears — and an inline `bottom` would
- * win over any `md:bottom-0` utility and quietly strand the bar mid-screen on
- * a tablet.
- */
-.hire-action-bar {
-  bottom: calc(4.75rem + env(safe-area-inset-bottom));
-}
-
-@media (min-width: 768px) {
-  .hire-action-bar {
-    bottom: 0;
-  }
-}
-
-
-/*
- * The sheet and its backdrop. Kept short and interruptible: no action should
- * ever wait on a decorative transition.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .sheet-backdrop {
-    animation: sheet-fade 160ms ease-out;
-  }
-
-  .sheet-panel {
-    animation: sheet-rise 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .skeleton {
-    animation: skeleton-pulse 1.6s ease-in-out infinite;
-  }
-}
-
-@keyframes sheet-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes sheet-rise {
-  from { transform: translateY(12px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-
-/*
- * EvidenceSection. Above 768px the wrapper is `display: contents`, so the
- * section's children lay out exactly as they did before the collapse was
- * introduced — the extra element is invisible to layout, not just unstyled.
- */
-@media (min-width: 768px) {
-  .evidence-section-content {
-    display: contents;
-  }
-}
-
-@media (max-width: 767px) {
-  .evidence-section-content:not(.is-open) {
-    display: none;
-  }
-}
-
-/*
- * The always-collapsible variant, for sections that are reference rather than
- * evidence. No media query: it stays shut until asked at every width.
- */
-.evidence-section-content--collapsible:not(.is-open) {
-  display: none;
-}
-
-/*
- * ── Card surface ─────────────────────────────────────────────────────────
- *
- * One radius, one border, one hover.
- *
- * An earlier pass took the border off and separated cards by surface lift
- * alone. That was the right instinct for the palette it had — a cool grey
- * ground where an outline on every box read as clutter — and the wrong one
- * for this design, which uses a hairline on a warm ground as part of its
- * voice. The border is back, at the weight the design uses.
- *
- * Hover is still a ring drawn with box-shadow rather than a thicker border,
- * because changing border width on hover moves every pixel of the card's
- * contents.
- */
-.surface-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  transition:
-    box-shadow 150ms ease,
-    border-color 150ms ease,
-    background-color 150ms ease;
-}
-
-a.surface-card:hover,
-.surface-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 1px var(--border-strong);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .surface-card {
-    transition: none;
-  }
-}
-
-/*
- * ── Display voice ────────────────────────────────────────────────────────
- *
- * The serif is what makes this read as an editorial financial publication
- * rather than a dashboard, and it earns that only at size. Applied to h1 and
- * h2, which are the page and section titles; h3 and below stay in the sans,
- * where they sit inside dense rows and cards and a serif would just be
- * harder to read small.
- *
- * Weight 600 and normal tracking, not the 700-plus-negative-tracking the
- * sans needed to feel deliberate. A serif at display size carries its own
- * authority; tightening it only makes it look cramped.
- */
-h1,
-h2 {
-  font-family: var(--font-serif);
-  font-weight: 600;
-  letter-spacing: normal;
-}
-
-/*
- * Eyebrows and small caps labels.
- *
- * The design uses mono, uppercase and wide tracking as one consistent device
- * — BROWSE BY OUTCOME, TRUST DECOMPOSED — and it is the second thing, after
- * the serif, that gives the pages their rhythm. Opt in with `eyebrow` rather
- * than styling every uppercase span, because plenty of them are badges.
- */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--brand-highlight);
-}
-
-/*
- * ── Type ramp ────────────────────────────────────────────────────────────
- *
- * A floor under the smallest sizes, at every width rather than only on
- * phones. The listing rendered 196 text nodes below 12px and some at 9px:
- * density tuned for a monitor at arm's length. Raising it only below 768px
- * fixed the phone and left the desktop reading like a spreadsheet, which is
- * the difference a marketplace comparison kept pointing at.
- *
- * Applied to the utility classes rather than at the call sites because the
- * components are shared — 73 occurrences across 15 files — and because a
- * floor in one documented place is easier to find, and to raise again, than
- * the same decision smeared through the markup.
- *
- * Raised gently on purpose. These sizes sit in dense rows, stat grids and
- * table cells; a bigger jump reflows them into overflow, which is a worse
- * problem than small text.
- */
-.text-\[9px\] {
-  font-size: 11px;
-}
-
-.text-\[10px\] {
-  font-size: 11.5px;
-}
-
-.text-\[11px\] {
-  font-size: 12.5px;
-}
-
-/*
- * ── Mobile ergonomics floor ──────────────────────────────────────────────
- *
- * Everything in this block is scoped to phone widths, because the desktop
- * layout is a fixed constraint. That scoping is also why these are media
- * queries over utility classes rather than 325 edits at the call sites: the
- * components are shared, so changing a size in the markup would move desktop
- * too. A floor applied in one documented place is both safer and easier to
- * find than the same change smeared across a hundred files.
- */
-@media (max-width: 767px) {
-  /*
-   * Form controls. Any control under 16px makes iOS Safari zoom the viewport
-   * on focus — on the hire screen that meant the page lurched while the user
-   * was typing how much money to commit. 16px is the threshold, not a
-   * preference, so it is set exactly rather than rounded to a scale step.
-   * Checkboxes and radios are excluded: they are sized by their own box.
-   */
-  input:not([type='checkbox']):not([type='radio']),
-  textarea,
-  select {
-    font-size: 16px;
-    min-height: 44px;
-  }
-
-  /*
-   * The touch floor, by default rather than by opt-in.
-   *
-   * This used to be `min-h-11 md:min-h-0` written out at two dozen call
-   * sites, which had two problems. It was silently wrong if anyone forgot the
-   * `md:` half, and it did not survive contact with a rewrite: when Discover
-   * was rebuilt, every per-component floor on that page went with it while
-   * the type floor — which lives here — came through untouched. Ergonomics
-   * stated once, centrally, outlast the markup they apply to.
-   *
-   * Buttons and fields need no markup at all: `min-height` applies to their
-   * default inline-block box. `.tap-safe` opts out, for controls that are
-   * small on purpose and grow their hit area with a pseudo-element instead —
-   * making an inline provenance chip 44px tall would break the sentence it
-   * sits in.
-   */
-  button:not(.tap-safe),
-  [role='button']:not(.tap-safe) {
-    min-height: 44px;
-  }
-
-  /*
-   * Links opt in with `.tap`, because they need the display as well:
-   * `min-height` does nothing to a non-replaced inline box, which is why the
-   * old call sites all carried `inline-flex items-center` alongside it. The
-   * rule exists only inside this media query, so a call site cannot get the
-   * desktop scoping wrong by forgetting a `md:` prefix.
-   *
-   * That scoping is also the trap. Above the breakpoint `.tap` contributes
-   * nothing at all, so anything that needs a flex box for its own appearance
-   * — a pill with a border, a filled button — must still carry
-   * `inline-flex items-center` itself. Dropping those in favour of `.tap`
-   * left the Discover category chips as plain blocks on desktop, with their
-   * labels sitting at the top of a 36px pill. `.tap` sets the floor; it does
-   * not lay the element out.
-   */
-  .tap {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-  }
-
-  /*
-   * Hit-area floor for controls that are deliberately small, such as the
-   * inline provenance chips inside running text. The target is grown with a
-   * pseudo-element so the chip keeps its typographic size and the line box
-   * does not move — making the chip itself 44px would break the sentence it
-   * sits in.
-   */
-  .tap-safe {
-    position: relative;
-  }
-
-  .tap-safe::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    height: 44px;
-    min-width: 44px;
-    width: 100%;
-    transform: translate(-50%, -50%);
-  }
-
-  /*
-   * The primary action. Every "Hire agent" on the marketplace listing and the
-   * search submit render through this class at 34px — the most important
-   * control in the product, and the one hardest to hit. Fixed here rather than
-   * per button so a new call site inherits the floor.
-   */
-  .action-primary {
-    min-height: 44px;
-  }
-}
-
-/* Horizontal chip rows hide their scrollbar; the bleeding edge is the cue. */
-.overflow-x-auto::-webkit-scrollbar {
-  display: none;
-}
-
-/*
- * The outcome compositions deal themselves in as they are scrolled to.
- *
- * The timeline is the composition, not each card. A card is about 100px tall,
- * so its own `entry` phase spans 100px of scrolling — the first version ran
- * over `entry 5%` to `entry 60%` and therefore finished after roughly 60px,
- * while the card was still sitting on the bottom edge of the viewport. It was
- * working and invisible, which is the worst of both.
- *
- * Naming the timeline on the container and running over `cover` gives a range
- * of a viewport plus the container's height, so the deal plays out over a few
- * hundred pixels of scroll with the cards properly on screen.
- *
- * Animating `translate` rather than `transform` on purpose. Each card carries a
- * Tailwind rotation utility, and Tailwind v4 emits that as a standalone
- * `rotate` property — so a keyframe touching `translate` leaves the tilt alone
- * instead of flattening it, and the hover state keeps `rotate` and `scale` to
- * itself. Animating `transform` here would fight all three.
- *
- * The stagger is a per-card `animation-range` offset, not `animation-delay`:
- * delays do not apply to a progress-based timeline.
- *
- * Guarded by @supports so a browser without scroll timelines renders the cards
- * plainly rather than stranding them at opacity 0 — the failure mode of every
- * scroll animation that does not load.
- */
-@keyframes agent-deal {
-  from {
-    opacity: 0;
-    translate: 0 34px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .agent-scene {
-      view-timeline-name: --agent-scene;
-      view-timeline-axis: block;
-    }
-
-    .agent-deal {
-      animation: agent-deal linear both;
-      animation-timeline: --agent-scene;
-    }
-  }
-}
-
-/*
- * A horizontal scroller must not scroll the page.
- *
- * Every sideways strip in this product — the similar-agent cards, the detail
- * tabs, the filter chips, the comparison and ranking tables — could be pushed
- * past its own end, at which point the gesture chained to the document. On a
- * trackpad, where a vertical scroll almost always carries a few degrees of
- * horizontal, that reads as the whole page sliding away under the content you
- * were reading.
- *
- * Extending the utility rather than annotating a dozen call sites: there is no
- * scroller in this app that wants the chaining, and the next one added would
- * not have remembered to opt out.
- */
-@layer utilities {
-  .overflow-x-auto {
-    overscroll-behavior-x: contain;
-  }
-}
-
-/*
- * The hire drawer's entrance: in from the right on a desktop, up from the
- * bottom on a phone. Both respect the reduced-motion rule below, which
- * already disables animation globally for anyone who asked for that.
- */
-@keyframes drawer-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-@keyframes sheet-in {
-  from { transform: translateY(24px); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-.drawer-in { animation: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.sheet-in { animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-
-/*
- * A day nobody asked about, drawn as absence rather than as fault.
- *
- * The evidence strip has three colours for answered, partly answered and
- * failed, and a fourth state that is none of those: Pokter did not call.
- * A grey fill would sit on the same scale as the other three and read as a
- * bad day; hatching says "no data" in a language that is not a colour,
- * which also survives the colour-blind and forced-colours cases.
- */
-.strip-absent {
-  background: repeating-linear-gradient(135deg, var(--border-strong) 0 1px, transparent 1px 3px);
+.inverse {
+  --paper: #16171a;
+  --raised: #1d1e22;
+  --sunken: #111214;
+  --ink: #edebe4;
+  --ink-2: #bdbbb3;
+  --ink-3: #8f8d86;
+  --rule: #2e2f34;
+  --rule-strong: #43444a;
+  --ok: #63c08c;
+  --watch: #e3aa3e;
+  --bad: #ee7d6d;
+  color-scheme: dark;
 }

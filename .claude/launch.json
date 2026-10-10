@@ -4,8 +4,8 @@
     {
       "name": "pokter2",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "--hostname", "localhost", "--port", "4312"],
-      "port": 4312
+      "runtimeArgs": ["next", "dev", "--hostname", "localhost", "--port", "4313"],
+      "port": 4313
     }
   ]
 }

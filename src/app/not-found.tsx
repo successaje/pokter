@@ -1,32 +1,31 @@
 import Link from 'next/link';
 
+import { SiteFooter } from '@/shell/SiteFooter';
+import { SiteHeader } from '@/shell/SiteHeader';
+import { LinkButton } from '@/ui/Button';
+
 export default function NotFound() {
   return (
-    <section className="mx-auto flex max-w-xl flex-col items-start gap-4 pt-16 sm:pt-24">
-      <p className="tabular text-[11px] font-medium uppercase tracking-widest text-[color:var(--text-muted)]">
-        404 · Not found
-      </p>
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        This agent or page is not available.
-      </h1>
-      <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-        The address may be incomplete, the registry entry may not exist on this
-        chain, or the page may have moved.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/agents"
-          className="action-primary rounded-[var(--radius)] px-4 py-2 text-xs font-medium"
-        >
-          Browse agents
+    <>
+      <SiteHeader />
+      <main id="main" className="frame flex min-h-[60vh] flex-col items-start justify-center gap-6 py-24">
+        <span className="t-readout text-sm text-ink-3">404</span>
+        <h1 className="t-h1 max-w-xl">Nothing is registered at this address.</h1>
+        <p className="t-body max-w-lg text-ink-2">
+          The page may have moved in the redesign, or the agent you followed may no longer be listed. Agent pages live at
+          <span className="t-readout mx-1 text-[13px]">/agents/chain/id</span>.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <LinkButton href="/discover">Find an agent</LinkButton>
+          <LinkButton href="/" intent="secondary">
+            Home
+          </LinkButton>
+        </div>
+        <Link href="/support" className="text-sm text-ink-3 hover:text-ink">
+          Report a broken link
         </Link>
-        <Link
-          href="/"
-          className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          Go home
-        </Link>
-      </div>
-    </section>
+      </main>
+      <SiteFooter />
+    </>
   );
 }
