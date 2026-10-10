@@ -10,7 +10,7 @@ import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { Wordmark } from './Logo';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
-import { AccountButton } from './wallet/AccountButton';
+import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
 export const PRIMARY_NAV = [
   { href: '/discover', label: 'Discover' },
@@ -80,7 +80,7 @@ export function SiteHeader() {
             <Link href="/workspace" className="hidden rounded-[8px] px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink lg:inline-flex">
               Workspace
             </Link>
-            <AccountButton compact />
+            <LazyHeaderWallet />
             <button
               type="button"
               onClick={() => setMenu(true)}

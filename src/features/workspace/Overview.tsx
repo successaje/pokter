@@ -12,6 +12,8 @@ import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAlerts } from './hooks';
 import { JobRow, NeedsWallet, PageHeader, Stat, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
+import { CampaignProgress } from '@/features/campaign/CampaignProgress';
+import { isCampaignLive } from '@/lib/campaign/window';
 
 export function WorkspaceOverview() {
   const { jobs, address } = useMyJobs();
@@ -178,6 +180,14 @@ export function WorkspaceOverview() {
           </section>
           {w.mode === 'passkey' && <p className="text-[12.5px] text-ink-3">Signed in with a passkey wallet on this device.</p>}
         </div>
+      )}
+      {isCampaignLive() && (
+        <section id="campaign" aria-labelledby="campaign-title" className="mt-10 flex scroll-mt-24 flex-col gap-3">
+          <h2 id="campaign-title" className="t-label">
+            Set and Earn progress
+          </h2>
+          <CampaignProgress />
+        </section>
       )}
     </>
   );

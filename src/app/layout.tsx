@@ -3,11 +3,9 @@ import { cookies } from 'next/headers';
 import localFont from 'next/font/local';
 
 import './globals.css';
-import { WalletProviders } from '@/lib/wallet/Providers';
 import { siteUrl } from '@/lib/site';
 import { PwaProvider } from '@/shell/PwaProvider';
 import { SavedAgentMonitor } from '@/shell/SavedAgentMonitor';
-import { ConnectProvider } from '@/shell/wallet/ConnectProvider';
 
 /*
  * One family and a readout face, both self-hosted (SIL OFL 1.1, licences in
@@ -100,12 +98,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body>
         <PwaProvider>
-          <WalletProviders>
-            <ConnectProvider>
-              <SavedAgentMonitor />
-              {children}
-            </ConnectProvider>
-          </WalletProviders>
+          <SavedAgentMonitor />
+          {children}
         </PwaProvider>
       </body>
     </html>

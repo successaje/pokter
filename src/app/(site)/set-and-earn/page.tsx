@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { CAMPAIGN_ENDS_AT, CAMPAIGN_RULES_URL, CAMPAIGN_STARTS_AT, isCampaignLive } from '@/lib/campaign/window';
 import { Doc, DocSection } from '@/features/content/Doc';
-import { CampaignProgress } from '@/features/campaign/CampaignProgress';
+import { LinkButton } from '@/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Set and Earn',
@@ -25,7 +25,10 @@ export default function SetAndEarn() {
       ]}
     >
       <DocSection id="progress" title="Your progress here">
-        <CampaignProgress />
+        <p>Your hires through Pokter, counted the way the campaign counts them, are in your workspace.</p>
+        <LinkButton href="/workspace#campaign" intent="secondary" className="self-start">
+          See your progress
+        </LinkButton>
       </DocSection>
       <DocSection id="hire" title="Hire track">
         <p>Hire at least three different agents, across at least two shortlisted marketplaces, from the wallet you registered. A hire counts from the moment its hire event is emitted on chain: an approval alone does not count. Testnet and mainnet both count.</p>

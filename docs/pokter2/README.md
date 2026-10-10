@@ -163,12 +163,13 @@ Also added afterwards:
   executed** in this session. Those paths call the unchanged `useHire`,
   `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet` and
   delivery APIs, but they still need a funded test wallet run before release.
-- First-load JavaScript on the home page is about 464 KB gzipped (measured
-  on a production build). Most of it is viem, wagmi and the Altana passkey
-  SDK, mounted at the root because the header's account control needs them.
-  WalletConnect/Reown is not in it: it loads on demand. Moving the wallet
-  providers behind a lazy boundary on public pages is the main remaining
-  performance lever.
+- Wallet libraries (wagmi, viem, the Altana passkey SDK) are no longer in the
+  root layout. They wrap only `(app)` and `(flow)`, and the public header's
+  account control is a lazily loaded island with its own provider. First-load
+  JavaScript (gzipped, production build) is now about 205 KB on `/`,
+  `/discover` and agent pages, down from about 464 KB. The workspace still
+  loads about 484 KB, because it acts on a wallet. Set and Earn progress
+  moved from the public campaign page to the workspace.
 - On-chain money paths are covered by a manual plan:
   [`TEST-PLAN.md`](TEST-PLAN.md).
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and
