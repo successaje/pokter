@@ -151,6 +151,11 @@
   --ease-out: var(--ease-out);
 }
 
+/* The campaign strip, once dismissed or past its deadline (set before first paint). */
+html[data-campaign-bar='hidden'] #campaign-bar {
+  display: none;
+}
+
 @layer base {
 /* ---------- Base ---------- */
 

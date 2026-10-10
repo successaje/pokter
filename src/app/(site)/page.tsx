@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
+import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
@@ -77,6 +78,48 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* ───────────── Set and Earn, while it runs ───────────── */}
+      {isCampaignLive() && (
+        <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title">
+          <div className="grid grid-cols-1 gap-8 rounded-[18px] border border-rule bg-signal-wash/60 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
+            <div className="flex flex-col gap-3">
+              <p className="t-label flex items-center gap-2">
+                <span className="size-2 rounded-full bg-signal" aria-hidden /> BNB Chain campaign · {CAMPAIGN_END_LABEL}
+              </p>
+              <h2 id="campaign-title" className="t-h2">
+                Set and Earn is live
+              </h2>
+              <p className="text-[15px] leading-relaxed text-ink-2">
+                BNB Chain&rsquo;s campaign for people who put agents to work. Pokter is one of its shortlisted marketplaces{IS_TESTNET ? ', and hires here run on testnet, so taking part costs nothing' : ''}.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <LinkButton href="/set-and-earn" trailing={<Icon.Arrow size={16} />}>
+                  How to take part
+                </LinkButton>
+                <LinkButton href="/set-and-earn#progress" intent="secondary" icon={<Icon.Pulse size={16} />}>
+                  Track your progress
+                </LinkButton>
+              </div>
+            </div>
+            <ol className="ruled border-y border-rule text-[14.5px]">
+              {[
+                ['Register', 'An ordinary wallet with BNB Chain, before anything else. Not a passkey.'],
+                ['Hire three agents', 'Three different agents across at least two marketplaces. Pokter can be one.'],
+                ['Build one of your own', 'Listed, answering, and hired by three independent wallets.'],
+              ].map(([title, note], i) => (
+                <li key={title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 py-3">
+                  <span className="t-readout text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                  <span>
+                    <span className="font-medium text-ink">{title}</span>
+                    <span className="block text-ink-2">{note}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
 
       {/* ───────────── Browse by outcome ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="outcomes-title">

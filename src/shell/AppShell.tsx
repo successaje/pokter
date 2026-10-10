@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { isCampaignLive } from '@/lib/campaign/window';
 import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
@@ -117,6 +118,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {[
             { href: '/discover', label: 'Discover agents', icon: <Icon.Compass size={17} /> },
             { href: '/', label: 'Pokter home', icon: <Icon.Home size={17} /> },
+            ...(isCampaignLive() ? [{ href: '/set-and-earn', label: 'Set and Earn guide', icon: <Icon.Spark size={17} /> }] : []),
           ].map((l) => (
             <Link key={l.href} href={l.href} className="flex h-9 items-center gap-3 rounded-[8px] px-3 text-sm font-medium text-ink-3 hover:bg-sunken/70 hover:text-ink">
               {l.icon}

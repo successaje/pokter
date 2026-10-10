@@ -8,6 +8,7 @@ import { listSearchable } from '@/lib/marketplace';
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { offersDirectHire } from '@/lib/search/match';
 import { AgentRow } from '@/features/agents/AgentCard';
+import { LazyCampaignTracker } from '@/features/campaign/LazyCampaignTracker';
 import { LinkButton } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -78,12 +79,21 @@ export default async function SetAndEarn() {
           </a>{' '}
           before relying on this page. Pokter is not affiliated with or endorsed by BNB Chain beyond being shortlisted.
         </p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <LinkButton href="/workspace#campaign" intent="secondary" size="s" icon={<Icon.Pulse size={15} />}>
-            Your progress here
-          </LinkButton>
-        </div>
       </header>
+
+      {live && (
+        <section id="progress" aria-labelledby="progress-title" className="mt-10 flex scroll-mt-24 flex-col gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="progress-title" className="t-label">
+              Your progress
+            </h2>
+            <Link href="/studio" className="text-[13px] font-medium text-ink-2 hover:text-ink">
+              Build track: your agent&rsquo;s hires, actions and active days are in Builder Studio <Icon.Arrow size={13} className="inline" />
+            </Link>
+          </div>
+          <LazyCampaignTracker />
+        </section>
+      )}
 
       <div className="mt-10">
         <Step n={1} title="Register before you do anything else" lead="Actions from unregistered wallets are not counted, including ones you already made.">
