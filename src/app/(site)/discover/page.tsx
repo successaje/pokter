@@ -135,6 +135,32 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         )}
       </header>
 
+      {!p.q && activeFilters === 0 && (
+        <section aria-labelledby="collections-title" className="mt-8">
+          <h2 id="collections-title" className="t-label mb-3">
+            Collections
+          </h2>
+          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { href: discoverHref({ hireable: true }, base), title: 'Hireable now', note: 'Answering and payable through escrow', count: result.collections.hireable },
+              { href: discoverHref({ priced: true }, base), title: 'Signed a price', note: 'Price signed by the agent’s wallet', count: result.collections.priced },
+              { href: discoverHref({ answering: true }, base), title: 'Answered this week', note: 'Replied to a Pokter probe in 7 days', count: result.collections.answering },
+              { href: discoverHref({ evidence: 'corroborated' }, base), title: 'Attested by others', note: 'Has published on-chain attestations', count: result.collections.corroborated },
+            ].map((c) => (
+              <li key={c.title}>
+                <Link href={c.href} className="group flex h-full flex-col gap-1 rounded-[12px] border border-rule bg-raised p-4 transition-colors hover:border-rule-strong">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-[14px] font-semibold">{c.title}</span>
+                    <span className="t-readout text-[13px] text-ink-3">{c.count}</span>
+                  </span>
+                  <span className="text-[12.5px] leading-snug text-ink-3">{c.note}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {result.reading && (
         <div className="anim-fade mt-6 flex flex-col gap-2 rounded-[12px] border border-rule bg-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink-2">

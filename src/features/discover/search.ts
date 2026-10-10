@@ -23,6 +23,8 @@ export interface DiscoverResult {
   reading: (BriefReading & { categoryLabel: string | null; terms: string[] }) | null;
   advanced: { unknown: string[] } | null;
   categoryCounts: Array<{ id: Category; label: string; count: number }>;
+  /** Sizes of the curated shortcuts, over everything listed. */
+  collections: { hireable: number; priced: number; answering: number; corroborated: number };
   unreachable: boolean;
 }
 
@@ -115,6 +117,15 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     reading,
     advanced,
     categoryCounts,
+    collections: {
+      hireable: promotable.filter((e) => offersDirectHire(e)).length,
+      priced: promotable.filter((e) => e.listing.quote != null).length,
+      answering: promotable.filter((e) => {
+        const w = e.record.windows.find((x) => x.label === '7d');
+        return Boolean(w && w.probes > 0 && (w.ratio ?? 0) > 0);
+      }).length,
+      corroborated: promotable.filter((e) => e.listing.attestationCount > 0).length,
+    },
     unreachable,
   };
 }
