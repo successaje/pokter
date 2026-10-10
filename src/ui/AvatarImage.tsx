@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-export function AvatarImage({ src, fallback, name, size, className }: { src: string | null; fallback: string; name: string; size: number; className?: string }) {
+export function AvatarImage({ src, fallback, name, size, className, eager }: { src: string | null; fallback: string; name: string; size: number; className?: string; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
   // A server-rendered image can fail before React attaches onError.
@@ -20,7 +20,7 @@ export function AvatarImage({ src, fallback, name, size, className }: { src: str
       alt=""
       width={size}
       height={size}
-      loading="lazy"
+      loading={eager ? 'eager' : 'lazy'}
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}

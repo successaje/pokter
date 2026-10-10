@@ -14,15 +14,18 @@ export function AgentAvatar({
   seed,
   size = 40,
   className,
+  eager,
 }: {
   name: string;
   imageUrl?: string | null;
   seed: string;
   size?: number;
   className?: string;
+  /** For avatars above the fold. */
+  eager?: boolean;
 }) {
   const safe = imageUrl && /^https:\/\//i.test(imageUrl) ? imageUrl : null;
-  return <AvatarImage src={safe} fallback={avatarUrl(seed)} name={name} size={size} className={className} />;
+  return <AvatarImage src={safe} fallback={avatarUrl(seed)} name={name} size={size} className={className} eager={eager} />;
 }
 
 /**

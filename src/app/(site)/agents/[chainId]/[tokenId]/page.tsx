@@ -167,7 +167,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           />
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-5">
-              <AgentAvatar name={p.name} imageUrl={p.imageUrl} seed={p.key} size={76} className="rounded-[16px]" />
+              <AgentAvatar name={p.name} imageUrl={p.imageUrl} seed={p.key} size={76} className="rounded-[16px]" eager />
               <div className="flex min-w-0 flex-col gap-2">
                 <h1 className="t-h1 break-words">{p.name}</h1>
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3">
