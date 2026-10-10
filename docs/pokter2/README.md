@@ -163,10 +163,14 @@ Also added afterwards:
   executed** in this session. Those paths call the unchanged `useHire`,
   `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet` and
   delivery APIs, but they still need a funded test wallet run before release.
-- The WalletConnect/Reown bundle still loads on every page because wagmi
-  creates connectors eagerly. It no longer runs on the server (the
-  `indexedDB` build errors are gone), but lazy-loading it would cut first-load
-  JavaScript considerably.
+- First-load JavaScript on the home page is about 464 KB gzipped (measured
+  on a production build). Most of it is viem, wagmi and the Altana passkey
+  SDK, mounted at the root because the header's account control needs them.
+  WalletConnect/Reown is not in it: it loads on demand. Moving the wallet
+  providers behind a lazy boundary on public pages is the main remaining
+  performance lever.
+- On-chain money paths are covered by a manual plan:
+  [`TEST-PLAN.md`](TEST-PLAN.md).
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and
   the page says so. `/api/ask` and `lib/recommend/engine` remain unused.
 - Builder Studio does not host agents. It says so, and links to BNB Agent
