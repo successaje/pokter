@@ -119,7 +119,7 @@ ever rendered as HTML.
 
 ## Verified
 
-- `npm test`: 234/234 pass. `npm run audit:protocol`: passes. `npm run
+- `npm test`: 238/238 pass (4 new binding tests). `npm run audit:protocol`: passes. `npm run
   lint`: clean (React purity issues fixed, not suppressed). `tsc`: clean.
   `npm run build`: succeeds, all routes emitted.
 - Browser walkthrough (desktop 1366, phone 375, light and dark) of: home,
@@ -129,16 +129,42 @@ ever rendered as HTML.
   compatibility check, studio create wizard from a template.
 - Legacy redirects return 307 to their new homes.
 
+## Review fixes (second pass)
+
+A review of the rebuilt UI against the backend found 14 issues, all fixed:
+
+- `useHire.commission()` refuses to run on an invalid budget, an unaccepted risk or an empty task, whoever calls it. The failure banner no longer offers a one-click retry that skips the confirmation.
+- The payment confirmation covers amount, task **and recipient**.
+- Gas sponsorship tops up only smart-account (passkey) wallets with code, not throwaway EOAs.
+- **Quotes must bind their terms.** `negotiationTermsBound` re-derives `negotiation_hash` exactly as BNB's reference SDK does (canonical JSON of task, terms, price, currency, expiry, chain binding). Stored quotes are dropped unless it matches. The trial says plainly whether the signature covers the price. It is checked against live agents #2554 and #2555 and in `tests/negotiation-binding.test.mts`.
+- Registration recovery is per draft, with "Start over instead". The profile editor uses one service index for read, check and write, and changes only the category tag.
+- Smaller fixes:
+  - category labels in Studio;
+  - fee-cover wording;
+  - prices above the 5 $U cap explained;
+  - the courier path not held to the agent's price;
+  - hand delivery retries only the index confirmation once on chain;
+  - the funnel names its escrow network;
+  - the job page discards stale polls and its deadlines tick;
+  - the e-mail job picker is stable;
+  - passkey-published agents are told Studio cannot edit them yet.
+
+Also added afterwards:
+- per-agent share images (`opengraph-image`);
+- Discover pagination (`?pages=`);
+- the restored `/pool-check` calculator, with the agent's price as an input instead of a hard-coded 0.1;
+- a base `grid-cols-1` on every responsive grid, after a phone overflow;
+- the light "not measured" tone raised to AA. Every text token now meets AA on every ground in both themes.
+
 ## Not verified, or not done
 
 - **No on-chain hire, settlement, review, delivery or registration was
   executed** in this session. Those paths call the unchanged `useHire`,
   `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet` and
   delivery APIs, but they still need a funded test wallet run before release.
-- Per-agent Open Graph images were not rebuilt (the site-wide image remains).
-- The PancakeSwap `/pool-check` calculator was not carried over; it
-  redirects to rebalancing agents. Its library (`lib/pancakeswap/pool`)
-  remains.
+- `next build` logs `indexedDB is not defined` from the WalletConnect
+  connector initialising during server rendering. The wallet config is
+  unchanged from `main`, and the build completes.
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and
   the page says so. `/api/ask` and `lib/recommend/engine` remain unused.
 - Builder Studio does not host agents. It says so, and links to BNB Agent
