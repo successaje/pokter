@@ -398,7 +398,7 @@ export function WalletPage() {
           {[
             ['In escrow', sum(['working', 'review', 'reclaim'])],
             ['Released to agents', sum(['settled'])],
-            ['Refunded to you', sum(['refunded'])],
+            ['Returned to you', sum(['refunded', 'expired'])],
             ['In dispute', sum(['disputed'])],
           ].map(([label, value]) => (
             <div key={label as string} className="rounded-[12px] border border-rule px-4 py-3">

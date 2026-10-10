@@ -194,6 +194,15 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           </div>
         )}
 
+        {phase === 'expired' && owned && a.reclaimable && (
+          <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-paper p-4 text-[13px] text-ink-2">
+            <p>If the funding wallet did not get the {budgetOf(job)} back, you can try reclaiming. If it was already returned, the attempt reverts and costs only the network fee.</p>
+            <Button intent="secondary" size="s" onClick={() => void a.act('reclaim')} busy={a.busy === 'reclaim'} className="self-start">
+              Try to reclaim anyway
+            </Button>
+          </div>
+        )}
+
         {phase === 'reclaim' && owned && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink-2">The only possible destination is the wallet that funded it: yours.</p>

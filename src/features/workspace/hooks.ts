@@ -93,8 +93,14 @@ export function jobPhase(job: HiredJob, now = Date.now()): JobPhase {
   if (job.status === 'COMPLETED') return 'settled';
   if (job.status === 'REJECTED') return job.reclaimTxHash ? 'refunded' : 'disputed';
   if (job.reclaimTxHash) return 'refunded';
-  if (isReclaimable(job, now)) return 'reclaim';
+  /*
+   * The escrow has been observed to mark a job EXPIRED once its refund is
+   * claimed (see reclaim-gate). So EXPIRED is shown as "likely refunded", not
+   * as money waiting; reclaim stays available on the job page in case it is
+   * not, because hiding it would be the costlier mistake.
+   */
   if (job.status === 'EXPIRED') return 'expired';
+  if (isReclaimable(job, now)) return 'reclaim';
   return 'working';
 }
 
@@ -106,7 +112,7 @@ export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'in
   settled: { label: 'Settled', tone: 'ok', needsYou: false, next: 'Payment was released to the agent.' },
   disputed: { label: 'Disputed', tone: 'bad', needsYou: false, next: 'You contested the delivery. The policy’s voters decide whether the escrow is refunded.' },
   refunded: { label: 'Refunded', tone: 'none', needsYou: false, next: 'The escrow was returned to your wallet.' },
-  expired: { label: 'Expired', tone: 'none', needsYou: false, next: 'The job expired.' },
+  expired: { label: 'Expired · likely refunded', tone: 'none', needsYou: false, next: 'The deadline passed without a delivery. The contract marks a job expired once its escrow is reclaimed, so the money has most likely already returned to the funding wallet.' },
 };
 
 export const STATUS_NAME: Record<JobStatusName, string> = {

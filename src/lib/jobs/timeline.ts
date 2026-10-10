@@ -81,7 +81,7 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       state: 'terminal',
       source: 'onchain',
       detail: job.status === 'EXPIRED'
-        ? 'The delivery window closed. Escrow is reclaimable; expiry is not a completed job.'
+        ? 'The delivery window closed without a delivery. The contract marks a job expired once its escrow is reclaimed; expiry is not a completed job.'
         : 'The delivery was contested. It is not counted as successful work.',
       transactionHash: job.disputeTxHash ?? null,
     },
