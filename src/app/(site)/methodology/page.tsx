@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { getEcosystemStats } from '@/lib/marketplace';
+import { supplyCensus } from '@/lib/census/supply';
 import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
 import { Doc, DocSection } from '@/features/content/Doc';
@@ -16,7 +17,7 @@ export const revalidate = 600;
 const ORDER: Verdict[] = ['proven', 'reliable', 'emerging', 'observed', 'failing', 'unproven'];
 
 export default async function MethodologyPage() {
-  const stats = await getEcosystemStats().catch(() => null);
+  const [stats, census] = await Promise.all([getEcosystemStats().catch(() => null), supplyCensus().catch(() => null)]);
   return (
     <Doc
       label="Methodology"
@@ -24,6 +25,7 @@ export default async function MethodologyPage() {
       lede="Every rule on this page is read from the code that applies it, so the page cannot describe a standard the product does not keep."
       toc={[
         { id: 'sources', label: 'Where evidence comes from' },
+        { id: 'census', label: 'The registry, counted' },
         { id: 'states', label: 'The six evidence states' },
         { id: 'probes', label: 'Probing' },
         { id: 'prices', label: 'Signed prices' },
@@ -45,6 +47,46 @@ export default async function MethodologyPage() {
             As of this page: {stats.registered?.toLocaleString('en-US') ?? 'unknown'} agents registered on BNB Chain · {stats.agentsMonitored} monitored · {stats.agentsAnswering} have ever answered · {stats.probesTaken.toLocaleString('en-US')} probes taken.
           </p>
         )}
+      </DocSection>
+
+      <DocSection id="census" title="The registry, counted">
+        <p>
+          Each step below is counted from its source, and a share of the step above is shown only where it means attrition. Classifying into a category is a change of scope, not agents failing, so it gets no percentage.
+        </p>
+        {census ? (
+          <div className="overflow-hidden rounded-[14px] border border-rule">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-sunken/70">
+                <tr>
+                  <th scope="col" className="t-label px-4 py-2.5 font-medium">Step</th>
+                  <th scope="col" className="t-label px-4 py-2.5 text-right font-medium">Agents</th>
+                  <th scope="col" className="t-label hidden px-4 py-2.5 text-right font-medium sm:table-cell">Of the step above</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule bg-raised">
+                {census.steps.map((step, i) => {
+                  const prev = census.steps[i - 1]?.value ?? null;
+                  const share = step.comparable && prev && step.value !== null ? step.value / prev : null;
+                  return (
+                    <tr key={step.label}>
+                      <th scope="row" className="px-4 py-3 align-top font-medium text-ink">
+                        {step.label}
+                        <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3">{step.note}</span>
+                      </th>
+                      <td className="t-readout px-4 py-3 text-right align-top text-ink">{step.value === null ? 'unreadable' : step.value.toLocaleString('en-US')}</td>
+                      <td className="t-readout hidden px-4 py-3 text-right align-top text-ink-3 sm:table-cell">
+                        {share === null ? '—' : `${share >= 0.01 ? (share * 100).toFixed(1) : (share * 100).toFixed(3)}%`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-ink-3">The census could not be read just now. It is not shown from a cache.</p>
+        )}
+        {census && <p className="text-[12.5px] text-ink-3">Counted {new Date(census.observedAt).toUTCString().slice(5, 22)} UTC.</p>}
       </DocSection>
 
       <DocSection id="states" title="The six evidence states">

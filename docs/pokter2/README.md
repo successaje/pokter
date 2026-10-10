@@ -163,7 +163,6 @@ Also added afterwards:
 Kept on purpose because they are backend data features, but nothing in the
 new UI imports them:
 - `lib/leaderboard.ts` (rankings)
-- `lib/census/supply.ts` (registry census)
 - `lib/hero/pipeline.ts` (old landing funnel)
 - `lib/experiments/agent-advantage.ts`
 - `lib/search/filters.ts`
