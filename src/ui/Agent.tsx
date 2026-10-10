@@ -1,11 +1,12 @@
 import { avatarUrl } from '@/lib/ui/avatar-art';
+import { AvatarImage } from './AvatarImage';
 import { cn } from '@/lib/ui/cn';
 import type { StripCell } from '@/lib/history/strip';
 
 /**
  * An agent's picture. Operators publish arbitrary image URLs, so only https
- * images are loaded, with no referrer; anything else falls back to a
- * generated mark seeded by chain and token so it is stable per agent.
+ * images are loaded, with no referrer, and any that fail to load fall back
+ * to a generated mark seeded by chain and token, stable per agent.
  */
 export function AgentAvatar({
   name,
@@ -20,22 +21,8 @@ export function AgentAvatar({
   size?: number;
   className?: string;
 }) {
-  const safe = imageUrl && /^https:\/\//i.test(imageUrl) ? imageUrl : avatarUrl(seed);
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={safe}
-      alt=""
-      width={size}
-      height={size}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
-      className={cn('shrink-0 rounded-[10px] border border-rule bg-sunken object-cover', className)}
-      style={{ width: size, height: size }}
-      title={name}
-    />
-  );
+  const safe = imageUrl && /^https:\/\//i.test(imageUrl) ? imageUrl : null;
+  return <AvatarImage src={safe} fallback={avatarUrl(seed)} name={name} size={size} className={className} />;
 }
 
 /**

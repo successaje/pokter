@@ -151,6 +151,7 @@
   --ease-out: var(--ease-out);
 }
 
+@layer base {
 /* ---------- Base ---------- */
 
 html {
@@ -193,6 +194,9 @@ button:disabled { cursor: not-allowed; }
 
 img { max-width: 100%; }
 
+}
+
+@layer components {
 /* ---------- Type ---------- */
 
 /*
@@ -317,6 +321,8 @@ img { max-width: 100%; }
   to { background-position: -100% 0; }
 }
 
+}
+
 /* ---------- Motion ---------- */
 
 @keyframes rise {
@@ -395,4 +401,18 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
   --watch: #e3aa3e;
   --bad: #ee7d6d;
   color-scheme: dark;
+}
+
+/* ---------- Scroll reveal ----------
+ * Progressive enhancement only: without scroll-driven animation support the
+ * content is static and fully visible.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry calc(0% + var(--reveal-offset, 0%)) entry calc(35% + var(--reveal-offset, 0%));
+    }
+  }
 }

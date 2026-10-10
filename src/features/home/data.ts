@@ -64,7 +64,7 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
     },
     {
       id: 'evidence',
-      label: 'Independent evidence',
+      label: 'Published attestations',
       result: attestations > 0 ? `${attestations} published attestation${attestations === 1 ? '' : 's'}` : 'None published',
       tone: attestations > 0 ? 'ok' : 'none',
     },
