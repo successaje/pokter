@@ -136,6 +136,8 @@ const nextConfig: NextConfig = {
       ['/builder', '/studio'],
       ['/compatibility', '/studio/import'],
       ['/about/how-it-works', '/how-it-works'],
+      ['/pool-check', '/discover?category=rebalancing'],
+      ['/set-and-earn/guide', '/set-and-earn'],
     ];
     return moved.map(([source, destination]) => ({ source, destination, permanent: false }));
   },
