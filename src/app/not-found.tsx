@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { SiteFooter } from '@/shell/SiteFooter';
 import { SiteHeader } from '@/shell/SiteHeader';
 import { LinkButton } from '@/ui/Button';
+
+export const metadata: Metadata = { title: 'Page not found' };
 
 export default function NotFound() {
   return (
