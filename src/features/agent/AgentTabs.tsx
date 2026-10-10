@@ -16,7 +16,7 @@ export const AGENT_TABS = [
 export type AgentTabId = (typeof AGENT_TABS)[number]['id'];
 
 /** #try is the free trial, which lives in Overview. */
-const ANCHORS = { try: 'overview' };
+const ANCHORS = { try: 'overview', reviews: 'work' };
 
 export function AgentTabBar() {
   return (
