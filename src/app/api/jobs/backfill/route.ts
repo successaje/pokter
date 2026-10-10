@@ -64,6 +64,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         agentName: envelope.identity.name ?? existing?.agentName ?? `Agent #${envelope.identity.tokenId}`,
         providerLabel: envelope.providerLabel ?? existing?.providerLabel,
         provider: onchain.provider,
+        client: onchain.client,
         task: envelope.task,
         budgetRaw: onchain.budget.toString(),
         expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),

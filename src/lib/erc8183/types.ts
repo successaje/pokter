@@ -22,6 +22,8 @@ export interface HiredJob {
   /** Human label for the escrow recipient when it differs from the listing. */
   providerLabel?: string;
   provider: Address;
+  /** The wallet that funded the escrow, as read from chain. Absent on rows indexed before it was kept. */
+  client?: Address;
   task: string;
   /** Raw $U units, 18 decimals. */
   budgetRaw: string;
