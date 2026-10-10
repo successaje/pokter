@@ -11,7 +11,7 @@ const BASE = (process.env.BASE_URL ?? 'http://localhost:4313').replace(/\/$/, ''
 type Check = { path: string; expect: number; contains?: string; location?: string };
 
 const CHECKS: Check[] = [
-  { path: '/', expect: 200, contains: 'Find agents that' },
+  { path: '/', expect: 200, contains: 'These do' },
   { path: '/discover', expect: 200, contains: 'Discover agents' },
   { path: '/discover?q=monitor%20my%20lending%20risk', expect: 200, contains: 'Reading this as' },
   { path: '/discover?hireable=1&view=list&pages=2', expect: 200 },
