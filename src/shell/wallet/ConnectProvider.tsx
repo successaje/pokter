@@ -86,22 +86,14 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
       ) : view === 'choose' ? (
         <div className="flex flex-col gap-3">
           <Option
-            icon={<Icon.Key />}
-            title="Passkey wallet"
-            badge="Fastest"
-            detail="Made with Face ID, Touch ID or your device PIN. Nothing to install, and Pokter covers the network fee for hires."
-            onClick={() => setView('passkey')}
-            disabled={w.ready && !w.passkey.supported}
-            disabledReason="This browser cannot create passkeys."
-          />
-          <Option
             icon={<Icon.Wallet />}
             title={w.injectedAvailable ? 'Browser wallet' : 'Wallet app'}
+            badge={w.injectedAvailable || w.walletConnectAvailable ? 'Recommended' : undefined}
             detail={
               w.injectedAvailable
-                ? 'MetaMask, Rabby, Trust or any wallet in this browser. You approve each transaction there.'
+                ? 'MetaMask, Rabby, Trust or any wallet in this browser. The same address works on every marketplace, so your activity counts everywhere, including for Set and Earn.'
                 : w.walletConnectAvailable
-                  ? 'Scan a code with Trust Wallet, MetaMask mobile or any WalletConnect wallet.'
+                  ? 'Scan a code with Trust Wallet, MetaMask mobile or any WalletConnect wallet. The same address works on every marketplace.'
                   : 'No wallet was found in this browser. Use a passkey wallet, or open Pokter in a browser that has one.'
             }
             onClick={() => (w.injectedAvailable ? w.connectInjected() : w.connectWalletConnect())}
@@ -113,6 +105,14 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
               Use a phone wallet instead (WalletConnect)
             </button>
           )}
+          <Option
+            icon={<Icon.Key />}
+            title="Passkey wallet"
+            detail="Face ID, Touch ID or your device PIN, nothing to install, and Pokter covers the fee for hires. Its address only works on Pokter, not on other marketplaces."
+            onClick={() => setView('passkey')}
+            disabled={w.ready && !w.passkey.supported}
+            disabledReason="This browser cannot create passkeys."
+          />
           {w.connectError && (
             <Notice tone="bad" title="The wallet did not connect">
               {/reject|denied|cancel/i.test(w.connectError)
