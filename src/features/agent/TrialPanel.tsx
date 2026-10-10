@@ -13,6 +13,7 @@ import { Icon } from '@/ui/icons';
 interface TrialResult {
   receipt: Record<string, unknown>;
   verifiedSigner: string;
+  termsBound?: boolean;
   latencyMs: number;
   endpoint: string;
   observedAt: string;
@@ -122,10 +123,17 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
             </p>
           )}
           {reason && <p className="text-[13.5px] leading-relaxed text-ink-2">&ldquo;{reason.slice(0, 600)}&rdquo;</p>}
-          <p className="flex items-center gap-1.5 text-[12.5px] text-ink-3">
-            <Icon.Shield size={14} className="text-ok" />
-            Signature recovered to {shortAddress(result.verifiedSigner)}, the agent&rsquo;s registered wallet.
-          </p>
+          {result.termsBound ? (
+            <p className="flex items-center gap-1.5 text-[12.5px] text-ink-3">
+              <Icon.Shield size={14} className="text-ok" />
+              Its registered wallet {shortAddress(result.verifiedSigner)} signed exactly these terms, price included.
+            </p>
+          ) : (
+            <p className="flex items-center gap-1.5 text-[12.5px] text-watch">
+              <Icon.Alert size={14} />
+              Signed by {shortAddress(result.verifiedSigner)}, but the signature does not cover these terms. Treat the price and answer as unverified.
+            </p>
+          )}
           <p className="text-[12px] leading-relaxed text-ink-3">{result.disclaimer}</p>
         </div>
       )}

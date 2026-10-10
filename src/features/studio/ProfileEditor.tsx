@@ -12,6 +12,19 @@ import { Button } from '@/ui/Button';
 import { Notice, Skeleton } from '@/ui/Feedback';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
 
+/** The one service the editor reads, checks and writes: the first A2A or MCP entry. */
+function serviceIndex(f: { services?: Array<{ name: string }> }) {
+  return (f.services ?? []).findIndex((s) => /a2a|mcp/i.test(s.name));
+}
+
+const CATEGORY_IDS = new Set(CATEGORIES.map((c) => c.id as string));
+
+/** Replace only the marketplace category in a tag list, keeping every other tag. */
+function withCategory(list: string[] | undefined, category: string) {
+  const rest = (list ?? []).filter((t) => !CATEGORY_IDS.has(t));
+  return category ? [category, ...rest] : rest;
+}
+
 type Editable = { name: string; description: string; image: string; endpoint: string; category: string };
 
 /**
@@ -34,8 +47,9 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
     readIdentityRegistration(chainId, tokenId)
       .then(({ file: raw }) => {
         const f = raw as Erc8004RegistrationFile;
-        const service = f.services?.find((s) => /a2a|mcp/i.test(s.name)) ?? f.services?.[0];
-        const e: Editable = { name: f.name ?? '', description: f.description ?? '', image: f.image ?? '', endpoint: service?.endpoint ?? '', category: f.categories?.[0] ?? f.tags?.[0] ?? '' };
+        const index = serviceIndex(f);
+        const service = index >= 0 ? f.services![index] : null;
+        const e: Editable = { name: f.name ?? '', description: f.description ?? '', image: f.image ?? '', endpoint: service?.endpoint ?? '', category: [...(f.categories ?? []), ...(f.tags ?? [])].find((t) => CATEGORY_IDS.has(t)) ?? '' };
         setFile(f);
         setOriginal(e);
         setForm(e);
@@ -58,7 +72,8 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
     setChecking(true);
     setError(null);
     try {
-      const protocol = /mcp/i.test(file!.services?.[0]?.name ?? '') ? 'mcp' : 'a2a';
+      const index = serviceIndex(file!);
+      const protocol = index >= 0 && /mcp/i.test(file!.services![index].name) ? 'mcp' : 'a2a';
       const r = await fetch('/api/builders/preflight', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: form!.endpoint.trim(), protocol }) });
       const body = (await r.json().catch(() => ({}))) as { ok?: boolean; detail?: string; error?: string };
       if (!r.ok || !body.ok) throw new Error(body.error ?? body.detail ?? 'The endpoint did not answer.');
@@ -73,15 +88,22 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
   async function save() {
     setError(null);
     try {
-      const services = (file!.services ?? []).map((s, i) => (i === (file!.services ?? []).findIndex((x) => /a2a|mcp/i.test(x.name)) ? { ...s, endpoint: form!.endpoint.trim() } : s));
+      const index = serviceIndex(file!);
+      const endpoint = form!.endpoint.trim();
+      // No A2A/MCP entry yet: add one rather than silently dropping the endpoint.
+      const services = index >= 0
+        ? (file!.services ?? []).map((s, i) => (i === index ? { ...s, endpoint } : s))
+        : endpoint
+          ? [{ name: 'A2A', endpoint }, ...(file!.services ?? [])]
+          : (file!.services ?? []);
       const next = {
         ...file!,
         name: form!.name.trim(),
         description: form!.description.trim(),
         image: form!.image.trim(),
         services,
-        tags: form!.category ? [form!.category] : file!.tags,
-        categories: form!.category ? [form!.category] : file!.categories,
+        tags: withCategory(file!.tags, form!.category),
+        categories: withCategory(file!.categories, form!.category),
       } as Erc8004RegistrationFile;
       const result = await updateIdentityFromWallet({ chainId, agentId: tokenId, file: next, onProgress: (s) => setStep(String(s)) });
       setFile(next);

@@ -359,8 +359,17 @@ function StepPublish({ d }: { d: AgentDraft }) {
       )}
 
       {d.recovery && !d.publishing && (
-        <Notice tone="neutral" title="A previous registration was interrupted">
-          Publishing again resumes it rather than minting a second identity.
+        <Notice
+          tone="neutral"
+          title="This draft's registration was interrupted"
+          action={
+            <Button size="s" intent="ghost" onClick={d.discardRecovery}>
+              Start over instead
+            </Button>
+          }
+        >
+          {d.recovery.agentId ? `Identity #${String(d.recovery.agentId)} was minted but its profile was not written. ` : ''}
+          Publishing again resumes it with the same wallet rather than minting a second identity.
         </Notice>
       )}
 

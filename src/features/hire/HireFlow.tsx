@@ -88,7 +88,7 @@ export function HireFlow(props: HireFlowProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   // A confirmation is for this amount and this task; changing either clears it.
-  const terms = `${hire.budget}|${hire.task}`;
+  const terms = `${hire.budget}|${hire.task}|${hire.providerAddress}`;
   const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
   const confirmed = confirmedFor === terms;
   const setConfirmed = (on: boolean) => setConfirmedFor(on ? terms : null);
@@ -219,7 +219,7 @@ export function HireFlow(props: HireFlowProps) {
   return (
     <Shell agent={props.agent} step={step}>
       {failure && (
-        <Notice tone="bad" title={failure.title} className="mb-6" action={<Button size="s" onClick={() => void hire.commission()}>Try again</Button>}>
+        <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
           {failure.body}
           {hire.heldAfterFailure && ` The ${hire.heldAfterFailure} $U swapped in for this hire stays in your wallet.`}
         </Notice>

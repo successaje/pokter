@@ -1,6 +1,6 @@
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
-import { verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -202,6 +202,14 @@ export async function requestQuote(
       providerSignature: data.provider_sig,
       expectedProvider: agent.agent_wallet,
     });
+
+    /*
+     * And the signed hash must be the hash of these terms. Otherwise the
+     * signature proves who answered but not that this price is what they
+     * signed: a replayed hash with a different price would pass the check
+     * above. Derivation as in BNB's reference SDK.
+     */
+    if (!negotiationTermsBound(data, enquiry.task_description)) return null;
 
     const expiry = response?.quote_expires_at;
     /* Absent on some sellers, which is "unbound", not "bound to ours". */

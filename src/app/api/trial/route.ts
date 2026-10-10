@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
-import { verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import {
   consumeRateLimit,
   requestClientKey,
@@ -178,6 +178,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({
       receipt: data,
       verifiedSigner,
+      // Whether the signed hash is the hash of these terms (price, acceptance,
+      // task). Without it the signature proves only who answered.
+      termsBound: negotiationTermsBound(data as Record<string, unknown>, task),
       latencyMs: Date.now() - startedAt,
       endpoint: serviceResult.origin,
       observedAt: new Date().toISOString(),

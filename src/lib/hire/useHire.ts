@@ -329,6 +329,11 @@ export function useHire({
     setRevoked(false);
     let acquired = 0n;
     try {
+      // Guards belong here, not only in the UI: any caller of commission()
+      // gets the same refusal before a wallet is touched.
+      if (!budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
+      if (!riskAccepted) throw new Error('Accept the warnings about this agent before funding.');
+      if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       if (!providerCanDeliver) {
         throw new Error('Choose a provider that is live on the escrow chain and publishes a delivery endpoint.');
       }

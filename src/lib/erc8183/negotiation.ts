@@ -1,6 +1,8 @@
 import {
   getAddress,
+  keccak256,
   recoverMessageAddress,
+  toBytes,
   type Address,
   type Hex,
 } from 'viem';
@@ -87,4 +89,88 @@ export function quoteUsableForEscrow(
     }
   }
   return { usable: true };
+}
+
+/*
+ * Re-deriving the negotiation hash.
+ *
+ * A signature over `negotiation_hash` proves who signed a hash, not what the
+ * hash covers. BNB's reference SDK (bnbagent-sdk, erc8183/quoteVerify) binds
+ * it to the terms: keccak256 of canonical JSON over task, quality terms,
+ * price, currency, expiry and the chain/contract binding. This is a port of
+ * that derivation so a displayed price can be said to be the signed one only
+ * when it actually is.
+ */
+function sortValue(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sortValue);
+  if (v !== null && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v as object).sort()) out[k] = sortValue((v as Record<string, unknown>)[k]);
+    return out;
+  }
+  return v;
+}
+
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortValue(value)).replace(/[\u007f-￿]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
+function sanitizeForClaim(s: unknown): string {
+  if (typeof s !== 'string') return String(s);
+  let out = '';
+  for (const ch of s.replaceAll('[', '(').replaceAll(']', ')')) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 0x20 || ch === '\t' || ch === '\n') out += ch;
+  }
+  return out;
+}
+
+/**
+ * The content the reference SDK hashes, or null when the envelope is not an
+ * accepted, priced negotiation. `sentTask` stands in for the request when an
+ * agent does not echo it back.
+ */
+export function negotiationContent(envelope: Record<string, unknown>, sentTask?: string): Record<string, unknown> | null {
+  const response = (envelope.response ?? {}) as Record<string, unknown>;
+  const request = (envelope.request ?? {}) as Record<string, unknown>;
+  if (!response.accepted) return null;
+  const t = (response.terms ?? {}) as Record<string, unknown>;
+  const price = typeof t.price === 'string' ? t.price : '';
+  const currency = typeof t.currency === 'string' ? t.currency : '';
+  if (!price || !currency) return null;
+  const terms: Record<string, unknown> = {
+    deliverables: sanitizeForClaim(t.deliverables ?? ''),
+    quality_standards: sanitizeForClaim(t.quality_standards ?? ''),
+  };
+  if (Array.isArray(t.success_criteria) && t.success_criteria.length > 0) terms.success_criteria = t.success_criteria.map(sanitizeForClaim);
+  const negotiatedAt = envelope.negotiated_at || response.negotiated_at;
+  if (!negotiatedAt) return null;
+  const content: Record<string, unknown> = {
+    version: 1,
+    negotiated_at: negotiatedAt,
+    task: sanitizeForClaim(request.task_description ?? sentTask ?? ''),
+    terms,
+    price,
+    currency,
+  };
+  const expires = envelope.quote_expires_at || response.quote_expires_at;
+  if (expires !== undefined && expires !== null) content.quote_expires_at = expires;
+  if (envelope.chain_id !== undefined && envelope.chain_id !== null) content.chain_id = envelope.chain_id;
+  if (typeof envelope.verifying_contract === 'string') {
+    try {
+      content.verifying_contract = getAddress(envelope.verifying_contract);
+    } catch {
+      return null;
+    }
+  }
+  return content;
+}
+
+/** True when `negotiation_hash` is exactly the hash of the terms in the envelope. */
+export function negotiationTermsBound(envelope: Record<string, unknown>, sentTask?: string): boolean {
+  const hash = envelope.negotiation_hash;
+  if (typeof hash !== 'string') return false;
+  const content = negotiationContent(envelope, sentTask);
+  if (!content) return false;
+  return keccak256(toBytes(canonicalJson(content))).toLowerCase() === hash.toLowerCase();
 }

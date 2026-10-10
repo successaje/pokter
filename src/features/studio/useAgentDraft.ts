@@ -60,9 +60,15 @@ export const RUNTIME_OPTIONS: Record<string, { target: string[]; policy: string[
 
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
-function readRecovery(): RegistrationRecovery | null {
+// Recovery belongs to one draft: resuming another draft's half-finished
+// mint would write this profile onto that draft's token.
+function recoveryKey(draftId: string) {
+  return `${REGISTRATION_RECOVERY_KEY}:${draftId}`;
+}
+
+function readRecovery(draftId: string): RegistrationRecovery | null {
   try {
-    const stored = window.localStorage.getItem(REGISTRATION_RECOVERY_KEY);
+    const stored = window.localStorage.getItem(recoveryKey(draftId));
     return stored ? (JSON.parse(stored) as RegistrationRecovery) : null;
   } catch {
     return null;
@@ -106,7 +112,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const { wallet: passkeyWallet } = usePasskeyWallet();
   const passkeySigner = usePasskeySigner();
   const { address: externalAddress, isConnected: externalConnected } = useAccount();
-  const [recovery, setRecovery] = useState<RegistrationRecovery | null>(() => (typeof window === 'undefined' ? null : readRecovery()));
+  const [recovery, setRecovery] = useState<RegistrationRecovery | null>(() => (typeof window === 'undefined' ? null : readRecovery(initial?.id ?? '')));
   const [network, setNetwork] = useState<RegistryChainId>(() => recovery?.chainId ?? 97);
   const [mainnetConsent, setMainnetConsent] = useState(false);
   const [progress, setProgress] = useState<RegistrationProgress | null>(null);
@@ -287,7 +293,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
             const r: RegistrationRecovery = { chainId: p.chainId, registrationHash: p.registrationHash, agentId: p.agentId };
             setRecovery(r);
             try {
-              window.localStorage.setItem(REGISTRATION_RECOVERY_KEY, JSON.stringify(r));
+              window.localStorage.setItem(recoveryKey(draftId), JSON.stringify(r));
             } catch {
               /* Recovery then only lasts this session. */
             }
@@ -297,7 +303,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
       setPublished({ chainId: network, tokenId: result.agentId.toString() });
       setRecovery(null);
       try {
-        window.localStorage.removeItem(REGISTRATION_RECOVERY_KEY);
+        window.localStorage.removeItem(recoveryKey(draftId));
         const stored = window.localStorage.getItem(DRAFTS_KEY);
         if (stored) {
           const record = JSON.parse(stored) as DraftRecord;
@@ -369,6 +375,15 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     publishError,
     published,
     publish,
+    discardRecovery: () => {
+      setRecovery(null);
+      setProgress(null);
+      try {
+        window.localStorage.removeItem(recoveryKey(draftId));
+      } catch {
+        /* Nothing stored. */
+      }
+    },
   };
 }
 

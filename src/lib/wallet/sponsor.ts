@@ -137,6 +137,17 @@ export async function sponsorGas(rawAddress: string, clientKey: string): Promise
   const balance = await chain.getBalance({ address });
   if (balance >= GAS_FLOOR) return { status: 'held', balance };
 
+  /*
+   * Only smart-account wallets (Pokter's passkey wallets are EIP-7702
+   * accounts) are topped up. A plain externally owned address has no code,
+   * and browser wallets pay their own gas anyway, so refusing them closes
+   * the cheapest way to farm free BNB with throwaway keys.
+   */
+  const code = await chain.getCode({ address }).catch(() => undefined);
+  if (!code || code === '0x') {
+    return { status: 'refused', reason: 'Pokter covers gas for passkey wallets only. A browser wallet pays its own network fee.' };
+  }
+
   const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
   const balances = await altanaClient().balances({ wallet: address, tokens: [paymentToken] });
   const held = balances.tokens?.[0];
