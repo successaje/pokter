@@ -167,28 +167,12 @@ export function AccountPage() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-raised p-4">
             <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-[9px] bg-sunken"><Icon.Key size={17} /></span>
-              <div>
-                <p className="text-sm font-medium">Passkey wallet {w.mode === 'passkey' && <span className="ml-1 text-[12px] text-ok">· signing</span>}</p>
-                {w.passkey.wallet ? <Address address={w.passkey.wallet.address} /> : <p className="text-[12.5px] text-ink-3">None on this device</p>}
-              </div>
-            </div>
-            {w.passkey.wallet ? (
-              <Button intent="ghost" size="s" onClick={w.passkey.forget}>
-                Forget on this device
-              </Button>
-            ) : (
-              <Button intent="secondary" size="s" onClick={() => openConnect()}>
-                Create or restore
-              </Button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-raised p-4">
-            <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center rounded-[9px] bg-sunken"><Icon.Wallet size={17} /></span>
               <div>
                 <p className="text-sm font-medium">
-                  {w.connectorName ?? 'Browser wallet'} {w.mode === 'external' && <span className="ml-1 text-[12px] text-ok">· signing</span>}
+                  {w.connectorName ?? 'Browser wallet'}{' '}
+                  <span className="ml-1 rounded-full bg-signal-wash px-2 py-0.5 text-[11px] font-medium text-ink">Recommended</span>{' '}
+                  {w.mode === 'external' && <span className="ml-1 text-[12px] text-ok">· signing</span>}
                   {w.wrongChain && <span className="ml-1 text-[12px] text-watch">· on {w.externalChainName}</span>}
                 </p>
                 {w.externalAddress ? <Address address={w.externalAddress} /> : <p className="text-[12.5px] text-ink-3">Not connected</p>}
@@ -208,6 +192,24 @@ export function AccountPage() {
             ) : (
               <Button intent="secondary" size="s" onClick={() => openConnect()}>
                 Connect
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-raised p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 place-items-center rounded-[9px] bg-sunken"><Icon.Key size={17} /></span>
+              <div>
+                <p className="text-sm font-medium">Passkey wallet {w.mode === 'passkey' && <span className="ml-1 text-[12px] text-ok">· signing</span>}</p>
+                {w.passkey.wallet ? <Address address={w.passkey.wallet.address} /> : <p className="text-[12.5px] text-ink-3">None on this device</p>}
+              </div>
+            </div>
+            {w.passkey.wallet ? (
+              <Button intent="ghost" size="s" onClick={w.passkey.forget}>
+                Forget on this device
+              </Button>
+            ) : (
+              <Button intent="secondary" size="s" onClick={() => openConnect()}>
+                Create or restore
               </Button>
             )}
           </div>

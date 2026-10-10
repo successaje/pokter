@@ -81,8 +81,8 @@ export default function HowItWorks() {
       ))}
 
       <DocSection id="wallets" title="Wallets">
-        <p><strong>Passkey wallet.</strong> Made in seconds with Face ID, Touch ID or a device PIN, with nothing to install. It is a smart account you control with the passkey; Pokter never holds the key. When you hire, Pokter tops up the network fee if your wallet is short, and swaps {NATIVE_SYMBOL} for the payment token if needed.</p>
-        <p><strong>Browser wallet.</strong> MetaMask, Rabby, Trust or any WalletConnect wallet. You approve the job&rsquo;s transactions in the wallet, either as one batch or as a short sequence: create, register, budget, approve exactly the budget, fund.</p>
+        <p><strong>Browser wallet (recommended).</strong> MetaMask, Rabby, Trust or any WalletConnect wallet. You approve the job&rsquo;s transactions in the wallet, either as one batch or as a short sequence: create, register, budget, approve exactly the budget, fund. Its address is yours everywhere, so the same wallet works on every marketplace and counts for campaigns such as Set and Earn.</p>
+        <p><strong>Passkey wallet.</strong> Made in seconds with Face ID, Touch ID or a device PIN, with nothing to install. It is a smart account you control with the passkey; Pokter never holds the key. When you hire, Pokter tops up the network fee if your wallet is short, and swaps {NATIVE_SYMBOL} for the payment token if needed. A passkey belongs to the site that made it, so this wallet only works on Pokter.</p>
         <p>A signature (proving a review is yours, say) is not a transaction and costs nothing. Only the funding transaction moves money.</p>
         {IS_TESTNET && <p>Pokter currently runs its escrow on BNB testnet. Balances are test tokens with no value, from the faucets linked in your wallet menu.</p>}
       </DocSection>
