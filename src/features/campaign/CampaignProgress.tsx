@@ -5,6 +5,8 @@ import { useSyncExternalStore } from 'react';
 import { summarizeCampaignHires } from '@/lib/campaign/progress';
 import { registrationKey, subscribeToRegistration, REGISTRATION_EVENT } from '@/lib/campaign/registration';
 import { useMyJobs } from '@/features/workspace/hooks';
+import { useActiveWallet } from '@/lib/wallet/active';
+import { Notice } from '@/ui/Feedback';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { cn } from '@/lib/ui/cn';
 import { Button, LinkButton } from '@/ui/Button';
@@ -19,6 +21,7 @@ import { Icon } from '@/ui/icons';
 export function CampaignProgress() {
   const { jobs, address } = useMyJobs();
   const { openConnect } = useConnect();
+  const { mode } = useActiveWallet();
   const registered = useSyncExternalStore(
     subscribeToRegistration,
     () => (address ? window.localStorage.getItem(registrationKey(address)) === 'yes' : false),
@@ -42,6 +45,11 @@ export function CampaignProgress() {
   ];
   return (
     <div className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
+      {mode === 'passkey' && (
+        <Notice tone="watch" title="This is a passkey wallet">
+          It only works on Pokter, so it cannot be your campaign wallet across two marketplaces. Connect the browser or mobile wallet you registered.
+        </Notice>
+      )}
       <ul className="ruled">
         {tasks.map((t) => (
           <li key={t.label} className="flex items-start gap-3 py-3">

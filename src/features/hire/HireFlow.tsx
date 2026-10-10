@@ -32,6 +32,8 @@ export interface HireFlowProps {
   suggestedU: number | null;
   warnings: string[];
   escrow: { commerce: string; paymentToken: string };
+  /** Set and Earn is running: warn that passkey hires cannot count on a second marketplace. */
+  campaignLive?: boolean;
 }
 
 const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
@@ -392,6 +394,15 @@ export function HireFlow(props: HireFlowProps) {
             <h1 className="t-h2">Fund the escrow</h1>
             <p className="mt-1 text-sm text-ink-2">This is the only step that moves money. You will confirm it in your wallet.</p>
           </div>
+
+          {props.campaignLive && hire.active.mode !== 'external' && (
+            <Notice tone="watch" title="Entering Set and Earn? Use the wallet you registered">
+              A passkey wallet only works on Pokter, so its hires cannot be matched with a second marketplace, and the campaign disqualifies second wallets. Connect the browser or mobile wallet you registered.{' '}
+              <Link href="/set-and-earn" className="link">
+                The campaign steps
+              </Link>
+            </Notice>
+          )}
 
           {!hire.active.address ? (
             <div className="flex flex-col items-start gap-4 rounded-[14px] border border-rule bg-raised p-5">

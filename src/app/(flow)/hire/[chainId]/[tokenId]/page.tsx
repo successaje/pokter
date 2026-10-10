@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import type { ChainId } from '@/lib/scan/types';
 import { loadProfile } from '@/features/agent/profile';
+import { isCampaignLive } from '@/lib/campaign/window';
 import { HireFlow } from '@/features/hire/HireFlow';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -45,6 +46,7 @@ export default async function HirePage({ params }: { params: Promise<{ chainId: 
       suggestedU={p.suggestion?.u ?? null}
       warnings={p.warnings}
       escrow={p.escrow}
+      campaignLive={isCampaignLive()}
     />
   );
 }
