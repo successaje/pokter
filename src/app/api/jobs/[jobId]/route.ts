@@ -5,8 +5,21 @@ import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { getJobStore } from '@/lib/erc8183/store';
 
 export const dynamic = 'force-dynamic';
+
+/*
+ * The SDK finds a deliverable URL by scanning logs, which on a public RPC
+ * can take a minute. A recovered job without its link is still useful; a
+ * request that hangs is not.
+ */
+function deliverableWithin(jobId: string, ms = 8_000): Promise<string | null> {
+  return Promise.race([
+    getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(jobId)).then((u) => u ?? null).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
 export const maxDuration = 20;
 
 /**
@@ -77,6 +90,35 @@ export async function GET(
      * ones on it are not Pokter's. Importing one would put a job Pokter
      * cannot describe, track or settle into somebody's activity list.
      */
+    /*
+     * Older Pokter jobs predate the envelope. If Pokter's own index recorded
+     * the job when it was funded, that record is the identity source; the
+     * chain still supplies every piece of state.
+     */
+    const indexed = envelope
+      ? null
+      : getJobStore()
+          .all()
+          .find((j) => j.jobId === jobId && j.chainId === ALTANA_NETWORK.chainId) ?? null;
+
+    if (!envelope && indexed) {
+      const deliverable =
+        indexed.deliverableUrl ?? (['SUBMITTED', 'COMPLETED'].includes(onchain.statusName) ? await deliverableWithin(jobId) : null);
+      const job: HiredJob = {
+        ...indexed,
+        // Records from before agentChainId existed are mainnet identities.
+        agentChainId: indexed.agentChainId ?? 56,
+        id: `${ALTANA_NETWORK.chainId}:${jobId}`,
+        provider: onchain.provider,
+        budgetRaw: onchain.budget.toString(),
+        expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
+        status: onchain.statusName,
+        statusCheckedAt: new Date().toISOString(),
+        deliverableUrl: deliverable ?? indexed.deliverableUrl ?? null,
+      };
+      return NextResponse.json({ job, client: onchain.client });
+    }
+
     if (!envelope) {
       return NextResponse.json(
         {
@@ -89,9 +131,7 @@ export async function GET(
 
     const now = new Date().toISOString();
     const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
-      ? await getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(jobId)).catch(
-          () => null,
-        )
+      ? await deliverableWithin(jobId)
       : null;
 
     /*

@@ -52,8 +52,14 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
     {
       id: 'reviewed', label: 'Buyer review',
       state: reached > 3 ? 'complete' : reached === 3 ? 'current' : 'upcoming',
-      source: job.disputeTxHash ? 'onchain' : 'pending',
-      detail: job.disputeTxHash ? 'The buyer contested the delivery onchain.' : reached >= 2 ? 'The buyer must verify and accept or contest the result.' : 'Available after delivery.',
+      source: job.disputeTxHash || reached === 4 ? 'onchain' : 'pending',
+      detail: job.disputeTxHash
+        ? 'The buyer contested the delivery onchain.'
+        : reached === 4
+          ? 'Accepted by the buyer, or the review window closed without a dispute.'
+          : reached >= 2
+            ? 'The buyer must verify and accept or contest the result.'
+            : 'Available after delivery.',
       transactionHash: job.disputeTxHash ?? null,
     },
     {

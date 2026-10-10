@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
@@ -24,11 +24,13 @@ const NO_ALERTS: SavedAgentAlert[] = [];
 export function useMyJobs(): { jobs: HiredJob[]; address: string | null; ready: boolean } {
   const { address } = useActiveWallet();
   const hydrated = useHydrated();
-  const jobs = useSyncExternalStore(
+  const stored = useSyncExternalStore(
     subscribeToJobs,
     () => (address ? jobsForWallet(address) : noJobs()),
     noJobs,
   );
+  // Jobs remembered before agentChainId existed are mainnet identities.
+  const jobs = useMemo(() => stored.map((j) => (j.agentChainId ? j : { ...j, agentChainId: 56 })), [stored]);
   return { jobs, address, ready: hydrated };
 }
 
