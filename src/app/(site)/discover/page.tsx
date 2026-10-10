@@ -6,7 +6,7 @@ import { cn } from '@/lib/ui/cn';
 import { AgentCard, AgentRow } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
-import { discoverHref, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
+import { discoverHref, PAGE_SIZE, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { OUTCOMES } from '@/features/home/outcomes';
 import { EmptyState, Notice } from '@/ui/Feedback';
@@ -107,6 +107,9 @@ function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string;
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const p = parseDiscoverParams(await searchParams);
   const result = await discover(p);
+  // Changing anything but the page count starts from the first page again.
+  const base = { ...p, pages: 1 };
+  const shown = result.rows.slice(0, p.pages * PAGE_SIZE);
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -118,7 +121,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
           </p>
         </div>
-        <DiscoverSearch params={p} />
+        <DiscoverSearch params={base} />
         {!p.q && (
           <ul className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Start from an outcome">
             {CATEGORIES.map((c) => (
@@ -167,7 +170,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <div className="mt-8 grid gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="hidden lg:block" aria-label="Filters">
           <div className="sticky top-20">
-            <Filters p={p} counts={result.categoryCounts} />
+            <Filters p={base} counts={result.categoryCounts} />
           </div>
         </aside>
 
@@ -175,7 +178,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
             <div className="flex items-center gap-3">
               <MobileFilters count={activeFilters}>
-                <Filters p={p} counts={result.categoryCounts} />
+                <Filters p={base} counts={result.categoryCounts} />
               </MobileFilters>
               <p className="text-sm text-ink-2" aria-live="polite">
                 <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
@@ -187,7 +190,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               )}
             </div>
             <div className="flex items-center gap-2">
-              <SortSelect params={p} />
+              <SortSelect params={base} />
               <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Layout">
                 <Link href={discoverHref({ view: 'grid' }, p)} scroll={false} aria-label="Grid view" aria-current={p.view === 'grid' ? 'true' : undefined} className={cn('grid size-7 place-items-center rounded-[6px]', p.view === 'grid' ? 'bg-sunken text-ink' : 'text-ink-3')}>
                   <Icon.Grid size={15} />
@@ -219,18 +222,28 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </EmptyState>
           ) : p.view === 'list' ? (
             <div className="ruled">
-              {result.rows.map((row) => (
+              {shown.map((row) => (
                 <AgentRow key={row.key} row={row} reason={row.reason ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
               ))}
             </div>
           ) : (
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {result.rows.map((row) => (
+              {shown.map((row) => (
                 <li key={row.key} className="flex flex-col">
                   <AgentCard row={row} action={<div className="flex items-center justify-between gap-2">{row.reason ? <span className="truncate text-[12px] text-ink-3" title={row.reason}>{row.reason}</span> : <span />}<CompareToggle agentKey={row.key} /></div>} />
                 </li>
               ))}
             </ul>
+          )}
+          {shown.length < result.total && (
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <LinkButton href={discoverHref({ pages: p.pages + 1 }, p)} intent="secondary" scroll={false}>
+                Show {Math.min(PAGE_SIZE, result.total - shown.length)} more
+              </LinkButton>
+              <span className="text-[12.5px] text-ink-3">
+                Showing {shown.length} of {result.total}
+              </span>
+            </div>
           )}
         </section>
       </div>

@@ -1,6 +1,8 @@
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { parseMarketplaceOrder, type MarketplaceOrder } from '@/lib/search/order';
 
+export const PAGE_SIZE = 24;
+
 export interface DiscoverParams {
   q: string;
   category: Category | null;
@@ -11,6 +13,8 @@ export interface DiscoverParams {
   chain: 'any' | '56' | '97';
   sort: MarketplaceOrder;
   view: 'grid' | 'list';
+  /** How many pages of results are shown; each adds PAGE_SIZE more. */
+  pages: number;
 }
 
 export function parseDiscoverParams(sp: Record<string, string | string[] | undefined>): DiscoverParams {
@@ -32,6 +36,7 @@ export function parseDiscoverParams(sp: Record<string, string | string[] | undef
     chain: chain === '56' || chain === '97' ? chain : 'any',
     sort: parseMarketplaceOrder(one('sort')),
     view: one('view') === 'list' ? 'list' : 'grid',
+    pages: Math.min(20, Math.max(1, Number.parseInt(one('pages') || '1', 10) || 1)),
   };
 }
 
@@ -51,6 +56,7 @@ export function discoverHref(params: Partial<DiscoverParams>, base: DiscoverPara
   if (next.chain !== 'any') sp.set('chain', next.chain);
   if (next.sort !== 'recommended') sp.set('sort', next.sort);
   if (next.view !== 'grid') sp.set('view', next.view);
+  if (next.pages > 1) sp.set('pages', String(next.pages));
   const s = sp.toString();
   return s ? `/discover?${s}` : '/discover';
 }
