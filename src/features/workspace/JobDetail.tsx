@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobTimeline } from '@/lib/jobs/timeline';
@@ -29,26 +30,28 @@ import { ReviewForm } from './ReviewForm';
 export function JobDetailLoader({ jobId }: { jobId: string }) {
   const { jobs, address, ready } = useMyJobs();
   const local = jobs.find((j) => j.jobId === jobId) ?? null;
-  const [remote, setRemote] = useState<{ job: HiredJob; client: string } | null>(null);
-  const [state, setState] = useState<'idle' | 'loading' | 'missing' | 'error'>('idle');
+  const remoteQuery = useQuery({
+    queryKey: ['job-from-chain', jobId],
+    enabled: ready && !local,
+    retry: false,
+    queryFn: async (): Promise<{ job: HiredJob; client: string } | 'missing'> => {
+      const r = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+      if (r.status === 404) return 'missing';
+      const body = (await r.json()) as { job?: HiredJob; client?: string };
+      if (!r.ok || !body.job) throw new Error('unreadable');
+      return { job: body.job, client: body.client ?? '' };
+    },
+  });
+  const remote = remoteQuery.data && remoteQuery.data !== 'missing' ? remoteQuery.data : null;
+  const state: 'idle' | 'loading' | 'missing' | 'error' = remoteQuery.data === 'missing' ? 'missing' : remoteQuery.isError ? 'error' : remoteQuery.isFetching ? 'loading' : 'idle';
 
+  // Keep a recovered job on this device, but only for the wallet that funded it.
   useEffect(() => {
-    if (!ready || local || state !== 'idle') return;
-    setState('loading');
-    fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store' })
-      .then(async (r) => {
-        if (r.status === 404) return setState('missing');
-        const body = (await r.json()) as { job?: HiredJob; client?: string };
-        if (!r.ok || !body.job) return setState('error');
-        setRemote({ job: body.job, client: body.client ?? '' });
-        if (address && body.client && body.client.toLowerCase() === address.toLowerCase()) rememberJob(address, body.job);
-        setState('idle');
-      })
-      .catch(() => setState('error'));
-  }, [ready, local, jobId, address, state]);
+    if (remote && address && remote.client.toLowerCase() === address.toLowerCase() && !local) rememberJob(address, remote.job);
+  }, [remote, address, local]);
 
   const job = local ?? remote?.job ?? null;
-  if (!ready || (!job && (state === 'loading' || state === 'idle'))) {
+  if (!ready || (!job && state === 'loading') || (!job && state === 'idle' && !remoteQuery.isFetched)) {
     return (
       <div className="flex flex-col gap-4" role="status" aria-label="Loading job">
         <Skeleton className="h-5 w-40" />

@@ -9,7 +9,7 @@ import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
-import { jobPhase, PHASE, useInbox, useMyJobs, useSavedAlerts } from './hooks';
+import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAlerts } from './hooks';
 import { JobRow, NeedsWallet, PageHeader, Stat, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
 
@@ -18,6 +18,7 @@ export function WorkspaceOverview() {
   const w = useWalletState();
   const inbox = useInbox();
   const alerts = useSavedAlerts();
+  const now = useNow();
 
   if (!address) {
     return (
@@ -28,7 +29,6 @@ export function WorkspaceOverview() {
     );
   }
 
-  const now = Date.now();
   const phases = jobs.map((job) => ({ job, phase: jobPhase(job, now) }));
   const needsYou = phases.filter((p) => PHASE[p.phase].needsYou);
   const working = phases.filter((p) => p.phase === 'working');

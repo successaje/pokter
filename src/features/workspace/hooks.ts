@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
@@ -115,3 +115,9 @@ export const STATUS_NAME: Record<JobStatusName, string> = {
   REJECTED: 'Rejected',
   EXPIRED: 'Expired',
 };
+
+/** The time the view was opened, fixed for the render so phases cannot flicker mid-paint. */
+export function useNow(): number {
+  const [now] = useState(() => Date.now());
+  return now;
+}

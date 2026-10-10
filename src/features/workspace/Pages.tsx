@@ -21,7 +21,7 @@ import { Address as AddressView, TxLink } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Field, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
-import { jobPhase, PHASE, useInbox, useMyJobs, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
+import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { RecoverJob } from './RecoverJob';
 
@@ -39,6 +39,7 @@ export function JobsPage() {
   const { jobs, address } = useMyJobs();
   const sp = useSearchParams();
   const filter = FILTERS.find((f) => f.id === sp.get('filter')) ?? FILTERS[0];
+  const now = useNow();
   if (!address) {
     return (
       <>
@@ -47,7 +48,6 @@ export function JobsPage() {
       </>
     );
   }
-  const now = Date.now();
   const agent = sp.get('agent');
   const scoped = agent ? jobs.filter((j) => `${j.agentChainId}:${j.agentTokenId}` === agent) : jobs;
   const counted = FILTERS.map((f) => ({ ...f, count: f.phases ? scoped.filter((j) => f.phases!.includes(jobPhase(j, now))).length : scoped.length }));
@@ -322,6 +322,7 @@ export function WalletPage() {
   const w = useWalletState();
   const { jobs } = useMyJobs();
   const [send, setSend] = useState(false);
+  const now = useNow();
   if (!w.address) {
     return (
       <>
@@ -330,7 +331,6 @@ export function WalletPage() {
       </>
     );
   }
-  const now = Date.now();
   const phases = jobs.map((j) => ({ j, p: jobPhase(j, now) }));
   const sum = (filter: JobPhase[]) => phases.filter(({ p }) => filter.includes(p)).reduce((s, { j }) => s + Number(formatUnits(BigInt(j.budgetRaw), 18)), 0);
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });

@@ -40,8 +40,6 @@ export function SiteHeader() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => setMenu(false), [pathname]);
-
   return (
     <>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
@@ -97,6 +95,7 @@ export function SiteHeader() {
       </header>
 
       <Sheet open={menu} onClose={() => setMenu(false)} variant="drawer" title="Menu">
+        <div onClick={(e) => (e.target as HTMLElement).closest('a') && setMenu(false)}>
         <nav aria-label="Mobile" className="flex flex-col">
           {[{ href: '/', label: 'Home' }, ...PRIMARY_NAV].map((item) => (
             <Link
@@ -125,6 +124,7 @@ export function SiteHeader() {
         <div className="mt-8 flex flex-col gap-2">
           <span className="t-label">Appearance</span>
           <ThemeSegmented />
+        </div>
         </div>
       </Sheet>
     </>

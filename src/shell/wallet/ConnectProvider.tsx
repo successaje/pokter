@@ -28,16 +28,18 @@ export function useConnect() {
  */
 export function ConnectProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [session, setSession] = useState(0);
   const [reason, setReason] = useState<string | null>(null);
   const openConnect = useCallback((why?: string) => {
     setReason(why ?? null);
+    setSession((n) => n + 1);
     setOpen(true);
   }, []);
   const value = useMemo(() => ({ openConnect }), [openConnect]);
   return (
     <ConnectContext.Provider value={value}>
       {children}
-      <ConnectSheet open={open} reason={reason} onClose={() => setOpen(false)} />
+      <ConnectSheet key={session} open={open} reason={reason} onClose={() => setOpen(false)} />
     </ConnectContext.Provider>
   );
 }
@@ -53,20 +55,15 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
     if (open && signing) onClose();
   }, [open, signing, onClose]);
 
-  useEffect(() => {
-    if (!open) {
-      setView('choose');
-      w.resetConnect();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   const passkeyBusy = w.passkey.busy;
 
   return (
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        w.resetConnect();
+        onClose();
+      }}
       title={view === 'passkey' ? 'Passkey wallet' : 'Connect a wallet'}
       description={reason ? `You need a wallet ${reason}. Browsing never does.` : 'Browsing Pokter never needs a wallet. You need one to hire, review or publish.'}
     >

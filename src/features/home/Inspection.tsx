@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
@@ -35,35 +35,31 @@ function CheckGlyph({ tone }: { tone: SpecimenCheck['tone'] }) {
  */
 export function Inspection({ specimens }: { specimens: Specimen[] }) {
   const [index, setIndex] = useState(0);
-  const [revealed, setRevealed] = useState(0);
+  // Progress is stored against the specimen it belongs to, so moving to the
+  // next one starts it at zero without a reset render.
+  const [progress, setProgress] = useState<{ index: number; step: number }>({ index: 0, step: 0 });
   const [paused, setPaused] = useState(false);
-  const [still, setStill] = useState(false);
-  const timers = useRef<number[]>([]);
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setStill(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
+  const still = useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    () => false,
+  );
 
   const specimen = specimens[index];
   const total = specimen ? specimen.checks.length + 1 : 0;
+  const revealed = still ? total : progress.index === index ? progress.step : 0;
 
   useEffect(() => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
-    if (!specimen) return;
-    if (still) {
-      setRevealed(total);
-      return;
-    }
-    setRevealed(0);
+    if (!specimen || still) return;
+    const timers: number[] = [];
     for (let step = 1; step <= total; step += 1) {
-      timers.current.push(window.setTimeout(() => setRevealed(step), 380 + step * STEP_MS));
+      timers.push(window.setTimeout(() => setProgress({ index, step }), 380 + step * STEP_MS));
     }
-    return () => timers.current.forEach((t) => window.clearTimeout(t));
+    return () => timers.forEach((t) => window.clearTimeout(t));
   }, [index, still, total, specimen]);
 
   useEffect(() => {

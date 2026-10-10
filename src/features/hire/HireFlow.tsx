@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
@@ -83,10 +83,11 @@ export function HireFlow(props: HireFlowProps) {
   const { openConnect } = useConnect();
   const sponsored = useGasSponsorship();
   const [step, setStep] = useState<Step>('describe');
-  const [confirmed, setConfirmed] = useState(false);
-
-  // A connected wallet changes nothing until the person reaches payment.
-  useEffect(() => setConfirmed(false), [hire.budget, hire.task]);
+  // A confirmation is for this amount and this task; changing either clears it.
+  const terms = `${hire.budget}|${hire.task}`;
+  const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
+  const confirmed = confirmedFor === terms;
+  const setConfirmed = (on: boolean) => setConfirmedFor(on ? terms : null);
 
   const minBudget = Math.max(BUDGET_MIN, props.signedQuoteU ?? 0);
   const budgetError = !hire.budgetValid

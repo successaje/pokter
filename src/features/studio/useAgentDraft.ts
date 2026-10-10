@@ -106,21 +106,13 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const { wallet: passkeyWallet } = usePasskeyWallet();
   const passkeySigner = usePasskeySigner();
   const { address: externalAddress, isConnected: externalConnected } = useAccount();
-  const [recovery, setRecovery] = useState<RegistrationRecovery | null>(null);
-  const [network, setNetwork] = useState<RegistryChainId>(97);
+  const [recovery, setRecovery] = useState<RegistrationRecovery | null>(() => (typeof window === 'undefined' ? null : readRecovery()));
+  const [network, setNetwork] = useState<RegistryChainId>(() => recovery?.chainId ?? 97);
   const [mainnetConsent, setMainnetConsent] = useState(false);
   const [progress, setProgress] = useState<RegistrationProgress | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
-
-  useEffect(() => {
-    const r = readRecovery();
-    if (r) {
-      setRecovery(r);
-      setNetwork(r.chainId);
-    }
-  }, []);
 
   // Autosave every meaningful change to this device.
   useEffect(() => {

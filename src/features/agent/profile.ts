@@ -26,7 +26,6 @@ import type { ChainId } from '@/lib/scan/types';
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
   return (text ?? '')
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
     .slice(0, max)
     .trim();
