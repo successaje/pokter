@@ -124,12 +124,12 @@ export function Inspection({ specimens }: { specimens: Specimen[] }) {
               const shown = revealed > i;
               const checking = revealed === i;
               return (
-                <li key={check.id} className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 py-2.5 text-[13.5px]">
+                <li key={check.id} className="grid grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 py-2.5 text-[13.5px] sm:grid-cols-[20px_minmax(0,1fr)_auto]">
                   <span className={cn('grid place-items-center transition-opacity duration-300', shown ? TONE[check.tone] : 'text-ink-3 opacity-40')}>
                     {shown ? <CheckGlyph tone={check.tone} /> : <span className="size-1.5 rounded-full bg-current" />}
                   </span>
                   <span className={cn('truncate', shown ? 'text-ink' : 'text-ink-3')}>{check.label}</span>
-                  <span className="relative min-w-[7rem] text-right">
+                  <span className="relative col-start-2 min-w-[7rem] sm:col-start-auto sm:text-right">
                     {shown ? (
                       <span className={cn('t-readout anim-fade text-[12.5px]', check.tone === 'none' ? 'text-ink-3' : 'text-ink')}>{check.result}</span>
                     ) : checking ? (

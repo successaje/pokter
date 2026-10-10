@@ -72,7 +72,9 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
         const text = haystack(entry);
         const hits = terms.filter((term) => text.includes(term));
         const inCategory = brief.category !== null && entry.listing.category === brief.category;
-        return { entry, hits, inCategory, score: (inCategory ? 10 : 0) + hits.length * 2 };
+        // Coarse bands, so relevance groups results and the chosen order (by
+        // default: hireable and answering first) decides within each group.
+        return { entry, hits, inCategory, score: (inCategory ? 2 : 0) + (hits.length > 0 ? 1 : 0) };
       })
       .filter((s) => (brief.category ? s.inCategory || s.hits.length >= 2 : s.hits.length > 0));
 

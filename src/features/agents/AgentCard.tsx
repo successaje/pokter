@@ -13,9 +13,9 @@ export function agentHref(row: Pick<FindRow, 'chainId' | 'tokenId'>) {
 export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'watch' | 'bad' | 'none' } {
   if (row.probes === 0) return { text: 'Not probed yet', tone: 'none' };
   if (row.rate === 0) return { text: 'Has never answered', tone: 'bad' };
-  if (row.answeringToday) return { text: `Answering · ${Math.round((row.rate ?? 0) * 100)}% of ${row.probes} probes`, tone: (row.rate ?? 0) >= 0.9 ? 'ok' : 'watch' };
+  if (row.answeringToday) return { text: `Answering · ${Math.round((row.rate ?? 0) * 100)}% replied`, tone: (row.rate ?? 0) >= 0.9 ? 'ok' : 'watch' };
   if (row.sinceAnswer !== null) return { text: `Last answered ${row.sinceAnswer === 0 ? 'today' : `${row.sinceAnswer}d ago`}`, tone: 'watch' };
-  return { text: `${Math.round((row.rate ?? 0) * 100)}% of ${row.probes} probes`, tone: 'watch' };
+  return { text: `${Math.round((row.rate ?? 0) * 100)}% replied`, tone: 'watch' };
 }
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
@@ -56,7 +56,7 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
       <p className="mt-3 line-clamp-2 min-h-[2.8em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-ink-2">
+        <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : undefined}>
           <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
           <span className="truncate">{status.text}</span>
         </span>

@@ -82,7 +82,11 @@ export function HireFlow(props: HireFlowProps) {
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings });
   const { openConnect } = useConnect();
   const sponsored = useGasSponsorship();
-  const [step, setStep] = useState<Step>('describe');
+  const [step, setStepState] = useState<Step>('describe');
+  const setStep = (next: Step) => {
+    setStepState(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   // A confirmation is for this amount and this task; changing either clears it.
   const terms = `${hire.budget}|${hire.task}`;
   const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
