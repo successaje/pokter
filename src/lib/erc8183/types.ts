@@ -64,5 +64,5 @@ export const JOB_STAGE_COPY: Record<JobStatusName, string> = {
   SUBMITTED: 'Provider delivered. Dispute window open before escrow releases.',
   COMPLETED: 'Escrow released to the provider.',
   REJECTED: 'Delivery was rejected.',
-  EXPIRED: 'Agent never delivered; escrow is reclaimable.',
+  EXPIRED: 'Agent never delivered. The contract marks a job expired once its escrow is reclaimed.',
 };

@@ -1,0 +1,131 @@
+'use client';
+
+import { useMemo, useState, useSyncExternalStore } from 'react';
+
+import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
+import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
+import { jobsForWallet, noJobs, subscribeToJobs } from '@/lib/wallet/activity';
+import { notificationsForWallet, subscribeToNotifications, type ActivityNotification } from '@/lib/wallet/notifications';
+import {
+  readSavedAgentAlerts,
+  readSavedAgents,
+  subscribeToSavedAgents,
+  type SavedAgent,
+  type SavedAgentAlert,
+} from '@/lib/wallet/saved-agents';
+import { useActiveWallet } from '@/lib/wallet/active';
+import { useHydrated } from '@/lib/ui/use-hydrated';
+
+const NO_NOTES: ActivityNotification[] = [];
+const NO_SAVED: SavedAgent[] = [];
+const NO_ALERTS: SavedAgentAlert[] = [];
+
+/** Jobs this wallet has funded, newest first, as remembered on this device. */
+export function useMyJobs(): { jobs: HiredJob[]; address: string | null; ready: boolean } {
+  const { address } = useActiveWallet();
+  const hydrated = useHydrated();
+  const stored = useSyncExternalStore(
+    subscribeToJobs,
+    () => (address ? jobsForWallet(address) : noJobs()),
+    noJobs,
+  );
+  // Jobs remembered before agentChainId existed are mainnet identities.
+  const jobs = useMemo(() => stored.map((j) => (j.agentChainId ? j : { ...j, agentChainId: 56 })), [stored]);
+  return { jobs, address, ready: hydrated };
+}
+
+let notesCache: { key: string; raw: ActivityNotification[] } | null = null;
+export function useInbox(): ActivityNotification[] {
+  const { address } = useActiveWallet();
+  return useSyncExternalStore(
+    subscribeToNotifications,
+    () => {
+      if (!address) return NO_NOTES;
+      const raw = notificationsForWallet(address);
+      const key = `${address}:${raw.length}:${raw.filter((n) => !n.readAt).length}`;
+      if (notesCache && notesCache.key === key) return notesCache.raw;
+      notesCache = { key, raw };
+      return raw;
+    },
+    () => NO_NOTES,
+  );
+}
+
+let savedCache: { raw: string; value: SavedAgent[] } | null = null;
+export function useSavedAgents(): SavedAgent[] {
+  return useSyncExternalStore(
+    subscribeToSavedAgents,
+    () => {
+      const value = readSavedAgents();
+      const raw = JSON.stringify(value);
+      if (savedCache && savedCache.raw === raw) return savedCache.value;
+      savedCache = { raw, value };
+      return value;
+    },
+    () => NO_SAVED,
+  );
+}
+
+let alertsCache: { raw: string; value: SavedAgentAlert[] } | null = null;
+export function useSavedAlerts(): SavedAgentAlert[] {
+  return useSyncExternalStore(
+    subscribeToSavedAgents,
+    () => {
+      const value = readSavedAgentAlerts();
+      const raw = JSON.stringify(value);
+      if (alertsCache && alertsCache.raw === raw) return alertsCache.value;
+      alertsCache = { raw, value };
+      return value;
+    },
+    () => NO_ALERTS,
+  );
+}
+
+export type JobPhase = 'unfunded' | 'working' | 'review' | 'reclaim' | 'settled' | 'disputed' | 'refunded' | 'expired';
+
+/**
+ * The job's state in the buyer's terms. On-chain status names are shown
+ * too, but this is what decides what the person is asked to do next.
+ */
+export function jobPhase(job: HiredJob, now = Date.now()): JobPhase {
+  if (job.status === 'OPEN') return 'unfunded';
+  if (job.status === 'SUBMITTED') return 'review';
+  if (job.status === 'COMPLETED') return 'settled';
+  if (job.status === 'REJECTED') return job.reclaimTxHash ? 'refunded' : 'disputed';
+  if (job.reclaimTxHash) return 'refunded';
+  /*
+   * The escrow has been observed to mark a job EXPIRED once its refund is
+   * claimed (see reclaim-gate). So EXPIRED is shown as "likely refunded", not
+   * as money waiting; reclaim stays available on the job page in case it is
+   * not, because hiding it would be the costlier mistake.
+   */
+  if (job.status === 'EXPIRED') return 'expired';
+  if (isReclaimable(job, now)) return 'reclaim';
+  return 'working';
+}
+
+export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'info' | 'bad' | 'none'; needsYou: boolean; next: string }> = {
+  unfunded: { label: 'Not funded', tone: 'none', needsYou: false, next: 'This job was created but never funded. Nothing is held.' },
+  working: { label: 'In progress', tone: 'info', needsYou: false, next: 'Escrow is funded. Waiting for the agent to deliver.' },
+  review: { label: 'Delivered · review it', tone: 'watch', needsYou: true, next: 'The agent delivered. Check the file, then release payment or dispute it within the window.' },
+  reclaim: { label: 'Not delivered · reclaim', tone: 'watch', needsYou: true, next: 'The deadline passed with nothing delivered. Your escrow can be reclaimed.' },
+  settled: { label: 'Settled', tone: 'ok', needsYou: false, next: 'Payment was released to the agent.' },
+  disputed: { label: 'Disputed', tone: 'bad', needsYou: false, next: 'You contested the delivery. The policy’s voters decide whether the escrow is refunded.' },
+  refunded: { label: 'Refunded', tone: 'none', needsYou: false, next: 'The escrow was returned to your wallet.' },
+  expired: { label: 'Expired · likely refunded', tone: 'none', needsYou: false, next: 'The deadline passed without a delivery. The contract marks a job expired once its escrow is reclaimed, so the money has most likely already returned to the funding wallet.' },
+};
+
+export const STATUS_NAME: Record<JobStatusName, string> = {
+  OPEN: 'Open',
+  FUNDED: 'Funded',
+  SUBMITTED: 'Submitted',
+  COMPLETED: 'Completed',
+  REJECTED: 'Rejected',
+  EXPIRED: 'Expired',
+};
+
+/** The time the view was opened, fixed for the render so phases cannot flicker mid-paint. */
+export function useNow(): number {
+  const [now] = useState(() => Date.now());
+  return now;
+}

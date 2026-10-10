@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pokter-shell-v1';
+const CACHE_NAME = 'pokter-shell-v2';
 const APP_SHELL = [
   '/offline.html',
   '/brand/pokter-app-icon-192.png',

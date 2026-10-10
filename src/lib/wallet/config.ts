@@ -49,16 +49,17 @@ export const wagmiConfig = createConfig({
   chains: [bscTestnet, bsc],
   connectors: [
     injected(),
-    ...(WALLETCONNECT_PROJECT_ID
+    // Browser only: its storage layer needs indexedDB, which the server lacks.
+    ...(WALLETCONNECT_PROJECT_ID && typeof window !== 'undefined'
       ? [
           walletConnect({
             projectId: WALLETCONNECT_PROJECT_ID,
             showQrModal: true,
             metadata: {
               name: 'Pokter',
-              description: 'A marketplace for ERC-8004 agents on BNB Chain.',
+              description: 'Find, compare and hire AI agents on BNB Chain.',
               url: process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz',
-              icons: [`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz'}/icon.png`],
+              icons: [`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://pokter.xyz'}/brand/pokter-app-icon-192.png`],
             },
           }),
         ]

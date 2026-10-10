@@ -1,52 +1,33 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect } from 'react';
 
-export default function ErrorPage({
-  error,
-  retry,
-}: {
-  error: Error & { digest?: string };
-  retry: () => void;
-}) {
+import { Button, LinkButton } from '@/ui/Button';
+
+/**
+ * The last line of defence for a render failure. It says what happened in
+ * plain terms, offers a retry, and never claims an operation succeeded.
+ */
+export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    console.error('[pokter] render failed', error.digest ?? '', error.message);
   }, [error]);
 
   return (
-    <section className="mx-auto flex max-w-xl flex-col items-start gap-4 pt-16 sm:pt-24">
-      <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--negative)]">
-        Request interrupted
+    <main id="main" className="frame flex min-h-[70vh] flex-col items-start justify-center gap-6 py-24">
+      <span className="t-label">Something failed to load</span>
+      <h1 className="t-h1 max-w-xl">This page could not be built just now.</h1>
+      <p className="t-body max-w-lg text-ink-2">
+        Usually a data source (the agent registry or a chain RPC) was slow to answer. Nothing you were doing was submitted
+        from this page. Try again, or go back to somewhere that works.
       </p>
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        Pokter could not finish this check.
-      </h1>
-      <p className="text-sm leading-relaxed text-[color:var(--text-secondary)]">
-        Registry and protocol reads can fail temporarily. No wallet action was
-        submitted by this page. Retry the same check or return to the agent
-        marketplace.
-      </p>
-      {error.digest && (
-        <p className="mono text-[10px] text-[color:var(--text-faint)]">
-          Reference {error.digest}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={retry}
-          className="action-primary rounded-[var(--radius)] px-4 py-2 text-xs font-medium"
-        >
-          Try again
-        </button>
-        <Link
-          href="/agents"
-          className="rounded-[var(--radius)] border border-[color:var(--border-strong)] px-4 py-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-        >
-          Browse agents
-        </Link>
+      {error.digest && <p className="t-readout text-[12px] text-ink-3">Reference {error.digest}</p>}
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={reset}>Try again</Button>
+        <LinkButton href="/" intent="secondary">
+          Home
+        </LinkButton>
       </div>
-    </section>
+    </main>
   );
 }

@@ -45,7 +45,7 @@ export class AltanaNotConfiguredError extends Error {
  * passkey, so none of these should be reachable on mainnet without somebody
  * deciding so on purpose, one purpose at a time.
  */
-export type OperatorPurpose = 'legacy-session' | 'legacy-hire' | 'demo-seller';
+export type OperatorPurpose = 'legacy-session' | 'legacy-hire' | 'demo-seller' | 'gas-sponsor';
 
 /**
  * Mainnet purposes that have been deliberately permitted.

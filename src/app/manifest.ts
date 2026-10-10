@@ -3,16 +3,16 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Pokter — BNB Chain Agent Marketplace',
+    name: 'Pokter — Find agents that actually work',
     short_name: 'Pokter',
     description:
-      'Discover, verify, compare and safely hire autonomous financial agents on BNB Chain.',
-    start_url: '/app',
+      'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',
+    start_url: '/workspace?source=pwa',
     scope: '/',
     display: 'standalone',
     orientation: 'any',
-    background_color: '#08090b',
-    theme_color: '#f0b90b',
+    background_color: '#f3f1eb',
+    theme_color: '#f3f1eb',
     categories: ['finance', 'business', 'productivity'],
     icons: [
       {
@@ -42,10 +42,10 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: 'Pokter home',
-        short_name: 'Home',
-        description: 'Open your Pokter mobile dashboard.',
-        url: '/app?source=app-shortcut',
+        name: 'Workspace',
+        short_name: 'Workspace',
+        description: 'Your jobs and anything waiting on you.',
+        url: '/workspace?source=app-shortcut',
       },
       {
         name: 'Discover agents',
@@ -54,10 +54,10 @@ export default function manifest(): MetadataRoute.Manifest {
         url: '/discover?source=app-shortcut',
       },
       {
-        name: 'Activity',
-        short_name: 'Activity',
-        description: 'Review your active agent work.',
-        url: '/activity?source=app-shortcut',
+        name: 'Builder Studio',
+        short_name: 'Studio',
+        description: 'Your agents and their customer jobs.',
+        url: '/studio?source=app-shortcut',
       },
     ],
   };

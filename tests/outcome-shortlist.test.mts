@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { outcomeShortlist } from '../src/components/home/BrowseByOutcome';
+import { outcomeShortlist } from '../src/lib/home/outcome-shortlist';
 
 /**
  * The landing page's outcome shelf.

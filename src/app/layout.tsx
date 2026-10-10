@@ -3,122 +3,76 @@ import { cookies } from 'next/headers';
 import localFont from 'next/font/local';
 
 import './globals.css';
-import { Nav, MobileNav } from '@/components/shell/Nav';
-import { SetAndEarnNotice } from '@/components/campaign/SetAndEarnNotice';
-import { Footer } from '@/components/shell/Footer';
-import { SmoothHashScroll } from '@/components/shell/SmoothHashScroll';
-import { WalletProviders } from '@/lib/wallet/Providers';
-import { PwaProvider } from '@/components/pwa/PwaProvider';
-import { SavedAgentMonitor } from '@/components/saved/SavedAgentMonitor';
+import { CAMPAIGN_BAR_KEY } from '@/lib/campaign/bar';
+import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { siteUrl } from '@/lib/site';
+import { PwaProvider } from '@/shell/PwaProvider';
+import { SavedAgentMonitor } from '@/shell/SavedAgentMonitor';
 
 /*
- * Three families, each with a job.
- *
- * Until now the stylesheet asked for "Geist" and nothing ever loaded it, so
- * every page has been rendering in whatever sans the system had. These are
- * The files live in this repository and are loaded with next/font/local.
- *
- * They were next/font/google, which self-hosts the *result* but fetches the
- * face from Google during the production build. That fetch failed twice in
- * one week mid-release — "Cannot read properties of null" out of the font
- * loader — on commits that built clean locally and clean on the retry, and
- * one of those left a merge undeployed until somebody noticed by hand. A
- * release that can fail because a third party had a bad second is not a
- * release process, and no amount of retrying fixes the dependency itself.
- *
- * Newsreader and Manrope ship as variable fonts, so one file covers every
- * weight in their range; DM Mono has no variable cut and takes one file per
- * weight. Basic-latin subsets only, which is what the previous setup
- * requested too: 172KB for all five.
- *
- * All three are SIL Open Font License 1.1 — see fonts/OFL.txt.
- *
- * Newsreader carries the display voice. It is the whole reason the design
- * reads as an editorial financial publication rather than a dashboard, and
- * it is used at heading sizes only — a serif at 11px in a dense row is worse
- * than the sans it replaced.
+ * One family and a readout face, both self-hosted (SIL OFL 1.1, licences in
+ * ./fonts). Instrument Sans is variable in weight and width, so display
+ * sizes run it condensed and working sizes at normal width without a
+ * second family. JetBrains Mono carries every measurement.
  */
-const display = localFont({
-  src: [
-    { path: './fonts/newsreader-latin.woff2', weight: '500 700', style: 'normal' },
-    { path: './fonts/newsreader-italic-latin.woff2', weight: '500 700', style: 'italic' },
-  ],
-  variable: '--font-display',
+const instrument = localFont({
+  src: [{ path: './fonts/instrument-sans.woff2', weight: '400 700', style: 'normal' }],
+  variable: '--font-instrument',
   display: 'swap',
+  declarations: [{ prop: 'font-stretch', value: '75% 100%' }],
 });
 
-const sans = localFont({
-  src: [
-    { path: './fonts/manrope-latin.woff2', weight: '400 700', style: 'normal' },
-  ],
-  variable: '--font-sans-family',
-  display: 'swap',
-});
-
-/*
- * DM Mono stops at 500. The mock asks for 600 in places, which a browser can
- * only fake by smearing the glyphs, so those call sites use 500 instead.
- */
-const mono = localFont({
-  src: [
-    { path: './fonts/dm-mono-400-latin.woff2', weight: '400', style: 'normal' },
-    { path: './fonts/dm-mono-500-latin.woff2', weight: '500', style: 'normal' },
-  ],
-  variable: '--font-mono-family',
+const jetbrains = localFont({
+  src: [{ path: './fonts/jetbrains-mono.woff2', weight: '400 700', style: 'normal' }],
+  variable: '--font-jetbrains',
   display: 'swap',
 });
 
 export const viewport: Viewport = {
-  themeColor: '#f0b90b',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f3f1eb' },
+    { media: '(prefers-color-scheme: dark)', color: '#141517' },
+  ],
   viewportFit: 'cover',
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: 'Pokter — The agent marketplace for BNB Chain',
+    default: 'Pokter — Find agents that actually work',
     template: '%s · Pokter',
   },
   description:
-    'Compare autonomous financial agents on BNB Chain using onchain identity, reputation, disclosed capabilities and live protocol checks.',
+    'Discover, compare and hire AI agents on BNB Chain. See the evidence behind their capabilities before you put them to work.',
   applicationName: 'Pokter',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Pokter',
-  },
-  formatDetection: {
-    telephone: false,
-  },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Pokter' },
+  formatDetection: { telephone: false },
   openGraph: {
     type: 'website',
     siteName: 'Pokter',
-    title: 'Pokter — Choose what deserves your money',
-    description:
-      'Discover, verify, compare and safely hire autonomous financial agents on BNB Chain.',
+    title: 'Pokter — Find agents that actually work',
+    description: 'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',
   },
   twitter: {
     card: 'summary_large_image',
-    // Attributes the preview card to the account, so a shared link credits
-    // Pokter rather than whoever happened to post it.
     site: '@usepokter',
     creator: '@usepokter',
-    title: 'Pokter — Choose what deserves your money',
-    description:
-      'The evidence-first marketplace for autonomous financial agents on BNB Chain.',
+    title: 'Pokter — Find agents that actually work',
+    description: 'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',
   },
 };
 
-export default async function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  /*
-   * The theme is stamped during SSR from a cookie, so the correct palette is
-   * in the first byte of HTML. No pre-paint script, therefore no flash and no
-   * script element for React to warn about. Absent the cookie the attribute is
-   * omitted and CSS falls back to the system preference.
-   */
+/*
+ * Runs once, before first paint, on a full page load only. Two jobs:
+ * hide the campaign strip if it was dismissed or the deadline has passed
+ * (static pages can be older than the deadline), and mark which hash tab a
+ * shared link points at so that tab paints first. The tab CSS is generated
+ * per page for its own tab ids, so an unknown id here does nothing.
+ */
+const BOOT = `(function(){var d=document.documentElement;try{if(Date.now()>${CAMPAIGN_ENDS_AT.getTime()}||localStorage.getItem(${JSON.stringify(CAMPAIGN_BAR_KEY)})==='hidden')d.dataset.campaignBar='hidden';}catch(e){}var h=location.hash.slice(1);if(/^[a-z][a-z0-9-]{0,31}$/.test(h))d.dataset.hashTab=h;})();`;
+
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Stamped from a cookie during SSR so the first byte has the right palette.
   const theme = (await cookies()).get('pokter-theme')?.value;
   const explicit = theme === 'light' || theme === 'dark' ? theme : undefined;
   const origin = siteUrl();
@@ -138,7 +92,7 @@ export default async function RootLayout({
         '@id': `${origin}/#website`,
         url: origin,
         name: 'Pokter',
-        description: 'The evidence-first marketplace for autonomous financial agents on BNB Chain.',
+        description: 'Discover, compare and hire AI agents on BNB Chain.',
         publisher: { '@id': `${origin}/#organization` },
         inLanguage: 'en',
       },
@@ -146,34 +100,18 @@ export default async function RootLayout({
   };
 
   return (
-    <html
-      lang="en"
-      data-theme={explicit}
-      className={`${display.variable} ${sans.variable} ${mono.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" data-theme={explicit} className={`${instrument.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: BOOT }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }}
         />
       </head>
-      <body className="antialiased">
-        <SmoothHashScroll />
+      <body>
         <PwaProvider>
-          <WalletProviders>
-            <SavedAgentMonitor />
-            <Nav />
-            <SetAndEarnNotice />
-
-            <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-5 pb-28 pt-8 sm:px-8 md:pb-16">
-              {children}
-            </main>
-
-            <Footer />
-
-            <MobileNav />
-          </WalletProviders>
+          <SavedAgentMonitor />
+          {children}
         </PwaProvider>
       </body>
     </html>

@@ -3,27 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f0b90b" />
+    <meta name="theme-color" content="#f3f1eb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" />
     <title>Pokter is offline</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #08090b; color: #edf0f4; }
+      :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; --paper: #f3f1eb; --ink: #16171a; --ink2: #48494d; --rule: #dcd8cd; }
+      @media (prefers-color-scheme: dark) { :root { --paper: #141517; --ink: #edebe4; --ink2: #b9b7af; --rule: #2b2c30; } }
       * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 15%, rgba(240,185,11,.12), transparent 36%), #08090b; }
-      main { width: min(100%, 420px); text-align: center; }
-      img { width: 72px; height: 72px; border-radius: 18px; }
-      h1 { margin: 24px 0 10px; font-size: 28px; letter-spacing: -.03em; }
-      p { margin: 0 auto; max-width: 36ch; color: #a2acba; line-height: 1.6; }
-      button { margin-top: 28px; min-height: 48px; border: 0; border-radius: 10px; padding: 0 22px; background: #f0b90b; color: #100d04; font: inherit; font-weight: 650; cursor: pointer; }
-      small { display: block; margin-top: 18px; color: #7b8593; line-height: 1.5; }
+      body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); }
+      main { width: min(100%, 420px); }
+      .tile { width: 14px; height: 14px; border-radius: 3px; background: #f0b90b; }
+      h1 { margin: 20px 0 10px; font-size: 30px; letter-spacing: -.03em; font-weight: 600; }
+      p { margin: 0; max-width: 38ch; color: var(--ink2); line-height: 1.6; }
+      button { margin-top: 28px; min-height: 46px; border: 0; border-radius: 10px; padding: 0 20px; background: var(--ink); color: var(--paper); font: inherit; font-weight: 600; cursor: pointer; }
+      small { display: block; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink2); line-height: 1.5; font-size: 13px; }
     </style>
   </head>
   <body>
     <main>
-      <img src="/brand/pokter-app-icon-192.png" alt="" />
+      <div class="tile" aria-hidden="true"></div>
       <h1>You’re offline</h1>
-      <p>Pokter needs a secure connection to verify agents, read balances and approve transactions.</p>
+      <p>Pokter needs a connection to check agents, read balances and confirm transactions.</p>
       <button type="button" onclick="location.reload()">Try again</button>
-      <small>No financial or protocol data is shown from an offline cache.</small>
+      <small>Nothing financial is shown from a cache: a balance or job status from earlier could be wrong now.</small>
     </main>
   </body>
 </html>

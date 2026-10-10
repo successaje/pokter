@@ -18,16 +18,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fixed = [
     { path: '', priority: 1 },
     { path: '/discover', priority: 0.9 },
-    { path: '/set-and-earn', priority: 0.9 },
-    { path: '/agents', priority: 0.9 },
-    { path: '/compare', priority: 0.7 },
-    { path: '/leaderboard', priority: 0.7 },
-    { path: '/about', priority: 0.7 },
+    { path: '/how-it-works', priority: 0.8 },
     { path: '/methodology', priority: 0.8 },
-    { path: '/census', priority: 0.7 },
     { path: '/build', priority: 0.7 },
+    { path: '/developers', priority: 0.7 },
+    { path: '/compare', priority: 0.5 },
     { path: '/agent-advantage', priority: 0.5 },
     { path: '/pool-check', priority: 0.5 },
+    { path: '/set-and-earn', priority: 0.6 },
+    { path: '/about', priority: 0.5 },
     { path: '/support', priority: 0.4 },
     { path: '/terms', priority: 0.3 },
     { path: '/privacy', priority: 0.3 },
@@ -39,7 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const categories = CATEGORIES.map((category) => ({
-    url: `${base}/categories/${category.id}`,
+    url: `${base}/discover?category=${category.id}`,
     lastModified: now,
     priority: 0.6,
   }));
