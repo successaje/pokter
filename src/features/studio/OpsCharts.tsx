@@ -18,6 +18,14 @@ export function WeeklyJobs({ weeks }: { weeks: AgentOps['weeks'] }) {
   const max = Math.max(1, ...weeks.map((w) => w.funded));
   const H = 96;
   const total = weeks.reduce((s, w) => s + w.funded, 0);
+  if (total === 0) {
+    return (
+      <figure className="flex flex-col gap-2">
+        <figcaption className="text-[13px] font-medium">Jobs funded per week</figcaption>
+        <p className="rounded-[10px] border border-dashed border-rule-strong px-4 py-6 text-[13px] text-ink-3">No jobs funded in the last 8 weeks.</p>
+      </figure>
+    );
+  }
   return (
     <figure className="flex flex-col gap-2">
       <figcaption className="flex items-baseline justify-between">
@@ -86,7 +94,8 @@ export function LatencyTrend({ points }: { points: AgentOps['latency'] }) {
   const y = (ms: number) => H - (ms / max) * (H - 6);
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.ms).toFixed(1)}`).join(' ');
   const sorted = [...points].map((p) => p.ms).sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
   return (
     <figure className="flex flex-col gap-2">
       <figcaption className="flex items-baseline justify-between">
