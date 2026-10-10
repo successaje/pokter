@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-import { HashTabBar, HashTabHint, HashTabHintStyle, HashTabPanel } from '@/ui/HashTabs';
+import { HashTabBar, HashTabHintStyle, HashTabPanel } from '@/ui/HashTabs';
 
 const STUDIO_TABS = [
   { id: 'health', label: 'Health' },
@@ -34,7 +34,6 @@ export function StudioTabHint() {
   return (
     <>
       <HashTabHintStyle tabs={STUDIO_TABS} />
-      <HashTabHint tabs={STUDIO_TABS} />
     </>
   );
 }

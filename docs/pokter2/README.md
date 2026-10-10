@@ -159,6 +159,21 @@ Also added afterwards:
 - a base `grid-cols-1` on every responsive grid, after a phone overflow;
 - the light "not measured" tone raised to AA. Every text token now meets AA on every ground in both themes.
 
+## Set and Earn while it runs
+
+All gated on `isCampaignLive()`:
+- a dismissible strip above the public header (`features/campaign/CampaignBar`);
+- a section on the home page linking to the guide and to progress;
+- the guide at `/set-and-earn`, with progress at `#progress`;
+- a guide link in the app sidebar, and passkey warnings on the hire pay step
+  and the progress card.
+
+Static pages can outlive the deadline, so the root layout's boot script
+hides the strip in the browser once it has passed (or once dismissed),
+before first paint. The same script marks the hash tab for a shared link.
+It lives in the root layout because a script rendered by a page component
+does not run on client navigation, and React warns about it.
+
 ## Library modules with no UI caller
 
 Kept on purpose because they are backend data features, but nothing in the
@@ -173,17 +188,18 @@ Delete them or give them a page; do not let them drift.
 
 ## Not verified, or not done
 
-- **No on-chain hire, settlement, review, delivery or registration was
-  executed** in this session. Those paths call the unchanged `useHire`,
-  `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet` and
-  delivery APIs, but they still need a funded test wallet run before release.
+- **A testnet hire was run by hand and worked** (10 October). Settlement,
+  review, delivery and agent registration from the new UI have not been run
+  yet; they call the unchanged `useJobActions`, `registerIdentityFromWallet`,
+  `updateIdentityFromWallet` and delivery APIs. See
+  [`TEST-PLAN.md`](TEST-PLAN.md).
 - Wallet libraries (wagmi, viem, the Altana passkey SDK) are no longer in the
   root layout. They wrap only `(app)` and `(flow)`, and the public header's
   account control is a lazily loaded island with its own provider. First-load
   JavaScript (gzipped, production build) is now about 205 KB on `/`,
   `/discover` and agent pages, down from about 464 KB. The workspace still
   loads about 484 KB, because it acts on a wallet. Set and Earn progress
-  moved from the public campaign page to the workspace.
+  shows in the workspace and, through a lazily loaded island, on the guide.
 - On-chain money paths are covered by a manual plan:
   [`TEST-PLAN.md`](TEST-PLAN.md).
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and

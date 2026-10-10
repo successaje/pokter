@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-import { HashTabBar, HashTabHint, HashTabHintStyle, HashTabPanel } from '@/ui/HashTabs';
+import { HashTabBar, HashTabHintStyle, HashTabPanel } from '@/ui/HashTabs';
 
 export const AGENT_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -43,7 +43,6 @@ export function AgentTabHint() {
   return (
     <>
       <HashTabHintStyle tabs={AGENT_TABS} />
-      <HashTabHint tabs={AGENT_TABS} />
     </>
   );
 }

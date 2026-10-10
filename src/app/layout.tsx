@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import localFont from 'next/font/local';
 
 import './globals.css';
+import { CAMPAIGN_BAR_KEY } from '@/lib/campaign/bar';
+import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { siteUrl } from '@/lib/site';
 import { PwaProvider } from '@/shell/PwaProvider';
 import { SavedAgentMonitor } from '@/shell/SavedAgentMonitor';
@@ -60,6 +62,15 @@ export const metadata: Metadata = {
   },
 };
 
+/*
+ * Runs once, before first paint, on a full page load only. Two jobs:
+ * hide the campaign strip if it was dismissed or the deadline has passed
+ * (static pages can be older than the deadline), and mark which hash tab a
+ * shared link points at so that tab paints first. The tab CSS is generated
+ * per page for its own tab ids, so an unknown id here does nothing.
+ */
+const BOOT = `(function(){var d=document.documentElement;try{if(Date.now()>${CAMPAIGN_ENDS_AT.getTime()}||localStorage.getItem(${JSON.stringify(CAMPAIGN_BAR_KEY)})==='hidden')d.dataset.campaignBar='hidden';}catch(e){}var h=location.hash.slice(1);if(/^[a-z][a-z0-9-]{0,31}$/.test(h))d.dataset.hashTab=h;})();`;
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Stamped from a cookie during SSR so the first byte has the right palette.
   const theme = (await cookies()).get('pokter-theme')?.value;
@@ -91,6 +102,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" data-theme={explicit} className={`${instrument.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: BOOT }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }}

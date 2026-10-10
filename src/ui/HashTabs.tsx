@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -67,8 +67,9 @@ export function HashTabBar({
   const active = useHashTab(tabs, anchors);
   const bar = useRef<HTMLDivElement>(null);
 
-  // React owns the tabs from here; drop any pre-hydration hint.
-  useEffect(() => {
+  // React owns the tabs from here; drop the pre-hydration hint before paint,
+  // including one left over from a page loaded earlier in this visit.
+  useLayoutEffect(() => {
     delete document.documentElement.dataset.hashTab;
   }, []);
 
@@ -149,18 +150,10 @@ export function HashTabPanel({ tabs, anchors = {}, id, children }: { tabs: reado
 }
 
 /**
- * Runs before first paint so a shared link to a tab paints that tab rather
- * than the first. It marks <html>; CSS generated for the known tab ids does
- * the rest. Only listed ids are accepted.
+ * The CSS that lets a shared link paint its tab before hydration. The root
+ * layout marks <html> with the hash; this turns that mark into visibility
+ * for this page's own tab ids only. Render once per page.
  */
-export function HashTabHint({ tabs }: { tabs: readonly HashTab[] }) {
-  const ids = JSON.stringify(tabs.map((t) => t.id));
-  const first = JSON.stringify(tabs[0].id);
-  const code = `(function(){var h=location.hash.slice(1);if(h!==${first}&&${ids}.indexOf(h)>-1)document.documentElement.dataset.hashTab=h;})();`;
-  return <script dangerouslySetInnerHTML={{ __html: code }} />;
-}
-
-/** The CSS the hint relies on, for a given tab set. Render once per page. */
 export function HashTabHintStyle({ tabs }: { tabs: readonly HashTab[] }) {
   const first = tabs[0].id;
   const css = tabs
