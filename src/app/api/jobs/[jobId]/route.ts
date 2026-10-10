@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
+import { getAddress } from 'viem';
 
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
@@ -31,8 +32,9 @@ export const maxDuration = 20;
  * hire made on a phone is invisible on a laptop, and the only way back was
  * to be told there was no way back.
  *
- * Read-only and public, because the data is: ERC-8183 jobs are on a public
- * chain and anyone can already read this with a node. What the endpoint
+ * Public, because the data is: ERC-8183 jobs are on a public chain and
+ * anyone can already read this with a node. Its one write is adding a
+ * genuine Pokter job the index lacks (see below). What the endpoint
  * does not do is decide whose job it is — it returns the funding wallet and
  * lets the caller compare, so the page can refuse to file somebody else's
  * job under your activity without pretending that is a secrecy boundary.
@@ -168,6 +170,23 @@ export async function GET(
       deliverableUrl: deliverableUrl ?? null,
       settleTxHash: null,
     };
+
+    /*
+     * A Pokter job the index is missing, typically hired through another
+     * deployment, joins it here, so the agent's track record and the
+     * buyer's other devices see it. Nothing comes from the caller: the
+     * envelope proves it is Pokter's, the contract supplies its state and
+     * its funder, and an unfunded job is left out, as /api/jobs/index
+     * leaves it out.
+     */
+    const store = getJobStore();
+    if (
+      onchain.statusName !== 'OPEN' &&
+      getAddress(envelope.provider) === getAddress(onchain.provider) &&
+      !store.byId(job.id)
+    ) {
+      store.record({ ...job, client: onchain.client });
+    }
 
     return NextResponse.json({ job, client: onchain.client });
   } catch (error) {
