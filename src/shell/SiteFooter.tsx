@@ -57,7 +57,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
 export function SiteFooter() {
   return (
     <footer className="mt-24 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
-      <div className="frame grid gap-12 py-14 lg:grid-cols-[1.1fr_3fr]">
+      <div className="frame grid grid-cols-1 gap-12 py-14 lg:grid-cols-[1.1fr_3fr]">
         <div className="flex max-w-xs flex-col gap-4">
           <span className="inline-flex items-center gap-2.5 text-ink">
             <Mark size={22} />

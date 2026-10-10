@@ -155,7 +155,7 @@ export function OwnedAgents() {
   const agents = owned.data?.agents ?? [];
   if (agents.length === 0) return <p className="text-[13px] text-ink-3">{shortAddress(address)} owns no ERC-8004 agents on BNB Chain or testnet.</p>;
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {agents.map((a) => (
         <li key={`${a.chainId}:${a.tokenId}`}>
           <Link href={`/studio/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
@@ -341,7 +341,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
           {steps.length > 0 && (
             <div className="flex flex-col gap-2">
               <span className="t-label">Path to first paid job</span>
-              <ol className="grid gap-2 sm:grid-cols-5">
+              <ol className="grid grid-cols-1 gap-2 sm:grid-cols-5">
                 {steps.map((s) => (
                   <li key={s.id} className={cn('rounded-[10px] border p-3 text-[12.5px]', s.done ? 'border-ok/40 bg-ok-wash/50' : 'border-rule')}>
                     <span className="flex items-center gap-1.5 font-medium">

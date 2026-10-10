@@ -48,7 +48,7 @@ function Blueprint({ d }: { d: AgentDraft }) {
     <Details summary="Start from an idea instead: answer five questions">
       <div className="flex flex-col gap-4 rounded-[12px] border border-rule bg-paper p-4">
         <p className="text-[13px] text-ink-2">Pokter turns your answers into a name and description you can edit. It is a written blueprint, not a working agent: you still need an endpoint that does the work.</p>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Outcome">
             {(p) => (
               <Select {...p} value={brief.outcome} onChange={(e) => set('outcome', e.target.value)}>
@@ -98,7 +98,7 @@ function StepDefine({ d }: { d: AgentDraft }) {
       </Field>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">Category</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {CATEGORIES.map((c) => (
             <label key={c.id} className={cn('flex cursor-pointer items-start gap-3 rounded-[10px] border p-3', d.draft.category === c.id ? 'border-ink bg-raised' : 'border-rule hover:border-rule-strong')}>
               <input type="radio" name="category" className="mt-1 accent-[var(--ink)]" checked={d.draft.category === c.id} onChange={() => d.update('category', c.id)} />
@@ -147,7 +147,7 @@ function StepConfigure({ d }: { d: AgentDraft }) {
         <div className="flex flex-col gap-3">
           <span className="text-sm font-medium">Behaviour</span>
           <p className="text-[13px] text-ink-3">Written into the build prompt and a runtime config file. Your runtime enforces these; Pokter checks the public endpoint independently.</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {(['target', 'policy', 'output'] as const).map((k) => (
               <Field key={k} label={k === 'target' ? 'Works on' : k === 'policy' ? 'Risk stance' : 'Returns'}>
                 {(p) => (
@@ -218,7 +218,7 @@ function StepTest({ d }: { d: AgentDraft }) {
             <Notice tone={p.ok ? 'ok' : 'bad'} title={p.ok ? `It answered${p.latencyMs ? ` in ${p.latencyMs} ms` : ''}` : 'It did not answer correctly'}>
               {p.detail}
             </Notice>
-            <dl className="grid gap-3 text-[13px] sm:grid-cols-3">
+            <dl className="grid grid-cols-1 gap-3 text-[13px] sm:grid-cols-3">
               <div>
                 <dt className="t-label">Skills found</dt>
                 <dd className="mt-1">{p.capabilities.length ? p.capabilities.slice(0, 6).join(', ') : 'None declared'}</dd>
@@ -233,7 +233,7 @@ function StepTest({ d }: { d: AgentDraft }) {
               </div>
             </dl>
             <Details summary="What Pokter refused to do while checking (safety)">
-              <ul className="grid gap-1.5 text-[12.5px] text-ink-2 sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-1.5 text-[12.5px] text-ink-2 sm:grid-cols-2">
                 {[
                   ['Required https', p.safety.httpsRequired],
                   ['Rejected credentials in the URL', p.safety.credentialsRejected],
@@ -401,7 +401,7 @@ export function CreateAgent({ initial }: { initial?: StoredDraft | null }) {
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <ol className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1" aria-label="Steps">
           {STEPS.map((s, i) => (

@@ -12,7 +12,7 @@ export default function Page() {
   return (
     <>
       <PageHeader label="Builder Studio" title="Start from a template" description="Each one is a written starting point: a name, a description and a category that buyers already search for. You still bring the endpoint that does the work." />
-      <ul className="grid gap-4 md:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {TEMPLATES.map((t) => (
           <li key={t.id}>
             <Link href={`/studio/new?template=${t.id}`} className="group flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong">

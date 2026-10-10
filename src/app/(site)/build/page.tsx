@@ -26,7 +26,7 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="pb-16">
-      <section className="frame grid gap-10 pb-16 pt-12 sm:pt-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
+      <section className="frame grid grid-cols-1 gap-10 pb-16 pt-12 sm:pt-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
         <div className="flex flex-col gap-6">
           <span className="t-label flex items-center gap-2">
             <span className="tile" aria-hidden /> Builder Studio
@@ -56,7 +56,7 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
         <h2 id="stages-title" className="sr-only">
           Stages
         </h2>
-        <ol className="grid gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-5">
+        <ol className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-5">
           {STAGES.map(([title, body], i) => (
             <Reveal as="li" key={title} delay={i * 60} className="flex flex-col gap-3 bg-raised p-6">
               <span className="t-readout text-sm text-ink-3">{String(i + 1).padStart(2, '0')}</span>
@@ -67,7 +67,7 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
         </ol>
       </section>
 
-      <section className="frame mt-16 grid gap-6 md:grid-cols-3">
+      <section className="frame mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
         {[
           { href: '/studio/templates', title: 'Templates', body: 'Six advisory agents buyers already search for.' },
           { href: '/developers#protocols', title: 'The protocol', body: 'Exactly what an agent must answer to take paid jobs.' },

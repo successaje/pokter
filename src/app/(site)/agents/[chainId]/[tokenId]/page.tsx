@@ -70,7 +70,7 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
   const week = p.record.windows.find((w) => w.label === '7d');
   const day = p.record.windows.find((w) => w.label === '24h');
   return (
-    <div className="grid gap-px overflow-hidden rounded-[14px] border border-rule bg-rule md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[14px] border border-rule bg-rule md:grid-cols-3">
       <div className="flex flex-col gap-3 bg-raised p-5">
         <span className="t-label flex items-center gap-2">
           <span className="size-1.5 rounded-full bg-ink-3" /> It claims
@@ -219,7 +219,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         </div>
       </nav>
 
-      <div className="frame grid gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
+      <div className="frame grid grid-cols-1 gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
         <div className="flex min-w-0 flex-col gap-14">
           {/* Overview */}
           <section id="overview" aria-labelledby="overview-title" className="scroll-mt-32 flex flex-col gap-8">
@@ -227,7 +227,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               Overview
             </h2>
             {p.category && (
-              <div className="grid gap-6 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <span className="t-label">What it does</span>
                   <p className="text-[15px] leading-relaxed">{p.category.blurb}</p>
@@ -254,7 +254,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             {p.skills.length > 0 && (
               <div className="flex flex-col gap-3">
                 <span className="t-label">Declared skills</span>
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {p.skills.map((s) => (
                     <li key={s.name} className="rounded-[10px] border border-rule bg-raised px-4 py-3">
                       <p className="t-readout text-[13px] font-medium">{s.name}</p>
@@ -288,7 +288,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     {p.sample.title && <p className="font-medium">{p.sample.title.slice(0, 200)}</p>}
                     <dl className="flex flex-col gap-2">
                       {p.sample.fields.slice(0, 6).map((f) => (
-                        <div key={f.label} className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)]">
+                        <div key={f.label} className="grid grid-cols-1 gap-1 sm:grid-cols-[160px_minmax(0,1fr)]">
                           <dt className="t-readout text-[12px] text-ink-3">{f.label}</dt>
                           <dd className="line-clamp-4 break-words text-ink-2">{typeof f.value === 'string' ? f.value.slice(0, 600) : JSON.stringify(f.value).slice(0, 600)}</dd>
                         </div>
@@ -338,7 +338,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2 rounded-[12px] border border-dashed border-rule-strong px-5 py-4">
                   <span className="t-label">Not measured</span>
                   <p className="text-[13.5px] leading-relaxed text-ink-2">
@@ -446,7 +446,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
 
           {/* Permissions */}
           <Section id="permissions" label="Permissions" title="What hiring it asks of you">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-3 rounded-[12px] border border-rule bg-raised p-5">
                 <span className="flex items-center gap-2 text-sm font-semibold text-ok">
                   <Icon.Check size={16} /> It needs
@@ -503,7 +503,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               <h2 id="alt-title" className="t-label mb-4">
                 Also measured in {p.category?.label ?? 'this category'}
               </h2>
-              <ul className="grid gap-3 sm:grid-cols-3">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {p.alternatives.map((a) => (
                   <li key={a.key}>
                     <Link href={`/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3 transition-colors hover:border-rule-strong">

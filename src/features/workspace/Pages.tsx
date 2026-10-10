@@ -105,7 +105,7 @@ export function HiredAgentsPage() {
           When you fund a job, the agent appears here with its history.
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {agents.map(([key, list]) => {
             const latest = list[0];
             const active = list.find((j) => ['working', 'review', 'reclaim'].includes(jobPhase(j)));
@@ -340,7 +340,7 @@ export function WalletPage() {
       <PageHeader title="Wallet and payments" description={`What this wallet holds on ${NETWORK_LABEL}, and where your job payments went.`} />
       {IS_TESTNET && <Notice tone="neutral" className="mb-6">{PAYMENT_VALUE_NOTE}</Notice>}
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-2 rounded-[14px] border border-rule bg-raised p-5 sm:col-span-1">
           <span className="t-label">{w.mode === 'passkey' ? 'Passkey wallet' : (w.connectorName ?? 'Browser wallet')}</span>
           <AddressView address={w.address} />

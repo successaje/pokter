@@ -81,7 +81,7 @@ export function ReviewForm({ job }: { job: HiredJob }) {
           ))}
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-2">
           <span className="text-[13px] text-ink-2">Delivered as promised</span>
           <Segmented size="s" label="Delivered as promised" value={promised} onChange={setPromised} options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />

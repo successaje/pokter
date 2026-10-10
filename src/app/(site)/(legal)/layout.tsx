@@ -12,7 +12,7 @@ const PAGES = [
  */
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="frame grid gap-10 py-12 md:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="frame grid grid-cols-1 gap-10 py-12 md:grid-cols-[200px_minmax(0,1fr)]">
       <nav aria-label="Legal" className="flex gap-2 md:sticky md:top-24 md:flex-col md:self-start">
         {PAGES.map((p) => (
           <Link key={p.href} href={p.href} className="rounded-[8px] px-3 py-2 text-sm text-ink-2 hover:bg-sunken hover:text-ink">

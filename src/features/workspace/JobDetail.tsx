@@ -212,7 +212,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         {a.error && <Notice tone="bad">{a.error}</Notice>}
       </section>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section aria-labelledby="timeline-title" className="flex flex-col gap-4">
           <h2 id="timeline-title" className="t-label">
             Timeline

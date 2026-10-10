@@ -25,7 +25,7 @@ export default function AgentLoading() {
           <Skeleton className="mt-6 h-5 w-full max-w-2xl" />
         </div>
       </div>
-      <div className="frame grid gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="frame grid grid-cols-1 gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex flex-col gap-6">
           <ol className="flex flex-col gap-2 rounded-[12px] border border-rule bg-raised p-5 text-[13px] text-ink-3">
             {['Reading its ERC-8004 identity', 'Probing its endpoint', 'Loading its probe history', 'Retrieving published evidence'].map((step, i) => (

@@ -35,7 +35,7 @@ export default async function HomePage() {
       {/* ───────────── Hero ───────────── */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,var(--rule)_1px,transparent_1px)] [background-size:calc((100%-2rem)/12)_100%] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-        <div className="frame relative grid gap-12 pb-16 pt-10 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:pb-24 lg:pt-20">
+        <div className="frame relative grid grid-cols-1 gap-12 pb-16 pt-10 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:pb-24 lg:pt-20">
           <div className="flex flex-col justify-center gap-8">
             <p className="anim-rise flex items-center gap-2 text-[13px] font-medium text-ink-2">
               <span className="tile" aria-hidden />
@@ -80,7 +80,7 @@ export default async function HomePage() {
 
       {/* ───────────── Browse by outcome ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="outcomes-title">
-        <Reveal className="grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)] lg:gap-16">
+        <Reveal className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)] lg:gap-16">
           <div className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
             <span className="t-label">Start with the job</span>
             <h2 id="outcomes-title" className="t-h1">What do you want handled?</h2>
@@ -140,7 +140,7 @@ export default async function HomePage() {
             </Link>
           </Reveal>
           {hireableCount > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {home.featured.map((row, i) => (
                 <Reveal key={row.key} delay={i * 70}>
                   <FeaturedAgent row={row} />
@@ -159,7 +159,7 @@ export default async function HomePage() {
 
       {/* ───────────── Why Pokter exists ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="why-title">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
           <Reveal className="flex flex-col gap-5">
             <span className="t-label">Why Pokter exists</span>
             <h2 id="why-title" className="t-h1">A registration is not a track record.</h2>
@@ -211,7 +211,7 @@ export default async function HomePage() {
             <span className="t-label text-ink-3">The Pokter difference</span>
             <h2 id="difference-title" className="t-h1">Four rules, enforced in code rather than promised in copy.</h2>
           </Reveal>
-          <div className="grid gap-px overflow-hidden rounded-[18px] bg-rule sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] bg-rule sm:grid-cols-2">
             {[
               {
                 title: 'Observed beats claimed',
@@ -259,7 +259,7 @@ export default async function HomePage() {
           <span className="t-label">How hiring works</span>
           <h2 id="how-title" className="t-h1">Five steps, and you can leave at any of the first three.</h2>
         </Reveal>
-        <ol className="grid gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-5">
+        <ol className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-5">
           {[
             { step: 'Find', body: 'Describe the task in your words. Pokter reads it for intent and ranks measured agents against it.', free: true },
             { step: 'Evaluate', body: 'See what each agent claims, what Pokter observed, its signed price and what it needs from you.', free: true },
@@ -289,7 +289,7 @@ export default async function HomePage() {
 
       {/* ───────────── For builders ───────────── */}
       <section className="border-y border-rule bg-raised/50 py-20 sm:py-28" aria-labelledby="builders-title">
-        <div className="frame grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20">
+        <div className="frame grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20">
           <Reveal className="flex flex-col gap-5">
             <span className="t-label">For builders</span>
             <h2 id="builders-title" className="t-h1">From an idea, or an endpoint you already run, to a listing people can hire.</h2>
@@ -384,7 +384,7 @@ export default async function HomePage() {
 
       {/* ───────────── Trust ───────────── */}
       <section className="frame pb-20 sm:pb-28" aria-labelledby="trust-title">
-        <Reveal className="grid gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
+        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
           <div className="flex flex-col gap-3 bg-paper p-6 md:col-span-1">
             <span className="t-label">Check our work</span>
             <h2 id="trust-title" className="text-xl font-semibold tracking-[-0.02em]">Everything Pokter says can be traced.</h2>

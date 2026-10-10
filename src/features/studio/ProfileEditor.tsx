@@ -99,7 +99,7 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
     <div className="flex flex-col gap-4">
       <Field label="Name">{(p) => <Input {...p} value={form.name} maxLength={80} onChange={(e) => set('name', e.target.value)} />}</Field>
       <Field label="Description">{(p) => <Textarea {...p} value={form.description} maxLength={600} onChange={(e) => set('description', e.target.value)} />}</Field>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Category">
           {(p) => (
             <Select {...p} value={form.category} onChange={(e) => set('category', e.target.value)}>

@@ -22,7 +22,7 @@ import { Icon } from '@/ui/icons';
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-t`} className="grid scroll-mt-24 gap-6 border-t border-rule py-8 md:grid-cols-[240px_minmax(0,1fr)]">
+    <section id={id} aria-labelledby={`${id}-t`} className="grid grid-cols-1 scroll-mt-24 gap-6 border-t border-rule py-8 md:grid-cols-[240px_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
         <h2 id={`${id}-t`} className="t-h3">
           {title}
@@ -104,7 +104,7 @@ function Notifications({ address }: { address: string }) {
               }
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Job">
                 {(p) => (
                   <Select {...p} value={jobId} onChange={(e) => setJobId(e.target.value)}>
@@ -215,7 +215,7 @@ export function AccountPage() {
 
       <Section id="security" title="Security and permissions" description="What Pokter, and any agent you hired, can do with your wallet.">
         <div className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-[12px] border border-rule bg-raised p-4">
               <p className="t-label">Standing permissions</p>
               <p className="mt-1 text-2xl font-semibold">None</p>

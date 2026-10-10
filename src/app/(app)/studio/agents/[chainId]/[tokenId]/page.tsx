@@ -102,7 +102,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
         </Notice>
       )}
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-10">
           <section aria-labelledby="health-title" className="flex flex-col gap-4">
             <h2 id="health-title" className="t-label">

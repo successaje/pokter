@@ -167,7 +167,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </Notice>
       )}
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="hidden lg:block" aria-label="Filters">
           <div className="sticky top-20">
             <Filters p={base} counts={result.categoryCounts} />
@@ -227,9 +227,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               ))}
             </div>
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {shown.map((row) => (
-                <li key={row.key} className="flex flex-col">
+                <li key={row.key} className="flex min-w-0 flex-col">
                   <AgentCard row={row} action={<div className="flex items-center justify-between gap-2">{row.reason ? <span className="truncate text-[12px] text-ink-3" title={row.reason}>{row.reason}</span> : <span />}<CompareToggle agentKey={row.key} /></div>} />
                 </li>
               ))}

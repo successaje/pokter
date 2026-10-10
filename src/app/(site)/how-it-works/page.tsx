@@ -65,7 +65,7 @@ export default function HowItWorks() {
               {s.title}
             </h2>
           </div>
-          <dl className="grid gap-px overflow-hidden rounded-[14px] border border-rule bg-rule sm:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[14px] border border-rule bg-rule sm:grid-cols-3">
             {[
               ['You', s.you],
               ['Pokter', s.pokter],

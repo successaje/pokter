@@ -231,7 +231,7 @@ export function HireFlow(props: HireFlowProps) {
             <h1 className="t-h2">What should {props.agent.name} do?</h1>
             <p className="mt-1 text-sm text-ink-2">Start from a template or write your own. The agent reads exactly this.</p>
           </div>
-          <div role="radiogroup" aria-label="Task templates" className="grid gap-2 sm:grid-cols-3">
+          <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {hire.taskTemplates.map((t) => (
               <button
                 key={t.id}
@@ -333,7 +333,7 @@ export function HireFlow(props: HireFlowProps) {
                 ['If nothing is delivered', 'You reclaim the full amount after the deadline'],
                 ['Network fee', hire.active.mode === 'external' ? `A few cents of ${NATIVE_SYMBOL}, paid by your wallet` : sponsored ? 'Covered by Pokter if your wallet is short' : `About 0.002 ${NATIVE_SYMBOL}`],
               ].map(([k, v]) => (
-                <div key={k} className="grid gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
                   <dt className="text-ink-3">{k}</dt>
                   <dd>{v}</dd>
                 </div>
@@ -491,7 +491,7 @@ function Shell({ agent, step, children }: { agent: HireFlowProps['agent']; step:
           <div className="h-full bg-signal transition-[width] duration-500 ease-out" style={{ width: `${((index + (step ? 0.5 : 0)) / STEPS.length) * 100}%` }} />
         </div>
       </header>
-      <div className="mx-auto grid max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12">
+      <div className="mx-auto grid grid-cols-1 max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12">
         <aside className="flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={40} />

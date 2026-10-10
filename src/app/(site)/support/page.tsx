@@ -45,7 +45,7 @@ export default function SupportPage() {
       </DocSection>
 
       <DocSection id="contact" title="Where to send what">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             { title: 'A number looks wrong', body: 'A verdict, uptime, price or count that does not match its source. Public, so the correction is on the record.', href: `${GITHUB_ISSUE_URL}?template=evidence-looks-wrong.yml`, cta: 'Open an issue' },
             { title: 'Something is broken', body: 'A page, a control, or a hire that will not progress. If money is in escrow, say so first.', href: `mailto:${SUPPORT_EMAIL}`, cta: SUPPORT_EMAIL },

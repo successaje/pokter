@@ -128,7 +128,7 @@ export function WorkspaceOverview() {
             )}
           </section>
 
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <section aria-labelledby="recent-title">
               <h2 id="recent-title" className="t-label mb-2">
                 Recently finished

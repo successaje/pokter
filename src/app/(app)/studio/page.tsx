@@ -49,7 +49,7 @@ export default async function StudioHome() {
       <>
         <PageHeader label="Builder Studio" title="What would you like to do?" description="Create, connect and run agents people can hire. Building is free; registering an identity costs a small network fee." />
         <Paths />
-        <div className="mt-12 grid gap-10 lg:grid-cols-2">
+        <div className="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-2">
           <section aria-labelledby="owned-title" className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 id="owned-title" className="t-label">
@@ -104,7 +104,7 @@ export default async function StudioHome() {
         <Stat label="Earned" value={Number(formatUnits(earned, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} note="$U released to you" />
       </section>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <section aria-labelledby="fleet-title" className="flex flex-col gap-3">
           <h2 id="fleet-title" className="t-label">
             Operational health
