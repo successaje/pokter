@@ -29,9 +29,33 @@ export const PANCAKE_V3_SWAP_ROUTER: Address = getAddress(
 export const PANCAKE_V3_QUOTER_V2: Address = getAddress(
   '0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997',
 );
-export const WBNB: Address = getAddress(
-  '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
-);
+/**
+ * Wrapped BNB, which is not the same address on both chains.
+ *
+ * This was one constant holding the mainnet address, so every swap quote
+ * on the escrow chain asked for a route out of a token that does not
+ * exist there — mainnet's WBNB has no `symbol()` at chain 97. All four
+ * fee tiers reverted, `quoteBnbForPaymentToken` returned null, and the
+ * hire reported that PancakeSwap had no route to $U. It looked like
+ * missing liquidity for as long as nobody checked the token.
+ *
+ * Both values are what the deployed SwapRouter returns from `WETH9()` on
+ * its own chain, read rather than copied from documentation — the same
+ * standard the router and quoter above are held to, and the check that
+ * would have caught this.
+ */
+const WRAPPED_NATIVE: Record<number, Address> = {
+  56: getAddress('0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'),
+  97: getAddress('0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd'),
+};
+
+export function wrappedNative(chainId: number): Address {
+  const address = WRAPPED_NATIVE[chainId];
+  if (!address) {
+    throw new Error(`No wrapped native token registered for chain ${chainId}.`);
+  }
+  return address;
+}
 
 /** Only the 0.05% tier currently routes WBNB→U; the rest are quoted anyway. */
 const FEE_TIERS = [100, 500, 2500, 10000] as const;
@@ -123,6 +147,15 @@ export interface SwapQuote {
   amountIn: bigint;
   /** The most BNB that can be taken, after slippage. */
   amountInMaximum: bigint;
+  /**
+   * The wrapped native token this quote was priced against.
+   *
+   * Carried rather than re-derived when the swap is built, so the
+   * transaction can only execute against the token that was quoted.
+   * Deriving it independently in two places is what allowed a mainnet
+   * address to be used on the escrow chain.
+   */
+  tokenIn: Address;
   fee: number;
   quotedAt: number;
 }
@@ -139,6 +172,14 @@ export async function quoteBnbForPaymentToken(
   paymentToken: Address,
   amountOut: bigint,
 ): Promise<SwapQuote | null> {
+  /*
+   * Resolved from the client's own chain, so a quote cannot be taken
+   * against another network's token. The throw is deliberate: an
+   * unregistered chain is a deployment mistake, and returning null would
+   * disguise it as "no route available" — which is exactly how the
+   * mainnet address hid here.
+   */
+  const tokenIn = wrappedNative(client.chain?.id ?? 0);
   let best: { amountIn: bigint; fee: number } | null = null;
 
   for (const fee of FEE_TIERS) {
@@ -149,7 +190,7 @@ export async function quoteBnbForPaymentToken(
         functionName: 'quoteExactOutputSingle',
         args: [
           {
-            tokenIn: WBNB,
+            tokenIn,
             tokenOut: paymentToken,
             amount: amountOut,
             fee,
@@ -169,6 +210,7 @@ export async function quoteBnbForPaymentToken(
   if (!best) return null;
 
   return {
+    tokenIn,
     amountOut,
     amountIn: best.amountIn,
     amountInMaximum: (best.amountIn * (10_000n + SLIPPAGE_BPS)) / 10_000n,
@@ -207,7 +249,7 @@ export function buildSwapCalls(
         functionName: 'exactOutputSingle',
         args: [
           {
-            tokenIn: WBNB,
+            tokenIn: quote.tokenIn,
             tokenOut: paymentToken,
             fee: quote.fee,
             recipient,
