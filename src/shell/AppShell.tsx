@@ -50,6 +50,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[248px_minmax(0,1fr)]">
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
+        Skip to content
+      </a>
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-rule bg-raised/60 md:flex">
         <div className="flex h-16 items-center px-5">
           <Wordmark />

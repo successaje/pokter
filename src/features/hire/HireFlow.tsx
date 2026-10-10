@@ -482,6 +482,9 @@ function Shell({ agent, step, children }: { agent: HireFlowProps['agent']; step:
   const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
   return (
     <div className="min-h-dvh">
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
+        Skip to content
+      </a>
       <header className="sticky top-0 z-30 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
           <span className="flex items-center gap-2.5">

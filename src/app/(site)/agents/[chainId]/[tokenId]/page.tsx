@@ -10,6 +10,7 @@ import { SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { TrialPanel } from '@/features/agent/TrialPanel';
+import { ReportReview } from '@/features/agent/ReportReview';
 import { CompareToggle } from '@/features/compare/CompareControls';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -409,8 +410,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="text-ink-3">· {r.wouldHireAgain ? 'Would hire again' : 'Would not hire again'}</span>
                       </div>
                       {r.comment && <p className="text-[14px] leading-relaxed">{r.comment.slice(0, 600)}</p>}
-                      <p className="text-[12px] text-ink-3">
-                        Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
+                      <p className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
+                        <span>
+                          Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
+                        </span>
+                        <ReportReview chainId={r.chainId} jobId={r.jobId} />
                       </p>
                     </li>
                   ))}
