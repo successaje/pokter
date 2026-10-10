@@ -22,9 +22,10 @@ three overlapping people, under one wallet-based account:
 ```
 Public (site layout: header, footer, phone tab bar)
   /                         Home: hero inspection, outcomes, hireable now, why, rules, how, builders, standards, trust
-  /discover                 Search-first catalogue (?q ?category ?hireable ?answering ?priced ?evidence ?chain ?sort ?view)
+  /discover                 Search-first catalogue (?q ?category ?hireable ?answering ?priced ?evidence ?chain ?sort ?view ?pages), collections with live counts
   /agents/[chain]/[id]      Agent profile (overview, evidence, work and reviews, pricing, permissions, technical)
   /compare?agents=56:1,…    Up to four, table on desktop, per-measure cards on phones
+  /pool-check               PancakeSwap v3 break-even calculator on live pool state
   /builders/[address]       Operator profile (registry-owned agents, verified ownership, paid work)
   /how-it-works /methodology /developers /about /support /build /set-and-earn
   /terms /privacy /risk     Legal (wording carried over from main)
@@ -41,7 +42,7 @@ App (sidebar shell, Workspace ⇄ Studio switch, phone tab bar)
   /studio/new               Define → Configure → Test → Publish (?template= ?draft=)
   /studio/import            Compatibility check + ownership signature (?chainId ?tokenId)
   /studio/templates
-  /studio/agents/[chain]/[id]  Health, customer jobs with hand delivery, adoption targets, on-chain profile editor
+  /studio/agents/[chain]/[id]  Health, operations (money, jobs per week, reply time, probe log), customer jobs with hand delivery, adoption, on-chain profile editor
   /account                  Wallets, security and permissions, notifications, preferences, building
 ```
 
@@ -177,6 +178,8 @@ Also added afterwards:
 - Builder Studio does not host agents. It says so, and links to BNB Agent
   Studio for deployment.
 - Passkey wallets cannot sign builder-ownership or review messages, so those
-  need a browser wallet (a pre-existing limitation, stated in the UI).
+  need a browser wallet. The Altana SDK signs only through a session key with an
+  approved checker contract (`signOrder`), and Pokter keeps sessions disabled, so
+  this is not fixable in the UI. The UI says so.
 - `npm run sweep` fails under tsx with the Altana SDK's CJS export issue
   (upstream #88). The `/api/sweep` route works.
