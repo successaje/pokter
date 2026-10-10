@@ -5,7 +5,7 @@ import { formatEther, type Hex } from 'viem';
 
 import { shortAddress, shortHash } from '@/lib/ui/format';
 import type { SessionView } from '@/lib/altana/session';
-import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet, usePasskeySigner } from '@/lib/wallet/PasskeyProvider';
 import { walletClient } from '@/lib/wallet/passkey';
 import { rememberRevocation } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';

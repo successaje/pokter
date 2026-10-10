@@ -20,7 +20,7 @@ import {
 import {
   usePasskeySigner,
   usePasskeyWallet,
-} from '@/components/wallet/PasskeyProvider';
+} from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';

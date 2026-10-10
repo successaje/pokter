@@ -4,7 +4,7 @@ import { formatEther, formatUnits } from 'viem';
 import { useConnect, useSwitchChain } from 'wagmi';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';

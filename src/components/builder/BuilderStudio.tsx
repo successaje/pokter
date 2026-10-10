@@ -27,7 +27,7 @@ import { AgentProfileEditor } from '@/components/builder/AgentProfileEditor';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
 import { useAccount } from 'wagmi';
 
-import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { IdentityNetworkToggle } from '@/components/builder/IdentityNetworkToggle';
 import { LowBalanceHelp } from '@/components/builder/LowBalanceHelp';

@@ -4,7 +4,7 @@ import { StatusState } from '@/components/ui/States';
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useAccount, useSwitchChain } from 'wagmi';
 
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { SessionCard } from '@/components/jobs/SessionCard';
 import { JobRow } from '@/components/jobs/JobRow';
 import { ActivitySummary } from '@/components/jobs/ActivitySummary';

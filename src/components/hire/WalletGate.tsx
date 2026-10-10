@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext } from 'react';
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { useActiveWallet } from '@/lib/wallet/active';
 

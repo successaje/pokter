@@ -11,7 +11,7 @@ import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import type { HiredJob } from '@/lib/erc8183/types';
-import { usePasskeySigner, usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';

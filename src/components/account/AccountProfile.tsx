@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from 'wagmi';
 
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { jobsForWallet, subscribeToJobs } from '@/lib/wallet/activity';
 import { notificationsForWallet, subscribeToNotifications } from '@/lib/wallet/notifications';
 import { readSavedAgents, subscribeToSavedAgents } from '@/lib/wallet/saved-agents';

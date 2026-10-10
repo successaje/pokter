@@ -8,7 +8,7 @@ import { formatEther, formatUnits } from 'viem';
 import { Wordmark } from '@/components/brand/Logo';
 import { ConnectWallet } from '@/components/shell/ConnectWallet';
 import { WorkspaceModeSwitch } from '@/components/workspace/WorkspaceModeSwitch';
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
   jobsForWallet,

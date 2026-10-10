@@ -13,7 +13,7 @@ import { LowBalanceHelp } from '@/components/builder/LowBalanceHelp';
 import { GAS_RESERVE } from '@/lib/wallet/send-rules';
 import { shortAddress } from '@/lib/ui/format';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
-import { usePasskeyWallet, usePasskeySigner } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet, usePasskeySigner } from '@/lib/wallet/PasskeyProvider';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { useHydrated } from '@/lib/ui/use-hydrated';

@@ -4,7 +4,7 @@ import { FAUCETS, NATIVE_SYMBOL, chainLabel} from '@/lib/network/presentation';
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
 import { formatEther, formatUnits } from 'viem';
 
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';

@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "proving-ground",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "4311"],
-      "port": 4311
+      "name": "pokter2",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "--hostname", "localhost", "--port", "4312"],
+      "port": 4312
     }
   ]
 }

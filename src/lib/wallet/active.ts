@@ -3,7 +3,7 @@
 import type { Address } from 'viem';
 import { useAccount } from 'wagmi';
 
-import { usePasskeyWallet } from '@/components/wallet/PasskeyProvider';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 
 export type WalletMode = 'passkey' | 'external';
