@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildSwapCalls, buildSwapTransaction } from '../src/lib/pancakeswap/swap';
+import { buildSwapCalls, buildSwapTransaction, wrappedNative } from '../src/lib/pancakeswap/swap';
 import { walletActionError } from '../src/lib/wallet/errors';
 
 const quote = {
+  tokenIn: wrappedNative(97),
   amountOut: 100_000_000_000_000_000n,
   amountIn: 900_000_000_000_000n,
   amountInMaximum: 1_000_000_000_000_000n,
@@ -70,4 +71,24 @@ test('a shortfall no longer points a browser-wallet user at a passkey', () => {
 
 test('a cancelled prompt is still a cancellation, not a shortfall', () => {
   assert.match(walletActionError(new Error('User rejected the request'), 'Funding'), /cancelled/i);
+});
+
+test('the wrapped native token differs per chain, and the escrow chain gets its own', () => {
+  const mainnet = wrappedNative(56);
+  const testnet = wrappedNative(97);
+  assert.notEqual(
+    mainnet.toLowerCase(),
+    testnet.toLowerCase(),
+    'quoting mainnet WBNB on chain 97 reverts every tier and reads as "no route"',
+  );
+  assert.equal(testnet.toLowerCase(), '0xae13d989dac2f0debff460ac112a837c89baa7cd');
+  assert.throws(() => wrappedNative(1), /chain 1/, 'an unregistered chain is a mistake, not a null');
+});
+
+test('the swap executes against exactly the token that was quoted', () => {
+  const calls = buildSwapCalls(quote, '0xc70b8741b8b07a6d61e54fd4b20f22fa648e5565', '0x3fb8779f4f42e1800f27aaec9564530bcaa852bf');
+  assert.ok(
+    calls[0].data.toLowerCase().includes(quote.tokenIn.slice(2).toLowerCase()),
+    'the quoted tokenIn is encoded into the swap, not re-derived',
+  );
 });
