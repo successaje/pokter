@@ -207,6 +207,15 @@ export function useJobActions(initial: HiredJob) {
       }
 
       await syncFromChain({ settleTxHash, disputeTxHash, reclaimTxHash }, true);
+
+      // Bring Pokter's public index up to date now rather than at the next
+      // sweep. The server re-reads the job and checks the receipt itself.
+      const transactionHash = action === 'approve' ? settleTxHash : action === 'dispute' ? disputeTxHash : reclaimTxHash;
+      void fetch(`/api/jobs/${job.jobId}/sync`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, transactionHash }),
+      }).catch(() => {});
     } catch (caught) {
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {
