@@ -303,7 +303,7 @@ export function useHire({
             deliverableUrl,
           };
           setJob(updated);
-          if (wallet) rememberJob(wallet.address, updated);
+          { const owner = active.address ?? wallet?.address; if (owner) rememberJob(owner, updated); }
         } catch {
           setNotificationDetail(
             'The seller accepted delivery. Refresh the on-chain status if the submitted receipt does not appear yet.',
@@ -552,7 +552,7 @@ export function useHire({
         deliverableUrl,
       };
       setJob(updated);
-      if (wallet) rememberJob(wallet.address, updated);
+      { const owner = active.address ?? wallet?.address; if (owner) rememberJob(owner, updated); }
     } catch (caught) {
       setError(walletActionError(caught, 'Status refresh'));
     } finally {

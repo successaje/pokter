@@ -117,22 +117,27 @@ const nextConfig: NextConfig = {
    * every installed shortcut, query string intact, to the same content.
    */
   async redirects() {
-    return [
-      /*
-       * Hiring is a drawer over the dossier now, not a page of its own, so
-       * this address opens it instead of loading a second implementation of
-       * the same step. The query is what HireDrawer reads on arrival, which
-       * is why it exists — links into the hire step, from anywhere, still
-       * land on the hire step.
-       */
-      {
-        source: '/hire/:chainId/:tokenId',
-        destination: '/agents/:chainId/:tokenId?hire=1',
-        permanent: false,
-      },
-      { source: '/my-agents', destination: '/activity', permanent: false },
-      { source: '/how-it-works', destination: '/about', permanent: false },
+    /*
+     * Every address the previous frontend published keeps working. Email
+     * links, shared agent pages and bookmarks land on the page that now
+     * does that job. Query strings are carried across by Next, so
+     * `?email=verified` and `?q=` survive the move.
+     */
+    const moved: Array<[string, string]> = [
+      ['/agents', '/discover'],
+      ['/categories/:category', '/discover?category=:category'],
+      ['/leaderboard', '/discover?sort=evidence'],
+      ['/census', '/methodology'],
+      ['/agent-advantage', '/methodology'],
+      ['/app', '/workspace'],
+      ['/activity', '/workspace/jobs'],
+      ['/my-agents', '/workspace'],
+      ['/saved', '/workspace/saved'],
+      ['/builder', '/studio'],
+      ['/compatibility', '/studio/import'],
+      ['/about/how-it-works', '/how-it-works'],
     ];
+    return moved.map(([source, destination]) => ({ source, destination, permanent: false }));
   },
 
   /*

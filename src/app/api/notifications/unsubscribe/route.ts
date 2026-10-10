@@ -7,6 +7,6 @@ export async function GET(request: Request): Promise<NextResponse> {
   const token = new URL(request.url).searchParams.get('token') ?? '';
   let kind: 'buyer' | 'builder' | null = null;
   try { kind = unsubscribe(token); } catch { kind = null; }
-  const destination = kind === 'builder' ? '/builder' : '/activity';
+  const destination = kind === 'builder' ? '/studio' : '/workspace/inbox';
   return NextResponse.redirect(new URL(`${destination}?email=${kind ? 'unsubscribed' : 'invalid'}`, request.url), 303);
 }
