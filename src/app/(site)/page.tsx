@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -14,6 +15,9 @@ import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
 
 export const revalidate = 300;
+
+// Only the home page claims the root as canonical; every other page names its own.
+export const metadata: Metadata = { alternates: { canonical: '/' } };
 
 function count(value: number | null | undefined) {
   if (value === null || value === undefined) return '—';
