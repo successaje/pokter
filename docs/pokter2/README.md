@@ -186,17 +186,13 @@ before first paint. The same script marks the hash tab for a shared link.
 It lives in the root layout because a script rendered by a page component
 does not run on client navigation, and React warns about it.
 
-## Library modules with no UI caller
+## Removed modules
 
-Kept on purpose because they are backend data features, but nothing in the
-new UI imports them:
-- `lib/leaderboard.ts` (rankings)
-- `lib/hero/pipeline.ts` (old landing funnel)
-- `lib/search/filters.ts`
-- `lib/diagnostic/lifecycle.ts` (static explainer)
-- `lib/altana/caps.ts` (legacy sessions)
-
-Delete them or give them a page; do not let them drift.
+Removed after launch because nothing imported them: `lib/leaderboard`,
+`lib/hero/pipeline`, `lib/search/filters`, `lib/diagnostic/lifecycle`,
+`lib/altana/caps` and `lib/recommend/*`, with `lib/ui/plural`. They are in
+git history if a leaderboard or the old funnel comes back. `/api/ask` stays:
+it is a public route, and the place a model-backed brief reader would go.
 
 ## Not verified, or not done
 
@@ -217,7 +213,7 @@ Delete them or give them a page; do not let them drift.
 - On-chain money paths are covered by a manual plan:
   [`TEST-PLAN.md`](TEST-PLAN.md).
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and
-  the page says so. `/api/ask` and `lib/recommend/engine` remain unused.
+  the page says so. `/api/ask` is kept but has no caller in the UI.
 - Builder Studio does not host agents. It says so, and links to BNB Agent
   Studio for deployment.
 - Passkey wallets cannot sign builder-ownership or review messages, so those
