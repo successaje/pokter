@@ -306,9 +306,12 @@ src/lib/
   hero/         the landing pipeline, built from real measurements
 ```
 
-Eleven routes, no dead ends: `/`, `/discover`, `/agents`, `/agents/[chain]/[id]`,
-`/categories/[category]`, `/compare`, `/leaderboard`, `/hire/[chain]/[id]`,
-`/my-agents`, `/methodology`, `/agent-advantage`.
+The frontend was rebuilt on the `pokter2` branch: public site (`/`, `/discover`,
+`/agents/[chain]/[id]`, `/compare`, `/how-it-works`, `/methodology`,
+`/developers`, `/build`, `/pool-check`), a focused hire flow (`/hire/[chain]/[id]`),
+a workspace (`/workspace/*`), Builder Studio (`/studio/*`) and `/account`. Every
+older URL redirects. Architecture, design system and status:
+[`docs/pokter2/README.md`](docs/pokter2/README.md).
 
 ### Notes worth knowing
 
