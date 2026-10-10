@@ -2,6 +2,7 @@ import { offersDirectHire, type SearchableAgent } from './match';
 
 export type MarketplaceOrder =
   | 'recommended'
+  | 'reliable'
   | 'responsive'
   | 'completed'
   | 'evidence'
@@ -9,6 +10,7 @@ export type MarketplaceOrder =
 
 export const MARKETPLACE_ORDERS: Array<{ value: MarketplaceOrder; label: string }> = [
   { value: 'recommended', label: 'Recommended' },
+  { value: 'reliable', label: 'Most reliable this week' },
   { value: 'responsive', label: 'Recently responsive' },
   { value: 'completed', label: 'Most work completed' },
   { value: 'evidence', label: 'Most evidence' },
@@ -53,10 +55,73 @@ function evidence(agent: SearchableAgent) {
   return agent.record.totalProbes + agent.listing.attestationCount * 25;
 }
 
+/**
+ * Probes an agent needs in the last seven days before it is ranked on
+ * reliability. Pokter probes every two hours, so twenty is about two and a
+ * half days of watching: enough that one lucky answer cannot top the list.
+ */
+export const RELIABLE_MIN_PROBES = 20;
+
+/**
+ * Reliability this week, as the lower bound of a 95% Wilson interval on the
+ * share of probes answered.
+ *
+ * A plain percentage ties every agent that answered everything, and would
+ * rank 3 of 3 level with 62 of 62. The lower bound asks how high the rate
+ * can be said to be with confidence, so a longer clean record ranks above a
+ * shorter one. Null below the minimum sample: unranked, not ranked low.
+ */
+export function reliabilityScore(agent: SearchableAgent): number | null {
+  const week = agent.record.windows.find((window) => window.label === '7d');
+  if (!week || week.probes < RELIABLE_MIN_PROBES) return null;
+  const n = week.probes;
+  const p = week.answered / n;
+  const z = 1.96;
+  const denominator = 1 + (z * z) / n;
+  const centre = p + (z * z) / (2 * n);
+  const margin = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n);
+  return (centre - margin) / denominator;
+}
+
+function weekMedianMs(agent: SearchableAgent): number | null {
+  return agent.record.windows.find((window) => window.label === '7d')?.medianMs ?? null;
+}
+
+/**
+ * Reliable first, then faster, then proven by paid work. Agents without
+ * enough probes this week keep their relative order after every ranked one.
+ */
+function compareReliability(a: SearchableAgent, b: SearchableAgent): number {
+  const scoreA = reliabilityScore(a);
+  const scoreB = reliabilityScore(b);
+  if (scoreA === null || scoreB === null) return scoreA === null ? (scoreB === null ? 0 : 1) : -1;
+  if (Math.abs(scoreB - scoreA) > 1e-9) return scoreB - scoreA;
+  const msA = weekMedianMs(a);
+  const msB = weekMedianMs(b);
+  if (msA !== msB) return msA === null ? 1 : msB === null ? -1 : msA - msB;
+  return completedWork(b) - completedWork(a);
+}
+
+/** The most reliable agents this week, one per operator. */
+export function mostReliable(entries: SearchableAgent[], limit: number): SearchableAgent[] {
+  const owners = new Set<string>();
+  return entries
+    .filter((entry) => reliabilityScore(entry) !== null)
+    .sort(compareReliability)
+    .filter((entry) => {
+      const owner = entry.listing.agent.owner_address.toLowerCase();
+      if (owners.has(owner)) return false;
+      owners.add(owner);
+      return true;
+    })
+    .slice(0, limit);
+}
+
 /** Stable, explainable ordering based only on marketplace-observed fields. */
 export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceOrder) {
   return entries.map((entry, index) => ({ entry, index })).sort((a, b) => {
     let difference = 0;
+    if (order === 'reliable') difference = compareReliability(a.entry, b.entry);
     if (order === 'responsive') difference = recent(b.entry) - recent(a.entry);
     if (order === 'completed') difference = completedWork(b.entry) - completedWork(a.entry);
     if (order === 'evidence') difference = evidence(b.entry) - evidence(a.entry);

@@ -9,6 +9,7 @@ import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
 import type { SearchableAgent } from '@/lib/search/match';
+import { mostReliable } from '@/lib/search/order';
 
 /** One line of the hero's inspection: a real check with a real result. */
 export interface SpecimenCheck {
@@ -121,13 +122,17 @@ export interface HomeData {
   specimens: Specimen[];
   featured: FindRow[];
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
+  /** The most reliable agents this week, one per operator, with this week's figures. */
+  reliable: Array<{ row: FindRow; probes: number; answered: number; medianMs: number | null }>;
   activity: { completedJobs: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
 }
 
 export async function loadHome(): Promise<HomeData> {
   const [{ entries, unreachable }, stats] = await Promise.all([
-    listSearchableWithStatus({ limit: 30 }),
+    // The same depth as Discover, so the home strip and Discover's
+    // "Most reliable" sort rank the same agents.
+    listSearchableWithStatus({ limit: 400 }),
     getEcosystemStats().catch(() => null),
   ]);
   const rows = findRows(entries);
@@ -151,6 +156,16 @@ export async function loadHome(): Promise<HomeData> {
     };
   });
 
+  const reliable = mostReliable(entries.filter((entry) => isPromotableAgent(entry.listing.agent)), 5).map((entry) => {
+    const week = entry.record.windows.find((window) => window.label === '7d');
+    return {
+      row: byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!,
+      probes: week?.probes ?? 0,
+      answered: week?.answered ?? 0,
+      medianMs: week?.medianMs ?? null,
+    };
+  });
+
   const jobs = summarizeMarketplaceActivity(getJobStore().all());
 
   return {
@@ -159,6 +174,7 @@ export async function loadHome(): Promise<HomeData> {
     specimens: chooseSpecimens(entries, rows),
     featured,
     outcomes,
+    reliable,
     activity: { completedJobs: jobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
   };

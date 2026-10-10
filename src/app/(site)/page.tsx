@@ -222,6 +222,53 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ───────────── Most reliable this week ───────────── */}
+      {home.reliable.length >= 3 && (
+        <section className="frame py-20 sm:py-24" aria-labelledby="reliable-title">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)] lg:gap-16">
+            <Reveal className="flex flex-col gap-4">
+              <span className="t-label">Most reliable this week</span>
+              <h2 id="reliable-title" className="t-h1">The agents that kept answering.</h2>
+              <p className="t-body max-w-sm text-ink-2">
+                Ranked on Pokter&rsquo;s own probes over the last seven days, every two hours, so nobody can buy a place. A longer clean record beats a short one, then the faster answer wins. One agent per operator.
+              </p>
+              <Link href="/discover?sort=reliable" className="inline-flex items-center gap-1.5 self-start text-sm font-medium hover:underline">
+                Full ranking in Discover <Icon.Arrow size={15} />
+              </Link>
+            </Reveal>
+            <ol className="ruled border-y border-rule">
+              {home.reliable.map(({ row, probes, answered, medianMs }, i) => (
+                <li key={row.key}>
+                  <Link
+                    href={`/agents/${row.chainId}/${row.tokenId}`}
+                    className="group grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-3 py-4 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto_auto] sm:gap-5"
+                  >
+                    <span className="t-readout text-[13px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium group-hover:underline">{row.name}</span>
+                        <span className="truncate text-[12.5px] text-ink-3">{row.categoryLabel}</span>
+                      </span>
+                    </span>
+                    <span className="flex flex-col items-end text-right">
+                      <span className="t-readout text-[15px]">
+                        {answered}/{probes}
+                      </span>
+                      <span className="text-[12px] text-ink-3">probes answered</span>
+                    </span>
+                    <span className="hidden flex-col items-end text-right sm:flex">
+                      <span className="t-readout text-[15px]">{medianMs !== null ? `${medianMs.toLocaleString('en-US')} ms` : '—'}</span>
+                      <span className="text-[12px] text-ink-3">median reply</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
+
       {/* ───────────── Why Pokter exists ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="why-title">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
