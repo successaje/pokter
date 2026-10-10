@@ -431,20 +431,19 @@ export default async function HomePage() {
 
       {/* ───────────── Trust ───────────── */}
       <section className="frame pb-20 sm:pb-28" aria-labelledby="trust-title">
-        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
+        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-3">
           <div className="flex flex-col gap-3 bg-paper p-6 md:col-span-1">
             <span className="t-label">Check our work</span>
             <h2 id="trust-title" className="text-xl font-semibold tracking-[-0.02em]">Everything Pokter says can be traced.</h2>
           </div>
           {[
             { href: '/methodology', title: 'Methodology', body: 'How verdicts are computed, and the thresholds, imported from the code.' },
-            { href: 'https://github.com/successaje/pokter', title: 'Source code', body: 'The whole product, including the parts that do not work yet.', external: true },
             { href: '/risk', title: 'Risks and limits', body: 'What escrow protects, what it does not, and what is still testnet.' },
           ].map((item) => (
-            <Link key={item.href} href={item.href} target={item.external ? '_blank' : undefined} className="group flex flex-col gap-2 bg-raised p-6 transition-colors hover:bg-paper">
+            <Link key={item.href} href={item.href} className="group flex flex-col gap-2 bg-raised p-6 transition-colors hover:bg-paper">
               <span className="flex items-center justify-between font-medium">
                 {item.title}
-                {item.external ? <Icon.ArrowUpRight size={16} className="text-ink-3" /> : <Icon.Arrow size={16} className="text-ink-3 transition-transform group-hover:translate-x-0.5" />}
+                <Icon.Arrow size={16} className="text-ink-3 transition-transform group-hover:translate-x-0.5" />
               </span>
               <span className="text-[13.5px] leading-relaxed text-ink-2">{item.body}</span>
             </Link>
