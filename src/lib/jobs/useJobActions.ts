@@ -65,7 +65,15 @@ export function useJobActions(initial: HiredJob) {
   const [reviewed, setReviewed] = useState(false);
   const [receiptVerified, setReceiptVerified] = useState(false);
   const [disputeConfirmed, setDisputeConfirmed] = useState(false);
-  const [openedAt] = useState(() => Date.now());
+  // A ticking clock, so expiry-based states change while the page is open.
+  const [openedAt, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  // Bumped when an action starts; a poll that began earlier then discards
+  // its result instead of overwriting the action's.
+  const generation = useRef(0);
 
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
@@ -82,7 +90,8 @@ export function useJobActions(initial: HiredJob) {
     job.status === 'FUNDED' && agreedWindow > 0 && openedAt - fundedAt > agreedWindow / 3 && !windowClosed;
 
   const syncFromChain = useCallback(
-    async (hashes?: Pick<Partial<HiredJob>, 'settleTxHash' | 'disputeTxHash' | 'reclaimTxHash'>) => {
+    async (hashes?: Pick<Partial<HiredJob>, 'settleTxHash' | 'disputeTxHash' | 'reclaimTxHash'>, fromAction = false) => {
+      const startedAt = generation.current;
       const owner = activeWallet.address;
       const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
       const deliverableUrl =
@@ -91,6 +100,7 @@ export function useJobActions(initial: HiredJob) {
           ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(() => undefined)
           : undefined) ??
         null;
+      if (!fromAction && generation.current !== startedAt) return;
       const updated: HiredJob = {
         ...job,
         status: current.statusName,
@@ -145,11 +155,12 @@ export function useJobActions(initial: HiredJob) {
   }
 
   const act = async (action: Exclude<JobAction, 'verify'>) => {
+    generation.current += 1;
     setBusy(action);
     setError(null);
     try {
       if (action === 'refresh') {
-        await syncFromChain();
+        await syncFromChain(undefined, true);
         return;
       }
       if (!activeWallet.address) throw new Error('Connect the wallet that funded this job.');
@@ -195,7 +206,7 @@ export function useJobActions(initial: HiredJob) {
         }
       }
 
-      await syncFromChain({ settleTxHash, disputeTxHash, reclaimTxHash });
+      await syncFromChain({ settleTxHash, disputeTxHash, reclaimTxHash }, true);
     } catch (caught) {
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {

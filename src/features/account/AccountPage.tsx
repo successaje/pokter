@@ -44,7 +44,9 @@ function Notifications({ address }: { address: string }) {
   const { jobs } = useMyJobs();
   const active = jobs.filter((j) => ['working', 'review'].includes(jobPhase(j)));
   const [email, setEmail] = useState('');
-  const [jobId, setJobId] = useState(active[0]?.jobId ?? '');
+  const [chosenJob, setJobId] = useState('');
+  // Always one of the jobs actually listed, even as the list changes.
+  const jobId = active.some((j) => j.jobId === chosenJob) ? chosenJob : (active[0]?.jobId ?? '');
   const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
 

@@ -297,6 +297,11 @@ function StepPublish({ d }: { d: AgentDraft }) {
             </p>
           </div>
         </div>
+        {d.passkeyCanPublish && (
+          <Notice tone="watch" title="Managing it needs a browser wallet, for now">
+            It is owned by your passkey wallet. Studio&rsquo;s ownership check and profile editor need a message signature that passkey wallets cannot produce yet, so editing its profile later means transferring it to a browser wallet. Its public listing and hires work as normal.
+          </Notice>
+        )}
         <Notice tone="neutral" title="Registered is not the same as proven">
           Pokter starts probing it on the next sweep. Its listing shows &ldquo;Not measured&rdquo; until there is evidence, and it becomes hireable once it answers.
         </Notice>

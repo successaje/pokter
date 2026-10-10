@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useSyncExternalStore, type FormEvent } from 'react';
 import { getAddress } from 'viem';
 
-import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { DRAFTS_KEY, announceDraftsChanged, draftProgress, draftTitle, draftsServerSnapshot, draftsSnapshot, subscribeToDrafts, type DraftRecord } from '@/lib/builder/drafts';
 import type { DiagnosticReport } from '@/lib/diagnostic/checks';
 import { builderReadinessSteps, nextBuilderAction, type BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
@@ -136,7 +135,7 @@ export function SignOutStudio() {
 
 /* ───────── Agents owned by the connected wallet (public data) ───────── */
 
-type OwnedAgent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string; declaresProtocol: boolean; createdAt: string | null };
+type OwnedAgent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; declaresProtocol: boolean; createdAt: string | null };
 
 export function OwnedAgents() {
   const { address } = useActiveWallet();
@@ -163,7 +162,7 @@ export function OwnedAgents() {
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{a.name}</span>
               <span className="text-[12px] text-ink-3">
-                #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'testnet'} · {CATEGORY_BY_ID.get(a.category as Category)?.label ?? 'Unclassified'}
+                #{a.tokenId} · {a.chainId === 56 ? 'BNB Chain' : 'testnet'} · {a.category ?? 'Unclassified'}
               </span>
             </span>
             {!a.declaresProtocol && <span className="text-[11.5px] text-watch">No endpoint</span>}

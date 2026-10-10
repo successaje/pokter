@@ -36,16 +36,38 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   const [content, setContent] = useState('');
   const [stage, setStage] = useState<keyof typeof STAGES | 'idle' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Once the submission is on chain it must never be sent again; only the
+  // index confirmation is retried.
+  const [submittedTx, setSubmittedTx] = useState<`0x${string}` | null>(null);
   const { signMessageAsync } = useSignMessage();
 
-  async function deliver() {
-    setError(null);
-    const post = async (body: unknown) => {
+  const post = async (body: unknown) => {
       const r = await fetch('/api/builders/deliveries', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const payload = (await r.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
       if (!r.ok) throw new Error(payload.error ?? 'The delivery service refused this step.');
       return payload;
-    };
+  };
+
+  async function confirm(transactionHash: `0x${string}`) {
+    setStage('confirming');
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        await post({ action: 'confirm', jobId: job.jobId, transactionHash });
+        setStage('done');
+        return;
+      } catch (cause) {
+        lastError = cause as Error;
+        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+      }
+    }
+    setStage('idle');
+    setError(`Your delivery is on chain, but Pokter's index has not seen it yet (${lastError?.message ?? 'no detail'}). Confirm again in a minute; nothing will be resubmitted.`);
+  }
+
+  async function deliver() {
+    setError(null);
+    if (submittedTx) return confirm(submittedTx);
     try {
       setStage('authorizing');
       const challenge = (await post({ action: 'challenge', jobId: job.jobId })) as { challengeId: string; message: string };
@@ -54,9 +76,9 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       const prepared = (await post({ action: 'prepare', jobId: job.jobId, challengeId: challenge.challengeId, signature, content: content.trim() })) as { deliverable: `0x${string}`; deliverableUrl: string };
       setStage('submitting');
       const transactionHash = await submitExternalDeliverable({ account, jobId: BigInt(job.jobId), deliverable: prepared.deliverable, deliverableUrl: prepared.deliverableUrl });
-      setStage('confirming');
-      await post({ action: 'confirm', jobId: job.jobId, transactionHash });
-      setStage('done');
+      setSubmittedTx(transactionHash);
+      await confirm(transactionHash);
+      return;
     } catch (cause) {
       const message = (cause as Error).message ?? 'Delivery did not complete.';
       setError(/rejected|denied|cancel/i.test(message) ? 'Cancelled in the wallet. Nothing was submitted.' : message);
@@ -74,8 +96,8 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       <Textarea id={`d-${job.jobId}`} value={content} onChange={(e) => setContent(e.target.value)} maxLength={20_000} placeholder="The completed result, with sources, assumptions and limitations." disabled={busy} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="t-readout text-[12px] text-ink-3">{content.length.toLocaleString()} / 20,000</span>
-        <Button size="s" onClick={() => void deliver()} busy={busy} disabled={content.trim().length < 3}>
-          {busy ? STAGES[stage as keyof typeof STAGES] : 'Sign and deliver'}
+        <Button size="s" onClick={() => void deliver()} busy={busy} disabled={!submittedTx && content.trim().length < 3}>
+          {busy ? STAGES[stage as keyof typeof STAGES] : submittedTx ? 'Confirm delivery' : 'Sign and deliver'}
         </Button>
       </div>
       {error && <Notice tone="bad">{error}</Notice>}

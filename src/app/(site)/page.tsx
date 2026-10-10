@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
-import { IS_TESTNET } from '@/lib/network/presentation';
+import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -26,7 +26,7 @@ export default async function HomePage() {
     { label: 'Registered on BNB Chain', note: 'ERC-8004 identities on mainnet, per 8004scan', value: home.stats?.registered ?? null },
     { label: 'Monitored by Pokter', note: 'Endpoints probed on a schedule', value: home.measured.monitored },
     { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
-    { label: 'Paid jobs completed', note: 'Through Pokter escrow, verified on chain', value: home.activity.completedJobs },
+    { label: 'Paid jobs completed', note: `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`, value: home.activity.completedJobs },
   ];
   const max = Math.max(...funnel.map((stage) => stage.value ?? 0), 1);
 
@@ -179,7 +179,7 @@ export default async function HomePage() {
             <figure className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
               <figcaption className="mb-6 flex items-baseline justify-between gap-4">
                 <span className="t-label">From registered to proven useful</span>
-                <span className="text-[11px] text-ink-3">Log scale · counted, not estimated</span>
+                <span className="text-[11px] text-ink-3">Log scale · each stage names its own scope</span>
               </figcaption>
               <ol className="flex flex-col gap-5">
                 {funnel.map((stage) => {

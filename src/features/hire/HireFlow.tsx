@@ -93,12 +93,17 @@ export function HireFlow(props: HireFlowProps) {
   const confirmed = confirmedFor === terms;
   const setConfirmed = (on: boolean) => setConfirmedFor(on ? terms : null);
 
-  const minBudget = Math.max(BUDGET_MIN, props.signedQuoteU ?? 0);
-  const budgetError = !hire.budgetValid
-    ? `Between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`
-    : props.signedQuoteU !== null && hire.budget < props.signedQuoteU
-      ? `The agent signed a price of ${props.signedQuoteU} $U. A lower budget will be refused.`
-      : null;
+  // The agent's signed price only binds when the agent itself delivers.
+  const priceFloor = hire.provider?.relationship === 'registry-agent' ? props.signedQuoteU : null;
+  const minBudget = Math.max(BUDGET_MIN, priceFloor ?? 0);
+  const budgetError =
+    priceFloor !== null && priceFloor > BUDGET_MAX
+      ? `This agent signed a price of ${priceFloor} $U, above Pokter's ${BUDGET_MAX} $U per-job limit, so it cannot be hired here yet.`
+      : !hire.budgetValid
+        ? `Between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`
+        : priceFloor !== null && hire.budget < priceFloor
+          ? `The agent signed a price of ${priceFloor} $U. A lower budget will be refused.`
+          : null;
 
   const busy = hire.state === 'hiring';
   const done = hire.state === 'hired' && hire.job;
@@ -331,7 +336,7 @@ export function HireFlow(props: HireFlowProps) {
                 ['Agent is paid', 'After it delivers and you accept, or the review window passes without a dispute'],
                 ['Deadline', '24 hours from funding'],
                 ['If nothing is delivered', 'You reclaim the full amount after the deadline'],
-                ['Network fee', hire.active.mode === 'external' ? `A few cents of ${NATIVE_SYMBOL}, paid by your wallet` : sponsored ? 'Covered by Pokter if your wallet is short' : `About 0.002 ${NATIVE_SYMBOL}`],
+                ['Network fee', hire.active.mode === 'external' ? `A few cents of ${NATIVE_SYMBOL}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${NATIVE_SYMBOL}`],
               ].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
                   <dt className="text-ink-3">{k}</dt>
@@ -416,7 +421,7 @@ export function HireFlow(props: HireFlowProps) {
                     value={hire.funding.native !== undefined ? Number(formatEther(hire.funding.native)).toFixed(4) : '—'}
                     ok={hire.funding.gasReady}
                     known={hire.funding.gasKnown}
-                    note={hire.funding.gasLow ? (hire.active.mode === 'passkey' && sponsored ? 'Low. Pokter will cover the fee.' : 'Too low for the network fee.') : undefined}
+                    note={hire.funding.gasLow ? (hire.active.mode === 'passkey' && sponsored && !hire.funding.paymentLow ? 'Low. Pokter will cover the fee.' : hire.active.mode === 'passkey' && sponsored ? 'Low. Pokter covers it once the wallet holds the budget in $U.' : 'Too low for the network fee.') : undefined}
                   />
                 </div>
                 {IS_TESTNET && FAUCETS && (hire.funding.paymentLow || hire.funding.gasLow) && (
