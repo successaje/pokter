@@ -97,7 +97,7 @@ function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string;
         </FilterLink>
       </section>
       <p className="px-2.5 text-[12px] leading-relaxed text-ink-3">
-        Power search: <span className="t-readout">is:reliable</span>, <span className="t-readout">has:quote</span>,{' '}
+        Power search: <span className="t-readout">is:reliable</span>, <span className="t-readout">has:price</span>,{' '}
         <span className="t-readout">has:probes&gt;10</span>. <Link href="/developers#query" className="link">Syntax</Link>
       </p>
     </div>
