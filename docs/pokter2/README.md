@@ -128,6 +128,7 @@ ever rendered as HTML.
   sheet), workspace and studio empty states, studio import running the live
   compatibility check, studio create wizard from a template.
 - Legacy redirects return 307 to their new homes.
+- Real settled job #1352 (pre-envelope) and expired job #1372 render read-only from chain via job recovery.
 
 ## Review fixes (second pass)
 
@@ -162,9 +163,10 @@ Also added afterwards:
   executed** in this session. Those paths call the unchanged `useHire`,
   `useJobActions`, `registerIdentityFromWallet`, `updateIdentityFromWallet` and
   delivery APIs, but they still need a funded test wallet run before release.
-- `next build` logs `indexedDB is not defined` from the WalletConnect
-  connector initialising during server rendering. The wallet config is
-  unchanged from `main`, and the build completes.
+- The WalletConnect/Reown bundle still loads on every page because wagmi
+  creates connectors eagerly. It no longer runs on the server (the
+  `indexedDB` build errors are gone), but lazy-loading it would cut first-load
+  JavaScript considerably.
 - Discover's intent reading is keyword-based (`lib/brief/interpret`), and
   the page says so. `/api/ask` and `lib/recommend/engine` remain unused.
 - Builder Studio does not host agents. It says so, and links to BNB Agent

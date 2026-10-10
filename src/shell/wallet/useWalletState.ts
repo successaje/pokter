@@ -89,7 +89,7 @@ export function useWalletState() {
     refreshBalances: () => void source?.refetch(),
     passkey,
     injectedAvailable,
-    walletConnectAvailable: walletConnectConfigured && Boolean(walletConnect),
+    walletConnectAvailable: hydrated && walletConnectConfigured && Boolean(walletConnect),
     connecting,
     connectError: connectError?.message ?? null,
     resetConnect,
