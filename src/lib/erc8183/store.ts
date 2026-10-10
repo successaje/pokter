@@ -19,6 +19,8 @@ export interface JobStore {
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
+  /** Jobs funded by one wallet, newest first. */
+  byClient(client: string): HiredJob[];
   /**
    * A named place to remember how far a watcher has already looked.
    *
@@ -57,7 +59,8 @@ const SCHEMA = `
     deliverable_url   TEXT,
     settle_tx_hash    TEXT,
     dispute_tx_hash   TEXT,
-    reclaim_tx_hash   TEXT
+    reclaim_tx_hash   TEXT,
+    client            TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
@@ -84,6 +87,7 @@ interface JobRow {
   settle_tx_hash: string | null;
   dispute_tx_hash: string | null;
   reclaim_tx_hash: string | null;
+  client: string | null;
 }
 
 function toJob(row: JobRow): HiredJob {
@@ -108,6 +112,7 @@ function toJob(row: JobRow): HiredJob {
     settleTxHash: row.settle_tx_hash as `0x${string}` | null,
     disputeTxHash: row.dispute_tx_hash as `0x${string}` | null,
     reclaimTxHash: row.reclaim_tx_hash as `0x${string}` | null,
+    ...(row.client ? { client: row.client as `0x${string}` } : {}),
   };
 }
 
@@ -127,6 +132,7 @@ class SqliteJobStore implements JobStore {
       'ALTER TABLE jobs ADD COLUMN provider_label TEXT',
       'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN reclaim_tx_hash TEXT',
+      'ALTER TABLE jobs ADD COLUMN client TEXT',
     ]) {
       try {
         this.db.exec(statement);
@@ -136,6 +142,8 @@ class SqliteJobStore implements JobStore {
         }
       }
     }
+    // After the migration, so an older database already has the column.
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs (client)');
   }
 
   record(job: HiredJob): void {
@@ -145,8 +153,9 @@ class SqliteJobStore implements JobStore {
            (id, job_id, chain_id, is_testnet, agent_chain_id, agent_token_id,
             agent_name, provider_label, provider, task, budget_raw, expired_at,
             hired_at, hire_tx_hash, status, status_checked_at, deliverable_url,
-            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash, client)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 COALESCE(?, (SELECT client FROM jobs WHERE id = ?)))`,
       )
       .run(
         job.id,
@@ -169,6 +178,9 @@ class SqliteJobStore implements JobStore {
         job.settleTxHash,
         job.disputeTxHash ?? null,
         job.reclaimTxHash ?? null,
+        // A caller that did not read the funder must not erase a known one.
+        job.client ? job.client.toLowerCase() : null,
+        job.id,
       );
   }
 
@@ -201,6 +213,13 @@ class SqliteJobStore implements JobStore {
       .prepare('SELECT * FROM jobs WHERE id = ?')
       .get(id) as unknown as JobRow | undefined;
     return row ? toJob(row) : null;
+  }
+
+  byClient(client: string): HiredJob[] {
+    const rows = this.db
+      .prepare('SELECT * FROM jobs WHERE client = ? ORDER BY hired_at DESC')
+      .all(client.toLowerCase()) as unknown as JobRow[];
+    return rows.map(toJob);
   }
 
   byAgent(chainId: number, tokenId: string): HiredJob[] {

@@ -123,6 +123,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         // card to refresh a stale status.
         getJobStore().record({
           ...job,
+          client: onchain.client,
           provider: onchain.provider,
           budgetRaw: onchain.budget.toString(),
           expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),

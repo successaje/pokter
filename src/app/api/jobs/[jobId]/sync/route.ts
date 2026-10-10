@@ -63,6 +63,7 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
 
     store.record({
       ...existing,
+      client: onchain.client,
       status: onchain.statusName,
       statusCheckedAt: new Date().toISOString(),
       deliverableUrl,

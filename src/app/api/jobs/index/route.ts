@@ -101,6 +101,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       agentTokenId: envelope.identity.tokenId,
       agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,
       providerLabel: envelope.providerLabel,
+      client: onchain.client,
       provider: onchain.provider,
       task: envelope.task,
       budgetRaw: onchain.budget.toString(),
