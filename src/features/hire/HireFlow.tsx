@@ -9,6 +9,7 @@ import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, explorerTxUrl } from
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
+import { formatBudget } from '@/lib/erc8183/pricing';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { Mark } from '@/shell/Logo';
 import { AgentAvatar } from '@/ui/Agent';
@@ -36,8 +37,26 @@ export interface HireFlowProps {
   campaignLive?: boolean;
 }
 
+/**
+ * `formatEther` prints eighteen decimals, and a swap cost rendered as
+ * 0.001234567890123456 is noise at the moment the reader most needs to
+ * take it in. Six places is past anything that could matter here and
+ * still shows a dust-sized swap as something other than zero.
+ */
+function trimNative(raw: bigint): string {
+  const exact = Number(formatEther(raw));
+  return exact < 0.000001 ? '< 0.000001' : String(Number(exact.toFixed(6)));
+}
+
 const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'connecting', label: 'Checking your wallet', hint: 'Making sure the right account and network are selected.' },
+  /*
+    Only reached when the wallet is short on $U. The step list is the same
+    for everybody, so this sits dormant for a funded wallet rather than
+    being conditionally spliced in — a progress list whose length changes
+    while it is on screen is worse than one with a step that never lights.
+  */
+  { id: 'swapping', label: 'Swapping for the missing $U', hint: 'One prompt. Spends tBNB up to the quoted maximum and refunds the rest.' },
   { id: 'creating', label: 'Creating the job', hint: 'Approve in your wallet. This records the job and its terms.' },
   { id: 'registering', label: 'Registering the job', hint: 'Approve in your wallet.' },
   { id: 'budgeting', label: 'Setting the budget', hint: 'Approve in your wallet.' },
@@ -299,6 +318,75 @@ export function HireFlow(props: HireFlowProps) {
             <h1 className="t-h2">Review the terms</h1>
             <p className="mt-1 text-sm text-ink-2">Nothing has been signed or sent. Check the budget and what you are agreeing to.</p>
           </div>
+
+          {/*
+            Said before the first signature, not discovered at it.
+
+            When the wallet is short on $U the hire now buys the shortfall
+            on the way through, which spends the holder's tBNB. A swap
+            nobody was told about is a swap that happened to them, so the
+            cost, the ceiling and the refund are stated here, while
+            nothing has been signed and the budget is still editable.
+          */}
+          {hire.swapPlan && (
+            <Notice
+              tone={hire.swapPlan.affordable ? 'watch' : 'bad'}
+              title={
+                hire.swapPlan.maxNativeIn === 0n
+                  ? `Short on $U, and no route to buy it`
+                  : `This hire will swap first`
+              }
+            >
+              {hire.swapPlan.maxNativeIn === 0n ? (
+                <>
+                  {/*
+                    There is no WBNB/$U pool on the escrow chain — the V3
+                    factory returns none at every fee tier — so on testnet
+                    this branch is the only one a short wallet ever sees.
+                    "Fund the wallet with $U directly" is true and useless
+                    without saying where from, and the faucet that hands
+                    out both tokens is already known to this codebase.
+                  */}
+                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
+                  short, and there is no pool to buy $U from on {NETWORK_LABEL}.
+                  {FAUCETS?.paymentTokenBot ? (
+                    <>
+                      {' '}The faucet hands out both tokens: message{' '}
+                      <a
+                        href={FAUCETS.paymentTokenBot.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline"
+                      >
+                        {FAUCETS.paymentTokenBot.handle}
+                      </a>{' '}
+                      with{' '}
+                      <span className="t-readout">
+                        {FAUCETS.paymentTokenBot.bothAsk.replace('ADDRESS', shortAddress(hire.active.address ?? ''))}
+                      </span>
+                      , then come back.
+                    </>
+                  ) : (
+                    <> Fund the wallet with $U directly, or lower the budget.</>
+                  )}
+                </>
+              ) : (
+                <>
+                  Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
+                  short, so the first prompt spends up to{' '}
+                  <span className="t-readout">
+                    {trimNative(hire.swapPlan.maxNativeIn)} {NATIVE_SYMBOL}
+                  </span>{' '}
+                  on PancakeSwap to cover it and refunds whatever it does not need.
+                  Then the approval and the deposit, as usual.
+                  {!hire.swapPlan.affordable && (
+                    <> This wallet does not hold that much {NATIVE_SYMBOL} with gas to
+                    spare — top it up from the faucet, or lower the budget.</>
+                  )}
+                </>
+              )}
+            </Notice>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="budget" className="text-sm font-medium">

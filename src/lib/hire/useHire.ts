@@ -21,7 +21,9 @@ import {
 } from '@/lib/erc8183/job-envelope';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
+import { useQuery } from '@tanstack/react-query';
 import { useWalletFunding } from '@/lib/wallet/use-funding';
+import { planExternalSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
 import { commissionTaskTemplates, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
@@ -193,6 +195,26 @@ export function useHire({
   const [notificationDetail, setNotificationDetail] = useState<string | null>(null);
 
   const funding = useWalletFunding(active.address ?? wallet?.address ?? null, budget);
+
+  /*
+   * What the swap will cost, quoted before anything is signed.
+   *
+   * Read-only and external-only: the passkey path swaps inside its own
+   * batch and already names the stage. Gated on `paymentLow` so a funded
+   * wallet never pays for a PancakeSwap round trip, and keyed on the
+   * budget so moving the number re-quotes. A swap nobody was told about
+   * is a swap that happened to them.
+   */
+  const swapPlan = useQuery({
+    queryKey: ['external-swap-plan', active.address, budget],
+    queryFn: () => planExternalSwap(active.address!, budget),
+    enabled:
+      active.mode === 'external' &&
+      Boolean(active.address) &&
+      funding.paymentLow &&
+      budget > 0,
+    staleTime: 30_000,
+  });
 
   const isConfigFailure = Boolean(
     notificationDetail && /publicly fetchable|NEXT_PUBLIC_APP_URL/i.test(notificationDetail),
@@ -575,6 +597,7 @@ export function useHire({
     task,
     setTask,
     budget,
+    swapPlan: swapPlan.data ?? null,
     setBudget,
     budgetValid,
     riskAccepted,

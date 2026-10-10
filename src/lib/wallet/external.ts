@@ -15,11 +15,15 @@ import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
 } from '@/lib/erc8183/job-envelope';
+import {
+  buildSwapTransaction,
+  quoteBnbForPaymentToken,
+} from '@/lib/pancakeswap/swap';
 import { WALLET_NETWORK } from '@/lib/wallet/passkey';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 
 export type HireStep =
-  | 'connecting' | 'creating' | 'registering' | 'budgeting'
+  | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
   | 'approving' | 'funding' | 'confirming' | 'done';
 
 export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex }
@@ -287,6 +291,103 @@ export async function reclaimFromExternalWallet(input: {
   return hash;
 }
 
+/** Enough native left after a swap to still pay for the approve and the fund. */
+const SWAP_GAS_HEADROOM = parseUnits('0.002', 18);
+
+/** What a swap would cost, for the confirm screen, before anything is signed. */
+export interface ExternalSwapPlan {
+  /** $U still missing, in base units. */
+  shortfallRaw: bigint;
+  /** The most native the swap can spend, in base units. */
+  maxNativeIn: bigint;
+  /** Whether this wallet holds that much, with gas to spare. */
+  affordable: boolean;
+}
+
+/**
+ * Quote the shortfall without committing to it.
+ *
+ * Read-only: no wallet prompt, no chain switch, nothing signed. The
+ * confirm screen calls this so somebody sees what their tBNB will be spent
+ * on before the first signature, which is the whole difference between a
+ * swap they agreed to and one that happened to them.
+ *
+ * Returns null when the wallet already holds the budget, so the caller can
+ * treat "no plan" as "nothing to disclose".
+ */
+export async function planExternalSwap(
+  account: Address,
+  budgetU: number,
+): Promise<ExternalSwapPlan | null> {
+  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const read = createPublicClient({
+    chain: WALLET_NETWORK as never,
+    transport: http(WALLET_NETWORK.publicRpcUrl),
+  });
+  const budget = parseUnits(String(budgetU), 18);
+  const [held, native] = await Promise.all([
+    read.readContract({
+      address: addresses.paymentToken as Address, abi: erc20Abi,
+      functionName: 'balanceOf', args: [account],
+    }) as Promise<bigint>,
+    read.getBalance({ address: account }),
+  ]);
+  if (held >= budget) return null;
+
+  const shortfallRaw = budget - held;
+  const quote = await quoteBnbForPaymentToken(
+    read as never, addresses.paymentToken as Address, shortfallRaw,
+  );
+  if (!quote) return { shortfallRaw, maxNativeIn: 0n, affordable: false };
+  return {
+    shortfallRaw,
+    maxNativeIn: quote.amountInMaximum,
+    affordable: native >= quote.amountInMaximum + SWAP_GAS_HEADROOM,
+  };
+}
+
+async function acquireShortfall({
+  read, wallet, account, budget, held, addresses, report,
+}: {
+  read: ReturnType<typeof clients>['read'];
+  wallet: ReturnType<typeof clients>['wallet'];
+  account: Address;
+  budget: bigint;
+  held: bigint;
+  addresses: ReturnType<typeof correctedErc8183Addresses>;
+  report: (progress: ExternalHireProgress) => void;
+}): Promise<void> {
+  const shortfall = budget - held;
+  const quote = await quoteBnbForPaymentToken(
+    read as never, addresses.paymentToken as Address, shortfall,
+  );
+  if (!quote) throw new Error('NO_SWAP_ROUTE');
+
+  const native = await read.getBalance({ address: account });
+  if (native < quote.amountInMaximum + SWAP_GAS_HEADROOM) {
+    throw new Error('INSUFFICIENT_NATIVE_FOR_SWAP');
+  }
+
+  report({ step: 'swapping' });
+  const swap = buildSwapTransaction(quote, addresses.paymentToken as Address, account);
+  const hash = await wallet.sendTransaction({
+    account, to: swap.to, data: swap.data, value: swap.value, chain: null,
+  });
+  const receipt = await read.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('SWAP_REVERTED');
+
+  /*
+   * Trust the chain, not the quote. `exactOutputSingle` guarantees its
+   * output, but a route that paid out less would otherwise be discovered
+   * two prompts later, inside the escrow call, with money already spent.
+   */
+  const after = (await read.readContract({
+    address: addresses.paymentToken as Address, abi: erc20Abi,
+    functionName: 'balanceOf', args: [account],
+  })) as bigint;
+  if (after < budget) throw new Error('INSUFFICIENT_PAYMENT_TOKEN');
+}
+
 export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
   const { wallet, read } = clients();
   const [rawAccount] = await wallet.getAddresses();
@@ -312,7 +413,26 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     read.readContract({ address: addresses.paymentToken as Address, abi: erc20Abi,
       functionName: 'balanceOf', args: [account] }),
   ]);
-  if (balance < budget) throw new Error('INSUFFICIENT_PAYMENT_TOKEN');
+  /*
+   * Acquire the shortfall rather than refusing the hire.
+   *
+   * This threw and stopped. That was defensible while a passkey led the
+   * sign-in and this was the fallback path, and it stopped being
+   * defensible when the browser wallet became the recommended way in: the
+   * campaign tells people to use one, they arrive from the faucet holding
+   * tBNB and no $U, and this is the single shortfall that can be fixed
+   * from inside the flow. The passkey path has acquired it since POK-018.
+   *
+   * Still one extra prompt rather than a batch, because an injected wallet
+   * promises nothing about atomicity here and a swap that lands while the
+   * hire fails leaves the buyer holding the $U they came for. The amount
+   * is quoted and shown before anything is signed — see `planExternalSwap`.
+   */
+  if (balance < budget) {
+    await acquireShortfall({
+      read, wallet, account, budget, held: balance, addresses, report,
+    });
+  }
   const counter = await read.readContract({
     address: addresses.commerce as Address,
     abi: [{ name: 'jobCounter', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }],
