@@ -10,6 +10,7 @@ import { SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { TrialPanel } from '@/features/agent/TrialPanel';
+import { AgentTabBar, AgentTabPanel } from '@/features/agent/AgentTabs';
 import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { CompareToggle } from '@/features/compare/CompareControls';
@@ -52,7 +53,7 @@ function pct(n: number | null | undefined) {
 
 function Section({ id, label, title, children, aside }: { id: string; label: string; title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-32 border-t border-rule pt-10">
+    <section aria-labelledby={`${id}-title`}>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="t-label">{label}</span>
@@ -203,28 +204,13 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         </div>
       </div>
 
-      {/* Section nav */}
-      <nav aria-label="On this page" className="sticky top-14 z-20 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
-        <div className="frame no-scrollbar flex gap-6 overflow-x-auto text-[13.5px] font-medium">
-          {[
-            ['overview', 'Overview'],
-            ['evidence', 'Evidence'],
-            ['work', 'Work and reviews'],
-            ['pricing', 'Pricing'],
-            ['permissions', 'Permissions'],
-            ['technical', 'Technical'],
-          ].map(([href, label]) => (
-            <a key={href} href={`#${href}`} className="flex h-11 shrink-0 items-center text-ink-3 hover:text-ink">
-              {label}
-            </a>
-          ))}
-        </div>
-      </nav>
+      <AgentTabBar />
 
       <div className="frame grid grid-cols-1 gap-12 pt-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
-        <div className="flex min-w-0 flex-col gap-14">
+        <div id="agent-tab-panels" className="flex min-w-0 flex-col gap-14">
           {/* Overview */}
-          <section id="overview" aria-labelledby="overview-title" className="scroll-mt-32 flex flex-col gap-8">
+          <AgentTabPanel id="overview">
+          <section aria-labelledby="overview-title" className="flex flex-col gap-8">
             <h2 id="overview-title" className="sr-only">
               Overview
             </h2>
@@ -314,7 +300,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             )}
           </section>
 
+          </AgentTabPanel>
+
           {/* Evidence */}
+          <AgentTabPanel id="evidence">
           <Section id="evidence" label="Evidence" title="What is known, and what is not" aside={<VerdictLabel verdict={p.verdict.id} />}>
             <div className="flex flex-col gap-8">
               <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-paper px-5 py-4">
@@ -389,7 +378,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </div>
           </Section>
 
+          </AgentTabPanel>
+
           {/* Work and reviews */}
+          <AgentTabPanel id="work">
           <Section id="work" label="Track record" title="Paid work and reviews">
             <div className="flex flex-col gap-8">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -426,7 +418,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </div>
           </Section>
 
+          </AgentTabPanel>
+
           {/* Pricing */}
+          <AgentTabPanel id="pricing">
           <Section id="pricing" label="Pricing" title="What a job costs">
             {p.quote ? (
               <Facts
@@ -451,7 +446,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             )}
           </Section>
 
+          </AgentTabPanel>
+
           {/* Permissions */}
+          <AgentTabPanel id="permissions">
           <Section id="permissions" label="Permissions" title="What hiring it asks of you">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-3 rounded-[12px] border border-rule bg-raised p-5">
@@ -478,7 +476,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             <p className="mt-4 text-[12.5px] text-ink-3">Do not paste private keys, seed phrases or passwords into a task. The task text is public on chain.</p>
           </Section>
 
+          </AgentTabPanel>
+
           {/* Technical */}
+          <AgentTabPanel id="technical">
           <Section id="technical" label="Technical" title="Identity and endpoints">
             <Facts
               rows={[
@@ -504,6 +505,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </Link>
             </div>
           </Section>
+
+          </AgentTabPanel>
 
           {p.alternatives.length > 0 && (
             <section aria-labelledby="alt-title" className="border-t border-rule pt-10">

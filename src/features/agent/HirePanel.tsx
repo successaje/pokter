@@ -65,10 +65,11 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         ) : (
           <p className="text-[13px] text-ink-2">Pokter cannot route a paid job to this agent: no reachable provider wallet was found.</p>
         )}
+        {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
         {profile.trialAvailable && (
-          <Link href="#try" className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
+          <a href="#try" className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
             Try it free first
-          </Link>
+          </a>
         )}
         <p className="pt-1 text-center text-[11.5px] text-ink-3">
           You review everything before any wallet opens.{IS_TESTNET && ' Test tokens only.'}
