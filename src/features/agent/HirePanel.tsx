@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
