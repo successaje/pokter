@@ -8,6 +8,7 @@ import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Wordmark } from './Logo';
+import { PRIMARY_NAV } from './nav';
 import { MobileTabBar } from './MobileTabBar';
 import { ThemeToggle } from './ThemeControl';
 import { AccountButton } from './wallet/AccountButton';
@@ -58,6 +59,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Wordmark />
         </div>
 
+        <div className="px-3 pb-3">
+          <Link
+            href="/discover"
+            className="flex h-9 items-center gap-2.5 rounded-[9px] border border-rule-strong bg-paper px-3 text-[13px] text-ink-3 transition-colors hover:border-ink hover:text-ink"
+          >
+            <Icon.Search size={15} />
+            Find an agent
+            <span className="ml-auto text-[11px] text-ink-3">Discover</span>
+          </Link>
+        </div>
+
         <div className="px-3">
           <div role="tablist" aria-label="Context" className="grid grid-cols-2 rounded-[10px] bg-sunken p-[3px] text-[13px] font-medium">
             {[
@@ -101,10 +113,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="mt-6 flex flex-col gap-0.5 border-t border-rule px-3 pt-4">
-          <Link href="/discover" className="flex h-9 items-center gap-3 rounded-[8px] px-3 text-sm font-medium text-ink-3 hover:bg-sunken/70 hover:text-ink">
-            <Icon.Compass size={17} />
-            Discover agents
-          </Link>
+          <span className="t-label px-3 pb-1">Marketplace</span>
+          {[
+            { href: '/discover', label: 'Discover agents', icon: <Icon.Compass size={17} /> },
+            { href: '/', label: 'Pokter home', icon: <Icon.Home size={17} /> },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="flex h-9 items-center gap-3 rounded-[8px] px-3 text-sm font-medium text-ink-3 hover:bg-sunken/70 hover:text-ink">
+              {l.icon}
+              {l.label}
+            </Link>
+          ))}
+          <span className="t-label mt-3 px-3 pb-1">You</span>
           <Link
             href="/account"
             aria-current={context === 'account' ? 'page' : undefined}
@@ -129,13 +148,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_90%,transparent)] px-4 backdrop-blur-md md:h-16 md:justify-end md:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_90%,transparent)] px-4 backdrop-blur-md md:h-16 md:px-8">
           <div className="md:hidden">
             <Wordmark />
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/discover" className="hidden items-center gap-2 rounded-[8px] px-3 py-2 text-sm text-ink-3 hover:text-ink lg:inline-flex">
-              <Icon.Search size={16} /> Find an agent
+          <nav aria-label="Marketplace" className="hidden items-center gap-1 md:flex">
+            {PRIMARY_NAV.map((item) => (
+              <Link key={item.href} href={item.href} className="rounded-[8px] px-3 py-2 text-sm font-medium text-ink-3 transition-colors hover:text-ink">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="flex items-center gap-1.5">
+            <Link href="/discover" aria-label="Discover agents" className="grid size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:hidden">
+              <Icon.Search size={18} />
             </Link>
             <AccountButton />
           </div>

@@ -9,15 +9,10 @@ import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { Wordmark } from './Logo';
+import { PRIMARY_NAV } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
-export const PRIMARY_NAV = [
-  { href: '/discover', label: 'Discover' },
-  { href: '/build', label: 'Build' },
-  { href: '/how-it-works', label: 'How it works' },
-  { href: '/developers', label: 'Developers' },
-];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
