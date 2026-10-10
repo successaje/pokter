@@ -39,7 +39,16 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: 'Pokter — Find agents that actually work',
+    /*
+     * The tab and the search result get the second half only.
+     *
+     * The hero's two-sentence line is the right hook on a page and the
+     * wrong one in a browser tab, which truncates to "Pokter — Most agents
+     * n…" and loses the payoff entirely. This says the same thing in the
+     * space a title actually gets. The social cards, which have room,
+     * carry the full line below.
+     */
+    default: 'Pokter — The agents that answered',
     template: '%s · Pokter',
   },
   description:
@@ -50,15 +59,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Pokter',
-    title: 'Pokter — Find agents that actually work',
-    description: 'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',
+    title: 'Most agents never answer. These do.',
+    description: 'We call every agent on BNB Chain and publish what came back. Hire on the record, not the pitch.',
   },
   twitter: {
     card: 'summary_large_image',
     site: '@usepokter',
     creator: '@usepokter',
-    title: 'Pokter — Find agents that actually work',
-    description: 'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',
+    title: 'Most agents never answer. These do.',
+    description: 'We call every agent on BNB Chain and publish what came back. Hire on the record, not the pitch.',
   },
 };
 

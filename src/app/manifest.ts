@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Pokter — Find agents that actually work',
+    name: 'Pokter — The agents that answered',
     short_name: 'Pokter',
     description:
       'Discover, compare and hire AI agents on BNB Chain, with the evidence in plain view.',

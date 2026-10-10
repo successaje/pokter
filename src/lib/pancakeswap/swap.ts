@@ -107,6 +107,13 @@ const routerAbi = [
     inputs: [],
     outputs: [],
   },
+  {
+    name: 'multicall',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [{ name: 'data', type: 'bytes[]' }],
+    outputs: [{ type: 'bytes[]' }],
+  },
 ] as const;
 
 export interface SwapQuote {
@@ -219,3 +226,36 @@ export function buildSwapCalls(
     },
   ];
 }
+
+/**
+ * The same swap as one transaction, for wallets that cannot batch.
+ *
+ * `buildSwapCalls` is only correct as a pair: `exactOutputSingle` is paid
+ * the maximum and `refundETH` returns what it did not spend. The passkey
+ * path sends both in one SDK batch, so that holds there.
+ *
+ * An injected wallet has no batch, and sending the two as separate
+ * transactions does not merely cost a second prompt — it breaks the pair.
+ * The router keeps the unspent margin as wrapped BNB, and a `refundETH` in
+ * a later transaction sweeps a native balance that is no longer there, so
+ * the buyer quietly loses the slippage margin on every swap. The router's
+ * own `multicall` puts both back in one transaction, which is also one
+ * prompt.
+ */
+export function buildSwapTransaction(
+  quote: SwapQuote,
+  paymentToken: Address,
+  recipient: Address,
+): { to: Address; data: Hex; value: bigint } {
+  const calls = buildSwapCalls(quote, paymentToken, recipient);
+  return {
+    to: PANCAKE_V3_SWAP_ROUTER,
+    value: calls.reduce((total, call) => total + (call.value ?? 0n), 0n),
+    data: encodeFunctionData({
+      abi: routerAbi,
+      functionName: 'multicall',
+      args: [calls.map((call) => call.data)],
+    }),
+  };
+}
+

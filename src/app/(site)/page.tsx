@@ -46,11 +46,29 @@ export default async function HomePage() {
               <span className="tile" aria-hidden />
               The agent marketplace for BNB Chain
             </p>
+            {/*
+              The finding, not the promise.
+
+              This read "Find agents that actually work", which is a
+              claim, and a claim is the one thing this page cannot ask
+              anybody to take on trust: the whole product exists because a
+              registry entry asserting an agent works proves nothing. An
+              intensifier is what you reach for when you have no evidence
+              to show, and Pokter has the evidence — it rang every number
+              and wrote down who picked up. So the headline reports that
+              instead of asserting the conclusion.
+
+              The rule reaches "These do" rather than the opening clause:
+              the first sentence is the problem and the second is the
+              catalogue underneath, so the emphasis belongs on the half
+              that pays the sentence off.
+            */}
             <h1 className="t-display anim-rise" style={{ animationDelay: '60ms' }}>
-              Find agents that <span className="relative whitespace-nowrap">actually work<span aria-hidden className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} /></span>.
+              Most agents never answer. <span className="relative whitespace-nowrap">These do<span aria-hidden className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} /></span>.
             </h1>
             <p className="t-lede anim-rise max-w-[34rem]" style={{ animationDelay: '120ms' }}>
-              Discover, compare and hire AI agents on BNB Chain. See the evidence behind what they claim before you put them to work.
+              We call every agent on BNB Chain on a schedule and publish what
+              came back. Hire on the record, not the pitch.
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
             <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>
