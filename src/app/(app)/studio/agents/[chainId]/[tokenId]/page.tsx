@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 
 import { isCampaignLive } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
-import { loadFleet, studioOwner } from '@/features/studio/data';
+import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
+import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { ProfileEditor } from '@/features/studio/ProfileEditor';
 import { ImportAgent, NoSession } from '@/features/studio/StudioClient';
@@ -68,6 +69,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   }
   const mine = jobs.filter((j) => `${j.agentChainId ?? 56}:${j.agentTokenId}` === agent.key);
   const ad = agent.adoption;
+  const ops = loadAgentOps(agent.chainId, agent.tokenId, mine);
 
   return (
     <>
@@ -114,6 +116,26 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <Readout label="Jobs done" value={agent.completedJobs} />
             </div>
             {agent.probes30d > 0 ? <ProbeStrip cells={agent.cells} className="h-8 [&>span]:flex-1" /> : <p className="text-[13px] text-ink-3">Not probed yet. Pokter enrols endpoints that pass the compatibility check.</p>}
+          </section>
+
+          <section aria-labelledby="ops-title" className="flex flex-col gap-5">
+            <h2 id="ops-title" className="t-label">
+              Operations
+            </h2>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              <Readout label="Refunded jobs" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
+              <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
+            </dl>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <WeeklyJobs weeks={ops.weeks} />
+              <LatencyTrend points={ops.latency} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-medium">Probe log, last 20</span>
+              <ProbeLog probes={ops.probes} />
+            </div>
           </section>
 
           <section aria-labelledby="jobs-title" className="flex flex-col gap-3">

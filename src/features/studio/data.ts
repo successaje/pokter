@@ -84,3 +84,65 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
     }),
   };
 }
+
+export interface AgentOps {
+  probes: Array<{ at: string; ok: boolean; latencyMs: number | null; status: number | null; detail: string; protocol: string }>;
+  latency: Array<{ at: string; ms: number }>;
+  weeks: Array<{ start: string; funded: number; completed: number }>;
+  money: { releasedU: number; escrowedU: number; refundedJobs: number; disputedJobs: number };
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The operator's view of one agent, from Pokter's own stores only: the probe
+ * log as recorded, reply latency, jobs per week and where the money went.
+ * Nothing is interpolated: weeks without jobs are zero, probes without a
+ * latency are left out of the latency series.
+ */
+export function loadAgentOps(chainId: number, tokenId: string, jobs: HiredJob[]): AgentOps {
+  const since = new Date(Date.now() - 30 * DAY_MS);
+  const history = getProbeStore().historyFor(chainId, tokenId, since);
+  const probes = history.slice(0, 20).map((p) => ({
+    at: p.probedAt,
+    ok: p.ok,
+    latencyMs: p.latencyMs,
+    status: p.status,
+    detail: p.detail.slice(0, 160),
+    protocol: p.protocol,
+  }));
+  const latency = history
+    .filter((p) => p.ok && p.latencyMs !== null)
+    .slice(0, 40)
+    .reverse()
+    .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number }));
+
+  // Eight ISO-ish weeks ending this week, oldest first.
+  const now = Date.now();
+  const weekStart = (t: number) => {
+    const d = new Date(t);
+    const day = (d.getUTCDay() + 6) % 7;
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day);
+  };
+  const thisWeek = weekStart(now);
+  const weeks = Array.from({ length: 8 }, (_, i) => ({ start: thisWeek - (7 - i) * 7 * DAY_MS, funded: 0, completed: 0 }));
+  for (const job of jobs) {
+    const w = weeks.find((x) => x.start === weekStart(Date.parse(job.hiredAt)));
+    if (!w || job.status === 'OPEN') continue;
+    w.funded += 1;
+    if (job.status === 'COMPLETED') w.completed += 1;
+  }
+
+  const u = (raw: string) => Number(BigInt(raw)) / 1e18;
+  return {
+    probes,
+    latency,
+    weeks: weeks.map((w) => ({ ...w, start: new Date(w.start).toISOString().slice(0, 10) })),
+    money: {
+      releasedU: jobs.filter((j) => j.status === 'COMPLETED').reduce((s, j) => s + u(j.budgetRaw), 0),
+      escrowedU: jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED').reduce((s, j) => s + u(j.budgetRaw), 0),
+      refundedJobs: jobs.filter((j) => Boolean(j.reclaimTxHash)).length,
+      disputedJobs: jobs.filter((j) => j.status === 'REJECTED').length,
+    },
+  };
+}

@@ -19,6 +19,7 @@ import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDos
 import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
+import { getProbeStore } from '@/lib/history/store';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
@@ -58,6 +59,8 @@ export interface AgentProfile {
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
+  /** Reply times of answered probes, oldest first, last 30 days. */
+  latency: Array<{ at: string; ms: number }>;
   evidence: PublishedEvidenceSummary & { measurers: string[]; windowDays: number | null };
   defects: string[];
   score: { overall: number | null; measured: number; total: number; dimensions: Array<{ label: string; earned: number | null; weight: number; explanation: string }> };
@@ -149,6 +152,12 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
       longestOutage: record.longestOutage,
       cells: stripCells(record, 30),
     },
+    latency: getProbeStore()
+      .historyFor(agent.chain_id, agent.token_id, new Date(Date.now() - 30 * 86_400_000))
+      .filter((p) => p.ok && p.latencyMs !== null)
+      .slice(0, 40)
+      .reverse()
+      .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number })),
     skills: skills.slice(0, 12).map((s) => ({ name: clean(s.name, 80), description: s.description ? clean(s.description, 300) : null })),
     evidence: { ...published, measurers: proof.measurers, windowDays: proof.windowDays },
     defects: [...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects])],

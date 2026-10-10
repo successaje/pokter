@@ -11,6 +11,7 @@ import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { TrialPanel } from '@/features/agent/TrialPanel';
 import { ReportReview } from '@/features/agent/ReportReview';
+import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { CompareToggle } from '@/features/compare/CompareControls';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -338,6 +339,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   <Readout label="Longest outage" value={p.record.longestOutage ? `${Math.max(1, Math.round((Date.parse(p.record.longestOutage.to) - Date.parse(p.record.longestOutage.from)) / 3_600_000))} h` : 'None'} muted={!p.record.longestOutage} />
                 </div>
               </div>
+
+              {p.latency.length >= 2 && <LatencyTrend points={p.latency} />}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2 rounded-[12px] border border-dashed border-rule-strong px-5 py-4">
