@@ -19,7 +19,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/developers', label: 'Overview' },
       { href: '/developers#api', label: 'Public API' },
       { href: '/developers#protocols', label: 'Protocols' },
-      { href: GITHUB_REPO_URL, label: 'Source code', external: true },
+      //{ href: GITHUB_REPO_URL, label: 'Source code', external: true },
     ],
   },
   {
