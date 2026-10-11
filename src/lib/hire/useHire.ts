@@ -12,7 +12,7 @@ import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/p
 import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
@@ -28,7 +28,7 @@ import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
 import { commissionTaskTemplates, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
-import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { chainLabel } from '@/lib/network/presentation';
 
 /**
  * A provider the escrow can actually reach.
@@ -72,9 +72,9 @@ export const BUDGET_MIN = 0.01;
 export const BUDGET_MAX = 5;
 
 /** A read-only client for quoting the swap, built per attempt. */
-function readClient() {
+function readClient(chainId: number) {
   return createPublicClient({
-    chain: WALLET_NETWORK.chainId === 56 ? bsc : bscTestnet,
+    chain: chainId === 56 ? bsc : bscTestnet,
     transport: http(),
   });
 }
@@ -149,9 +149,16 @@ export function useHire({
   signedQuoteU = null,
   suggestedU = null,
   riskWarnings = [],
+  escrowChainId = WALLET_NETWORK.chainId,
 }: {
   agent: HireAgent;
   providers: ProviderChoice[];
+  /**
+   * The escrow this hire is funded on, chosen on the server from the agent's
+   * signed price (`escrowChainForHire`). Every read and transaction below is
+   * on this chain.
+   */
+  escrowChainId?: number;
   signedQuoteU?: number | null;
   /**
    * What the box opens on when the agent has never signed a price. A median
@@ -163,7 +170,8 @@ export function useHire({
 }) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
-  const active = useActiveWallet();
+  const active = useActiveWallet(escrowChainId);
+  const network = walletNetworkFor(escrowChainId);
   const taskTemplates = commissionTaskTemplates(agent.category);
 
   const [providerAddress, setProviderAddress] = useState(
@@ -194,7 +202,7 @@ export function useHire({
   const [notification, setNotification] = useState<NotificationState>('idle');
   const [notificationDetail, setNotificationDetail] = useState<string | null>(null);
 
-  const funding = useWalletFunding(active.address ?? wallet?.address ?? null, budget);
+  const funding = useWalletFunding(active.address ?? wallet?.address ?? null, budget, escrowChainId);
 
   /*
    * What the swap will cost, quoted before anything is signed.
@@ -206,8 +214,8 @@ export function useHire({
    * is a swap that happened to them.
    */
   const swapPlan = useQuery({
-    queryKey: ['external-swap-plan', active.address, budget],
-    queryFn: () => planExternalSwap(active.address!, budget),
+    queryKey: ['external-swap-plan', escrowChainId, active.address, budget],
+    queryFn: () => planExternalSwap(active.address!, budget, escrowChainId),
     enabled:
       active.mode === 'external' &&
       Boolean(active.address) &&
@@ -225,7 +233,7 @@ export function useHire({
   const substituted = Boolean(
     provider && agent.wallet && provider.address.toLowerCase() !== agent.wallet.toLowerCase(),
   );
-  const commerceAddresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const commerceAddresses = correctedErc8183Addresses(escrowChainId);
   const budgetValid = Number.isFinite(budget) && budget >= BUDGET_MIN && budget <= BUDGET_MAX;
   const authority = budgetValid
     ? commissionAuthority({
@@ -243,8 +251,10 @@ export function useHire({
   const lockReason = !locked
     ? null
     : active.wrongChain
-      ? `Switch your wallet to ${ESCROW_CHAIN.name} to fund escrow.`
-      : 'Connect a wallet to fund escrow.';
+      ? `Switch your wallet to ${chainLabel(escrowChainId)} to fund escrow.`
+      : active.passkeyUnsupported
+        ? `This hire is funded on ${chainLabel(escrowChainId)}, where the passkey wallet does not act yet. Connect a browser wallet to fund it.`
+        : 'Connect a wallet to fund escrow.';
 
   const describeValid = task.trim().length > 0 && budgetValid && providerCanDeliver;
 
@@ -266,7 +276,7 @@ export function useHire({
       const response = await fetch('/api/jobs/index', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ jobId: hired.jobId, transactionHash: hired.hireTxHash }),
+        body: JSON.stringify({ chainId: hired.chainId, jobId: hired.jobId, transactionHash: hired.hireTxHash }),
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
@@ -299,6 +309,7 @@ export function useHire({
           agentChainId: agent.chainId,
           tokenId: agent.tokenId,
           jobId: hired.jobId,
+          escrowChainId: hired.chainId,
           provider: hired.provider,
         }),
       });
@@ -313,10 +324,10 @@ export function useHire({
         setNotificationDetail('The seller verified the funded job and accepted the delivery request.');
         try {
           const { getErc8183Job, getErc8183DeliverableUrl } = await import('@altananetwork/sdk');
-          const current = await getErc8183Job(WALLET_NETWORK, BigInt(hired.jobId));
+          const current = await getErc8183Job(network, BigInt(hired.jobId));
           const deliverableUrl =
             payload.deliverableUrl ??
-            (await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(hired.jobId)).catch(() => undefined)) ??
+            (await getErc8183DeliverableUrl(network, BigInt(hired.jobId)).catch(() => undefined)) ??
             null;
           const updated: HiredJob = {
             ...hired,
@@ -389,6 +400,7 @@ export function useHire({
           quote: signedQuote ?? undefined,
           budgetU: budget,
           ttlSeconds: 60 * 60 * 24,
+          escrowChainId,
           onProgress: ({ step: reached, jobId: reachedId }) => {
             setExternalStep(reached);
             if (reachedId) setExternalJobId(reachedId);
@@ -399,8 +411,8 @@ export function useHire({
         const externalJob: HiredJob = {
           id: crypto.randomUUID(),
           jobId: outcome.jobId.toString(),
-          chainId: WALLET_NETWORK.chainId,
-          isTestnet: WALLET_NETWORK.chainId === 97,
+          chainId: escrowChainId,
+          isTestnet: escrowChainId === 97,
           agentChainId: agent.chainId,
           agentTokenId: agent.tokenId,
           agentName: agent.name,
@@ -426,6 +438,9 @@ export function useHire({
       }
 
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
+      if (escrowChainId !== WALLET_NETWORK.chainId) {
+        throw new Error(`This hire is funded on ${chainLabel(escrowChainId)}, where the passkey wallet does not act yet. Connect a browser wallet to fund it.`);
+      }
       if (!budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
       if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       const committedTask = encodePokterJobEnvelope({
@@ -483,7 +498,7 @@ export function useHire({
          */
         setStage('swapping');
         const shortfall = budgetRaw - held;
-        const quote = await quoteBnbForPaymentToken(readClient(), paymentToken, shortfall);
+        const quote = await quoteBnbForPaymentToken(readClient(escrowChainId), paymentToken, shortfall);
         if (!quote) {
           throw new Error(
             `No PancakeSwap route to $U is available right now. Fund the wallet with at least ${budget} $U directly.`,
@@ -551,7 +566,7 @@ export function useHire({
     if (!active.address) return;
     setRevoking(true);
     try {
-      await revokeExternalWalletAllowance(active.address as `0x${string}`);
+      await revokeExternalWalletAllowance(active.address as `0x${string}`, escrowChainId);
       setRevoked(true);
     } catch (caught) {
       setError(walletActionError(caught, 'Revoking the approval'));
@@ -565,11 +580,11 @@ export function useHire({
     setRefreshing(true);
     try {
       const { getErc8183Job, getErc8183DeliverableUrl } = await import('@altananetwork/sdk');
-      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
+      const current = await getErc8183Job(network, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??
         (current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED'
-          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(() => undefined)
+          ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
           : undefined) ??
         null;
       const updated: HiredJob = {

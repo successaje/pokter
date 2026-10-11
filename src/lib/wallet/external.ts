@@ -19,7 +19,7 @@ import {
   buildSwapTransaction,
   quoteBnbForPaymentToken,
 } from '@/lib/pancakeswap/swap';
-import { WALLET_NETWORK } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 
 export type HireStep =
@@ -45,6 +45,8 @@ export interface ExternalHireInput {
   quote?: PokterJobQuote;
   budgetU: number;
   ttlSeconds: number;
+  /** The escrow to fund, chosen per hire. Omitted, the site's default network. */
+  escrowChainId?: number;
   onProgress?: (progress: ExternalHireProgress) => void;
 }
 
@@ -89,13 +91,20 @@ export function hasInjectedWallet(): boolean {
   return Boolean(connectedProvider ?? injectedProvider());
 }
 
-function clients() {
+/*
+ * Every escrow action takes the chain it acts on, because hires are funded on
+ * the escrow that can pay the agent's price (see `escrowChainForHire`) and a
+ * job is settled, reclaimed or delivered on the chain it was funded on.
+ * Omitted, it is the site's default network, as before.
+ */
+function clients(chainId: number = WALLET_NETWORK.chainId) {
+  const network = walletNetworkFor(chainId);
   const transport = custom(provider());
   return {
-    wallet: createWalletClient({ chain: WALLET_NETWORK as never, transport }),
+    wallet: createWalletClient({ chain: network as never, transport }),
     read: createPublicClient({
-      chain: WALLET_NETWORK as never,
-      transport: http(WALLET_NETWORK.publicRpcUrl),
+      chain: network as never,
+      transport: http(network.publicRpcUrl),
     }),
   };
 }
@@ -118,17 +127,17 @@ export function onExternalAccountsChanged(
   return () => injected.removeListener?.('accountsChanged', listener);
 }
 
-export async function ensureChain(): Promise<void> {
+export async function ensureChain(target: number = WALLET_NETWORK.chainId): Promise<void> {
   const chainId = (await provider().request({ method: 'eth_chainId' })) as string;
-  if (Number(chainId) === WALLET_NETWORK.chainId) return;
+  if (Number(chainId) === target) return;
   try {
     await provider().request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: `0x${WALLET_NETWORK.chainId.toString(16)}` }],
+      params: [{ chainId: `0x${target.toString(16)}` }],
     });
   } catch { throw new Error('WRONG_CHAIN'); }
   const after = (await provider().request({ method: 'eth_chainId' })) as string;
-  if (Number(after) !== WALLET_NETWORK.chainId) throw new Error('WRONG_CHAIN');
+  if (Number(after) !== target) throw new Error('WRONG_CHAIN');
 }
 
 async function assertAccount(expected: Address): Promise<void> {
@@ -138,12 +147,12 @@ async function assertAccount(expected: Address): Promise<void> {
   }
 }
 
-async function supportsAtomicBatch(account: Address): Promise<boolean> {
+async function supportsAtomicBatch(account: Address, chainId: number): Promise<boolean> {
   try {
     const capabilities = (await provider().request({
       method: 'wallet_getCapabilities', params: [account],
     })) as Record<string, { atomic?: { status?: string } } | undefined>;
-    const key = `0x${WALLET_NETWORK.chainId.toString(16)}`;
+    const key = `0x${chainId.toString(16)}`;
     return capabilities?.[key]?.atomic?.status === 'supported';
   } catch { return false; }
 }
@@ -169,9 +178,9 @@ async function waitForCalls(callsId: string): Promise<Hex | null> {
 }
 
 async function verifyFundedJob(input: {
-  jobId: bigint; account: Address; provider: Address; budget: bigint; description: string;
+  chainId: number; jobId: bigint; account: Address; provider: Address; budget: bigint; description: string;
 }) {
-  const job = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const job = await getErc8183Job(walletNetworkFor(input.chainId), input.jobId);
   if (
     getAddress(job.client) !== getAddress(input.account) ||
     getAddress(job.provider) !== getAddress(input.provider) ||
@@ -180,11 +189,14 @@ async function verifyFundedJob(input: {
   ) throw new Error('FUNDED_JOB_VERIFICATION_FAILED');
 }
 
-export async function revokeExternalWalletAllowance(expectedAccount: Address): Promise<Hex> {
-  await ensureChain();
+export async function revokeExternalWalletAllowance(
+  expectedAccount: Address,
+  chainId: number = WALLET_NETWORK.chainId,
+): Promise<Hex> {
+  await ensureChain(chainId);
   await assertAccount(expectedAccount);
-  const { wallet, read } = clients();
-  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const { wallet, read } = clients(chainId);
+  const addresses = correctedErc8183Addresses(chainId);
   const hash = await wallet.sendTransaction({
     account: expectedAccount, to: addresses.paymentToken as Address,
     data: encodeFunctionData({
@@ -202,10 +214,13 @@ export async function settleFromExternalWallet(input: {
   account: Address;
   jobId: bigint;
   action: 'approve' | 'dispute';
+  chainId?: number;
 }): Promise<Hex> {
-  await ensureChain();
+  const chainId = input.chainId ?? WALLET_NETWORK.chainId;
+  const network = walletNetworkFor(chainId);
+  await ensureChain(chainId);
   await assertAccount(input.account);
-  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const before = await getErc8183Job(network, input.jobId);
   if (getAddress(before.client) !== getAddress(input.account)) {
     throw new Error('The connected wallet did not fund this job.');
   }
@@ -213,7 +228,7 @@ export async function settleFromExternalWallet(input: {
     throw new Error(`This job is ${before.statusName.toLowerCase()} and cannot be settled.`);
   }
 
-  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const addresses = correctedErc8183Addresses(chainId);
   const target = input.action === 'approve' ? addresses.router : addresses.policy;
   const data = input.action === 'approve'
     ? encodeFunctionData({
@@ -224,13 +239,13 @@ export async function settleFromExternalWallet(input: {
         abi: [{ name: 'dispute', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [] }],
         functionName: 'dispute', args: [input.jobId],
       });
-  const { wallet, read } = clients();
+  const { wallet, read } = clients(chainId);
   const hash = await wallet.sendTransaction({
     account: input.account, to: target as Address, data, chain: null,
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('The escrow transaction reverted.');
-  const after = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const after = await getErc8183Job(network, input.jobId);
   const expected = input.action === 'approve' ? 'COMPLETED' : 'REJECTED';
   if (after.statusName !== expected) {
     throw new Error(`The transaction confirmed, but the job is ${after.statusName.toLowerCase()} instead of ${expected.toLowerCase()}.`);
@@ -253,11 +268,13 @@ export async function settleFromExternalWallet(input: {
 export async function reclaimFromExternalWallet(input: {
   account: Address;
   jobId: bigint;
+  chainId?: number;
 }): Promise<Hex> {
-  await ensureChain();
+  const chainId = input.chainId ?? WALLET_NETWORK.chainId;
+  await ensureChain(chainId);
   await assertAccount(input.account);
 
-  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const before = await getErc8183Job(walletNetworkFor(chainId), input.jobId);
   if (getAddress(before.client) !== getAddress(input.account)) {
     throw new Error('The connected wallet did not fund this job.');
   }
@@ -272,8 +289,8 @@ export async function reclaimFromExternalWallet(input: {
     );
   }
 
-  const call = buildClaimRefundCall(WALLET_NETWORK.chainId, input.jobId);
-  const { wallet, read } = clients();
+  const call = buildClaimRefundCall(chainId, input.jobId);
+  const { wallet, read } = clients(chainId);
   const hash = await wallet.sendTransaction({
     account: input.account,
     to: call.to as Address,
@@ -318,12 +335,10 @@ export interface ExternalSwapPlan {
 export async function planExternalSwap(
   account: Address,
   budgetU: number,
+  chainId: number = WALLET_NETWORK.chainId,
 ): Promise<ExternalSwapPlan | null> {
-  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
-  const read = createPublicClient({
-    chain: WALLET_NETWORK as never,
-    transport: http(WALLET_NETWORK.publicRpcUrl),
-  });
+  const addresses = correctedErc8183Addresses(chainId);
+  const { read } = clients(chainId);
   const budget = parseUnits(String(budgetU), 18);
   const [held, native] = await Promise.all([
     read.readContract({
@@ -389,11 +404,12 @@ async function acquireShortfall({
 }
 
 export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
-  const { wallet, read } = clients();
+  const chainId = input.escrowChainId ?? WALLET_NETWORK.chainId;
+  const { wallet, read } = clients(chainId);
   const [rawAccount] = await wallet.getAddresses();
   if (!rawAccount) throw new Error('NO_ACCOUNT');
   const account = getAddress(rawAccount);
-  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const addresses = correctedErc8183Addresses(chainId);
   const budget = parseUnits(String(input.budgetU), 18);
   if (budget <= 0n) throw new Error('INVALID_BUDGET');
   if (!Number.isSafeInteger(input.ttlSeconds) || input.ttlSeconds <= 0) throw new Error('INVALID_EXPIRY');
@@ -404,7 +420,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     providerLabel: input.providerLabel, task: input.task, quote: input.quote,
   });
   const report = input.onProgress ?? (() => {});
-  await ensureChain();
+  await ensureChain(chainId);
   await assertAccount(account);
 
   const [allowance, balance] = await Promise.all([
@@ -442,7 +458,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   const predicted = buildHireCalls({ addresses, jobId: predictedJobId,
     provider: input.provider, description, budget, expiredAt });
 
-  if (await supportsAtomicBatch(account)) {
+  if (await supportsAtomicBatch(account, chainId)) {
     const calls = [...predicted];
     if (allowance >= budget) calls.splice(3, 1);
     else if (allowance > 0n) calls.splice(3, 0, {
@@ -452,21 +468,21 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     });
     report({ step: 'creating', jobId: predictedJobId });
     const callsId = (await provider().request({ method: 'wallet_sendCalls', params: [{
-      version: '2.0.0', chainId: `0x${WALLET_NETWORK.chainId.toString(16)}`,
+      version: '2.0.0', chainId: `0x${chainId.toString(16)}`,
       from: account, atomicRequired: true,
       calls: calls.map((call) => ({ to: call.to, data: call.data,
         value: call.value ? `0x${call.value.toString(16)}` : '0x0' })),
     }] })) as string;
     report({ step: 'confirming', jobId: predictedJobId });
     const transactionHash = await waitForCalls(callsId);
-    await verifyFundedJob({ jobId: predictedJobId, account,
+    await verifyFundedJob({ chainId, jobId: predictedJobId, account,
       provider: input.provider, budget, description });
     report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
     return { jobId: predictedJobId, transactionHash, callsId, atomic: true };
   }
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
-    await ensureChain(); await assertAccount(account); report({ step, jobId });
+    await ensureChain(chainId); await assertAccount(account); report({ step, jobId });
     const hash = await wallet.sendTransaction({ account, to, data, chain: null });
     const receipt = await read.waitForTransactionReceipt({ hash });
     if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
@@ -489,7 +505,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   }
   const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId);
   report({ step: 'confirming', jobId, hash: funded.hash });
-  await verifyFundedJob({ jobId, account, provider: input.provider, budget, description });
+  await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description });
   report({ step: 'done', jobId, hash: funded.hash });
   return { jobId, transactionHash: funded.hash, callsId: null, atomic: false };
 }
@@ -510,7 +526,7 @@ export interface ExternalBalances {
  * A buyer with one and not the other gets a failure part way through a
  * sequence, which is the worst place to discover a funding problem.
  */
-export async function externalBalances(): Promise<ExternalBalances | null> {
+export async function externalBalances(chainId: number = WALLET_NETWORK.chainId): Promise<ExternalBalances | null> {
   let account: Address | undefined;
   try {
     const accounts = (await provider().request({
@@ -522,8 +538,8 @@ export async function externalBalances(): Promise<ExternalBalances | null> {
   }
   if (!account) return null;
 
-  const { read } = clients();
-  const addresses = correctedErc8183Addresses(WALLET_NETWORK.chainId);
+  const { read } = clients(chainId);
+  const addresses = correctedErc8183Addresses(chainId);
 
   /*
    * Settled rather than awaited together: a payment-token read that fails
@@ -563,16 +579,19 @@ export async function submitExternalDeliverable(input: {
   jobId: bigint;
   deliverable: Hex;
   deliverableUrl: string;
+  chainId?: number;
 }): Promise<Hex> {
-  await ensureChain();
+  const chainId = input.chainId ?? WALLET_NETWORK.chainId;
+  const network = walletNetworkFor(chainId);
+  await ensureChain(chainId);
   await assertAccount(input.account);
-  const { wallet, read } = clients();
-  const before = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const { wallet, read } = clients(chainId);
+  const before = await getErc8183Job(network, input.jobId);
   if (getAddress(before.provider) !== getAddress(input.account)) throw new Error('NOT_JOB_PROVIDER');
   if (before.statusName !== 'FUNDED') throw new Error(`JOB_${before.statusName}`);
   if (before.expiredAt <= BigInt(Math.floor(Date.now() / 1000))) throw new Error('JOB_EXPIRED');
   const call = buildSubmitCall({
-    addresses: correctedErc8183Addresses(WALLET_NETWORK.chainId),
+    addresses: correctedErc8183Addresses(chainId),
     jobId: input.jobId,
     deliverable: input.deliverable,
     optParams: stringToHex(JSON.stringify({ deliverable_url: input.deliverableUrl })),
@@ -580,7 +599,7 @@ export async function submitExternalDeliverable(input: {
   const hash = await wallet.sendTransaction({ account: input.account, to: call.to as Address, data: call.data, chain: null });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('SUBMIT_REVERTED');
-  const after = await getErc8183Job(WALLET_NETWORK, input.jobId);
+  const after = await getErc8183Job(network, input.jobId);
   if (after.statusName !== 'SUBMITTED' || after.deliverable.toLowerCase() !== input.deliverable.toLowerCase()) {
     throw new Error('SUBMISSION_VERIFICATION_FAILED');
   }

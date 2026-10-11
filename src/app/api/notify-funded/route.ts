@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { isEscrowChain } from '@/lib/network/escrow';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
@@ -62,10 +63,12 @@ export async function POST(request: Request): Promise<NextResponse> {
    * value that satisfied the guard was the one guaranteed to 404 the lookup,
    * and no marketplace agent could be delivered at all.
    *
-   * The escrow chain is now a server fact rather than caller input — there is
-   * only ever one, and accepting it from the request invited exactly this
-   * contradiction. The caller supplies only which chain the agent is
-   * registered on.
+   * The escrow chain was then a server fact, because there was only one.
+   * Hires are now funded per agent on the escrow that can pay its price, so
+   * the caller names it as `escrowChainId`, separately from the registry
+   * chain. It is not trusted: nothing is sent unless the job read from that
+   * chain is funded and names this provider, and Pokter's own seller only
+   * ever delivers on testnet.
    */
   // No fallback to `chainId`: every existing caller sent the escrow chain
   // there, which is precisely the value that cannot resolve an agent.
@@ -73,6 +76,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   const tokenId = String(body.tokenId ?? '');
   const jobId = String(body.jobId ?? '');
   const provider = String(body.provider ?? '').toLowerCase();
+  const escrowChainId = body.escrowChainId === undefined ? ALTANA_NETWORK.chainId : Number(body.escrowChainId);
+  if (!isEscrowChain(escrowChainId)) {
+    return NextResponse.json(
+      { error: 'escrowChainId must be an escrow chain Pokter funds hires on.' },
+      { status: 400 },
+    );
+  }
 
   if (agentChainId !== 56 && agentChainId !== 97) {
     return NextResponse.json(
@@ -98,7 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+    const job = await getErc8183Job(altanaNetworkFor(escrowChainId), BigInt(jobId));
     if (job.provider.toLowerCase() !== provider) {
       return NextResponse.json(
         { error: 'The funded job does not name the requested provider.' },
@@ -113,6 +123,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     if (await isDemoSeller(provider)) {
+      if (escrowChainId !== 97) {
+        return NextResponse.json(
+          { error: 'Pokter’s delivery agent works only on testnet jobs.' },
+          { status: 409 },
+        );
+      }
       const delivery = await submitDemoDeliverable(jobId);
       return NextResponse.json({
         ...delivery,

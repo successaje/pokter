@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
+import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
+import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -83,11 +82,14 @@ export async function POST(request: Request): Promise<NextResponse> {
    * and bound to somewhere else — and finding that out after the escrow is
    * funded costs the buyer the wait for the deadline to pass.
    */
-  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
-  if (!quotePayableWith(quote.currency, paymentToken)) {
+  // The escrow is the one that settles in the quoted token, so a price in
+  // mainnet $U is funded on mainnet when mainnet is enabled, and refused here
+  // when it is not.
+  const escrowChainId = escrowChainForCurrency(quote.currency);
+  if (escrowChainId === null) {
     return NextResponse.json(
       {
-        error: unpayablePriceNote(quote.currency, ALTANA_NETWORK.chainId === 97),
+        error: unpayablePriceNote(quote.currency, !isEscrowChain(56)),
         reason: 'currency',
       },
       { status: 409 },
@@ -103,7 +105,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
         : undefined,
     },
-    ALTANA_NETWORK.chainId,
+    escrowChainId,
   );
   if (!usable.usable) {
     return NextResponse.json(
@@ -123,6 +125,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       expiresAt: quote.expiresAt,
       domain: quote.domain,
     },
+    /* The escrow this price can be paid on, which the caller funds and no other. */
+    escrowChainId,
     /* The exact text the signature covers, so the caller funds that and not a variant. */
     task,
     observedAt: new Date().toISOString(),

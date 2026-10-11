@@ -23,9 +23,7 @@ import {
 } from '@/lib/find/suggested';
 
 import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
-import { quotePayableWith } from '@/lib/erc8183/payable';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
 import { computeScore } from '@/lib/score/engine';
@@ -106,7 +104,7 @@ export interface Listing {
 }
 
 /**
- * Whether a quote is denominated in the token this escrow settles in.
+ * Whether a quote is denominated in the token an enabled escrow settles in.
  *
  * Only the currency. A missing or mismatched signing domain also stops a
  * hire, but that is re-negotiated at funding time by the quote route,
@@ -120,8 +118,9 @@ export interface Listing {
  */
 function payable(quote: QuoteRecord | undefined): boolean | undefined {
   if (!quote) return undefined;
-  const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
-  return quotePayableWith(quote.currency, paymentToken);
+  // Any enabled escrow will do: the hire is funded on whichever settles in
+  // the quoted token (see `escrowChainForHire`).
+  return escrowChainForCurrency(quote.currency) !== null;
 }
 
 function dedupe(agents: ScanAgent[]): ScanAgent[] {

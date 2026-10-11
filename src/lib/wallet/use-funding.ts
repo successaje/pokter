@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { parseEther, parseUnits, type Address } from 'viem';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
+import { createClient } from '@altananetwork/sdk';
 
 /** Enough for an approval and a fund call, with room for a retry. */
 export const MIN_GAS = parseEther('0.002');
@@ -24,15 +25,14 @@ export const MIN_GAS = parseEther('0.002');
 export function useWalletFunding(
   address: Address | null | undefined,
   requiredBudgetU: number,
+  chainId: number = WALLET_NETWORK.chainId,
 ) {
-  const paymentToken = correctedErc8183Addresses(
-    WALLET_NETWORK.chainId,
-  ).paymentToken;
+  const paymentToken = correctedErc8183Addresses(chainId).paymentToken;
 
   const balance = useQuery({
-    queryKey: ['wallet-funding', address, paymentToken, requiredBudgetU],
+    queryKey: ['wallet-funding', chainId, address, paymentToken, requiredBudgetU],
     queryFn: () =>
-      walletClient().balances({ wallet: address!, tokens: [paymentToken] }),
+      createClient({ chains: [walletNetworkFor(chainId)] }).balances({ wallet: address!, tokens: [paymentToken] }),
     enabled: Boolean(address),
     refetchInterval: 30_000,
   });

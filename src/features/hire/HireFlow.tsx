@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, explorerTxUrl } from '@/lib/network/presentation';
+import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -33,7 +33,7 @@ export interface HireFlowProps {
   signedQuoteU: number | null;
   suggestedU: number | null;
   warnings: string[];
-  escrow: { commerce: string; paymentToken: string };
+  escrow: { chainId: number; commerce: string; paymentToken: string };
   /** Set and Earn is running: warn that passkey hires cannot count on a second marketplace. */
   campaignLive?: boolean;
 }
@@ -57,7 +57,7 @@ const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
     being conditionally spliced in — a progress list whose length changes
     while it is on screen is worse than one with a step that never lights.
   */
-  { id: 'swapping', label: 'Swapping for the missing $U', hint: 'One prompt. Spends tBNB up to the quoted maximum and refunds the rest.' },
+  { id: 'swapping', label: 'Swapping for the missing $U', hint: 'One prompt. Spends BNB up to the quoted maximum and refunds the rest.' },
   { id: 'creating', label: 'Creating the job', hint: 'Approve in your wallet. This records the job and its terms.' },
   { id: 'registering', label: 'Registering the job', hint: 'Approve in your wallet.' },
   { id: 'budgeting', label: 'Setting the budget', hint: 'Approve in your wallet.' },
@@ -101,7 +101,15 @@ function explainFailure(message: string): { title: string; body: string } {
 }
 
 export function HireFlow(props: HireFlowProps) {
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings });
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, escrowChainId: props.escrow.chainId });
+  // Everything below describes the escrow this hire is funded on, which is
+  // chosen per agent and is not necessarily the site's default network.
+  const escrowChainId = props.escrow.chainId;
+  const testnet = escrowChainId === 97;
+  const nativeSymbol = testnet ? 'tBNB' : 'BNB';
+  const networkLabel = chainLabel(escrowChainId);
+  const faucets = testnet ? FAUCETS : null;
+  const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
   const sponsored = useGasSponsorship();
   const [step, setStepState] = useState<Step>('describe');
@@ -148,7 +156,7 @@ export function HireFlow(props: HireFlowProps) {
   if (done && hire.job) {
     const job = hire.job;
     return (
-      <Shell agent={props.agent} step={null}>
+      <Shell agent={props.agent} step={null} testnet={testnet}>
         <div className="anim-rise flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-full bg-ok-wash text-ok">
@@ -188,7 +196,7 @@ export function HireFlow(props: HireFlowProps) {
               <div>
                 <dt className="t-label">Transaction</dt>
                 <dd className="mt-1">
-                  <a href={explorerTxUrl(job.hireTxHash)} target="_blank" rel="noreferrer noopener" className="t-readout link text-[13px]">
+                  <a href={txUrl(job.hireTxHash)} target="_blank" rel="noreferrer noopener" className="t-readout link text-[13px]">
                     {job.hireTxHash.slice(0, 10)}…
                   </a>
                 </dd>
@@ -225,7 +233,7 @@ export function HireFlow(props: HireFlowProps) {
   // ── In progress ───────────────────────────────────────
   if (busy) {
     return (
-      <Shell agent={props.agent} step="pay">
+      <Shell agent={props.agent} step="pay" testnet={testnet}>
         <div className="flex flex-col gap-6">
           <div>
             <h1 className="t-h2">Funding the job</h1>
@@ -245,7 +253,7 @@ export function HireFlow(props: HireFlowProps) {
   }
 
   return (
-    <Shell agent={props.agent} step={step}>
+    <Shell agent={props.agent} step={step} testnet={testnet}>
       {failure && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
           {failure.body}
@@ -350,21 +358,21 @@ export function HireFlow(props: HireFlowProps) {
                     out both tokens is already known to this codebase.
                   */}
                   Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
-                  short, and there is no pool to buy $U from on {NETWORK_LABEL}.
-                  {FAUCETS?.paymentTokenBot ? (
+                  short, and there is no pool to buy $U from on {networkLabel}.
+                  {faucets?.paymentTokenBot ? (
                     <>
                       {' '}The faucet hands out both tokens: message{' '}
                       <a
-                        href={FAUCETS.paymentTokenBot.url}
+                        href={faucets.paymentTokenBot.url}
                         target="_blank"
                         rel="noreferrer noopener"
                         className="underline"
                       >
-                        {FAUCETS.paymentTokenBot.handle}
+                        {faucets.paymentTokenBot.handle}
                       </a>{' '}
                       with{' '}
                       <span className="t-readout">
-                        {FAUCETS.paymentTokenBot.bothAsk.replace('ADDRESS', shortAddress(hire.active.address ?? ''))}
+                        {faucets.paymentTokenBot.bothAsk.replace('ADDRESS', shortAddress(hire.active.address ?? ''))}
                       </span>
                       , then come back.
                     </>
@@ -377,12 +385,12 @@ export function HireFlow(props: HireFlowProps) {
                   Your wallet is {formatBudget(Number(formatUnits(hire.swapPlan.shortfallRaw, 18)))}{' '}
                   short, so the first prompt spends up to{' '}
                   <span className="t-readout">
-                    {trimNative(hire.swapPlan.maxNativeIn)} {NATIVE_SYMBOL}
+                    {trimNative(hire.swapPlan.maxNativeIn)} {nativeSymbol}
                   </span>{' '}
                   on PancakeSwap to cover it and refunds whatever it does not need.
                   Then the approval and the deposit, as usual.
                   {!hire.swapPlan.affordable && (
-                    <> This wallet does not hold that much {NATIVE_SYMBOL} with gas to
+                    <> This wallet does not hold that much {nativeSymbol} with gas to
                     spare — top it up from the faucet, or lower the budget.</>
                   )}
                 </>
@@ -423,12 +431,12 @@ export function HireFlow(props: HireFlowProps) {
           <div className="overflow-hidden rounded-[14px] border border-rule">
             <dl className="ruled bg-raised text-sm">
               {[
-                ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${IS_TESTNET ? ' (test token)' : ''}`],
-                ['Held by', `ERC-8183 escrow on ${NETWORK_LABEL}`],
+                ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
+                ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and you accept, or the review window passes without a dispute'],
                 ['Deadline', '24 hours from funding'],
                 ['If nothing is delivered', 'You reclaim the full amount after the deadline'],
-                ['Network fee', hire.active.mode === 'external' ? `A few cents of ${NATIVE_SYMBOL}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${NATIVE_SYMBOL}`],
+                ['Network fee', hire.active.mode === 'external' ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
               ].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
                   <dt className="text-ink-3">{k}</dt>
@@ -515,25 +523,25 @@ export function HireFlow(props: HireFlowProps) {
                     value={hire.funding.token?.ok ? Number(formatUnits(hire.funding.token.raw, hire.funding.token.decimals)).toFixed(2) : '—'}
                     ok={hire.funding.paymentReady}
                     known={hire.funding.paymentKnown}
-                    note={hire.funding.paymentLow ? (hire.active.mode === 'passkey' ? `Short. Pokter will swap ${NATIVE_SYMBOL} for the difference if you hold enough.` : 'Short of the budget.') : undefined}
+                    note={hire.funding.paymentLow ? (hire.active.mode === 'passkey' ? `Short. Pokter will swap ${nativeSymbol} for the difference if you hold enough.` : 'Short of the budget.') : undefined}
                   />
                   <Balance
-                    label={`${NATIVE_SYMBOL} for the fee`}
+                    label={`${nativeSymbol} for the fee`}
                     value={hire.funding.native !== undefined ? Number(formatEther(hire.funding.native)).toFixed(4) : '—'}
                     ok={hire.funding.gasReady}
                     known={hire.funding.gasKnown}
                     note={hire.funding.gasLow ? (hire.active.mode === 'passkey' && sponsored && !hire.funding.paymentLow ? 'Low. Pokter will cover the fee.' : hire.active.mode === 'passkey' && sponsored ? 'Low. Pokter covers it once the wallet holds the budget in $U.' : 'Too low for the network fee.') : undefined}
                   />
                 </div>
-                {IS_TESTNET && FAUCETS && (hire.funding.paymentLow || hire.funding.gasLow) && (
+                {testnet && faucets && (hire.funding.paymentLow || hire.funding.gasLow) && (
                   <p className="text-[12.5px] text-ink-3">
                     Test tokens: ask{' '}
-                    <a href={FAUCETS.paymentTokenBot?.url ?? FAUCETS.paymentToken} className="link" target="_blank" rel="noreferrer noopener">
-                      {FAUCETS.paymentTokenBot?.handle ?? 'the faucet'}
+                    <a href={faucets.paymentTokenBot?.url ?? faucets.paymentToken} className="link" target="_blank" rel="noreferrer noopener">
+                      {faucets.paymentTokenBot?.handle ?? 'the faucet'}
                     </a>{' '}
-                    for $U and {NATIVE_SYMBOL}, or use the{' '}
-                    <a href={FAUCETS.native} className="link" target="_blank" rel="noreferrer noopener">
-                      {NATIVE_SYMBOL} faucet
+                    for $U and {nativeSymbol}, or use the{' '}
+                    <a href={faucets.native} className="link" target="_blank" rel="noreferrer noopener">
+                      {nativeSymbol} faucet
                     </a>
                     .
                   </p>
@@ -543,7 +551,7 @@ export function HireFlow(props: HireFlowProps) {
               <div className="flex flex-col gap-4 rounded-[14px] border-2 border-ink bg-raised p-5">
                 <span className="t-label">You are about to</span>
                 <p className="text-[15px] leading-relaxed">
-                  Pay <strong className="t-readout">{hire.budget} $U</strong> into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {NETWORK_LABEL}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
+                  Pay <strong className="t-readout">{hire.budget} $U</strong> into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {networkLabel}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
                 </p>
                 <p className="text-[13px] text-ink-3">
                   {hire.active.mode === 'passkey'
@@ -579,7 +587,7 @@ function Balance({ label, value, ok, known, note }: { label: string; value: stri
   );
 }
 
-function Shell({ agent, step, children }: { agent: HireFlowProps['agent']; step: Step | null; children: React.ReactNode }) {
+function Shell({ agent, step, testnet, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; children: React.ReactNode }) {
   const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
   return (
     <div className="min-h-dvh">
@@ -619,7 +627,7 @@ function Shell({ agent, step, children }: { agent: HireFlowProps['agent']; step:
               </li>
             ))}
           </ol>
-          {IS_TESTNET && <p className="hidden text-[12px] leading-relaxed text-ink-3 md:block">BNB testnet. $U here is a test token with no value.</p>}
+          {testnet && <p className="hidden text-[12px] leading-relaxed text-ink-3 md:block">BNB testnet. $U here is a test token with no value.</p>}
         </aside>
         <main id="main" className="min-w-0 max-w-2xl">
           {children}
