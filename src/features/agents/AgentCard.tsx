@@ -6,6 +6,17 @@ import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 
+/** Paid jobs the agent let lapse, said only when there are some. */
+function MissedNote({ row, className }: { row: FindRow; className?: string }) {
+  if (!row.paid.missed) return null;
+  return (
+    <span className={cn('flex items-center gap-2 text-[12.5px] text-ink-2', className)} title="Funded through Pokter escrow, nothing delivered before the deadline">
+      <span className={cn('size-1.5 shrink-0 rounded-full', DOT.watch)} aria-hidden />
+      Missed {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'}
+    </span>
+  );
+}
+
 export function agentHref(row: Pick<FindRow, 'chainId' | 'tokenId'>) {
   return `/agents/${row.chainId}/${row.tokenId}`;
 }
@@ -62,6 +73,7 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
         </span>
         {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 shrink-0 [&>span]:w-[3px]" />}
       </div>
+      <MissedNote row={row} className="mt-1.5" />
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-3.5">
         <VerdictLabel verdict={row.verdict} />
@@ -92,9 +104,12 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           </p>
         )}
       </div>
-      <span className="col-start-2 flex items-center gap-2 text-[12.5px] text-ink-2 sm:col-start-auto">
-        <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
-        <span className="truncate">{status.text}</span>
+      <span className="col-start-2 flex flex-col gap-1 sm:col-start-auto">
+        <span className="flex items-center gap-2 text-[12.5px] text-ink-2">
+          <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
+          <span className="truncate">{status.text}</span>
+        </span>
+        <MissedNote row={row} />
       </span>
       <span className="col-start-2 sm:col-start-auto">
         <VerdictLabel verdict={row.verdict} />
@@ -146,7 +161,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <dt className="t-label">Paid jobs</dt>
-          <dd className="t-readout text-ink-2">{row.paid.completed > 0 ? `${row.paid.completed} delivered` : row.paid.jobs > 0 ? `${row.paid.jobs} hired` : 'None yet'}</dd>
+          <dd className="t-readout text-ink-2">{row.paid.jobs === 0 ? 'None yet' : `${row.paid.delivered} delivered${row.paid.missed ? ` · ${row.paid.missed} missed` : ''}`}</dd>
         </div>
       </dl>
       <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ink">

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { GITHUB_REPO_URL, SUPPORT_EMAIL } from '@/lib/support/contact';
+import { SUPPORT_EMAIL } from '@/lib/support/contact';
 import { Mark } from './Logo';
 
 const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string; external?: boolean }> }> = [

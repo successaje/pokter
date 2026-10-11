@@ -51,3 +51,17 @@ test('expired escrow is visible as its own outcome', () => {
   assert.equal(h.completed, 1);
   assert.equal(h.jobs, 3);
 });
+
+test('a funded job past its deadline counts as missed even before anyone reclaims it', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const at = (status: string, expiredAt: string) => ({ ...job(status), expiredAt }) as HiredJob;
+  const h = summariseEconomicHistory([
+    at('FUNDED', '2026-10-10T12:00:00Z'), // lapsed, not reclaimed
+    at('EXPIRED', '2026-10-09T12:00:00Z'), // lapsed and reclaimed
+    at('FUNDED', '2026-10-12T12:00:00Z'), // still inside its window
+    at('COMPLETED', '2026-10-09T12:00:00Z'),
+  ], now);
+  assert.equal(h.missed, 2);
+  assert.equal(h.pending, 1);
+  assert.equal(h.delivered, 1);
+});
