@@ -1,0 +1,77 @@
+import { getAddress } from 'viem';
+
+/**
+ * Which escrow a hire is funded on.
+ *
+ * Pokter ran one escrow, chosen for the whole site by `ALTANA_NETWORK`, and it
+ * was testnet. Most agents that sign a price sign it in mainnet $U, which the
+ * testnet escrow cannot pay, so those agents could be read about here and not
+ * hired. The escrow is now chosen per hire: an agent whose signed price is in
+ * a token one of the enabled escrows settles in is hired on that escrow, and
+ * everything else stays on testnet as before.
+ *
+ * Isomorphic and free of SDK imports, so the server, the browser and the tests
+ * apply the same rule. The payment tokens are pinned here rather than read
+ * from the SDK for the same reason; they are the `paymentToken` values in
+ * `erc8183Addresses` as of SDK 0.9, and `correctedErc8183Addresses` remains
+ * the source for every other escrow address.
+ */
+
+export type EscrowChainId = 56 | 97;
+
+/** The token each ERC-8183 deployment settles in. */
+export const ESCROW_PAYMENT_TOKEN: Record<EscrowChainId, `0x${string}`> = {
+  56: '0xcE24439F2D9C6a2289F741120FE202248B666666',
+  97: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565',
+};
+
+/**
+ * The escrows hires may be funded on, from `NEXT_PUBLIC_ESCROW_CHAINS`.
+ *
+ * Unset means testnet only, which is what the site did before this existed.
+ * Mainnet is opened by listing it ("97,56"), and nothing else does so: real
+ * money moves only when somebody has set this on purpose. Public, because the
+ * browser decides which network to ask the wallet for.
+ */
+export function enabledEscrowChains(raw: string | undefined = process.env.NEXT_PUBLIC_ESCROW_CHAINS): EscrowChainId[] {
+  const listed = (raw ?? '97')
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((id): id is EscrowChainId => id === 56 || id === 97);
+  const unique = [...new Set(listed)];
+  return unique.length > 0 ? unique : [97];
+}
+
+export function isEscrowChain(chainId: number, enabled: EscrowChainId[] = enabledEscrowChains()): chainId is EscrowChainId {
+  return (enabled as number[]).includes(chainId);
+}
+
+function sameAddress(a: string, b: string): boolean {
+  try {
+    return getAddress(a) === getAddress(b);
+  } catch {
+    return false;
+  }
+}
+
+/** The enabled escrow that settles in this token, or null when none does. */
+export function escrowChainForCurrency(currency: string, enabled: EscrowChainId[] = enabledEscrowChains()): EscrowChainId | null {
+  return enabled.find((chainId) => sameAddress(currency, ESCROW_PAYMENT_TOKEN[chainId])) ?? null;
+}
+
+/**
+ * The escrow to hire an agent on.
+ *
+ * A signed price decides it: the price is only payable on the escrow that
+ * settles in its token, so that is the escrow, or none when no enabled escrow
+ * does. An agent with no signed price is hired on testnet, where the buyer
+ * sets the budget and Pokter's delivery agent can carry the task; that path
+ * never runs on mainnet (see `demo-guard`).
+ */
+export function escrowChainForHire(
+  quoteCurrency: string | null | undefined,
+  enabled: EscrowChainId[] = enabledEscrowChains(),
+): EscrowChainId | null {
+  if (quoteCurrency) return escrowChainForCurrency(quoteCurrency, enabled);
+  return enabled.includes(97) ? 97 : null;
+}
