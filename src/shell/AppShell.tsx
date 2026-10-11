@@ -9,7 +9,6 @@ import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Wordmark } from './Logo';
-import { PRIMARY_NAV } from './nav';
 import { MobileTabBar } from './MobileTabBar';
 import { ThemeToggle } from './ThemeControl';
 import { AccountButton } from './wallet/AccountButton';
@@ -58,17 +57,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-rule bg-raised/60 md:flex">
         <div className="flex h-16 items-center px-5">
           <Wordmark />
-        </div>
-
-        <div className="px-3 pb-3">
-          <Link
-            href="/discover"
-            className="flex h-9 items-center gap-2.5 rounded-[9px] border border-rule-strong bg-paper px-3 text-[13px] text-ink-3 transition-colors hover:border-ink hover:text-ink"
-          >
-            <Icon.Search size={15} />
-            Find an agent
-            <span className="ml-auto text-[11px] text-ink-3">Discover</span>
-          </Link>
         </div>
 
         <div className="px-3">
@@ -154,15 +142,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="md:hidden">
             <Wordmark />
           </div>
-          <nav aria-label="Marketplace" className="hidden items-center gap-1 md:flex">
-            {PRIMARY_NAV.map((item) => (
-              <Link key={item.href} href={item.href} className="rounded-[8px] px-3 py-2 text-sm font-medium text-ink-3 transition-colors hover:text-ink">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-1.5">
-            <Link href="/discover" aria-label="Discover agents" className="grid size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:hidden">
+          <div className="hidden md:block" aria-hidden />
+          <div className="flex items-center gap-2">
+            {/* A plain GET form: searching works before the page is interactive. */}
+            <form action="/discover" role="search" className="hidden md:block">
+              <label className="flex h-9 w-64 items-center gap-2 rounded-[9px] border border-rule-strong bg-paper px-3 text-[13px] text-ink-3 transition-colors focus-within:border-ink hover:border-ink lg:w-80">
+                <Icon.Search size={15} className="shrink-0" />
+                <span className="sr-only">Find an agent</span>
+                <input name="q" type="search" placeholder="Find an agent" className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3" />
+              </label>
+            </form>
+            <Link href="/discover" aria-label="Find an agent" className="grid size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:hidden">
               <Icon.Search size={18} />
             </Link>
             <AccountButton />
