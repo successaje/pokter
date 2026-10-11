@@ -8,7 +8,7 @@ import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
-import type { SearchableAgent } from '@/lib/search/match';
+import { offersDirectHire, type SearchableAgent } from '@/lib/search/match';
 import { mostReliable } from '@/lib/search/order';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
@@ -135,6 +135,8 @@ export interface HomeData {
   reliable: Array<{ row: FindRow; probes: number; answered: number; medianMs: number | null }>;
   activity: { completedJobs: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
+  /** The same counts Discover's collections show, so the two never disagree. */
+  catalogue: { hireable: number; priced: number };
 }
 
 export async function loadHome(): Promise<HomeData> {
@@ -180,6 +182,7 @@ export async function loadHome(): Promise<HomeData> {
   });
 
   const jobs = summarizeMarketplaceActivity(getJobStore().all());
+  const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   return {
     reachable: !unreachable,
@@ -190,5 +193,9 @@ export async function loadHome(): Promise<HomeData> {
     reliable,
     activity: { completedJobs: jobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
+    catalogue: {
+      hireable: promotable.filter((entry) => offersDirectHire(entry)).length,
+      priced: promotable.filter((entry) => entry.listing.quote != null).length,
+    },
   };
 }
