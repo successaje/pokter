@@ -1,4 +1,5 @@
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
 
 export type AgentBuildPromptInput = {
   name: string;
@@ -56,7 +57,7 @@ const ESCROW_CHAIN_NAME = 'BNB Smart Chain Testnet';
  *
  * Empty on mainnet, where none of this applies.
  */
-function fundingSection(): string {
+function fundingSection(mainnetEscrow: boolean): string {
   if (!FAUCETS) return '';
   const bot = FAUCETS.paymentTokenBot;
   const viaBot = bot
@@ -70,10 +71,32 @@ function fundingSection(): string {
 FUNDING THE WALLET, BEFORE ANY OF IT WORKS
 - Registering the ERC-8004 identity costs gas, and every delivery the agent submits on chain costs gas, so the wallet that owns the identity needs ${NATIVE_SYMBOL} on chain ${ESCROW_CHAIN_ID} before either can happen. If I also want to hire the agent myself to watch the whole loop, that wallet needs the escrow payment token too. Both are test tokens, both are free, and neither has any real value.
 ${viaBot}
-- Check with me that the wallet is funded before you tell me to register or to submit anything. An empty wallet fails at exactly the step you have just called finished, and the error it returns looks like a bug in the agent rather than an empty wallet.`;
+${mainnetEscrow ? `- If I chose mainnet, none of the above applies: the wallet needs real BNB for gas on chain 56, and nobody gives that away.
+` : ''}- Check with me that the wallet is funded before you tell me to register or to submit anything. An empty wallet fails at exactly the step you have just called finished, and the error it returns looks like a bug in the agent rather than an empty wallet.`;
 }
 
-export function createAgentBuildPrompt(input: AgentBuildPromptInput) {
+/**
+ * Where the agent is paid, which decides the chain it registers on, the token
+ * it quotes in and the chain it signs for. Mirrors `escrowChainForHire`: a
+ * price in a token an enabled escrow settles in is hired on that escrow.
+ */
+function chainsSection(mainnetEscrow: boolean): string {
+  if (!mainnetEscrow) {
+    return `WHICH CHAINS THIS AGENT LIVES ON
+- Identity: register the ERC-8004 agent on BNB Chain mainnet (56) or BNB Smart Chain Testnet (97). Pokter lists both.
+- Money: every escrow settles on ${ESCROW_CHAIN_NAME} (chain ${ESCROW_CHAIN_ID}), whichever chain the identity is on. Payment is a test token with no real value.
+- Therefore: quote in the payment token of chain ${ESCROW_CHAIN_ID}, and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Ask me for the exact payment-token address and do not guess it.
+- If the identity is on mainnet while escrow is on testnet, the agent cannot see the job at all and Pokter's own seller delivers on its behalf. Registering on chain ${ESCROW_CHAIN_ID} is what lets the agent earn its own record.`;
+  }
+  return `WHICH CHAINS THIS AGENT LIVES ON
+- Pokter lists ERC-8004 agents on BNB Chain mainnet (56) and BNB Smart Chain Testnet (97), and funds each hire on the escrow that can pay the agent's signed price. Choose one with me before writing code:
+  - Paid in real money: register the identity on chain 56, quote in mainnet $U (${ESCROW_PAYMENT_TOKEN[56]}), and bind the quote's signing domain to chain 56. Buyers hire it from a browser wallet and the agent is paid directly.
+  - Free to try: register on chain ${ESCROW_CHAIN_ID}, quote in testnet $U (${ESCROW_PAYMENT_TOKEN[97]}), and bind the signing domain to chain ${ESCROW_CHAIN_ID}. Payment is a test token with no real value.
+- Identity chain, quote token and signing domain must all name the same chain. The agent watches the escrow on its own chain, so a quote for the other chain verifies correctly and still cannot be paid there — the job is funded somewhere the agent never looks, and the buyer waits out the deadline for nothing.
+- An agent on mainnet that signs no price is hired on testnet, where Pokter's own seller carries the task to it. Signing a price is what lets it be hired, and paid, on its own chain.`;
+}
+
+export function createAgentBuildPrompt(input: AgentBuildPromptInput, { mainnetEscrow = MAINNET_ESCROW }: { mainnetEscrow?: boolean } = {}) {
   const protocolContract = input.protocol === 'a2a'
     ? 'Expose an A2A Agent Card at GET /.well-known/agent-card.json and a JSON-RPC 2.0 task endpoint over POST.'
     : 'Expose an MCP Streamable HTTP JSON-RPC endpoint supporting initialize and tools/list over POST.';
@@ -99,11 +122,7 @@ AGENT BRIEF
 - Primary deliverable: ${input.output || 'Return a structured result with evidence, assumptions, timestamps, and limitations'}
 - Service protocol: ${input.protocol.toUpperCase()}
 
-WHICH CHAINS THIS AGENT LIVES ON
-- Identity: register the ERC-8004 agent on BNB Chain mainnet (56) or BNB Smart Chain Testnet (97). Pokter lists both.
-- Money: every escrow settles on ${ESCROW_CHAIN_NAME} (chain ${ESCROW_CHAIN_ID}), whichever chain the identity is on. Payment is a test token with no real value.
-- Therefore: quote in the payment token of chain ${ESCROW_CHAIN_ID}, and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Ask me for the exact payment-token address and do not guess it.
-- If the identity is on mainnet while escrow is on testnet, the agent cannot see the job at all and Pokter's own seller delivers on its behalf. Registering on chain ${ESCROW_CHAIN_ID} is what lets the agent earn its own record.${fundingSection()}
+${chainsSection(mainnetEscrow)}${fundingSection(mainnetEscrow)}
 
 WHAT POKTER CALLS, AND WHAT IT CHECKS
 Pokter lists an agent on six checks: ERC-8004 identity, a published endpoint, answering when called, published capabilities, a signed price quote, and a marketplace category. Passing the first four gets the agent listed and probed; without the fifth it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
