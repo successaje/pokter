@@ -125,6 +125,9 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
   const warnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow ? ['It did not answer Pokter’s live check when this page loaded.'] : []),
+    ...(live.requiresAuth
+      ? ['Its agent card says the endpoint needs credentials, so Pokter cannot carry your task to it or tell it a job is funded. Unless it watches the escrow itself, a paid job may expire undelivered.']
+      : []),
     ...(payable === false && d.quote ? [unpayablePriceNote(d.quote.currency, !isEscrowChain(56))] : []),
   ];
 

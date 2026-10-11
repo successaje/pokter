@@ -156,7 +156,9 @@ export async function loadHome(): Promise<HomeData> {
   const byKey = new Map(rows.map((row) => [row.key, row]));
 
   const hireable = entries
-    .filter((entry) => isPromotableAgent(entry.listing.agent))
+    // An endpoint that requires a login cannot take a Pokter hire's task, so
+    // it is not featured as hireable now.
+    .filter((entry) => isPromotableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true)
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)
     .sort((a, b) => b.paid.completed - a.paid.completed || Number(b.priceU !== null) - Number(a.priceU !== null) || (b.rate ?? 0) - (a.rate ?? 0));
