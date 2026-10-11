@@ -57,3 +57,14 @@ test('the strip shows one agent per operator', () => {
   const b = agent('op-b', { probes: 62, answered: 61 }, '0xB');
   assert.deepEqual(names(mostReliable([a1, a2, b], 5)), ['op-a-1', 'op-b']);
 });
+
+test('an agent that lets more paid jobs lapse than it delivers ranks after the rest, and stays off the strip', () => {
+  const lapsing = agent('answers-but-lapses', { probes: 62, answered: 62, medianMs: 30 }, 'l');
+  (lapsing as unknown as { history: object }).history = { jobs: 3, completed: 0, delivered: 0, missed: 3 };
+  const steady = agent('steady', { probes: 62, answered: 60, medianMs: 300 }, 's');
+  assert.deepEqual(names(orderMarketplace([lapsing, steady], 'reliable')), ['steady', 'answers-but-lapses']);
+  assert.deepEqual(names(mostReliable([lapsing, steady], 5)), ['steady']);
+  const recovered = agent('one-miss-two-delivered', { probes: 62, answered: 62 }, 'r');
+  (recovered as unknown as { history: object }).history = { jobs: 3, completed: 2, delivered: 2, missed: 1 };
+  assert.deepEqual(names(mostReliable([recovered], 5)), ['one-miss-two-delivered']);
+});

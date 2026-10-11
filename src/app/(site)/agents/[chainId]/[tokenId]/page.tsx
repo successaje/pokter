@@ -385,9 +385,21 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           <AgentTabPanel id="work">
           <Section id="work" label="Track record" title="Paid work and reviews">
             <div className="flex flex-col gap-8">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <Readout label="Jobs funded" value={p.history.jobs} note="Through Pokter escrow" />
-                <Readout label="Completed" value={p.history.completed} muted={!p.history.completed} />
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                <Readout label="Jobs funded" value={p.history.jobs} note={p.history.pending ? `${p.history.pending} still inside the deadline` : 'Through Pokter escrow'} />
+                <Readout
+                  label="Delivered"
+                  value={p.history.jobs - p.history.pending > 0 ? `${p.history.delivered} of ${p.history.jobs - p.history.pending}` : '—'}
+                  note={p.history.completed ? `${p.history.completed} settled` : p.history.jobs ? 'None settled yet' : 'No jobs yet'}
+                  muted={!p.history.delivered}
+                />
+                <Readout
+                  label="Missed deadline"
+                  value={p.history.missed}
+                  note={p.history.missed ? 'Funded, nothing delivered in time' : 'None missed'}
+                  muted={!p.history.missed}
+                  className={p.history.missed ? '[&>span:nth-child(2)]:text-watch' : undefined}
+                />
                 <Readout label="Median delivery" value={p.delivery.medianMs ? formatDelivery(p.delivery.medianMs) : '—'} note={p.delivery.samples ? `${p.delivery.samples} sampled` : 'No deliveries timed'} muted={!p.delivery.medianMs} />
                 <Readout label="On time" value={p.delivery.onTime !== null ? pct(p.delivery.onTime) : '—'} muted={p.delivery.onTime === null} />
               </div>

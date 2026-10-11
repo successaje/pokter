@@ -74,8 +74,15 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
     {
       id: 'work',
       label: 'Paid work delivered',
-      result: row.paid.completed > 0 ? `${row.paid.completed} completed via escrow` : row.paid.jobs > 0 ? `${row.paid.jobs} hired, none completed yet` : 'No paid jobs on record',
-      tone: row.paid.completed > 0 ? 'ok' : 'none',
+      result:
+        row.paid.missed > 0
+          ? `${row.paid.delivered} delivered, ${row.paid.missed} missed`
+          : row.paid.completed > 0
+            ? `${row.paid.completed} completed via escrow`
+            : row.paid.jobs > 0
+              ? `${row.paid.jobs} hired, none completed yet`
+              : 'No paid jobs on record',
+      tone: row.paid.missed > row.paid.delivered ? 'watch' : row.paid.completed > 0 ? 'ok' : 'none',
     },
   ];
 

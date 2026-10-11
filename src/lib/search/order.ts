@@ -88,13 +88,30 @@ function weekMedianMs(agent: SearchableAgent): number | null {
 }
 
 /**
- * Reliable first, then faster, then proven by paid work. Agents without
+ * Lets funded work lapse more often than it delivers it.
+ *
+ * Answering probes and delivering paid work are different promises, and an
+ * agent that keeps the first while breaking the second is not reliable in
+ * the sense a buyer means. Missed covers jobs still FUNDED past their
+ * deadline as well as EXPIRED ones (see economic-history).
+ */
+export function letsJobsLapse(agent: SearchableAgent): boolean {
+  const missed = agent.history?.missed ?? 0;
+  return missed > 0 && missed > (agent.history?.delivered ?? 0);
+}
+
+/**
+ * Agents that let jobs lapse go after every agent that does not. Among the
+ * rest: reliable first, then faster, then proven by paid work. Agents without
  * enough probes this week keep their relative order after every ranked one.
  */
 function compareReliability(a: SearchableAgent, b: SearchableAgent): number {
   const scoreA = reliabilityScore(a);
   const scoreB = reliabilityScore(b);
   if (scoreA === null || scoreB === null) return scoreA === null ? (scoreB === null ? 0 : 1) : -1;
+  const lapseA = letsJobsLapse(a);
+  const lapseB = letsJobsLapse(b);
+  if (lapseA !== lapseB) return lapseA ? 1 : -1;
   if (Math.abs(scoreB - scoreA) > 1e-9) return scoreB - scoreA;
   const msA = weekMedianMs(a);
   const msB = weekMedianMs(b);
@@ -116,7 +133,9 @@ export function mostReliable(
 ): SearchableAgent[] {
   const operators = new Set<string>();
   return entries
-    .filter((entry) => reliabilityScore(entry) !== null)
+    // A strip called "most reliable" never features an agent that lets
+    // paid jobs lapse, however well it answers probes.
+    .filter((entry) => reliabilityScore(entry) !== null && !letsJobsLapse(entry))
     .sort(compareReliability)
     .filter((entry) => {
       const operator = operatorOf(entry.listing.agent.owner_address);
