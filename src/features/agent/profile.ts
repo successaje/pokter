@@ -8,6 +8,8 @@ import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { HF_SUITE_ID } from '@/lib/assay/health-factor';
+import { getAssayStore, type AssayRun } from '@/lib/assay/store';
 import { quotePayableWith } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
@@ -73,6 +75,8 @@ export interface AgentProfile {
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
   reviews: VerifiedReview[];
+  /** The latest health factor check, for health-factor agents. Null when not checked or another category. */
+  healthFactorCheck: AssayRun | null;
   services: Array<{ name: string; endpoint: string }>;
   repositoryUrl: string | null;
   warnings: string[];
@@ -192,6 +196,7 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
+    healthFactorCheck: category === 'health-factor' ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID) : null,
     services,
     repositoryUrl: httpsOnly(services.find((s) => s.name.toLowerCase() === 'repository')?.endpoint),
     warnings,

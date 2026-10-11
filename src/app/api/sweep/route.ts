@@ -12,6 +12,7 @@ import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/not
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
+import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { listMarketplaceWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 
@@ -197,13 +198,24 @@ export async function POST(request: Request): Promise<NextResponse> {
      * run and off without NODEREAL_API_KEY; last, because nothing above
      * depends on it and a slow lookup must not cost the measurements.
      */
-    const funders = await listMarketplaceWithStatus({ limit: 400 })
-      .then(({ sections }) =>
-        refreshFunders(
-          sections.flatMap(({ listings }) => listings).filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address),
-        ),
-      )
+    const listings = await listMarketplaceWithStatus({ limit: 400 })
+      .then(({ sections }) => sections.flatMap(({ listings: l }) => l))
       .catch(() => null);
+    const funders = listings
+      ? await refreshFunders(listings.filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address)).catch(() => null)
+      : null;
+
+    /*
+     * Health factor checks: a few listed health-factor agents per run, each
+     * asked about real Venus positions and compared with Pokter's own
+     * reading. Last and caught, like the funders, so a slow agent cannot
+     * cost the measurements above.
+     */
+    const healthFactorChecks = listings
+      ? await runDueHealthFactorChecks(
+          listings.filter((l) => l.category === 'health-factor').map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
+        ).catch(() => null)
+      : null;
 
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
@@ -211,6 +223,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       deliveryRetries,
       stuckJobs,
       funders,
+      healthFactorChecks,
       testnetSweep,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,
