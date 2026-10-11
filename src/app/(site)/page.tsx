@@ -32,7 +32,11 @@ export default async function HomePage() {
     { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
     { label: 'Hireable now', note: 'Answering, and payable through escrow', value: home.catalogue.hireable },
     { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
-    { label: 'Paid jobs completed', note: home.activity.completedMainnet > 0 ? `Through Pokter escrow: ${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet` : `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`, value: home.activity.completedJobs },
+    {
+      label: 'Paid jobs completed',
+      note: `${home.activity.completedMainnet > 0 ? `Through Pokter escrow: ${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet` : `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`}. Funded by outside buyers${home.activity.teamCompleted > 0 ? `; ${home.activity.teamCompleted} test hires by Pokter's own wallets are not counted` : ''}.`,
+      value: home.activity.completedJobs,
+    },
   ];
   const max = Math.max(...funnel.map((stage) => stage.value ?? 0), 1);
 

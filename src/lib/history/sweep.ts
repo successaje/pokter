@@ -187,6 +187,7 @@ export async function runSweep({
   let failed = 0;
   const errors = new Set<string>();
   const quotes: QuoteRecord[] = [];
+  const access: { chainId: number; tokenId: string; requiresAuth: boolean; observedAt: string }[] = [];
 
   // Agents are swept a few at a time: each one costs a registry lookup plus
   // several outbound probes, and hammering either side helps nobody.
@@ -209,6 +210,10 @@ export async function runSweep({
     }
 
     const reading = await probeAgent(agent, { samples });
+    // Only a card that was actually read says anything about access.
+    if (reading.protocol === 'a2a' && reading.answered > 0) {
+      access.push({ chainId: agent.chain_id, tokenId: agent.token_id, requiresAuth: reading.requiresAuth, observedAt: new Date().toISOString() });
+    }
 
     /*
      * While we have the agent on the line, ask what it charges.
@@ -256,6 +261,7 @@ export async function runSweep({
 
   store.record(records);
   store.recordQuotes(quotes);
+  store.recordCardAccess(access);
 
   const outcome: SweepOutcome = {
     startedAt,

@@ -2,15 +2,14 @@
 
 import { useState } from 'react';
 import { formatUnits, getAddress } from 'viem';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { ESCROW_CHAIN } from '@/lib/wallet/config';
+import { chainLabel } from '@/lib/network/presentation';
 import { submitExternalDeliverable } from '@/lib/wallet/external';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
-import { useWalletState } from '@/shell/wallet/useWalletState';
 import { Button } from '@/ui/Button';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
@@ -38,7 +37,8 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   const [error, setError] = useState<string | null>(null);
   // Once the submission is on chain it must never be sent again; only the
   // index confirmation is retried.
-  const storeKey = `pokter.delivery-submitted.${job.jobId}`;
+  // Testnet keys predate other escrows and stay as they were.
+  const storeKey = `pokter.delivery-submitted.${job.chainId === 97 ? job.jobId : `${job.chainId}:${job.jobId}`}`;
   const [submittedTx, setSubmittedTxState] = useState<`0x${string}` | null>(() => {
     try {
       return (window.sessionStorage.getItem(storeKey) as `0x${string}` | null) ?? null;
@@ -68,7 +68,7 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
-        await post({ action: 'confirm', jobId: job.jobId, transactionHash });
+        await post({ action: 'confirm', chainId: job.chainId, jobId: job.jobId, transactionHash });
         try {
           window.sessionStorage.removeItem(storeKey);
         } catch {
@@ -90,12 +90,12 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
     if (submittedTx) return confirm(submittedTx);
     try {
       setStage('authorizing');
-      const challenge = (await post({ action: 'challenge', jobId: job.jobId })) as { challengeId: string; message: string };
+      const challenge = (await post({ action: 'challenge', chainId: job.chainId, jobId: job.jobId })) as { challengeId: string; message: string };
       const signature = await signMessageAsync({ message: challenge.message, account });
       setStage('storing');
-      const prepared = (await post({ action: 'prepare', jobId: job.jobId, challengeId: challenge.challengeId, signature, content: content.trim() })) as { deliverable: `0x${string}`; deliverableUrl: string };
+      const prepared = (await post({ action: 'prepare', chainId: job.chainId, jobId: job.jobId, challengeId: challenge.challengeId, signature, content: content.trim() })) as { deliverable: `0x${string}`; deliverableUrl: string };
       setStage('submitting');
-      const transactionHash = await submitExternalDeliverable({ account, jobId: BigInt(job.jobId), deliverable: prepared.deliverable, deliverableUrl: prepared.deliverableUrl });
+      const transactionHash = await submitExternalDeliverable({ account, chainId: job.chainId, jobId: BigInt(job.jobId), deliverable: prepared.deliverable, deliverableUrl: prepared.deliverableUrl });
       setSubmittedTx(transactionHash);
       await confirm(transactionHash);
       return;
@@ -127,11 +127,12 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
 
 export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
   const { address, isConnected, chain } = useAccount();
-  const w = useWalletState();
   const { openConnect } = useConnect();
+  const { switchChain, isPending: switching } = useSwitchChain();
   const [open, setOpen] = useState<string | null>(null);
   const connected = address ? getAddress(address) : null;
-  const wrongChain = Boolean(isConnected && chain?.id !== ESCROW_CHAIN.id);
+  // Each job is delivered on the escrow it was funded on.
+  const wrongChainFor = (job: HiredJob) => Boolean(isConnected && chain?.id !== job.chainId);
   const order = (j: HiredJob) => (j.status === 'FUNDED' ? 0 : j.status === 'SUBMITTED' ? 1 : 2);
   const ordered = [...jobs].sort((a, b) => order(a) - order(b));
 
@@ -143,6 +144,7 @@ export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
       {ordered.slice(0, 20).map((job) => {
         const s = STATUS[job.status];
         const isProvider = connected?.toLowerCase() === job.provider.toLowerCase();
+        const wrongChain = wrongChainFor(job);
         return (
           <li key={job.id} className="flex flex-col gap-3 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -162,8 +164,8 @@ export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
                 isProvider && !wrongChain ? (
                   <Composer job={job} account={connected!} />
                 ) : wrongChain ? (
-                  <Button size="s" intent="secondary" onClick={w.switchToEscrowChain} busy={w.switching} className="self-start">
-                    Switch to {ESCROW_CHAIN.name}
+                  <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
+                    Switch to {chainLabel(job.chainId)}
                   </Button>
                 ) : !connected ? (
                   <div className="flex flex-col gap-2">

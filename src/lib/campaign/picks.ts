@@ -26,7 +26,15 @@ export function guidePicks(
   const { isHireable, operatorOf = (owner) => owner.toLowerCase(), limit = 3 } = options;
   const operators = new Set<string>();
   return entries
-    .filter((entry) => isHireable(entry) && isPromotableAgent(entry.listing.agent) && !letsJobsLapse(entry))
+    .filter(
+      (entry) =>
+        isHireable(entry) &&
+        isPromotableAgent(entry.listing.agent) &&
+        !letsJobsLapse(entry) &&
+        // A card that requires a login answers probes while refusing the
+        // work; recommending it is recommending a job that will lapse.
+        entry.listing.requiresAuth !== true,
+    )
     .map((entry, index) => ({ entry, index }))
     .sort((a, b) => {
       const delivered = (b.entry.history?.delivered ?? 0) - (a.entry.history?.delivered ?? 0);

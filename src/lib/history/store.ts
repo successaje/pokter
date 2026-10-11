@@ -63,6 +63,14 @@ export interface ProbeStore {
   recordQuotes(quotes: QuoteRecord[]): void;
   /** The last quote held for each of the given agents, keyed `chainId:tokenId`. */
   quotesFor(agents: { chainId: number; tokenId: string }[]): Map<string, QuoteRecord>;
+  /**
+   * Whether each agent's card last said its endpoint needs credentials. Only
+   * the latest reading is kept: a builder who opens the endpoint is hireable
+   * from the next sweep.
+   */
+  recordCardAccess(entries: { chainId: number; tokenId: string; requiresAuth: boolean; observedAt: string }[]): void;
+  /** Agents whose card last required credentials, as `chainId:tokenId`. */
+  gatedAgents(): Set<string>;
   /** Probes for one agent, newest first, limited to `since`. */
   historyFor(chainId: number, tokenId: string, since: Date): ProbeRecord[];
   /** Agents we hold any history for, as `chainId:tokenId`. */
@@ -140,6 +148,14 @@ const SCHEMA = `
     expires_at TEXT,
     domain_chain_id INTEGER,
     domain_contract TEXT,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS card_access (
+    chain_id      INTEGER NOT NULL,
+    token_id      TEXT    NOT NULL,
+    requires_auth INTEGER NOT NULL,
+    observed_at   TEXT    NOT NULL,
     PRIMARY KEY (chain_id, token_id)
   );
 
@@ -303,6 +319,34 @@ class SqliteProbeStore implements ProbeStore {
       this.db.exec('ROLLBACK');
       throw error;
     }
+  }
+
+  recordCardAccess(entries: { chainId: number; tokenId: string; requiresAuth: boolean; observedAt: string }[]): void {
+    if (entries.length === 0) return;
+    const upsert = this.db.prepare(
+      `INSERT INTO card_access (chain_id, token_id, requires_auth, observed_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (chain_id, token_id) DO UPDATE SET
+         requires_auth = excluded.requires_auth,
+         observed_at = excluded.observed_at`,
+    );
+    this.db.exec('BEGIN');
+    try {
+      for (const entry of entries) {
+        upsert.run(entry.chainId, entry.tokenId, entry.requiresAuth ? 1 : 0, entry.observedAt);
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  gatedAgents(): Set<string> {
+    const rows = this.db
+      .prepare('SELECT chain_id, token_id FROM card_access WHERE requires_auth = 1')
+      .all() as unknown as { chain_id: number; token_id: string }[];
+    return new Set(rows.map((row) => `${row.chain_id}:${row.token_id}`));
   }
 
   quotesFor(

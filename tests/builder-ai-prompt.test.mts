@@ -196,3 +196,18 @@ test('the build prompt says how to get gas and the payment token', () => {
   // And it must say when to check, not merely where to go.
   assert.match(prompt, /funded before you tell me to register/);
 });
+
+test('with mainnet hires open, it offers both chains with their exact tokens', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE }, { mainnetEscrow: true });
+  assert.match(prompt, /register the identity on chain 56, quote in mainnet \$U \(0xcE24439F2D9C6a2289F741120FE202248B666666\)/);
+  assert.match(prompt, /quote in testnet \$U \(0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565\)/);
+  assert.match(prompt, /must all name the same chain/);
+  assert.match(prompt, /needs real BNB for gas on chain 56/);
+  assert.doesNotMatch(prompt, /every escrow settles on/);
+});
+
+test('with mainnet hires closed, it keeps every escrow on testnet', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE }, { mainnetEscrow: false });
+  assert.match(prompt, /every escrow settles on BNB Smart Chain Testnet/);
+  assert.doesNotMatch(prompt, /needs real BNB for gas/);
+});

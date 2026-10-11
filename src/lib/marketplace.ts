@@ -101,6 +101,11 @@ export interface Listing {
    * separates a listing that can complete a hire from one that cannot.
    */
   quotePayable?: boolean;
+  /**
+   * Its card last said the endpoint needs credentials, so Pokter cannot carry
+   * a task to it or tell it a job is funded. Absent when never read.
+   */
+  requiresAuth?: boolean;
 }
 
 /**
@@ -525,6 +530,7 @@ export async function listSearchableWithStatus(
   const quotes = store.quotesFor(
     all.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
   );
+  const gated = store.gatedAgents();
 
   /*
    * What happened to the jobs, carried at list level.
@@ -548,6 +554,7 @@ export async function listSearchableWithStatus(
       quotePayable: payable(
         quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`),
       ),
+      requiresAuth: gated.has(`${listing.agent.chain_id}:${listing.agent.token_id}`),
     },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
@@ -607,6 +614,7 @@ export async function listCategorySearchable(
       tokenId: l.agent.token_id,
     })),
   );
+  const gated = store.gatedAgents();
 
   /*
    * What happened to the jobs, carried at list level.
@@ -630,6 +638,7 @@ export async function listCategorySearchable(
       quotePayable: payable(
         quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`),
       ),
+      requiresAuth: gated.has(`${listing.agent.chain_id}:${listing.agent.token_id}`),
     },
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),

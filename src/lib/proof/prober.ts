@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { cardRequiresAuth } from './card-access';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Agent } from 'undici';
@@ -30,6 +31,8 @@ export interface ProbeResult {
   detail: string;
   /** Read-only capabilities observed during the protocol handshake. */
   capabilities?: string[];
+  /** The A2A card says its endpoint needs credentials (see `cardRequiresAuth`). */
+  requiresAuth?: boolean;
   at: string;
 }
 
@@ -42,6 +45,8 @@ export interface LiveReading {
   ratio: number | null;
   medianMs: number | null;
   capabilities: string[];
+  /** A card read on this visit said its endpoint needs credentials. */
+  requiresAuth: boolean;
   method: AttestationMethod;
 }
 
@@ -360,6 +365,7 @@ async function probeOnce(
         status: response.status,
         detail: `${protocol.toUpperCase()} capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared ${protocol === 'mcp' ? 'tools' : 'skills'}` : ''}.`,
         capabilities,
+        requiresAuth: protocol === 'a2a' ? cardRequiresAuth(body) : false,
         at,
       };
     } catch (error) {
@@ -427,6 +433,7 @@ export async function probeAgent(
       ratio: null,
       medianMs: null,
       capabilities: [],
+      requiresAuth: false,
       method: { ...method, probes: 0, answered: 0 },
     };
   }
@@ -449,6 +456,7 @@ export async function probeAgent(
     ratio: probes.length === 0 ? null : answered / probes.length,
     medianMs,
     capabilities: [...new Set(probes.flatMap((probe) => probe.capabilities ?? []))],
+    requiresAuth: probes.some((probe) => probe.requiresAuth === true),
     method: { ...method, probes: probes.length, answered, medianMs },
   };
 }

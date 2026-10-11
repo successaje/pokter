@@ -49,6 +49,17 @@ function db(): DatabaseSync {
   return database;
 }
 
+/**
+ * The key a deliverable is stored and served under.
+ *
+ * Testnet deliverables keep the bare job id they have always had, because
+ * their URLs are already written on chain. A job on another escrow is
+ * prefixed with its chain, since the same id can be a different job there.
+ */
+export function deliverableKey(chainId: number, jobId: string): string {
+  return chainId === 97 ? jobId : `${chainId}:${jobId}`;
+}
+
 export function readDeliverable(jobId: string): StoredDeliverable | null {
   const row = db()
     .prepare('SELECT * FROM deliverables WHERE job_id = ?')

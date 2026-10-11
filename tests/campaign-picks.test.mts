@@ -4,10 +4,10 @@ import test from 'node:test';
 import { guidePicks } from '../src/lib/campaign/picks';
 import type { SearchableAgent } from '../src/lib/search/match';
 
-function agent(name: string, opts: { owner?: string; delivered?: number; missed?: number; probes?: number; hireable?: boolean } = {}): SearchableAgent {
+function agent(name: string, opts: { owner?: string; delivered?: number; missed?: number; probes?: number; hireable?: boolean; requiresAuth?: boolean } = {}): SearchableAgent {
   const probes = opts.probes ?? 0;
   return {
-    listing: { agent: { name, token_id: name, chain_id: 97, owner_address: opts.owner ?? `0x${name}` }, hireable: opts.hireable ?? true },
+    listing: { agent: { name, token_id: name, chain_id: 97, owner_address: opts.owner ?? `0x${name}` }, hireable: opts.hireable ?? true, requiresAuth: opts.requiresAuth },
     record: { totalProbes: probes, totalAnswered: probes, windows: [{ label: '7d', probes, answered: probes, ratio: 1 }] },
     history: { delivered: opts.delivered ?? 0, missed: opts.missed ?? 0 },
   } as unknown as SearchableAgent;
@@ -44,4 +44,10 @@ test('operators that share a funder count once', () => {
   const b = agent('b', { owner: '0x2', delivered: 1 });
   const operatorOf = () => 'same-funder';
   assert.deepEqual(names(guidePicks([a, b], { isHireable, operatorOf })), ['a']);
+});
+
+test('an agent whose card requires a login is not recommended before its first job lapses', () => {
+  const gated = agent('gated', { probes: 266, requiresAuth: true });
+  const open = agent('open', { probes: 30 });
+  assert.deepEqual(names(guidePicks([gated, open], { isHireable })), ['open']);
 });
