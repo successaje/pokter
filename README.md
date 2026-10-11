@@ -1,72 +1,24 @@
 # Pokter
 
-**Choose what deserves your money.**
+**Most agents never answer. These do.**
 
-A decision layer for autonomous finance on BNB Chain. Pokter helps you discover,
-verify, compare and safely hire autonomous financial agents — using onchain
-activity, attestations, live execution data and buyer-controlled escrow.
+The agent marketplace for BNB Chain that shows its work. Pokter calls every
+listed agent on a schedule, checks whether its answers are right, records
+whether it delivers paid work, and lets you hire it through BNB Chain's
+ERC-8183 escrow, where the agent is paid only when it delivers.
 
-|                   |                              |
-| ----------------- | ---------------------------- |
-| **Live app**      | https://pokter.xyz           |
-| **X**             | https://x.com/usepokter      |
-| **Walkthrough**   | https://youtu.be/KyuKia6RL9s |
+|                 |                              |
+| --------------- | ---------------------------- |
+| **Live app**    | https://pokter.xyz           |
+| **X**           | https://x.com/usepokter      |
+| **Walkthrough** | https://youtu.be/KyuKia6RL9s |
 
-> The walkthrough is linked rather than committed: a screen recording would
-> outweigh this entire repository many times over, and git keeps large blobs in
-> history permanently even after deletion.
-
-### A bug we found in a dependency, and how it ended
-
-Hiring failed against `@altananetwork/sdk@0.8.0` with `0xc94463e3`, a selector
-neither the SDK ABIs nor 4byte could decode. We isolated it by running the
-batch's five calls individually, ruled out funding, the documented jobId race,
-relay nonce artifacts and a platform outage, then found it by diffing the
-address tables of two SDKs: the ERC-8183 policy address for BSC testnet was
-stale. We pinned the correct value and reported it upstream.
-
-**The maintainers had already fixed it.** Released in
-[`0.9.0`](https://www.npmjs.com/package/@altananetwork/sdk/v/0.9.0) on 2
-September 2026, a day after we hit it, and our report was closed as a duplicate
-of [#53](https://github.com/altananetwork/altana-sdk/issues/53). We had checked
-that 0.8.0 was `latest` when we filed; it had stopped being `latest` by the time
-anyone read it.
-
-So we upgraded to 0.9.0 and our workaround is now inert — `hasPolicyOverride`
-compares against the SDK at runtime and reports false, because nothing diverges
-any more. Verified independently: on the testnet router, `policyWhitelist`
-returns `false` for the old address and `true` for the new one, and
-`0xc94463e3` is `PolicyNotWhitelisted()`.
-
-The diagnosis was right and the conclusion was out of date. Both are recorded
-here, because a project that argues numbers should carry their provenance does
-not get to quietly delete the one it got wrong.
-
-**Two findings from the same investigation are still open**, each verified
-against `0.9.0` and checked against every existing issue before filing:
-
-- [**#87**](https://github.com/altananetwork/altana-sdk/issues/87) — the
-  exported ABIs carry 40 function fragments and **zero** error fragments, so no
-  custom error from any of these contracts is decodable by viem or ethers. That
-  is the real reason `0xc94463e3` cost an afternoon, and it applies to every
-  revert path rather than one address. The reporter of
-  [#81](https://github.com/altananetwork/altana-sdk/issues/81) had to
-  keccak-verify the same selector by hand.
-- [**#88**](https://github.com/altananetwork/altana-sdk/issues/88) —
-  `package.json` declares `main` while `exports` has no `require` condition, so
-  `require('@altananetwork/sdk')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED` against
-  a package that appears to advertise CJS support.
-
-We offered to PR both. A third candidate — browser-wallet signing — we did not
-file: it is already tracked in
-[#63](https://github.com/altananetwork/altana-sdk/issues/63), which explains it
-better than we could. An Altana wallet is an EIP-7702 account, so the admin
-authority needs signatures extension wallets deliberately withhold.
+Escrow currently settles on **BNB Smart Chain testnet**, in test tokens.
 
 ## The problem
 
-The ERC-8004 registry on BSC holds **305,000+ agents**. Finding one is not the
-hard part. Knowing which deserves your capital is.
+The ERC-8004 registry on BSC holds **more than 300,000 agents**. Finding one
+is not the hard part. Knowing which deserves your capital is.
 
 An agent can have a polished description, a high reputation number and a
 working endpoint, and still be a poor place to put money. Worse, much of the
@@ -78,46 +30,47 @@ technical detail, and has answered **none** of our probes.
 
 ## The approach
 
-Three rules, enforced in code rather than asserted in copy.
+Six rules, enforced in code rather than asserted in copy.
 
 **Every number traces to a source.** Performance figures come from on-chain
 attestations indexed via 8004scan, decoded from their `feedback_uri` into the
 measurer, methodology, probe counts and the measurer's own disclosed defects.
-Each carries a provenance tag — `onchain`, `attested`, `Pokter measured`,
-`estimated`, `historical` — that opens to the transaction behind it. Declared
-facts and observed facts are never mixed.
+Each carries a provenance tag (`onchain`, `attested`, `Pokter measured`,
+`estimated`, `historical`) that opens to the record behind it. Declared facts
+and observed facts are never mixed.
 
 **If we cannot verify it, we say so.** An agent with no attestations is marked
-`Not measured` rather than given a filler score — a statement about our
-coverage, not a verdict on the agent. Unmeasured and failing agents cannot be
-hired without explicitly accepting the risk. The Pokter Score is computed only over
-dimensions that carry real data, and its coverage travels with it — a 90 scored
-on three dimensions never passes for a 90 scored on five. Returns and drawdown
-are reported as _not measured_, because nobody publishes them and inferring
-them from uptime would be fabrication.
+`Not measured` rather than given a filler score: a statement about our
+coverage, not a verdict on the agent. The Pokter Score is computed only over
+dimensions that carry real data, and its coverage travels with it. Returns and
+drawdown are reported as _not measured_, because nobody publishes them and
+inferring them from uptime would be fabrication.
 
-**We produce evidence, not just consume it.** Because so few agents carry
-attestations, Pokter measures agents itself: scheduled sweeps probe declared
-endpoints every two hours and accumulate a track record — **15,500+ probes**
-across 144 sweeps so far — published in the same shape as third-party
-attestations, including the defects our own method has.
+**We produce evidence, not just consume it.** Few agents carry attestations,
+so Pokter measures agents itself. Scheduled sweeps probe every listed endpoint
+every two hours and keep the record, published in the same shape as
+third-party attestations, including the defects of our own method.
 
-**We do not count ourselves as independent.** Our own sweep runs through the
-same verdict logic as a third-party attestation, so that first- and
-third-party evidence are judged by one standard. It carries no transaction
-hash, and nothing that claims independence counts it. This matters more than
-it sounds: the evidence tiers below are decided on independent measurers
-alone, and by that standard **no agent on BNB Chain is currently Proven** —
-every candidate has exactly one independent measurer. We would rather publish
-an empty top tier than award ourselves the corroboration.
+**We do not count ourselves as independent.** Our sweep runs through the same
+verdict logic as a third-party attestation, but nothing that claims
+independence counts it. The top tier needs two independent measurers, and by
+that standard no agent on BNB Chain is currently Proven. We would rather
+publish an empty top tier than award ourselves the corroboration.
 
-**A price is evidence too.** No registry field or agent card publishes what an
-agent charges — a price exists only inside a quote the agent signs when asked.
-Sweeps ask, verify that the signature recovers to the agent's registered
-ERC-8004 wallet, and store the result; an unsigned price, or one signed by
-whoever answered the socket, is discarded. Listings show what each agent
-actually quoted, and say plainly when an agent would not name a price rather
-than substituting a default and calling it one.
+**Answering is not the same as being right.** Health-factor agents are asked
+about real Venus borrowers and their answers compared with Pokter's own reading
+of the chain at the same moment. An answer on collateral factors instead of
+liquidation thresholds is shown as the cautious figure it is, not as a failure.
+
+**Taking a job is not the same as delivering it.** Every agent's record shows
+paid jobs delivered and missed, including jobs left funded past their deadline
+that nobody reclaimed. Agents that let more jobs lapse than they deliver rank
+below the rest and never appear among the most reliable.
+
+A price is evidence too: no registry field publishes what an agent charges, so
+sweeps ask for a quote, check that the signature recovers to the agent's
+registered wallet and is bound to the terms Pokter sent, and keep only that.
+Listings say plainly when an agent would not name a price.
 
 ### The evidence tiers
 
@@ -135,25 +88,39 @@ always be checked against the evidence that produced it.
 
 ## What works today
 
-| Capability                                       | Status                                          |
-| ------------------------------------------------ | ----------------------------------------------- |
-| Agent discovery across four categories           | Live against BSC mainnet                        |
-| Hybrid retrieval (semantic + keyword + tags)     | Working                                         |
-| Clone-farm collapse                              | Working                                         |
-| Evidence states and the Pokter Score             | Working                                         |
-| Scheduled endpoint probing and track records     | Working                                         |
-| Recommendations with checkable rejections        | Working                                         |
-| Side-by-side comparison, up to four agents       | Working                                         |
-| Agent-signed price quotes, captured on sweep     | Working                                         |
-| Rankings with per-metric awards                  | Working                                         |
-| Published methodology, imported from the code    | Working                                         |
-| Historical Altana session grant and revocation  | **Verified on-chain; new grants disabled**      |
-| ERC-8183 hiring — create, register, fund, escrow | **Verified on-chain**                           |
-| Passkey wallets (WebAuthn, user-held)            | Working                                         |
-| Direct EOA/browser-wallet ERC-8183 hiring        | **Escrow funded on testnet** (#1372, #1373); delivery not yet exercised this way |
-| Standing delegated wallet authority              | **Disabled until calldata constraints exist**   |
-| Agent delivery and receipt verification          | **Verified end to end on-chain**                |
-| Performance and risk scoring                     | **Never** — [why](#what-does-not-work)          |
+**Find**
+
+| Capability | Status |
+| --- | --- |
+| Discovery across four categories, with plain-language search | Live |
+| Evidence states, the Pokter Score and the published methodology | Live |
+| Probes every two hours, with 7- and 30-day track records | Live |
+| Most reliable this week: ranked on probes, one agent per operator | Live; operators grouped by funding wallet once `NODEREAL_API_KEY` is set |
+| Delivery record on every agent: delivered and missed paid jobs | Live |
+| Health factor check against live Venus positions | Live; two agents per sweep |
+| Agent-signed price quotes, verified and bound to the terms | Live |
+| Side-by-side comparison, free trials, follow an agent by email | Live |
+
+**Hire and after**
+
+| Capability | Status |
+| --- | --- |
+| ERC-8183 hiring with a browser or passkey wallet | Verified on chain |
+| Delivery for agents registered on mainnet: Pokter's seller carries the brief and delivers the agent's own answer, or nothing | Live |
+| Workspace: jobs, receipts verified against the on-chain hash, settle, dispute, reclaim | Live |
+| Jobs follow the wallet: any device shows a wallet's hires | Live |
+| Email when a job is delivered, with a preview or the full answer | Live; needs email configured |
+| Signed reviews, publishable by the buyer to the ERC-8004 reputation registry | Live |
+| Standing delegated wallet authority | **Disabled until calldata constraints exist** |
+| Performance and risk scoring | **Never**, [why](#what-does-not-work) |
+
+**Build and the campaign**
+
+| Capability | Status |
+| --- | --- |
+| Builder Studio: draft, check the endpoint, register on ERC-8004, manage | Live |
+| Adoption against BNB Chain's Set and Earn build targets | Live |
+| Set and Earn tracker: a wallet's hires on every marketplace, from the escrow contracts | Live at [`/quest`](https://pokter.xyz/quest) |
 
 ## Evidence
 
@@ -226,7 +193,7 @@ recipient, unapproved asset, unapproved position or excessive amount must
 revert on-chain.
 
 Sponsor integrations are documented with their evidence and their limits in
-[`docs/integrations/`](docs/integrations/). The TermiX agent-versus-manual
+[`docs/integrations/`](docs/integrations/). The agent-versus-manual
 comparison, including the task the agent lost, is in
 [`docs/termix-agent-advantage.md`](docs/termix-agent-advantage.md) and on
 [`/agent-advantage`](https://pokter.xyz/agent-advantage).
@@ -255,80 +222,66 @@ know before delegating.
 
 ## What does not work
 
-Four things, stated here rather than discovered.
+Stated here rather than discovered.
 
-**Third-party delivery is only as reliable as the seller endpoint.** The
-original test seller has no discoverable runtime, so its historical jobs remain
-at `FUNDED`. Pokter now includes a same-chain A2A seller for the guided path: it
-verifies the funded job, serves a canonical manifest and submits its hash
-through ERC-8183. Live job #1336 proves the full path with a publicly
-retrievable receipt whose exact bytes match the hash committed on-chain, plus
-a buyer-signed settlement that advanced the job to `COMPLETED`.
+**Most signed prices cannot be paid here yet.** Nearly every agent that signs
+a quote prices it in mainnet $U, and escrow currently settles on testnet. Those
+agents would turn a job funded here down, so they are shown as priced but not
+directly hireable, with the reason in plain words.
 
-**Delegated wallet execution is disabled.** The SDK can restrict a session to
-a target and function selector, but not the safety-critical arguments inside
-that function. This affects passkeys and browser wallets equally; changing the
-signer does not improve the policy. Pokter commissions one escrowed job without
-creating standing authority over the buyer's wallet.
+**Delivery for mainnet agents depends on the agent taking a brief.** Pokter's
+seller carries the buyer's brief to the agent's A2A endpoint and delivers its
+answer unchanged. An agent with no work skill, or one that answers only with a
+price, delivers nothing; the job lapses and the buyer reclaims the escrow.
 
-**Session signers do not survive a restart.** Granting produces an ephemeral
-key held in process memory, and SDK 0.9.0 warns that losing it makes the
-authorization unusable. It does not bite here — Pokter never acts as an agent,
-and revocation targets the registered public key, so a restart cannot strand a
-live permission. It would matter the day Pokter executes on a user's behalf,
-and at that point the key needs real secret storage rather than a Map.
+**Delegated wallet execution is disabled.** A session can be restricted to a
+target and function, but not to the arguments inside it, so a permitted swap
+could pay an address the user never approved. Pokter commissions one escrowed
+job and creates no standing authority over the buyer's wallet.
 
-**Performance and risk are never scored.** Not a gap we intend to close — no
-agent publishes realised returns, and nothing on-chain attributes profit or
-loss to a specific agent's decision. Both dimensions read _not measured_
-permanently, and the Pokter Score rescales across what is left rather than
-quietly filling them in.
+**Marketplace attribution is only what the record says.** Every shortlisted
+marketplace settles through the same escrow, which does not record where a
+hire was made. The tracker names a marketplace only when a job's own record
+does, and says "not recorded" otherwise.
 
-Each is written up with the exact error in
-[`docs/integrations/`](docs/integrations/).
+**Performance and risk are never scored.** No agent publishes realised returns,
+and nothing on chain attributes profit or loss to an agent's decision. Both read
+_not measured_ permanently, and the Pokter Score rescales across what is left.
+
+Integration details, with exact errors, are in [`docs/integrations/`](docs/integrations/).
 
 ## Architecture
 
+Next.js 16 (App Router), React 19, Tailwind 4, wagmi and viem, the Altana SDK
+for passkey wallets and ERC-8183, and SQLite on a persistent volume.
+
 ```
+src/app/
+  (site)/       public pages: home, discover, agents/[chain]/[id], compare,
+                set-and-earn, quest, how-it-works, methodology, developers, build
+  (flow)/       the hire flow: hire/[chain]/[id]
+  (app)/        workspace, studio, account
+  api/          routes; v1/ is the public read API
 src/lib/
-  scan/         8004scan client (server-only; API key never reaches the browser)
+  scan/         8004scan client, server-only
   agents/       classification into the four marketplace categories
-  search/       hybrid retrieval and the filter grammar
+  search/       retrieval, filters, ordering and the reliability ranking
   proof/        attestation decoding, verdicts, live endpoint probing
-  history/      probe persistence, track records, scheduled sweeps
-  score/        the Pokter Score, versioned and explainable
-  recommend/    briefs, fit scoring, and why an agent was ruled out
-  leaderboard   rankings and the per-metric awards
-  altana/       historical sessions, revocation, fail-closed delegation policy
-  erc8183/      job escrow: hire, status, settle
-  wallet/       passkey wallets and the signer in use
-  notifications verified email subscriptions and a durable delivery outbox
-  hero/         the landing pipeline, built from real measurements
+  history/      probe store, track records, scheduled sweeps
+  score/        the Pokter Score
+  erc8183/      escrow: hire, quotes, the seller and courier, job index
+  assay/        correctness checks (health factor against Venus)
+  funding/      operator grouping by first funding wallet
+  quest/        escrow job index and Set and Earn progress
+  reviews/      signed reviews and ERC-8004 reputation publishing
+  notifications email: job updates, builder alerts, agent follows
+  wallet/       passkey and browser wallets, device-side records
+src/features/   page-level components by area
+src/ui/         the design system's primitives
 ```
 
-The frontend was rebuilt on the `pokter2` branch: public site (`/`, `/discover`,
-`/agents/[chain]/[id]`, `/compare`, `/how-it-works`, `/methodology`,
-`/developers`, `/build`, `/pool-check`), a focused hire flow (`/hire/[chain]/[id]`),
-a workspace (`/workspace/*`), Builder Studio (`/studio/*`) and `/account`. Every
-older URL redirects. Architecture, design system and status:
-[`docs/pokter2/README.md`](docs/pokter2/README.md).
-
-### Notes worth knowing
-
-**Retrieval must be hybrid.** Semantic search alone returned generic trading
-bots for grid strategies while thirteen agents with "Grid" in the name sat
-unretrieved. Keyword search finds exactly those; the classifier filters both.
-
-**Classification leans on declared tags**, since an agent tagged
-`health-factor` is telling us its category outright. Separators are flattened so
-`yield-optimizer.agent` matches `yield optimi`.
-
-**The methodology page imports its thresholds** from the modules that enforce
-them, so it cannot describe a rule the product does not follow.
-
-**Missing data never satisfies a threshold.** An unmeasured agent fails
-`has:probes>10` rather than passing it by absence, and sorts last on an absent
-score rather than a filler one. Hiring it requires explicitly accepting the risk.
+Design system, routes and decisions: [`docs/pokter2/README.md`](docs/pokter2/README.md).
+Manual testnet checks: [`docs/pokter2/TEST-PLAN.md`](docs/pokter2/TEST-PLAN.md).
 
 ## Running it
 
@@ -337,80 +290,82 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:4311. No API key is required to browse.
+Open http://localhost:4311. Browsing needs no keys.
+
+Checks, the same ones the deploy runs:
 
 ```bash
-npm run sweep
+npm run lint && npx tsc --noEmit && npm test
+npm run audit:protocol && npm run audit:rate-limit
+BASE_URL=http://localhost:4311 npm run smoke
 ```
 
-Runs one probe sweep and appends to the accumulated track record.
+`npm run smoke` requests every public route and checks its status and content.
 
-Environment (see `.env.example`): `SCAN_API_KEY` lifts the 8004scan rate limit
-from 30 to 3,000 requests per minute, `SWEEP_SECRET` guards `POST /api/sweep`,
-and `ALTANA_ADMIN_KEY` signs controlled testnet demo transactions. Set
-`POKTER_DEMO_WRITE_SECRET` to a strong server-side value before using those
-operator routes from a trusted script; they fail closed when it is absent and
-the browser UI never receives it. **Use a testnet key.**
+## Configuration
 
-`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` enables WalletConnect alongside the
-injected connector. Without it the connect panel offers desktop extensions
-only, which is no route at all on a phone — mobile wallets expose no injected
-provider. Get a project id free from the WalletConnect dashboard; it is
-public by design, identifying the relay app rather than authorising anything.
+All optional for local browsing. Server-only unless marked public.
 
-Transactional job email is optional and server-only. Configure
-`RESEND_API_KEY` and `NOTIFICATION_FROM_EMAIL` to enable it, with
-`NOTIFICATION_REPLY_TO` when replies should reach support. A dedicated random
-`NOTIFICATION_UNSUBSCRIBE_SECRET` is recommended; without one, the Resend key
-signs unsubscribe links and rotating it invalidates existing links. Email
-Buyer email subscriptions require confirmation and are scoped to one on-chain
-job. Verified builders can separately opt into owner-scoped alerts for funded
-work, delivery review, disputes, completion, expiry and approaching deadlines.
-Both flows exclude task text, use a durable deduplicated outbox and never
-participate in escrow execution.
-The authenticated scheduled sweep also checks subscribed jobs against the
-escrow contract, reconciles Pokter's job index and sends builder alerts, so
-delivery does not depend on either party keeping Pokter open.
+| Variable | Purpose |
+| --- | --- |
+| `SCAN_API_KEY` | Raises the 8004scan rate limit from 30 to 3,000 requests a minute |
+| `SWEEP_SECRET` | Guards `POST /api/sweep` and the operator routes |
+| `ALTANA_NETWORK` | `bnb-testnet` for the escrow network |
+| `ALTANA_ADMIN_KEY` | The seller and operator signer. **Use a testnet key** |
+| `POKTER_DEMO_WRITE_SECRET` | Required by operator demo routes; they fail closed without it |
+| `NEXT_PUBLIC_APP_URL` | Public. The site origin, used in links, emails and redirects |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Public. Enables mobile wallets via WalletConnect |
+| `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL` | Enable email; `NOTIFICATION_REPLY_TO` optional |
+| `NOTIFICATION_UNSUBSCRIBE_SECRET` | Signs unsubscribe links; recommended, otherwise the Resend key is used |
+| `NODEREAL_API_KEY` | Enables grouping agent operators by funding wallet (BSC mainnet) |
+| `BSC_MAINNET_RPC_URL` | Overrides the public node used for Venus and escrow reads |
+| `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`. Default `./data/` |
 
-`GET /api/v1/activity` exposes privacy-safe aggregate adoption figures from
-that reconciled index: job counts by state, active and completed totals, and
-indexed/completed `$U` value. It returns no wallet address, email, task text or
-deliverable content.
+## Public endpoints
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/v1/agents`, `/api/v1/agents/{chain}/{id}` | Agents with provenance on every field |
+| `GET /api/v1/activity` | Aggregate job figures; no wallet, email or task text |
+| `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
+| `GET /api/jobs/{id}` | One job, read from chain |
+| `GET /api/reviews/{chain}/{job}` | A review as the exact document its on-chain rating hashes |
+| `GET /quest?address=0x…` | Set and Earn hire progress for any wallet |
 
 ## Deployment
 
-Deployed on Fly.io with a persistent volume, and the volume is the point: the
-SQLite stores hold accumulated probe history, historical sessions, escrowed
-jobs, deliverables, notification subscriptions/outbox and rate-limit state. A marketplace whose evidence resets on
-every deploy is not one.
+Pushing to `main` deploys. The GitHub Actions workflow runs lint, types, tests,
+both audits and a webpack build, deploys to Fly.io, then checks production
+health, the main routes, and robots, sitemap and canonical tags.
 
-`REVIEW_DB_PATH` and `BUILDER_DB_PATH` must point at the same persistent volume
-as the probe, job, notification and deliverable stores. Fly sets them to
-`/data/reviews.db` and `/data/builders.db`; do not leave either on the image
-filesystem in production. The builder store contains ownership-verification
-proofs and hashed, expiring dashboard sessions.
+The SQLite stores live on a Fly volume, and the volume is the point: probe
+history, jobs, deliverables, reviews, checks and subscriptions accumulate. A
+marketplace whose evidence resets on every deploy is not one. Every `*_DB_PATH`
+must point at the volume (`/data/…`, set in `fly.toml` and the Dockerfile).
 
-Historical ERC-8183 jobs can be repaired or imported through the guarded
-`POST /api/jobs/backfill` endpoint. It uses the same bearer `SWEEP_SECRET` as
-the scheduled evidence sweep, accepts at most 100 explicit numeric `jobIds`,
-and is a dry run unless the JSON body includes `"write": true`. Identity,
-provider, budget and status are re-read from chain; jobs without a valid Pokter
-identity envelope are skipped rather than attributed heuristically.
+The sweep runs every two hours from a scheduled workflow against production.
+Each run probes agents, asks for quotes, reconciles the job index, retries
+stuck deliveries, sends job, builder and follower emails, runs due health
+factor checks, indexes new escrow jobs for the tracker, and refreshes funding
+wallets when a NodeReal key is set. Each step is bounded in time and caught, so
+a slow one cannot cost the measurements before it.
 
-Verified reviews are never hidden by report volume. `POST /api/reviews/report`
-only adds a rate-limited moderation report. The guarded
-`GET /api/reviews/moderate` lists open reports, and authenticated `PATCH`
-actions can dismiss a report, hide a review, or restore it. These endpoints use
-the same bearer `SWEEP_SECRET`; moderation retains the signed review and records
-the operator reason instead of deleting evidence.
+Guarded operator endpoints use the bearer `SWEEP_SECRET`: `POST /api/jobs/backfill`
+re-reads jobs from chain (a dry run unless `"write": true`), and
+`/api/reviews/moderate` lists, hides or restores reported reviews without
+deleting them.
 
-```bash
-flyctl deploy --now
-```
+## Dependency notes
 
-Sweeps run every two hours from a scheduled GitHub Actions workflow against the
-deployed instance, so the track record keeps growing without a machine left
-running locally.
+Hiring once failed against `@altananetwork/sdk@0.8.0` with `0xc94463e3`, which
+nothing could decode. It was a stale ERC-8183 policy address for BSC testnet,
+already fixed upstream in `0.9.0`; our override is now inert and reports so at
+runtime. Two findings from that investigation are still open upstream:
+[#87](https://github.com/altananetwork/altana-sdk/issues/87), exported ABIs
+carry no error fragments, so custom errors cannot be decoded, and
+[#88](https://github.com/altananetwork/altana-sdk/issues/88), `require()` fails
+with `ERR_PACKAGE_PATH_NOT_EXPORTED`. The second is why `npm run sweep` fails
+under tsx locally; the `/api/sweep` route is unaffected.
 
 ## Honesty policy
 
