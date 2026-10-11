@@ -21,6 +21,7 @@ import { Address as AddressView, TxLink } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Field, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { EmailLinkNotice } from './EmailLinkNotice';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { RecoverJob } from './RecoverJob';
@@ -162,6 +163,7 @@ export function SavedPage() {
   return (
     <>
       <PageHeader title="Saved agents" description="Saved on this device. Pokter re-checks them in the background and tells you when evidence, availability or price changes." />
+      <EmailLinkNotice kind="agents" />
       {saved.length === 0 ? (
         <EmptyState title="Nothing saved yet" action={<LinkButton href="/discover">Browse agents</LinkButton>}>
           Use Save on any agent page to keep an eye on it.
@@ -193,8 +195,6 @@ export function InboxPage() {
   const notes = useInbox();
   const alerts = useSavedAlerts();
   const { address } = useActiveWallet();
-  const sp = useSearchParams();
-  const email = sp.get('email');
   const items = [
     ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, read: Boolean(n.readAt), href: `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
     ...alerts.map((a) => ({ id: a.id, kind: 'agent' as const, title: a.title, body: a.body, at: a.createdAt, read: Boolean(a.readAt), href: `/agents/${a.agentId.replace(':', '/')}`, action: false })),
@@ -221,9 +221,7 @@ export function InboxPage() {
           ) : undefined
         }
       />
-      {email === 'verified' && <Notice tone="ok" className="mb-6" title="Email confirmed">You will get an email when a job you follow changes state.</Notice>}
-      {email === 'unsubscribed' && <Notice tone="neutral" className="mb-6" title="Unsubscribed">No more job emails will be sent to that address.</Notice>}
-      {email === 'invalid' && <Notice tone="watch" className="mb-6" title="That link has expired">Subscribe again from a job page if you still want emails.</Notice>}
+      <EmailLinkNotice kind="jobs" />
       {items.length === 0 ? (
         <EmptyState title="All quiet">Updates appear here when a job you funded changes state, or a saved agent&rsquo;s evidence, availability or price changes.</EmptyState>
       ) : (
