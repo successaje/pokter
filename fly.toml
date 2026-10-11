@@ -9,6 +9,10 @@ primary_region = 'iad'
     NEXT_PUBLIC_APP_URL = 'https://pokter.xyz'
     NEXT_PUBLIC_PASSKEY_RP_ID = 'pokter.xyz'
     NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID = 'd8f9d3b75a1facd7447f8440becd4093'
+    # Hires of agents that sign a price in mainnet $U are funded on the BNB
+    # Chain escrow, with real money; everything else stays on testnet.
+    # Remove to return to testnet only. See src/lib/network/escrow.ts.
+    NEXT_PUBLIC_ESCROW_CHAINS = '97,56'
 
 [env]
   PORT = '8080'
