@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSignMessage } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { reviewMessage, type ReviewContent, type ReviewSpeed } from '@/lib/reviews/model';
+import { reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
 import { Segmented } from '@/ui/Controls';
 import { Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
+import { PublishRating } from './PublishRating';
 
 /**
  * A review only the funding wallet can write, for a completed job. The
@@ -26,12 +28,46 @@ export function ReviewForm({ job }: { job: HiredJob }) {
   const [again, setAgain] = useState<'yes' | 'no'>('yes');
   const [comment, setComment] = useState('');
   const [state, setState] = useState<'idle' | 'signing' | 'saved'>('idle');
+  const [saved, setSaved] = useState<VerifiedReview | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A review this job already has, so a returning buyer sees it (and can
+  // publish it on chain) instead of an empty form.
+  const agentChainId = job.agentChainId ?? 56;
+  const existing = useQuery({
+    queryKey: ['job-review', job.chainId, job.jobId],
+    enabled: job.status === 'COMPLETED',
+    staleTime: 60_000,
+    queryFn: async (): Promise<VerifiedReview | null> => {
+      const response = await fetch(`/api/reviews?agentChainId=${agentChainId}&agentTokenId=${job.agentTokenId}`);
+      if (!response.ok) return null;
+      const { reviews } = (await response.json()) as { reviews?: VerifiedReview[] };
+      return reviews?.find((r) => r.chainId === job.chainId && r.jobId === job.jobId) ?? null;
+    },
+  });
 
   if (job.status !== 'COMPLETED') return null;
 
+  const prior = state === 'saved' ? null : existing.data;
+  if (prior) {
+    const mine = active.address?.toLowerCase() === prior.buyer.toLowerCase();
+    return (
+      <div className="flex flex-col gap-3">
+        <Notice tone="ok" title={`Reviewed: ${prior.rating} of 5`}>
+          {prior.comment ? `“${prior.comment}” · ` : ''}Signed by the wallet that funded job #{job.jobId}.
+        </Notice>
+        {mine && active.mode === 'external' && <PublishRating review={prior} />}
+      </div>
+    );
+  }
+
   if (state === 'saved') {
-    return <Notice tone="ok" title="Review published">It is tied to job #{job.jobId} and signed by the wallet that funded it.</Notice>;
+    return (
+      <div className="flex flex-col gap-3">
+        <Notice tone="ok" title="Review published">It is tied to job #{job.jobId} and signed by the wallet that funded it.</Notice>
+        {saved && <PublishRating review={saved} />}
+      </div>
+    );
   }
 
   const submit = async () => {
@@ -51,8 +87,9 @@ export function ReviewForm({ job }: { job: HiredJob }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ jobId: job.jobId, buyer: active.address, signature, agentChainId, agentTokenId: job.agentTokenId, content }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; review?: VerifiedReview };
       if (!response.ok) throw new Error(payload.error ?? 'The review could not be verified.');
+      setSaved(payload.review ?? null);
       setState('saved');
     } catch (caught) {
       const message = (caught as Error).message || 'The review was not submitted.';

@@ -424,6 +424,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span>
                           Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
+                        {r.onchainTx && r.onchainChainId && (
+                          <a href={`${explorerBaseFor(r.onchainChainId)}/tx/${r.onchainTx}`} target="_blank" rel="noreferrer noopener" className="link" title="Published to the ERC-8004 reputation registry by the buyer">
+                            On chain
+                          </a>
+                        )}
                         <ReportReview chainId={r.chainId} jobId={r.jobId} />
                       </p>
                     </li>

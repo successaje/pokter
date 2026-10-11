@@ -203,6 +203,19 @@ the agent's Evidence tab. The sweep checks two agents per run, each again
 after three days, and starts none after 60 s. Optional `BSC_MAINNET_RPC_URL`
 overrides the public node used for Venus reads.
 
+## Ratings on chain
+
+A saved review can be published by its buyer to the ERC-8004 Reputation
+Registry on the agent's registry chain (mainnet `0x8004BAa1…9b63`,
+testnet `0x8004B663…8713`, both read from chain as version 2.0.0). The call
+is `giveFeedback(agentId, rating × 20, 0, "starred", "pokter", "",
+feedbackURI, feedbackHash)`. The URI is `/api/reviews/{chain}/{job}`, which
+serves the canonical review document, and the hash is its keccak256.
+`POST /api/reviews/onchain` reads the transaction and records it only if
+the buyer sent that exact call (`lib/reviews/onchain.ts`). A review
+published on chain can no longer be edited. The registry itself refuses
+ratings from an agent's owner ("Self-feedback not allowed").
+
 ## Set and Earn while it runs
 
 All gated on `isCampaignLive()`:
