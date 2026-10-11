@@ -381,3 +381,7 @@ Pokter doesn't pretend to know what it can't know. We measure availability. We
 verify attestations. We track evidence. We don't manufacture performance.
 
 The credibility of the product is part of the product.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
