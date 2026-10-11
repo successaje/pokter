@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
+import { useSwitchChain } from 'wagmi';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
@@ -112,6 +113,7 @@ export function HireFlow(props: HireFlowProps) {
   const faucets = testnet ? FAUCETS : null;
   const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
+  const { switchChain, isPending: switching } = useSwitchChain();
   const sponsored = useGasSponsorship();
   const [step, setStepState] = useState<Step>('describe');
   const setStep = (next: Step) => {
@@ -437,7 +439,7 @@ export function HireFlow(props: HireFlowProps) {
                 ['Agent is paid', 'After it delivers and you accept, or the review window passes without a dispute'],
                 ['Deadline', '24 hours from funding'],
                 ['If nothing is delivered', 'You reclaim the full amount after the deadline'],
-                ['Network fee', hire.active.mode === 'external' ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
+                ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
               ].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">
                   <dt className="text-ink-3">{k}</dt>
@@ -506,10 +508,17 @@ export function HireFlow(props: HireFlowProps) {
           {!hire.active.address ? (
             <div className="flex flex-col items-start gap-4 rounded-[14px] border border-rule bg-raised p-5">
               <p className="text-sm text-ink-2">{hire.lockReason ?? 'Connect a wallet to fund this job.'}</p>
-              <Button onClick={() => openConnect('to fund this job')} icon={<Icon.Wallet size={16} />}>
-                {hire.active.wrongChain ? 'Switch network' : 'Connect a wallet'}
+              {/* Switches to this hire's escrow, which is not necessarily the site's default network the connect dialog offers. */}
+              <Button
+                onClick={() => (hire.active.wrongChain ? switchChain({ chainId: escrowChainId === 56 ? 56 : 97 }) : openConnect('to fund this job'))}
+                busy={switching}
+                icon={<Icon.Wallet size={16} />}
+              >
+                {hire.active.wrongChain ? `Switch to ${networkLabel}` : hire.active.passkeyUnsupported ? 'Connect a browser wallet' : 'Connect a wallet'}
               </Button>
-              <p className="text-[12.5px] text-ink-3">A passkey wallet takes about ten seconds to make, and needs no extension.</p>
+              <p className="text-[12.5px] text-ink-3">
+                {testnet ? 'A passkey wallet takes about ten seconds to make, and needs no extension.' : `This hire is paid in real $U on ${networkLabel}, from a browser or mobile wallet.`}
+              </p>
             </div>
           ) : (
             <>
