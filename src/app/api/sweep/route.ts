@@ -108,7 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       subscribedJobs().map(async ({ chainId, jobId }) => {
         if (chainId !== ALTANA_NETWORK.chainId) return { attempted: 0, sent: 0 };
         const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
-        return notifyJobEvent({ chainId, jobId, status: job.statusName });
+        return notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
       }),
     );
     const notifications = notificationResults.reduce(

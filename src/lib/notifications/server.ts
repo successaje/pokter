@@ -5,6 +5,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { readDeliverable } from '@/lib/erc8183/deliverables';
+import { getJobStore } from '@/lib/erc8183/store';
+import { withPublicEndpoint } from '@/lib/proof/prober';
+import { answerFromManifest, previewOf } from './answer';
+
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
 
@@ -76,6 +81,12 @@ function db(): DatabaseSync {
       FOREIGN KEY(subscription_id) REFERENCES builder_notification_subscriptions(id)
     );
   `);
+  // Added after launch; existing rows keep the default (preview only).
+  try {
+    database.exec('ALTER TABLE notification_subscriptions ADD COLUMN include_answer INTEGER NOT NULL DEFAULT 0');
+  } catch (error) {
+    if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+  }
   return database;
 }
 
@@ -222,29 +233,30 @@ function emailContext(rows: Array<[string, string]>): string {
 }
 
 export async function createSubscription(input: {
-  email: string; walletAddress: string; chainId: number; jobId: string;
+  email: string; walletAddress: string; chainId: number; jobId: string; includeAnswer?: boolean;
 }): Promise<void> {
   const email = input.email.trim().toLowerCase();
   const token = randomBytes(32).toString('base64url');
   const id = randomUUID();
   const now = new Date().toISOString();
   db().prepare(`INSERT INTO notification_subscriptions
-    (id,email,wallet_address,chain_id,job_id,verification_hash,created_at)
-    VALUES (?,?,?,?,?,?,?)
+    (id,email,wallet_address,chain_id,job_id,verification_hash,created_at,include_answer)
+    VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(email,chain_id,job_id) DO UPDATE SET
       wallet_address=excluded.wallet_address,
+      include_answer=excluded.include_answer,
       verification_hash=excluded.verification_hash,
       verified_at=NULL,
       unsubscribed_at=NULL,
       created_at=excluded.created_at`).run(
-    id, email, input.walletAddress.toLowerCase(), input.chainId, input.jobId, hash(token), now,
+    id, email, input.walletAddress.toLowerCase(), input.chainId, input.jobId, hash(token), now, input.includeAnswer ? 1 : 0,
   );
   const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to: email,
     subject: `Confirm email updates for job #${input.jobId}`,
     idempotencyKey: `verify-${hash(`${email}:${input.chainId}:${input.jobId}:${token}`).slice(0, 48)}`,
-    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to receive important, chain-verified updates for this commission.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to hear when the agent delivers, with a preview of its answer, and when the job settles.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
   });
 }
 
@@ -336,7 +348,7 @@ export async function notifyBuilderJobEvent(input: {
         to: row.email,
         subject: `${item.title} · Job #${input.jobId}`,
         idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
-        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/builder`, 'Open builder workspace')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/studio`, 'Open Builder Studio')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
       });
       db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
       sent += 1;
@@ -350,11 +362,26 @@ export async function notifyBuilderJobEvent(input: {
 export async function notifyJobEvent(input: {
   chainId: number; jobId: string; status: string; agentName?: string;
 }): Promise<{ attempted: number; sent: number }> {
-  const rows = db().prepare(`SELECT id,email FROM notification_subscriptions
-    WHERE chain_id=? AND job_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.chainId, input.jobId) as { id: string; email: string }[];
+  const rows = db().prepare(`SELECT id,email,include_answer FROM notification_subscriptions
+    WHERE chain_id=? AND job_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.chainId, input.jobId) as { id: string; email: string; include_answer: number }[];
+  if (rows.length === 0) return { attempted: 0, sent: 0 };
+  const event = input.status.toUpperCase();
+  const agent = input.agentName?.trim() || 'Your agent';
+  const delivered = event === 'SUBMITTED' || event === 'COMPLETED';
+  // Read once for every subscriber: the delivered answer, when there is one.
+  const answer = delivered ? await deliveredAnswer(input.jobId).catch(() => null) : null;
+  const jobUrl = `${appUrl()}/workspace/jobs/${encodeURIComponent(input.jobId)}`;
+  const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`;
+  const copy: Record<string, { subject: string; title: string; body: string }> = {
+    FUNDED: { subject: `Job #${input.jobId} is funded`, title: 'Your job is funded', body: `${agent} has been asked to do the work. You will hear when it delivers.` },
+    SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. Payment is released after the review window unless you dispute it.' },
+    COMPLETED: { subject: `Job #${input.jobId} is complete`, title: 'Job complete', body: 'The escrow was released to the agent.' },
+    REJECTED: { subject: `Job #${input.jobId} was disputed`, title: 'Delivery disputed', body: 'The delivery was contested. The job page has the evidence and what happens next.' },
+    EXPIRED: { subject: `Job #${input.jobId} expired`, title: 'Deadline passed', body: 'Nothing was delivered in time. Your escrow can be reclaimed from the job page.' },
+  };
+  const text = copy[event] ?? { subject: `Job #${input.jobId} is now ${event.toLowerCase()}`, title: `Job ${event.toLowerCase()}`, body: 'A verified on-chain status change is available for your job.' };
   let sent = 0;
   for (const row of rows) {
-    const event = input.status.toUpperCase();
     const proposedId = randomUUID();
     db().prepare(`INSERT OR IGNORE INTO notification_outbox
       (id,subscription_id,event,created_at) VALUES (?,?,?,?)`).run(proposedId, row.id, event, new Date().toISOString());
@@ -363,12 +390,17 @@ export async function notifyJobEvent(input: {
     if (pending.sent_at) continue;
     const outboxId = pending.id;
     const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    const answerBlock = answer && event === 'SUBMITTED'
+      ? row.include_answer
+        ? `<p style="margin:22px 0 8px;color:#77756d;font-size:11px;text-transform:uppercase;letter-spacing:.08em">The agent's answer</p><pre style="white-space:pre-wrap;word-break:break-word;margin:0;padding:14px 16px;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:12px;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.6;color:#292823">${escapeHtml(answer.slice(0, 20_000))}${answer.length > 20_000 ? '\n…' : ''}</pre>`
+        : `<p style="margin:22px 0 8px;color:#77756d;font-size:11px;text-transform:uppercase;letter-spacing:.08em">Preview</p><p style="margin:0;padding:14px 16px;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:12px;font-size:13px;line-height:1.65;color:#292823">${escapeHtml(previewOf(answer))}</p>`
+      : '';
     try {
       const providerId = await sendEmail({
         to: row.email,
-        subject: `Job #${input.jobId} is now ${event.toLowerCase()}`,
+        subject: text.subject,
         idempotencyKey: `job-${input.chainId}-${input.jobId}-${event}-${row.id}`.slice(0, 256),
-        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Commission update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Job ${escapeHtml(event.toLowerCase())}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">A verified on-chain status change is available for your commission.</p>${emailContext([['Agent', input.agentName?.trim() || 'Your agent'], ['Job', `#${input.jobId}`], ['Status', event], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/activity`, 'Review job activity')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `A verified on-chain update is available for job #${input.jobId}.`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Job update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(text.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(text.body)}</p>${answerBlock}${emailContext([['Agent', agent], ['Job', `#${input.jobId}`], ['Status', event], ['Network', network]])}<div>${emailButton(jobUrl, delivered ? 'Read and verify the answer' : 'Open the job')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">The job page holds the full answer and checks it against the hash committed on chain. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `${text.title} · job #${input.jobId}.`),
       });
       db().prepare('UPDATE notification_outbox SET provider_id=?,sent_at=? WHERE id=?').run(providerId, new Date().toISOString(), outboxId);
       sent += 1;
@@ -377,6 +409,25 @@ export async function notifyJobEvent(input: {
     }
   }
   return { attempted: rows.length, sent };
+}
+
+/**
+ * The delivered answer for a job: from the manifest Pokter's own seller
+ * stored, or fetched from the delivery URL the index recorded, over the
+ * same pinned, size-capped fetch the prober uses.
+ */
+async function deliveredAnswer(jobId: string): Promise<string | null> {
+  const stored = readDeliverable(jobId);
+  if (stored) return answerFromManifest(stored.manifestText);
+  const url = getJobStore().all().find((job) => job.jobId === jobId)?.deliverableUrl;
+  if (!url) return null;
+  const text = await withPublicEndpoint(url, async (endpoint) => {
+    const response = await endpoint.fetch({ cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) throw new Error(`The delivery answered ${response.status}.`);
+    const body = await response.text();
+    return body.slice(0, 256 * 1024);
+  });
+  return answerFromManifest(text);
 }
 
 export function subscribedJobs(): { chainId: number; jobId: string }[] {

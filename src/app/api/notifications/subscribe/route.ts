@@ -21,7 +21,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (job.client.toLowerCase() !== walletAddress.toLowerCase()) {
       return NextResponse.json({ error: 'That wallet is not the on-chain client for this job.' }, { status: 403 });
     }
-    await createSubscription({ email, walletAddress, chainId: ALTANA_NETWORK.chainId, jobId });
+    await createSubscription({ email, walletAddress, chainId: ALTANA_NETWORK.chainId, jobId, includeAnswer: body.includeAnswer === true });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message || 'Could not start email verification.' }, { status: 400 });
