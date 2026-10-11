@@ -17,6 +17,10 @@ export interface VerifiedReview {
   signature: Hex;
   updatedAt: string;
   visibility?: 'published' | 'hidden';
+  /** The ERC-8004 feedback transaction, once the buyer published the review on chain. */
+  onchainTx?: Hex | null;
+  /** The chain that transaction is on: the agent's registry chain. */
+  onchainChainId?: number | null;
 }
 
 export const REVIEW_REPORT_REASONS = ['spam', 'harassment', 'personal-information', 'unrelated', 'other'] as const;
