@@ -26,14 +26,18 @@ COPY . .
 # was needed. WalletConnect is what finally showed it: a missing project id
 # drops the connector outright, with no fallback to hide behind.
 #
-# None of the three is a secret. Each ships inside the client bundle by
+# None of these is a secret. Each ships inside the client bundle by
 # design, so they are plain build args rather than mounted secrets.
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_PASSKEY_RP_ID
 ARG NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+# Escrow chains hires may be funded on. Unset means testnet only; "97,56"
+# opens mainnet hires, with real money. See src/lib/network/escrow.ts.
+ARG NEXT_PUBLIC_ESCROW_CHAINS
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_PASSKEY_RP_ID=$NEXT_PUBLIC_PASSKEY_RP_ID
 ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=$NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+ENV NEXT_PUBLIC_ESCROW_CHAINS=$NEXT_PUBLIC_ESCROW_CHAINS
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
