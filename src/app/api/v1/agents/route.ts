@@ -1,3 +1,4 @@
+import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { listSearchable } from '@/lib/marketplace';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { parseQuery } from '@/lib/search/query';
@@ -49,8 +50,14 @@ export async function GET(request: Request) {
     );
   }
 
-  const all = await listSearchable({ limit: 30 });
+  /*
+   * The same pool Discover searches: its depth, and without the drafts and
+   * demos whose own names say they are not the real thing. Reading a shallower
+   * list here made `is:hireable` count different agents from the home page.
+   */
+  const all = await listSearchable({ limit: 400 });
   const matched = all
+    .filter((entry) => isPromotableAgent(entry.listing.agent))
     .filter((entry) => (category ? entry.listing.category === category : true))
     .filter((entry) =>
       parsed.qualifiers.length ? matchesQuery(entry, parsed) : true,

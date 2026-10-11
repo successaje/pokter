@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { guidePicks } from '@/lib/campaign/picks';
 import { CAMPAIGN_ENDS_AT, CAMPAIGN_RULES_URL, isCampaignLive } from '@/lib/campaign/window';
 import { findRows } from '@/lib/find/rows';
+import { operatorResolver } from '@/lib/funding/operator';
+import { getFunderStore } from '@/lib/funding/store';
 import { listSearchable } from '@/lib/marketplace';
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { offersDirectHire } from '@/lib/search/match';
@@ -42,18 +44,14 @@ function Step({ n, title, lead, children }: { n: number; title: string; lead: st
   );
 }
 
-/** Three hireable agents from three different operators, so they count as three. */
+/** Three hireable agents from three different operators, so they count as three. See `guidePicks`. */
 async function shortlist() {
-  const entries = await listSearchable({ limit: 30 }).catch(() => []);
-  const eligible = entries.filter((e) => offersDirectHire(e) && isPromotableAgent(e.listing.agent));
-  const owners = new Set<string>();
-  const picked = eligible.filter((e) => {
-    const o = e.listing.agent.owner_address.toLowerCase();
-    if (owners.has(o)) return false;
-    owners.add(o);
-    return true;
-  });
-  return findRows(picked.slice(0, 3));
+  // The same depth as Discover and the home page, so the guide picks from the
+  // agents those pages count.
+  const entries = await listSearchable({ limit: 400 }).catch(() => []);
+  const owners = entries.map((entry) => entry.listing.agent.owner_address);
+  const operatorOf = operatorResolver(owners, getFunderStore().funders(owners));
+  return findRows(guidePicks(entries, { isHireable: offersDirectHire, operatorOf }));
 }
 
 export default async function SetAndEarn() {
