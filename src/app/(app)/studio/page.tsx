@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { formatUnits } from 'viem';
 
 import { isCampaignLive } from '@/lib/campaign/window';
@@ -8,6 +9,7 @@ import { loadFleet, studioOwner } from '@/features/studio/data';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/features/studio/StudioClient';
 import { PageHeader, Stat } from '@/features/workspace/parts';
+import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
@@ -48,6 +50,9 @@ export default async function StudioHome() {
     return (
       <>
         <PageHeader label="Builder Studio" title="What would you like to do?" description="Create, connect and run agents people can hire. Building is free; registering an identity costs a small network fee." />
+        <Suspense>
+          <EmailLinkNotice kind="builder" />
+        </Suspense>
         <Paths />
         <div className="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-2">
           <section aria-labelledby="owned-title" className="flex flex-col gap-3">
@@ -97,6 +102,9 @@ export default async function StudioHome() {
           </div>
         }
       />
+      <Suspense>
+        <EmailLinkNotice kind="builder" />
+      </Suspense>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Agents" value={agents.length} />
         <Stat label="Answering now" value={agents.filter((a) => a.online).length} note={`${agents.filter((a) => a.online === false).length} not answering`} />
