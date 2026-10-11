@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, getAddress, http, isHash, pad, toHex, type Hex } from 'viem';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { jobChainParam } from '@/lib/jobs/href';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -30,22 +31,25 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
   const { jobId } = await context.params;
   if (!/^\d{1,18}$/.test(jobId)) return NextResponse.json({ error: 'A numeric job ID is required.' }, { status: 400 });
 
-  const body = (await request.json().catch(() => ({}))) as { action?: unknown; transactionHash?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { action?: unknown; transactionHash?: unknown; chainId?: unknown };
   const action = typeof body.action === 'string' && body.action in FIELD ? (body.action as Action) : null;
   const hash = typeof body.transactionHash === 'string' && isHash(body.transactionHash) ? (body.transactionHash as Hex) : null;
 
   const store = getJobStore();
-  const existing = store.byId(`${ALTANA_NETWORK.chainId}:${jobId}`);
+  // The escrow the job was funded on; older callers only ever used the default.
+  const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
+  const network = altanaNetworkFor(chainId);
+  const existing = store.byId(`${chainId}:${jobId}`);
   if (!existing) return NextResponse.json({ synced: false, reason: 'not-indexed' });
 
   try {
     const id = BigInt(jobId);
-    const onchain = await getErc8183Job(ALTANA_NETWORK, id);
+    const onchain = await getErc8183Job(network, id);
     const deliverableUrl =
       existing.deliverableUrl ??
       (['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
         ? await Promise.race([
-            getErc8183DeliverableUrl(ALTANA_NETWORK, id).catch(() => undefined),
+            getErc8183DeliverableUrl(network, id).catch(() => undefined),
             new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 8_000)),
           ])
         : undefined) ??
@@ -53,9 +57,9 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
 
     let verifiedHash: { field: (typeof FIELD)[Action]; hash: Hex } | null = null;
     if (action && hash) {
-      const rpc = createPublicClient({ chain: ALTANA_NETWORK.chain, transport: http(ALTANA_NETWORK.publicRpcUrl) });
+      const rpc = createPublicClient({ chain: network.chain, transport: http(network.publicRpcUrl) });
       const receipt = await rpc.getTransactionReceipt({ hash }).catch(() => null);
-      const commerce = getAddress(correctedErc8183Addresses(ALTANA_NETWORK.chainId).commerce);
+      const commerce = getAddress(correctedErc8183Addresses(chainId).commerce);
       const topic = pad(toHex(id), { size: 32 }).toLowerCase();
       const namesJob = receipt?.status === 'success' && receipt.logs.some((log) => getAddress(log.address) === commerce && log.topics[1]?.toLowerCase() === topic);
       if (namesJob) verifiedHash = { field: FIELD[action], hash };

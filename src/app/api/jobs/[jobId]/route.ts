@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { getAddress } from 'viem';
 
-import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -15,9 +16,9 @@ export const dynamic = 'force-dynamic';
  * can take a minute. A recovered job without its link is still useful; a
  * request that hangs is not.
  */
-function deliverableWithin(jobId: string, ms = 8_000): Promise<string | null> {
+function deliverableWithin(network: ReturnType<typeof altanaNetworkFor>, jobId: string, ms = 8_000): Promise<string | null> {
   return Promise.race([
-    getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(jobId)).then((u) => u ?? null).catch(() => null),
+    getErc8183DeliverableUrl(network, BigInt(jobId)).then((u) => u ?? null).catch(() => null),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
   ]);
 }
@@ -65,8 +66,13 @@ export async function GET(
     );
   }
 
+  // The escrow the job is on (`?chain=`). Read-only, so any chain Pokter has
+  // funded on is accepted, enabled for new hires or not.
+  const chainId = jobChainParam(new URL(request.url).searchParams.get('chain')) ?? ALTANA_NETWORK.chainId;
+  const network = altanaNetworkFor(chainId);
+
   try {
-    const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+    const onchain = await getErc8183Job(network, BigInt(jobId));
 
     /*
      * An id nobody has used reads back as a zero struct rather than an
@@ -101,11 +107,11 @@ export async function GET(
       ? null
       : getJobStore()
           .all()
-          .find((j) => j.jobId === jobId && j.chainId === ALTANA_NETWORK.chainId) ?? null;
+          .find((j) => j.jobId === jobId && j.chainId === chainId) ?? null;
 
     if (!envelope && indexed) {
       const deliverable =
-        indexed.deliverableUrl ?? (['SUBMITTED', 'COMPLETED'].includes(onchain.statusName) ? await deliverableWithin(jobId) : null);
+        indexed.deliverableUrl ?? (['SUBMITTED', 'COMPLETED'].includes(onchain.statusName) ? await deliverableWithin(network, jobId) : null);
       const job: HiredJob = {
         ...indexed,
         // Records from before agentChainId existed are mainnet identities.
@@ -113,7 +119,7 @@ export async function GET(
         // This endpoint is public and these older jobs did not put the brief
         // on chain, so it is not returned. The funding device still has it.
         task: 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
-        id: `${ALTANA_NETWORK.chainId}:${jobId}`,
+        id: `${chainId}:${jobId}`,
         provider: onchain.provider,
         budgetRaw: onchain.budget.toString(),
         expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
@@ -136,7 +142,7 @@ export async function GET(
 
     const now = new Date().toISOString();
     const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
-      ? await deliverableWithin(jobId)
+      ? await deliverableWithin(network, jobId)
       : null;
 
     /*
@@ -149,10 +155,10 @@ export async function GET(
      * the expiry minus that window is the funding moment.
      */
     const job: HiredJob = {
-      id: `${ALTANA_NETWORK.chainId}:${jobId}`,
+      id: `${chainId}:${jobId}`,
       jobId,
-      chainId: ALTANA_NETWORK.chainId,
-      isTestnet: IS_TESTNET,
+      chainId,
+      isTestnet: chainId === 97,
       agentChainId: envelope.identity.chainId,
       agentTokenId: envelope.identity.tokenId,
       agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,

@@ -7,7 +7,7 @@ import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -107,8 +107,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     }).catch(() => null);
     const notificationResults = await Promise.allSettled(
       subscribedJobs().map(async ({ chainId, jobId }) => {
-        if (chainId !== ALTANA_NETWORK.chainId) return { attempted: 0, sent: 0 };
-        const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+        // Every escrow Pokter has funded hires on, not only the default.
+        if (chainId !== 56 && chainId !== 97) return { attempted: 0, sent: 0 };
+        const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
         return notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
       }),
     );
@@ -118,10 +119,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
     const builderResults = await Promise.allSettled(
-      getJobStore().all().filter((job) => job.chainId === ALTANA_NETWORK.chainId).map(async (job) => {
-        const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
+      getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97).map(async (job) => {
+        const network = altanaNetworkFor(job.chainId);
+        const onchain = await getErc8183Job(network, BigInt(job.jobId));
         const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
-          ? await getErc8183DeliverableUrl(ALTANA_NETWORK, BigInt(job.jobId)).catch(() => undefined)
+          ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
           : undefined;
         // The local row is only an index. Repair it from ERC-8183 during every
         // sweep so Activity and Builder never depend on somebody opening a

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isAddress } from 'viem';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -27,7 +26,9 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const jobs = getJobStore()
     .byClient(client)
-    .filter((job) => job.chainId === ALTANA_NETWORK.chainId)
+    // Every escrow hires have been funded on: a buyer's mainnet and testnet
+    // jobs are both theirs.
+    .filter((job) => job.chainId === 56 || job.chainId === 97)
     .slice(0, 200)
     .map((job) => (job.agentChainId == null ? { ...job, task: '' } : job));
   return NextResponse.json({ jobs }, { headers: { 'cache-control': 'no-store' } });

@@ -25,6 +25,7 @@ import { EmailLinkNotice } from './EmailLinkNotice';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { RecoverJob } from './RecoverJob';
+import { jobHref } from '@/lib/jobs/href';
 
 /* ───────────────────────── Jobs ───────────────────────── */
 
@@ -124,7 +125,7 @@ export function HiredAgentsPage() {
                 </div>
                 <div className="rounded-[10px] bg-sunken/70 px-3 py-2.5 text-[13px]">
                   {active ? (
-                    <Link href={`/workspace/jobs/${active.jobId}`} className="flex items-center justify-between gap-2">
+                    <Link href={jobHref(active)} className="flex items-center justify-between gap-2">
                       <span className="flex flex-col">
                         <span className="text-ink-3">Current job #{active.jobId}</span>
                         <PhaseLabel job={active} />
@@ -196,7 +197,7 @@ export function InboxPage() {
   const alerts = useSavedAlerts();
   const { address } = useActiveWallet();
   const items = [
-    ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, read: Boolean(n.readAt), href: `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
+    ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, read: Boolean(n.readAt), href: n.chainId ? jobHref({ jobId: n.jobId, chainId: n.chainId }) : `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
     ...alerts.map((a) => ({ id: a.id, kind: 'agent' as const, title: a.title, body: a.body, at: a.createdAt, read: Boolean(a.readAt), href: `/agents/${a.agentId.replace(':', '/')}`, action: false })),
   ].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
   const unread = items.filter((i) => !i.read).length;
@@ -421,7 +422,7 @@ export function WalletPage() {
               {jobs.map((j) => (
                 <tr key={j.id}>
                   <td className="py-3">
-                    <Link href={`/workspace/jobs/${j.jobId}`} className="t-readout link">
+                    <Link href={jobHref(j)} className="t-readout link">
                       #{j.jobId}
                     </Link>
                   </td>

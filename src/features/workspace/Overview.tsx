@@ -14,6 +14,7 @@ import { JobRow, NeedsWallet, PageHeader, Stat, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
+import { jobHref } from '@/lib/jobs/href';
 
 export function WorkspaceOverview() {
   const { jobs, address } = useMyJobs();
@@ -83,7 +84,7 @@ export function WorkspaceOverview() {
               <ul className="flex flex-col gap-2">
                 {needsYou.map(({ job, phase }) => (
                   <li key={job.id}>
-                    <Link href={`/workspace/jobs/${job.jobId}`} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
+                    <Link href={jobHref(job)} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
                       <span className="flex items-center gap-3">
                         <AgentAvatar name={job.agentName} seed={`${job.agentChainId}:${job.agentTokenId}`} size={36} />
                         <span className="flex flex-col">

@@ -7,6 +7,8 @@ import { dirname } from 'node:path';
 
 import { readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
+import { jobHref } from '@/lib/jobs/href';
+import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
@@ -273,7 +275,7 @@ export async function createSubscription(input: {
     to: email,
     subject: `Confirm email updates for job #${input.jobId}`,
     idempotencyKey: `verify-${hash(`${email}:${input.chainId}:${input.jobId}:${token}`).slice(0, 48)}`,
-    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to hear when the agent delivers, with a preview of its answer, and when the job settles.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to hear when the agent delivers, with a preview of its answer, and when the job settles.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : chainLabel(input.chainId)]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
   });
 }
 
@@ -380,7 +382,7 @@ export async function notifyBuilderJobEvent(input: {
         to: row.email,
         subject: `${item.title} · Job #${input.jobId}`,
         idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
-        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/studio`, 'Open Builder Studio')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : chainLabel(input.chainId)]])}<div>${emailButton(`${appUrl()}/studio`, 'Open Builder Studio')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
       });
       db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
       sent += 1;
@@ -401,9 +403,9 @@ export async function notifyJobEvent(input: {
   const agent = input.agentName?.trim() || 'Your agent';
   const delivered = event === 'SUBMITTED' || event === 'COMPLETED';
   // Read once for every subscriber: the delivered answer, when there is one.
-  const answer = delivered ? await deliveredAnswer(input.jobId).catch(() => null) : null;
-  const jobUrl = `${appUrl()}/workspace/jobs/${encodeURIComponent(input.jobId)}`;
-  const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`;
+  const answer = delivered ? await deliveredAnswer(input.chainId, input.jobId).catch(() => null) : null;
+  const jobUrl = `${appUrl()}${jobHref({ jobId: encodeURIComponent(input.jobId), chainId: input.chainId })}`;
+  const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : chainLabel(input.chainId);
   const copy: Record<string, { subject: string; title: string; body: string }> = {
     FUNDED: { subject: `Job #${input.jobId} is funded`, title: 'Your job is funded', body: `${agent} has been asked to do the work. You will hear when it delivers.` },
     SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. Payment is released after the review window unless you dispute it.' },
@@ -449,10 +451,12 @@ export async function notifyJobEvent(input: {
  * stored, or fetched from the delivery URL the index recorded, over the
  * same pinned, size-capped fetch the prober uses.
  */
-async function deliveredAnswer(jobId: string): Promise<string | null> {
-  const stored = readDeliverable(jobId);
+async function deliveredAnswer(chainId: number, jobId: string): Promise<string | null> {
+  // Deliverables Pokter hosts are for testnet jobs, which is the only escrow
+  // its delivery agent and Studio delivery work on.
+  const stored = chainId === 97 ? readDeliverable(jobId) : null;
   if (stored) return answerFromManifest(stored.manifestText);
-  const url = getJobStore().all().find((job) => job.jobId === jobId)?.deliverableUrl;
+  const url = getJobStore().byId(`${chainId}:${jobId}`)?.deliverableUrl;
   if (!url) return null;
   const text = await withPublicEndpoint(url, async (endpoint) => {
     const response = await endpoint.fetch({ cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });

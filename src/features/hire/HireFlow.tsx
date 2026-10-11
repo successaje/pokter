@@ -6,6 +6,7 @@ import { formatEther, formatUnits } from 'viem';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -203,7 +204,7 @@ export function HireFlow(props: HireFlowProps) {
               </div>
             )}
           </dl>
-          <JobEmailAlert jobId={job.jobId} />
+          <JobEmailAlert jobId={job.jobId} chainId={job.chainId} />
           {hire.active.mode === 'external' && !hire.revoked && (
             <Notice
               tone="neutral"
@@ -218,7 +219,7 @@ export function HireFlow(props: HireFlowProps) {
             </Notice>
           )}
           <div className="flex flex-wrap gap-3">
-            <LinkButton href={`/workspace/jobs/${job.jobId}`} size="l" trailing={<Icon.Arrow size={16} />}>
+            <LinkButton href={jobHref(job)} size="l" trailing={<Icon.Arrow size={16} />}>
               Follow this job
             </LinkButton>
             <LinkButton href="/discover" size="l" intent="secondary">

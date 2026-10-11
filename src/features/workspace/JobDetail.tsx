@@ -28,15 +28,17 @@ import { JobEmailAlert } from './JobEmailAlert';
  * Finds the job in this device's memory, or rebuilds it from chain. A job
  * page must never be a dead end because a browser forgot something.
  */
-export function JobDetailLoader({ jobId }: { jobId: string }) {
+export function JobDetailLoader({ jobId, chainId }: { jobId: string; chainId: number | null }) {
   const { jobs, address, ready } = useMyJobs();
-  const local = jobs.find((j) => j.jobId === jobId) ?? null;
+  // A link without a chain is from before hires could be funded on more than
+  // one escrow; it means whichever this device remembers, else the default.
+  const local = jobs.find((j) => j.jobId === jobId && (chainId === null || j.chainId === chainId)) ?? null;
   const remoteQuery = useQuery({
-    queryKey: ['job-from-chain', jobId],
+    queryKey: ['job-from-chain', chainId, jobId],
     enabled: ready && !local,
     retry: false,
     queryFn: async (): Promise<{ job: HiredJob; client: string } | 'missing'> => {
-      const r = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+      const r = await fetch(`/api/jobs/${encodeURIComponent(jobId)}${chainId === null ? '' : `?chain=${chainId}`}`, { cache: 'no-store' });
       if (r.status === 404) return 'missing';
       const body = (await r.json()) as { job?: HiredJob; client?: string };
       if (!r.ok || !body.job) throw new Error('unreadable');
@@ -294,7 +296,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <Link href={`/agents/${job.agentChainId}/${job.agentTokenId}`} className="flex items-center justify-between rounded-[14px] border border-rule bg-raised p-4 text-sm hover:border-rule-strong">
             View the agent <Icon.Arrow size={15} />
           </Link>
-          {owned && (phase === 'working' || phase === 'review') && <JobEmailAlert jobId={job.jobId} compact />}
+          {owned && (phase === 'working' || phase === 'review') && <JobEmailAlert jobId={job.jobId} chainId={job.chainId} compact />}
           {(phase === 'working' || phase === 'disputed') && (
             <a href={supportMailto({ subject: 'Help with a Pokter job', jobId: job.jobId })} className="text-[13px] text-ink-3 hover:text-ink">
               Something wrong? Contact support
