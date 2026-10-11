@@ -14,7 +14,7 @@ import { Icon } from '@/ui/icons';
  * confirmation link, and a choice to receive the whole answer rather than a
  * preview. Asks for nothing beyond the address.
  */
-export function JobEmailAlert({ jobId, className, compact = false }: { jobId: string; className?: string; compact?: boolean }) {
+export function JobEmailAlert({ jobId, chainId, className, compact = false }: { jobId: string; chainId: number; className?: string; compact?: boolean }) {
   const { address } = useActiveWallet();
   const [email, setEmail] = useState('');
   const [includeAnswer, setIncludeAnswer] = useState(false);
@@ -42,7 +42,7 @@ export function JobEmailAlert({ jobId, className, compact = false }: { jobId: st
       const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), walletAddress: address, jobId, includeAnswer }),
+        body: JSON.stringify({ email: email.trim(), walletAddress: address, chainId, jobId, includeAnswer }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'The email could not be set up. Try again.');

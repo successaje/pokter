@@ -13,7 +13,7 @@ import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { isReclaimable } from '@/lib/erc8183/reclaim-gate';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
-import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
+import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
 import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
@@ -78,6 +78,10 @@ export function useJobActions(initial: HiredJob) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
   const activeWallet = useActiveWallet();
+  // Reads and actions happen on the escrow this job was funded on. A browser
+  // wallet is switched there by each action; the passkey wallet only ever
+  // funded on its own network.
+  const network = walletNetworkFor(job.chainId);
 
   const fundedAt = Date.parse(job.hiredAt);
   const expiresAt = Date.parse(job.expiredAt);
@@ -93,11 +97,11 @@ export function useJobActions(initial: HiredJob) {
     async (hashes?: Pick<Partial<HiredJob>, 'settleTxHash' | 'disputeTxHash' | 'reclaimTxHash'>, fromAction = false) => {
       const startedAt = generation.current;
       const owner = activeWallet.address;
-      const current = await getErc8183Job(WALLET_NETWORK, BigInt(job.jobId));
+      const current = await getErc8183Job(network, BigInt(job.jobId));
       const deliverableUrl =
         job.deliverableUrl ??
         (current.statusName === 'SUBMITTED' || current.statusName === 'COMPLETED'
-          ? await getErc8183DeliverableUrl(WALLET_NETWORK, BigInt(job.jobId)).catch(() => undefined)
+          ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
           : undefined) ??
         null;
       if (!fromAction && generation.current !== startedAt) return;
@@ -117,7 +121,7 @@ export function useJobActions(initial: HiredJob) {
       setJob(updated);
       if (owner) updateRememberedJob(owner, updated);
     },
-    [activeWallet.address, job],
+    [activeWallet.address, job, network],
   );
 
   // Poll only while the job waits on somebody else (OPEN, FUNDED), never
@@ -164,6 +168,9 @@ export function useJobActions(initial: HiredJob) {
         return;
       }
       if (!activeWallet.address) throw new Error('Connect the wallet that funded this job.');
+      if (activeWallet.mode === 'passkey' && job.chainId !== WALLET_NETWORK.chainId) {
+        throw new Error('This job is on a network the passkey wallet does not act on. Connect the browser wallet that funded it.');
+      }
       let settleTxHash = job.settleTxHash;
       let disputeTxHash = job.disputeTxHash;
       let reclaimTxHash = job.reclaimTxHash ?? null;
@@ -174,7 +181,7 @@ export function useJobActions(initial: HiredJob) {
         if (action === 'dispute' && !disputeConfirmed) throw new Error('Confirm that you intend to contest this delivery.');
         let transactionHash: `0x${string}` | null = null;
         if (activeWallet.mode === 'external') {
-          transactionHash = await settleFromExternalWallet({ account: activeWallet.address, jobId: BigInt(job.jobId), action });
+          transactionHash = await settleFromExternalWallet({ account: activeWallet.address, jobId: BigInt(job.jobId), action, chainId: job.chainId });
         } else {
           await requireGas(action === 'approve' ? 'release payment' : 'open a dispute');
           if (!wallet || !signer) throw new Error('The passkey signer is unavailable.');
@@ -193,7 +200,7 @@ export function useJobActions(initial: HiredJob) {
       if (action === 'reclaim') {
         // The only possible destination is the wallet that funded it.
         if (activeWallet.mode === 'external') {
-          reclaimTxHash = await reclaimFromExternalWallet({ account: activeWallet.address, jobId: BigInt(job.jobId) });
+          reclaimTxHash = await reclaimFromExternalWallet({ account: activeWallet.address, jobId: BigInt(job.jobId), chainId: job.chainId });
         } else {
           await requireGas('reclaim this escrow');
           if (!wallet || !signer) throw new Error('The passkey signer is unavailable.');
@@ -214,7 +221,7 @@ export function useJobActions(initial: HiredJob) {
       void fetch(`/api/jobs/${job.jobId}/sync`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, transactionHash }),
+        body: JSON.stringify({ action, transactionHash, chainId: job.chainId }),
       }).catch(() => {});
     } catch (caught) {
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));

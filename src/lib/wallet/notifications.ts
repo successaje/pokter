@@ -17,6 +17,8 @@ export interface ActivityNotification {
   id: string;
   walletAddress: string;
   jobId: string;
+  /** The escrow the job is on. Absent on notes saved before it was recorded. */
+  chainId?: number;
   title: string;
   body: string;
   createdAt: string;
@@ -88,6 +90,7 @@ export function recordJobNotification(
     id,
     walletAddress,
     jobId: job.jobId,
+    chainId: job.chainId,
     title: copy.title,
     body: copy.body(job),
     createdAt: new Date().toISOString(),
@@ -106,7 +109,7 @@ export function recordJobNotification(
   void fetch('/api/notifications/event', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jobId: job.jobId, agentName: job.agentName }),
+    body: JSON.stringify({ chainId: job.chainId, jobId: job.jobId, agentName: job.agentName }),
   }).catch(() => undefined);
 }
 

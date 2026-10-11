@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { jobChainParam } from '@/lib/jobs/href';
 import { notifyJobEvent } from '@/lib/notifications/server';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -14,9 +15,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const body = await request.json() as Record<string, unknown>;
     const jobId = String(body.jobId ?? '');
     if (!/^\d+$/.test(jobId)) throw new Error('A numeric job ID is required.');
-    const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+    // The escrow the job was funded on; older callers only used the default.
+    const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
+    const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
     const result = await notifyJobEvent({
-      chainId: ALTANA_NETWORK.chainId,
+      chainId,
       jobId,
       status: job.statusName,
       agentName: typeof body.agentName === 'string' ? body.agentName.slice(0, 100) : undefined,

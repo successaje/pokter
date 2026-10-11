@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 import { shortAddress, shortHash } from '@/lib/ui/format';
-import { explorerAddressUrl, explorerTxUrl } from '@/lib/network/presentation';
+import { explorerAddressUrl, explorerBaseFor, explorerTxUrl } from '@/lib/network/presentation';
 import { Icon } from './icons';
 
 /**
@@ -58,7 +58,7 @@ export function CopyButton({ value, label = 'Copy', className }: { value: string
 }
 
 /** An address shown human-first: short form, copy, and an explorer link. */
-export function Address({ address, chainExplorer = true, className }: { address: string; chainExplorer?: boolean; className?: string }) {
+export function Address({ address, chainExplorer = true, className, chainId }: { address: string; chainExplorer?: boolean; className?: string; chainId?: number }) {
   return (
     <span className={cn('inline-flex items-center gap-0.5', className)}>
       <span className="t-readout text-[13px]" title={address}>
@@ -67,7 +67,7 @@ export function Address({ address, chainExplorer = true, className }: { address:
       <CopyButton value={address} label="Copy address" />
       {chainExplorer && (
         <a
-          href={explorerAddressUrl(address)}
+          href={chainId === undefined ? explorerAddressUrl(address) : `${explorerBaseFor(chainId)}/address/${address}`}
           target="_blank"
           rel="noreferrer noopener"
           className="inline-grid size-7 place-items-center rounded-[6px] text-ink-3 hover:bg-sunken hover:text-ink"
@@ -80,10 +80,11 @@ export function Address({ address, chainExplorer = true, className }: { address:
   );
 }
 
-export function TxLink({ hash, label, className }: { hash: string; label?: string; className?: string }) {
+/** `chainId` when the transaction is not on the site's default network, such as a job funded on another escrow. */
+export function TxLink({ hash, label, className, chainId }: { hash: string; label?: string; className?: string; chainId?: number }) {
   return (
     <a
-      href={explorerTxUrl(hash)}
+      href={chainId === undefined ? explorerTxUrl(hash) : `${explorerBaseFor(chainId)}/tx/${hash}`}
       target="_blank"
       rel="noreferrer noopener"
       className={cn('inline-flex items-center gap-1 text-[13px] text-ink-2 hover:text-ink', className)}

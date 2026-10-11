@@ -9,6 +9,8 @@ import { useActiveWallet } from '@/lib/wallet/active';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Input } from '@/ui/Field';
+import { jobHref } from '@/lib/jobs/href';
+import { enabledEscrowChains } from '@/lib/network/escrow';
 
 /**
  * Local memory is a convenience, not the record. A job funded from another
@@ -26,15 +28,30 @@ export function RecoverJob({ compact }: { compact?: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(id.trim())}`, { cache: 'no-store' });
-      const body = (await response.json().catch(() => ({}))) as { job?: HiredJob; client?: string; error?: string };
-      if (response.status === 404) throw new Error(`Job #${id} is not a Pokter job, or does not exist on this network.`);
-      if (!response.ok || !body.job) throw new Error(body.error ?? 'The job could not be read from chain.');
+      /*
+       * The same number can be a job on each escrow, so every escrow hires
+       * are funded on is asked. The one this wallet funded wins; otherwise
+       * the first Pokter job found.
+       */
+      const results = await Promise.all(
+        enabledEscrowChains().map(async (chainId) => {
+          const response = await fetch(`/api/jobs/${encodeURIComponent(id.trim())}?chain=${chainId}`, { cache: 'no-store' });
+          const body = (await response.json().catch(() => ({}))) as { job?: HiredJob; client?: string; error?: string };
+          return { status: response.status, ok: response.ok, body };
+        }),
+      );
+      const found = results.filter((r) => r.ok && r.body.job);
+      const mine = address ? found.find((r) => r.body.client?.toLowerCase() === address.toLowerCase()) : undefined;
+      const body = (mine ?? found[0])?.body;
+      if (!body?.job) {
+        if (results.every((r) => r.status === 404)) throw new Error(`Job #${id} is not a Pokter job, or does not exist on any network Pokter uses.`);
+        throw new Error(results.find((r) => !r.ok && r.status !== 404)?.body.error ?? 'The job could not be read from chain.');
+      }
       if (address && body.client && body.client.toLowerCase() !== address.toLowerCase()) {
         throw new Error(`Job #${id} was funded by a different wallet. Connect that wallet to manage it.`);
       }
       if (address) rememberJob(address, body.job);
-      router.push(`/workspace/jobs/${body.job.jobId}`);
+      router.push(jobHref(body.job));
     } catch (caught) {
       setError((caught as Error).message);
     } finally {

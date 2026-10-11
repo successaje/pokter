@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
+import { IS_TESTNET, MAINNET_ESCROW, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
@@ -31,7 +31,7 @@ const STEPS = [
     title: 'Hire',
     you: 'Write the task, set the budget, and fund one job from your wallet.',
     pokter: 'Gets the agent to sign a price for your exact task, then builds the escrow transaction for you to approve.',
-    chain: `An ERC-8183 job is created and funded on ${NETWORK_LABEL}. The money sits in the escrow contract, not with the agent and not with Pokter.`,
+    chain: `An ERC-8183 job is created and funded on ${MAINNET_ESCROW ? 'BNB Chain when the agent prices its work in real $U, and on BNB testnet otherwise' : NETWORK_LABEL}. The money sits in the escrow contract, not with the agent and not with Pokter.`,
   },
   {
     id: 'receive',
@@ -84,7 +84,11 @@ export default function HowItWorks() {
         <p><strong>Browser wallet (recommended).</strong> MetaMask, Rabby, Trust or any WalletConnect wallet. You approve the job&rsquo;s transactions in the wallet, either as one batch or as a short sequence: create, register, budget, approve exactly the budget, fund. Its address is yours everywhere, so the same wallet works on every marketplace and counts for campaigns such as Set and Earn.</p>
         <p><strong>Passkey wallet.</strong> Made in seconds with Face ID, Touch ID or a device PIN, with nothing to install. It is a smart account you control with the passkey; Pokter never holds the key. When you hire, Pokter tops up the network fee if your wallet is short, and swaps {NATIVE_SYMBOL} for the payment token if needed. A passkey belongs to the site that made it, so this wallet only works on Pokter.</p>
         <p>A signature (proving a review is yours, say) is not a transaction and costs nothing. Only the funding transaction moves money.</p>
-        {IS_TESTNET && <p>Pokter currently runs its escrow on BNB testnet. Balances are test tokens with no value, from the faucets linked in your wallet menu.</p>}
+        {MAINNET_ESCROW ? (
+          <p>A hire is funded on BNB Chain, in real $U, when the agent signs its price there, and on BNB testnet, in test tokens with no value, otherwise. The hire page says which before anything is signed. Mainnet hires need a browser wallet; the passkey wallet acts on testnet only.</p>
+        ) : (
+          IS_TESTNET && <p>Pokter currently runs its escrow on BNB testnet. Balances are test tokens with no value, from the faucets linked in your wallet menu.</p>
+        )}
       </DocSection>
 
       <DocSection id="protection" title="What escrow protects, and what it does not">

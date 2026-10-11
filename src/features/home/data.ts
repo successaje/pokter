@@ -133,7 +133,8 @@ export interface HomeData {
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
   /** The most reliable agents this week, one per operator, with this week's figures. */
   reliable: Array<{ row: FindRow; probes: number; answered: number; medianMs: number | null }>;
-  activity: { completedJobs: number; indexedJobs: number; activeJobs: number };
+  /** `completedMainnet` is the part of `completedJobs` paid in real $U on BNB Chain. */
+  activity: { completedJobs: number; completedMainnet: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
   catalogue: { hireable: number; priced: number };
@@ -181,7 +182,9 @@ export async function loadHome(): Promise<HomeData> {
     };
   });
 
-  const jobs = summarizeMarketplaceActivity(getJobStore().all());
+  const allJobs = getJobStore().all();
+  const jobs = summarizeMarketplaceActivity(allJobs);
+  const mainnetJobs = summarizeMarketplaceActivity(allJobs.filter((job) => job.chainId === 56));
   const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   return {
@@ -191,7 +194,7 @@ export async function loadHome(): Promise<HomeData> {
     featured,
     outcomes,
     reliable,
-    activity: { completedJobs: jobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
+    activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     catalogue: {
       hireable: promotable.filter((entry) => offersDirectHire(entry)).length,

@@ -81,6 +81,10 @@ export async function providerChoicesFor(
     }
   }
 
+  // Offered only where it can be hired. On another escrow it would sit in the
+  // list as an option nobody can choose.
+  if (escrowChainId !== 97) return choices;
+
   choices.push({
     address: VERIFIED_TESTNET_PROVIDER,
     label: 'Verified testnet seller',

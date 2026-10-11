@@ -23,6 +23,17 @@ export const ALTANA_NETWORK =
 
 export const IS_TESTNET = ALTANA_NETWORK.chainId === 97;
 
+/**
+ * The network for an escrow chain, for reading and verifying a job funded
+ * there. Hires are funded per agent on the escrow that can pay its price
+ * (`escrowChainForHire`), so a job is not necessarily on `ALTANA_NETWORK`.
+ * Reads only: what the operator key may sign is still decided by
+ * `ALTANA_NETWORK` and `adminSigner`.
+ */
+export function altanaNetworkFor(chainId: number) {
+  return chainId === 56 ? BNB : BNB_TESTNET;
+}
+
 export class AltanaNotConfiguredError extends Error {
   constructor(message: string) {
     super(message);

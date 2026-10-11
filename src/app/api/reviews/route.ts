@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
 import { getAddress, isAddress, isHex, verifyMessage, type Hex } from 'viem';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
@@ -40,12 +41,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'The review payload is invalid.' }, { status: 400 });
   }
 
-  if (getReviewStore().get(ALTANA_NETWORK.chainId, jobId)?.onchainTx) {
+  // The escrow the job was funded on; older callers only used the default.
+  const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
+
+  if (getReviewStore().get(chainId, jobId)?.onchainTx) {
     return NextResponse.json({ error: 'This review is published on chain and can no longer be edited.' }, { status: 409 });
   }
 
   try {
-    const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+    const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
     if (job.statusName !== 'COMPLETED') {
       return NextResponse.json({ error: 'Only completed jobs can be reviewed.' }, { status: 409 });
     }
@@ -56,12 +60,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!envelope || envelope.identity.chainId !== agentChainId || envelope.identity.tokenId !== agentTokenId) {
       return NextResponse.json({ error: 'The job does not identify this agent.' }, { status: 409 });
     }
-    const message = reviewMessage({ chainId: ALTANA_NETWORK.chainId, jobId, agentChainId, agentTokenId, content });
+    const message = reviewMessage({ chainId, jobId, agentChainId, agentTokenId, content });
     if (!(await verifyMessage({ address: buyer, message, signature: signature as Hex }))) {
       return NextResponse.json({ error: 'The buyer signature is invalid.' }, { status: 403 });
     }
     const review: VerifiedReview = {
-      chainId: ALTANA_NETWORK.chainId, jobId, agentChainId, agentTokenId,
+      chainId, jobId, agentChainId, agentTokenId,
       buyer: getAddress(buyer), ...content, comment: content.comment.trim(),
       signature: signature as Hex, updatedAt: new Date().toISOString(),
     };

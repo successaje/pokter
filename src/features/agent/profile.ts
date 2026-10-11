@@ -6,6 +6,7 @@ import type { DeclaredSkill } from '@/lib/agents/capabilities';
 import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
 import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { escrowChainForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
@@ -104,7 +105,9 @@ export async function loadProfile(chainId: ChainId, tokenId: string): Promise<Pr
 async function toProfile(d: AgentDossier): Promise<AgentProfile> {
   const { agent, category, attestations, proof, live, record, score } = d;
   const meta = category === 'unclassified' ? null : (CATEGORY_BY_ID.get(category) ?? null);
-  const escrowChain = ALTANA_NETWORK.chainId;
+  // The escrow that can pay this agent's signed price, or the default escrow
+  // when none can (the page then says why it cannot be hired at that price).
+  const escrowChain = escrowChainForHire(d.quote?.currency) ?? ALTANA_NETWORK.chainId;
   const addresses = correctedErc8183Addresses(escrowChain);
 
   const [skills, delivery, providers, suggestion, alternatives] = await Promise.all([
@@ -122,7 +125,7 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
   const warnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow ? ['It did not answer Pokter’s live check when this page loaded.'] : []),
-    ...(payable === false && d.quote ? [unpayablePriceNote(d.quote.currency, ALTANA_NETWORK.chainId === 97)] : []),
+    ...(payable === false && d.quote ? [unpayablePriceNote(d.quote.currency, !isEscrowChain(56))] : []),
   ];
 
   const services = Object.entries(agent.services ?? {})

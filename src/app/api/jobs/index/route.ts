@@ -9,7 +9,8 @@ import {
   type Hex,
 } from 'viem';
 
-import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -39,8 +40,8 @@ const LIFECYCLE_EVENTS = [
   },
 ] as const;
 
-function receiptNamesJob(receipt: Awaited<ReturnType<ReturnType<typeof createPublicClient>['getTransactionReceipt']>>, jobId: bigint): boolean {
-  const commerce = getAddress(correctedErc8183Addresses(ALTANA_NETWORK.chainId).commerce);
+function receiptNamesJob(receipt: Awaited<ReturnType<ReturnType<typeof createPublicClient>['getTransactionReceipt']>>, jobId: bigint, chainId: number): boolean {
+  const commerce = getAddress(correctedErc8183Addresses(chainId).commerce);
   return receipt.logs.some((log) => {
     if (getAddress(log.address) !== commerce) return false;
     try {
@@ -71,15 +72,22 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!/^\d+$/.test(jobIdText) || !isHash(transactionHash)) {
     return NextResponse.json({ error: 'A numeric jobId and transactionHash are required.' }, { status: 400 });
   }
+  // The escrow the job was funded on. Omitted by older clients, which only
+  // ever funded on the default network.
+  const chainId = body.chainId === undefined ? ALTANA_NETWORK.chainId : Number(body.chainId);
+  if (!isEscrowChain(chainId)) {
+    return NextResponse.json({ error: 'Jobs are indexed only on the escrow chains Pokter funds hires on.' }, { status: 400 });
+  }
+  const network = altanaNetworkFor(chainId);
 
   try {
     const jobId = BigInt(jobIdText);
-    const rpc = createPublicClient({ chain: ALTANA_NETWORK.chain, transport: http(ALTANA_NETWORK.publicRpcUrl) });
+    const rpc = createPublicClient({ chain: network.chain, transport: http(network.publicRpcUrl) });
     const [onchain, receipt] = await Promise.all([
-      getErc8183Job(ALTANA_NETWORK, jobId),
+      getErc8183Job(network, jobId),
       rpc.getTransactionReceipt({ hash: transactionHash as Hex }),
     ]);
-    if (receipt.status !== 'success' || !receiptNamesJob(receipt, jobId)) {
+    if (receipt.status !== 'success' || !receiptNamesJob(receipt, jobId, chainId)) {
       return NextResponse.json({ error: 'The transaction does not verify creation or funding of this job.' }, { status: 409 });
     }
     if (onchain.statusName === 'OPEN') {
@@ -93,10 +101,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const now = new Date().toISOString();
     const indexed: HiredJob = {
-      id: `${ALTANA_NETWORK.chainId}:${jobIdText}`,
+      id: `${chainId}:${jobIdText}`,
       jobId: jobIdText,
-      chainId: ALTANA_NETWORK.chainId,
-      isTestnet: IS_TESTNET,
+      chainId,
+      isTestnet: chainId === 97,
       agentChainId: envelope.identity.chainId,
       agentTokenId: envelope.identity.tokenId,
       agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,

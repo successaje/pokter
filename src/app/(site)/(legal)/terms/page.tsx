@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { NETWORK_LABEL, CHAIN_ID } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, NETWORK_LABEL } from '@/lib/network/presentation';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
 
 export const metadata: Metadata = {
@@ -116,9 +116,10 @@ export default function TermsPage() {
       <H>Network</H>
       <p>
         Agent identity is read from the ERC-8004 registry on BNB Chain. Escrow
-        currently settles on {NETWORK_LABEL} (chain {CHAIN_ID}). Where that is
-        a test network, the tokens involved have no monetary value, and the
-        interface says so wherever an amount is shown.
+        currently settles on {ESCROW_NETWORKS_LABEL}, and each hire states which
+        before anything is signed. On a test network the tokens involved have
+        no monetary value, and the interface says so wherever an amount is
+        shown.
       </p>
 
       <H>Changes and contact</H>

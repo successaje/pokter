@@ -85,7 +85,7 @@ export function ReviewForm({ job }: { job: HiredJob }) {
       const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ jobId: job.jobId, buyer: active.address, signature, agentChainId, agentTokenId: job.agentTokenId, content }),
+        body: JSON.stringify({ chainId: job.chainId, jobId: job.jobId, buyer: active.address, signature, agentChainId, agentTokenId: job.agentTokenId, content }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string; review?: VerifiedReview };
       if (!response.ok) throw new Error(payload.error ?? 'The review could not be verified.');

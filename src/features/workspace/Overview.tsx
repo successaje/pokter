@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { formatUnits } from 'viem';
 
-import { IS_TESTNET } from '@/lib/network/presentation';
 import { useWalletState } from '@/shell/wallet/useWalletState';
 import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -14,6 +13,7 @@ import { JobRow, NeedsWallet, PageHeader, Stat, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
+import { jobHref } from '@/lib/jobs/href';
 
 export function WorkspaceOverview() {
   const { jobs, address } = useMyJobs();
@@ -35,9 +35,15 @@ export function WorkspaceOverview() {
   const needsYou = phases.filter((p) => PHASE[p.phase].needsYou);
   const working = phases.filter((p) => p.phase === 'working');
   const recent = phases.filter((p) => p.phase === 'settled' || p.phase === 'refunded' || p.phase === 'disputed').slice(0, 4);
-  const held = phases
-    .filter((p) => p.phase === 'working' || p.phase === 'review' || p.phase === 'reclaim')
-    .reduce((sum, p) => sum + Number(formatUnits(BigInt(p.job.budgetRaw), 18)), 0);
+  // Real and test $U are never added together: mainnet escrow is money and
+  // testnet escrow is not. Real money leads when there is any.
+  const heldOn = (chainId: number) =>
+    phases
+      .filter((p) => p.job.chainId === chainId && (p.phase === 'working' || p.phase === 'review' || p.phase === 'reclaim'))
+      .reduce((sum, p) => sum + Number(formatUnits(BigInt(p.job.budgetRaw), 18)), 0);
+  const heldReal = heldOn(56);
+  const heldTest = heldOn(97);
+  const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   const agents = Array.from(new Map(jobs.map((j) => [`${j.agentChainId}:${j.agentTokenId}`, j])).values()).slice(0, 6);
   const unread = inbox.filter((n) => !n.readAt).length + alerts.filter((a) => !a.readAt).length;
 
@@ -83,7 +89,7 @@ export function WorkspaceOverview() {
               <ul className="flex flex-col gap-2">
                 {needsYou.map(({ job, phase }) => (
                   <li key={job.id}>
-                    <Link href={`/workspace/jobs/${job.jobId}`} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
+                    <Link href={jobHref(job)} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
                       <span className="flex items-center gap-3">
                         <AgentAvatar name={job.agentName} seed={`${job.agentChainId}:${job.agentTokenId}`} size={36} />
                         <span className="flex flex-col">
@@ -107,7 +113,12 @@ export function WorkspaceOverview() {
             <Stat label="In progress" value={working.length} href="/workspace/jobs?filter=active" />
             <Stat label="Awaiting you" value={needsYou.length} tone={needsYou.length ? 'watch' : undefined} href="/workspace/jobs?filter=attention" />
             <Stat label="Settled" value={phases.filter((p) => p.phase === 'settled').length} href="/workspace/jobs?filter=done" />
-            <Stat label="In escrow" value={`${held.toLocaleString('en-US', { maximumFractionDigits: 2 })}`} note={`$U${IS_TESTNET ? ' · test' : ''}`} href="/workspace/wallet" />
+            <Stat
+              label="In escrow"
+              value={fmt(heldReal > 0 ? heldReal : heldTest)}
+              note={heldReal > 0 ? `$U${heldTest > 0 ? ` · plus ${fmt(heldTest)} test` : ''}` : heldTest > 0 ? '$U · test' : '$U'}
+              href="/workspace/wallet"
+            />
           </section>
 
           <section aria-labelledby="active-title">

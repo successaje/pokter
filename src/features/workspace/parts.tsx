@@ -14,6 +14,7 @@ import { Button, LinkButton } from '@/ui/Button';
 import { EmptyState, Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE } from './hooks';
+import { jobHref } from '@/lib/jobs/href';
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', info: 'bg-info', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
 const TEXT = { ok: 'text-ok', watch: 'text-watch', info: 'text-info', bad: 'text-bad', none: 'text-ink-3' } as const;
@@ -59,7 +60,7 @@ export function JobRow({ job }: { job: HiredJob }) {
   const phase = jobPhase(job);
   return (
     <Link
-      href={`/workspace/jobs/${job.jobId}`}
+      href={jobHref(job)}
       className="group grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors hover:bg-sunken/40 sm:grid-cols-[36px_minmax(0,1.4fr)_minmax(0,1fr)_110px_20px]"
     >
       <AgentAvatar name={job.agentName} seed={`${job.agentChainId}:${job.agentTokenId}`} size={36} />

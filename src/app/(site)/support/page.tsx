@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL } from '@/lib/network/presentation';
 import { GITHUB_ISSUE_URL, GITHUB_REPO_URL, SECURITY_EMAIL, SUPPORT_EMAIL } from '@/lib/support/contact';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { Icon } from '@/ui/icons';
@@ -25,7 +25,7 @@ export default function SupportPage() {
     <Doc label="Support" title="Help, and what Pokter can actually do" lede="Pokter is small and answers its own mail. Start with what is and is not possible when money is involved.">
       <DocSection id="cannot" title="What Pokter cannot do">
         <p>
-          <strong>Pokter cannot move, release, freeze or refund your money.</strong> A hire funds an ERC-8183 escrow contract directly from your wallet on {NETWORK_LABEL}, and the contract releases it by its own rules. Pokter holds no key that could override that, which is also why nobody who compromised Pokter could take your funds.
+          <strong>Pokter cannot move, release, freeze or refund your money.</strong> A hire funds an ERC-8183 escrow contract directly from your wallet on {ESCROW_NETWORKS_LABEL}, and the contract releases it by its own rules. Pokter holds no key that could override that, which is also why nobody who compromised Pokter could take your funds.
         </p>
         <p>We can help you read what the chain says happened and tell you which option applies: release, dispute or reclaim. You take that action from <Link href="/workspace/jobs" className="link">your jobs</Link>, with your own wallet.</p>
       </DocSection>

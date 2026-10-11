@@ -37,6 +37,16 @@ export function walletClient() {
 }
 
 /**
+ * The Altana network for an escrow chain, for reads and browser-wallet
+ * transactions on a job funded there. The passkey wallet itself still acts
+ * only on `WALLET_NETWORK`: Altana's testnet is a separate account stack, and
+ * nothing yet establishes that a passkey wallet has the same address on both.
+ */
+export function walletNetworkFor(chainId: number) {
+  return chainId === 56 ? BNB : BNB_TESTNET;
+}
+
+/**
  * localStorage as an external store, read through useSyncExternalStore.
  *
  * The snapshot is memoised against the raw string so repeated reads return the

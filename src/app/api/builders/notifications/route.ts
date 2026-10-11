@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { altanaNetworkFor } from '@/lib/altana/client';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { builderNotifications, markBuilderNotificationsRead, recordBuilderJobEvent } from '@/lib/notifications/server';
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const keys = new Set(pages.flatMap((page) => page.items).map((agent) => `${agent.chain_id}:${agent.token_id}`));
   const jobs = getJobStore().all().filter((job) => keys.has(`${job.agentChainId ?? 56}:${job.agentTokenId}`));
   await Promise.allSettled(jobs.map(async (job) => {
-    const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
+    const onchain = await getErc8183Job(altanaNetworkFor(job.chainId), BigInt(job.jobId));
     recordBuilderJobEvent({
       owner: builder, chainId: job.chainId, jobId: job.jobId, agentName: job.agentName,
       status: onchain.statusName, expiredAt: onchain.expiredAt,

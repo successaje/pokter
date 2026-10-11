@@ -8,6 +8,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ESCROW_CHAIN, walletConnectConfigured } from '@/lib/wallet/config';
 import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
+import { isEscrowChain } from '@/lib/network/escrow';
 import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useHydrated } from '@/lib/ui/use-hydrated';
@@ -56,9 +57,11 @@ export function useWalletState() {
   });
 
   const externalBalance = useQuery({
-    queryKey: ['wallet-balances', 'external', externalAddress],
+    // Read on the chain the wallet is on, when hires can be funded there, so a
+    // wallet on mainnet shows its mainnet balance rather than its testnet one.
+    queryKey: ['wallet-balances', 'external', externalAddress, chain?.id],
     queryFn: async () => {
-      const result = await externalBalances();
+      const result = await externalBalances(chain && isEscrowChain(chain.id) ? chain.id : undefined);
       if (!result) return null;
       return { native: Number(formatEther(result.native)), payment: Number(formatUnits(result.payment, 18)) };
     },
