@@ -421,7 +421,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="text-ink-3">· {r.wouldHireAgain ? 'Would hire again' : 'Would not hire again'}</span>
                       </div>
                       {r.comment && <p className="text-[14px] leading-relaxed">{r.comment.slice(0, 600)}</p>}
-                      <p className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
+                      <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
                         <span>
                           Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
@@ -431,7 +431,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                           </a>
                         )}
                         <ReportReview chainId={r.chainId} jobId={r.jobId} />
-                      </p>
+                      </div>
                     </li>
                   ))}
                 </ul>
