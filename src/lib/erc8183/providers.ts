@@ -4,7 +4,7 @@ import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
 
 /**
  * A seller we have verified is live on the escrow chain.
@@ -63,7 +63,7 @@ export async function providerChoicesFor(
         ? `This agent’s own wallet on chain ${agent.chain_id}. Its runtime does not watch chain ${escrowChainId}.`
         : payable
           ? 'This agent’s own wallet, on the escrow chain.'
-          : 'This agent prices its work in a token this escrow cannot pay, so it would refuse the funded job.',
+          : unpayablePriceNote(quote?.currency ?? '', escrowChainId === 97),
     });
   }
 

@@ -10,7 +10,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -122,7 +122,7 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
   const warnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow ? ['It did not answer Pokter’s live check when this page loaded.'] : []),
-    ...(payable === false ? ['Its signed price is in a token this escrow cannot pay, so a funded job could not be accepted by the seller.'] : []),
+    ...(payable === false && d.quote ? [unpayablePriceNote(d.quote.currency, ALTANA_NETWORK.chainId === 97)] : []),
   ];
 
   const services = Object.entries(agent.services ?? {})

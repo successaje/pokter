@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { getAgent } from '@/lib/scan/client';
@@ -87,8 +87,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!quotePayableWith(quote.currency, paymentToken)) {
     return NextResponse.json(
       {
-        error:
-          'The agent priced this work in a token this escrow cannot pay, so it would refuse the funded job.',
+        error: unpayablePriceNote(quote.currency, ALTANA_NETWORK.chainId === 97),
         reason: 'currency',
       },
       { status: 409 },
