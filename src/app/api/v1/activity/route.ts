@@ -5,6 +5,8 @@ import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { getJobStore } from '@/lib/erc8183/store';
 import { ALTANA_NETWORK, IS_TESTNET } from '@/lib/altana/client';
 import { enabledEscrowChains } from '@/lib/network/escrow';
+import { teamWalletList, teamWalletSet } from '@/lib/team/server';
+import { fundedByTeam } from '@/lib/team/wallets';
 import { chainLabel } from '@/lib/network/presentation';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,11 @@ export function GET(request: Request) {
   const limited = apiRateLimit(request, 'activity');
   if (limited) return limited;
   const all = getJobStore().all();
+  // Jobs Pokter's own wallets funded were tests of the hire flow. Totals keep
+  // them, as before; `buyers` leaves them out, and the wallets are listed so
+  // the split can be checked against the chain.
+  const team = teamWalletSet();
+  const buyers = all.filter((job) => !fundedByTeam(job, team));
   /*
    * Per escrow chain, never summed: mainnet $U is money and testnet $U is
    * not, so one total would describe neither. `network` and `activity` stay
@@ -45,12 +52,15 @@ export function GET(request: Request) {
       testnet: IS_TESTNET,
     },
     activity: summary(all.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
+    buyers: summary(buyers.filter((job) => job.chainId === ALTANA_NETWORK.chainId)),
+    teamWallets: teamWalletList(),
     byChain: chains.map((chainId) => ({
       chainId,
       name: chainLabel(chainId),
       testnet: chainId === 97,
       activity: summary(all.filter((job) => job.chainId === chainId)),
+      buyers: summary(buyers.filter((job) => job.chainId === chainId)),
     })),
-    scope: 'Jobs commissioned through Pokter and verified against ERC-8183. No task text, email, or wallet address is returned.',
+    scope: 'Jobs commissioned through Pokter and verified against ERC-8183. `buyers` excludes jobs funded by the wallets in `teamWallets`, which are Pokter\'s own and published on purpose; no other wallet address, task text or email is returned.',
   });
 }

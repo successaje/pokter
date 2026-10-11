@@ -6,6 +6,8 @@ import { supplyCensus } from '@/lib/census/supply';
 import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
 import { Doc, DocSection } from '@/features/content/Doc';
+import { MAINNET_ESCROW } from '@/lib/network/presentation';
+import { teamWalletList } from '@/lib/team/server';
 import { VerdictGlyph } from '@/ui/Verdict';
 
 export const metadata: Metadata = {
@@ -17,6 +19,7 @@ export const revalidate = 600;
 const ORDER: Verdict[] = ['proven', 'reliable', 'emerging', 'observed', 'failing', 'unproven'];
 
 export default async function MethodologyPage() {
+  const team = teamWalletList();
   const [stats, census] = await Promise.all([getEcosystemStats().catch(() => null), supplyCensus().catch(() => null)]);
   return (
     <Doc
@@ -155,11 +158,33 @@ export default async function MethodologyPage() {
         <p><strong>Popularity and ratings.</strong> There are no star ratings or view counts. Reviews exist only when signed by the wallet that funded a completed job.</p>
       </DocSection>
 
+      <DocSection id="team-wallets" title="Pokter's own hires">
+        <p>
+          Pokter tests its hire flow with real escrow jobs from its own wallets. Those jobs are left out of the activity Pokter reports, so a test does not read as demand, and the wallets are listed here so the split can be checked on chain. They still count in each agent&rsquo;s delivery record: a funded job an agent let lapse is a fact about the agent, whoever paid for it.
+        </p>
+        {team.length > 0 ? (
+          <ul className="flex flex-col gap-1.5">
+            {team.map((wallet) => (
+              <li key={wallet.address} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="t-readout text-[13px]">{wallet.address}</span>
+                <span className="text-[13px] text-ink-3">{wallet.label}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-ink-3">No team wallet is configured on this deployment.</p>
+        )}
+      </DocSection>
+
       <DocSection id="limits" title="Known limits">
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>An answering endpoint proves reachability, not the quality of the work.</li>
           <li>Probes run every few hours, so a short outage between sweeps is not seen.</li>
-          <li>Escrow currently runs on BNB testnet. Delivery for agents registered on mainnet goes through Pokter&rsquo;s testnet courier, which carries the task and returns the agent&rsquo;s answer unchanged, or nothing.</li>
+          <li>
+            {MAINNET_ESCROW
+              ? 'An agent that signs its price in mainnet $U is hired on BNB Chain and paid directly. Any other agent is hired on BNB testnet, where Pokter’s courier carries the task to agents registered on mainnet and returns the agent’s answer unchanged, or nothing.'
+              : 'Escrow currently runs on BNB testnet. Delivery for agents registered on mainnet goes through Pokter’s testnet courier, which carries the task and returns the agent’s answer unchanged, or nothing.'}
+          </li>
           <li>The ERC-8004 validation registry is not deployed on BSC, so no validator attestations exist to use.</li>
         </ul>
         <p>

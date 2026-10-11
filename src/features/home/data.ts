@@ -12,6 +12,8 @@ import { offersDirectHire, type SearchableAgent } from '@/lib/search/match';
 import { mostReliable } from '@/lib/search/order';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
+import { teamWalletSet } from '@/lib/team/server';
+import { fundedByTeam } from '@/lib/team/wallets';
 
 /** One line of the hero's inspection: a real check with a real result. */
 export interface SpecimenCheck {
@@ -133,8 +135,11 @@ export interface HomeData {
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
   /** The most reliable agents this week, one per operator, with this week's figures. */
   reliable: Array<{ row: FindRow; probes: number; answered: number; medianMs: number | null }>;
-  /** `completedMainnet` is the part of `completedJobs` paid in real $U on BNB Chain. */
-  activity: { completedJobs: number; completedMainnet: number; indexedJobs: number; activeJobs: number };
+  /**
+   * Jobs outside buyers funded; Pokter's own test hires are counted apart in
+   * `teamCompleted`. `completedMainnet` is the part paid in real $U.
+   */
+  activity: { completedJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
   catalogue: { hireable: number; priced: number };
@@ -182,9 +187,12 @@ export async function loadHome(): Promise<HomeData> {
     };
   });
 
+  const team = teamWalletSet();
   const allJobs = getJobStore().all();
-  const jobs = summarizeMarketplaceActivity(allJobs);
-  const mainnetJobs = summarizeMarketplaceActivity(allJobs.filter((job) => job.chainId === 56));
+  const buyerJobs = allJobs.filter((job) => !fundedByTeam(job, team));
+  const jobs = summarizeMarketplaceActivity(buyerJobs);
+  const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
+  const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
   const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   return {
@@ -194,7 +202,7 @@ export async function loadHome(): Promise<HomeData> {
     featured,
     outcomes,
     reliable,
-    activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
+    activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     catalogue: {
       hireable: promotable.filter((entry) => offersDirectHire(entry)).length,
