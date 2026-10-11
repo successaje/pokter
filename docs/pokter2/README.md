@@ -186,6 +186,23 @@ owners is treated as public (a faucet, exchange or bridge) and merges
 nobody. Set `NODEREAL_API_KEY` as a Fly secret to turn it on; without it
 the ranking groups by owner wallet.
 
+## Health factor check
+
+`lib/assay` checks health-factor agents on real work. Each week the sweep
+samples a few Venus Core Pool borrowers on BSC mainnet (`venus.ts`, from
+recent Borrow and RepayBorrow events). Each due agent is asked for their
+health factor through the courier (`sendPreparedBrief`), and the answer is
+compared with Pokter's reading of Venus before and after it: `getAccountLiquidity`
+divided by the debt, i.e. on liquidation thresholds. Within 2% matches.
+
+Outcomes: correct; borrow-limit (the ratio on collateral factors, which
+can be lower where a market's threshold exceeds its collateral factor);
+wrong; unreadable. Runs: checked; not-askable (no endpoint or work skill);
+paid-only (answers with a price). Results go to `ASSAY_DB_PATH` and show on
+the agent's Evidence tab. The sweep checks two agents per run, each again
+after three days, and starts none after 60 s. Optional `BSC_MAINNET_RPC_URL`
+overrides the public node used for Venus reads.
+
 ## Set and Earn while it runs
 
 All gated on `isCampaignLive()`:
