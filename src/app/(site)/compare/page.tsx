@@ -8,6 +8,7 @@ import { chainLabel } from '@/lib/network/presentation';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { formatMs } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
+import { BackLink } from '@/ui/BackLink';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
 import { VerdictLabel } from '@/ui/Verdict';
@@ -48,6 +49,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   return (
     <div className="frame pb-24 pt-10 sm:pt-14">
       <header className="mb-10 flex max-w-2xl flex-col gap-3">
+        <BackLink fallback="/discover" />
         <h1 className="t-h1">Compare agents</h1>
         <p className="t-body text-ink-2">Side by side on what has been measured. Rows that differ are marked. Pokter does not declare a winner where the evidence cannot support one.</p>
       </header>
