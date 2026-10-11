@@ -238,7 +238,7 @@ async function sendEmail(input: {
 }
 
 function emailShell(content: string, preheader: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f2eb;color:#171714;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2eb"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px"><tr><td style="padding:0 4px 18px"><a href="${appUrl()}" style="color:#171714;text-decoration:none;font-size:20px;font-weight:700;letter-spacing:-.4px"><span style="display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;margin-right:9px;border-radius:8px;background:#171714;color:#f3ba2f;font-size:15px">P</span>Pokter</a></td></tr><tr><td style="background:#ffffff;border:1px solid #dedbd1;border-radius:18px;padding:32px 30px">${content}</td></tr><tr><td style="padding:18px 5px 0;color:#77756d;font-size:11px;line-height:1.65"><p style="margin:0 0 8px">Pokter is the evidence-first marketplace for autonomous financial agents on BNB Chain.</p><p style="margin:0">Security reminder: Pokter will never ask for your private key, recovery phrase, or passkey by email.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f2eb;color:#171714;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2eb"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px"><tr><td style="padding:0 4px 18px"><a href="${appUrl()}" style="color:#171714;text-decoration:none;font-size:20px;font-weight:700;letter-spacing:-.4px"><img src="${appUrl()}/brand/pokter-app-icon-192.png" width="28" height="28" alt="" style="display:inline-block;vertical-align:middle;margin-right:9px;border:0;border-radius:8px"><span style="vertical-align:middle">Pokter</span></a></td></tr><tr><td style="background:#ffffff;border:1px solid #dedbd1;border-radius:18px;padding:32px 30px">${content}</td></tr><tr><td style="padding:18px 5px 0;color:#77756d;font-size:11px;line-height:1.65"><p style="margin:0 0 8px">Pokter is the evidence-first marketplace for autonomous financial agents on BNB Chain.</p><p style="margin:0">Security reminder: Pokter will never ask for your private key, recovery phrase, or passkey by email.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 function emailButton(href: string, label: string): string {
@@ -302,18 +302,26 @@ export async function createBuilderSubscription(input: { email: string; owner: s
   });
 }
 
-export function verifySubscription(token: string): 'buyer' | 'builder' | 'follow' | null {
+export type EmailLinkTarget =
+  | { kind: 'buyer' | 'builder' }
+  | { kind: 'follow'; chainId: number; tokenId: string };
+
+/** Confirm an address. A follow also says which agent, so the link can return to it. */
+export function verifySubscription(token: string): EmailLinkTarget | null {
   const now = new Date().toISOString();
   const tokenHash = hash(token);
   const buyer = db().prepare(`UPDATE notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
-  if (buyer.changes > 0) return 'buyer';
+  if (buyer.changes > 0) return { kind: 'buyer' };
   const builder = db().prepare(`UPDATE builder_notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
-  if (builder.changes > 0) return 'builder';
-  const follow = db().prepare(`UPDATE agent_follows SET verified_at=?, unsubscribed_at=NULL
-    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
-  return follow.changes > 0 ? 'follow' : null;
+  if (builder.changes > 0) return { kind: 'builder' };
+  const follow = db().prepare(`SELECT id, chain_id, token_id FROM agent_follows WHERE verification_hash=? AND verified_at IS NULL`).get(tokenHash) as
+    | { id: string; chain_id: number; token_id: string }
+    | undefined;
+  if (!follow) return null;
+  db().prepare('UPDATE agent_follows SET verified_at=?, unsubscribed_at=NULL WHERE id=?').run(now, follow.id);
+  return { kind: 'follow', chainId: follow.chain_id, tokenId: follow.token_id };
 }
 
 function unsubscribeSecret(): string {
@@ -329,7 +337,7 @@ function unsubscribeToken(id: string): string {
   return `${id}.${createHmac('sha256', unsubscribeSecret()).update(id).digest('base64url')}`;
 }
 
-export function unsubscribe(token: string): 'buyer' | 'builder' | 'follow' | null {
+export function unsubscribe(token: string): EmailLinkTarget | null {
   const [id, supplied] = token.split('.');
   if (!id || !supplied) return null;
   const expected = createHmac('sha256', unsubscribeSecret()).update(id).digest();
@@ -338,11 +346,13 @@ export function unsubscribe(token: string): 'buyer' | 'builder' | 'follow' | nul
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
   const now = new Date().toISOString();
   const buyer = db().prepare('UPDATE notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
-  if (buyer.changes > 0) return 'buyer';
+  if (buyer.changes > 0) return { kind: 'buyer' };
   const builder = db().prepare('UPDATE builder_notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
-  if (builder.changes > 0) return 'builder';
-  const follow = db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
-  return follow.changes > 0 ? 'follow' : null;
+  if (builder.changes > 0) return { kind: 'builder' };
+  const follow = db().prepare('SELECT chain_id, token_id FROM agent_follows WHERE id=?').get(id) as { chain_id: number; token_id: string } | undefined;
+  if (!follow) return null;
+  db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
+  return { kind: 'follow', chainId: follow.chain_id, tokenId: follow.token_id };
 }
 
 export async function notifyBuilderJobEvent(input: {

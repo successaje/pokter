@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
+import { deviceFollow, forgetFollow, maskEmail, rememberFollow, subscribeToFollows } from '@/lib/wallet/follows';
 import { isAgentSaved, subscribeToSavedAgents, toggleSavedAgent, type SavedAgent } from '@/lib/wallet/saved-agents';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
@@ -62,13 +63,23 @@ export function ShareButton({ title, path, className }: { title: string; path: s
 /**
  * Follow an agent by email: hear when it stops answering or comes back,
  * changes its signed price, or delivers or misses a paid job. Confirmed by
- * a link in the first email; one click in any alert stops it.
+ * a link in the first email, which returns here; one click in any alert
+ * stops it. The button reflects what this device asked for: pending until
+ * the link is opened, then following.
  */
 export function FollowButton({ chainId, tokenId, name, className }: { chainId: number; tokenId: string; name: string; className?: string }) {
+  const follow = useSyncExternalStore(subscribeToFollows, () => deviceFollow(chainId, tokenId), () => null);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  // Arriving from the confirmation or unsubscribe link in an email.
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get('email');
+    if (status === 'verified') rememberFollow(chainId, tokenId, { email: null, status: 'confirmed' });
+    if (status === 'unsubscribed') forgetFollow(chainId, tokenId);
+  }, [chainId, tokenId]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -82,6 +93,7 @@ export function FollowButton({ chainId, tokenId, name, className }: { chainId: n
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? 'Alerts could not be set up. Try again.');
+      rememberFollow(chainId, tokenId, { email: email.trim(), status: 'pending' });
       setState('sent');
     } catch (caught) {
       setError((caught as Error).message);
@@ -89,22 +101,43 @@ export function FollowButton({ chainId, tokenId, name, className }: { chainId: n
     }
   };
 
+  const label = follow?.status === 'confirmed' ? 'Following' : follow?.status === 'pending' ? 'Check your email' : 'Follow';
+  const masked = follow?.email ? maskEmail(follow.email) : null;
+
   return (
     <>
-      <button type="button" className={cn(iconButton, className)} onClick={() => setOpen(true)}>
-        <Icon.Bell size={15} />
-        Follow
+      <button
+        type="button"
+        aria-pressed={follow?.status === 'confirmed'}
+        className={cn(iconButton, follow?.status === 'confirmed' && 'border-ink text-ink', className)}
+        onClick={() => {
+          setState('idle');
+          setOpen(true);
+        }}
+      >
+        {follow?.status === 'confirmed' ? <Icon.Check size={15} /> : follow?.status === 'pending' ? <Icon.Clock size={15} /> : <Icon.Bell size={15} />}
+        {label}
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title={`Follow ${name}`} description="Email alerts when something Pokter measures about this agent changes.">
+      <Sheet open={open} onClose={() => setOpen(false)} title={follow?.status === 'confirmed' ? `Following ${name}` : `Follow ${name}`} description="Email alerts when something Pokter measures about this agent changes.">
         {state === 'sent' ? (
           <p className="flex items-start gap-2 text-sm text-ink-2">
             <Icon.Check size={16} className="mt-0.5 shrink-0 text-ok" />
             <span>
-              Check <strong className="font-medium text-ink">{email}</strong> and confirm. Then you will hear about {name} only when something changes.
+              Check <strong className="font-medium text-ink">{email}</strong> and confirm. The link brings you back here, and then you will hear about {name} only when something changes.
             </span>
           </p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
+            {follow?.status === 'confirmed' && (
+              <p className="rounded-[10px] border border-rule bg-sunken/50 px-3 py-2.5 text-[13.5px] text-ink-2">
+                You follow {name} from this device{masked ? `, with ${masked}` : ''}. To stop, use the link at the bottom of any alert. You can also add another address below.
+              </p>
+            )}
+            {follow?.status === 'pending' && (
+              <p className="rounded-[10px] border border-rule bg-sunken/50 px-3 py-2.5 text-[13.5px] text-ink-2">
+                A confirmation was sent{masked ? ` to ${masked}` : ''}. Open the link in it to start alerts. Nothing arrived? Send it again below.
+              </p>
+            )}
             <ul className="flex flex-col gap-1.5 text-[13.5px] text-ink-2">
               <li>It stops answering, or starts again</li>
               <li>Its signed price changes, appears or lapses</li>
@@ -116,7 +149,7 @@ export function FollowButton({ chainId, tokenId, name, className }: { chainId: n
             </label>
             {error && <p className="text-[13px] text-bad">{error}</p>}
             <Button type="submit" busy={state === 'sending'} disabled={state === 'sending' || !email.trim()}>
-              Send confirmation
+              {follow?.status === 'pending' ? 'Send it again' : 'Send confirmation'}
             </Button>
             <p className="text-[12px] text-ink-3">No account and no wallet. Every alert has a one-click stop.</p>
           </form>
