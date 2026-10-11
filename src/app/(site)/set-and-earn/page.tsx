@@ -87,6 +87,9 @@ export default async function SetAndEarn() {
             <h2 id="progress-title" className="t-label">
               Your progress
             </h2>
+            <Link href="/quest" className="text-[13px] font-medium text-ink hover:underline">
+              Hires on every marketplace: the tracker <Icon.Arrow size={13} className="inline" />
+            </Link>
             <Link href="/studio" className="text-[13px] font-medium text-ink-2 hover:text-ink">
               Build track: your agent&rsquo;s hires, actions and active days are in Builder Studio <Icon.Arrow size={13} className="inline" />
             </Link>

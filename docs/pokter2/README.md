@@ -216,6 +216,24 @@ the buyer sent that exact call (`lib/reviews/onchain.ts`). A review
 published on chain can no longer be edited. The registry itself refuses
 ratings from an agent's owner ("Self-feedback not allowed").
 
+## Set and Earn tracker
+
+`/quest?address=0x…` shows a wallet's hires on every marketplace, because
+every shortlisted marketplace settles through BNB Chain's ERC-8183 escrow
+(mainnet `0xEa4D…`, testnet `0xa206…`). The sweep indexes jobs by id
+(`lib/quest/indexer.ts`), reading current state with `getJob`, so no
+archive node is needed. Public nodes refuse historical logs on mainnet.
+The window is jobs with a deadline after 1 October, since the contract
+keeps no creation time. It also caches each listed agent's registered
+wallet from the ERC-8004 identity registry, so a paid wallet can be
+matched to its agent.
+
+A hire is a job whose status left OPEN. Agents are counted by registered
+identity (Pokter's envelope, or the paid wallet), otherwise by wallet. The
+marketplace is only what the record states: Pokter's envelope, or "via
+domain" in the task text. Otherwise it is shown as not recorded, and the
+two-marketplace check reads as met, likely or not met (`lib/quest/progress.ts`).
+
 ## Set and Earn while it runs
 
 All gated on `isCampaignLive()`:
