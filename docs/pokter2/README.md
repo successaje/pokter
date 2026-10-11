@@ -169,6 +169,23 @@ hire's own indexing, `POST /api/jobs/[jobId]/sync` after a settle, dispute or
 reclaim, and the scheduled sweep for older rows. Recovering a job
 (`GET /api/jobs/[jobId]`) adds a funded Pokter job the index lacks.
 
+## Most reliable this week
+
+`lib/search/order.ts` ranks on the last 7 days of probes: the lower bound
+of a 95% Wilson interval on probes answered, at least 20 probes, ties
+broken on median reply time and then completed paid work. Discover offers
+it as a sort (`?sort=reliable`); the home page shows the top five, one per
+operator.
+
+"Operator" is the owner wallet, except on BSC mainnet, where wallets
+first funded from the same address count as one (`lib/funding`). The
+funder comes from NodeReal's `nr_getAssetTransfers` (BSCTrace), which
+covers mainnet only. The sweep looks up at most 40 owners per run and
+caches the result in `FUNDER_DB_PATH`. A funder of more than 10 listed
+owners is treated as public (a faucet, exchange or bridge) and merges
+nobody. Set `NODEREAL_API_KEY` as a Fly secret to turn it on; without it
+the ranking groups by owner wallet.
+
 ## Set and Earn while it runs
 
 All gated on `isCampaignLive()`:

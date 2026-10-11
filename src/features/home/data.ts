@@ -10,6 +10,8 @@ import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
 import type { SearchableAgent } from '@/lib/search/match';
 import { mostReliable } from '@/lib/search/order';
+import { operatorResolver } from '@/lib/funding/operator';
+import { getFunderStore } from '@/lib/funding/store';
 
 /** One line of the hero's inspection: a real check with a real result. */
 export interface SpecimenCheck {
@@ -156,7 +158,11 @@ export async function loadHome(): Promise<HomeData> {
     };
   });
 
-  const reliable = mostReliable(entries.filter((entry) => isPromotableAgent(entry.listing.agent)), 5).map((entry) => {
+  // Owners first funded from the same wallet count as one operator. Only
+  // mainnet owners have a funder on record; the rest stand alone.
+  const ownerWallets = entries.map((entry) => entry.listing.agent.owner_address);
+  const operatorOf = operatorResolver(ownerWallets, getFunderStore().funders(ownerWallets));
+  const reliable = mostReliable(entries.filter((entry) => isPromotableAgent(entry.listing.agent)), 5, operatorOf).map((entry) => {
     const week = entry.record.windows.find((window) => window.label === '7d');
     return {
       row: byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!,
