@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { readDeliverable } from '@/lib/erc8183/deliverables';
+import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import { jobHref } from '@/lib/jobs/href';
 import { chainLabel } from '@/lib/network/presentation';
@@ -452,9 +452,9 @@ export async function notifyJobEvent(input: {
  * same pinned, size-capped fetch the prober uses.
  */
 async function deliveredAnswer(chainId: number, jobId: string): Promise<string | null> {
-  // Deliverables Pokter hosts are for testnet jobs, which is the only escrow
-  // its delivery agent and Studio delivery work on.
-  const stored = chainId === 97 ? readDeliverable(jobId) : null;
+  // Deliverables Pokter hosts: its delivery agent's (testnet) and builders'
+  // Studio deliveries (any escrow).
+  const stored = readDeliverable(deliverableKey(chainId, jobId));
   if (stored) return answerFromManifest(stored.manifestText);
   const url = getJobStore().byId(`${chainId}:${jobId}`)?.deliverableUrl;
   if (!url) return null;

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { isHex } from 'viem';
 import { verifyErc8183ManifestText } from '@altananetwork/sdk';
 
-import { readDeliverable } from '@/lib/erc8183/deliverables';
+import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
+import { jobChainParam } from '@/lib/jobs/href';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,9 @@ export async function GET(
   if (!validJobId) {
     return NextResponse.json({ error: 'Invalid job id.' }, { status: 400 });
   }
-  const deliverable = readDeliverable(jobId);
+  // `?chain=` names a job on another escrow; testnet URLs never carried it.
+  const chainId = jobChainParam(new URL(request.url).searchParams.get('chain')) ?? 97;
+  const deliverable = readDeliverable(deliverableKey(chainId, jobId));
   if (!deliverable) {
     return NextResponse.json(
       { error: 'Deliverable not found.' },
