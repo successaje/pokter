@@ -5,6 +5,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { readDeliverable } from '@/lib/erc8183/deliverables';
+import { getJobStore } from '@/lib/erc8183/store';
+import { withPublicEndpoint } from '@/lib/proof/prober';
+import { answerFromManifest, previewOf } from './answer';
+import { agentChanges, type FollowedAgentState } from './agent-changes';
+
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
 
@@ -76,6 +82,28 @@ function db(): DatabaseSync {
       FOREIGN KEY(subscription_id) REFERENCES builder_notification_subscriptions(id)
     );
   `);
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS agent_follows (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      token_id TEXT NOT NULL,
+      agent_name TEXT NOT NULL,
+      verification_hash TEXT NOT NULL,
+      verified_at TEXT,
+      unsubscribed_at TEXT,
+      last_state TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(email, chain_id, token_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_follows_agent ON agent_follows (chain_id, token_id);
+  `);
+  // Added after launch; existing rows keep the default (preview only).
+  try {
+    database.exec('ALTER TABLE notification_subscriptions ADD COLUMN include_answer INTEGER NOT NULL DEFAULT 0');
+  } catch (error) {
+    if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+  }
   return database;
 }
 
@@ -222,29 +250,30 @@ function emailContext(rows: Array<[string, string]>): string {
 }
 
 export async function createSubscription(input: {
-  email: string; walletAddress: string; chainId: number; jobId: string;
+  email: string; walletAddress: string; chainId: number; jobId: string; includeAnswer?: boolean;
 }): Promise<void> {
   const email = input.email.trim().toLowerCase();
   const token = randomBytes(32).toString('base64url');
   const id = randomUUID();
   const now = new Date().toISOString();
   db().prepare(`INSERT INTO notification_subscriptions
-    (id,email,wallet_address,chain_id,job_id,verification_hash,created_at)
-    VALUES (?,?,?,?,?,?,?)
+    (id,email,wallet_address,chain_id,job_id,verification_hash,created_at,include_answer)
+    VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(email,chain_id,job_id) DO UPDATE SET
       wallet_address=excluded.wallet_address,
+      include_answer=excluded.include_answer,
       verification_hash=excluded.verification_hash,
       verified_at=NULL,
       unsubscribed_at=NULL,
       created_at=excluded.created_at`).run(
-    id, email, input.walletAddress.toLowerCase(), input.chainId, input.jobId, hash(token), now,
+    id, email, input.walletAddress.toLowerCase(), input.chainId, input.jobId, hash(token), now, input.includeAnswer ? 1 : 0,
   );
   const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
   await sendEmail({
     to: email,
     subject: `Confirm email updates for job #${input.jobId}`,
     idempotencyKey: `verify-${hash(`${email}:${input.chainId}:${input.jobId}:${token}`).slice(0, 48)}`,
-    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to receive important, chain-verified updates for this commission.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Stay informed about your job</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Confirm your email to hear when the agent delivers, with a preview of its answer, and when the job settles.</p>${emailContext([['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(verifyUrl, 'Confirm job updates')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access your wallet. If you did not request these updates, you can safely ignore this email.</p>`, `Confirm email updates for Pokter job #${input.jobId}.`),
   });
 }
 
@@ -273,7 +302,7 @@ export async function createBuilderSubscription(input: { email: string; owner: s
   });
 }
 
-export function verifySubscription(token: string): 'buyer' | 'builder' | null {
+export function verifySubscription(token: string): 'buyer' | 'builder' | 'follow' | null {
   const now = new Date().toISOString();
   const tokenHash = hash(token);
   const buyer = db().prepare(`UPDATE notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
@@ -281,7 +310,10 @@ export function verifySubscription(token: string): 'buyer' | 'builder' | null {
   if (buyer.changes > 0) return 'buyer';
   const builder = db().prepare(`UPDATE builder_notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
-  return builder.changes > 0 ? 'builder' : null;
+  if (builder.changes > 0) return 'builder';
+  const follow = db().prepare(`UPDATE agent_follows SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  return follow.changes > 0 ? 'follow' : null;
 }
 
 function unsubscribeSecret(): string {
@@ -297,7 +329,7 @@ function unsubscribeToken(id: string): string {
   return `${id}.${createHmac('sha256', unsubscribeSecret()).update(id).digest('base64url')}`;
 }
 
-export function unsubscribe(token: string): 'buyer' | 'builder' | null {
+export function unsubscribe(token: string): 'buyer' | 'builder' | 'follow' | null {
   const [id, supplied] = token.split('.');
   if (!id || !supplied) return null;
   const expected = createHmac('sha256', unsubscribeSecret()).update(id).digest();
@@ -308,7 +340,9 @@ export function unsubscribe(token: string): 'buyer' | 'builder' | null {
   const buyer = db().prepare('UPDATE notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
   if (buyer.changes > 0) return 'buyer';
   const builder = db().prepare('UPDATE builder_notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
-  return builder.changes > 0 ? 'builder' : null;
+  if (builder.changes > 0) return 'builder';
+  const follow = db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
+  return follow.changes > 0 ? 'follow' : null;
 }
 
 export async function notifyBuilderJobEvent(input: {
@@ -336,7 +370,7 @@ export async function notifyBuilderJobEvent(input: {
         to: row.email,
         subject: `${item.title} · Job #${input.jobId}`,
         idempotencyKey: `builder-${eventKey}-${row.id}`.slice(0, 256),
-        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/builder`, 'Open builder workspace')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Builder update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(item.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(item.body)}</p>${emailContext([['Agent', input.agentName], ['Job', `#${input.jobId}`], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/studio`, 'Open Builder Studio')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Turn off builder alerts</a>.</p>`, `${item.title} for ${input.agentName}, job #${input.jobId}.`),
       });
       db().prepare('UPDATE builder_notification_outbox SET provider_id=?,sent_at=?,last_error=NULL WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
       sent += 1;
@@ -350,11 +384,26 @@ export async function notifyBuilderJobEvent(input: {
 export async function notifyJobEvent(input: {
   chainId: number; jobId: string; status: string; agentName?: string;
 }): Promise<{ attempted: number; sent: number }> {
-  const rows = db().prepare(`SELECT id,email FROM notification_subscriptions
-    WHERE chain_id=? AND job_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.chainId, input.jobId) as { id: string; email: string }[];
+  const rows = db().prepare(`SELECT id,email,include_answer FROM notification_subscriptions
+    WHERE chain_id=? AND job_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.chainId, input.jobId) as { id: string; email: string; include_answer: number }[];
+  if (rows.length === 0) return { attempted: 0, sent: 0 };
+  const event = input.status.toUpperCase();
+  const agent = input.agentName?.trim() || 'Your agent';
+  const delivered = event === 'SUBMITTED' || event === 'COMPLETED';
+  // Read once for every subscriber: the delivered answer, when there is one.
+  const answer = delivered ? await deliveredAnswer(input.jobId).catch(() => null) : null;
+  const jobUrl = `${appUrl()}/workspace/jobs/${encodeURIComponent(input.jobId)}`;
+  const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`;
+  const copy: Record<string, { subject: string; title: string; body: string }> = {
+    FUNDED: { subject: `Job #${input.jobId} is funded`, title: 'Your job is funded', body: `${agent} has been asked to do the work. You will hear when it delivers.` },
+    SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. Payment is released after the review window unless you dispute it.' },
+    COMPLETED: { subject: `Job #${input.jobId} is complete`, title: 'Job complete', body: 'The escrow was released to the agent.' },
+    REJECTED: { subject: `Job #${input.jobId} was disputed`, title: 'Delivery disputed', body: 'The delivery was contested. The job page has the evidence and what happens next.' },
+    EXPIRED: { subject: `Job #${input.jobId} expired`, title: 'Deadline passed', body: 'Nothing was delivered in time. Your escrow can be reclaimed from the job page.' },
+  };
+  const text = copy[event] ?? { subject: `Job #${input.jobId} is now ${event.toLowerCase()}`, title: `Job ${event.toLowerCase()}`, body: 'A verified on-chain status change is available for your job.' };
   let sent = 0;
   for (const row of rows) {
-    const event = input.status.toUpperCase();
     const proposedId = randomUUID();
     db().prepare(`INSERT OR IGNORE INTO notification_outbox
       (id,subscription_id,event,created_at) VALUES (?,?,?,?)`).run(proposedId, row.id, event, new Date().toISOString());
@@ -362,13 +411,19 @@ export async function notifyJobEvent(input: {
       WHERE subscription_id=? AND event=?`).get(row.id, event) as { id: string; sent_at: string | null };
     if (pending.sent_at) continue;
     const outboxId = pending.id;
-    const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    const answerBlock = answer && event === 'SUBMITTED'
+      ? row.include_answer
+        ? `<p style="margin:22px 0 8px;color:#77756d;font-size:11px;text-transform:uppercase;letter-spacing:.08em">The agent's answer</p><pre style="white-space:pre-wrap;word-break:break-word;margin:0;padding:14px 16px;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:12px;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.6;color:#292823">${escapeHtml(answer.slice(0, 20_000))}${answer.length > 20_000 ? '\n…' : ''}</pre>`
+        : `<p style="margin:22px 0 8px;color:#77756d;font-size:11px;text-transform:uppercase;letter-spacing:.08em">Preview</p><p style="margin:0;padding:14px 16px;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:12px;font-size:13px;line-height:1.65;color:#292823">${escapeHtml(previewOf(answer))}</p>`
+      : '';
     try {
+      // Inside the try: a missing secret skips this email, not the rest.
+      const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
       const providerId = await sendEmail({
         to: row.email,
-        subject: `Job #${input.jobId} is now ${event.toLowerCase()}`,
+        subject: text.subject,
         idempotencyKey: `job-${input.chainId}-${input.jobId}-${event}-${row.id}`.slice(0, 256),
-        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Commission update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Job ${escapeHtml(event.toLowerCase())}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">A verified on-chain status change is available for your commission.</p>${emailContext([['Agent', input.agentName?.trim() || 'Your agent'], ['Job', `#${input.jobId}`], ['Status', event], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : `Chain ${input.chainId}`]])}<div>${emailButton(`${appUrl()}/activity`, 'Review job activity')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">For privacy, task instructions and deliverables are not included in email. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `A verified on-chain update is available for job #${input.jobId}.`),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Job update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(text.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(text.body)}</p>${answerBlock}${emailContext([['Agent', agent], ['Job', `#${input.jobId}`], ['Status', event], ['Network', network]])}<div>${emailButton(jobUrl, delivered ? 'Read and verify the answer' : 'Open the job')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">The job page holds the full answer and checks it against the hash committed on chain. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `${text.title} · job #${input.jobId}.`),
       });
       db().prepare('UPDATE notification_outbox SET provider_id=?,sent_at=? WHERE id=?').run(providerId, new Date().toISOString(), outboxId);
       sent += 1;
@@ -379,10 +434,94 @@ export async function notifyJobEvent(input: {
   return { attempted: rows.length, sent };
 }
 
+/**
+ * The delivered answer for a job: from the manifest Pokter's own seller
+ * stored, or fetched from the delivery URL the index recorded, over the
+ * same pinned, size-capped fetch the prober uses.
+ */
+async function deliveredAnswer(jobId: string): Promise<string | null> {
+  const stored = readDeliverable(jobId);
+  if (stored) return answerFromManifest(stored.manifestText);
+  const url = getJobStore().all().find((job) => job.jobId === jobId)?.deliverableUrl;
+  if (!url) return null;
+  const text = await withPublicEndpoint(url, async (endpoint) => {
+    const response = await endpoint.fetch({ cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) throw new Error(`The delivery answered ${response.status}.`);
+    const body = await response.text();
+    return body.slice(0, 256 * 1024);
+  });
+  return answerFromManifest(text);
+}
+
 export function subscribedJobs(): { chainId: number; jobId: string }[] {
   return db().prepare(`SELECT DISTINCT chain_id,job_id FROM notification_subscriptions
     WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all().map((row) => {
       const value = row as { chain_id: number; job_id: string };
       return { chainId: value.chain_id, jobId: value.job_id };
     });
+}
+
+/** Start following an agent by email. Nothing is sent about it until the address is confirmed. */
+export async function createAgentFollow(input: { email: string; chainId: number; tokenId: string; agentName: string }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const token = randomBytes(32).toString('base64url');
+  db().prepare(`INSERT INTO agent_follows (id,email,chain_id,token_id,agent_name,verification_hash,created_at)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(email,chain_id,token_id) DO UPDATE SET
+      agent_name=excluded.agent_name,
+      verification_hash=excluded.verification_hash,
+      verified_at=NULL,
+      unsubscribed_at=NULL,
+      last_state=NULL,
+      created_at=excluded.created_at`).run(randomUUID(), email, input.chainId, input.tokenId, input.agentName, hash(token), new Date().toISOString());
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  await sendEmail({
+    to: email,
+    subject: `Confirm alerts for ${input.agentName}`,
+    idempotencyKey: `follow-verify-${hash(`${email}:${input.chainId}:${input.tokenId}:${token}`).slice(0, 48)}`,
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Follow an agent</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Confirm alerts for ${escapeHtml(input.agentName)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">You will hear when it stops answering or comes back, changes its signed price, or delivers or misses a paid job. Only what Pokter measures, never marketing.</p>${emailContext([['Agent', input.agentName], ['Network', input.chainId === 97 ? 'BNB Smart Chain Testnet' : 'BNB Smart Chain']])}<div>${emailButton(verifyUrl, 'Confirm alerts')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only turns on alerts. If you did not ask for them, ignore this email.</p>`, `Confirm alerts for ${input.agentName} on Pokter.`),
+  });
+}
+
+/** Agents with at least one confirmed follower. */
+export function followedAgents(): { chainId: number; tokenId: string }[] {
+  return (db().prepare(`SELECT DISTINCT chain_id, token_id FROM agent_follows WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as { chain_id: number; token_id: string }[])
+    .map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+}
+
+/**
+ * Compare each followed agent with what its followers last heard, and email
+ * what changed. A follower's first observation is stored silently as the
+ * baseline. The state is stored after each send, so an email is not repeated.
+ */
+export async function notifyFollowers(states: Map<string, { name: string; state: FollowedAgentState }>): Promise<{ checked: number; sent: number }> {
+  const rows = db().prepare(`SELECT id,email,chain_id,token_id,agent_name,last_state FROM agent_follows
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as { id: string; email: string; chain_id: number; token_id: string; agent_name: string; last_state: string | null }[];
+  let sent = 0;
+  for (const row of rows) {
+    const current = states.get(`${row.chain_id}:${row.token_id}`);
+    if (!current) continue;
+    const previous = row.last_state ? (JSON.parse(row.last_state) as FollowedAgentState) : null;
+    const changes = agentChanges(current.name || row.agent_name, previous, current.state);
+    const agentUrl = `${appUrl()}/agents/${row.chain_id}/${encodeURIComponent(row.token_id)}`;
+    if (changes.length > 0) {
+      const items = changes.map((c) => `<p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#171714">${escapeHtml(c.title)}</p><p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#55534d">${escapeHtml(c.body)}</p>`).join('');
+      try {
+        // Inside the try: without email configured this throws, and that must
+        // skip this follower, not end the whole pass.
+        const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+        await sendEmail({
+          to: row.email,
+          subject: changes.length === 1 ? changes[0].title : `${changes.length} updates on ${current.name || row.agent_name}`,
+          idempotencyKey: `follow-${row.id}-${hash(JSON.stringify(current.state)).slice(0, 24)}`,
+          html: emailShell(`<p style="margin:0 0 14px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Agent you follow</p>${items}<div>${emailButton(agentUrl, 'See the evidence')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">Measured by Pokter&rsquo;s probes and BNB Chain escrow. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop following this agent</a>.</p>`, changes[0].title),
+        });
+        sent += 1;
+      } catch {
+        continue; // Keep the old state, so the change is sent on the next sweep.
+      }
+    }
+    db().prepare('UPDATE agent_follows SET last_state=?, agent_name=? WHERE id=?').run(JSON.stringify(current.state), current.name || row.agent_name, row.id);
+  }
+  return { checked: rows.length, sent };
 }

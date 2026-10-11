@@ -18,6 +18,7 @@ import { Address, Details } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Checkbox, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -194,6 +195,7 @@ export function HireFlow(props: HireFlowProps) {
               </div>
             )}
           </dl>
+          <JobEmailAlert jobId={job.jobId} />
           {hire.active.mode === 'external' && !hire.revoked && (
             <Notice
               tone="neutral"

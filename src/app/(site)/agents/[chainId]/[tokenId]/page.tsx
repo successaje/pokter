@@ -6,7 +6,7 @@ import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { formatDelivery, formatMs } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates } from '@/lib/hire/taskTemplates';
-import { SaveButton, ShareButton } from '@/features/agent/AgentActions';
+import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
 import { TrialPanel } from '@/features/agent/TrialPanel';
@@ -197,6 +197,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <SaveButton agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, imageUrl: p.imageUrl, category: p.category?.id ?? 'unclassified', description: p.summary }} />
+              <FollowButton chainId={p.chainId} tokenId={p.tokenId} name={p.name} />
               <ShareButton title={p.name} path={path} />
               <CompareToggle agentKey={p.key} className="h-9 px-3 text-[13px]" />
             </div>
@@ -420,7 +421,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="text-ink-3">· {r.wouldHireAgain ? 'Would hire again' : 'Would not hire again'}</span>
                       </div>
                       {r.comment && <p className="text-[14px] leading-relaxed">{r.comment.slice(0, 600)}</p>}
-                      <p className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
+                      <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
                         <span>
                           Job <span className="t-readout">#{r.jobId}</span> · signed by the funding wallet <span className="t-readout">{r.buyer.slice(0, 6)}…{r.buyer.slice(-4)}</span>
                         </span>
@@ -430,7 +431,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                           </a>
                         )}
                         <ReportReview chainId={r.chainId} jobId={r.jobId} />
-                      </p>
+                      </div>
                     </li>
                   ))}
                 </ul>

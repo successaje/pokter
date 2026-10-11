@@ -22,6 +22,7 @@ import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
 import { budgetOf, PhaseLabel } from './parts';
 import { ReviewForm } from './ReviewForm';
+import { JobEmailAlert } from './JobEmailAlert';
 
 /**
  * Finds the job in this device's memory, or rebuilds it from chain. A job
@@ -293,6 +294,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <Link href={`/agents/${job.agentChainId}/${job.agentTokenId}`} className="flex items-center justify-between rounded-[14px] border border-rule bg-raised p-4 text-sm hover:border-rule-strong">
             View the agent <Icon.Arrow size={15} />
           </Link>
+          {owned && (phase === 'working' || phase === 'review') && <JobEmailAlert jobId={job.jobId} compact />}
           {(phase === 'working' || phase === 'disputed') && (
             <a href={supportMailto({ subject: 'Help with a Pokter job', jobId: job.jobId })} className="text-[13px] text-ink-3 hover:text-ink">
               Something wrong? Contact support

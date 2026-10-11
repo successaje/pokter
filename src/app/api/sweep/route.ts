@@ -8,13 +8,14 @@ import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
-import { listMarketplaceWithStatus } from '@/lib/marketplace';
+import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
@@ -108,7 +109,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       subscribedJobs().map(async ({ chainId, jobId }) => {
         if (chainId !== ALTANA_NETWORK.chainId) return { attempted: 0, sent: 0 };
         const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
-        return notifyJobEvent({ chainId, jobId, status: job.statusName });
+        return notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
       }),
     );
     const notifications = notificationResults.reduce(
@@ -228,6 +229,37 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
       : null;
 
+    /*
+     * Followed agents: what each looks like now, compared with what its
+     * followers last heard. Only read when someone follows something.
+     */
+    const follows = followedAgents();
+    const followerAlerts = follows.length
+      ? await listSearchableWithStatus({ limit: 400 })
+          .then(({ entries }) => {
+            const wanted = new Set(follows.map((f) => `${f.chainId}:${f.tokenId}`));
+            const states = new Map<string, { name: string; state: FollowedAgentState }>();
+            for (const entry of entries) {
+              const key = `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`;
+              if (!wanted.has(key)) continue;
+              const day = entry.record.windows.find((w) => w.label === '24h');
+              const quote = entry.listing.quote;
+              const current = quote && !(quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now());
+              states.set(key, {
+                name: entry.listing.agent.name,
+                state: {
+                  answering: day && day.probes > 0 ? (day.ratio ?? 0) > 0 : null,
+                  priceU: current ? Number(quote.priceU) : null,
+                  delivered: entry.history?.delivered ?? 0,
+                  missed: entry.history?.missed ?? 0,
+                },
+              });
+            }
+            return notifyFollowers(states);
+          })
+          .catch(() => null)
+      : null;
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       hireWatch,
@@ -236,6 +268,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       funders,
       healthFactorChecks,
       questIndex,
+      followerAlerts,
       agentWallets,
       testnetSweep,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,

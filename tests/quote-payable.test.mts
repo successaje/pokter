@@ -53,3 +53,12 @@ test('a currency that is not an address is refused rather than thrown', () => {
 test('an unreadable payment token is refused rather than thrown', () => {
   assert.equal(quotePayableWith(TESTNET_U, 'not-a-token'), false);
 });
+
+test('an unpayable price is explained in terms a buyer can act on', async () => {
+  const { unpayablePriceNote } = await import('../src/lib/erc8183/payable');
+  const mainnet = unpayablePriceNote('0xcE24439F2D9C6a2289F741120FE202248B666666', true);
+  assert.match(mainnet, /mainnet \$U/);
+  assert.match(mainnet, /testnet/);
+  assert.match(mainnet, /try it for free/);
+  assert.doesNotMatch(unpayablePriceNote('0x0000000000000000000000000000000000000001', true), /mainnet \$U/);
+});

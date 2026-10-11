@@ -24,3 +24,23 @@ export function quotePayableWith(
     return false;
   }
 }
+
+/** BNB Chain mainnet $U, the token most sellers quote in. */
+const MAINNET_U = '0xcE24439F2D9C6a2289F741120FE202248B666666';
+
+/**
+ * Why a signed price cannot be paid here, in words a buyer can act on:
+ * what the price is in, what that means for a job funded here, and what to
+ * do instead. Mainnet $U is named because it is nearly every case.
+ */
+export function unpayablePriceNote(currency: string, escrowIsTestnet: boolean): string {
+  let mainnetU = false;
+  try {
+    mainnetU = getAddress(currency) === getAddress(MAINNET_U);
+  } catch {
+    mainnetU = false;
+  }
+  const what = mainnetU ? 'in mainnet $U' : 'in a token';
+  const where = escrowIsTestnet ? 'Pokter’s escrow currently runs on testnet' : 'Pokter’s escrow settles in a different token';
+  return `This agent sets its price ${what}, and ${where}, so it would turn down a job funded here. You can still try it for free, or hire an agent that prices in this escrow’s token.`;
+}
