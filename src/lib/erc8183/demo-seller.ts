@@ -10,6 +10,8 @@ import {
 import { keccak256, stringToHex, type Address, type Hex } from 'viem';
 
 import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
+import { decodePokterJobEnvelope } from './job-envelope';
+import { askAgent } from './courier';
 import { assertTestnetOnly } from '@/lib/erc8183/demo-guard';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
@@ -119,11 +121,31 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
   }
 
   const addresses = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+
+  /*
+   * The answer is the agent's, carried by the seller. The job description is
+   * Pokter's envelope naming the agent the buyer chose; the brief inside it
+   * goes to that agent's endpoint and what it returns is what is delivered.
+   * No envelope, no endpoint or no answer means nothing is delivered: the
+   * seller used to submit a receipt with no assessment in it, and a buyer
+   * cannot review what was never produced.
+   */
+  const envelope = decodePokterJobEnvelope(job.description);
+  if (!envelope) throw new Error('The job carries no Pokter envelope naming an agent to ask.');
+  const carried = await askAgent(envelope, jobId);
   const content = JSON.stringify({
-    title: 'Pokter verified execution receipt',
+    title: `${carried.answeredBy.name ?? `Agent #${envelope.identity.tokenId}`}: answer to your brief`,
     task: job.description,
-    result: {
-      escrow_verified: true,
+    answer: carried.answer.text && carried.answer.data ? { text: carried.answer.text, ...carried.answer.data } : (carried.answer.data ?? carried.answer.text),
+    answered_by: {
+      chain_id: carried.answeredBy.chainId,
+      token_id: carried.answeredBy.tokenId,
+      endpoint: carried.answeredBy.endpoint,
+      skill: carried.answeredBy.skill,
+      asked_at: carried.askedAt,
+      latency_ms: carried.latencyMs,
+    },
+    escrow: {
       job_id: Number(id),
       chain_id: ALTANA_NETWORK.chainId,
       client: job.client,
@@ -132,7 +154,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
       status_at_acceptance: job.statusName,
     },
     limits:
-      'This demonstration proves the funded seller-notification, delivery and settlement lifecycle. It is not investment advice or a claim of trading performance.',
+      "Read-only. The answer above is the agent's own, relayed unchanged by Pokter's seller, which cannot see or move any position. It is not investment advice.",
   });
   const manifest: Erc8183DeliverableManifest = {
     version: 1,
@@ -145,9 +167,10 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
     },
     response: { content, content_type: 'application/json' },
     metadata: {
-      producer: 'Pokter delivery agent',
+      producer: 'Pokter delivery agent (courier)',
+      answered_by: `${envelope.identity.chainId}:${envelope.identity.tokenId}`,
       generated_at: new Date().toISOString(),
-      proof: 'ERC-8183 funded job re-read before submission',
+      proof: 'ERC-8183 funded job re-read before submission; brief carried to the named agent over A2A',
     },
   };
   const manifestText = encodeErc8183Manifest(manifest);
