@@ -1,6 +1,7 @@
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -138,11 +139,8 @@ export async function requestQuote(
     });
 
     const skills = Array.isArray(card?.skills) ? card.skills : [];
-    const canNegotiate = skills.some((skill) => {
-      const value = object(skill);
-      return value?.id === 'negotiate' || value?.name === 'negotiate';
-    });
-    if (!canNegotiate || typeof card?.url !== 'string') return null;
+    const negotiateSkill = negotiationSkillOf(skills);
+    if (!negotiateSkill || typeof card?.url !== 'string') return null;
 
     const payload = await withPublicEndpoint(card.url, async (service) => {
       const response = await service.fetch({
@@ -159,7 +157,7 @@ export async function requestQuote(
             message: {
               role: 'user',
               messageId: crypto.randomUUID(),
-              parts: [{ kind: 'data', data: { skill: 'negotiate', ...enquiry } }],
+              parts: [{ kind: 'data', data: { skill: negotiateSkill, ...enquiry } }],
             },
             configuration: {
               acceptedOutputModes: ['application/json'],

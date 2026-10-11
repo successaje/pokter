@@ -35,6 +35,20 @@ export function pickWorkSkill(skills: unknown): SkillChoice | null {
   return null;
 }
 
+/**
+ * The skill a price is asked through. Agents name it "negotiate", or
+ * variants such as "negotiate-erc8183-job"; the exact "negotiate" wins when
+ * both are declared. Returned as the agent declared it, so the request names
+ * the skill the agent will route.
+ */
+export function negotiationSkillOf(skills: unknown[]): string | null {
+  const ids = skills
+    .map((skill) => object(skill))
+    .map((skill) => (typeof skill?.id === 'string' ? skill.id : typeof skill?.name === 'string' ? skill.name : null))
+    .filter((id): id is string => id !== null);
+  return ids.find((id) => id === 'negotiate') ?? ids.find((id) => /^negotiate[-_]/i.test(id)) ?? null;
+}
+
 export interface AgentAnswer {
   /** Prose the agent returned, joined, when any part was text. */
   text: string | null;
