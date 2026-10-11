@@ -59,11 +59,11 @@ export async function runHealthFactorSuite(target: { chainId: number; tokenId: s
   for (const [index, account] of accounts.entries()) {
     const before = await readVenusPosition(client, account);
     try {
-      let reply = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 20_000 });
+      let reply = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 12_000 });
       let observed = readHfAnswer(reply.answer);
       if (!observed) {
         // Some agents accept exactly one structured part; ask once more that way.
-        const retry = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 20_000, dataOnly: true }).catch(() => null);
+        const retry = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 12_000, dataOnly: true }).catch(() => null);
         if (retry && readHfAnswer(retry.answer)) {
           reply = retry;
           observed = readHfAnswer(retry.answer);
@@ -97,11 +97,13 @@ export async function runHealthFactorSuite(target: { chainId: number; tokenId: s
 
 /**
  * Check the health factor agents that are due, a bounded number per sweep:
- * never checked first, then the longest since their last check.
+ * never checked first, then the longest since their last check. At most
+ * two per run, so a sweep every two hours checks each listed agent about
+ * every other day.
  */
 export async function runDueHealthFactorChecks(
   agents: Array<{ chainId: number; tokenId: string }>,
-  { limit = 4, now = Date.now() }: { limit?: number; now?: number } = {},
+  { limit = 2, now = Date.now(), startWithinMs = 60_000 }: { limit?: number; now?: number; startWithinMs?: number } = {},
 ): Promise<{ checked: number; passedAll: number; notAskable: number; paidOnly: number; sample: number }> {
   const last = getAssayStore().lastRunAt(HF_SUITE_ID);
   const due = agents
@@ -116,7 +118,10 @@ export async function runDueHealthFactorChecks(
   let passedAll = 0;
   let notAskable = 0;
   let paidOnly = 0;
+  // The sweep shares one time budget, so no new agent starts late in it.
+  const started = Date.now();
   for (const agent of due) {
+    if (Date.now() - started > startWithinMs) break;
     const run = await runHealthFactorSuite(agent, accounts).catch(() => null);
     if (!run) continue;
     checked += 1;
