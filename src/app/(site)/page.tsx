@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
-import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, NETWORK_LABEL } from '@/lib/network/presentation';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -32,7 +32,7 @@ export default async function HomePage() {
     { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
     { label: 'Hireable now', note: 'Answering, and payable through escrow', value: home.catalogue.hireable },
     { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
-    { label: 'Paid jobs completed', note: `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`, value: home.activity.completedJobs },
+    { label: 'Paid jobs completed', note: home.activity.completedMainnet > 0 ? `Through Pokter escrow: ${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet` : `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`, value: home.activity.completedJobs },
   ];
   const max = Math.max(...funnel.map((stage) => stage.value ?? 0), 1);
 
@@ -114,7 +114,7 @@ export default async function HomePage() {
                 Set and Earn is live
               </h2>
               <p className="text-[15px] leading-relaxed text-ink-2">
-                BNB Chain&rsquo;s campaign for people who put agents to work. Pokter is one of its shortlisted marketplaces{IS_TESTNET ? ', and hires here run on testnet, so taking part costs nothing' : ''}.
+                BNB Chain&rsquo;s campaign for people who put agents to work. Pokter is one of its shortlisted marketplaces{IS_TESTNET ? (MAINNET_ESCROW ? ', and hires of agents without a mainnet price run on testnet, so taking part can cost nothing' : ', and hires here run on testnet, so taking part costs nothing') : ''}.
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <LinkButton href="/set-and-earn" trailing={<Icon.Arrow size={16} />}>
@@ -392,7 +392,7 @@ export default async function HomePage() {
         </ol>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm">
           <p className="text-ink-3">
-            {IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
+            {MAINNET_ESCROW ? 'Escrow runs on BNB Chain for agents priced in real $U, and on BNB testnet with test tokens otherwise.' : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
           </p>
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 font-medium hover:underline">
             The full walkthrough <Icon.Arrow size={15} />
@@ -464,7 +464,7 @@ export default async function HomePage() {
             <tbody className="divide-y divide-rule bg-raised">
               {[
                 ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
-                ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', IS_TESTNET ? 'Testnet during Set and Earn' : 'BNB Chain'],
+                ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
                 ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
                 ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
                 ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],

@@ -1,5 +1,5 @@
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
-import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
+import { chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
@@ -19,6 +19,8 @@ export function priceSummary(p: AgentProfile) {
 export function HirePanel({ profile }: { profile: AgentProfile }) {
   const price = priceSummary(profile);
   const hireHref = `/hire/${profile.chainId}/${profile.tokenId}`;
+  // The escrow this agent is hired on, chosen from its signed price.
+  const testnet = profile.escrow.chainId === 97;
   return (
     <aside aria-label="Hire this agent" className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
       <div className="flex flex-col gap-1 px-5 pb-4 pt-5">
@@ -32,7 +34,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
       <ul className="flex flex-col gap-2.5 border-t border-rule px-5 py-4 text-[13px] text-ink-2">
         <li className="flex gap-2.5">
           <Icon.Lock size={16} className="mt-px shrink-0 text-ink-3" />
-          Held in escrow on {NETWORK_LABEL}. The agent is paid only after it delivers and you accept, or the review window passes.
+          Held in escrow on {chainLabel(profile.escrow.chainId)}. The agent is paid only after it delivers and you accept, or the review window passes.
         </li>
         <li className="flex gap-2.5">
           <Icon.Refresh size={16} className="mt-px shrink-0 text-ink-3" />
@@ -70,7 +72,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           </a>
         )}
         <p className="pt-1 text-center text-[11.5px] text-ink-3">
-          You review everything before any wallet opens.{IS_TESTNET && ' Test tokens only.'}
+          You review everything before any wallet opens.{testnet ? ' Test tokens only.' : ' Paid in real $U on BNB Chain.'}
         </p>
       </div>
     </aside>

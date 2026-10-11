@@ -11,6 +11,8 @@
  * why that check exists.
  */
 
+import { enabledEscrowChains } from '@/lib/network/escrow';
+
 export const IS_TESTNET = process.env.NEXT_PUBLIC_ALTANA_NETWORK !== 'bnb';
 
 export const CHAIN_ID = IS_TESTNET ? 97 : 56;
@@ -25,6 +27,17 @@ export const NATIVE_SYMBOL = IS_TESTNET ? 'tBNB' : 'BNB';
  * make them translate an abbreviation first.
  */
 export const NETWORK_LABEL = IS_TESTNET ? 'BNB Testnet' : 'BNB Chain';
+
+/*
+ * Hires are funded per agent on the escrow that can pay its price (see
+ * `escrowChainForHire`), so the network above is the site's default, not
+ * necessarily where a given hire's money goes. These two describe the set.
+ */
+/** Whether any hire can be funded on mainnet, which means real money. */
+export const MAINNET_ESCROW = enabledEscrowChains().includes(56);
+
+/** The networks hires are funded on, as a reader would name them. */
+export const ESCROW_NETWORKS_LABEL = enabledEscrowChains().map((chainId) => chainLabel(chainId)).join(' and ');
 
 /*
  * There is deliberately no REGISTRY_NETWORK_LABEL or REGISTRY_CHAIN_ID here.

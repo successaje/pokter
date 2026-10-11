@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
-import { chainLabel, explorerTxUrl } from '@/lib/network/presentation';
+import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { supportMailto } from '@/lib/support/contact';
 import { cn } from '@/lib/ui/cn';
 import { formatElapsed } from '@/lib/ui/format';
@@ -248,7 +248,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                   <span className="text-[13px] leading-snug text-ink-2">{step.detail}</span>
                   <span className="flex flex-wrap items-center gap-2 text-[12px] text-ink-3">
                     <span className="t-label">{step.source === 'onchain' ? 'On chain' : step.source === 'receipt' ? 'Receipt' : 'Pending'}</span>
-                    {step.transactionHash && <TxLink hash={step.transactionHash} />}
+                    {step.transactionHash && <TxLink hash={step.transactionHash} chainId={job.chainId} />}
                   </span>
                 </div>
               </li>
@@ -268,7 +268,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <dt className="text-ink-3">Provider</dt>
-                  <dd><Address address={job.provider} /></dd>
+                  <dd><Address address={job.provider} chainId={job.chainId} /></dd>
                 </div>
                 {job.providerLabel && (
                   <div className="flex justify-between gap-2">
@@ -283,7 +283,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 {job.hireTxHash && (
                   <div className="flex justify-between gap-2">
                     <dt className="text-ink-3">Funding tx</dt>
-                    <dd><a className="t-readout link" href={explorerTxUrl(job.hireTxHash)} target="_blank" rel="noreferrer noopener">{job.hireTxHash.slice(0, 10)}…</a></dd>
+                    <dd><a className="t-readout link" href={`${explorerBaseFor(job.chainId)}/tx/${job.hireTxHash}`} target="_blank" rel="noreferrer noopener">{job.hireTxHash.slice(0, 10)}…</a></dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-2">

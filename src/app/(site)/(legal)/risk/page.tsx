@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { NETWORK_LABEL, PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, MAINNET_ESCROW, NETWORK_LABEL, PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
 
 export const metadata: Metadata = {
   title: 'Risk disclosure',
@@ -32,7 +32,14 @@ export default function RiskPage() {
         money. This page lists the ways, before you commit any.
       </p>
 
-      {PAYMENT_VALUE_NOTE ? (
+      {MAINNET_ESCROW ? (
+        <p className="rounded-[10px] border border-watch/35 bg-watch-wash p-3 text-[13px] text-ink">
+          Escrow settles on {ESCROW_NETWORKS_LABEL}. A hire funded on BNB Chain
+          is paid in real $U and everything below applies to real funds; a hire
+          funded on testnet uses test tokens with no monetary value. Each hire
+          states which before anything is signed.
+        </p>
+      ) : PAYMENT_VALUE_NOTE ? (
         <p className="rounded-[10px] border border-watch/35 bg-watch-wash p-3 text-[13px] text-ink">
           Escrow currently settles on {NETWORK_LABEL}. The tokens involved are
           test tokens with no monetary value. Everything below still describes
