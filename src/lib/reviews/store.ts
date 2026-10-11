@@ -62,6 +62,8 @@ class ReviewStore {
       "ALTER TABLE reviews ADD COLUMN visibility TEXT NOT NULL DEFAULT 'published'",
       'ALTER TABLE reviews ADD COLUMN moderated_at TEXT',
       'ALTER TABLE reviews ADD COLUMN moderation_reason TEXT',
+      'ALTER TABLE reviews ADD COLUMN onchain_tx TEXT',
+      'ALTER TABLE reviews ADD COLUMN onchain_chain_id INTEGER',
     ]) {
       try { this.db.exec(statement); }
       catch (error) {
@@ -95,18 +97,19 @@ class ReviewStore {
   byAgent(chainId: number, tokenId: string): VerifiedReview[] {
     const rows = this.db.prepare(
       "SELECT * FROM reviews WHERE agent_chain_id=? AND agent_token_id=? AND visibility='published' ORDER BY updated_at DESC",
-    ).all(chainId, tokenId) as unknown as Array<Record<string, string | number>>;
-    return rows.map((row) => ({
-      chainId: Number(row.chain_id), jobId: String(row.job_id),
-      agentChainId: Number(row.agent_chain_id), agentTokenId: String(row.agent_token_id),
-      buyer: String(row.buyer) as VerifiedReview['buyer'], rating: Number(row.rating),
-      deliveredAsPromised: Number(row.delivered_as_promised) === 1,
-      speed: String(row.speed) as VerifiedReview['speed'],
-      wouldHireAgain: Number(row.would_hire_again) === 1,
-      comment: String(row.comment), signature: String(row.signature) as VerifiedReview['signature'],
-      updatedAt: String(row.updated_at),
-      visibility: String(row.visibility ?? 'published') as VerifiedReview['visibility'],
-    }));
+    ).all(chainId, tokenId) as unknown as Array<Record<string, string | number | null>>;
+    return rows.map(toReview);
+  }
+
+  /** One review by its job, hidden or not; callers decide what to expose. */
+  get(chainId: number, jobId: string): VerifiedReview | null {
+    const row = this.db.prepare('SELECT * FROM reviews WHERE chain_id=? AND job_id=?').get(chainId, jobId) as unknown as Record<string, string | number | null> | undefined;
+    return row ? toReview(row) : null;
+  }
+
+  /** Record the verified ERC-8004 feedback transaction for a review. */
+  setOnchain(chainId: number, jobId: string, transactionHash: string, onchainChainId: number): void {
+    this.db.prepare('UPDATE reviews SET onchain_tx=?, onchain_chain_id=? WHERE chain_id=? AND job_id=?').run(transactionHash, onchainChainId, chainId, jobId);
   }
 
   report(input: { chainId: number; jobId: string; reason: ReviewReportReason; detail: string }): number {
@@ -152,6 +155,22 @@ class ReviewStore {
 }
 
 let cached: ReviewStore | null = null;
+function toReview(row: Record<string, string | number | null>): VerifiedReview {
+  return {
+    chainId: Number(row.chain_id), jobId: String(row.job_id),
+    agentChainId: Number(row.agent_chain_id), agentTokenId: String(row.agent_token_id),
+    buyer: String(row.buyer) as VerifiedReview['buyer'], rating: Number(row.rating),
+    deliveredAsPromised: Number(row.delivered_as_promised) === 1,
+    speed: String(row.speed) as VerifiedReview['speed'],
+    wouldHireAgain: Number(row.would_hire_again) === 1,
+    comment: String(row.comment), signature: String(row.signature) as VerifiedReview['signature'],
+    updatedAt: String(row.updated_at),
+    visibility: String(row.visibility ?? 'published') as VerifiedReview['visibility'],
+    onchainTx: row.onchain_tx ? (String(row.onchain_tx) as VerifiedReview['signature']) : null,
+    onchainChainId: row.onchain_chain_id === null || row.onchain_chain_id === undefined ? null : Number(row.onchain_chain_id),
+  };
+}
+
 export function getReviewStore(): ReviewStore {
   return (cached ??= new ReviewStore(DB_PATH));
 }

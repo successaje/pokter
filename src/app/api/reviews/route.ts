@@ -40,6 +40,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'The review payload is invalid.' }, { status: 400 });
   }
 
+  if (getReviewStore().get(ALTANA_NETWORK.chainId, jobId)?.onchainTx) {
+    return NextResponse.json({ error: 'This review is published on chain and can no longer be edited.' }, { status: 409 });
+  }
+
   try {
     const job = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
     if (job.statusName !== 'COMPLETED') {
