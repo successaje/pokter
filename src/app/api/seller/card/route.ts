@@ -23,7 +23,7 @@ export async function GET(): Promise<NextResponse> {
         id: 'notify_funded',
         name: 'Submit funded job deliverable',
         description:
-          'Verifies a funded ERC-8183 job assigned to this seller and submits a canonical execution receipt.',
+          'Verifies a funded ERC-8183 job assigned to this seller, carries its brief to the agent named in the job, and submits that agent\u2019s answer unchanged. Delivers nothing when the agent does not answer.',
         tags: ['erc-8183', 'escrow', 'bnb-chain'],
       },
     ],

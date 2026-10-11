@@ -76,7 +76,7 @@ export async function providerChoicesFor(
         relationship: 'separate-provider',
         reachable: true,
         automatedDelivery: true,
-        note: 'Same-chain A2A seller. Verifies escrow, submits a canonical execution receipt and exposes its on-chain proof.',
+        note: 'Carries your task to this agent and delivers its answer unchanged, on the escrow chain. If the agent does not answer, nothing is delivered and you reclaim the escrow after the deadline.',
       });
     }
   }
