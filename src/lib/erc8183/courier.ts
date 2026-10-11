@@ -4,7 +4,7 @@ import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import type { PokterJobEnvelope } from './job-envelope';
-import { extractAnswer, pickWorkSkill, type AgentAnswer } from './courier-parse';
+import { extractAnswer, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -17,23 +17,30 @@ function object(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+/** Why an agent cannot be sent a brief at all: a fact about the agent, not a passing failure. */
+export class NotAskableError extends Error {}
+
+export interface PreparedAgent {
+  chainId: number;
+  tokenId: string;
+  category: string;
+  name: string | null;
+  serviceUrl: string;
+  skill: SkillChoice;
+}
+
 /**
- * The courier: the brief goes to the agent the buyer chose, and what comes
- * back is what gets delivered.
- *
- * Pokter's seller stands in for agents that cannot see a testnet escrow, and
- * until now it delivered a receipt of its own with no assessment in it. It
- * now carries the buyer's brief to the agent's A2A endpoint, over the same
- * pinned, size-capped fetch the prober and the trial use, and returns the
- * agent's own answer. Nothing is invented: if the agent does not answer, or
- * answers with nothing, this throws and nothing is delivered. The job then
- * expires and the buyer reclaims, which is the honest outcome.
+ * Resolve where a brief goes: the agent's card, its first skill that is
+ * work rather than plumbing, and its service URL. Done once per agent, so a
+ * check that sends several briefs reads the registry and the card once.
+ * Throws NotAskableError when the agent publishes no endpoint or no work
+ * skill; any other error (registry or network) is transient.
  */
-export async function askAgent(envelope: PokterJobEnvelope, jobId: string, { timeoutMs = 20_000 }: { timeoutMs?: number } = {}): Promise<CourierResult> {
-  const { chainId, tokenId } = envelope.identity;
+export async function prepareAgent(target: { chainId: number; tokenId: string; category: string }): Promise<PreparedAgent> {
+  const { chainId, tokenId } = target;
   const agent = await getAgent(chainId as ChainId, tokenId);
   const endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
-  if (!endpoint) throw new Error('The agent publishes no A2A endpoint, so its brief cannot be carried to it.');
+  if (!endpoint) throw new NotAskableError('The agent publishes no A2A endpoint, so a brief cannot be sent to it.');
 
   const card = await withPublicEndpoint(endpoint, async (handle) => {
     const response = await handle.fetch({ headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });
@@ -41,11 +48,23 @@ export async function askAgent(envelope: PokterJobEnvelope, jobId: string, { tim
     return object(await readJson(response));
   });
   const skill = pickWorkSkill(card?.skills);
-  if (!skill || typeof card?.url !== 'string') throw new Error('The agent card declares no skill a brief can be sent to.');
+  if (!skill || typeof card?.url !== 'string') throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
+  return { ...target, name: agent.name ?? null, serviceUrl: card.url, skill };
+}
 
+/**
+ * Send one brief to a prepared agent and return what it said, over the
+ * pinned, size-capped fetch the prober and the trial use. Read-only by
+ * instruction. Throws when the agent answers with an error or with nothing.
+ */
+export async function sendPreparedBrief(
+  agent: PreparedAgent,
+  brief: { text: string; data?: Record<string, unknown> },
+  { timeoutMs = 20_000 }: { timeoutMs?: number } = {},
+): Promise<CourierResult> {
   const askedAt = new Date().toISOString();
   const started = Date.now();
-  const payload = await withPublicEndpoint(card.url, async (service) => {
+  const payload = await withPublicEndpoint(agent.serviceUrl, async (service) => {
     const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -58,18 +77,17 @@ export async function askAgent(envelope: PokterJobEnvelope, jobId: string, { tim
             role: 'user',
             messageId: crypto.randomUUID(),
             parts: [
-              { kind: 'text', text: envelope.task },
+              { kind: 'text', text: brief.text },
               {
                 kind: 'data',
                 data: {
-                  skill: skill.id,
-                  task: envelope.task,
-                  task_description: envelope.task,
-                  protocol: 'pokter-job',
-                  job_id: Number(jobId),
-                  category: envelope.category,
+                  skill: agent.skill.id,
+                  task: brief.text,
+                  task_description: brief.text,
+                  category: agent.category,
                   read_only: true,
                   constraints: 'Read-only analysis. Execute no transaction and move no funds.',
+                  ...brief.data,
                 },
               },
             ],
@@ -86,11 +104,26 @@ export async function askAgent(envelope: PokterJobEnvelope, jobId: string, { tim
   });
 
   const answer = extractAnswer(payload.payload);
-  if (!answer) throw new Error('The agent answered, but with no text and no data to deliver.');
+  if (!answer) throw new Error('The agent answered, but with no text and no data.');
   return {
     answer,
-    answeredBy: { chainId, tokenId, name: agent.name ?? null, endpoint: payload.origin, skill: skill.id },
+    answeredBy: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name, endpoint: payload.origin, skill: agent.skill.id },
     latencyMs: Date.now() - started,
     askedAt,
   };
+}
+
+/**
+ * The courier: the brief goes to the agent the buyer chose, and what comes
+ * back is what gets delivered.
+ *
+ * Pokter's seller stands in for agents that cannot see a testnet escrow. It
+ * carries the buyer's brief to the agent and returns the agent's own answer.
+ * Nothing is invented: if the agent does not answer, or answers with
+ * nothing, this throws and nothing is delivered. The job then expires and
+ * the buyer reclaims, which is the honest outcome.
+ */
+export async function askAgent(envelope: PokterJobEnvelope, jobId: string, options: { timeoutMs?: number } = {}): Promise<CourierResult> {
+  const agent = await prepareAgent({ chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category });
+  return sendPreparedBrief(agent, { text: envelope.task, data: { protocol: 'pokter-job', job_id: Number(jobId) } }, options);
 }
