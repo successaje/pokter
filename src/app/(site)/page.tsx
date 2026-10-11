@@ -29,8 +29,9 @@ export default async function HomePage() {
   const hireableCount = home.featured.length;
   const funnel = [
     { label: 'Registered on BNB Chain', note: 'ERC-8004 identities on mainnet, per 8004scan', value: home.stats?.registered ?? null },
-    { label: 'Monitored by Pokter', note: 'Endpoints probed on a schedule', value: home.measured.monitored },
     { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
+    { label: 'Hireable now', note: 'Answering, and payable through escrow', value: home.catalogue.hireable },
+    { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
     { label: 'Paid jobs completed', note: `Through Pokter escrow on ${NETWORK_LABEL}${IS_TESTNET ? ', in test tokens' : ''}`, value: home.activity.completedJobs },
   ];
   const max = Math.max(...funnel.map((stage) => stage.value ?? 0), 1);
@@ -91,7 +92,7 @@ export default async function HomePage() {
 
       {/* ───────────── Readout strip ───────────── */}
       <section aria-label="What Pokter has measured" className="border-y border-rule bg-raised/60">
-        <div className="frame grid grid-cols-2 divide-rule md:grid-cols-4 md:divide-x">
+        <div className="frame grid grid-cols-2 divide-rule sm:grid-cols-3 md:grid-cols-5 md:divide-x">
           {funnel.map((stage, i) => (
             <div key={stage.label} className={`flex flex-col gap-1 py-6 md:px-6 ${i === 0 ? 'md:pl-0' : ''}`}>
               <span className="t-readout text-[1.65rem] leading-none tracking-[-0.03em]">{count(stage.value)}</span>
@@ -201,7 +202,7 @@ export default async function HomePage() {
               </p>
             </div>
             <Link href="/discover?hireable=1" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
-              All hireable agents <Icon.Arrow size={15} />
+              All {home.catalogue.hireable} hireable agents <Icon.Arrow size={15} />
             </Link>
           </Reveal>
           {hireableCount > 0 ? (

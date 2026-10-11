@@ -28,6 +28,11 @@ function recent(agent: SearchableAgent) {
   return window && window.probes > 0 ? window.ratio ?? 0 : -1;
 }
 
+/** A signed price that is still current and that this escrow can pay. */
+function payablePrice(agent: SearchableAgent): boolean {
+  return currentPrice(agent) !== null && agent.listing.quotePayable !== false;
+}
+
 function currentPrice(agent: SearchableAgent): number | null {
   const quote = agent.listing.quote;
   if (!quote || (quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now())) return null;
@@ -161,6 +166,13 @@ export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceO
     }
     if (order === 'recommended') {
       difference = Number(offersDirectHire(b.entry)) - Number(offersDirectHire(a.entry));
+      /*
+       * Among hireable agents, a current signed price the escrow can pay
+       * comes first: the agent has agreed to the job's price before anyone
+       * funds it. Then agents that let paid jobs lapse go down.
+       */
+      if (!difference) difference = Number(payablePrice(b.entry)) - Number(payablePrice(a.entry));
+      if (!difference) difference = Number(letsJobsLapse(a.entry)) - Number(letsJobsLapse(b.entry));
       if (!difference) difference = recent(b.entry) - recent(a.entry);
       /*
        * Delivery outranks having a price. An agent that has finished paid

@@ -61,3 +61,9 @@ test('ordering is stable when nothing distinguishes two agents', () => {
   assert.deepEqual(names(orderMarketplace([a, b], 'completed')), ['a', 'b']);
   assert.deepEqual(names(orderMarketplace([b, a], 'completed')), ['b', 'a']);
 });
+
+test('among hireable agents, a current payable signed price comes first by default', () => {
+  const unpriced = agent('unpriced-but-busy', { jobs: 3, completed: 3, priced: false });
+  const priced = agent('signed-price', { jobs: 0, completed: 0, priced: true });
+  assert.deepEqual(names(orderMarketplace([unpriced, priced], 'recommended')), ['signed-price', 'unpriced-but-busy']);
+});
