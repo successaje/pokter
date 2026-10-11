@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { formatDelivery, formatMs } from '@/lib/ui/format';
@@ -19,6 +20,7 @@ import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { HealthFactorCheck } from '@/features/agent/HealthFactorCheck';
+import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
@@ -203,6 +205,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </div>
           </div>
           <p className="t-lede mt-6 max-w-3xl">{p.summary}</p>
+          <Suspense>
+            <EmailLinkNotice kind="agents" className="mt-6 max-w-3xl" />
+          </Suspense>
         </div>
       </div>
 
