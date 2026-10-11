@@ -8,6 +8,7 @@ import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { siteUrl } from '@/lib/site';
 import { PwaProvider } from '@/shell/PwaProvider';
 import { SavedAgentMonitor } from '@/shell/SavedAgentMonitor';
+import { NavigationMemory } from '@/shell/NavigationMemory';
 
 /*
  * One family and a readout face, both self-hosted (SIL OFL 1.1, licences in
@@ -120,6 +121,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <PwaProvider>
           <SavedAgentMonitor />
+          <NavigationMemory />
           {children}
         </PwaProvider>
       </body>
