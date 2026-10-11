@@ -124,6 +124,11 @@ export interface HfVerdict {
   reason: string;
 }
 
+/** Three decimals at most: enough to compare, short enough to read. */
+function fmt(value: number): string {
+  return String(Number(value.toFixed(3)));
+}
+
 function relativeError(observed: number, expected: number): number {
   return Math.abs(observed - expected) / expected;
 }
@@ -138,10 +143,11 @@ export function judgeHf(readings: HfExpected[], observed: HfObserved | null): Hf
   if (noDebt) {
     return observed.unbounded
       ? { pass: true, outcome: 'correct', reason: 'Correct: no debt.' }
-      : { pass: false, outcome: 'wrong', reason: `Expected no health factor (no debt), answered ${observed.healthFactor}.` };
+      : { pass: false, outcome: 'wrong', reason: `Expected no health factor (no debt), answered ${fmt(observed.healthFactor ?? 0)}.` };
   }
   const values = readings.map((r) => r.healthFactor).filter((v): v is number => v !== null);
-  const shown = values.map((v) => v.toFixed(3)).join(' to ');
+  const distinct = [...new Set(values.map((v) => v.toFixed(3)))];
+  const shown = distinct.join(' to ');
   if (observed.unbounded || observed.healthFactor === null) return { pass: false, outcome: 'wrong', reason: `Expected ${shown}, answered no health factor.` };
   const best = Math.min(...values.map((v) => relativeError(observed.healthFactor!, v)));
   if (best > HF_TOLERANCE) {
@@ -150,10 +156,10 @@ export function judgeHf(readings: HfExpected[], observed: HfObserved | null): Hf
       return {
         pass: false,
         outcome: 'borrow-limit',
-        reason: `Answered ${observed.healthFactor}, the borrowing-limit ratio on collateral factors. Venus liquidates on liquidation thresholds, which put this position at ${shown}.`,
+        reason: `Answered ${fmt(observed.healthFactor)}, the borrowing-limit ratio on collateral factors. Venus liquidates on liquidation thresholds, which put this position at ${shown}.`,
       };
     }
-    return { pass: false, outcome: 'wrong', reason: `Expected ${shown}, answered ${observed.healthFactor} (off by ${(best * 100).toFixed(1)}%).` };
+    return { pass: false, outcome: 'wrong', reason: `Expected ${shown}, answered ${fmt(observed.healthFactor)} (off by ${(best * 100).toFixed(1)}%).` };
   }
   const liquidatable = readings.some((r) => r.liquidatable);
   const safe = readings.some((r) => !r.liquidatable);
