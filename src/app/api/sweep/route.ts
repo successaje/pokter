@@ -13,6 +13,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
+import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { listMarketplaceWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 
@@ -217,6 +218,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         ).catch(() => null)
       : null;
 
+    /*
+     * The Set and Earn tracker's index: new escrow jobs on both chains by
+     * id, and listed agents' registered wallets, so any wallet's hires on
+     * any marketplace can be read without scanning the chain per request.
+     */
+    const questIndex = await Promise.all([indexEscrowJobs(56).catch(() => null), indexEscrowJobs(97).catch(() => null)]);
+    const agentWallets = listings
+      ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
+      : null;
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       hireWatch,
@@ -224,6 +235,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       stuckJobs,
       funders,
       healthFactorChecks,
+      questIndex,
+      agentWallets,
       testnetSweep,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,

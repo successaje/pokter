@@ -120,7 +120,7 @@ export default async function HomePage() {
                 <LinkButton href="/set-and-earn" trailing={<Icon.Arrow size={16} />}>
                   How to take part
                 </LinkButton>
-                <LinkButton href="/set-and-earn#progress" intent="secondary" icon={<Icon.Pulse size={16} />}>
+                <LinkButton href="/quest" intent="secondary" icon={<Icon.Pulse size={16} />}>
                   Track your progress
                 </LinkButton>
               </div>
