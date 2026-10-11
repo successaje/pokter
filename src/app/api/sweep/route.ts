@@ -11,6 +11,8 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { notifyBuilderJobEvent, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
+import { refreshFunders } from '@/lib/funding/store';
+import { listMarketplaceWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 
 export const dynamic = 'force-dynamic';
@@ -189,11 +191,26 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const stuckJobs = await alertStuckJobs().catch(() => null);
 
+    /*
+     * Who first funded each mainnet owner wallet, so agents run from
+     * several wallets count as one operator in "Most reliable". Bounded per
+     * run and off without NODEREAL_API_KEY; last, because nothing above
+     * depends on it and a slow lookup must not cost the measurements.
+     */
+    const funders = await listMarketplaceWithStatus({ limit: 400 })
+      .then(({ sections }) =>
+        refreshFunders(
+          sections.flatMap(({ listings }) => listings).filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address),
+        ),
+      )
+      .catch(() => null);
+
     return NextResponse.json({
       ...outcome, notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
       stuckJobs,
+      funders,
       testnetSweep,
       builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
       builderEmails,

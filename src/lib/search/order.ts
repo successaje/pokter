@@ -102,16 +102,26 @@ function compareReliability(a: SearchableAgent, b: SearchableAgent): number {
   return completedWork(b) - completedWork(a);
 }
 
-/** The most reliable agents this week, one per operator. */
-export function mostReliable(entries: SearchableAgent[], limit: number): SearchableAgent[] {
-  const owners = new Set<string>();
+/**
+ * The most reliable agents this week, one per operator.
+ *
+ * `operatorOf` says who runs an owner wallet. By default each wallet is its
+ * own operator; the home strip passes one that groups wallets by their first
+ * funder (see lib/funding/operator).
+ */
+export function mostReliable(
+  entries: SearchableAgent[],
+  limit: number,
+  operatorOf: (owner: string) => string = (owner) => owner.toLowerCase(),
+): SearchableAgent[] {
+  const operators = new Set<string>();
   return entries
     .filter((entry) => reliabilityScore(entry) !== null)
     .sort(compareReliability)
     .filter((entry) => {
-      const owner = entry.listing.agent.owner_address.toLowerCase();
-      if (owners.has(owner)) return false;
-      owners.add(owner);
+      const operator = operatorOf(entry.listing.agent.owner_address);
+      if (operators.has(operator)) return false;
+      operators.add(operator);
       return true;
     })
     .slice(0, limit);

@@ -54,6 +54,7 @@ ENV RATE_LIMIT_DB_PATH=/data/rate-limit.db
 ENV NOTIFICATION_DB_PATH=/data/notifications.db
 ENV REVIEW_DB_PATH=/data/reviews.db
 ENV BUILDER_DB_PATH=/data/builders.db
+ENV FUNDER_DB_PATH=/data/funders.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs
