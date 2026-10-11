@@ -30,13 +30,20 @@ const SCHEMA = `
     observed  TEXT,
     excerpt   TEXT,
     pass      INTEGER NOT NULL,
+    outcome   TEXT,
     reason    TEXT NOT NULL,
     latency_ms INTEGER,
     PRIMARY KEY (run_id, scenario)
   );
+
+  CREATE TABLE IF NOT EXISTS assay_samples (
+    suite      TEXT PRIMARY KEY,
+    accounts   TEXT NOT NULL,
+    sampled_at TEXT NOT NULL
+  );
 `;
 
-export type AssayRunStatus = 'checked' | 'not-askable';
+export type AssayRunStatus = 'checked' | 'not-askable' | 'paid-only';
 
 export interface AssayScenarioResult {
   scenario: string;
@@ -44,6 +51,8 @@ export interface AssayScenarioResult {
   observed: unknown;
   excerpt: string | null;
   pass: boolean;
+  /** correct, borrow-limit (a different definition), wrong, or unreadable. */
+  outcome: string;
   reason: string;
   latencyMs: number | null;
 }
@@ -51,7 +60,7 @@ export interface AssayScenarioResult {
 export interface AssayRun {
   suite: string;
   status: AssayRunStatus;
-  /** Why the agent could not be asked, when it could not. */
+  /** Why the agent could not be asked, or why it was not checked (paid only). */
   detail: string | null;
   passed: number;
   total: number;
@@ -75,10 +84,10 @@ class AssayStore {
       .prepare('INSERT INTO assay_runs (chain_id, token_id, suite, status, detail, passed, total, ran_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(target.chainId, target.tokenId, run.suite, run.status, run.detail, run.passed, run.total, ranAt);
     const insert = this.db.prepare(
-      'INSERT INTO assay_results (run_id, scenario, expected, observed, excerpt, pass, reason, latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO assay_results (run_id, scenario, expected, observed, excerpt, pass, outcome, reason, latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     for (const r of run.results) {
-      insert.run(Number(lastInsertRowid), r.scenario, JSON.stringify(r.expected), r.observed === undefined ? null : JSON.stringify(r.observed), r.excerpt, r.pass ? 1 : 0, r.reason, r.latencyMs);
+      insert.run(Number(lastInsertRowid), r.scenario, JSON.stringify(r.expected), r.observed === undefined ? null : JSON.stringify(r.observed), r.excerpt, r.pass ? 1 : 0, r.outcome, r.reason, r.latencyMs);
     }
   }
 
@@ -90,7 +99,7 @@ class AssayStore {
       | undefined;
     if (!run) return null;
     const rows = this.db.prepare('SELECT * FROM assay_results WHERE run_id = ? ORDER BY rowid').all(run.id) as Array<{
-      scenario: string; expected: string; observed: string | null; excerpt: string | null; pass: number; reason: string; latency_ms: number | null;
+      scenario: string; expected: string; observed: string | null; excerpt: string | null; pass: number; outcome: string | null; reason: string; latency_ms: number | null;
     }>;
     return {
       suite: run.suite,
@@ -105,10 +114,22 @@ class AssayStore {
         observed: r.observed === null ? null : JSON.parse(r.observed),
         excerpt: r.excerpt,
         pass: r.pass === 1,
+        outcome: r.outcome ?? (r.pass === 1 ? 'correct' : 'wrong'),
         reason: r.reason,
         latencyMs: r.latency_ms,
       })),
     };
+  }
+
+  sample(suite: string): { accounts: string[]; sampledAt: string } | null {
+    const row = this.db.prepare('SELECT accounts, sampled_at FROM assay_samples WHERE suite = ?').get(suite) as { accounts: string; sampled_at: string } | undefined;
+    return row ? { accounts: JSON.parse(row.accounts) as string[], sampledAt: row.sampled_at } : null;
+  }
+
+  saveSample(suite: string, accounts: string[]): void {
+    this.db
+      .prepare('INSERT INTO assay_samples (suite, accounts, sampled_at) VALUES (?, ?, ?) ON CONFLICT (suite) DO UPDATE SET accounts = excluded.accounts, sampled_at = excluded.sampled_at')
+      .run(suite, JSON.stringify(accounts), new Date().toISOString());
   }
 
   /** When each agent was last run on a suite. Agents never run are absent. */

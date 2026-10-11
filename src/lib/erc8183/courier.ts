@@ -4,7 +4,7 @@ import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import type { PokterJobEnvelope } from './job-envelope';
-import { extractAnswer, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
+import { extractAnswer, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -19,6 +19,9 @@ function object(value: unknown): Record<string, unknown> | null {
 
 /** Why an agent cannot be sent a brief at all: a fact about the agent, not a passing failure. */
 export class NotAskableError extends Error {}
+
+/** The agent answered with a price: it does the work only once paid through escrow. */
+export class PaidOnlyError extends Error {}
 
 export interface PreparedAgent {
   chainId: number;
@@ -60,8 +63,17 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
 export async function sendPreparedBrief(
   agent: PreparedAgent,
   brief: { text: string; data?: Record<string, unknown> },
-  { timeoutMs = 20_000 }: { timeoutMs?: number } = {},
+  { timeoutMs = 20_000, dataOnly = false }: { timeoutMs?: number; dataOnly?: boolean } = {},
 ): Promise<CourierResult> {
+  const briefData = {
+    skill: agent.skill.id,
+    task: brief.text,
+    task_description: brief.text,
+    category: agent.category,
+    read_only: true,
+    constraints: 'Read-only analysis. Execute no transaction and move no funds.',
+    ...brief.data,
+  };
   const askedAt = new Date().toISOString();
   const started = Date.now();
   const payload = await withPublicEndpoint(agent.serviceUrl, async (service) => {
@@ -76,21 +88,8 @@ export async function sendPreparedBrief(
           message: {
             role: 'user',
             messageId: crypto.randomUUID(),
-            parts: [
-              { kind: 'text', text: brief.text },
-              {
-                kind: 'data',
-                data: {
-                  skill: agent.skill.id,
-                  task: brief.text,
-                  task_description: brief.text,
-                  category: agent.category,
-                  read_only: true,
-                  constraints: 'Read-only analysis. Execute no transaction and move no funds.',
-                  ...brief.data,
-                },
-              },
-            ],
+            // Some agents accept exactly one structured part; dataOnly sends that.
+            parts: dataOnly ? [{ kind: 'data', data: briefData }] : [{ kind: 'text', text: brief.text }, { kind: 'data', data: briefData }],
           },
           configuration: { acceptedOutputModes: ['application/json', 'text/plain'], blocking: true },
         },
@@ -104,7 +103,10 @@ export async function sendPreparedBrief(
   });
 
   const answer = extractAnswer(payload.payload);
-  if (!answer) throw new Error('The agent answered, but with no text and no data.');
+  if (!answer) {
+    if (isQuoteReply(object(object(payload.payload)?.result))) throw new PaidOnlyError('The agent answered with a price: it does this work only when paid through escrow.');
+    throw new Error('The agent answered, but with no text and no data.');
+  }
   return {
     answer,
     answeredBy: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name, endpoint: payload.origin, skill: agent.skill.id },

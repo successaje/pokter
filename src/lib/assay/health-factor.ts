@@ -1,102 +1,37 @@
 /**
- * Health factor check, suite hf-1.
+ * Health factor check, suite hf-venus-1.
  *
- * A health factor is arithmetic with one right answer: the liquidation
- * value of the collateral divided by the debt,
+ * Health factor agents take a wallet address and read the position
+ * themselves. So the check gives each agent real Venus Core Pool borrowers
+ * on BNB Smart Chain and compares its answer with Pokter's own reading of
+ * the same position, taken from Venus's accounting just before and just
+ * after the agent replies (see venus.ts). A position can move between the
+ * two, so an answer within tolerance of either reading passes.
  *
- *   HF = Σ (collateral value × liquidation threshold) / Σ debt value
- *
- * and a position can be liquidated once it falls below 1. So an agent that
- * monitors health factors can be checked the way a calculator is checked:
- * give it positions whose answer is known and compare.
- *
- * What this checks is the calculation from supplied figures. It does not
- * check that an agent reads a live position correctly from a protocol,
- * which needs chain state and is a separate suite. The scenarios are fixed
- * and published, so anyone can rerun them; changing one means a new suite id.
+ * What this checks is whether the agent reports the health factor Venus
+ * itself implies, and whether it calls liquidation correctly. It does not
+ * check advice, timing or any action the agent might take.
  */
-export const HF_SUITE_ID = 'hf-1';
+export const HF_SUITE_ID = 'hf-venus-1';
 
-/** Relative tolerance on the health factor: rounding, not judgement. */
-export const HF_TOLERANCE = 0.01;
-
-export interface HfPosition {
-  collateral: Array<{ asset: string; valueUsd: number; liquidationThreshold: number }>;
-  debt: Array<{ asset: string; valueUsd: number }>;
-}
+/** Relative tolerance on the health factor: rounding and oracle movement, not judgement. */
+export const HF_TOLERANCE = 0.02;
 
 export interface HfExpected {
   /** Null when there is no debt: the health factor is unbounded. */
   healthFactor: number | null;
+  /** The same ratio on collateral factors, when known (see venus.ts). */
+  borrowLimitRatio?: number | null;
   liquidatable: boolean;
 }
 
-export interface HfScenario {
-  id: string;
-  title: string;
-  position: HfPosition;
-}
-
-export function computeHealthFactor(position: HfPosition): HfExpected {
-  const debt = position.debt.reduce((sum, d) => sum + d.valueUsd, 0);
-  if (debt <= 0) return { healthFactor: null, liquidatable: false };
-  const capacity = position.collateral.reduce((sum, c) => sum + c.valueUsd * c.liquidationThreshold, 0);
-  const healthFactor = capacity / debt;
-  return { healthFactor, liquidatable: healthFactor < 1 };
-}
-
-export const HF_SCENARIOS: HfScenario[] = [
-  {
-    id: 'single-healthy',
-    title: 'One collateral asset, comfortably healthy',
-    position: { collateral: [{ asset: 'BNB', valueUsd: 1000, liquidationThreshold: 0.8 }], debt: [{ asset: 'USDT', valueUsd: 500 }] },
-  },
-  {
-    id: 'multi-asset',
-    title: 'Two collateral assets with different thresholds, two debts',
-    position: {
-      collateral: [
-        { asset: 'BNB', valueUsd: 2000, liquidationThreshold: 0.75 },
-        { asset: 'USDT', valueUsd: 1000, liquidationThreshold: 0.8 },
-      ],
-      debt: [
-        { asset: 'USDC', valueUsd: 1500 },
-        { asset: 'BTCB', valueUsd: 500 },
-      ],
-    },
-  },
-  {
-    id: 'liquidatable',
-    title: 'Below 1: can be liquidated now',
-    position: { collateral: [{ asset: 'BNB', valueUsd: 1000, liquidationThreshold: 0.8 }], debt: [{ asset: 'USDT', valueUsd: 820 }] },
-  },
-  {
-    id: 'no-debt',
-    title: 'Collateral and no debt: nothing to liquidate',
-    position: { collateral: [{ asset: 'BNB', valueUsd: 1000, liquidationThreshold: 0.8 }], debt: [] },
-  },
-  {
-    id: 'non-collateral-asset',
-    title: 'One supplied asset does not count as collateral',
-    position: {
-      collateral: [
-        { asset: 'CAKE', valueUsd: 1000, liquidationThreshold: 0 },
-        { asset: 'USDT', valueUsd: 500, liquidationThreshold: 0.8 },
-      ],
-      debt: [{ asset: 'USDC', valueUsd: 300 }],
-    },
-  },
-];
-
-/** The brief an agent receives: the figures, the formula's inputs, and the answer shape. */
-export function hfBrief(scenario: HfScenario): { text: string; data: Record<string, unknown> } {
+/** The brief an agent receives: the account, the venue, and the answer shape. */
+export function hfBrief(account: string): { text: string; data: Record<string, unknown> } {
   const text =
-    'Read-only check. Compute the health factor of the lending position below from the figures given; ' +
-    'do not look anything up and execute no transaction. Liquidation threshold is the share of each collateral ' +
-    "asset's value that counts towards borrowing. Reply with JSON only: " +
-    '{"health_factor": number or null when there is no debt, "liquidatable": boolean}.\n\n' +
-    JSON.stringify(scenario.position);
-  return { text, data: { suite: HF_SUITE_ID, scenario: scenario.id, position: scenario.position, answer_shape: { health_factor: 'number | null', liquidatable: 'boolean' } } };
+    `Read-only check. Report the current health factor of ${account} on Venus Core Pool (BNB Smart Chain mainnet), ` +
+    'and whether it can be liquidated now. Execute no transaction. Reply with JSON only: ' +
+    '{"health_factor": number or null when there is no debt, "liquidatable": boolean}.';
+  return { text, data: { suite: HF_SUITE_ID, address: account, account, wallet: account, protocol: 'venus', pool: 'core', chain_id: 56, answer_shape: { health_factor: 'number | null', liquidatable: 'boolean' } } };
 }
 
 export interface HfObserved {
@@ -181,22 +116,49 @@ export function readHfAnswer(answer: { text: string | null; data: Record<string,
   return null;
 }
 
+export type HfOutcome = 'correct' | 'borrow-limit' | 'wrong' | 'unreadable';
+
 export interface HfVerdict {
   pass: boolean;
+  outcome: HfOutcome;
   reason: string;
 }
 
-export function judgeHf(expected: HfExpected, observed: HfObserved | null): HfVerdict {
-  if (!observed) return { pass: false, reason: 'No health factor could be read from the answer.' };
-  if (expected.healthFactor === null) {
-    if (!observed.unbounded) return { pass: false, reason: `Expected no health factor (no debt), answered ${observed.healthFactor}.` };
-  } else {
-    if (observed.unbounded || observed.healthFactor === null) return { pass: false, reason: `Expected ${expected.healthFactor.toFixed(3)}, answered no health factor.` };
-    const error = Math.abs(observed.healthFactor - expected.healthFactor) / expected.healthFactor;
-    if (error > HF_TOLERANCE) return { pass: false, reason: `Expected ${expected.healthFactor.toFixed(3)}, answered ${observed.healthFactor} (off by ${(error * 100).toFixed(1)}%).` };
+function relativeError(observed: number, expected: number): number {
+  return Math.abs(observed - expected) / expected;
+}
+
+/**
+ * Judge an answer against Pokter's readings around it (usually two: before
+ * and after). It passes when it is within tolerance of any of them.
+ */
+export function judgeHf(readings: HfExpected[], observed: HfObserved | null): HfVerdict {
+  if (!observed) return { pass: false, outcome: 'unreadable', reason: 'No health factor could be read from the answer.' };
+  const noDebt = readings.every((r) => r.healthFactor === null);
+  if (noDebt) {
+    return observed.unbounded
+      ? { pass: true, outcome: 'correct', reason: 'Correct: no debt.' }
+      : { pass: false, outcome: 'wrong', reason: `Expected no health factor (no debt), answered ${observed.healthFactor}.` };
   }
-  if (observed.liquidatable !== null && observed.liquidatable !== expected.liquidatable) {
-    return { pass: false, reason: `Health factor right, but said liquidatable: ${observed.liquidatable}, expected ${expected.liquidatable}.` };
+  const values = readings.map((r) => r.healthFactor).filter((v): v is number => v !== null);
+  const shown = values.map((v) => v.toFixed(3)).join(' to ');
+  if (observed.unbounded || observed.healthFactor === null) return { pass: false, outcome: 'wrong', reason: `Expected ${shown}, answered no health factor.` };
+  const best = Math.min(...values.map((v) => relativeError(observed.healthFactor!, v)));
+  if (best > HF_TOLERANCE) {
+    const limits = readings.map((r) => r.borrowLimitRatio).filter((v): v is number => typeof v === 'number');
+    if (limits.some((v) => relativeError(observed.healthFactor!, v) <= HF_TOLERANCE)) {
+      return {
+        pass: false,
+        outcome: 'borrow-limit',
+        reason: `Answered ${observed.healthFactor}, the borrowing-limit ratio on collateral factors. Venus liquidates on liquidation thresholds, which put this position at ${shown}.`,
+      };
+    }
+    return { pass: false, outcome: 'wrong', reason: `Expected ${shown}, answered ${observed.healthFactor} (off by ${(best * 100).toFixed(1)}%).` };
   }
-  return { pass: true, reason: observed.liquidatable === null ? 'Health factor correct; liquidation not stated.' : 'Correct.' };
+  const liquidatable = readings.some((r) => r.liquidatable);
+  const safe = readings.some((r) => !r.liquidatable);
+  if (observed.liquidatable !== null && ((observed.liquidatable && !liquidatable) || (!observed.liquidatable && !safe))) {
+    return { pass: false, outcome: 'wrong', reason: `Health factor right, but said liquidatable: ${observed.liquidatable}.` };
+  }
+  return { pass: true, outcome: 'correct', reason: observed.liquidatable === null ? 'Health factor correct; liquidation not stated.' : 'Correct.' };
 }
