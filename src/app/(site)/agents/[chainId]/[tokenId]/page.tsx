@@ -194,6 +194,23 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
                   </span>
                   {p.category && <span className="inline-flex h-7 items-center rounded-full border border-rule-strong px-2.5 text-[13px] text-ink-2">{p.category.label}</span>}
+                  {/*
+                    Where a hire is funded, beside the chips a reader
+                    already looks at.
+                    
+                    "Hired on", not "on": the line above says which
+                    registry the identity lives in, and the two are
+                    different chains for most of the catalogue — an agent
+                    registered on BNB Chain is hired on testnet whenever
+                    its price is in testnet $U. Repeating the bare chain
+                    name would read as the same fact twice and quietly
+                    mislead on the agents where it is not.
+                  */}
+                  <span className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-medium ${p.escrow.chainId === 97 ? 'border-watch/40 bg-watch-wash text-watch' : 'border-rule-strong text-ink-2'}`}>
+                    <Icon.Lock size={13} aria-hidden />
+                    Hired on {chainLabel(p.escrow.chainId)}
+                    {p.escrow.chainId === 97 && ' · test tokens'}
+                  </span>
                 </div>
               </div>
             </div>
