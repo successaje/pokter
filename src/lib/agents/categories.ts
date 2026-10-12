@@ -104,7 +104,15 @@ export const CATEGORIES: CategoryMeta[] = [
   },
 ];
 
-export const CATEGORY_BY_ID = new Map(CATEGORIES.map((c) => [c.id, c]));
+/**
+ * Keyed by `Classification`, not `Category`, so a lookup for an agent
+ * that belongs to no category is a miss rather than a type error. An
+ * agent reached by name has no category, and every reader of this map
+ * already handles `undefined` by saying "Unclassified".
+ */
+export const CATEGORY_BY_ID = new Map<Classification, CategoryMeta>(
+  CATEGORIES.map((c) => [c.id, c]),
+);
 
 /**
  * Keyword evidence per category. Ordered by strength: a term in `strong` is

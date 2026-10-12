@@ -4,7 +4,7 @@ import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categori
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
 import { findRows, type FindRow } from '@/lib/find/rows';
-import { listSearchableWithStatus } from '@/lib/marketplace';
+import { listSearchableWithStatus, searchByName } from '@/lib/marketplace';
 import { offersDirectHire, matchesQuery, type SearchableAgent } from '@/lib/search/match';
 import { orderMarketplace } from '@/lib/search/order';
 import type { DiscoverParams } from './params';
@@ -90,6 +90,40 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     pool = scored.map((s) => s.entry);
     // Relevance first; the chosen order breaks ties within a relevance band.
     pool = orderMarketplace(pool, params.sort).sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
+
+    /*
+     * No agent whose name matches: ask the registry by name.
+     *
+     * The pool is built from the five category listings, so an agent in
+     * no category is not in it — and typing that agent's exact name
+     * found nothing, which reads as "no such agent" rather than "not in
+     * a category". Pokter's own evidence agents are the clearest case:
+     * both answer, both sign a price, neither was findable.
+     *
+     * The trigger is a missing name match rather than an empty pool,
+     * because the pool is rarely empty and that is the trap. "Pokter
+     * Evidence" already returned nine agents whose descriptions happen
+     * to contain "evidence", so a search for an exact name looked
+     * answered while the agent itself stayed invisible. Nine wrong
+     * answers is worse than none, not better.
+     *
+     * Results are merged ahead of the weak text hits and deduped, and
+     * the reason says how they were reached.
+     */
+    const named = (entry: SearchableAgent) => {
+      const name = entry.listing.agent.name.toLowerCase();
+      return terms.length > 0 && terms.every((term) => name.includes(term));
+    };
+    if (!pool.some(named)) {
+      const have = new Set(pool.map((entry) => `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`));
+      const byName = (await searchByName(q)).filter(
+        (entry) =>
+          isPromotableAgent(entry.listing.agent) &&
+          !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
+      );
+      for (const entry of byName) reasons.set(entry, 'Found by name · not in a category listing');
+      pool = [...orderMarketplace(byName, params.sort), ...pool];
+    }
   }
 
   const categoryCounts = CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: pool.filter((e) => e.listing.category === c.id).length }));

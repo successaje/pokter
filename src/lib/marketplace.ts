@@ -73,7 +73,12 @@ const DISCOVERY_QUERIES: Record<Category, string[]> = {
 /** A marketplace listing: a registry agent plus what we can prove about it. */
 export interface Listing {
   agent: ScanAgent;
-  category: Category;
+  /**
+   * `unclassified` only for an agent reached by name rather than through a
+   * category listing — see `searchByName`. Everything built by
+   * `listCategory` carries one of the five.
+   */
+  category: Category | 'unclassified';
   confidence: number;
   /** Cheap, list-level signal. Full proof is computed on the detail page. */
   attestationCount: number;
@@ -583,6 +588,70 @@ export async function listSearchable(
 }
 
 /** `listSearchable`, plus whether the registry answered. See `listMarketplaceWithStatus`. */
+/**
+ * Agents found by name, outside the category listings.
+ *
+ * Discover is built by searching the registry for each category's own
+ * terms and keeping what Pokter's classifier agrees with, so an agent in
+ * no category is in no listing — and because Discover's search runs over
+ * that same pool, it could not be found by typing its name either.
+ * Pokter's own evidence agents are the clearest case: both deliberately
+ * carry no category, both answer, both sign a price, and searching
+ * "Pokter Evidence" returned nothing at all.
+ *
+ * That is a bad failure for a catalogue. "Not in a category" is a fact
+ * about how Pokter sorts things; "does not exist" is what the reader was
+ * told instead.
+ *
+ * The indexer can already do this — it matched the exact name when asked
+ * directly — so when a query finds nothing in the pool, it is asked.
+ * Narrow on purpose: only when there is a query, only when the pool had
+ * nothing for it, and capped, because this is a fallback for a miss
+ * rather than a second search engine.
+ */
+export async function searchByName(
+  query: string,
+  limit = 12,
+): Promise<{ listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]> {
+  const term = query.trim();
+  if (term.length < 3) return [];
+
+  const pages = await Promise.all(
+    LISTED_CHAINS.map((chainId) =>
+      listAgents({ chainId, search: term, limit }).catch(() => ({ items: [] as ScanAgent[] })),
+    ),
+  );
+  const found = dedupe(pages.flatMap((page) => page.items)).slice(0, limit);
+  if (found.length === 0) return [];
+
+  const store = getProbeStore();
+  const jobs = getJobStore();
+  const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
+  const quotes = store.quotesFor(
+    found.map((agent) => ({ chainId: agent.chain_id, tokenId: agent.token_id })),
+  );
+  const gated = store.gatedAgents();
+
+  return found.map((agent) => {
+    const key = `${agent.chain_id}:${agent.token_id}`;
+    const quote = quotes.get(key) ?? null;
+    return {
+      listing: {
+        agent,
+        /* Whatever the classifier makes of it, including nothing. */
+        category: classify(agent),
+        confidence: 0,
+        attestationCount: agent.total_feedbacks,
+        quote,
+        quotePayable: payable(quote ?? undefined),
+        requiresAuth: gated.has(key),
+      },
+      record: buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since)),
+      history: summariseEconomicHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
+    };
+  });
+}
+
 export async function listSearchableWithStatus(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{
