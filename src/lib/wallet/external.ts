@@ -1,5 +1,5 @@
 import {
-  createPublicClient, createWalletClient, custom,
+  createPublicClient, createWalletClient, custom, fallback,
   encodeFunctionData, erc20Abi, getAddress, http, parseUnits, stringToHex,
   type Address, type Hex,
 } from 'viem';
@@ -20,6 +20,7 @@ import {
   buildSwapTransaction,
   quoteBnbForPaymentToken,
 } from '@/lib/pancakeswap/swap';
+import { browserRpcUrls, RECEIPT_POLL_MS } from '@/lib/wallet/browser-rpc';
 import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 
@@ -103,9 +104,17 @@ function clients(chainId: number = WALLET_NETWORK.chainId) {
   const transport = custom(provider());
   return {
     wallet: createWalletClient({ chain: network as never, transport }),
+    /*
+     * Several endpoints, not one. A single shared public RPC rate-limits
+     * the receipt poll and 403s mid-hire, after the wallet has already
+     * been approved — see `browser-rpc`.
+     */
     read: createPublicClient({
       chain: network as never,
-      transport: http(network.publicRpcUrl),
+      transport: fallback(
+        browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url)),
+      ),
+      pollingInterval: RECEIPT_POLL_MS,
     }),
   };
 }
