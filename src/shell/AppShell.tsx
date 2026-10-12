@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { isCampaignLive } from '@/lib/campaign/window';
-import { IS_TESTNET, NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, NETWORK_LABEL } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Wordmark } from './Logo';
@@ -130,8 +130,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-rule px-4 py-3">
           <span className="flex items-center gap-2 text-[12px] text-ink-3">
             <span className="size-1.5 rounded-full bg-signal" aria-hidden />
-            {NETWORK_LABEL}
-            {IS_TESTNET && ' · test'}
+            {/* "· test" only while it is true of every hire: with mainnet
+                escrow enabled, a job funded here can be real money. */}
+            {MAINNET_ESCROW ? ESCROW_NETWORKS_LABEL : NETWORK_LABEL}
+            {IS_TESTNET && !MAINNET_ESCROW && ' · test'}
           </span>
           <ThemeToggle />
         </div>

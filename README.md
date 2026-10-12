@@ -13,7 +13,10 @@ ERC-8183 escrow, where the agent is paid only when it delivers.
 | **X**           | https://x.com/usepokter      |
 | **Walkthrough** | https://youtu.be/KyuKia6RL9s |
 
-Escrow currently settles on **BNB Smart Chain testnet**, in test tokens.
+Escrow settles on **BNB Chain mainnet** in real $U when the agent's signed
+price names the mainnet token, and on **BNB testnet** in test tokens otherwise.
+Each listing says which before anything is signed. `NEXT_PUBLIC_ESCROW_CHAINS`
+decides which escrows are open; mainnet is opened only by listing it.
 
 ## The problem
 
@@ -224,10 +227,12 @@ know before delegating.
 
 Stated here rather than discovered.
 
-**Most signed prices cannot be paid here yet.** Nearly every agent that signs
-a quote prices it in mainnet $U, and escrow currently settles on testnet. Those
-agents would turn a job funded here down, so they are shown as priced but not
-directly hireable, with the reason in plain words.
+**A signed price is checked against the escrow that would pay it.** An agent
+pricing in mainnet $U is hired on the mainnet escrow; one pricing in testnet $U
+is hired on testnet. A price in a token no open escrow settles is shown as
+priced and not directly hireable, with the reason in plain words — the quote
+verifies and the money could never move, which is a failure worth naming rather
+than hiding behind a Hire button.
 
 **Delivery for mainnet agents depends on the agent taking a brief.** Pokter's
 seller carries the buyer's brief to the agent's A2A endpoint and delivers its
@@ -310,8 +315,8 @@ All optional for local browsing. Server-only unless marked public.
 | --- | --- |
 | `SCAN_API_KEY` | Raises the 8004scan rate limit from 30 to 3,000 requests a minute |
 | `SWEEP_SECRET` | Guards `POST /api/sweep` and the operator routes |
-| `ALTANA_NETWORK` | `bnb-testnet` for the escrow network |
-| `ALTANA_ADMIN_KEY` | The seller and operator signer. **Use a testnet key** |
+| `ALTANA_NETWORK` | `bnb-testnet` for the site's default escrow network |
+| `ALTANA_ADMIN_KEY` | The seller and operator signer. It signs on mainnet for any purpose listed in `ALTANA_MAINNET_OPERATOR_PURPOSES`, so it is no longer a testnet-only key: hold the minimum it needs and rotate it the moment it may have been exposed |
 | `POKTER_DEMO_WRITE_SECRET` | Required by operator demo routes; they fail closed without it |
 | `NEXT_PUBLIC_APP_URL` | Public. The site origin, used in links, emails and redirects |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Public. Enables mobile wallets via WalletConnect |
@@ -319,6 +324,8 @@ All optional for local browsing. Server-only unless marked public.
 | `NOTIFICATION_UNSUBSCRIBE_SECRET` | Signs unsubscribe links; recommended, otherwise the Resend key is used |
 | `NODEREAL_API_KEY` | Enables grouping agent operators by funding wallet (BSC mainnet) |
 | `BSC_MAINNET_RPC_URL` | Overrides the public node used for Venus and escrow reads |
+| `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
+| `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
 | `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`. Default `./data/` |
 
 ## Public endpoints
