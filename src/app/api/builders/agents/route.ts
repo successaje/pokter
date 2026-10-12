@@ -4,6 +4,7 @@ import { isAddress, getAddress } from 'viem';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
 import { classify, CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { resolveAgentImage } from '@/lib/registry/image';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -53,13 +54,21 @@ export async function GET(request: Request): Promise<NextResponse> {
     ),
   );
 
-  const agents = pages.flatMap((page) => page.items).map((agent) => {
+  const rows = pages.flatMap((page) => page.items);
+  /* The registry record rather than the indexer's `image_url`, whose media
+     proxy answers 404 — see `resolveAgentImage`. One read per owned agent,
+     and a wallet's own list is short. */
+  const images = await Promise.all(
+    rows.map((agent) => resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => null)),
+  );
+
+  const agents = rows.map((agent, i) => {
     const category = classify(agent);
     return {
       chainId: agent.chain_id,
       tokenId: agent.token_id,
       name: agent.name,
-      imageUrl: agent.image_url ?? null,
+      imageUrl: images[i],
       category: category === 'unclassified' ? null : CATEGORY_BY_ID.get(category)?.label ?? null,
       /* List rows carry the declared protocols; the endpoint itself only
          appears on the detail record, and fetching 100 of those to draw a

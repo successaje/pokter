@@ -9,6 +9,7 @@ import type { HiredJob } from '@/lib/erc8183/types';
 import { buildTrackRecord } from '@/lib/history/record';
 import { getProbeStore } from '@/lib/history/store';
 import { stripCells, type StripCell } from '@/lib/history/strip';
+import { resolveAgentImage } from '@/lib/registry/image';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
 
@@ -34,9 +35,9 @@ export async function studioOwner(): Promise<string | null> {
   return builderSessionOwner(token) ?? null;
 }
 
-function gapsFor(agent: ScanAgent, online: boolean | null) {
+function gapsFor(agent: ScanAgent, online: boolean | null, imageUrl: string | null) {
   return [
-    !agent.image_url ? 'No image' : null,
+    !imageUrl ? 'No image' : null,
     (agent.description?.trim().length ?? 0) < 40 ? 'Description under 40 characters' : null,
     !agent.supported_protocols?.length ? 'No A2A or MCP endpoint declared' : null,
     online === false ? 'Not answering probes' : null,
@@ -57,6 +58,13 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
   const since = new Date(Date.now() - 30 * 86_400_000);
   const store = getProbeStore();
   const adoptions = await Promise.all(agents.map((a) => readAgentAdoption(a.chain_id, a.token_id, [owner]).catch(() => null)));
+  /* The registry record, not the indexer's media proxy — see
+     `resolveAgentImage`. A builder's own fleet is a handful of rows, and
+     being shown a blank where they set an image is the one place that
+     reads as Pokter having lost it. */
+  const images = await Promise.all(
+    agents.map((a) => resolveAgentImage(a.chain_id, a.token_id, a.image_url).catch(() => null)),
+  );
 
   return {
     jobs,
@@ -70,9 +78,9 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         chainId: agent.chain_id,
         tokenId: agent.token_id,
         name: agent.name,
-        imageUrl: agent.image_url && /^https:\/\//.test(agent.image_url) ? agent.image_url : null,
+        imageUrl: images[i],
         online,
-        gaps: gapsFor(agent, online),
+        gaps: gapsFor(agent, online, images[i]),
         probes30d: record.totalProbes,
         answered30d: record.totalAnswered,
         cells: stripCells(record, 14),

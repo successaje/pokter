@@ -75,7 +75,10 @@ export function createBuilderChallenge(input: { chainId: number; tokenId: string
     VALUES (?,?,?,?,?,?,?)`).run(
     id, hash(nonce), message, input.chainId, input.tokenId, input.owner.toLowerCase(), expiresAt.toISOString(),
   );
-  return { id, message, expiresAt: expiresAt.toISOString() };
+  /* The owner rides along so a caller can say "this is not your wallet"
+     before asking for a signature that would be rejected anyway. It is
+     public: the message it is taken from already names it. */
+  return { id, message, owner: input.owner, expiresAt: expiresAt.toISOString() };
 }
 
 export function readBuilderChallenge(id: string) {

@@ -329,6 +329,41 @@ function StepPublish({ d }: { d: AgentDraft }) {
             It is owned by your passkey wallet. Studio&rsquo;s ownership check and profile editor need a message signature that passkey wallets cannot produce yet, so Studio cannot manage or edit it yet. Its public listing, probes and hires work as normal.
           </Notice>
         )}
+        {/*
+          Studio access, stated rather than assumed.
+
+          The claim runs on success, so in the ordinary case this panel
+          says nothing and "Manage this agent" simply works. It speaks up
+          only when the claim did not happen — a declined signature, or no
+          browser wallet — because the alternative is a builder clicking
+          through to "Verify ownership to manage this agent" seconds after
+          paying to register it, with no idea why.
+        */}
+        {!d.passkeyCanPublish && d.claim !== 'claimed' && (
+          <Notice
+            tone={d.claim === 'claiming' ? 'neutral' : 'watch'}
+            title={d.claim === 'claiming' ? 'Confirming you own it' : 'Managing it needs one signature'}
+          >
+            {d.claim === 'claiming' ? (
+              'Approve the signature request in your wallet. It is a message, not a transaction: no fee, nothing moves.'
+            ) : (
+              <span className="flex flex-col items-start gap-2">
+                <span>
+                  {d.claim === 'declined'
+                    ? 'You declined the signature, so Studio cannot show this agent’s jobs and deliveries yet. It is registered either way.'
+                    : d.claim === 'unavailable'
+                      ? 'Studio proves ownership with a message signature from the owner wallet. Open Pokter with that wallet connected to manage this agent.'
+                      : 'Pokter could not confirm ownership automatically. Signing a message from the owner wallet will do it.'}
+                </span>
+                {d.claim !== 'unavailable' && (
+                  <Button size="s" intent="secondary" onClick={() => void d.claimAccess()}>
+                    Sign to manage it
+                  </Button>
+                )}
+              </span>
+            )}
+          </Notice>
+        )}
         <Notice tone="neutral" title="Registered is not the same as proven">
           Pokter starts probing it on the next sweep. Its listing shows &ldquo;Not measured&rdquo; until there is evidence, and it becomes hireable once it answers.
         </Notice>

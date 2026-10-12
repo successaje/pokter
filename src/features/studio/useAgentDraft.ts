@@ -13,6 +13,7 @@ import { registerIdentityFromWallet, type RegistrationProgress, type Registratio
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useChainFunding } from '@/lib/wallet/use-chain-funding';
+import { claimStudioSession, type ClaimOutcome } from './claim-session';
 import { siteUrlClient } from './site';
 
 export type Draft = DraftFields;
@@ -154,6 +155,14 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const [progress, setProgress] = useState<RegistrationProgress | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  /*
+   * Whether this browser now has Studio access to what it just registered.
+   * Separate from `published` because the mint is final and the claim is
+   * not: a declined signature must not make a registered agent look
+   * unregistered. Not persisted — the session cookie is the durable part,
+   * and on a remount the success panel simply offers the claim again.
+   */
+  const [claim, setClaim] = useState<ClaimOutcome | 'claiming' | null>(null);
   const [published, setPublished] = useState<PublishedRecord | null>(() => {
     if (typeof window === 'undefined') return null;
     const saved = readPublished(draftId);
@@ -319,6 +328,18 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const signingAddress = (externalConnected ? externalAddress : passkeyWallet?.address) ?? null;
   const funding = useChainFunding((signingAddress as `0x${string}` | null) ?? null);
 
+  /*
+   * A passkey wallet cannot sign the challenge: it is a smart account with
+   * no message-signing path here, and the registry owner is the account
+   * itself rather than any injected address. Reporting that plainly beats
+   * asking an unrelated browser wallet to sign and showing the builder a
+   * mismatch.
+   */
+  async function claimAccessFor(record: PublishedRecord): Promise<ClaimOutcome> {
+    if (passkeyCanPublish) return 'unavailable';
+    return claimStudioSession({ chainId: record.chainId, tokenId: record.tokenId });
+  }
+
   async function publish() {
     if (!ready) return;
     if (network === 56 && !mainnetConsent) {
@@ -374,6 +395,21 @@ export function useAgentDraft(initial?: StoredDraft | null) {
       } catch {
         /* Draft stays listed; harmless. */
       }
+      /*
+       * Studio access, asked for here rather than on a separate page.
+       * Registering and then being told to "verify ownership to manage
+       * this agent" is Pokter failing to notice its own transaction. The
+       * signature is still required — a registration transaction is
+       * public, so accepting its hash as proof would let anyone claim
+       * somebody else's agent — but it is asked once, now, while the
+       * wallet that paid for the mint is still open.
+       *
+       * After the record is written, not before: a prompt the reader
+       * leaves open is time in which the tab can reload, and losing the
+       * registration to that would be the bug this flow already fixed.
+       */
+      setClaim('claiming');
+      setClaim(await claimAccessFor(record));
     } catch (reason) {
       const message = (reason as Error).message ?? 'The identity could not be published.';
       setPublishError(/reject|denied|cancel|NotAllowed/i.test(message) ? 'You declined in the wallet. Nothing was registered.' : message);
@@ -434,6 +470,12 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     publishing,
     publishError,
     published,
+    claim,
+    claimAccess: async () => {
+      if (!published) return;
+      setClaim('claiming');
+      setClaim(await claimAccessFor(published));
+    },
     publish,
     discardRecovery: () => {
       setRecovery(null);
