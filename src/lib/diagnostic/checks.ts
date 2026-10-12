@@ -221,23 +221,20 @@ export async function diagnose(
      * A quote that verifies and still cannot govern a job.
      *
      * The check above ends at "the agent signed a price", which is where
-     * the marketplace used to stop looking — and ten of the thirteen
-     * agents that have ever quoted price their work in the mainnet token
-     * while escrow settles on testnet, so the money can never move. One
-     * more signs for chain 56 against the mainnet commerce contract. Each
-     * reads as a healthy listing and cannot be bought, and the builder has
-     * no way to discover that from their own agent.
-     */
-    /*
-     * Judged against every escrow Pokter can fund on, not one of them.
+     * the marketplace used to stop looking — and most agents that have
+     * ever quoted priced their work in a token the escrow of the day
+     * could not settle, so the money could never move. Each read as a
+     * healthy listing, could not be bought, and the builder had no way to
+     * discover that from their own agent.
      *
-     * This read `ALTANA_NETWORK.chainId` and nothing else, from when the
-     * site had a single escrow. Hires now settle on whichever enabled
-     * escrow matches the quote's own currency, so a mainnet-priced quote
-     * is payable whenever mainnet is enabled — and telling its builder to
-     * reprice it was advice to break a working listing. The failure it was
-     * written for is still real and still reported: a price in a token no
-     * enabled escrow settles in cannot be funded by anyone here.
+     * Judged against every escrow Pokter can fund on, not one of them.
+     * This read a single configured network, from when the site had one
+     * escrow. Hires now settle on whichever enabled escrow matches the
+     * quote's own currency, so a mainnet-priced quote is payable whenever
+     * mainnet is enabled — and telling its builder to reprice it was
+     * advice to break a working listing. The failure above is still real
+     * and still reported: a price in a token no enabled escrow settles in
+     * cannot be funded by anyone here.
      */
     const escrows = enabledEscrowChains();
     const settles = quote ? escrowChainForCurrency(quote.currency, escrows) : null;
