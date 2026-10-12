@@ -92,6 +92,43 @@ export function explorerBaseFor(chainId: number): string {
   return 'https://testnet.bscscan.com';
 }
 
+/**
+ * Whether a hire on this escrow spends real money, said per agent.
+ *
+ * `PAYMENT_VALUE_NOTE` below answers the same question for the site as a
+ * whole, from `NEXT_PUBLIC_ALTANA_NETWORK`. That was right when one escrow
+ * served every hire and is now the wrong source: hires are funded on
+ * whichever enabled escrow can pay the agent's price, so a mainnet-priced
+ * agent takes real money on a site whose default is testnet. A note
+ * derived from the site would then tell that buyer their funds are test
+ * tokens, which is the single worst thing this interface can get wrong.
+ *
+ * An unrecognised chain claims neither. Guessing "test tokens" for a chain
+ * nobody has checked is how somebody authorises real money believing it is
+ * play money, and the fallback has to fail in the safe direction — which
+ * is to say nothing rather than to reassure.
+ */
+export function escrowMoney(chainId: number): {
+  real: boolean | null;
+  money: string | null;
+  network: string;
+  note: string;
+} {
+  const network = chainLabel(chainId);
+  if (chainId === 56) {
+    return { real: true, money: 'Real funds', network, note: `Real funds on ${network}` };
+  }
+  if (chainId === 97) {
+    return {
+      real: false,
+      money: 'Test tokens',
+      network,
+      note: `Test tokens on ${network} — no real value`,
+    };
+  }
+  return { real: null, money: null, network, note: `Funded on ${network}` };
+}
+
 export function chainLabel(chainId: number): string {
   if (chainId === 56) return 'BNB Chain';
   if (chainId === 97) return 'BNB Testnet';
