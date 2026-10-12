@@ -11,6 +11,7 @@ import {
 } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { canSettle } from '@/lib/erc8183/settle-window';
 import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
@@ -209,6 +210,29 @@ export async function revokeExternalWalletAllowance(
   return hash;
 }
 
+/**
+ * What a refused escrow call means, in words.
+ *
+ * `0x32d53d69` is the kernel's refusal and it is already in this
+ * codebase, mapped for the funding path, where it meant an unregistered
+ * job. It carries no reason string, so the honest translation says what
+ * was refused and what is known to cause it rather than inventing a
+ * single cause.
+ */
+function explainSettleRevert(reason: unknown, action: 'approve' | 'dispute'): string {
+  const error = reason as { message?: string; data?: unknown; cause?: { data?: unknown } };
+  const text = [
+    error?.message ?? '',
+    typeof error?.data === 'string' ? error.data : '',
+    typeof error?.cause?.data === 'string' ? error.cause.data : '',
+  ].join(' ');
+  const verb = action === 'approve' ? 'release the payment' : 'contest the delivery';
+  if (text.includes('0x32d53d69')) {
+    return `The escrow refused to ${verb} (revert 0x32d53d69). That usually means the review window has not elapsed, or the job's deadline has passed. Nothing was signed and nothing was spent.`;
+  }
+  return `The escrow would not ${verb}, so nothing was signed. The chain gave no reason: ${text.slice(0, 160)}`;
+}
+
 /** Release or contest escrow from the exact browser wallet that funded it. */
 export async function settleFromExternalWallet(input: {
   account: Address;
@@ -229,6 +253,34 @@ export async function settleFromExternalWallet(input: {
   }
 
   const addresses = correctedErc8183Addresses(chainId);
+  const { read: readTiming } = clients(chainId);
+
+  /*
+   * The escrow's own timing, before asking anyone to sign.
+   *
+   * Status alone is not enough: a SUBMITTED job refuses `settle` inside
+   * the dispute window and again once its deadline has passed, and both
+   * refusals used to reach the buyer as a gas-limit number from their
+   * wallet. Reading the window costs one call and turns that into a
+   * sentence they can act on.
+   */
+  const disputeWindowSeconds = await readTiming
+    .readContract({
+      address: addresses.policy as Address,
+      abi: [{ name: 'disputeWindow', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint64' }] }] as const,
+      functionName: 'disputeWindow',
+    })
+    .then(Number)
+    .catch(() => 0);
+
+  const verdict = canSettle(input.action, {
+    submittedAt: Number(before.submittedAt),
+    expiredAt: Number(before.expiredAt),
+    disputeWindowSeconds,
+    now: Math.floor(Date.now() / 1000),
+  });
+  if (!verdict.allowed) throw new Error(verdict.message);
+
   const target = input.action === 'approve' ? addresses.router : addresses.policy;
   const data = input.action === 'approve'
     ? encodeFunctionData({
@@ -240,6 +292,26 @@ export async function settleFromExternalWallet(input: {
         functionName: 'dispute', args: [input.jobId],
       });
   const { wallet, read } = clients(chainId);
+
+  /*
+   * Simulated before it is signed.
+   *
+   * A reverting call is what produced the gas-limit error: the wallet
+   * cannot estimate it, falls back to the block gas limit, and the node
+   * rejects that as over its cap. The buyer is then shown a number about
+   * gas for a transaction that was never going to work. One `eth_call`
+   * first means a refusal we did not anticipate is still a refusal,
+   * rather than a signature request followed by an unreadable failure.
+   */
+  try {
+    await read.request({
+      method: 'eth_call',
+      params: [{ from: input.account, to: target as Address, data }, 'latest'],
+    });
+  } catch (reason) {
+    throw new Error(explainSettleRevert(reason, input.action));
+  }
+
   const hash = await wallet.sendTransaction({
     account: input.account, to: target as Address, data, chain: null,
   });
