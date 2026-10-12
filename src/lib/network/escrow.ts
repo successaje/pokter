@@ -75,3 +75,23 @@ export function escrowChainForHire(
   if (quoteCurrency) return escrowChainForCurrency(quoteCurrency, enabled);
   return enabled.includes(97) ? 97 : null;
 }
+
+/**
+ * Every escrow a buyer may hire this agent on, the preferred one first.
+ *
+ * The escrow that can pay the signed price comes first. Testnet is always
+ * offered as well while it is enabled: there Pokter's delivery agent carries
+ * the task to the agent and returns its answer, which costs the buyer nothing
+ * and is how most agents with a mainnet price could be tried before mainnet
+ * hires opened. Taking it away would leave free hiring only for agents that
+ * never signed a price.
+ */
+export function escrowOptionsForHire(
+  quoteCurrency: string | null | undefined,
+  enabled: EscrowChainId[] = enabledEscrowChains(),
+): EscrowChainId[] {
+  const preferred = escrowChainForHire(quoteCurrency, enabled);
+  const options: EscrowChainId[] = preferred === null ? [] : [preferred];
+  if (enabled.includes(97) && !options.includes(97)) options.push(97);
+  return options;
+}
