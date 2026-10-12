@@ -12,7 +12,18 @@ import { getAddress } from 'viem';
  * would teach whoever reads the alerts to stop reading them.
  */
 export const TEAM_WALLETS: readonly string[] = [
+  /*
+   * Retired 2026-10-12 and kept, not deleted.
+   *
+   * The operator key behind this address was rotated after a mainnet
+   * transfer to it disappeared with no outgoing transaction — see
+   * docs/phase-2/tracking.md §5. Thirteen testnet jobs still name it as
+   * the seller, and every one of them has to stay excluded from quest
+   * counting, so the row outlives the key.
+   */
   '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87',
+  /** Demo seller / operator from 2026-10-12. */
+  '0x93847647d7eb72a69E162117df6a8697dF53EDda',
   '0xEF869BB780a5163E6D39E83817cD29af6DEaA784',
   '0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf',
   '0xcE515e144c33EDbD1c3320fde0dE6373315885eD',

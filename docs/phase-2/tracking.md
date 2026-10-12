@@ -157,10 +157,34 @@ escrow client-side, so the funds and the authority are the user's throughout.
 
 | Purpose | Address |
 | --- | --- |
-| Demo seller / operator (chain 97) | `0x60eF148485C2a5119fa52CA13c52E9fd98F28e87` |
+| Demo seller / operator — **retired 2026-10-12, treat as compromised** | `0x60eF148485C2a5119fa52CA13c52E9fd98F28e87` |
+| Demo seller / operator, from 2026-10-12 | `0x93847647d7eb72a69E162117df6a8697dF53EDda` |
 | Official team / payout wallet | `0xEF869BB780a5163E6D39E83817cD29af6DEaA784` |
 | Team passkey wallet — buyer side, end-to-end testing | `0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf` |
 | Second team passkey wallet — buyer side, declared 2026-10-01 | `0xcE515e144c33EDbD1c3320fde0dE6373315885eD` |
+
+### The retired operator address
+
+`0x60eF1484…` signed Pokter's demo-seller deliveries until 12 October. It is
+retired and must not be funded again.
+
+On 12 October a 0.00599820855 BNB transfer to it on **mainnet** was gone
+within the hour. The chain shows the deposit landing and the balance at
+zero, with no outgoing transaction from the address in any of the 948
+blocks that followed — which is what a transfer made through the account's
+delegated code looks like, because the top-level transaction is sent to the
+caller's contract rather than to this address. On mainnet that delegation
+points at `0x8360b5dba4cb7b078ddc9033e9bb0808a9410029`, which is not the
+implementation our own wallet stack sets; on testnet the same address is
+delegated to Porto's `0x4f4dde38…`, as expected.
+
+That is not proof of theft — a legitimate smart-account withdrawal leaves
+the same trace — but nobody on the team moved it, and an unexplained
+mainnet delegation is reason enough. The key was rotated the same day.
+
+It stays in this table because its testnet history is real: thirteen jobs
+list it as the seller and all of them must remain excluded from quest
+counting. Removing the row would understate what we controlled.
 
 The operator address signs Pokter's demo-seller deliveries. The two passkey
 wallets are the `client` on jobs hired while testing the buyer path end to
@@ -177,7 +201,7 @@ appearing as a user is precisely what the fair-play rule exists to prevent.
 All four of its jobs expired at `FUNDED` without delivery, so none represents
 a completed hire either.
 
-None of these addresses represents organic user activity; exclude all four
+None of these addresses represents organic user activity; exclude all five
 from quest and campaign activity counts.
 
 ---
