@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { CATEGORIES } from '@/lib/agents/categories';
+import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
 import type { StoredDraft } from '@/lib/builder/drafts';
@@ -112,6 +112,29 @@ function StepDefine({ d }: { d: AgentDraft }) {
               </span>
             </label>
           ))}
+          {/*
+            The honest answer when none of the five fits.
+            
+            Without it, an agent that matches no category had to claim
+            one to register — and a declared tag is close to decisive in
+            the classifier, so the claim becomes the description buyers
+            read. Pokter's own evidence agent shipped tagged
+            `token-safety` and its page told readers it reports on token
+            contracts. The cost of choosing this is stated rather than
+            hidden, because it is a real one.
+          */}
+          <label className={cn('flex cursor-pointer items-start gap-3 rounded-[10px] border p-3 sm:col-span-2', d.draft.category === NO_CATEGORY ? 'border-ink bg-raised' : 'border-rule hover:border-rule-strong')}>
+            <input type="radio" name="category" className="mt-1 accent-[var(--ink)]" checked={d.draft.category === NO_CATEGORY} onChange={() => d.update('category', NO_CATEGORY)} />
+            <span className="flex flex-col">
+              <span className="text-sm font-medium">None of these fits</span>
+              <span className="text-[12.5px] leading-snug text-ink-3">
+                Nothing is declared, and buyers browsing the five categories will not
+                see it — Discover is built from them. Better than a category that
+                describes something your agent does not do: Pokter shows a
+                category&rsquo;s own words on the agent&rsquo;s page.
+              </span>
+            </span>
+          </label>
         </div>
       </fieldset>
     </div>

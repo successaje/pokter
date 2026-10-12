@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { categorySignalSource, classify } from '../src/lib/agents/categories';
+import { CATEGORIES, NO_CATEGORY, categorySignalSource, classify } from '../src/lib/agents/categories';
 
 /* The live record of Pokter's own evidence agent, 97/2599. */
 const EVIDENCE = {
@@ -42,4 +42,34 @@ test('prose alone is reported as the description', () => {
     tags: [],
   } as never;
   assert.equal(categorySignalSource(prose, 'rebalancing'), 'description');
+});
+
+/*
+ * Registering without claiming a category it does not fit.
+ *
+ * The create flow required one of the five, so an agent matching none
+ * had to claim one — and a declared tag is close to decisive, so the
+ * claim became the description buyers read. This pins the two rules the
+ * fix depends on.
+ */
+test('the no-category sentinel is not one of the real categories', () => {
+  assert.equal(CATEGORIES.some((c) => (c.id as string) === NO_CATEGORY), false);
+});
+
+test('choosing it writes no tag into the registry', () => {
+  /* The exact expression the draft uses to build the registration file.
+     Writing "none" would put the word in front of every reader and
+     every other marketplace's classifier. */
+  const tagsFor = (category: string) =>
+    CATEGORIES.some((c) => (c.id as string) === category) ? [category] : [];
+  assert.deepEqual(tagsFor(NO_CATEGORY), []);
+  assert.deepEqual(tagsFor(''), []);
+  assert.deepEqual(tagsFor('token-safety'), ['token-safety']);
+});
+
+test('an agent with no tag classifies as unclassified, not as something', () => {
+  assert.equal(
+    classify({ name: 'Pokter Evidence', description: 'Reports what Pokter measured.', tags: [], categories: [] } as never),
+    'unclassified',
+  );
 });
