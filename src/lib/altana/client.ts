@@ -97,9 +97,24 @@ export function adminSigner(purpose: OperatorPurpose) {
 
   const key = process.env.ALTANA_ADMIN_KEY;
 
-  if (!key || !key.startsWith('0x')) {
+  /*
+   * Absent and malformed are different problems, said differently.
+   *
+   * Both used to report "is not set", so a key that was present but
+   * pasted without its 0x prefix sent the reader to check whether the
+   * secret existed — which it did, deployed, with a digest. The message
+   * described the wrong half of its own condition and cost an hour.
+   */
+  if (!key) {
     throw new AltanaNotConfiguredError(
       'ALTANA_ADMIN_KEY is not set. Generate a testnet key and fund it before granting sessions.',
+    );
+  }
+
+  if (!key.startsWith('0x')) {
+    throw new AltanaNotConfiguredError(
+      'ALTANA_ADMIN_KEY is set but does not begin with 0x, so it cannot be read as a private key. ' +
+        'Re-set it with the prefix: fly secrets set ALTANA_ADMIN_KEY=0x…',
     );
   }
 

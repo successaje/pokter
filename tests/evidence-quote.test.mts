@@ -90,3 +90,28 @@ test('the EIP-191 digest recovers to the signing wallet', async () => {
     'this is the encoding verifyNegotiationSignature inverts',
   );
 });
+
+/**
+ * How a bad operator key is described.
+ *
+ * `altana/client` is server-only and cannot be imported here, so the
+ * branch is mirrored. It is worth pinning: both cases reported "is not
+ * set", so a key that was present but pasted without its prefix sent the
+ * reader to check a secret that was already deployed with a digest.
+ */
+function keyFault(key: string | undefined): 'absent' | 'malformed' | null {
+  if (!key) return 'absent';
+  if (!key.startsWith('0x')) return 'malformed';
+  return null;
+}
+
+test('a missing key and a malformed key are told apart', () => {
+  assert.equal(keyFault(undefined), 'absent');
+  assert.equal(keyFault(''), 'absent');
+  assert.equal(
+    keyFault('abc123notprefixed'),
+    'malformed',
+    'calling this "not set" points at the wrong half of the condition',
+  );
+  assert.equal(keyFault('0xabc123'), null);
+});
