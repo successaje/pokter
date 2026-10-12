@@ -23,6 +23,7 @@ import {
 } from '@/lib/find/suggested';
 
 import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
+import { requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
 import { toSweepAttestation } from '@/lib/history/attest';
@@ -329,6 +330,66 @@ const HISTORY_DAYS = 30;
  * Assemble the full evidence dossier for one agent: third-party attestations
  * from chain, plus a live first-party reading taken at request time.
  */
+/**
+ * The agent's price, asked for now when Pokter has never asked.
+ *
+ * Quotes come from the sweep, which runs every two hours. So an agent
+ * registered between sweeps has no stored price, and the listing says
+ * "it has not signed a price" — and, because an agent with no signed
+ * price is routed to the testnet escrow rather than assumed onto
+ * mainnet, also "Hired on BNB Testnet · test tokens". Both are
+ * statements about Pokter's ignorance, printed as findings about
+ * somebody's agent.
+ *
+ * 56/372022 was registered on mainnet and read that way for the hours
+ * before a sweep reached it, while answering live in 48ms and signing a
+ * mainnet price on request. A builder looks at their listing in the
+ * minute after they publish it; that is exactly the window this was
+ * wrong in.
+ *
+ * Only when Pokter has never reached this agent at all — no stored
+ * quote and no probe history. Both conditions matter. A swept agent
+ * costs nothing extra, and an agent Pokter has probed without ever
+ * getting a price was asked and did not answer: "no signed price" is
+ * then a finding rather than a gap, and re-asking it on every page view
+ * would spend eight seconds to learn what the sweep already knows.
+ *
+ * The page already makes a live probe when it renders, and this is the
+ * same kind of call. The result is recorded, so the next reader and the
+ * next sweep see what this one saw — the same observation the sweep
+ * would have made, taken earlier.
+ *
+ * Failure is silence. An agent that will not quote on demand is listed
+ * exactly as it was before, because "no price" was already the honest
+ * reading of that.
+ */
+async function quoteNowIfNeverAsked(
+  agent: ScanAgentDetail,
+  stored: QuoteRecord | null,
+  probesTaken: number,
+): Promise<QuoteRecord | null> {
+  if (stored || probesTaken > 0) return stored;
+  const quote = await requestQuote(agent, { timeoutMs: 8_000 }).catch(() => null);
+  if (!quote) return null;
+  const record: QuoteRecord = {
+    chainId: agent.chain_id,
+    tokenId: agent.token_id,
+    priceRaw: quote.priceRaw,
+    priceU: quote.priceU,
+    currency: quote.currency,
+    signer: quote.signer,
+    quotedAt: quote.quotedAt,
+    expiresAt: quote.expiresAt,
+    domain: quote.domain,
+  };
+  try {
+    getProbeStore().recordQuotes([record]);
+  } catch {
+    /* The reader still gets the right page; the next one asks again. */
+  }
+  return record;
+}
+
 export async function getDossier(
   chainId: ChainId,
   tokenId: string,
@@ -363,9 +424,11 @@ export async function getDossier(
   const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
   const category = classify(agent);
 
-  const quote =
-    getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ??
-    null;
+  const quote = await quoteNowIfNeverAsked(
+    agent,
+    getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null,
+    record.totalProbes,
+  );
 
   return {
     agent,
@@ -463,7 +526,11 @@ export async function getComparison(
   const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
   const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
   const category = classify(agent);
-  const quote = getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null;
+  const quote = await quoteNowIfNeverAsked(
+    agent,
+    getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null,
+    record.totalProbes,
+  );
   const economicHistory = summariseEconomicHistory(getJobStore().byAgent(chainId, tokenId));
   const reviews = getReviewStore().byAgent(chainId, tokenId);
 
