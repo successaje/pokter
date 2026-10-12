@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 980" width="980" height="980" role="img" aria-label="Pokter Evidence">
+  <!--
+    The evidence agent's face, in other marketplaces' catalogues.
+
+    Served as a file rather than generated, because the ERC-8004
+    registration record points at a public URL and a registry entry whose
+    image is produced on demand is an image that breaks the first time a
+    route changes. The Pokter mark on the signal gold, at one size, with
+    no text: it is rendered at 40px in a list and at 200px on a profile,
+    and lettering survives neither.
+  -->
+  <rect width="980" height="980" rx="214" fill="#16171a"/>
+  <rect x="40" y="40" width="900" height="900" rx="186" fill="none" stroke="#f0b90b" stroke-width="14" stroke-opacity="0.5"/>
+  <g transform="translate(90, 156) scale(0.82)">
+    <path
+      d="M192 62H513Q545 62 545 94V168Q545 200 513 200H344Q332 200 332 212V752H192Q160 752 160 720V94Q160 62 192 62Z"
+      fill="#f0b90b"/>
+    <path
+      d="M592 62H716Q820 62 820 166V546Q820 648 716 648H457Q425 648 425 616V562Q425 530 457 530H640Q652 530 652 518V258Q652 246 640 246H592Z"
+      fill="#f0b90b"/>
+  </g>
+</svg>
