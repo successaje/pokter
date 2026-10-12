@@ -2,6 +2,7 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
+import { escrowChainForHire } from '@/lib/network/escrow';
 import type { Verdict } from '@/lib/proof/engine';
 import { offersDirectHire, verdictFor, type SearchableAgent } from '@/lib/search/match';
 import { catalogueSuggestion, suggestionsByCategory, type Suggestion } from '@/lib/find/suggested';
@@ -29,6 +30,21 @@ export interface FindRow {
   /** Days since the last answered check; null when never answered. */
   sinceAnswer: number | null;
   answeringToday: boolean;
+  /**
+   * Where a hire of this agent would actually be funded.
+   *
+   * Not `chainId`, which is the registry the identity lives in. A buyer
+   * filtering the catalogue by "Registered on: BNB Chain" and reading a
+   * price has no way to tell that most of those agents settle in testnet
+   * $U, because their signed price names the testnet token — the two
+   * chains differ for most of the catalogue, and the card said nothing.
+   *
+   * Null when the agent has signed a price in a token no enabled escrow
+   * settles. Defaulting to the first escrow would have the card claim
+   * "test tokens" about an agent that cannot be hired here at all,
+   * which is a worse answer than saying nothing.
+   */
+  hireChainId: number | null;
   /** The last price the agent signed, in $U, or null when it never has. */
   priceU: number | null;
   priceLabel: string;
@@ -75,6 +91,7 @@ export function toFindRow(
     medianMs: month?.medianMs ?? null,
     sinceAnswer: daysSinceLastAnswer(record, now),
     answeringToday: Boolean(today && today.probes > 0 && (today.ratio ?? 0) > 0),
+    hireChainId: escrowChainForHire(quote?.currency),
     priceU,
     priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'You set the budget',
     suggested: priceU !== null ? null : suggested,

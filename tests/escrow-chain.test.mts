@@ -83,3 +83,18 @@ test('an agent on a chain Pokter cannot fund is asked for one it can', () => {
   assert.equal(settlementHint({ chain_id: 56 }, [97]).chain_id, 97);
   assert.equal(settlementHint({ chain_id: 1 }, [97, 56]).chain_id, 97);
 });
+
+/*
+ * What a catalogue card says about the money, which is derived from the
+ * same rule. The card renders nothing for null rather than defaulting to
+ * an escrow, because "test tokens" about an agent that cannot be hired
+ * here at all is worse than silence.
+ */
+test('a card has a hire network only when some escrow can settle the price', () => {
+  assert.equal(escrowChainForHire(MAINNET_U, [97, 56]), 56);
+  assert.equal(escrowChainForHire(TESTNET_U, [97, 56]), 97);
+  // Mainnet price, mainnet escrow closed: settleable nowhere, so unlabelled.
+  assert.equal(escrowChainForHire(MAINNET_U, [97]), null);
+  // No signed price at all still has a home, and it is never mainnet.
+  assert.equal(escrowChainForHire(undefined, [97, 56]), 97);
+});
