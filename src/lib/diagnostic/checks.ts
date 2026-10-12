@@ -5,7 +5,7 @@ import type { ChainId, ScanAgentDetail, ScanFeedback } from '@/lib/scan/types';
 import { attestationAuthors } from '@/lib/proof/attestation-authors';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { requestQuote } from '@/lib/erc8183/quote';
-import { classify, CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { classify, CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { enabledEscrowChains, escrowChainForCurrency } from '@/lib/network/escrow';
@@ -294,8 +294,21 @@ export async function diagnose(
       ? unknown(
           'category',
           'Marketplace category',
-          'Pokter’s classifier could not place this agent in one of its four categories with enough confidence.',
-          'Categories are assigned by Pokter, not declared. Naming the protocol and the outcome in your registry description is what the classifier reads.',
+          'Pokter’s classifier could not place this agent in one of its five categories with enough confidence.',
+          /*
+           * This said categories are "assigned by Pokter, not declared",
+           * and pointed builders at their description. That is the
+           * opposite of how the classifier works: a declared tag carries
+           * 0.9 of the 1.0 confidence budget, the name 0.7, and prose
+           * 0.6 with saturation — so the advice sent people to the least
+           * effective field and told them the most effective one did not
+           * exist. It also matters the other way: a tag that does not
+           * describe the agent is close to decisive too, which is how
+           * Pokter's own evidence agent came to be listed under Token
+           * Safety and described as a token-safety agent.
+           */
+          'A category tag in your registry record is close to decisive, so declare the one that genuinely fits — and no tag at all beats a tag that does not, which would have Pokter describe your agent as something it is not. Pokter recognises: ' +
+            CATEGORIES.map((category) => category.id).join(', ') + '.',
         )
       : ok(
           'category',

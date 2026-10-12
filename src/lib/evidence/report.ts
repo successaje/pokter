@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, categorySignalSource, type Category } from '@/lib/agents/categories';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { quotePayableWith } from '@/lib/erc8183/payable';
 import { getComparison, type Comparison } from '@/lib/marketplace';
@@ -63,6 +63,48 @@ function claim<T>(value: T, provenance: Provenance, source: string): Claim<T> {
   return { value, provenance, source };
 }
 
+/**
+ * Where an agent's category came from, said accurately.
+ *
+ * This reported every category as `calculated` and added that it was "not
+ * declared by the publisher". For most agents that is backwards: a
+ * declared tag is close to decisive in the classifier, so the category is
+ * the publisher's own word that Pokter accepted. Pokter's own evidence
+ * agent carried the error about itself — tagged `token-safety` at
+ * registration, reported as Pokter's calculation.
+ *
+ * A service whose whole claim is that every field says where it came from
+ * cannot be wrong about where a field came from.
+ */
+function categoryClaim(
+  agent: Comparison['agent'],
+  category: string,
+): Claim<string> {
+  const meta = CATEGORY_BY_ID.get(category as Category);
+  if (!meta) {
+    return claim(
+      'Unclassified',
+      'calculated',
+      "Pokter's classifier could not place this agent in one of its categories with enough confidence. Not a finding about the agent.",
+    );
+  }
+  const source = categorySignalSource(agent, meta.id);
+  if (source === 'declared') {
+    return claim(
+      meta.label,
+      'declared',
+      'Declared by the publisher in the registry record and accepted by Pokter. Pokter did not verify that the agent does this.',
+    );
+  }
+  return claim(
+    meta.label,
+    'calculated',
+    source === 'name'
+      ? "Inferred by Pokter's classifier from the agent's own name, not from a declared category."
+      : "Inferred by Pokter's classifier from the registry description, not from a declared category.",
+  );
+}
+
 export function buildReport(
   chainId: ChainId,
   tokenId: string,
@@ -107,11 +149,7 @@ export function buildReport(
       'onchain',
       'ERC-8004 registry record. The wallet that signs quotes is on the agent page.',
     ),
-    category: claim(
-      CATEGORY_BY_ID.get(dossier.category as never)?.label ?? 'Unclassified',
-      'calculated',
-      "Assigned by Pokter's classifier from the registry record, not declared by the publisher.",
-    ),
+    category: categoryClaim(agent, dossier.category),
     calls: claim(
       { taken, answered, observedDays: record.observedDays },
       'pokter-measured',
