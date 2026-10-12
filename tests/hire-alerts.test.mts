@@ -36,7 +36,10 @@ test('the wallets declared to BNB are the wallets watched', () => {
     [...TEAM_WALLETS].map((w) => w.toLowerCase()).sort(),
     [
       '0x3fb8779f4f42e1800f27aaec9564530bcaa852bf',
+      // Retired 2026-10-12, still watched: thirteen testnet jobs name it
+      // as the seller and must stay out of quest counting.
       '0x60ef148485c2a5119fa52ca13c52e9fd98f28e87',
+      '0x93847647d7eb72a69e162117df6a8697df53edda',
       '0xce515e144c33edbd1c3320fde0de6373315885ed',
       '0xef869bb780a5163e6d39e83817cd29af6deaa784',
     ].sort(),

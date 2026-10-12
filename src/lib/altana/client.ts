@@ -56,7 +56,19 @@ export class AltanaNotConfiguredError extends Error {
  * passkey, so none of these should be reachable on mainnet without somebody
  * deciding so on purpose, one purpose at a time.
  */
-export type OperatorPurpose = 'legacy-session' | 'legacy-hire' | 'demo-seller' | 'gas-sponsor';
+export type OperatorPurpose =
+  | 'legacy-session'
+  | 'legacy-hire'
+  | 'demo-seller'
+  /*
+   * Signs the evidence agent's price quotes. Like every other purpose here
+   * it is refused on mainnet unless named in
+   * ALTANA_MAINNET_OPERATOR_PURPOSES, and the guard is right to ask: a
+   * quote is a commitment, and this one would be made by a key generated
+   * for a testnet demo.
+   */
+  | 'evidence-agent'
+  | 'gas-sponsor';
 
 /**
  * Mainnet purposes that have been deliberately permitted.
