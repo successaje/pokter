@@ -192,7 +192,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
               </div>
             )}
             <p className="text-[12.5px] text-ink-3">
-              Under the escrow&rsquo;s optimistic policy, if you do nothing before the review window closes, payment is released to the agent. A dispute is decided by the policy&rsquo;s voters.
+              Under the escrow&rsquo;s optimistic policy, if you do nothing before the review window closes, payment is released to the agent anyway — and until it closes, the escrow will not let you release it early. A dispute is decided by the policy&rsquo;s voters, and can only be opened while the window is open.
             </p>
           </div>
         )}
