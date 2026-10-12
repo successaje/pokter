@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 
-import { imageFromAgentUri, safeImageUrl } from '../src/lib/registry/image';
+import { imageFromAgentUri, resolveAgentImages, safeImageUrl } from '../src/lib/registry/image';
 
 function dataUri(file: unknown): string {
   return `data:application/json;base64,${Buffer.from(JSON.stringify(file)).toString('base64')}`;
@@ -47,4 +47,18 @@ test('malformed records fail closed', () => {
   assert.equal(imageFromAgentUri('data:application/json;base64'), null);
   assert.equal(imageFromAgentUri(dataUri(['an', 'array'])), null);
   assert.equal(imageFromAgentUri(dataUri({ image: 42 })), null);
+});
+
+test('a batch keeps each row with its own agent', async () => {
+  /*
+   * Chain 999 has no registry client, so nothing is fetched and every row
+   * falls back to its own indexer value. Deliberately offline: a test
+   * that reaches a public RPC passes or fails on somebody else's uptime.
+   */
+  const images = await resolveAgentImages([
+    { chain_id: 999, token_id: '1', image_url: 'https://a.example/1.png' },
+    { chain_id: 999, token_id: '2', image_url: 'http://b.example/2.png' },
+    { chain_id: 999, token_id: '3', image_url: null },
+  ]);
+  assert.deepEqual(images, ['https://a.example/1.png', null, null]);
 });

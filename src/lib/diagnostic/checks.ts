@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { getAgent } from '@/lib/scan/client';
-import type { ChainId, ScanAgentDetail } from '@/lib/scan/types';
+import { getAgent, listFeedbacks } from '@/lib/scan/client';
+import type { ChainId, ScanAgentDetail, ScanFeedback } from '@/lib/scan/types';
+import { attestationAuthors } from '@/lib/proof/attestation-authors';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { requestQuote } from '@/lib/erc8183/quote';
 import { classify, CATEGORY_BY_ID } from '@/lib/agents/categories';
@@ -303,18 +304,62 @@ export async function diagnose(
         ),
   );
 
-  checks.push(
+  /*
+   * Independence, judged by who wrote the attestation.
+   *
+   * This counted rows. The reputation registry refuses an agent's owner —
+   * `giveFeedback` from the owner of 97/2599 reverts with "Self-feedback
+   * not allowed", and the same call from an unrelated address is accepted
+   * — so a row was never the owner praising themselves and the count was
+   * nearly right. But Pokter runs wallets that own no agent, and one of
+   * them reviewing a Pokter-operated agent writes a row that passes a
+   * count and is independent of nobody. The verdict engine already
+   * excludes Pokter from its measurer list, so the check would have
+   * claimed an independent attestation that the engine refused to count:
+   * Pokter contradicting itself on the one measure it asks to be judged
+   * on, in the panel a builder reads to understand why.
+   */
+  const authors =
     agent.total_feedbacks > 0
+      ? await attestationAuthors(
+          chainId,
+          agent.owner_address,
+          (await listFeedbacks({ chainId, agentId: agent.id, limit: 50 }).catch(() => ({
+            items: [] as ScanFeedback[],
+          }))).items,
+        )
+      : { total: 0, independent: 0, related: 0, undetermined: 0 };
+
+  /*
+   * A row whose author could not be read is reported as that, not as an
+   * absence. "No third party has attested" when three have and the RPC
+   * simply did not answer is the kind of confident wrong statement this
+   * whole panel exists to replace.
+   */
+  const notes = [
+    authors.related > 0
+      ? `${authors.related} from a Pokter wallet, which Pokter does not count as independent of itself`
+      : null,
+    authors.undetermined > 0
+      ? `${authors.undetermined} whose author Pokter could not read from chain, counted neither way`
+      : null,
+  ].filter((note): note is string => note !== null);
+  const aside = notes.length > 0 ? ` Of the rest: ${notes.join('; ')}.` : '';
+
+  checks.push(
+    authors.independent > 0
       ? ok(
           'attestations',
           'Independent attestations',
-          `${agent.total_feedbacks} attestation${agent.total_feedbacks === 1 ? '' : 's'} published on chain.`,
+          `${authors.independent} attestation${authors.independent === 1 ? '' : 's'} published on chain by a wallet unrelated to this agent and to Pokter.${aside}`,
         )
       : unknown(
           'attestations',
           'Independent attestations',
-          'No third party has published an attestation about this agent.',
-          'Pokter’s own probing never counts toward independence, so an agent measured only by us cannot reach Proven however well it performs.',
+          authors.total === 0
+            ? 'No third party has published an attestation about this agent.'
+            : `${authors.total} attestation${authors.total === 1 ? '' : 's'} on chain, none of them from a wallet Pokter can count as independent.${aside}`,
+          'Pokter’s own probing and its own wallets never count toward independence, so an agent measured only by us cannot reach Proven however well it performs.',
         ),
   );
 

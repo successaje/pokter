@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { formatUnits, getAddress, isAddress } from 'viem';
 
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
+import { resolveAgentImages } from '@/lib/registry/image';
 import { verifiedPublisherByOwner } from '@/lib/builders/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { chainLabel } from '@/lib/network/presentation';
@@ -37,6 +38,9 @@ export default async function OperatorPage({ params }: { params: Promise<{ addre
   ]);
   const agents = pages.flatMap((p) => p.items);
   if (!verified.length && agents.length === 0) notFound();
+  /* The registry record first, since the indexer's media proxy misses for
+     some agents — see `resolveAgentImage`. A builder's page is short. */
+  const images = await resolveAgentImages(agents);
   const keys = new Set(agents.map((a) => `${a.chain_id}:${a.token_id}`));
   const jobs = getJobStore()
     .all()
@@ -72,13 +76,13 @@ export default async function OperatorPage({ params }: { params: Promise<{ addre
         ))}
       </dl>
       <ul className="ruled border-y border-rule">
-        {agents.map((a) => {
+        {agents.map((a, i) => {
           const key = `${a.chain_id}:${a.token_id}`;
           const cat = classify(a);
           return (
             <li key={key}>
               <Link href={`/agents/${a.chain_id}/${a.token_id}`} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-4 py-4 hover:bg-sunken/40">
-                <AgentAvatar name={a.name} imageUrl={a.image_url} seed={key} size={40} />
+                <AgentAvatar name={a.name} imageUrl={images[i]} seed={key} size={40} />
                 <span className="flex min-w-0 flex-col">
                   <span className="flex items-center gap-2 truncate font-medium">
                     {a.name}

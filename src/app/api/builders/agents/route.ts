@@ -55,9 +55,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   );
 
   const rows = pages.flatMap((page) => page.items);
-  /* The registry record rather than the indexer's `image_url`, whose media
-     proxy answers 404 — see `resolveAgentImage`. One read per owned agent,
-     and a wallet's own list is short. */
+  /* The registry record first, since the indexer's media proxy misses for
+     some agents — see `resolveAgentImage`. One read per owned agent, and a
+     wallet's own list is short. */
   const images = await Promise.all(
     rows.map((agent) => resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => null)),
   );
