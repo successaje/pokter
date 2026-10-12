@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { interpretTrialResponse, selectTrialCapability } from '@/lib/builder/trial';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { readAgentCard } from '@/lib/agents/agent-card';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -46,14 +47,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     let target = endpoint;
     let capability: string | null = null;
     if (protocol === 'a2a') {
-      const card = await withPublicEndpoint(endpoint, async (handle) => {
-        const response = await handle.fetch({
-          headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error',
-          signal: AbortSignal.timeout(8_000),
-        });
-        if (!response.ok) throw new Error(`Agent Card answered ${response.status}.`);
-        return object(await readJson(response));
-      });
+      const card = await readAgentCard(endpoint);
       if (typeof card?.url !== 'string') throw new Error('Agent Card publishes no service URL.');
       const published = Array.isArray(card.skills)
         ? card.skills.map((skill) => object(skill)?.id ?? object(skill)?.name).filter((value): value is string => typeof value === 'string')
