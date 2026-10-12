@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { EVIDENCE_AGENT } from '@/lib/evidence/agent';
+import { EVIDENCE_AGENT, evidenceCard } from '@/lib/evidence/agent';
 import { signEvidenceQuote } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
@@ -44,6 +44,27 @@ function reply(id: unknown, data: unknown) {
       messageId: crypto.randomUUID(),
       parts: [{ kind: 'data', data }],
     },
+  });
+}
+
+/**
+ * A GET here returns the card, rather than 405.
+ *
+ * The A2A convention is that a registry's service endpoint points at the
+ * agent card, and the card names the JSON-RPC url. Register the JSON-RPC
+ * url by mistake and a prober's opening GET gets "method not allowed",
+ * which it reports as an endpoint that does not answer and an agent with
+ * no skills — a listing failure that looks like a broken agent and is
+ * actually one wrong field.
+ *
+ * That mistake was made registering this very agent, which is reason
+ * enough to make either URL work. Answering with the card costs nothing
+ * and is true: this is where the agent lives, and the card says what it
+ * can do.
+ */
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json(evidenceCard(siteOrigin()), {
+    headers: { 'cache-control': 'public, max-age=300' },
   });
 }
 
