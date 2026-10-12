@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { getComparisons, type Comparison } from '@/lib/marketplace';
+import { resolveAgentImages } from '@/lib/registry/image';
 import { chainLabel } from '@/lib/network/presentation';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { formatMs } from '@/lib/ui/format';
@@ -45,6 +46,9 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     .filter((k) => /^(56|97):\d{1,12}$/.test(k))
     .slice(0, 4);
   const items = keys.length ? await getComparisons(keys) : [];
+  /* Four rows at most, and the one place a reader sees images side by
+     side, where one missing mark is conspicuous. */
+  const images = await resolveAgentImages(items.map((item) => item.agent));
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-14">
@@ -68,10 +72,10 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                   <th scope="col" className="w-44 p-4 align-bottom text-ink-3">
                     <span className="sr-only">Measure</span>
                   </th>
-                  {items.map((c) => (
+                  {items.map((c, i) => (
                     <th key={`${c.agent.chain_id}:${c.agent.token_id}`} scope="col" className="border-l border-rule p-4 align-top font-normal">
                       <Link href={`/agents/${c.agent.chain_id}/${c.agent.token_id}`} className="flex flex-col gap-2 hover:underline">
-                        <AgentAvatar name={c.agent.name} imageUrl={c.agent.image_url} seed={`${c.agent.chain_id}:${c.agent.token_id}`} size={40} />
+                        <AgentAvatar name={c.agent.name} imageUrl={images[i]} seed={`${c.agent.chain_id}:${c.agent.token_id}`} size={40} />
                         <span className="font-semibold">{c.agent.name}</span>
                       </Link>
                     </th>

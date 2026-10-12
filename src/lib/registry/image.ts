@@ -4,18 +4,21 @@ import { registryTokenUri } from '@/lib/registry/onchain';
  * The image an agent actually registered, read from the registry.
  *
  * 8004scan returns an `image_url` pointing at its own media proxy
- * (`/api/v1/media/agents/{chain}/{token}/image`), and that proxy answers
- * 404 for every agent checked — 97/2599, 56/341563, 56/341556. The browser
- * then falls back to Pokter's generated avatar, so a publisher who set an
- * image sees it silently dropped and reasonably concludes Pokter lost it.
+ * (`/api/v1/media/agents/{chain}/{token}/image`). For some agents that
+ * proxy serves a real image; for others it answers 404 — including
+ * 97/2599 and 56/341563, both of which registered a perfectly good URL.
+ * The browser then falls back to Pokter's generated avatar, so those
+ * publishers see their image silently dropped and reasonably conclude
+ * Pokter lost it.
  *
  * The registration record itself has the URL the publisher chose, so read
- * it from there. One `tokenURI` call, decoded locally: no indexer in the
- * path, and the answer is the same thing the owner signed.
+ * it from there first. One `tokenURI` call, decoded locally: no indexer
+ * in the path, and the answer is the same thing the owner signed.
  *
- * Used only where N is small — one profile, one builder's own list. The
- * catalogue draws 160 rows and keeps the indexer's value, because a dead
- * image there costs an initial rather than 160 RPC reads.
+ * Used only where N is small — a profile and its three alternatives, a
+ * builder's own list, up to four agents being compared. The catalogue
+ * draws 160 rows and keeps the indexer's value, because a dead image
+ * there costs an initial rather than 160 RPC reads.
  */
 
 /** Only https, and nothing carrying credentials. */
@@ -78,7 +81,14 @@ export async function registryImageUrl(chainId: number, tokenId: string): Promis
 
 /**
  * The image to draw: what the publisher registered, else what the indexer
- * said. Registry first, because the indexer's URL is a proxy that 404s.
+ * said.
+ *
+ * Registry first, because it is authoritative and the proxy misses. The
+ * indexer stays as the fallback and earns its place: it resolves the
+ * `ipfs://` and external-profile records this deliberately does not
+ * follow, and for those agents its URL is the only working image on the
+ * page. A fallback that 404s costs one request and then the generated
+ * mark, which `AvatarImage` already draws on a failed load.
  */
 export async function resolveAgentImage(
   chainId: number,
@@ -86,4 +96,22 @@ export async function resolveAgentImage(
   indexerImageUrl: string | null | undefined,
 ): Promise<string | null> {
   return (await registryImageUrl(chainId, tokenId)) ?? safeImageUrl(indexerImageUrl);
+}
+
+/**
+ * The same resolution for a handful of rows, read concurrently.
+ *
+ * Every caller is a page with a short list on it, so the reads overlap
+ * rather than queue; a failed read for one row leaves the others alone
+ * and falls back to the indexer's value, which is what the single-row
+ * version does.
+ */
+export function resolveAgentImages<T extends { chain_id: number; token_id: string; image_url: string | null }>(
+  rows: readonly T[],
+): Promise<Array<string | null>> {
+  return Promise.all(
+    rows.map((row) =>
+      resolveAgentImage(row.chain_id, row.token_id, row.image_url).catch(() => safeImageUrl(row.image_url)),
+    ),
+  );
 }

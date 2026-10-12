@@ -19,7 +19,7 @@ import { stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDossier } from '@/lib/marketplace';
-import { resolveAgentImage } from '@/lib/registry/image';
+import { resolveAgentImage, resolveAgentImages } from '@/lib/registry/image';
 import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
@@ -135,6 +135,11 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => httpsOnly(agent.image_url)),
   ]);
 
+  /* The alternatives carry images too, and were reading the indexer
+     alone — three more rows on a page that already reads the registry for
+     the agent it is about. */
+  const alternativeImages = await resolveAgentImages(alternatives.map((alt) => alt.listing.agent));
+
   const payable = d.quote ? quotePayableWith(d.quote.currency, addresses.paymentToken) : null;
   const answeredNow = live.ratio !== null && live.ratio > 0;
   const published = summarisePublishedEvidence(attestations);
@@ -226,12 +231,12 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     warnings,
     hireable: providers.length > 0,
     trialAvailable: live.protocol === 'a2a' && answeredNow,
-    alternatives: alternatives.map((alt) => ({
+    alternatives: alternatives.map((alt, i) => ({
       key: `${alt.listing.agent.chain_id}:${alt.listing.agent.token_id}`,
       chainId: alt.listing.agent.chain_id,
       tokenId: alt.listing.agent.token_id,
       name: alt.listing.agent.name,
-      imageUrl: httpsOnly(alt.listing.agent.image_url),
+      imageUrl: alternativeImages[i],
       verdict: alt.verdict,
       answered: alt.answered,
       probes: alt.probes,
