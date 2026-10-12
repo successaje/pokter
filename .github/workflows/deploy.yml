@@ -113,6 +113,42 @@ jobs:
             fi
           done
 
+      - name: Verify escrow on each chain
+        # Hires are funded per agent on the escrow that can pay its price, so a
+        # regression can break one chain while every page still answers 200.
+        # Read-only: each check reads a fixed fact from chain or the public API.
+        run: |
+          get() {
+            curl --silent --show-error --retry 3 --retry-all-errors --retry-delay 3 \
+              --max-time "${2:-30}" "$1"
+          }
+          status() {
+            curl --silent --show-error --retry 3 --retry-all-errors --retry-delay 3 \
+              --max-time 60 --output /dev/null --write-out '%{http_code}' "$1"
+          }
+
+          activity=$(get https://pokter.xyz/api/v1/activity)
+          echo "$activity" | jq -e '.buyers and .teamWallets and (.byChain | any(.chainId == 97))' > /dev/null \
+            || { echo '::error::/api/v1/activity lost its buyers, teamWallets or testnet breakdown'; exit 1; }
+
+          # A Pokter job on testnet reads back; a job another marketplace made
+          # on the mainnet escrow is found there and refused as not Pokter's.
+          code=$(status 'https://pokter.xyz/api/jobs/1424?chain=97')
+          [ "$code" = "200" ] || { echo "::error::Testnet job lookup returned ${code}"; exit 1; }
+
+          if grep -q "NEXT_PUBLIC_ESCROW_CHAINS = '97,56'" fly.toml; then
+            echo "$activity" | jq -e '.byChain | any(.chainId == 56)' > /dev/null \
+              || { echo '::error::Mainnet is enabled but /api/v1/activity has no mainnet breakdown'; exit 1; }
+
+            code=$(status 'https://pokter.xyz/api/jobs/56975?chain=56')
+            [ "$code" = "404" ] || { echo "::error::Mainnet job lookup returned ${code}, expected 404 for a non-Pokter job"; exit 1; }
+
+            # An agent that signs its price in mainnet $U offers both ways to hire.
+            hire=$(get https://pokter.xyz/hire/56/269223 90)
+            echo "$hire" | grep -q 'Hire on BNB Chain' && echo "$hire" | grep -q 'Try free on testnet' \
+              || { echo '::error::A mainnet-priced agent no longer offers both mainnet and the free testnet hire'; exit 1; }
+          fi
+
       - name: Verify production discovery signals
         run: |
           robots=$(curl --fail --silent --show-error --max-time 20 \

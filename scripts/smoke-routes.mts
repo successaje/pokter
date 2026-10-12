@@ -56,6 +56,10 @@ const CHECKS: Check[] = [
 const SLOW: Check[] = [
   { path: '/agents/97/2554', expect: 200, contains: 'What is known, and what is not' },
   { path: '/hire/97/2554', expect: 200 },
+  // An agent that signs its price in mainnet $U. Whether it offers both ways
+  // to hire depends on the deployment's escrow chains, which the deploy
+  // workflow checks; here it only has to render.
+  { path: '/hire/56/269223', expect: 200 },
 ];
 
 let failed = 0;
