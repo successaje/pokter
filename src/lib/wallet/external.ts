@@ -404,7 +404,7 @@ export interface ExternalSwapPlan {
  * Returns null when the wallet already holds the budget, so the caller can
  * treat "no plan" as "nothing to disclose".
  */
-export async function planExternalSwap(
+export async function planShortfallSwap(
   account: Address,
   budgetU: number,
   chainId: number = WALLET_NETWORK.chainId,

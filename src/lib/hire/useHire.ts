@@ -7,7 +7,7 @@ import { formatEther, formatUnits, parseUnits } from 'viem';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
-import { NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -23,7 +23,7 @@ import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useQuery } from '@tanstack/react-query';
 import { useWalletFunding } from '@/lib/wallet/use-funding';
-import { planExternalSwap } from '@/lib/wallet/external';
+import { planShortfallSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
 import { commissionTaskTemplates, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
@@ -207,17 +207,24 @@ export function useHire({
   /*
    * What the swap will cost, quoted before anything is signed.
    *
-   * Read-only and external-only: the passkey path swaps inside its own
-   * batch and already names the stage. Gated on `paymentLow` so a funded
-   * wallet never pays for a PancakeSwap round trip, and keyed on the
-   * budget so moving the number re-quotes. A swap nobody was told about
-   * is a swap that happened to them.
+   * Read-only, and asked for both kinds of wallet.
+   *
+   * It was external-only, on the grounds that the passkey path swaps
+   * inside its own batch and names the stage while it runs. But the
+   * question this answers is not "how will it be signed", it is "can
+   * this be bought at all" — and on testnet the answer is no, because
+   * the only WBNB/$U pool is empty. A passkey holder was told "Pokter
+   * will swap tBNB for the difference", clicked, and watched the hire
+   * stop. Gated on `paymentLow` so a funded wallet never pays for a
+   * PancakeSwap round trip, and keyed on the budget so moving the number
+   * re-quotes. A swap nobody was told about is a swap that happened to
+   * them; a swap promised and not possible is worse.
    */
   const swapPlan = useQuery({
-    queryKey: ['external-swap-plan', escrowChainId, active.address, budget],
-    queryFn: () => planExternalSwap(active.address!, budget, escrowChainId),
+    queryKey: ['shortfall-swap-plan', escrowChainId, active.address, budget],
+    queryFn: () => planShortfallSwap(active.address!, budget, escrowChainId),
     enabled:
-      active.mode === 'external' &&
+      active.mode !== null &&
       Boolean(active.address) &&
       funding.paymentLow &&
       budget > 0,
@@ -500,8 +507,16 @@ export function useHire({
         const shortfall = budgetRaw - held;
         const quote = await quoteBnbForPaymentToken(readClient(escrowChainId), paymentToken, shortfall);
         if (!quote) {
+          /*
+           * No pool, not a transient failure. "Fund the wallet directly"
+           * is true and useless without saying where from, and on
+           * testnet the tokens are free — the faucet that hands out both
+           * is already known to this codebase.
+           */
           throw new Error(
-            `No PancakeSwap route to $U is available right now. Fund the wallet with at least ${budget} $U directly.`,
+            FAUCETS?.paymentTokenBot
+              ? `There is no pool to buy $U from on this network, so the hire cannot swap for you. Test $U is free: message ${FAUCETS.paymentTokenBot.handle} with "${FAUCETS.paymentTokenBot.ask.replace('ADDRESS', wallet.address)}".`
+              : `There is no pool to buy $U from on this network. Fund the wallet with at least ${budget} $U directly.`,
           );
         }
         if (balances.native < quote.amountInMaximum + MIN_TRANSACTION_GAS) {
