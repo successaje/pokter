@@ -21,6 +21,9 @@ import { Icon } from '@/ui/icons';
 import { siteUrlClient } from './site';
 import { useAgentDraft, type AgentDraft } from './useAgentDraft';
 
+/** Where `avatarUrl` puts the images this form generates. */
+const GENERATED_AVATAR_PREFIX = `${siteUrlClient()}/api/avatars/`;
+
 const STEPS = [
   { id: 'define', label: 'Define', detail: 'What it does and for whom' },
   { id: 'configure', label: 'Configure', detail: 'Endpoint, behaviour, image' },
@@ -181,8 +184,21 @@ function StepConfigure({ d }: { d: AgentDraft }) {
             );
           })}
         </div>
+        {/*
+          Empty only for a generated avatar, not for anything we happen to
+          host.
+
+          This blanked the field whenever the URL started with the site
+          origin, which was meant to say "you picked one of the avatars
+          above". It also said it about every other image on pokter.xyz —
+          paste a URL to a file in /public and the box clears itself while
+          the value is quietly kept in state, so the field looks broken and
+          the next keystroke overwrites a URL the author can no longer see.
+          The avatars have their own path; matching that is what the test
+          was always trying to do.
+        */}
         <Field label="Or your own image URL" hint="https only. Shown on your listing." >
-          {(p) => <Input {...p} value={d.draft.image.startsWith(siteUrlClient()) ? '' : d.draft.image} onChange={(e) => d.update('image', e.target.value)} placeholder="https://…/logo.png" />}
+          {(p) => <Input {...p} value={d.draft.image.startsWith(GENERATED_AVATAR_PREFIX) ? '' : d.draft.image} onChange={(e) => d.update('image', e.target.value)} placeholder="https://…/logo.png" />}
         </Field>
       </div>
 
