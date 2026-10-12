@@ -12,7 +12,10 @@ import { getAddress } from 'viem';
  * The operator key's address is added on the server (`teamWalletSet`), so it
  * cannot be forgotten here when the key changes.
  */
-export const TEAM_WALLETS: ReadonlyArray<{ address: `0x${string}`; label: string }> = [];
+export const TEAM_WALLETS: ReadonlyArray<{ address: `0x${string}`; label: string }> = [
+  { address: '0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf', label: 'Pokter team test wallet' },
+  { address: '0xcE515e144c33EDbD1c3320fde0dE6373315885eD', label: 'Pokter team test wallet' },
+];
 
 function normalise(address: string): string | null {
   try {
