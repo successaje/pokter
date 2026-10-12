@@ -84,8 +84,19 @@ function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string;
           Has published attestations
         </FilterLink>
       </section>
-      <section className="flex flex-col gap-1" aria-label="Network">
-        <h2 className="t-label mb-1.5 px-2.5">Registered on</h2>
+      {/*
+        Named for what it filters, and what it does not.
+
+        "Registered on" was accurate and still read as "hire on", because
+        for a buyer there is only one network that matters and it is the
+        one their money moves on. Those differ for most of this
+        catalogue: an agent registered on BNB Chain is hired on testnet
+        whenever its signed price is in testnet $U. The note says so
+        rather than leaving the filter to look broken, and each card now
+        carries the network its own price settles on.
+      */}
+      <section className="flex flex-col gap-1" aria-label="Registry network">
+        <h2 className="t-label mb-1.5 px-2.5">Registry network</h2>
         <FilterLink href={discoverHref({ chain: 'any' }, p)} on={p.chain === 'any'}>
           Any network
         </FilterLink>
@@ -95,6 +106,10 @@ function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string;
         <FilterLink href={discoverHref({ chain: '97' }, p)} on={p.chain === '97'}>
           BNB testnet
         </FilterLink>
+        <p className="px-2.5 pt-1 text-[12px] leading-relaxed text-ink-3">
+          Where the identity is registered, which is not always where a hire is
+          funded. Each agent&rsquo;s price says which money it settles in.
+        </p>
       </section>
       <p className="px-2.5 text-[12px] leading-relaxed text-ink-3">
         Power search: <span className="t-readout">is:reliable</span>, <span className="t-readout">has:price</span>,{' '}

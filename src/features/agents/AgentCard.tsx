@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import type { FindRow } from '@/lib/find/rows';
+import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
@@ -30,6 +31,27 @@ export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'wa
 }
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
+
+/**
+ * Which money the price is in, on the card.
+ *
+ * The catalogue showed "0.10 $U" with nothing saying whether that is a
+ * cost or faucet currency, and the network filter beside it is headed
+ * "Registered on" — the registry chain, which for most of this
+ * catalogue is not the chain a hire settles on. Filtering to BNB Chain
+ * and then reading testnet prices looks like a broken filter when it is
+ * really two different facts wearing one word.
+ */
+export function HireNetwork({ chainId, className }: { chainId: number | null; className?: string }) {
+  if (chainId === null) return null;
+  const money = escrowMoney(chainId);
+  if (money.real === null) return null;
+  return (
+    <span className={cn('text-[11.5px] font-medium', money.real ? 'text-ink-3' : 'text-watch', className)}>
+      {money.real ? 'Real funds · BNB Chain' : 'Test tokens · BNB Testnet'}
+    </span>
+  );
+}
 
 export function PriceText({ row, className }: { row: FindRow; className?: string }) {
   if (row.priceU !== null) {
@@ -75,9 +97,12 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
       </div>
       <MissedNote row={row} className="mt-1.5" />
 
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-3.5">
+      <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
         <VerdictLabel verdict={row.verdict} />
-        <PriceText row={row} className="text-[13px]" />
+        <span className="flex flex-col items-end gap-0.5">
+          <PriceText row={row} className="text-[13px]" />
+          <HireNetwork chainId={row.hireChainId} />
+        </span>
       </div>
       {action && <div className="relative z-10 mt-3">{action}</div>}
     </article>
@@ -115,7 +140,10 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
         <VerdictLabel verdict={row.verdict} />
       </span>
       <span className="col-start-2 flex items-center justify-between gap-2 sm:col-start-auto sm:justify-end">
-        <PriceText row={row} className="text-[13px]" />
+        <span className="flex flex-col sm:items-end">
+          <PriceText row={row} className="text-[13px]" />
+          <HireNetwork chainId={row.hireChainId} />
+        </span>
         {trailing}
       </span>
     </article>
@@ -149,8 +177,9 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
         </div>
         <div className="flex flex-col gap-0.5">
           <dt className="t-label">Price</dt>
-          <dd>
+          <dd className="flex flex-col gap-0.5">
             <PriceText row={row} />
+            <HireNetwork chainId={row.hireChainId} />
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
