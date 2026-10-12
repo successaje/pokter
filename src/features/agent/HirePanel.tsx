@@ -65,6 +65,11 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         ) : (
           <p className="text-[13px] text-ink-2">Pokter cannot route a paid job to this agent: no reachable provider wallet was found.</p>
         )}
+        {profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
+          <a href={`${hireHref}?escrow=97`} className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
+            Or hire free on testnet
+          </a>
+        )}
         {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
         {profile.trialAvailable && (
           <a href="#try" className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">

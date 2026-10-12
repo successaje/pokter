@@ -38,6 +38,8 @@ export interface HireFlowProps {
   escrow: { chainId: number; commerce: string; paymentToken: string };
   /** Set and Earn is running: warn that passkey hires cannot count on a second marketplace. */
   campaignLive?: boolean;
+  /** Every escrow this agent can be hired on; more than one means the buyer chooses. */
+  escrowOptions?: number[];
 }
 
 /**
@@ -270,6 +272,34 @@ export function HireFlow(props: HireFlowProps) {
             <h1 className="t-h2">What should {props.agent.name} do?</h1>
             <p className="mt-1 text-sm text-ink-2">Start from a template or write your own. The agent reads exactly this.</p>
           </div>
+          {(props.escrowOptions?.length ?? 0) > 1 && (
+            <div role="radiogroup" aria-label="Where to hire" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {props.escrowOptions!.map((option) => {
+                const selected = option === escrowChainId;
+                return (
+                  <Link
+                    key={option}
+                    role="radio"
+                    aria-checked={selected}
+                    replace
+                    scroll={false}
+                    href={`/hire/${props.agent.chainId}/${props.agent.tokenId}?escrow=${option}`}
+                    className={cn(
+                      'flex flex-col gap-0.5 rounded-[12px] border p-3.5 text-left transition-colors',
+                      selected ? 'border-ink bg-raised' : 'border-rule hover:border-rule-strong',
+                    )}
+                  >
+                    <span className="text-sm font-medium">{option === 56 ? 'Hire on BNB Chain' : 'Try free on testnet'}</span>
+                    <span className="text-[12.5px] text-ink-2">
+                      {option === 56
+                        ? 'Real $U from a browser wallet. The agent is paid directly, at its signed price.'
+                        : 'Test tokens, no cost. Pokter’s delivery agent carries your task to it and returns its answer.'}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
           <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {hire.taskTemplates.map((t) => (
               <button

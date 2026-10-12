@@ -5,18 +5,25 @@ import type { ChainId } from '@/lib/scan/types';
 import { loadProfile } from '@/features/agent/profile';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { HireFlow } from '@/features/hire/HireFlow';
+import { jobChainParam } from '@/lib/jobs/href';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Hire' };
 
-export default async function HirePage({ params }: { params: Promise<{ chainId: string; tokenId: string }> }) {
-  const { chainId: rawChain, tokenId } = await params;
+export default async function HirePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ chainId: string; tokenId: string }>;
+  searchParams: Promise<{ escrow?: string }>;
+}) {
+  const [{ chainId: rawChain, tokenId }, { escrow }] = await Promise.all([params, searchParams]);
   const chainId = Number(rawChain);
   if ((chainId !== 56 && chainId !== 97) || !/^\d{1,12}$/.test(tokenId)) notFound();
 
-  const result = await loadProfile(chainId as ChainId, tokenId);
+  const result = await loadProfile(chainId as ChainId, tokenId, { escrow: jobChainParam(escrow) });
   if (result.state === 'missing') notFound();
   if (result.state === 'unreachable') {
     return (
@@ -39,13 +46,17 @@ export default async function HirePage({ params }: { params: Promise<{ chainId: 
   }
 
   return (
+    // Keyed on the escrow, so switching between hiring options starts the
+    // form again rather than carrying a provider chosen for the other chain.
     <HireFlow
+      key={p.escrow.chainId}
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
       providers={p.providers}
       signedQuoteU={p.quote && p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
       suggestedU={p.suggestion?.u ?? null}
       warnings={p.warnings}
       escrow={p.escrow}
+      escrowOptions={p.escrowOptions}
       campaignLive={isCampaignLive()}
     />
   );

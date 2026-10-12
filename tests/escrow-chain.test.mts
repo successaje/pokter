@@ -5,6 +5,7 @@ import {
   enabledEscrowChains,
   escrowChainForCurrency,
   escrowChainForHire,
+  escrowOptionsForHire,
   ESCROW_PAYMENT_TOKEN,
   isEscrowChain,
 } from '../src/lib/network/escrow';
@@ -50,4 +51,17 @@ test('no signed price goes to testnet, never mainnet', () => {
 test('the pinned tokens are the ones the escrows settle in', () => {
   assert.equal(ESCROW_PAYMENT_TOKEN[56].toLowerCase(), MAINNET_U);
   assert.equal(ESCROW_PAYMENT_TOKEN[97], TESTNET_U);
+});
+
+test('a mainnet price is offered on mainnet first and on testnet as a free trial', () => {
+  assert.deepEqual(escrowOptionsForHire(MAINNET_U, [97, 56]), [56, 97]);
+  assert.deepEqual(escrowOptionsForHire(MAINNET_U, [97]), [97]);
+  assert.deepEqual(escrowOptionsForHire(MAINNET_U, [56]), [56]);
+});
+
+test('anything else has only testnet, as before', () => {
+  assert.deepEqual(escrowOptionsForHire(null, [97, 56]), [97]);
+  assert.deepEqual(escrowOptionsForHire(TESTNET_U, [97, 56]), [97]);
+  assert.deepEqual(escrowOptionsForHire(USDT, [97, 56]), [97]);
+  assert.deepEqual(escrowOptionsForHire(USDT, [56]), []);
 });

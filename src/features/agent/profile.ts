@@ -6,7 +6,7 @@ import type { DeclaredSkill } from '@/lib/agents/capabilities';
 import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
 import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { escrowChainForHire, isEscrowChain } from '@/lib/network/escrow';
+import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
@@ -72,6 +72,8 @@ export interface AgentProfile {
   providers: ProviderChoice[];
   deliveredByPokter: boolean;
   escrow: { chainId: number; paymentToken: string; commerce: string };
+  /** Every escrow this agent can be hired on, preferred first; `escrow` is one of them. */
+  escrowOptions: number[];
   history: AgentEconomicHistory;
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
@@ -96,18 +98,31 @@ const DIMENSION_LABEL: Record<string, string> = {
   efficiency: 'Efficiency',
 };
 
-export async function loadProfile(chainId: ChainId, tokenId: string): Promise<ProfileResult> {
+/**
+ * `escrow` asks for a hire on a particular escrow (the hire page's `?escrow=`).
+ * It is honoured only when the agent can be hired there; otherwise the
+ * preferred escrow is used.
+ */
+export async function loadProfile(chainId: ChainId, tokenId: string, options: { escrow?: number | null } = {}): Promise<ProfileResult> {
   const result = await loadDossier(chainId, tokenId);
   if (result.state !== 'ok') return result;
-  return { state: 'ok', profile: await toProfile(result.dossier) };
+  return { state: 'ok', profile: await toProfile(result.dossier, options.escrow ?? null) };
 }
 
-async function toProfile(d: AgentDossier): Promise<AgentProfile> {
+async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promise<AgentProfile> {
   const { agent, category, attestations, proof, live, record, score } = d;
   const meta = category === 'unclassified' ? null : (CATEGORY_BY_ID.get(category) ?? null);
-  // The escrow that can pay this agent's signed price, or the default escrow
-  // when none can (the page then says why it cannot be hired at that price).
-  const escrowChain = escrowChainForHire(d.quote?.currency) ?? ALTANA_NETWORK.chainId;
+  // The escrow that can pay this agent's signed price, with testnet offered
+  // as a free trial; or the default escrow when none can (the page then says
+  // why it cannot be hired at that price).
+  const escrowOptions: number[] = escrowOptionsForHire(d.quote?.currency);
+  const escrowChain =
+    requestedEscrow !== null && escrowOptions.includes(requestedEscrow)
+      ? requestedEscrow
+      : (escrowOptions[0] ?? ALTANA_NETWORK.chainId);
+  // On testnet, an agent whose price is for mainnet is reached by Pokter's
+  // delivery agent, so its price is not the one being paid.
+  const testnetTrial = escrowChain === 97 && escrowOptions.includes(56);
   const addresses = correctedErc8183Addresses(escrowChain);
 
   const [skills, delivery, providers, suggestion, alternatives] = await Promise.all([
@@ -128,7 +143,7 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
     ...(live.requiresAuth
       ? ['Its agent card says the endpoint needs credentials, so Pokter cannot carry your task to it or tell it a job is funded. Unless it watches the escrow itself, a paid job may expire undelivered.']
       : []),
-    ...(payable === false && d.quote ? [unpayablePriceNote(d.quote.currency, !isEscrowChain(56))] : []),
+    ...(payable === false && d.quote && !testnetTrial ? [unpayablePriceNote(d.quote.currency, !isEscrowChain(56))] : []),
   ];
 
   const services = Object.entries(agent.services ?? {})
@@ -198,6 +213,7 @@ async function toProfile(d: AgentDossier): Promise<AgentProfile> {
     providers,
     deliveredByPokter: agent.chain_id !== escrowChain,
     escrow: { chainId: escrowChain, paymentToken: addresses.paymentToken, commerce: addresses.commerce },
+    escrowOptions,
     history: summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)),
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
