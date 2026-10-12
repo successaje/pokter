@@ -7,7 +7,9 @@ import type { Erc8004RegistrationFile as SdkFile } from '@altananetwork/sdk';
 type Erc8004RegistrationFile = SdkFile & { tags?: string[]; categories?: string[] };
 
 import { CATEGORIES } from '@/lib/agents/categories';
+import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { readIdentityRegistration, updateIdentityFromWallet, type RegistryChainId } from '@/lib/registry/register';
+import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { Button } from '@/ui/Button';
 import { Notice, Skeleton } from '@/ui/Feedback';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
@@ -33,6 +35,10 @@ type Editable = { name: string; description: string; image: string; endpoint: st
  * and an endpoint change must pass the same preflight as a new listing.
  */
 export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; tokenId: string }) {
+  const { wallet: passkeyWallet } = usePasskeyWallet();
+  const passkeySigner = usePasskeySigner();
+  const passkeyAddress = passkeyWallet?.address ?? null;
+  const [passkeyOwns, setPasskeyOwns] = useState(false);
   const [file, setFile] = useState<Erc8004RegistrationFile | null>(null);
   const [original, setOriginal] = useState<Editable | null>(null);
   const [form, setForm] = useState<Editable | null>(null);
@@ -45,8 +51,14 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
 
   useEffect(() => {
     readIdentityRegistration(chainId, tokenId)
-      .then(({ file: raw }) => {
+      .then(({ file: raw, owner }) => {
         const f = raw as Erc8004RegistrationFile;
+        /* Read from chain rather than inferred: the editor must know
+           which wallet can actually sign the update before it offers to
+           make one. */
+        setPasskeyOwns(
+          Boolean(passkeyAddress && owner.toLowerCase() === passkeyAddress.toLowerCase()),
+        );
         const index = serviceIndex(f);
         const service = index >= 0 ? f.services![index] : null;
         const e: Editable = { name: f.name ?? '', description: f.description ?? '', image: f.image ?? '', endpoint: service?.endpoint ?? '', category: [...(f.categories ?? []), ...(f.tags ?? [])].find((t) => CATEGORY_IDS.has(t)) ?? '' };
@@ -56,7 +68,7 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
         setChecked(e.endpoint);
       })
       .catch((err) => setLoadError((err as Error).message));
-  }, [chainId, tokenId]);
+  }, [chainId, tokenId, passkeyAddress]);
 
   if (loadError) return <Notice tone="watch" title="This profile cannot be edited here">{loadError}</Notice>;
   if (!form || !original || !file) return <Skeleton className="h-64 w-full" />;
@@ -105,7 +117,24 @@ export function ProfileEditor({ chainId, tokenId }: { chainId: RegistryChainId; 
         tags: withCategory(file!.tags, form!.category),
         categories: withCategory(file!.categories, form!.category),
       } as Erc8004RegistrationFile;
-      const result = await updateIdentityFromWallet({ chainId, agentId: tokenId, file: next, onProgress: (s) => setStep(String(s)) });
+      /*
+       * A passkey-owned identity is edited by its own wallet. Studio
+       * knows the owner because it only shows this editor to a verified
+       * session, so when that owner is this browser's passkey wallet the
+       * update goes through the same signer registration uses — rather
+       * than prompting an injected wallet that owns nothing here.
+       */
+      const ownedByPasskey = Boolean(passkeyWallet && passkeySigner && passkeyOwns);
+      const result = await updateIdentityFromWallet({
+        chainId,
+        agentId: tokenId,
+        file: next,
+        onProgress: (s) => setStep(String(s)),
+        signer:
+          ownedByPasskey && passkeyWallet && passkeySigner
+            ? passkeyRegistrySigner({ wallet: { address: passkeyWallet.address }, signer: passkeySigner, chainId })
+            : undefined,
+      });
       setFile(next);
       setOriginal(form);
       setSaved(!result.unchanged);

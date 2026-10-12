@@ -15,6 +15,7 @@ import { useActiveWallet } from '@/lib/wallet/active';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
+import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
 import { AgentAvatar } from '@/ui/Agent';
 import { Button, LinkButton } from '@/ui/Button';
 import { Segmented } from '@/ui/Controls';
@@ -256,21 +257,56 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
     if (!report) return;
     setVerifyError(null);
     try {
-      if (!hasIdentityWallet()) {
-        throw new Error(passkey.wallet ? 'Proving ownership needs a message signature a passkey wallet cannot produce yet. Use the browser wallet that owns this identity.' : 'Open Pokter in a browser with the wallet that owns this identity.');
+      /*
+       * The passkey wallet proves ownership here too.
+       *
+       * This used to refuse it outright — "a message signature a passkey
+       * wallet cannot produce yet" — which was true of the signature then
+       * being asked for and not of the wallet. Its account validates
+       * ERC-1271 itself, so when the owner on record is this browser's
+       * passkey wallet, that wallet signs. An injected wallet is only
+       * reached for when it is not.
+       */
+      const ownerIsPasskey = Boolean(
+        passkey.wallet && report.owner && getAddress(passkey.wallet.address) === getAddress(report.owner),
+      );
+      if (!ownerIsPasskey && !hasIdentityWallet()) {
+        throw new Error(
+          passkey.wallet
+            ? `Your passkey wallet ${shortAddress(passkey.wallet.address)} does not own this identity${report.owner ? ` (${shortAddress(report.owner)})` : ''}. Open Pokter with the wallet that does.`
+            : 'Open Pokter in a browser with the wallet that owns this identity.',
+        );
       }
       setVerify('connecting');
-      const address = await connectIdentityWallet();
+      const address = ownerIsPasskey
+        ? getAddress(passkey.wallet!.address)
+        : await connectIdentityWallet();
       if (!report.owner || getAddress(address) !== getAddress(report.owner)) throw new Error(`The connected wallet ${shortAddress(address)} is not this identity’s owner${report.owner ? ` (${shortAddress(report.owner)})` : ''}.`);
       const c = await fetch('/api/builders/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'challenge', chainId: report.chainId, tokenId: report.tokenId }) });
       const challenge = (await c.json()) as { challenge?: { id: string; message: string }; error?: string };
       if (!c.ok || !challenge.challenge) throw new Error(challenge.error ?? 'Could not prepare the ownership check.');
       setVerify('signing');
-      const signature = await signIdentityMessage(address, challenge.challenge.message);
+      const signature = ownerIsPasskey
+        ? await signPasskeyMessage(passkey.wallet!, challenge.challenge.message)
+        : await signIdentityMessage(address, challenge.challenge.message);
       setVerify('checking');
       const v = await fetch('/api/builders/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'verify', challengeId: challenge.challenge.id, signature }) });
       const verified = (await v.json()) as { publisher?: unknown; error?: string };
-      if (!v.ok || !verified.publisher) throw new Error(verified.error ?? 'Ownership could not be verified.');
+      if (!v.ok || !verified.publisher) {
+        /*
+         * A passkey signature is checked by the account itself, on chain,
+         * so a rejection here is not the builder having the wrong wallet
+         * — it is the account declining a signature made by its own key.
+         * Saying "that wallet is not the owner" in that case would send
+         * somebody looking for a wallet they do not have.
+         */
+        if (ownerIsPasskey && v.status === 403) {
+          throw new Error(
+            'Your passkey wallet signed, and the account on chain did not accept the signature. That is a fault on Pokter’s side, not yours — tell us and use a browser wallet meanwhile if you have one.',
+          );
+        }
+        throw new Error(verified.error ?? 'Ownership could not be verified.');
+      }
       setVerify('done');
       router.push(`/studio/agents/${report.chainId}/${report.tokenId}`);
       router.refresh();
