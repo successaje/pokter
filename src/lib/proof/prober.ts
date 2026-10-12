@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { cardRequiresAuth } from './card-access';
+import { a2aCardFallback, cardRequiresAuth } from './card-access';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Agent } from 'undici';
@@ -269,10 +269,33 @@ export function probeTarget(
   return null;
 }
 
+/**
+ * One probe. For A2A, an endpoint that answers with something other than an
+ * agent card is given one more chance at the card's location (see
+ * `a2aCardFallback`): builders often publish their base URL, and the A2A
+ * specification puts the card at a well-known path under it.
+ */
 async function probeOnce(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
 ): Promise<ProbeResult> {
+  const { result, body } = await probeAt(endpoint, protocol);
+  // Only an endpoint that answered: an unreachable host has no card either.
+  if (protocol !== 'a2a' || result.ok || result.status === null) return result;
+  const card = a2aCardFallback(endpoint, body);
+  if (!card) return result;
+  const retried = (await probeAt(card, protocol)).result;
+  if (!retried.ok) return result;
+  return {
+    ...retried,
+    detail: `${retried.detail} Read from ${card}, because ${endpoint} is not itself an agent card; publishing the card's URL as the endpoint saves a call.`,
+  };
+}
+
+async function probeAt(
+  endpoint: string,
+  protocol: 'a2a' | 'mcp',
+): Promise<{ result: ProbeResult; body?: Record<string, unknown> }> {
   const startedAt = Date.now();
   const at = new Date().toISOString();
   let endpointHandle: PinnedEndpoint | null = null;
@@ -314,11 +337,13 @@ async function probeOnce(
 
     if (!response.ok) {
       return {
-        ok: false,
-        latencyMs,
-        status: response.status,
-        detail: `Endpoint answered ${response.status} ${response.statusText}.`,
-        at,
+        result: {
+          ok: false,
+          latencyMs,
+          status: response.status,
+          detail: `Endpoint answered ${response.status} ${response.statusText}.`,
+          at,
+        },
       };
     }
 
@@ -326,11 +351,13 @@ async function probeOnce(
       const body = asObject(await readJson(response));
       if (!body) {
         return {
-          ok: false,
-          latencyMs,
-          status: response.status,
-          detail: 'Endpoint returned 200 but the body was not a JSON object.',
-          at,
+          result: {
+            ok: false,
+            latencyMs,
+            status: response.status,
+            detail: 'Endpoint returned 200 but the body was not a JSON object.',
+            at,
+          },
         };
       }
       const capabilities =
@@ -352,41 +379,50 @@ async function probeOnce(
             Array.isArray(body.skills);
       if (!valid) {
         return {
-          ok: false,
-          latencyMs,
-          status: response.status,
-          detail: `Endpoint returned JSON, but not a valid ${protocol.toUpperCase()} capability response.`,
-          at,
+          result: {
+            ok: false,
+            latencyMs,
+            status: response.status,
+            detail: `Endpoint returned JSON, but not a valid ${protocol.toUpperCase()} capability response.`,
+            at,
+          },
+          body,
         };
       }
       return {
-        ok: true,
-        latencyMs,
-        status: response.status,
-        detail: `${protocol.toUpperCase()} capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared ${protocol === 'mcp' ? 'tools' : 'skills'}` : ''}.`,
-        capabilities,
-        requiresAuth: protocol === 'a2a' ? cardRequiresAuth(body) : false,
-        at,
+        result: {
+          ok: true,
+          latencyMs,
+          status: response.status,
+          detail: `${protocol.toUpperCase()} capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared ${protocol === 'mcp' ? 'tools' : 'skills'}` : ''}.`,
+          capabilities,
+          requiresAuth: protocol === 'a2a' ? cardRequiresAuth(body) : false,
+          at,
+        },
       };
     } catch (error) {
       return {
-        ok: false,
-        latencyMs,
-        status: response.status,
-        detail: `Endpoint answered, but its ${protocol.toUpperCase()} response was invalid: ${(error as Error).message}.`,
-        at,
+        result: {
+          ok: false,
+          latencyMs,
+          status: response.status,
+          detail: `Endpoint answered, but its ${protocol.toUpperCase()} response was invalid: ${(error as Error).message}.`,
+          at,
+        },
       };
     }
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
     return {
-      ok: false,
-      latencyMs: null,
-      status: null,
-      detail: timedOut
-        ? `No response within ${PROBE_TIMEOUT_MS / 1000}s.`
-        : `Request failed: ${(error as Error).message}.`,
-      at,
+      result: {
+        ok: false,
+        latencyMs: null,
+        status: null,
+        detail: timedOut
+          ? `No response within ${PROBE_TIMEOUT_MS / 1000}s.`
+          : `Request failed: ${(error as Error).message}.`,
+        at,
+      },
     };
   } finally {
     await endpointHandle?.close();

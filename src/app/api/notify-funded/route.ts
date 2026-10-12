@@ -3,6 +3,7 @@ import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
+import { readAgentCard } from '@/lib/agents/agent-card';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
@@ -157,17 +158,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 409 },
       );
     }
-    const card = await withPublicEndpoint(cardEndpoint, async (card_) => {
-      const cardResponse = await card_.fetch({
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!cardResponse.ok)
-        throw new Error(`Agent Card answered ${cardResponse.status}`);
-      return object(await readJson(cardResponse));
-    });
+    const card = await readAgentCard(cardEndpoint);
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const supportsNotification = skills.some(
       (skill) => object(skill)?.id === 'notify_funded',
