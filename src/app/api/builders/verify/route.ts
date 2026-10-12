@@ -49,6 +49,34 @@ async function signedByOwner(chainId: number, owner: Address, message: string, s
   return verifyMessage({ address: owner, message, signature });
 }
 
+/** An EIP-191 signature is 65 bytes; a contract-wallet signature is not. */
+function looksLikeEoaSignature(signature: Hex): boolean {
+  return signature.length === 132;
+}
+
+/**
+ * Whether a smart-account signature could be checked at all.
+ *
+ * A smart account validates its own signatures, so if it has no code the
+ * check cannot even be attempted — and the Altana SDK is explicit that a
+ * freshly created wallet is counterfactual until its first `execute`. A
+ * wallet in that state is told what is actually true, rather than that
+ * its signature did not match, which would send somebody hunting for a
+ * wallet they do not have.
+ */
+async function ownerCanBeChecked(chainId: number, owner: Address, signature: Hex): Promise<boolean> {
+  if (looksLikeEoaSignature(signature)) return true;
+  const client = registryClient(chainId);
+  if (!client) return true;
+  try {
+    const code = await client.getCode({ address: owner });
+    return Boolean(code && code !== '0x');
+  } catch {
+    /* Unknown is not a refusal: let the signature check decide. */
+    return true;
+  }
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`builder-verify:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
   if (!rate.allowed) return NextResponse.json({ error: 'Verification limit reached. Try again shortly.' }, { status: 429 });
@@ -74,6 +102,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     const challenge = readBuilderChallenge(challengeId);
     if (!challenge) return NextResponse.json({ error: 'This challenge expired or was already used.' }, { status: 409 });
     try {
+      if (!(await ownerCanBeChecked(challenge.chainId, challenge.owner, signature as Hex))) {
+        return NextResponse.json(
+          {
+            error:
+              'This wallet has not acted on chain yet, so it cannot prove ownership by signature. A smart-account wallet is only created on chain by its first transaction.',
+          },
+          { status: 409 },
+        );
+      }
       if (!(await signedByOwner(challenge.chainId, challenge.owner, challenge.message, signature as Hex))) {
         return NextResponse.json({ error: 'The signature does not match the registered owner.' }, { status: 403 });
       }

@@ -329,15 +329,18 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const funding = useChainFunding((signingAddress as `0x${string}` | null) ?? null);
 
   /*
-   * A passkey wallet cannot sign the challenge: it is a smart account with
-   * no message-signing path here, and the registry owner is the account
-   * itself rather than any injected address. Reporting that plainly beats
-   * asking an unrelated browser wallet to sign and showing the builder a
-   * mismatch.
+   * A passkey wallet signs this too, now that the signature asked for is
+   * the one its account can make. The owner is the smart account, so the
+   * wallet it just registered from is the wallet that must sign — passing
+   * it through means an injected wallet also connected to this page
+   * cannot be prompted for an identity it does not own.
    */
   async function claimAccessFor(record: PublishedRecord): Promise<ClaimOutcome> {
-    if (passkeyCanPublish) return 'unavailable';
-    return claimStudioSession({ chainId: record.chainId, tokenId: record.tokenId });
+    return claimStudioSession({
+      chainId: record.chainId,
+      tokenId: record.tokenId,
+      passkey: passkeyCanPublish ? passkeyWallet : null,
+    });
   }
 
   async function publish() {

@@ -3,6 +3,8 @@
 import { getAddress } from 'viem';
 
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
+import type { StoredWallet } from '@/lib/wallet/passkey';
+import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
 
 /**
  * Turn a registration completed in this browser into Studio access.
@@ -20,6 +22,11 @@ import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@
  * Best effort by design. A declined or impossible signature leaves the
  * registration exactly as it was and the import path still works; the
  * success panel says which happened rather than pretending either way.
+ *
+ * A passkey wallet signs too, which it could not before. The signature is
+ * ERC-1271 rather than EIP-191 — the account validates it itself — and
+ * the server already asks the chain, so both kinds of owner arrive at the
+ * same check. See `signPasskeyMessage`.
  */
 
 export type ClaimOutcome = 'claimed' | 'declined' | 'unavailable' | 'failed';
@@ -27,8 +34,10 @@ export type ClaimOutcome = 'claimed' | 'declined' | 'unavailable' | 'failed';
 export async function claimStudioSession(input: {
   chainId: number;
   tokenId: string;
+  /** Present when the owner is this browser's passkey wallet. */
+  passkey?: StoredWallet | null;
 }): Promise<ClaimOutcome> {
-  if (!hasIdentityWallet()) return 'unavailable';
+  if (!input.passkey && !hasIdentityWallet()) return 'unavailable';
   try {
     /*
      * The signing address comes from the wallet rather than from React
@@ -37,7 +46,9 @@ export async function claimStudioSession(input: {
      * idea of the connected account can be empty while the wallet that
      * just minted is right there. Already connected, so no prompt.
      */
-    const address = await connectIdentityWallet();
+    const address = input.passkey
+      ? getAddress(input.passkey.address)
+      : await connectIdentityWallet();
 
     const c = await fetch('/api/builders/verify', {
       method: 'POST',
@@ -51,7 +62,9 @@ export async function claimStudioSession(input: {
        would fail server-side with a less useful message than this one. */
     if (challenge.challenge.owner && getAddress(challenge.challenge.owner) !== address) return 'unavailable';
 
-    const signature = await signIdentityMessage(address, challenge.challenge.message);
+    const signature = input.passkey
+      ? await signPasskeyMessage(input.passkey, challenge.challenge.message)
+      : await signIdentityMessage(address, challenge.challenge.message);
 
     const v = await fetch('/api/builders/verify', {
       method: 'POST',

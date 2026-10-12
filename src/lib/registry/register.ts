@@ -130,22 +130,31 @@ export async function readIdentityRegistration(
   }
 }
 
-/** Update one owned identity and verify the exact URI read back from chain. */
+/**
+ * Update one owned identity and verify the exact URI read back from chain.
+ *
+ * Takes the same `RegistrySigner` registration does, instead of reaching
+ * for `window.ethereum` itself. A passkey wallet could publish an
+ * identity and then not edit it, which is the wrong way round twice over:
+ * the builders Pokter offers passkeys to are the ones most likely to need
+ * the editor, and an agent whose profile cannot be corrected is an agent
+ * whose first mistake is permanent.
+ */
 export async function updateIdentityFromWallet(input: {
   chainId: RegistryChainId;
   agentId: string;
   file: Erc8004RegistrationFile;
   onProgress?: (step: ProfileUpdateStep) => void;
+  /** Defaults to the injected browser wallet, as this always did. */
+  signer?: RegistrySigner;
 }): Promise<{ owner: Address; transactionHash?: Hex; unchanged: boolean }> {
   if (!/^\d+$/.test(input.agentId)) throw new Error('The ERC-8004 agent ID is invalid.');
   const report = input.onProgress ?? (() => {});
-  const provider = injectedProvider();
   report('connecting');
-  const accounts = await provider.request({ method: 'eth_requestAccounts' }) as Address[];
-  if (!accounts.length) throw new Error('No wallet account was selected.');
-  const owner = getAddress(accounts[0]);
+  const signer = input.signer ?? (await injectedRegistrySigner(input.chainId));
+  const owner = signer.address;
   report('switching-network');
-  await ensureChain(provider, input.chainId);
+  await signer.prepare();
 
   const agentId = BigInt(input.agentId);
   const current = await getErc8004Agent(networkFor(input.chainId), agentId);
@@ -160,13 +169,10 @@ export async function updateIdentityFromWallet(input: {
   }
 
   const chain = chainFor(input.chainId);
-  const wallet = createWalletClient({ chain, transport: custom(provider) });
   const read = createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) });
   const call = buildErc8004SetAgentUriCall(input.chainId, agentId, completedUri);
   report('updating-profile');
-  const transactionHash = await wallet.sendTransaction({
-    account: owner, chain, to: call.to as Address, data: call.data as Hex,
-  });
+  const transactionHash = await signer.send({ to: call.to as Address, data: call.data as Hex });
   const receipt = await read.waitForTransactionReceipt({ hash: transactionHash });
   if (receipt.status !== 'success') throw new Error('The profile update transaction reverted.');
   report('verifying');
