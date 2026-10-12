@@ -60,6 +60,42 @@ export const RUNTIME_OPTIONS: Record<string, { target: string[]; policy: string[
 
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
+/**
+ * The finished registration, kept on disk.
+ *
+ * `published` used to live only in memory, and success deleted the draft.
+ * So anything that remounted this component between the last signature
+ * and the reader looking at the screen lost both: no success panel, no
+ * draft, back to an empty form — with an identity minted on chain and
+ * nothing saying so. A wallet that reloads the page when it switches
+ * network does exactly that, and switching network is a step in this
+ * flow.
+ *
+ * Registering twice is the expensive version of that mistake, so the
+ * result outlives the render. The name rides along because the draft it
+ * came from is deliberately deleted on success.
+ */
+const REGISTRATION_PUBLISHED_KEY = 'pokter-agent-registration-published-v1';
+
+interface PublishedRecord {
+  chainId: RegistryChainId;
+  tokenId: string;
+  name: string;
+}
+
+function publishedKey(draftId: string) {
+  return `${REGISTRATION_PUBLISHED_KEY}:${draftId}`;
+}
+
+function readPublished(draftId: string): PublishedRecord | null {
+  try {
+    const stored = window.localStorage.getItem(publishedKey(draftId));
+    return stored ? (JSON.parse(stored) as PublishedRecord) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Recovery belongs to one draft: resuming another draft's half-finished
 // mint would write this profile onto that draft's token.
 function recoveryKey(draftId: string) {
@@ -118,7 +154,21 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const [progress, setProgress] = useState<RegistrationProgress | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
-  const [published, setPublished] = useState<{ chainId: RegistryChainId; tokenId: string } | null>(null);
+  const [published, setPublished] = useState<PublishedRecord | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = readPublished(draftId);
+    if (saved) return saved;
+    /*
+     * A recovery record that already carries an agent id means the mint
+     * landed, whatever happened to the tab afterwards. Treating that as
+     * published is the difference between telling somebody they own
+     * identity #2599 and letting them pay to mint #2600.
+     */
+    const r = readRecovery(draftId);
+    return r?.agentId
+      ? { chainId: r.chainId as RegistryChainId, tokenId: String(r.agentId), name: '' }
+      : null;
+  });
 
   // Autosave every meaningful change to this device.
   useEffect(() => {
@@ -300,8 +350,18 @@ export function useAgentDraft(initial?: StoredDraft | null) {
           }
         },
       });
-      setPublished({ chainId: network, tokenId: result.agentId.toString() });
+      const record: PublishedRecord = {
+        chainId: network,
+        tokenId: result.agentId.toString(),
+        name: draft.name.trim(),
+      };
+      setPublished(record);
       setRecovery(null);
+      try {
+        window.localStorage.setItem(publishedKey(draftId), JSON.stringify(record));
+      } catch {
+        /* Then it only survives this render, as it did before. */
+      }
       try {
         window.localStorage.removeItem(recoveryKey(draftId));
         const stored = window.localStorage.getItem(DRAFTS_KEY);

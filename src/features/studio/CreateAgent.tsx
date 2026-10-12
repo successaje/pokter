@@ -308,7 +308,17 @@ function StepPublish({ d }: { d: AgentDraft }) {
             <Icon.Check size={22} />
           </span>
           <div>
-            <h2 className="t-h2">{d.draft.name} is registered</h2>
+            {/*
+              The name comes from the saved record first.
+
+              Success deletes the draft, so after a remount `d.draft.name`
+              is empty and this heading read " is registered". The record
+              carries the name for exactly that case; the draft is only a
+              fallback for a registration finished in this same render.
+            */}
+            <h2 className="t-h2">
+              {d.published.name || d.draft.name || 'Your agent'} is registered
+            </h2>
             <p className="text-sm text-ink-2">
               ERC-8004 identity <span className="t-readout">#{d.published.tokenId}</span> on {d.published.chainId === 56 ? 'BNB Chain' : 'BNB testnet'}.
             </p>
