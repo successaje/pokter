@@ -13,6 +13,11 @@ import { registerIdentityFromWallet, type RegistrationProgress, type Registratio
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useChainFunding } from '@/lib/wallet/use-chain-funding';
+import {
+  forgetActiveRegistration,
+  readActiveRegistration,
+  rememberActiveRegistration,
+} from './active-registration';
 import { claimStudioSession, type ClaimOutcome } from './claim-session';
 import { siteUrlClient } from './site';
 
@@ -133,7 +138,21 @@ function download(name: string, payload: unknown) {
  * The network checks are the same ones a buyer's hire relies on.
  */
 export function useAgentDraft(initial?: StoredDraft | null) {
-  const [draftId] = useState(() => initial?.id ?? `draft-${Date.now()}`);
+  /*
+   * A new draft adopts a registration already in flight, rather than
+   * minting a fresh id and losing it.
+   *
+   * `draft-${Date.now()}` is a different id on every mount, so a remount
+   * during registration — which a wallet causes on mainnet, where the
+   * flow asks it to switch network — orphaned the saved result and the
+   * saved recovery alike, and returned the reader to an empty form with
+   * an identity already on chain. See `active-registration`.
+   */
+  const [draftId] = useState(() => {
+    if (initial?.id) return initial.id;
+    if (typeof window === 'undefined') return `draft-${Date.now()}`;
+    return readActiveRegistration()?.draftId ?? `draft-${Date.now()}`;
+  });
   const [draft, setDraft] = useState<Draft>(() => ({ ...EMPTY_DRAFT, ...(initial?.draft ?? {}) }));
   const [step, setStep] = useState(initial?.step ?? 0);
   const [runtimeChoice, setRuntimeChoice] = useState<{ category: string; target: string; policy: string; output: string }>({ category: '', target: '', policy: '', output: '' });
@@ -362,6 +381,9 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     }
     setPublishing(true);
     setPublishError(null);
+    /* Before the first signature, so a remount at any point after it can
+       find this draft again. */
+    rememberActiveRegistration(draftId);
     try {
       const compatible = recovery?.chainId === network ? recovery : undefined;
       const result = await registerIdentityFromWallet({
@@ -484,6 +506,32 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     publishing,
     publishError,
     published,
+    /*
+     * The way out of a finished registration.
+     *
+     * The in-flight record outlives the flow on purpose, so a remount
+     * cannot lose a mint — which means somebody registering a second
+     * agent within the hour would otherwise be handed the first one's
+     * success panel. This forgets it, clears what was stored for this
+     * draft and empties the form. The draft id stays, which is harmless
+     * now that nothing is filed under it.
+     */
+    startAnother: () => {
+      forgetActiveRegistration();
+      try {
+        window.localStorage.removeItem(publishedKey(draftId));
+        window.localStorage.removeItem(recoveryKey(draftId));
+      } catch {
+        /* The state reset below is what the reader sees either way. */
+      }
+      setPublished(null);
+      setRecovery(null);
+      setProgress(null);
+      setPublishError(null);
+      setClaim(null);
+      setDraft({ ...EMPTY_DRAFT });
+      setStep(0);
+    },
     claim,
     claimAccess: async () => {
       if (!published) return;
@@ -492,6 +540,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     },
     publish,
     discardRecovery: () => {
+      forgetActiveRegistration();
       setRecovery(null);
       setProgress(null);
       try {

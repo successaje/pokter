@@ -392,6 +392,9 @@ function StepPublish({ d }: { d: AgentDraft }) {
           <LinkButton href={`/agents/${d.published.chainId}/${d.published.tokenId}`} intent="secondary">
             See the public listing
           </LinkButton>
+          <Button intent="ghost" onClick={d.startAnother}>
+            Register another
+          </Button>
         </div>
       </div>
     );
