@@ -1,3 +1,4 @@
+import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
@@ -128,16 +129,7 @@ export async function requestQuote(
   if (!endpoint || !agent.agent_wallet) return null;
 
   try {
-    const card = await withPublicEndpoint(endpoint, async (cardEndpoint) => {
-      const response = await cardEndpoint.fetch({
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!response.ok) throw new Error(`Agent Card answered ${response.status}.`);
-      return object(await readJson(response));
-    });
+    const card = await readAgentCard(endpoint);
 
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const negotiateSkill = negotiationSkillOf(skills);

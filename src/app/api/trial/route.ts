@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { readAgentCard } from '@/lib/agents/agent-card';
 import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import {
   consumeRateLimit,
@@ -83,17 +84,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const card = await withPublicEndpoint(endpoint, async (cardEndpoint) => {
-      const cardResponse = await cardEndpoint.fetch({
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!cardResponse.ok)
-        throw new Error(`Agent Card answered ${cardResponse.status}.`);
-      return object(await readJson(cardResponse));
-    });
+    const card = await readAgentCard(endpoint);
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const canNegotiate = skills.some((skill) => {
       const value = object(skill);

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { readAgentCard } from '@/lib/agents/agent-card';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
@@ -45,11 +46,7 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
   const endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
   if (!endpoint) throw new NotAskableError('The agent publishes no A2A endpoint, so a brief cannot be sent to it.');
 
-  const card = await withPublicEndpoint(endpoint, async (handle) => {
-    const response = await handle.fetch({ headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000) });
-    if (!response.ok) throw new Error(`The agent card answered ${response.status}.`);
-    return object(await readJson(response));
-  });
+  const card = await readAgentCard(endpoint);
   const skill = pickWorkSkill(card?.skills);
   if (!skill || typeof card?.url !== 'string') throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
   return { ...target, name: agent.name ?? null, serviceUrl: card.url, skill };
