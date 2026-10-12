@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { IS_TESTNET } from '@/lib/network/presentation';
+import { IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
@@ -48,7 +48,18 @@ export function SiteHeader() {
       >
         <div className={cn('frame flex items-center gap-6 transition-[height] duration-300 ease-out', scrolled ? 'h-14' : 'h-16')}>
           <Wordmark />
-          {IS_TESTNET && (
+          {/*
+            Shown only while every hire really is test money.
+
+            This badge said "Testnet", with a tooltip claiming escrow
+            runs on testnet with test tokens, in the most prominent text
+            on the site — and it kept saying it after mainnet escrow was
+            enabled and a hire settled in real $U. A global claim cannot
+            be true when hires settle on whichever chain the agent's
+            signed price names, so it is made only when it holds, and
+            each price now carries its own currency beside it.
+          */}
+          {IS_TESTNET && !MAINNET_ESCROW && (
             <span className="hidden rounded-full border border-rule-strong px-2 py-0.5 text-[11px] font-medium text-ink-3 sm:inline" title="Escrow runs on BNB Smart Chain testnet with test tokens">
               Testnet
             </span>
