@@ -230,6 +230,28 @@ export function scoreCategories(agent: ClassifiableAgent): CategoryScore[] {
 /** Minimum confidence before we will place an agent in a category at all. */
 const CLASSIFY_THRESHOLD = 0.3;
 
+/**
+ * What put an agent in its category: the publisher, or Pokter reading prose.
+ *
+ * A declared tag carries 0.9 of the 1.0 confidence budget — "close to
+ * decisive", as the scorer says — so for most classified agents the
+ * category is the publisher's own declaration that Pokter accepted, not
+ * something Pokter worked out. Saying otherwise was a provenance claim
+ * about provenance, which is the one kind this product cannot get wrong.
+ */
+export function categorySignalSource(
+  agent: ClassifiableAgent,
+  category: Category,
+): 'declared' | 'name' | 'description' | null {
+  const { tags, name, text } = corpusFor(agent);
+  const { strong, weak } = SIGNALS[category];
+  const terms = [...strong, ...weak];
+  if (terms.some((term) => tags.includes(term))) return 'declared';
+  if (terms.some((term) => name.includes(term))) return 'name';
+  if (terms.some((term) => text.includes(term))) return 'description';
+  return null;
+}
+
 export function classify(agent: ClassifiableAgent): Classification {
   const [best] = scoreCategories(agent);
   if (!best || best.confidence < CLASSIFY_THRESHOLD) return 'unclassified';
