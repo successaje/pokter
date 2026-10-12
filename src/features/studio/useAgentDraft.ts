@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 import { useAccount } from 'wagmi';
 
-import { CATEGORIES } from '@/lib/agents/categories';
+import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
 import { DRAFTS_KEY, announceDraftsChanged, isDraftEmpty, upsertDraft, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
 import { selectTrialCapability } from '@/lib/builder/trial';
@@ -233,7 +233,12 @@ export function useAgentDraft(initial?: StoredDraft | null) {
   const checks = [
     { id: 'name', label: 'A clear name', done: draft.name.trim().length >= 3 && draft.name.trim().length <= 80, hint: '3 to 80 characters' },
     { id: 'description', label: 'An outcome-led description', done: draft.description.trim().length >= 40 && draft.description.trim().length <= 600, hint: '40 to 600 characters: what it returns, for whom, and what it will not do' },
-    { id: 'category', label: 'A marketplace category', done: CATEGORIES.some((c) => c.id === draft.category), hint: 'So buyers searching by outcome can find it' },
+    {
+      id: 'category',
+      label: 'A marketplace category',
+      done: CATEGORIES.some((c) => c.id === draft.category) || draft.category === NO_CATEGORY,
+      hint: 'So buyers searching by outcome can find it, or say none fits',
+    },
     { id: 'endpoint', label: 'An endpoint that answers', done: endpointChecked, hint: 'Checked by Pokter the way a hire would call it' },
     { id: 'image', label: 'A public image', done: /^https:\/\//i.test(image) && image.length <= 2048, hint: 'An https image, or the generated one' },
   ];
@@ -252,7 +257,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
       createAgentBuildPrompt({
         name: draft.name.trim(),
         description: draft.description.trim(),
-        category: CATEGORIES.find((c) => c.id === draft.category)?.label ?? draft.category,
+        category: CATEGORIES.find((c) => c.id === draft.category)?.label ?? '',
         protocol: draft.protocol,
         target: runtime.target,
         policy: runtime.policy,
@@ -273,8 +278,14 @@ export function useAgentDraft(initial?: StoredDraft | null) {
           ...(draft.repository.trim() ? [{ name: 'repository', endpoint: draft.repository.trim() }] : []),
         ],
         registrations: [],
-        tags: draft.category ? [draft.category] : [],
-        categories: draft.category ? [draft.category] : [],
+        /*
+         * Only a real category is written. `NO_CATEGORY` is the
+         * publisher's answer to the form, not a tag — writing "none"
+         * into the registry would put the word in front of every reader
+         * and every other marketplace's classifier.
+         */
+        tags: CATEGORIES.some((c) => c.id === draft.category) ? [draft.category] : [],
+        categories: CATEGORIES.some((c) => c.id === draft.category) ? [draft.category] : [],
         x402Support: false,
         active: true,
         supportedTrust: ['reputation'],

@@ -27,6 +27,24 @@ export type Category =
 
 export type Classification = Category | 'unclassified';
 
+/**
+ * A publisher saying none of the five fits, as opposed to not having
+ * chosen yet.
+ *
+ * Studio required one of the five to register, so an agent that fits
+ * none had to claim one — and a declared tag is close to decisive in the
+ * classifier, so the claim became the description buyers read. Pokter's
+ * own evidence agent went out tagged `token-safety`, and its page told
+ * readers it reports on what a token contract can do to a holder. That
+ * is the marketplace publishing a false claim about an agent to satisfy
+ * its own form.
+ *
+ * The cost of choosing this is real and is stated where it is chosen: an
+ * unclassified agent is not in the category listings Discover is built
+ * from. A quiet listing beats a wrong one.
+ */
+export const NO_CATEGORY = 'none';
+
 export interface CategoryMeta {
   id: Category;
   label: string;
