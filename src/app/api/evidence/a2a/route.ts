@@ -4,7 +4,7 @@ import { EVIDENCE_AGENT, evidenceCard } from '@/lib/evidence/agent';
 import { signEvidenceQuote } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
-import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
+import { EVIDENCE_CHAINS, evidenceChain, quoteChainFor } from '@/lib/evidence/refs';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { ChainId } from '@/lib/scan/types';
 
@@ -62,8 +62,8 @@ function reply(id: unknown, data: unknown) {
  * and is true: this is where the agent lives, and the card says what it
  * can do.
  */
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json(evidenceCard(siteOrigin()), {
+export async function GET(request: Request): Promise<NextResponse> {
+  return NextResponse.json(evidenceCard(siteOrigin(), evidenceChain(new URL(request.url).searchParams.get('chain')) ?? undefined), {
     headers: { 'cache-control': 'public, max-age=300' },
   });
 }
@@ -112,10 +112,11 @@ export async function POST(request: Request): Promise<NextResponse> {
      * comes from the request because one agent listed across marketplaces
      * that settle differently cannot hold a single currency.
      */
-    const asked = Number(data.chain_id ?? data.chainId);
-    const chainId = (EVIDENCE_CHAINS as number[]).includes(asked)
-      ? (asked as ChainId)
-      : (EVIDENCE_CHAINS[0] as ChainId);
+    const chainId = quoteChainFor({
+      chainId: data.chain_id ?? data.chainId,
+      escrowChains: data.escrow_chains,
+      endpointChain: new URL(request.url).searchParams.get('chain'),
+    });
     const askedTerms = object(data.terms);
     try {
       const quote = await signEvidenceQuote({

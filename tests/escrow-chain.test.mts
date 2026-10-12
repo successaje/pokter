@@ -8,6 +8,7 @@ import {
   escrowOptionsForHire,
   ESCROW_PAYMENT_TOKEN,
   isEscrowChain,
+  settlementHint,
 } from '../src/lib/network/escrow';
 
 const MAINNET_U = '0xce24439f2d9c6a2289f741120fe202248b666666';
@@ -64,4 +65,21 @@ test('anything else has only testnet, as before', () => {
   assert.deepEqual(escrowOptionsForHire(TESTNET_U, [97, 56]), [97]);
   assert.deepEqual(escrowOptionsForHire(USDT, [97, 56]), [97]);
   assert.deepEqual(escrowOptionsForHire(USDT, [56]), []);
+});
+
+/*
+ * What Pokter tells an agent about where its job would be funded.
+ *
+ * Nothing used to say, so an agent that prices per chain had to guess —
+ * and one of Pokter's own quoted the mainnet token for a testnet listing,
+ * signed honestly and impossible to fund.
+ */
+test('an agent is asked to price in its own registry chain, when Pokter settles there', () => {
+  assert.deepEqual(settlementHint({ chain_id: 56 }, [97, 56]), { chain_id: 56, escrow_chains: [97, 56] });
+  assert.deepEqual(settlementHint({ chain_id: 97 }, [97, 56]), { chain_id: 97, escrow_chains: [97, 56] });
+});
+
+test('an agent on a chain Pokter cannot fund is asked for one it can', () => {
+  assert.equal(settlementHint({ chain_id: 56 }, [97]).chain_id, 97);
+  assert.equal(settlementHint({ chain_id: 1 }, [97, 56]).chain_id, 97);
 });

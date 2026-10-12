@@ -51,3 +51,18 @@ test('the card advertises a reachable endpoint, never localhost', () => {
   assert.doesNotMatch(card.url, /localhost|127\.0\.0\.1/);
   assert.ok(card.skills.some((s) => s.id === EVIDENCE_AGENT.skillId));
 });
+
+test('a card for one chain points at an endpoint that quotes in that chain', () => {
+  const origin = new URL('https://pokter.xyz');
+  const testnet = evidenceCard(origin, 97);
+  const mainnet = evidenceCard(origin, 56);
+  assert.equal(testnet.url, 'https://pokter.xyz/api/evidence/a2a?chain=97');
+  assert.equal(mainnet.url, 'https://pokter.xyz/api/evidence/a2a?chain=56');
+  assert.equal(testnet.metadata.settles_on, 97);
+
+  /* The unqualified card is what the chain-97 identity already points at,
+     so it must keep its original shape. */
+  const plain = evidenceCard(origin);
+  assert.equal(plain.url, 'https://pokter.xyz/api/evidence/a2a');
+  assert.equal('settles_on' in plain.metadata, false);
+});

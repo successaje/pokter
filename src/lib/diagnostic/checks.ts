@@ -7,9 +7,8 @@ import { requestQuote } from '@/lib/erc8183/quote';
 import { classify, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { enabledEscrowChains, escrowChainForCurrency } from '@/lib/network/escrow';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
-import { ALTANA_NETWORK } from '@/lib/altana/client';
 
 /**
  * One thing Pokter tried to observe, and what happened.
@@ -229,8 +228,22 @@ export async function diagnose(
      * reads as a healthy listing and cannot be bought, and the builder has
      * no way to discover that from their own agent.
      */
-    const { paymentToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
-    const escrow = ALTANA_NETWORK.chainId;
+    /*
+     * Judged against every escrow Pokter can fund on, not one of them.
+     *
+     * This read `ALTANA_NETWORK.chainId` and nothing else, from when the
+     * site had a single escrow. Hires now settle on whichever enabled
+     * escrow matches the quote's own currency, so a mainnet-priced quote
+     * is payable whenever mainnet is enabled — and telling its builder to
+     * reprice it was advice to break a working listing. The failure it was
+     * written for is still real and still reported: a price in a token no
+     * enabled escrow settles in cannot be funded by anyone here.
+     */
+    const escrows = enabledEscrowChains();
+    const settles = quote ? escrowChainForCurrency(quote.currency, escrows) : null;
+    const tokenList = escrows
+      .map((chainId) => `${correctedErc8183Addresses(chainId).paymentToken} on chain ${chainId}`)
+      .join(', or ');
     if (!quote) {
       checks.push(
         unknown(
@@ -239,13 +252,13 @@ export async function diagnose(
           'Not attempted: no quote was returned to check.',
         ),
       );
-    } else if (!quotePayableWith(quote.currency, paymentToken)) {
+    } else if (settles === null) {
       checks.push(
         bad(
           'quote-settles',
           'Quote can be paid',
-          `Priced in ${quote.currency}, which is not the token escrow settles in on chain ${escrow}.`,
-          `Quote in the payment token of chain ${escrow}. A price in another chain's currency is signed honestly and still cannot be paid from this escrow, so the job would never be funded against you.`,
+          `Priced in ${quote.currency}, which is not a token any escrow Pokter funds on settles in.`,
+          `Quote in ${tokenList}. A price in another chain's currency is signed honestly and still cannot be paid from these escrows, so the job would never be funded against you.`,
         ),
       );
     } else {
@@ -256,7 +269,7 @@ export async function diagnose(
             ? { chainId: quote.domain.chainId, verifyingContract: quote.domain.verifyingContract as `0x${string}` }
             : undefined,
         },
-        escrow,
+        settles,
       );
       checks.push(
         usable.usable
@@ -264,14 +277,14 @@ export async function diagnose(
               'quote-settles',
               'Quote can be paid',
               quote.domain
-                ? `Priced in the escrow token and signed for chain ${quote.domain.chainId}, which is where the job is funded.`
-                : 'Priced in the escrow token, and the quote is not bound to another chain.',
+                ? `Priced in the escrow token for chain ${settles} and signed for chain ${quote.domain.chainId}, which is where the job is funded.`
+                : `Priced in the escrow token for chain ${settles}, and the quote is not bound to another chain.`,
             )
           : bad(
               'quote-settles',
               'Quote can be paid',
               usable.reason,
-              `Bind the quote's signing domain to chain ${escrow}. Pokter funds jobs there, so a quote signed for anywhere else describes a job it cannot create.`,
+              `Bind the quote's signing domain to chain ${settles}, which is the escrow its currency settles in. A quote signed for anywhere else describes a job Pokter cannot create.`,
             ),
       );
     }

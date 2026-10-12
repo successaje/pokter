@@ -2,6 +2,7 @@ import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
+import { settlementHint } from '@/lib/network/escrow';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -157,7 +158,12 @@ export async function requestQuote(
             message: {
               role: 'user',
               messageId: crypto.randomUUID(),
-              parts: [{ kind: 'data', data: { skill: negotiateSkill, ...enquiry } }],
+              parts: [
+                {
+                  kind: 'data',
+                  data: { skill: negotiateSkill, ...enquiry, ...settlementHint(agent) },
+                },
+              ],
             },
             configuration: {
               acceptedOutputModes: ['application/json'],
