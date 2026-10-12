@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { EVIDENCE_AGENT, quoteTermsFor } from '@/lib/evidence/agent';
+import { EVIDENCE_AGENT } from '@/lib/evidence/agent';
+import { signEvidenceQuote } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
 import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
@@ -83,20 +83,47 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   if (skill === 'negotiate' || skill === 'quote') {
     /*
-     * Priced against the caller's own escrow chain, defaulting to the one
-     * the request names rather than the one Pokter happens to settle on.
-     * A quote in the wrong chain's token verifies and can never be paid.
+     * Priced against the caller's own escrow chain, and signed.
+     *
+     * Unsigned terms would fail Pokter's own listing check and every
+     * other marketplace that follows the same convention: a price is only
+     * a price when it recovers to the registered agent wallet. The chain
+     * comes from the request because one agent listed across marketplaces
+     * that settle differently cannot hold a single currency.
      */
     const asked = Number(data.chain_id ?? data.chainId);
     const chainId = (EVIDENCE_CHAINS as number[]).includes(asked)
       ? (asked as ChainId)
       : (EVIDENCE_CHAINS[0] as ChainId);
-    return reply(id, {
-      accepted: true,
-      skill: EVIDENCE_AGENT.skillId,
-      terms: quoteTermsFor(chainId, correctedErc8183Addresses(chainId).paymentToken),
-      note: 'Pokter reports what it measured. It does not rank agents and does not assess whether an agent’s work is correct.',
-    });
+    const askedTerms = object(data.terms);
+    try {
+      const quote = await signEvidenceQuote({
+        chainId,
+        taskDescription: String(data.task_description ?? text ?? 'Quote an evidence report.'),
+        deliverables:
+          typeof askedTerms?.deliverables === 'string' ? askedTerms.deliverables : undefined,
+        qualityStandards:
+          typeof askedTerms?.quality_standards === 'string'
+            ? askedTerms.quality_standards
+            : undefined,
+      });
+      return reply(id, {
+        ...quote,
+        note: 'Pokter reports what it measured. It does not rank agents and does not assess whether an agent’s work is correct.',
+      });
+    } catch (error) {
+      /*
+       * Most likely the operator key is absent, or this purpose is not
+       * permitted on mainnet. Said plainly rather than as a refusal to
+       * quote, because the two mean different things to a caller.
+       */
+      return rpcError(
+        id,
+        -32603,
+        `Cannot sign a quote right now: ${(error as Error).message}`,
+        503,
+      );
+    }
   }
 
   if (skill !== EVIDENCE_AGENT.skillId) {

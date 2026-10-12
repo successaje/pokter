@@ -49,6 +49,21 @@ export function evidenceCard(origin: URL) {
     provider: { organization: 'Pokter', url: origin.origin },
     skills: [
       {
+        /*
+          The id is exactly `negotiate`, because that is what Pokter's own
+          prober looks for — `negotiationSkillOf` accepts `negotiate` or a
+          `negotiate-` prefix and nothing else. An agent that prices its
+          work under any other name reads to this marketplace, and to the
+          others that follow the same convention, as an agent with no
+          price at all.
+        */
+        id: 'negotiate',
+        name: 'Quote a price for an evidence report',
+        description:
+          'Returns a price signed by this agent’s own wallet, denominated in the payment token of the escrow chain named in the request.',
+        tags: ['erc-8183', 'negotiation', 'quote'],
+      },
+      {
         id: EVIDENCE_AGENT.skillId,
         name: 'Evidence for an ERC-8004 agent',
         description:
