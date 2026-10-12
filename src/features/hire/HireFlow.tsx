@@ -558,12 +558,27 @@ export function HireFlow(props: HireFlowProps) {
                   <Address address={hire.active.address} />
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
+                  {/*
+                    The swap promise is conditional on there being a pool.
+                    This told every short passkey wallet "Pokter will swap
+                    tBNB for the difference", including on the network
+                    where the only WBNB/$U pool is empty — so the hire
+                    stopped on a step the interface had just guaranteed.
+                  */}
                   <Balance
                     label="$U to pay with"
                     value={hire.funding.token?.ok ? Number(formatUnits(hire.funding.token.raw, hire.funding.token.decimals)).toFixed(2) : '—'}
                     ok={hire.funding.paymentReady}
                     known={hire.funding.paymentKnown}
-                    note={hire.funding.paymentLow ? (hire.active.mode === 'passkey' ? `Short. Pokter will swap ${nativeSymbol} for the difference if you hold enough.` : 'Short of the budget.') : undefined}
+                    note={
+                      !hire.funding.paymentLow
+                        ? undefined
+                        : hire.swapPlan && hire.swapPlan.maxNativeIn === 0n
+                          ? `Short, and there is no pool to buy $U from on ${networkLabel}.`
+                          : hire.active.mode === 'passkey'
+                            ? `Short. Pokter will swap ${nativeSymbol} for the difference if you hold enough.`
+                            : 'Short of the budget.'
+                    }
                   />
                   <Balance
                     label={`${nativeSymbol} for the fee`}
