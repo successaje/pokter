@@ -289,12 +289,23 @@ export function useHire({
   };
 
   const indexFundedJob = async (hired: HiredJob) => {
-    if (!hired.hireTxHash) return;
+    /*
+     * No longer skipped when the wallet reported no transaction hash.
+     * An atomic `wallet_sendCalls` hire often has only a calls id, and
+     * returning early here left a funded job off Pokter's public index
+     * with nothing but a console warning — which is how a real mainnet
+     * job came to be missing from Pokter's own activity figures. The
+     * route verifies the job against the chain either way.
+     */
     try {
       const response = await fetch('/api/jobs/index', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chainId: hired.chainId, jobId: hired.jobId, transactionHash: hired.hireTxHash }),
+        body: JSON.stringify({
+          chainId: hired.chainId,
+          jobId: hired.jobId,
+          ...(hired.hireTxHash ? { transactionHash: hired.hireTxHash } : {}),
+        }),
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };

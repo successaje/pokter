@@ -68,9 +68,26 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const jobIdText = String(body.jobId ?? '');
-  const transactionHash = String(body.transactionHash ?? '');
-  if (!/^\d+$/.test(jobIdText) || !isHash(transactionHash)) {
-    return NextResponse.json({ error: 'A numeric jobId and transactionHash are required.' }, { status: 400 });
+  /*
+   * The hash is optional, because the chain already settles this.
+   *
+   * It was required, and a hire funded through `wallet_sendCalls` does not
+   * always come back with one — the wallet reports a calls id and may
+   * report no receipt hash at all. The client then skipped indexing
+   * entirely and warned to a console nobody reads, so a real funded job
+   * was missing from Pokter's own public numbers while sitting on chain.
+   * That is how mainnet job 56980 came to exist while /api/v1/activity
+   * reported no mainnet jobs.
+   *
+   * Nothing is taken on trust for it. A job still has to be funded on
+   * chain and carry a Pokter envelope whose provider matches the job's,
+   * which is the whole of what the hash was used to corroborate; when a
+   * hash is supplied it is still checked.
+   */
+  const hashText = String(body.transactionHash ?? '');
+  const transactionHash = isHash(hashText) ? (hashText as Hex) : null;
+  if (!/^\d+$/.test(jobIdText) || (hashText && !transactionHash)) {
+    return NextResponse.json({ error: 'A numeric jobId is required, and transactionHash must be a hash when given.' }, { status: 400 });
   }
   // The escrow the job was funded on. Omitted by older clients, which only
   // ever funded on the default network.
@@ -85,9 +102,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const rpc = createPublicClient({ chain: network.chain, transport: http(network.publicRpcUrl) });
     const [onchain, receipt] = await Promise.all([
       getErc8183Job(network, jobId),
-      rpc.getTransactionReceipt({ hash: transactionHash as Hex }),
+      transactionHash ? rpc.getTransactionReceipt({ hash: transactionHash }) : Promise.resolve(null),
     ]);
-    if (receipt.status !== 'success' || !receiptNamesJob(receipt, jobId, chainId)) {
+    if (receipt && (receipt.status !== 'success' || !receiptNamesJob(receipt, jobId, chainId))) {
       return NextResponse.json({ error: 'The transaction does not verify creation or funding of this job.' }, { status: 409 });
     }
     if (onchain.statusName === 'OPEN') {
@@ -115,7 +132,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       budgetRaw: onchain.budget.toString(),
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
       hiredAt: now,
-      hireTxHash: transactionHash as Hex,
+      hireTxHash: transactionHash,
       status: onchain.statusName,
       statusCheckedAt: now,
       deliverableUrl: null,

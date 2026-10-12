@@ -52,6 +52,12 @@ export async function GET(request: Request) {
         path: `/api/${API_VERSION}/activity`,
         description: 'Privacy-preserving aggregate job and settlement activity, reconciled from ERC-8183.',
       },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/receipts`,
+        description:
+          'Every job Pokter brokered, as identifiers anyone can check against the escrow contract: chain, job id, status, amount and an explorer link. The counts above are a claim; these are the things the claim is about.',
+      },
     ],
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
