@@ -35,12 +35,26 @@ export const EVIDENCE_AGENT = {
   deliveryWindowHours: 1,
 } as const;
 
-export function evidenceCard(origin: URL) {
+/**
+ * The card, optionally for one escrow chain.
+ *
+ * One endpoint serves every listing of this agent, so a request carries
+ * nothing that says which marketplace or which chain it came from — and
+ * the quote has to be denominated in some chain's token. Pokter's own
+ * prober now names the chain in the request, which covers Pokter. For
+ * everyone else the chain rides in the card's own `url`, so a listing
+ * registered on chain 56 points at a card whose JSON-RPC endpoint quotes
+ * in mainnet currency, and the testnet listing at one that quotes in
+ * testnet currency. A card with no chain keeps the previous behaviour.
+ */
+export function evidenceCard(origin: URL, chainId?: ChainId) {
+  const endpoint = new URL('/api/evidence/a2a', origin);
+  if (chainId) endpoint.searchParams.set('chain', String(chainId));
   return {
     name: EVIDENCE_AGENT.name,
     description:
       'Reports what Pokter measured about any ERC-8004 agent on BNB Chain: calls taken, calls answered, whether a signed price can be settled, and the provenance of each claim. It reports; it does not rank.',
-    url: new URL('/api/evidence/a2a', origin).href,
+    url: endpoint.href,
     version: EVIDENCE_AGENT.version,
     protocolVersion: '0.3.0',
     capabilities: { streaming: false, pushNotifications: false },
@@ -80,6 +94,7 @@ export function evidenceCard(origin: URL) {
        * names; see `quoteTermsFor`.
        */
       supported_chains: EVIDENCE_CHAINS,
+      ...(chainId ? { settles_on: chainId } : {}),
       reports_on: EVIDENCE_CHAINS,
       operated_by: 'Pokter',
       ranks_agents: false,

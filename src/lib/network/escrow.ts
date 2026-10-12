@@ -95,3 +95,27 @@ export function escrowOptionsForHire(
   if (enabled.includes(97) && !options.includes(97)) options.push(97);
   return options;
 }
+
+/**
+ * Which escrow Pokter would fund this agent's job on, told to the agent.
+ *
+ * Nothing used to say, so an agent that can price per chain had to guess,
+ * and one of Pokter's own quoted in the mainnet token for a testnet
+ * listing — honestly signed and impossible to fund. The agent's own
+ * registry chain is the preferred answer when Pokter settles there,
+ * because an agent registered on mainnet almost certainly means to be
+ * paid in mainnet currency; otherwise the first enabled escrow.
+ *
+ * A hint, not a demand. It travels alongside the brief rather than inside
+ * `terms`, so it does not enter the hash the seller signs: an agent that
+ * ignores it behaves exactly as before, and one that honours it returns a
+ * price Pokter can actually fund. `escrow_chains` is included because a
+ * buyer able to settle on either should not force a seller onto one.
+ */
+export function settlementHint(
+  agent: { chain_id: number },
+  enabled: EscrowChainId[] = enabledEscrowChains(),
+) {
+  const preferred = isEscrowChain(agent.chain_id, enabled) ? agent.chain_id : enabled[0];
+  return { chain_id: preferred, escrow_chains: enabled };
+}

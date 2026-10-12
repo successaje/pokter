@@ -19,6 +19,7 @@ import { stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDossier } from '@/lib/marketplace';
+import { resolveAgentImage } from '@/lib/registry/image';
 import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
@@ -125,12 +126,13 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const testnetTrial = escrowChain === 97 && escrowOptions.includes(56);
   const addresses = correctedErc8183Addresses(escrowChain);
 
-  const [skills, delivery, providers, suggestion, alternatives] = await Promise.all([
+  const [skills, delivery, providers, suggestion, alternatives, imageUrl] = await Promise.all([
     fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id).catch(() => []),
     deliveryTimes(agent.chain_id, agent.token_id).catch(() => ({ samples: 0, medianMs: null, fastestMs: null, slowestMs: null, onTime: null })),
     providerChoicesFor(agent, escrowChain, d.quote).catch(() => [] as ProviderChoice[]),
     d.quote || category === 'unclassified' ? Promise.resolve(null) : suggestedBudgetFor(category, { chainId: agent.chain_id as ChainId }).catch(() => null),
     category === 'unclassified' ? Promise.resolve([]) : recommendedAlternatives(category, agent.token_id, 3).catch(() => []),
+    resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => httpsOnly(agent.image_url)),
   ]);
 
   const payable = d.quote ? quotePayableWith(d.quote.currency, addresses.paymentToken) : null;
@@ -158,7 +160,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     chainId: agent.chain_id as ChainId,
     tokenId: agent.token_id,
     name: clean(agent.name, 120) || `Agent #${agent.token_id}`,
-    imageUrl: httpsOnly(agent.image_url),
+    imageUrl,
     summary: description ? firstSentence(description) : 'This agent has not published a description.',
     description,
     owner: agent.owner_address,

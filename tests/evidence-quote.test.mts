@@ -4,6 +4,7 @@ import { hashMessage, keccak256, parseUnits, toBytes, verifyMessage } from 'viem
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { canonicalJson, negotiationTermsBound } from '../src/lib/erc8183/negotiation';
+import { quoteChainFor } from '../src/lib/evidence/refs';
 
 /**
  * The signing path, reproduced against Pokter's own verifier.
@@ -114,4 +115,29 @@ test('a missing key and a malformed key are told apart', () => {
     'calling this "not set" points at the wrong half of the condition',
   );
   assert.equal(keyFault('0xabc123'), null);
+});
+
+/*
+ * Which chain a quote is denominated in, when the caller says it
+ * differently. The route does nothing but call this.
+ */
+test('the chain the caller names wins', () => {
+  assert.equal(quoteChainFor({ chainId: 97, endpointChain: 56 }), 97);
+  assert.equal(quoteChainFor({ chainId: 97 }), 97);
+});
+
+test('a buyer that can settle on several gets one this agent supports', () => {
+  assert.equal(quoteChainFor({ escrowChains: [97] }), 97);
+  assert.equal(quoteChainFor({ escrowChains: [1, 8453, 97] }), 97);
+});
+
+test("the listing's own endpoint decides when the caller says nothing", () => {
+  assert.equal(quoteChainFor({ endpointChain: '97' }), 97);
+  assert.equal(quoteChainFor({ escrowChains: [], endpointChain: '97' }), 97);
+});
+
+test('an unsupported chain never silently retargets the price', () => {
+  assert.equal(quoteChainFor({ chainId: 1 }), 56);
+  assert.equal(quoteChainFor({ chainId: 'mainnet', endpointChain: 97 }), 97);
+  assert.equal(quoteChainFor({}), 56);
 });

@@ -35,3 +35,38 @@ export function parseAgentRef(
   if (!token || !EVIDENCE_CHAINS.includes(chain as ChainId)) return null;
   return { chainId: chain as ChainId, tokenId: token };
 }
+
+/** One of this agent's chains, or null. */
+export function evidenceChain(value: unknown): ChainId | null {
+  const asked = Number(value);
+  return EVIDENCE_CHAINS.includes(asked as ChainId) ? (asked as ChainId) : null;
+}
+
+/**
+ * Which chain's token a quote should be denominated in.
+ *
+ * Three ways to say it, in descending order of how specifically the
+ * caller said it. `chain_id` is the caller naming one. `escrow_chains` is
+ * a buyer able to settle on several, so the first that this agent
+ * supports is taken. `endpointChain` comes from the per-chain agent card,
+ * which is how a listing registered on one chain gets quotes in that
+ * chain's token without the caller doing anything.
+ *
+ * Only then the default. That default is what priced a testnet listing in
+ * mainnet currency: honestly signed, verifying perfectly, and impossible
+ * to fund from the escrow that listing settles on — the exact defect this
+ * agent reports in others.
+ */
+export function quoteChainFor(input: {
+  chainId?: unknown;
+  escrowChains?: unknown;
+  endpointChain?: unknown;
+}): ChainId {
+  const offered = Array.isArray(input.escrowChains) ? input.escrowChains : [];
+  return (
+    evidenceChain(input.chainId) ??
+    offered.map(evidenceChain).find((value): value is ChainId => value !== null) ??
+    evidenceChain(input.endpointChain) ??
+    (EVIDENCE_CHAINS[0] as ChainId)
+  );
+}
