@@ -2,7 +2,7 @@ import 'server-only';
 
 import { privateKeyToAccount } from 'viem/accounts';
 
-import { teamAddressSet } from './wallets';
+import { TEAM_WALLETS, teamAddressSet } from './wallets';
 
 /**
  * The operator key's address, derived rather than written down, so the team
@@ -30,6 +30,6 @@ export function teamWalletList(): Array<{ address: string; label: string }> {
   const operator = operatorAddress();
   return [
     ...(operator ? [{ address: operator, label: 'Pokter operator key (demo and legacy hires)' }] : []),
-    ...[...teamAddressSet()].filter((address) => address !== operator?.toLowerCase()).map((address) => ({ address, label: 'Pokter team' })),
+    ...TEAM_WALLETS.filter((wallet) => wallet.address.toLowerCase() !== operator?.toLowerCase()),
   ];
 }
