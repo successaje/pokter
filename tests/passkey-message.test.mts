@@ -6,6 +6,7 @@ import * as P256 from 'ox/P256';
 import * as PublicKey from 'ox/PublicKey';
 import * as Signature from 'ox/Signature';
 import { hashMessage, hashTypedData, isHex, type Hex } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 /*
  * What a passkey wallet has to sign for Pokter's ownership check.
@@ -126,4 +127,25 @@ test('a headless WebAuthn key signs through the same call', async () => {
   });
   const signature = await Key.sign(key, { address: ACCOUNT, payload: hashMessage(MESSAGE) });
   assert.ok(isHex(signature) && signature.length > 200, 'a wrapped WebAuthn signature');
+});
+
+/*
+ * The shape test that keeps the server's two failure messages apart. An
+ * EIP-191 signature is 65 bytes — 132 hex characters with the prefix —
+ * and a Porto-wrapped one never is, which is how the verify route knows
+ * to ask whether the account exists on chain before blaming the
+ * signature.
+ */
+test('a wrapped signature is never mistaken for an EOA one', async () => {
+  const key = Key.fromHeadlessWebAuthnP256({
+    privateKey: P256.randomPrivateKey(),
+    role: 'admin',
+  });
+  const wrapped = await Key.sign(key, { address: ACCOUNT, payload: hashMessage(MESSAGE) });
+  assert.notEqual(wrapped.length, 132);
+
+  /* And a real EOA signature is exactly that length, so the test fails if
+     the assumption behind the branch ever stops holding. */
+  const eoa = await privateKeyToAccount(generatePrivateKey()).signMessage({ message: MESSAGE });
+  assert.equal(eoa.length, 132);
 });
