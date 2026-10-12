@@ -78,3 +78,40 @@ test('elapsed spans read correctly at every boundary', () => {
 test('a negative span never reads as a negative duration', () => {
   assert.equal(formatElapsed(-5000), 'less than a minute');
 });
+
+/*
+ * A viem RPC error must carry the call it failed on.
+ *
+ * A mainnet hire failed with "Invalid parameters were provided to the
+ * RPC method" and nothing else, which named no request and left the
+ * report unusable. viem puts the method and arguments in `details` and
+ * `metaMessages`; only `shortMessage` was being shown.
+ */
+test('an invalid-params error names the method that was rejected', () => {
+  const error = Object.assign(new Error('long viem message'), {
+    shortMessage: 'Invalid parameters were provided to the RPC method. Double check you have provided the correct parameters.',
+    details: 'Invalid params',
+    metaMessages: ['Request Arguments:', '  method:  wallet_sendCalls', '  chain:   BNB Smart Chain (id: 56)'],
+  });
+  const text = walletActionError(error, 'Commissioning');
+  assert.match(text, /wallet_sendCalls/);
+  assert.match(text, /id: 56/);
+  assert.ok(text.length <= 500);
+});
+
+test('a plain error is unchanged by the detail pass', () => {
+  const text = walletActionError(
+    Object.assign(new Error('x'), { shortMessage: 'The agent has not signed a price for this budget.' }),
+    'Commissioning',
+  );
+  assert.equal(text, 'The agent has not signed a price for this budget.');
+});
+
+test('a declined signature still reads as a choice, not a fault', () => {
+  const text = walletActionError(
+    Object.assign(new Error('x'), { shortMessage: 'User rejected the request.', details: 'method: eth_sendTransaction' }),
+    'Commissioning',
+  );
+  assert.match(text, /cancelled/i);
+  assert.ok(!/eth_sendTransaction/.test(text), 'no plumbing in a message about a choice');
+});
