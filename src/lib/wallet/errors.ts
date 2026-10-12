@@ -1,6 +1,45 @@
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 
 /** Turn wallet/RPC failures into useful, bounded user-facing recovery text. */
+/**
+ * The part of a viem error that says which call failed.
+ *
+ * viem's `shortMessage` is written for a reader — "Invalid parameters
+ * were provided to the RPC method" — and the method, the arguments and
+ * the chain all live in `details` and `metaMessages` beside it. Showing
+ * only the short message produced a report nobody could act on, mine
+ * included: a mainnet hire failed with exactly that sentence and
+ * nothing in it named the request that was rejected.
+ *
+ * Trimmed hard, because this is appended to a message a buyer reads.
+ * Enough to identify the call, not a stack trace.
+ */
+function rpcDetail(error: unknown): string | null {
+  const candidate = error as {
+    details?: unknown;
+    metaMessages?: unknown;
+    cause?: { details?: unknown; metaMessages?: unknown };
+  };
+  const parts: string[] = [];
+  for (const source of [candidate, candidate?.cause]) {
+    if (typeof source?.details === 'string') parts.push(source.details);
+    if (Array.isArray(source?.metaMessages)) {
+      parts.push(
+        ...source.metaMessages.filter(
+          (line): line is string => typeof line === 'string' && /method|chain|args/i.test(line),
+        ),
+      );
+    }
+  }
+  const detail = parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' · ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 220);
+  return detail || null;
+}
+
 export function walletActionError(error: unknown, action: string): string {
   const candidate = error as { shortMessage?: unknown; message?: unknown };
   const raw =
@@ -82,5 +121,13 @@ export function walletActionError(error: unknown, action: string): string {
     return `${action} did not complete, and the wallet gave no reason we can translate. Check the selected network and wallet balance, then try again.`;
   }
 
-  return message.length > 500 ? `${message.slice(0, 497)}…` : message;
+  /*
+   * The failing call, appended for the messages that are otherwise
+   * untraceable. A wallet saying "invalid parameters" without naming the
+   * request leaves the reader, and whoever they report it to, with
+   * nothing to go on.
+   */
+  const detail = rpcDetail(error);
+  const full = detail && !message.includes(detail) ? `${message} (${detail})` : message;
+  return full.length > 500 ? `${full.slice(0, 497)}…` : full;
 }
