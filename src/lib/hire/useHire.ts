@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, fallback, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import { formatEther, formatUnits, parseUnits } from 'viem';
 import { hireErc8183Agent } from '@altananetwork/sdk';
 import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -71,11 +72,21 @@ const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 export const BUDGET_MIN = 0.01;
 export const BUDGET_MAX = 5;
 
-/** A read-only client for quoting the swap, built per attempt. */
+/**
+ * A read-only client for quoting the swap, built per attempt.
+ *
+ * Through the same endpoint list the rest of the browser uses, rather
+ * than viem's chain default: one shared endpoint is what rate-limited a
+ * mainnet hire into failing, and a quote that cannot be fetched reads to
+ * the buyer as "no route to buy $U" — a false statement about the chain.
+ */
 function readClient(chainId: number) {
+  const chain = chainId === 56 ? bsc : bscTestnet;
   return createPublicClient({
-    chain: chainId === 56 ? bsc : bscTestnet,
-    transport: http(),
+    chain,
+    transport: fallback(
+      browserRpcUrls(chainId, chain.rpcUrls.default.http[0]).map((url) => http(url)),
+    ),
   });
 }
 

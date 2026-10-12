@@ -16,6 +16,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  fallback,
   getAddress,
   http,
   type Address,
@@ -23,6 +24,7 @@ import {
 } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
+import { browserRpcUrls, RECEIPT_POLL_MS } from '@/lib/wallet/browser-rpc';
 import { registeredAgentIdFromReceipt } from './registration-receipt';
 
 export type RegistryChainId = 56 | 97;
@@ -113,6 +115,28 @@ function chainFor(chainId: RegistryChainId) {
   return chainId === 56 ? bsc : bscTestnet;
 }
 
+/**
+ * The client that waits for a registration's receipts.
+ *
+ * One endpoint, polled, is what failed a mainnet hire three times: the
+ * transaction landed and reading its receipt was rate-limited to a 403,
+ * so the flow aborted on a step that had actually succeeded. Registration
+ * is two transactions with a receipt read between them and has exactly
+ * the same shape — and an identity registered today sits half-finished,
+ * minted with its profile never written, which is what that failure
+ * looks like from the outside.
+ */
+function readerFor(chainId: RegistryChainId) {
+  const chain = chainFor(chainId);
+  return createPublicClient({
+    chain,
+    transport: fallback(
+      browserRpcUrls(chainId, chain.rpcUrls.default.http[0]).map((url) => http(url)),
+    ),
+    pollingInterval: RECEIPT_POLL_MS,
+  });
+}
+
 function networkFor(chainId: RegistryChainId) {
   return chainId === 56 ? BNB : BNB_TESTNET;
 }
@@ -168,8 +192,7 @@ export async function updateIdentityFromWallet(input: {
     return { owner, unchanged: true };
   }
 
-  const chain = chainFor(input.chainId);
-  const read = createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) });
+  const read = readerFor(input.chainId);
   const call = buildErc8004SetAgentUriCall(input.chainId, agentId, completedUri);
   report('updating-profile');
   const transactionHash = await signer.send({ to: call.to as Address, data: call.data as Hex });
@@ -223,8 +246,7 @@ export async function registerIdentityFromWallet(input: RegisterIdentityInput): 
   report({ step: 'switching-network', chainId: input.chainId, ...input.recovery });
   await signer.prepare();
 
-  const chain = chainFor(input.chainId);
-  const read = createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) });
+  const read = readerFor(input.chainId);
   const registry = erc8183Addresses(input.chainId).registry;
   let registrationHash = input.recovery?.registrationHash;
   let agentId = input.recovery?.agentId ? BigInt(input.recovery.agentId) : undefined;
