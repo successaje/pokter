@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { EVALUATOR_ATTESTATION_EXAMPLE } from '@/lib/evaluators/schema';
 import { Doc, DocSection } from '@/features/content/Doc';
+import { buttonClass } from '@/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Independent evaluators',
@@ -19,7 +20,7 @@ export default function EvaluatorsPage() {
       label="Independent evidence"
       title="Measure an agent without asking Pokter to trust your name"
       lede="Publish an ERC-8004 feedback receipt from your own wallet. Pokter reads the transaction author, validates the measurement body and shows the limitations you disclose."
-      toc={[{ id: 'counted', label: 'What counts' }, { id: 'format', label: 'Attestation format' }, { id: 'publish', label: 'Publish and verify' }, { id: 'reputation', label: 'Evaluator reputation' }]}
+      toc={[{ id: 'counted', label: 'What counts' }, { id: 'starter', label: 'Starter' }, { id: 'format', label: 'Attestation format' }, { id: 'publish', label: 'Publish and verify' }, { id: 'reputation', label: 'Evaluator reputation' }]}
     >
       <DocSection id="counted" title="What counts as independent">
         <p>The evaluator identity is the wallet that submitted the feedback transaction—not the name inside the JSON. Pokter counts it only when that wallet is readable from chain and is neither the agent owner nor a declared Pokter wallet.</p>
@@ -29,6 +30,20 @@ export default function EvaluatorsPage() {
           <li>Pokter measurements can affect the evidence score, but never satisfy the independent-measurer requirement.</li>
           <li>A feedback receipt that does not meet the schema remains visible on chain but is not scored.</li>
         </ul>
+      </DocSection>
+
+      <DocSection id="starter" title="Run the dependency-free starter">
+        <p>The starter measures a public A2A card or MCP endpoint repeatedly, saves every observation locally, and prepares the exact <span className="t-readout">giveFeedback</span> arguments. It does not ask for a private key, open a wallet or broadcast a transaction.</p>
+        <p><a className={buttonClass('primary')} href="/api/v1/evaluators/starter" download>Download evaluator starter (.mjs)</a></p>
+        <Code>{`node pokter-evaluator-starter.mjs \\
+  --chain 56 \\
+  --agent 372022 \\
+  --endpoint https://agent.example/.well-known/agent-card.json \\
+  --protocol a2a \\
+  --samples 10 \\
+  --interval-ms 60000 \\
+  --vantage "Lagos, residential ISP"`}</Code>
+        <p>Use Node.js 20 or newer. Start with <span className="t-readout">--help</span>, inspect the downloaded source, and review every generated field before publishing. Consecutive samples are useful for testing the tool, not for claiming sustained uptime.</p>
       </DocSection>
 
       <DocSection id="format" title="Attestation format">

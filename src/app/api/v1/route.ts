@@ -63,6 +63,11 @@ export async function GET(request: Request) {
         path: `/api/${API_VERSION}/evaluators/schema`,
         description: 'Schema, example and independence rules for ERC-8004 evaluator attestations.',
       },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/evaluators/starter`,
+        description: 'Dependency-free Node.js starter that measures a protocol handshake and prepares an ERC-8004 feedback call without signing it.',
+      },
     ],
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),

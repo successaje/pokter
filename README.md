@@ -338,6 +338,7 @@ All optional for local browsing. Server-only unless marked public.
 | `GET /api/v1/agents`, `/api/v1/agents/{chain}/{id}` | Agents with provenance on every field |
 | `GET /api/v1/activity` | Aggregate job figures; no wallet, email or task text |
 | `GET /api/v1/evaluators/schema` | The public measurement schema, example and on-chain identity rules |
+| `GET /api/v1/evaluators/starter` | Dependency-free evaluator script; prepares feedback but never signs or broadcasts |
 | `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
 | `GET /api/jobs/{id}` | One job, read from chain |
 | `GET /api/reviews/{chain}/{job}` | A review as the exact document its on-chain rating hashes |
