@@ -27,7 +27,7 @@ import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { planShortfallSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
-import { commissionTaskTemplates, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
+import { commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 
@@ -160,6 +160,7 @@ export function useHire({
   signedQuoteU = null,
   suggestedU = null,
   riskWarnings = [],
+  declaredSkills = [],
   escrowChainId = WALLET_NETWORK.chainId,
 }: {
   agent: HireAgent;
@@ -178,12 +179,25 @@ export function useHire({
    */
   suggestedU?: number | null;
   riskWarnings?: string[];
+  /** The agent's own skills, whose examples beat a category guess. */
+  declaredSkills?: readonly { name: string; examples: readonly string[] }[];
 }) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
   const active = useActiveWallet(escrowChainId);
   const network = walletNetworkFor(escrowChainId);
-  const taskTemplates = commissionTaskTemplates(agent.category);
+  /*
+   * The agent's own words first.
+   *
+   * Category templates assume every agent is one of five kinds of DeFi
+   * assistant. An agent in no category got generic wording — which is
+   * how Pokter's own evidence agent was hired on mainnet with a brief it
+   * had to refuse, while its card published the formats that work.
+   * Where the card says how to ask, that wins; where it says nothing,
+   * the category templates stand exactly as before.
+   */
+  const declared = templatesFromSkills(declaredSkills ?? []);
+  const taskTemplates = declared.length > 0 ? declared : commissionTaskTemplates(agent.category);
 
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable && p.automatedDelivery)?.address ??

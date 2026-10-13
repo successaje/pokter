@@ -43,6 +43,17 @@ const PLUMBING_NAME = /^(negotiate\b|erc-?8183\b|job funded$|notify)/i;
 export interface DeclaredSkill {
   name: string;
   description: string | null;
+  /**
+   * How the agent says to ask it, in its own words.
+   *
+   * A2A cards carry `examples` on a skill and Pokter dropped them at
+   * parse time, then offered buyers a task template chosen by category
+   * instead. For an agent in no category that meant generic DeFi
+   * wording — and Pokter's own evidence agent was hired on mainnet with
+   * a brief it had to refuse, while its card published the two formats
+   * that would have worked.
+   */
+  examples: string[];
 }
 
 function text(value: unknown): string {
@@ -79,7 +90,16 @@ export function declaredCapabilities(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    kept.push({ name, description: text(skill.description) || null });
+    kept.push({
+      name,
+      description: text(skill.description) || null,
+      examples: Array.isArray(skill.examples)
+        ? skill.examples
+            .map((example) => text(example))
+            .filter((example) => example.length > 0 && example.length <= 200)
+            .slice(0, 4)
+        : [],
+    });
     if (kept.length === limit) break;
   }
 

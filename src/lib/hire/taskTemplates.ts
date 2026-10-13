@@ -1,5 +1,5 @@
 export interface CommissionTaskTemplate {
-  id: 'analyse' | 'recommend' | 'monitor';
+  id: 'analyse' | 'recommend' | 'monitor' | `declared-${number}`;
   label: string;
   /*
    * What the segmented control shows on a narrow screen.
@@ -71,4 +71,48 @@ export function commissionTaskTemplates(
       task: `Produce a monitoring report for ${context.subject}. Include ${context.evidence}, the warning thresholds to watch, and ${context.risk}. Do not execute transactions.`,
     },
   ];
+}
+
+
+/**
+ * Task suggestions taken from the agent's own card.
+ *
+ * The three templates above are chosen by category, which assumes every
+ * agent is one of five kinds of DeFi assistant. An agent in no category
+ * falls through to generic wording — and Pokter's own evidence agent was
+ * hired on mainnet with "Analyse the requested onchain objective",
+ * a brief it had to refuse, while its card published the exact two
+ * formats that would have worked under its `agent_evidence` skill.
+ *
+ * A2A carries `examples` on a skill precisely so a caller knows how to
+ * ask. Where an agent has written them down, they are better than
+ * anything Pokter can infer: they come from the party that knows what
+ * the agent accepts.
+ *
+ * Returns an empty list when the card says nothing, and the caller keeps
+ * the category templates. Nothing is invented here.
+ */
+export function templatesFromSkills(
+  skills: readonly { name: string; examples: readonly string[] }[],
+): CommissionTaskTemplate[] {
+  const templates: CommissionTaskTemplate[] = [];
+  const seen = new Set<string>();
+
+  for (const skill of skills) {
+    for (const example of skill.examples) {
+      const task = example.trim();
+      if (!task || seen.has(task.toLowerCase())) continue;
+      seen.add(task.toLowerCase());
+      templates.push({
+        id: `declared-${templates.length}`,
+        label: task.length <= 28 ? task : `${task.slice(0, 27)}…`,
+        short: task.length <= 14 ? task : `${task.slice(0, 13)}…`,
+        description: `From this agent's own card, under “${skill.name}”.`,
+        task,
+      });
+      if (templates.length === 3) return templates;
+    }
+  }
+
+  return templates;
 }

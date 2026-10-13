@@ -201,7 +201,14 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
       .slice(0, 40)
       .reverse()
       .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number })),
-    skills: skills.slice(0, 12).map((s) => ({ name: clean(s.name, 80), description: s.description ? clean(s.description, 300) : null })),
+    skills: skills.slice(0, 12).map((s) => ({
+      name: clean(s.name, 80),
+      description: s.description ? clean(s.description, 300) : null,
+      /* Carried through: the hire page builds its task suggestions from
+         these, so an agent that documents how to ask it gets asked that
+         way. See `templatesFromSkills`. */
+      examples: s.examples.map((example) => clean(example, 200)).filter(Boolean),
+    })),
     evidence: { ...published, measurers: proof.measurers, windowDays: proof.windowDays },
     defects: [...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects])],
     score: {

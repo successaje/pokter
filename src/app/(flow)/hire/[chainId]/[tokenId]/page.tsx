@@ -57,6 +57,7 @@ export default async function HirePage({
       warnings={p.warnings}
       escrow={p.escrow}
       escrowOptions={p.escrowOptions}
+      declaredSkills={p.skills}
       campaignLive={isCampaignLive()}
     />
   );
