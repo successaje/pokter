@@ -262,6 +262,29 @@ export function useHire({
 
   const provider = providers.find((p) => p.address === providerAddress);
   const providerCanDeliver = Boolean(provider?.reachable && provider.automatedDelivery);
+
+  /*
+   * Funding a job your own wallet would have to deliver.
+   *
+   * The escrow refuses the submission. Jobs 56981 and 56985 on mainnet
+   * were funded this way — the buyer owned the agent — and `submit`
+   * reverts 0x15e5dd74 from the rightful provider on a funded job that
+   * is still in date, where the same call on a job with distinct parties
+   * goes through. The selector is undecoded, so this is what was
+   * observed rather than a reading of the contract; what is certain is
+   * that two real jobs could not be delivered by anyone, including by
+   * hand, and expire for their buyer to reclaim.
+   *
+   * Pokter knew both addresses before taking the money and said nothing.
+   * It costs nothing to refuse: a buyer paying themselves gains nothing
+   * either way, and the campaign that brings people here requires hirers
+   * independent of the agent's owner, so a self-hire counts for nobody.
+   */
+  const selfHire = Boolean(
+    active.address &&
+      providerAddress &&
+      active.address.toLowerCase() === providerAddress.toLowerCase(),
+  );
   const substituted = Boolean(
     provider && agent.wallet && provider.address.toLowerCase() !== agent.wallet.toLowerCase(),
   );
@@ -305,7 +328,7 @@ export function useHire({
     task.trim().length >= 10 ||
     taskTemplates.some((template) => template.task === task.trim());
 
-  const describeValid = task.trim().length > 0 && budgetValid && providerCanDeliver;
+  const describeValid = task.trim().length > 0 && budgetValid && providerCanDeliver && !selfHire;
 
   const setTask = (value: string) => {
     setSelectedTemplate(null);
@@ -692,6 +715,7 @@ export function useHire({
     setProviderAddress,
     provider,
     providerCanDeliver,
+    selfHire,
     substituted,
     authority,
     describeValid,
