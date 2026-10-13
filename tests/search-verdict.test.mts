@@ -207,3 +207,13 @@ test('a price the escrow cannot pay is not an offer to hire', () => {
   // A failing record is refused whatever its price is denominated in.
   assert.equal(offersDirectHire(agent(200, 10, 10, 1, true)), false);
 });
+
+test('an agent that answers every probe but lets most paid jobs lapse is not reliable', () => {
+  // The home page's spotlight: answering throughout, "1 delivered · 6 missed".
+  const probes = Math.max(PROVEN_MIN_PROBES, 100);
+  const base = agent(probes, probes, PROVEN_MIN_WINDOW_DAYS + 1) as unknown as Record<string, unknown>;
+  assert.equal(verdictFor(base as never), 'reliable');
+  assert.equal(verdictFor({ ...base, history: { delivered: 1, missed: 6 } } as never), 'emerging');
+  // Missing fewer than it delivered keeps the verdict.
+  assert.equal(verdictFor({ ...base, history: { delivered: 3, missed: 1 } } as never), 'reliable');
+});

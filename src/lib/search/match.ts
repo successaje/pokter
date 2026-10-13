@@ -41,7 +41,21 @@ function uptime(record: TrackRecord): number | null {
  * lookups. It is honest about the two things it can know cheaply: whether any
  * on-chain attestation exists, and whether our own probes succeeded.
  */
-export function verdictFor({ listing, record }: SearchableAgent): Verdict {
+/**
+ * More paid jobs missed than delivered, through Pokter escrow.
+ *
+ * Answering probes and delivering paid work are different promises, and an
+ * agent that keeps the first while breaking the second is not reliable in
+ * the sense a buyer means. Missed covers jobs still FUNDED past their
+ * deadline as well as EXPIRED ones (see economic-history).
+ */
+export function letsJobsLapse(agent: Pick<SearchableAgent, 'history'>): boolean {
+  const missed = agent.history?.missed ?? 0;
+  return missed > 0 && missed > (agent.history?.delivered ?? 0);
+}
+
+export function verdictFor(entry: SearchableAgent): Verdict {
+  const { listing, record } = entry;
   const rate = uptime(record);
 
   /*
@@ -99,6 +113,12 @@ export function verdictFor({ listing, record }: SearchableAgent): Verdict {
    * underneath. The cap above still holds: the best this can award is
    * `reliable`, and `proven` remains the detail page's to give.
    */
+  /*
+   * Probes alone do not make an agent reliable. One that answers every
+   * probe and lets most of its paid jobs lapse sat badged Reliable beside
+   * its own "1 delivered · 6 missed", on the home page's spotlight.
+   */
+  if (letsJobsLapse(entry)) return 'emerging';
   return (rate ?? 0) >= PROVEN_MIN_SCORE ? 'reliable' : 'emerging';
 }
 

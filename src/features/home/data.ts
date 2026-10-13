@@ -8,7 +8,8 @@ import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
-import { offersDirectHire, type SearchableAgent } from '@/lib/search/match';
+import { letsJobsLapse, offersDirectHire, type SearchableAgent } from '@/lib/search/match';
+import { distinctAgentCount } from '@/lib/agents/distinct';
 import { mostReliable } from '@/lib/search/order';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
@@ -91,8 +92,12 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
   const conclusion =
     probes > 0 && answered === 0
       ? 'Describes the work well. Has never answered. Not recommended.'
-      : row.hirable && row.paid.completed > 0
-        ? 'Answers, names its price and has delivered paid work. Hireable.'
+      : row.paid.missed > row.paid.delivered
+        ? `Answers, but has missed ${row.paid.missed} of ${row.paid.missed + row.paid.delivered} paid jobs. Not recommended.`
+        : row.hirable && row.paid.completed > 0
+          ? row.priceU !== null
+            ? 'Answers, names its price and has delivered paid work. Hireable.'
+            : 'Answers and has delivered paid work. Hireable.'
         : row.hirable
           ? 'Answers and can be hired. Paid delivery not yet on record.'
           : probes === 0
@@ -118,10 +123,12 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
  */
 function chooseSpecimens(entries: SearchableAgent[], rows: FindRow[]): Specimen[] {
   const pairs = entries.map((entry, index) => ({ entry, row: rows[index] })).filter(({ entry }) => isPromotableAgent(entry.listing.agent) && (entry.listing.agent.description ?? '').length > 40);
+  // The agent shown as working must not be one that lets paid jobs lapse.
+  const working = pairs.filter(({ entry }) => !letsJobsLapse(entry));
   const strong =
-    pairs.find(({ row }) => row.hirable && row.paid.completed > 0 && row.priceU !== null) ??
-    pairs.find(({ row }) => row.hirable && row.priceU !== null) ??
-    pairs.find(({ row }) => row.hirable);
+    working.find(({ row }) => row.hirable && row.paid.completed > 0 && row.priceU !== null) ??
+    working.find(({ row }) => row.hirable && row.priceU !== null) ??
+    working.find(({ row }) => row.hirable);
   const silent = pairs.find(({ entry }) => entry.record.totalProbes >= 6 && entry.record.totalAnswered === 0);
   const unpriced = pairs.find(({ row, entry }) => row.priceU === null && entry.record.totalProbes > 0 && entry.record.totalAnswered > 0 && row.key !== strong?.row.key);
   return [strong, silent, unpriced].filter((x): x is NonNullable<typeof x> => Boolean(x)).map(({ entry, row }) => specimenFor(entry, row));
@@ -158,10 +165,15 @@ export async function loadHome(): Promise<HomeData> {
   const hireable = entries
     // An endpoint that requires a login cannot take a Pokter hire's task, so
     // it is not featured as hireable now.
-    .filter((entry) => isPromotableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true)
+    // An agent that lets paid jobs lapse is not featured either, however well
+    // it answers probes.
+    .filter((entry) => isPromotableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry))
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)
-    .sort((a, b) => b.paid.completed - a.paid.completed || Number(b.priceU !== null) - Number(a.priceU !== null) || (b.rate ?? 0) - (a.rate ?? 0));
+    // A signed price first: a row reading "No signed price" asks the buyer to
+    // guess, and leading with it made the strip look like a list of maybes.
+    // Then delivered work, then probe rate.
+    .sort((a, b) => Number(b.priceU !== null) - Number(a.priceU !== null) || b.paid.completed - a.paid.completed || (b.rate ?? 0) - (a.rate ?? 0));
   const owners = new Set<string>();
   const featured = hireable.filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true))).slice(0, 4);
 
@@ -207,8 +219,9 @@ export async function loadHome(): Promise<HomeData> {
     activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     catalogue: {
-      hireable: promotable.filter((entry) => offersDirectHire(entry)).length,
-      priced: promotable.filter((entry) => entry.listing.quote != null).length,
+      // Distinct agents: one registered on both chains is one agent.
+      hireable: distinctAgentCount(promotable.filter((entry) => offersDirectHire(entry)).map((entry) => entry.listing.agent)),
+      priced: distinctAgentCount(promotable.filter((entry) => entry.listing.quote != null).map((entry) => entry.listing.agent)),
     },
   };
 }
