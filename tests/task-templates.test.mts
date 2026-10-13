@@ -59,3 +59,35 @@ test('ids stay distinct, since the control selects by id', () => {
   const ids = templatesFromSkills([{ name: 'A', examples: ['a', 'b', 'c'] }]).map((t) => t.id);
   assert.equal(new Set(ids).size, ids.length);
 });
+
+/*
+ * Whether a brief is long enough to fund escrow with.
+ *
+ * The ten-character floor stops somebody funding a job with "hi". It
+ * also blocked "56/303779" — nine characters, and the exact string the
+ * evidence agent's card publishes as how to ask it, which Pokter had
+ * just started offering as a suggestion. The buyer could select it and
+ * then could not continue.
+ */
+const ready = (task: string, templates: { task: string }[]) =>
+  task.trim().length >= 10 || templates.some((t) => t.task === task.trim());
+
+test('a declared example is accepted however short it is', () => {
+  const templates = templatesFromSkills([
+    { name: 'Evidence for an ERC-8004 agent', examples: ['56/303779', 'eip155:97:2554'] },
+  ]);
+  assert.equal(ready('56/303779', templates), true, 'nine characters, and the agent asked for it');
+  assert.equal(ready('eip155:97:2554', templates), true);
+});
+
+test('free text still has to say something', () => {
+  const templates = templatesFromSkills([{ name: 'S', examples: ['56/303779'] }]);
+  assert.equal(ready('hi', templates), false);
+  assert.equal(ready('   ', templates), false);
+  /* Short, and not something any agent published. */
+  assert.equal(ready('56/999999', templates), false);
+});
+
+test('a long brief needs no template at all', () => {
+  assert.equal(ready('Analyse the lending position and report the risks.', []), true);
+});
