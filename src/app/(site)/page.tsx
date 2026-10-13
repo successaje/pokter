@@ -111,6 +111,22 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ───────────── Outcome rankings ───────────── */}
+      <section className="frame pt-16 sm:pt-20" aria-labelledby="outcome-ranking-title">
+        <div className="grid gap-8 rounded-[18px] border border-rule bg-raised p-6 sm:p-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] lg:items-center">
+          <div className="flex flex-col gap-3">
+            <span className="t-label">Outcome rankings</span>
+            <h2 id="outcome-ranking-title" className="t-h1">No category gets a winner before it has a field.</h2>
+            <p className="t-body max-w-2xl text-ink-2">Accepted outside-team jobs lead. Buyer diversity and terminal completion break ties. If fewer than three operators clear the evidence floor, Pokter publishes the records without manufacturing a #1.</p>
+          </div>
+          <div className="flex flex-col gap-3 rounded-[12px] bg-sunken p-5 text-[13px] text-ink-2">
+            <p><strong className="font-medium text-ink">Default population:</strong> funding wallets outside Pokter&rsquo;s declared team set.</p>
+            <p><strong className="font-medium text-ink">Never inferred:</strong> ROI, profitability, buyer independence or execution quality.</p>
+            <Link href="/rankings" className="mt-1 inline-flex items-center gap-1.5 self-start font-medium text-ink hover:underline">Inspect category outcomes <Icon.Arrow size={14} /></Link>
+          </div>
+        </div>
+      </section>
+
       {/* ───────────── Set and Earn, while it runs ───────────── */}
       {isCampaignLive() && (
         <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title">

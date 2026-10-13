@@ -30,6 +30,8 @@ export interface AgentEconomicHistory {
   totalFundedU: string;
   latestCheckedAt: string | null;
   recent: HiredJob[];
+  /** Distinct known funding wallets across all indexed jobs. */
+  uniqueBuyers: number;
   /** Demand not funded by a declared Pokter wallet. This is not called independent. */
   outsideTeam: OutsideTeamHistory;
 }
@@ -52,6 +54,7 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
   const outsideCompleted = outside.filter((job) => job.status === 'COMPLETED').length;
   const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status)).length;
   const outsideBuyers = new Set(outside.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
+  const buyers = new Set(funded.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
 
   return {
     jobs: funded.length,
@@ -72,6 +75,7 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
         .map((job) => job.statusCheckedAt)
         .sort((a, b) => b.localeCompare(a))[0] ?? null,
     recent: funded.slice(0, 3),
+    uniqueBuyers: buyers.size,
     outsideTeam: {
       jobs: outside.length,
       completed: outsideCompleted,

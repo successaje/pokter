@@ -53,4 +53,5 @@ test('outside-team market proof excludes declared wallets and unknown legacy fun
     uniqueBuyers: 2,
     completionRate: 2 / 3,
   });
+  assert.equal(history.uniqueBuyers, 3, 'all known buyers include the team wallet but never invent the unknown funder');
 });

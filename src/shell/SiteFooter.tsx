@@ -10,6 +10,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/discover', label: 'Discover agents' },
       { href: '/compare', label: 'Compare' },
       { href: '/proof', label: 'Production proof' },
+      { href: '/rankings', label: 'Outcome rankings' },
       { href: '/workspace', label: 'Workspace' },
       { href: '/build', label: 'Build an agent' },
     ],

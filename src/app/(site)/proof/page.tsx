@@ -51,12 +51,13 @@ function parseFilters(raw: Record<string, string | string[] | undefined>): Produ
   };
 }
 
-function proofHref(filters: ProductionProofFilters, change: Partial<ProductionProofFilters>): string {
+function proofHref(filters: ProductionProofFilters, change: Partial<ProductionProofFilters>, agent: string | null = null): string {
   const next = { ...filters, ...change };
   const params = new URLSearchParams();
   if (next.network !== 'all') params.set('network', next.network);
   if (next.funder !== 'all') params.set('funder', next.funder);
   if (next.window !== 'all') params.set('window', next.window);
+  if (agent) params.set('agent', agent);
   const query = params.toString();
   return query ? `/proof?${query}` : '/proof';
 }
@@ -113,10 +114,14 @@ function receiptLink(job: HiredJob): string {
 }
 
 export default async function ProductionProofPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const filters = parseFilters(await searchParams);
+  const raw = await searchParams;
+  const filters = parseFilters(raw);
+  const agent = one(raw.agent);
+  const agentKey = agent && /^\d+\:\d+$/.test(agent) ? agent : null;
   const team = teamWalletSet();
   const isTeam = (job: HiredJob) => fundedByTeam(job, team);
   const jobs = filterCurrentProductionJobs(getJobStore().all(), filters, isTeam)
+    .filter((job) => !agentKey || `${job.agentChainId ?? job.chainId}:${job.agentTokenId}` === agentKey)
     .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
   const summary = summarizeProductionProof(jobs, isTeam);
   const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam);
@@ -152,21 +157,22 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
           label="Money network"
           value={filters.network}
           options={[{ value: 'all', label: 'Both' }, { value: 'mainnet', label: 'Mainnet' }, { value: 'testnet', label: 'Testnet' }]}
-          href={(network) => proofHref(filters, { network })}
+          href={(network) => proofHref(filters, { network }, agentKey)}
         />
         <FilterGroup<ProofFunder>
           label="Funding provenance"
           value={filters.funder}
           options={[{ value: 'all', label: 'All' }, { value: 'outside-team', label: 'Outside-team' }, { value: 'team', label: 'Pokter team' }]}
-          href={(funder) => proofHref(filters, { funder })}
+          href={(funder) => proofHref(filters, { funder }, agentKey)}
         />
         <FilterGroup<ProofWindow>
           label="Hire window"
           value={filters.window}
           options={[{ value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }, { value: 'all', label: 'All time' }]}
-          href={(window) => proofHref(filters, { window })}
+          href={(window) => proofHref(filters, { window }, agentKey)}
         />
       </section>
+      {agentKey && <div className="border-b border-rule py-3 text-[13px] text-ink-2">Filtered to ERC-8004 identity <span className="t-readout">{agentKey}</span>. <Link href={proofHref(filters, {})} className="ml-2 font-medium hover:underline">Clear agent filter</Link></div>}
 
       <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-3 lg:grid-cols-6">
         <Metric value={summary.completed.toLocaleString('en-US')} label="Accepted deliveries" note="Escrow reached COMPLETED." />
