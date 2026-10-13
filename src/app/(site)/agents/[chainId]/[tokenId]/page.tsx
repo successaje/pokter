@@ -19,7 +19,7 @@ import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
-import { HealthFactorCheck } from '@/features/agent/HealthFactorCheck';
+import { CategoryCheck } from '@/features/agent/CategoryCheck';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -360,7 +360,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <p className="text-[13.5px] leading-relaxed text-ink-2">{p.verdict.rationale}</p>
               </div>
               <ClaimVsObserved p={p} />
-              {p.category?.id === 'health-factor' && <HealthFactorCheck run={p.healthFactorCheck} />}
+              {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} />}
               <div className="flex flex-col gap-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="t-label">Daily answer rate, last 30 days</span>

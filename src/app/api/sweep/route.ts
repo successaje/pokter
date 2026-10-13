@@ -14,6 +14,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
+import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
@@ -223,6 +224,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       : null;
 
     /*
+     * Deterministic category checks for the other four categories. These
+     * use published fixed scenarios, not live market data, and their UI says
+     * so. Two agents at most per sweep bounds this work, and failure is
+     * isolated so it cannot erase the availability measurements already made.
+     */
+    const categoryChecks = listings
+      ? await runDueStaticCategoryChecks(
+          listings.map((listing) => ({ chainId: listing.agent.chain_id, tokenId: listing.agent.token_id, category: listing.category })),
+        ).catch(() => null)
+      : null;
+
+    /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
      * id, and listed agents' registered wallets, so any wallet's hires on
      * any marketplace can be read without scanning the chain per request.
@@ -283,6 +296,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       stuckJobs,
       funders,
       healthFactorChecks,
+      categoryChecks,
       questIndex,
       reconciled,
       followerAlerts,

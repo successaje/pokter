@@ -20,7 +20,7 @@ import type { Provenance } from '@/lib/api/v1';
  * finding: an ERC-8004 entry is a claim that something exists, and most of
  * those claims do not survive being checked.
  *
- * The classified step is not one of them. It counts what fits four financial
+ * The classified step is not one of them. It counts what fits Pokter's financial
  * categories, which is a different question from what answered, so it is not a
  * subset of the step above and is marked `comparable: false` for that reason.
  * It sits below the probe steps because measuring is the earlier act, not
@@ -36,7 +36,7 @@ export interface CensusStep {
    * Whether the share of the step above is a survival rate.
    *
    * Not every narrowing here is attrition. Going from the registry to the
-   * classified set is a change of scope — Pokter judges four categories and
+   * classified set is a change of scope — Pokter judges a bounded category set and
    * ignores the rest — so printing "0.02% survived" would describe our
    * coverage as though it were the ecosystem failing. Going from called to
    * answered is attrition, and saying so is the entire point of the page.
@@ -81,7 +81,7 @@ export async function supplyCensus(): Promise<SupplyCensus> {
        reads as a broken number rather than as broader coverage. Calling an
        agent is also the earlier act — anything with an endpoint can be
        probed, while classification needs it to fit one of four financial
-       categories — so this is the honest order as well as the monotonic one.
+       financial categories — so this is the honest order as well as the monotonic one.
     */
     {
       label: 'Called by Pokter',
@@ -101,7 +101,7 @@ export async function supplyCensus(): Promise<SupplyCensus> {
       label: 'Classified into a financial category',
       value: all.length,
       provenance: 'calculated',
-      note: 'The agents Pokter can place in one of the four categories it judges, and so can rank. Classification is a change of scope rather than a survival rate: a listing here need not have answered a probe, and an agent outside the four is not worse, only outside what this marketplace measures.',
+      note: `The agents Pokter can place in one of the ${CATEGORIES.length} categories it judges, and so can rank. Classification is a change of scope rather than a survival rate: a listing here need not have answered a probe, and an agent outside those categories is not worse, only outside what this marketplace measures.`,
       comparable: false,
     },
     {

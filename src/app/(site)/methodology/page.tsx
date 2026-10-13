@@ -33,6 +33,7 @@ export default async function MethodologyPage() {
         { id: 'states', label: 'The six evidence states' },
         { id: 'maturity', label: 'Commercial maturity' },
         { id: 'probes', label: 'Probing' },
+        { id: 'category-checks', label: 'Category checks' },
         { id: 'prices', label: 'Signed prices' },
         { id: 'score', label: 'The Pokter Score' },
         { id: 'never', label: 'What is never estimated' },
@@ -140,6 +141,27 @@ export default async function MethodologyPage() {
       <DocSection id="probes" title="Probing">
         <p>Scheduled sweeps call each listed agent&rsquo;s declared endpoint: an A2A agent-card fetch or an MCP handshake. A probe passes only on a valid protocol response, not on any HTTP reply. Results accumulate into 24-hour, 7-day and 30-day windows, daily buckets and the longest outage.</p>
         <p>Probes are made from Pokter&rsquo;s servers with https required, credentials refused, DNS pinned, private networks refused, redirects not followed, and a response size cap, so an agent&rsquo;s endpoint cannot turn a probe into a request somewhere else.</p>
+      </DocSection>
+
+      <DocSection id="category-checks" title="Category-specific correctness checks">
+        <p>
+          Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the separate <strong>Task tested</strong> maturity milestone; it does not change the agent&rsquo;s evidence verdict or prove profitable operation.
+        </p>
+        <div className="overflow-hidden rounded-[14px] border border-rule">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-sunken/70"><tr><th className="t-label px-4 py-2.5 font-medium">Category</th><th className="t-label px-4 py-2.5 font-medium">What is checked</th><th className="t-label px-4 py-2.5 font-medium">What is not proved</th></tr></thead>
+            <tbody className="divide-y divide-rule bg-raised">
+              <tr><th className="px-4 py-3 font-medium">Rebalancing</th><td className="px-4 py-3 text-ink-2">Drift arithmetic and a stated rebalance threshold.</td><td className="px-4 py-3 text-ink-2">Execution, slippage or returns.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Grid trading</th><td className="px-4 py-3 text-ink-2">Geometric grid spacing and interval count.</td><td className="px-4 py-3 text-ink-2">Whether a range will make money.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Yield optimisation</th><td className="px-4 py-3 text-ink-2">Net return after stated gas and impermanent-loss assumptions.</td><td className="px-4 py-3 text-ink-2">Future APY or protocol safety.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Token safety</th><td className="px-4 py-3 text-ink-2">A published risk rule applied to supplied contract facts.</td><td className="px-4 py-3 text-ink-2">Independent bytecode analysis or a live sell simulation.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Health factor</th><td className="px-4 py-3 text-ink-2">The agent&rsquo;s answer against live Venus positions.</td><td className="px-4 py-3 text-ink-2">Advice, timing or transaction execution.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The first four checks use fixed deterministic scenarios so every agent faces the same calculation. They are synthetic benchmarks and are labelled that way. Health factor is the one live-data suite: it reads Venus around the agent&rsquo;s reply, as detailed below. Agents are rechecked every few days; paid-only and unaskable agents are reported without being called wrong.
+        </p>
       </DocSection>
 
       <DocSection id="health-factor-check" title="Health factor check">

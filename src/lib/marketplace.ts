@@ -36,7 +36,7 @@ import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 import { getAssayStore } from '@/lib/assay/store';
-import { HF_SUITE_ID } from '@/lib/assay/health-factor';
+import { assayForCategory } from '@/lib/assay/catalog';
 import type { SearchableAgent } from '@/lib/search/match';
 export { preferDistinctOwners };
 
@@ -50,8 +50,9 @@ export const MAX_LISTINGS_PER_OWNER_PER_CATEGORY = 2;
 type SearchableWithHistory = SearchableAgent & { history: AgentEconomicHistory };
 
 function passedCategoryCheck(agent: ScanAgent, category: Category | 'unclassified'): boolean {
-  if (category !== 'health-factor') return false;
-  const run = getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID);
+  const assay = assayForCategory(category);
+  if (!assay) return false;
+  const run = getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assay.id);
   return Boolean(run && run.status === 'checked' && run.total > 0 && run.passed === run.total);
 }
 
@@ -300,7 +301,7 @@ export async function listMarketplaceWithStatus(
   let attempts = 0;
   let failures = 0;
 
-  // All four categories at once. The inner fan-out is what used to trip the
+  // All categories at once. The inner fan-out is what used to trip the
   // rate limit; with a key in place, serialising categories only adds the
   // slowest semantic query's latency four times over.
   const sections = await mapWithConcurrency(CATEGORIES, 4, async ({ id }) => {

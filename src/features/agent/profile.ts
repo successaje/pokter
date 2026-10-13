@@ -10,8 +10,8 @@ import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
-import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
+import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
 import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
@@ -82,8 +82,8 @@ export interface AgentProfile {
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
   reviews: VerifiedReview[];
-  /** The latest health factor check, for health-factor agents. Null when not checked or another category. */
-  healthFactorCheck: AssayRun | null;
+  /** The latest category-specific correctness check and its published scope. */
+  categoryCheck: { definition: AssayDefinition; run: AssayRun | null } | null;
   services: Array<{ name: string; endpoint: string }>;
   repositoryUrl: string | null;
   warnings: string[];
@@ -150,14 +150,15 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   // The same rule the catalogue's verdict applies (`verdictFor`): answering
   // probes does not make an agent reliable while it lets paid jobs lapse.
   const history = summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
-  const healthFactorCheck = category === 'health-factor'
-    ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID)
+  const assayDefinition = assayForCategory(category);
+  const categoryCheck = assayDefinition
+    ? { definition: assayDefinition, run: getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) }
     : null;
   const maturity = deriveMaturity({
     registered: true,
     reachable: record.totalAnswered > 0,
     compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && payable !== false,
-    tested: Boolean(healthFactorCheck && healthFactorCheck.status === 'checked' && healthFactorCheck.total > 0 && healthFactorCheck.passed === healthFactorCheck.total),
+    tested: Boolean(categoryCheck?.run && categoryCheck.run.status === 'checked' && categoryCheck.run.total > 0 && categoryCheck.run.passed === categoryCheck.run.total),
     hired: history.jobs > 0,
     delivered: history.delivered > 0,
     outsideTeam: history.outsideTeam,
@@ -257,7 +258,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
-    healthFactorCheck,
+    categoryCheck,
     services,
     repositoryUrl: httpsOnly(services.find((s) => s.name.toLowerCase() === 'repository')?.endpoint),
     warnings,

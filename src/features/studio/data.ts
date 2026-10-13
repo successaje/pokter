@@ -17,7 +17,7 @@ import { classify } from '@/lib/agents/categories';
 import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
 import { escrowChainForHire } from '@/lib/network/escrow';
 import { getAssayStore } from '@/lib/assay/store';
-import { HF_SUITE_ID } from '@/lib/assay/health-factor';
+import { assayForCategory } from '@/lib/assay/catalog';
 
 export interface FleetAgent {
   key: string;
@@ -84,7 +84,8 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
       const history = summariseEconomicHistory(mine);
       const quote = quotes.get(`${agent.chain_id}:${agent.token_id}`);
       const category = classify(agent);
-      const assay = category === 'health-factor' ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID) : null;
+      const assayDefinition = assayForCategory(category);
+      const assay = assayDefinition ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) : null;
       const maturity = deriveMaturity({
         registered: true,
         reachable: record.totalAnswered > 0,
