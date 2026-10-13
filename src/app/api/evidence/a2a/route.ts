@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { EVIDENCE_AGENT, evidenceCard } from '@/lib/evidence/agent';
+import { deliverEvidenceJob } from '@/lib/evidence/deliver';
 import { signEvidenceQuote } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
@@ -145,6 +146,55 @@ export async function POST(request: Request): Promise<NextResponse> {
         `Cannot sign a quote right now: ${(error as Error).message}`,
         503,
       );
+    }
+  }
+
+  if (skill === 'notify_funded') {
+    /*
+     * Pokter says a job naming this agent has been funded. Nothing in
+     * the message is trusted: `deliverEvidenceJob` re-reads the escrow
+     * and refuses anything that is not funded, does not name this
+     * agent's own wallet as provider, or carries no readable brief.
+     */
+    const jobId = String(data.job_id ?? data.jobId ?? '');
+    /*
+     * No default chain here, unlike a quote.
+     *
+     * Quoting falls back to this agent's first chain because the worst
+     * case is a price in the wrong currency, which the buyer can read
+     * before paying. Delivering sends a transaction, so an unnamed or
+     * unrecognised chain is refused rather than guessed at: the guess
+     * would spend gas looking for somebody else's job number on a chain
+     * nobody asked about.
+     */
+    const chainId =
+      evidenceChain(data.chain_id ?? data.chainId) ??
+      evidenceChain(new URL(request.url).searchParams.get('chain'));
+    if (chainId === null) {
+      return reply(id, {
+        accepted: false,
+        job_id: jobId,
+        reason: `Name the escrow chain the job was funded on (${EVIDENCE_CHAINS.join(' or ')}). A delivery is a transaction and is not sent on a guess.`,
+      });
+    }
+    try {
+      const outcome = await deliverEvidenceJob(chainId, jobId);
+      if (outcome.status === 'refused') {
+        return reply(id, { accepted: false, job_id: jobId, reason: outcome.reason });
+      }
+      return reply(id, {
+        accepted: true,
+        job_id: outcome.jobId,
+        deliverable_url: outcome.deliverableUrl,
+        transaction_hash: outcome.status === 'delivered' ? outcome.transactionHash : null,
+        already_delivered: outcome.status === 'already-delivered',
+      });
+    } catch (error) {
+      /*
+       * A failure here may have spent gas, so it is reported as a
+       * failure to deliver rather than a refusal to try.
+       */
+      return rpcError(id, -32603, `Delivery did not complete: ${(error as Error).message}`, 503);
     }
   }
 
