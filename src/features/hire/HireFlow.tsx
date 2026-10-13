@@ -353,7 +353,23 @@ export function HireFlow(props: HireFlowProps) {
             </Notice>
           )}
           <div className="flex justify-end">
-            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || !hire.providerCanDeliver} trailing={<Icon.Arrow size={16} />}>
+            {/*
+              Said before the money moves, not discovered after.
+
+              The escrow will not let a seller deliver to itself, and
+              Pokter knew both addresses the whole time. Two mainnet jobs
+              were funded this way and can never be completed by anyone.
+            */}
+            {hire.selfHire && (
+              <Notice tone="bad" title="This wallet is the agent's own provider">
+                You would be paying yourself, and the escrow will not accept a delivery
+                where the seller and the buyer are the same wallet — the job would sit
+                funded until it expired and you reclaimed it. Hire from a different
+                wallet to test this agent end to end.
+                {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
+              </Notice>
+            )}
+            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
               Review terms
             </Button>
           </div>
