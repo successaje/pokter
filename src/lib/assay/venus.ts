@@ -68,7 +68,21 @@ export interface VenusReading {
   liquidatable: boolean;
   borrowUsd: number;
   block: bigint;
+  /**
+   * The position as rows a calculator can take: each market's supply and
+   * borrow in USD at Venus's oracle price, with its liquidation threshold.
+   * Amounts are USD values and every price is 1, so no token decimals are
+   * involved. Sent with the question so an agent that computes from inputs
+   * can answer as well as one that reads the chain itself.
+   */
+  rows: {
+    collateral: Record<string, { amount: number; liqThreshold: number }>;
+    debt: Record<string, number>;
+    prices: Record<string, number>;
+  };
 }
+
+const usd = (raw: bigint) => Number((raw * 100n) / 10n ** 18n) / 100;
 
 export async function readVenusPosition(client: Client, account: Address): Promise<VenusReading> {
   const block = await client.getBlockNumber();
@@ -81,24 +95,43 @@ export async function readVenusPosition(client: Client, account: Address): Promi
   if (error !== 0n) throw new Error(`Venus reported error ${error} for this account.`);
   const legs = await Promise.all(
     assets.map(async (vToken) => {
-      const [snapshot, price, markets] = await Promise.all([
+      const [snapshot, price, markets, symbol] = await Promise.all([
         client.readContract({ address: vToken, abi: VTOKEN_ABI, functionName: 'getAccountSnapshot', args: [account], blockNumber: block }),
         client.readContract({ address: oracle, abi: ORACLE_ABI, functionName: 'getUnderlyingPrice', args: [vToken], blockNumber: block }),
         client.call({ to: VENUS_COMPTROLLER, data: encodeFunctionData({ abi: MARKETS_SELECTOR, functionName: 'markets', args: [vToken] }), blockNumber: block }),
+        client.readContract({ address: vToken, abi: VTOKEN_ABI, functionName: 'symbol', blockNumber: block }).catch(() => vToken.slice(0, 10)),
       ]);
       const [, vBalance, borrow, exchangeRate] = snapshot;
       const words = (markets.data ?? '0x').slice(2).match(/.{64}/g) ?? [];
       const collateralFactor = words[1] ? BigInt(`0x${words[1]}`) : 0n;
+      // The fourth word is the liquidation threshold; markets without one liquidate on the collateral factor.
+      const threshold = words[3] ? BigInt(`0x${words[3]}`) : 0n;
+      const liquidationThreshold = threshold > 0n ? threshold : collateralFactor;
       // Venus prices are scaled so that amount * price / 1e18 is USD with 18 decimals.
       const supplyUsd = (((vBalance * exchangeRate) / 10n ** 18n) * price) / 10n ** 18n;
-      return { borrowUsd: (borrow * price) / 10n ** 18n, weightedByFactor: (supplyUsd * collateralFactor) / 10n ** 18n };
+      return {
+        symbol: String(symbol).replace(/^v/, ''),
+        supplyUsd,
+        liquidationThreshold,
+        borrowUsd: (borrow * price) / 10n ** 18n,
+        weightedByFactor: (supplyUsd * collateralFactor) / 10n ** 18n,
+      };
     }),
   );
   const borrowUsd = legs.reduce((sum, v) => sum + v.borrowUsd, 0n);
   const weightedByFactor = legs.reduce((sum, v) => sum + v.weightedByFactor, 0n);
   const healthFactor = healthFromLiquidity(borrowUsd, liquidity, shortfall);
   const borrowLimitRatio = borrowUsd > 0n ? Number((weightedByFactor * 1_000_000n) / borrowUsd) / 1_000_000 : null;
-  return { account, healthFactor, borrowLimitRatio, liquidatable: shortfall > 0n, borrowUsd: Number(borrowUsd) / 1e18, block };
+  const rows: VenusReading['rows'] = { collateral: {}, debt: {}, prices: {} };
+  for (const leg of legs) {
+    // Below a cent rounds to nothing and only clutters the question.
+    const supplied = usd(leg.supplyUsd);
+    const borrowed = usd(leg.borrowUsd);
+    if (supplied > 0) rows.collateral[leg.symbol] = { amount: supplied, liqThreshold: Number(leg.liquidationThreshold) / 1e18 };
+    if (borrowed > 0) rows.debt[leg.symbol] = borrowed;
+    if (supplied > 0 || borrowed > 0) rows.prices[leg.symbol] = 1;
+  }
+  return { account, healthFactor, borrowLimitRatio, liquidatable: shortfall > 0n, borrowUsd: Number(borrowUsd) / 1e18, block, rows };
 }
 
 const SAMPLE_SYMBOLS = ['vUSDT', 'vUSDC', 'vBNB', 'vBTC', 'vETH'];

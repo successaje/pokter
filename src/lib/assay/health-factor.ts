@@ -26,12 +26,26 @@ export interface HfExpected {
 }
 
 /** The brief an agent receives: the account, the venue, and the answer shape. */
-export function hfBrief(account: string): { text: string; data: Record<string, unknown> } {
+/**
+ * The question. The account is named for agents that read the chain
+ * themselves, and the same position is attached as rows (`collateral`,
+ * `debt`, `prices`, read by Pokter from Venus at the block it is checked
+ * against) for agents that compute from inputs. Both are judged against
+ * Venus's own figure, so neither style is favoured.
+ */
+export function hfBrief(account: string, rows?: { collateral: Record<string, unknown>; debt: Record<string, unknown>; prices: Record<string, unknown> }): { text: string; data: Record<string, unknown> } {
   const text =
     `Read-only check. Report the current health factor of ${account} on Venus Core Pool (BNB Smart Chain mainnet), ` +
     'and whether it can be liquidated now. Execute no transaction. Reply with JSON only: ' +
-    '{"health_factor": number or null when there is no debt, "liquidatable": boolean}.';
-  return { text, data: { suite: HF_SUITE_ID, address: account, account, wallet: account, protocol: 'venus', pool: 'core', chain_id: 56, answer_shape: { health_factor: 'number | null', liquidatable: 'boolean' } } };
+    '{"health_factor": number or null when there is no debt, "liquidatable": boolean}.' +
+    (rows ? ' The position is attached as collateral, debt and prices: amounts are USD values at the Venus oracle price, so every price is 1.' : '');
+  const data: Record<string, unknown> = { suite: HF_SUITE_ID, address: account, account, wallet: account, protocol: 'venus', pool: 'core', chain_id: 56, answer_shape: { health_factor: 'number | null', liquidatable: 'boolean' } };
+  if (rows) {
+    Object.assign(data, rows);
+    // Agents that take a flat JSON job input read it from task_description.
+    data.task_description = JSON.stringify(rows);
+  }
+  return { text, data };
 }
 
 export interface HfObserved {

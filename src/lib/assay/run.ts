@@ -5,10 +5,13 @@ import type { Address } from 'viem';
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
 import { hfBrief, HF_SUITE_ID, judgeHf, readHfAnswer, type HfExpected } from './health-factor';
 import { getAssayStore, type AssayRun, type AssayScenarioResult } from './store';
+import { dueForCheck } from './queue';
 import { readVenusPosition, sampleVenusBorrowers, venusClient, type VenusReading } from './venus';
 
 /** How long a result stands before the agent is checked again. */
 export const RECHECK_MS = 3 * 86_400_000;
+/** How long an agent whose check failed waits before it is tried again. */
+const RETRY_MS = 12 * 3_600_000;
 /** How long a sample of Venus borrowers is reused before a new one is drawn. */
 const SAMPLE_MS = 7 * 86_400_000;
 const SAMPLE_SIZE = 3;
@@ -59,11 +62,11 @@ export async function runHealthFactorSuite(target: { chainId: number; tokenId: s
   for (const [index, account] of accounts.entries()) {
     const before = await readVenusPosition(client, account);
     try {
-      let reply = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 12_000 });
+      let reply = await sendPreparedBrief(agent, hfBrief(account, before.rows), { timeoutMs: 12_000 });
       let observed = readHfAnswer(reply.answer);
       if (!observed) {
         // Some agents accept exactly one structured part; ask once more that way.
-        const retry = await sendPreparedBrief(agent, hfBrief(account), { timeoutMs: 12_000, dataOnly: true }).catch(() => null);
+        const retry = await sendPreparedBrief(agent, hfBrief(account, before.rows), { timeoutMs: 12_000, dataOnly: true }).catch(() => null);
         if (retry && readHfAnswer(retry.answer)) {
           reply = retry;
           observed = readHfAnswer(retry.answer);
@@ -105,12 +108,12 @@ export async function runDueHealthFactorChecks(
   agents: Array<{ chainId: number; tokenId: string }>,
   { limit = 2, now = Date.now(), startWithinMs = 60_000 }: { limit?: number; now?: number; startWithinMs?: number } = {},
 ): Promise<{ checked: number; passedAll: number; notAskable: number; paidOnly: number; sample: number }> {
-  const last = getAssayStore().lastRunAt(HF_SUITE_ID);
-  const due = agents
-    .map((a) => ({ ...a, at: last.get(`${a.chainId}:${a.tokenId}`) ?? null }))
-    .filter((a) => a.at === null || now - Date.parse(a.at) >= RECHECK_MS)
-    .sort((a, b) => (a.at === null ? -1 : b.at === null ? 1 : a.at.localeCompare(b.at)))
-    .slice(0, limit);
+  const store = getAssayStore();
+  const due = dueForCheck(
+    agents,
+    { lastRun: store.lastRunAt(HF_SUITE_ID), lastAttempt: store.lastFailedAttemptAt(HF_SUITE_ID) },
+    { now, recheckMs: RECHECK_MS, retryMs: RETRY_MS, limit },
+  );
   if (due.length === 0) return { checked: 0, passedAll: 0, notAskable: 0, paidOnly: 0, sample: 0 };
   const accounts = await currentSample();
   if (accounts.length === 0) return { checked: 0, passedAll: 0, notAskable: 0, paidOnly: 0, sample: 0 };
@@ -122,7 +125,12 @@ export async function runDueHealthFactorChecks(
   const started = Date.now();
   for (const agent of due) {
     if (Date.now() - started > startWithinMs) break;
-    const run = await runHealthFactorSuite(agent, accounts).catch(() => null);
+    const run = await runHealthFactorSuite(agent, accounts).catch((error: unknown) => {
+      // No result to show, but the attempt is the agent's turn: without this
+      // the same failing agents led the queue every sweep.
+      store.noteFailedAttempt(agent, HF_SUITE_ID, (error as Error).message ?? String(error));
+      return null;
+    });
     if (!run) continue;
     checked += 1;
     if (run.status === 'not-askable') notAskable += 1;

@@ -36,6 +36,17 @@ const SCHEMA = `
     PRIMARY KEY (run_id, scenario)
   );
 
+  -- Failed attempts, which produce no result to show but must still move
+  -- the agent back in the queue (see assay/queue).
+  CREATE TABLE IF NOT EXISTS assay_attempts (
+    chain_id     INTEGER NOT NULL,
+    token_id     TEXT NOT NULL,
+    suite        TEXT NOT NULL,
+    attempted_at TEXT NOT NULL,
+    error        TEXT,
+    PRIMARY KEY (chain_id, token_id, suite)
+  );
+
   CREATE TABLE IF NOT EXISTS assay_samples (
     suite      TEXT PRIMARY KEY,
     accounts   TEXT NOT NULL,
@@ -130,6 +141,23 @@ class AssayStore {
     this.db
       .prepare('INSERT INTO assay_samples (suite, accounts, sampled_at) VALUES (?, ?, ?) ON CONFLICT (suite) DO UPDATE SET accounts = excluded.accounts, sampled_at = excluded.sampled_at')
       .run(suite, JSON.stringify(accounts), new Date().toISOString());
+  }
+
+  /** A check that failed before producing a result; only the latest is kept. */
+  noteFailedAttempt(target: { chainId: number; tokenId: string }, suite: string, error: string): void {
+    this.db
+      .prepare(
+        'INSERT INTO assay_attempts (chain_id, token_id, suite, attempted_at, error) VALUES (?, ?, ?, ?, ?) ON CONFLICT (chain_id, token_id, suite) DO UPDATE SET attempted_at = excluded.attempted_at, error = excluded.error',
+      )
+      .run(target.chainId, target.tokenId, suite, new Date().toISOString(), error.slice(0, 500));
+  }
+
+  /** When each agent's last failed attempt was. Agents never failed are absent. */
+  lastFailedAttemptAt(suite: string): Map<string, string> {
+    const rows = this.db
+      .prepare('SELECT chain_id, token_id, attempted_at AS at FROM assay_attempts WHERE suite = ?')
+      .all(suite) as Array<{ chain_id: number; token_id: string; at: string }>;
+    return new Map(rows.map((r) => [`${r.chain_id}:${r.token_id}`, r.at]));
   }
 
   /** When each agent was last run on a suite. Agents never run are absent. */

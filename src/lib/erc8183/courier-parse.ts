@@ -15,6 +15,16 @@ export interface SkillChoice {
  */
 const PLUMBING = /negotiat|notify|^quote$|^ping$|^health$|^healthcheck$|^status$/i;
 
+/*
+ * "health" and "status" are also what a health-factor or position agent
+ * calls its real work: one agent's only work skill is `health`, a "Position
+ * health report", and treating it as a liveness ping marked the agent as
+ * having nothing to ask. Those two ids are plumbing only when the skill's
+ * own name and description do not describe work.
+ */
+const AMBIGUOUS = /^(health|status)$/i;
+const DESCRIBES_WORK = /position|factor|lending|loan|liquidat|collateral|portfolio|report|range/i;
+
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -29,7 +39,11 @@ export function pickWorkSkill(skills: unknown): SkillChoice | null {
   for (const entry of skills) {
     const skill = object(entry);
     const id = typeof skill?.id === 'string' ? skill.id : typeof skill?.name === 'string' ? skill.name : null;
-    if (!id || PLUMBING.test(id)) continue;
+    if (!id) continue;
+    if (PLUMBING.test(id)) {
+      const words = `${typeof skill?.name === 'string' ? skill.name : ''} ${typeof skill?.description === 'string' ? skill.description : ''}`;
+      if (!(AMBIGUOUS.test(id) && DESCRIBES_WORK.test(words))) continue;
+    }
     return { id, name: typeof skill?.name === 'string' ? skill.name : id };
   }
   return null;
@@ -72,6 +86,21 @@ export function isQuoteReply(value: unknown): boolean {
     record.status === 'quoted' ||
     (object(record.response) !== null && typeof object(record.response)?.accepted === 'boolean' && 'price' in record)
   );
+}
+
+/**
+ * A refusal that says the agent's only callable skills are the escrow ones.
+ *
+ * Some agents do their work only inside a funded job: asked directly they
+ * reply "unknown skill" and list `negotiate` and `notify_funded`. That is a
+ * statement about how they sell, not a wrong answer, and recording it as a
+ * failed check would misrepresent them.
+ */
+export function isPaidOnlyRefusal(answer: { data: Record<string, unknown> | null } | null): boolean {
+  const data = answer?.data;
+  if (!data || typeof data.error !== 'string' || !/unknown skill|unsupported skill|no such skill/i.test(data.error)) return false;
+  const skills = Array.isArray(data.skills) ? data.skills.filter((s): s is string => typeof s === 'string') : [];
+  return skills.length > 0 && skills.every((s) => PLUMBING.test(s));
 }
 
 /**
