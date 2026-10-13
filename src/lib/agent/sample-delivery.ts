@@ -5,6 +5,7 @@ import { keccak256, stringToBytes } from 'viem';
 import { readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { deliveryKind, type DeliveryKind } from './delivery-kind';
 
 /** A delivered file, unpacked far enough to show on the dossier. */
 export interface SampleDelivery {
@@ -14,6 +15,8 @@ export interface SampleDelivery {
   budgetRaw: string;
   /** Who produced it: the agent itself, or Pokter's seller standing in. */
   producer: string | null;
+  /** What the delivered file is evidence of (see `deliveryKind`). */
+  kind: DeliveryKind;
   generatedAt: string | null;
   providerLabel: string | null;
   /** keccak256 of the exact bytes served, which is what the chain committed to. */
@@ -28,6 +31,14 @@ export interface SampleDelivery {
 }
 
 const SHOWABLE: HiredJob['status'][] = ['COMPLETED', 'SUBMITTED'];
+
+function parsedContent(content: string): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
 
 function unpack(content: string): Pick<SampleDelivery, 'asked' | 'title' | 'fields' | 'raw'> {
   try {
@@ -69,6 +80,12 @@ export function sampleDelivery(chainId: number, tokenId: string): SampleDelivery
     .filter((job) => SHOWABLE.includes(job.status))
     .sort((a, b) => SHOWABLE.indexOf(a.status) - SHOWABLE.indexOf(b.status) || b.hiredAt.localeCompare(a.hiredAt));
 
+  /*
+   * An answer the agent gave is preferred over a lifecycle demonstration,
+   * however recent the demonstration: the section exists to show what the
+   * agent returns when hired.
+   */
+  let fallback: SampleDelivery | null = null;
   for (const job of jobs) {
     const stored = readDeliverable(job.jobId);
     if (!stored) continue;
@@ -81,17 +98,21 @@ export function sampleDelivery(chainId: number, tokenId: string): SampleDelivery
     const content = typeof manifest.response?.content === 'string' ? manifest.response.content : null;
     if (content === null) continue;
     const metadata = manifest.metadata ?? {};
-    return {
+    const producer = typeof metadata.producer === 'string' ? metadata.producer : null;
+    const sample: SampleDelivery = {
       jobId: job.jobId,
       status: job.status,
       hiredAt: job.hiredAt,
       budgetRaw: job.budgetRaw,
-      producer: typeof metadata.producer === 'string' ? metadata.producer : null,
+      producer,
+      kind: deliveryKind(producer, parsedContent(content)),
       generatedAt: typeof metadata.generated_at === 'string' ? metadata.generated_at : null,
       providerLabel: job.providerLabel ?? null,
       manifestHash: keccak256(stringToBytes(stored.manifestText)),
       ...unpack(content),
     };
+    if (sample.kind !== 'lifecycle') return sample;
+    fallback ??= sample;
   }
-  return null;
+  return fallback;
 }

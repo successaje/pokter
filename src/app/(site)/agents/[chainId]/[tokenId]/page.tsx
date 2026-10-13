@@ -280,16 +280,23 @@ export default async function AgentPage({ params, searchParams }: { params: Para
 
             {p.sample && (
               <div className="flex flex-col gap-3">
-                <span className="t-label">A real delivery</span>
+                <span className="t-label">{p.sample.kind === 'lifecycle' ? 'A lifecycle demonstration, not an answer' : 'A real delivery'}</span>
+                {p.sample.kind === 'lifecycle' && (
+                  <p className="text-[13px] text-ink-2">
+                    This job proved that funding, delivery and settlement work end to end. Pokter&rsquo;s seller submitted a receipt, and nothing in it came from this agent, so it says nothing about whether the agent can do the task.
+                  </p>
+                )}
                 <div className="overflow-hidden rounded-[12px] border border-rule bg-raised">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-5 py-3 text-[12.5px] text-ink-3">
                     <span>
                       Job <span className="t-readout">#{p.sample.jobId}</span> · {p.sample.status.toLowerCase()}
-                      {p.sample.producer
-                        ? /pokter delivery agent/i.test(p.sample.producer)
-                          ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
-                          : ` · produced by ${p.sample.producer}`
-                        : ''}
+                      {p.sample.kind === 'relayed'
+                        ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
+                        : p.sample.kind === 'lifecycle'
+                          ? ' · receipt submitted by Pokter’s seller, with no answer from the agent'
+                          : p.sample.producer
+                            ? ` · produced by ${p.sample.producer}`
+                            : ''}
                     </span>
                     <span className="t-readout" title={p.sample.manifestHash}>
                       hash {p.sample.manifestHash.slice(0, 10)}…
