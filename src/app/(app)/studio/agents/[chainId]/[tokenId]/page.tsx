@@ -17,8 +17,7 @@ import { Readout } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
-import { GrowthShare } from '@/features/studio/GrowthShare';
-import { evidenceShareText } from '@/lib/builders/growth';
+import { LaunchKit } from '@/features/studio/LaunchKit';
 import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +76,8 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   const ops = loadAgentOps(agent.chainId, agent.tokenId, mine);
   const proofPath = `/proof?funder=outside-team&agent=${encodeURIComponent(agent.key)}`;
   const listingPath = `/agents/${agent.chainId}/${agent.tokenId}`;
+  const preferredHireChain = agent.growth.hireNetworks[0]?.chainId ?? null;
+  const hirePath = preferredHireChain ? `/hire/${agent.chainId}/${agent.tokenId}?escrow=${preferredHireChain}` : null;
 
   return (
     <>
@@ -182,7 +183,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <GrowthShare name={agent.name} path={listingPath} text={evidenceShareText(agent.name, agent.growth)} />
+              <LaunchKit name={agent.name} listingPath={listingPath} hirePath={hirePath} growth={agent.growth} />
               <LinkButton href={proofPath} intent="ghost" size="s">View receipts</LinkButton>
               <LinkButton href="/rankings" intent="ghost" size="s">View rankings</LinkButton>
             </div>

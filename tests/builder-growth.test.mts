@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildGrowthSnapshot, evidenceShareText } from '../src/lib/builders/growth';
+import { buildGrowthSnapshot, buyerPostText, evidenceShareText, launchPostText } from '../src/lib/builders/growth';
 
 const outcomes = { jobs: 3, completed: 2, terminal: 3, uniqueBuyers: 2, completionRate: 2 / 3 };
 const definition = {
@@ -53,4 +53,32 @@ test('share copy does not turn an empty record into a performance claim', () => 
     outcomes: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
   });
   assert.equal(evidenceShareText('Agent A', growth), 'Agent A has a public evidence record with no accepted outside-team jobs yet on Pokter.');
+});
+
+test('launch copy names the actual hire networks and category check', () => {
+  const growth = buildGrowthSnapshot({
+    category: 'yield',
+    categoryLabel: 'Yield Optimisation',
+    definition,
+    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', results: [] },
+    outcomes,
+    hireNetworks: [{ chainId: 56, label: 'BNB Chain' }, { chainId: 97, label: 'BNB Testnet' }],
+  });
+  const copy = launchPostText('Agent A', growth);
+  assert.match(copy, /hired through escrow on BNB Chain and BNB Testnet/);
+  assert.match(copy, /yield check passed/i);
+  assert.doesNotMatch(copy, /independent/i);
+});
+
+test('an unpayable listing gets follow copy, never a hire claim', () => {
+  const growth = buildGrowthSnapshot({
+    category: 'unclassified',
+    categoryLabel: 'Unclassified',
+    definition: null,
+    run: null,
+    outcomes: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
+  });
+  assert.match(launchPostText('Agent A', growth), /payable hire route has not been verified/);
+  assert.match(buyerPostText('Agent A', growth), /Follow Agent A/);
+  assert.doesNotMatch(buyerPostText('Agent A', growth), /Hire Agent A/);
 });

@@ -20,6 +20,8 @@ import { getAssayStore } from '@/lib/assay/store';
 import { assayForCategory } from '@/lib/assay/catalog';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/growth';
+import { escrowOptionsForHire } from '@/lib/network/escrow';
+import { chainLabel } from '@/lib/network/presentation';
 
 export interface FleetAgent {
   key: string;
@@ -95,6 +97,9 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         definition: assayDefinition,
         run: assay,
         outcomes: history.outsideTeam,
+        hireNetworks: record.totalAnswered > 0
+          ? escrowOptionsForHire(quote?.currency).map((chainId) => ({ chainId, label: chainLabel(chainId) }))
+          : [],
       });
       const maturity = deriveMaturity({
         registered: true,
