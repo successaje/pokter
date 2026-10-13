@@ -4,6 +4,7 @@ import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
+import { BRIEF_MIN, briefAcceptable } from '@/lib/hire/brief';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -50,9 +51,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
-  if (task.length < 10 || task.length > 2000) {
+  if (task.length > 2000) {
     return NextResponse.json(
-      { error: 'The brief must be between 10 and 2000 characters.' },
+      { error: 'The brief must be 2000 characters or fewer.' },
       { status: 400 },
     );
   }
@@ -60,6 +61,17 @@ export async function POST(request: Request): Promise<NextResponse> {
   const agent = await getAgent(chainId, tokenId).catch(() => null);
   if (!agent) {
     return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+  }
+
+  /*
+   * The length floor steps aside for a brief the agent published.
+   * Checked after the agent is loaded, because deciding needs its card.
+   */
+  if (!(await briefAcceptable(task, agent))) {
+    return NextResponse.json(
+      { error: `The brief must be at least ${BRIEF_MIN} characters, or one of the examples this agent publishes on its card.` },
+      { status: 400 },
+    );
   }
 
   const quote = await requestQuote(agent, {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { BRIEF_MIN, briefAcceptable } from '@/lib/hire/brief';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
@@ -67,15 +68,26 @@ export async function POST(request: Request): Promise<NextResponse> {
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
-  if (task.length < 10 || task.length > 500) {
+  if (task.length > 500) {
     return NextResponse.json(
-      { error: 'Trial task must be between 10 and 500 characters.' },
+      { error: 'Trial task must be 500 characters or fewer.' },
       { status: 400 },
     );
   }
 
   try {
     const agent = await getAgent(chainId, tokenId);
+    /*
+     * The floor steps aside for a brief this agent publishes. It matters
+     * most here: the trial exists so somebody can try an agent the way
+     * it says to be tried, and it was refusing exactly that.
+     */
+    if (!(await briefAcceptable(task, agent))) {
+      return NextResponse.json(
+        { error: `Trial task must be at least ${BRIEF_MIN} characters, or one of the examples this agent publishes on its card.` },
+        { status: 400 },
+      );
+    }
     const endpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
     if (!endpoint) {
       return NextResponse.json(
