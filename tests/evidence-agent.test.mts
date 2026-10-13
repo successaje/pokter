@@ -66,3 +66,20 @@ test('a card for one chain points at an endpoint that quotes in that chain', () 
   assert.equal(plain.url, 'https://pokter.xyz/api/evidence/a2a');
   assert.equal('settles_on' in plain.metadata, false);
 });
+
+test('the card offers the skill that lets a funded job be finished', () => {
+  /*
+   * Without `notify_funded` Pokter has no way to tell the agent its
+   * escrow is funded, and the agent has no way to submit — so a paid job
+   * would sit until it expired and the buyer reclaimed. An agent that
+   * takes a price and cannot complete a job is the shape this
+   * marketplace exists to expose in other people's agents.
+   */
+  const card = evidenceCard(ORIGIN);
+  const ids = card.skills.map((s) => s.id);
+  assert.ok(ids.includes('notify_funded'), ids.join(','));
+  /* Still priced and still answerable: delivery is an addition, not a
+     replacement for the two skills a buyer evaluates it on. */
+  assert.ok(ids.includes('negotiate'));
+  assert.ok(ids.includes(EVIDENCE_AGENT.skillId));
+});

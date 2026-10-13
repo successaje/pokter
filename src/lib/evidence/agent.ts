@@ -78,6 +78,22 @@ export function evidenceCard(origin: URL, chainId?: ChainId) {
         tags: ['erc-8183', 'negotiation', 'quote'],
       },
       {
+        /*
+          How Pokter tells an agent its escrow is funded, and the reason
+          this agent can finish a job at all.
+
+          Without it the agent could quote and answer and never deliver:
+          a funded job would sit until it expired and the buyer reclaimed.
+          An agent that takes a price and cannot complete a job is the
+          shape this marketplace exists to expose in others.
+        */
+        id: 'notify_funded',
+        name: 'Accept a funded job and deliver it',
+        description:
+          'Tell this agent a job naming it as provider has been funded. It re-reads the escrow, builds the report the brief asked for, and submits the deliverable on chain itself.',
+        tags: ['erc-8183', 'delivery', 'escrow'],
+      },
+      {
         id: EVIDENCE_AGENT.skillId,
         name: 'Evidence for an ERC-8004 agent',
         description:

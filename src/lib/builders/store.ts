@@ -122,7 +122,21 @@ export function verifiedPublisherByOwner(owner: Address): VerifiedPublisherIdent
 }
 
 export const BUILDER_SESSION_COOKIE = 'pokter_builder_session';
-export const BUILDER_SESSION_SECONDS = 12 * 60 * 60;
+
+/**
+ * How long a proved ownership lasts before it must be proved again.
+ *
+ * Twelve hours meant a builder who looked at their own agent once a day
+ * signed a challenge every single time — and the thing the session
+ * protects is a read: jobs, deliveries and the profile editor for an
+ * identity whose ownership is public on chain anyway. The signature
+ * stops somebody else managing your agent; it was also stopping you.
+ *
+ * A week is the ordinary choice for a tool somebody returns to. Writes
+ * are unaffected, because every one of them is a wallet transaction the
+ * owner signs at the time, so a stale session cannot move anything.
+ */
+export const BUILDER_SESSION_SECONDS = 7 * 24 * 60 * 60;
 
 export function createBuilderSession(owner: Address): string {
   const token = randomBytes(32).toString('base64url');
