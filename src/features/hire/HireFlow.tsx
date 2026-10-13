@@ -353,7 +353,7 @@ export function HireFlow(props: HireFlowProps) {
             </Notice>
           )}
           <div className="flex justify-end">
-            <Button size="l" onClick={() => setStep('review')} disabled={hire.task.trim().length < 10 || !hire.providerCanDeliver} trailing={<Icon.Arrow size={16} />}>
+            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || !hire.providerCanDeliver} trailing={<Icon.Arrow size={16} />}>
               Review terms
             </Button>
           </div>

@@ -288,6 +288,23 @@ export function useHire({
         ? `This hire is funded on ${chainLabel(escrowChainId)}, where the passkey wallet does not act yet. Connect a browser wallet to fund it.`
         : 'Connect a wallet to fund escrow.';
 
+  /*
+   * A brief is long enough, or it is one the agent asked for.
+   *
+   * The ten-character floor stops somebody funding escrow with "hi",
+   * which is worth keeping for free text. It also blocked "56/303779" —
+   * nine characters, and the exact string Pokter now offers because the
+   * agent's own card publishes it as how to ask. The agent that wrote
+   * the example is a better judge of whether it is a usable brief than
+   * a length rule written for a different kind of agent.
+   *
+   * Matched against the offered templates rather than a pattern, so this
+   * only ever excuses text an agent actually declared.
+   */
+  const taskReady =
+    task.trim().length >= 10 ||
+    taskTemplates.some((template) => template.task === task.trim());
+
   const describeValid = task.trim().length > 0 && budgetValid && providerCanDeliver;
 
   const setTask = (value: string) => {
@@ -658,6 +675,7 @@ export function useHire({
     providers,
     riskWarnings,
     taskTemplates,
+    taskReady,
     selectedTemplate,
     chooseTemplate,
     task,
