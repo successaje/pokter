@@ -49,6 +49,11 @@ export async function GET(request: Request) {
       },
       {
         method: 'GET',
+        path: `/api/${API_VERSION}/agents/verifier`,
+        description: 'Dependency-free Node.js verifier that checks every returned identity and owner against ERC-8004.',
+      },
+      {
+        method: 'GET',
         path: `/api/${API_VERSION}/activity`,
         description: 'Privacy-preserving aggregate job and settlement activity, reconciled from ERC-8183.',
       },

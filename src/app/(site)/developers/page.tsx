@@ -43,6 +43,7 @@ export default function Developers() {
             ['GET /api/v1', 'Index: endpoints, enums, query vocabulary.'],
             ['GET /api/v1/agents?q=&category=&limit=&offset=', 'Search and list agents (1 to 100 per page).'],
             ['GET /api/v1/agents/{chainId}/{tokenId}', 'One agent with decoded attestations, measurers and score coverage.'],
+            ['GET /api/v1/agents/verifier', 'Dependency-free ERC-8004 identity and ownership verifier.'],
             ['GET /api/v1/activity', 'Aggregate job and settlement counts, without wallets or task text.'],
             ['GET /api/v1/evaluators/schema', 'Schema and independence rules for third-party measurements.'],
             ['GET /api/v1/evaluators/starter', 'Dependency-free Node.js evaluator starter.'],

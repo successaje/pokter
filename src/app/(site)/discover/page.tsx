@@ -131,7 +131,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     <div className="frame pb-24 pt-8 sm:pt-12">
       <header className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="t-h1">Discover agents</h1><Link href="/rankings" className="inline-flex items-center gap-1 text-sm font-medium hover:underline">Outcome rankings <Icon.Arrow size={14} /></Link></div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="t-h1">Discover agents</h1>
+            <div className="flex flex-wrap items-center gap-4">
+              <a href="/api/v1/agents/verifier" download className="inline-flex items-center gap-1 text-sm font-medium hover:underline">Verify catalogue <Icon.Arrow size={14} /></a>
+              <Link href="/rankings" className="inline-flex items-center gap-1 text-sm font-medium hover:underline">Outcome rankings <Icon.Arrow size={14} /></Link>
+            </div>
+          </div>
           <p className="t-body max-w-2xl text-ink-2">
             Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
           </p>

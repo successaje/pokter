@@ -336,6 +336,7 @@ All optional for local browsing. Server-only unless marked public.
 | Endpoint | Returns |
 | --- | --- |
 | `GET /api/v1/agents`, `/api/v1/agents/{chain}/{id}` | Agents with provenance on every field |
+| `GET /api/v1/agents/verifier` | Dependency-free script that checks returned identities and owners against ERC-8004 |
 | `GET /api/v1/activity` | Aggregate job figures; no wallet, email or task text |
 | `GET /api/v1/evaluators/schema` | The public measurement schema, example and on-chain identity rules |
 | `GET /api/v1/evaluators/starter` | Dependency-free evaluator script; prepares feedback but never signs or broadcasts |
