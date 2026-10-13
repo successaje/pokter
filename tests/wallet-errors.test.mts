@@ -115,3 +115,18 @@ test('a declined signature still reads as a choice, not a fault', () => {
   assert.match(text, /cancelled/i);
   assert.ok(!/eth_sendTransaction/.test(text), 'no plumbing in a message about a choice');
 });
+
+test('a transaction the network never received is not reported as slow', () => {
+  /*
+   * A wallet handed back 0x9ebbabe3… for a hand-delivery, the receipt
+   * wait timed out, and the chain had no record of it — not mined, not
+   * pending, the nonce untouched. "Timed out while waiting to be
+   * confirmed" sends the reader to wait for something that will never
+   * arrive; the two cases call for opposite responses.
+   */
+  const text = walletActionError(new Error('SUBMIT_NOT_BROADCAST'), 'Delivering');
+  assert.match(text, /never broadcast/);
+  assert.match(text, /no fee was paid/);
+  assert.match(text, /Try again/);
+  assert.ok(!/timed out|wait/i.test(text), text);
+});

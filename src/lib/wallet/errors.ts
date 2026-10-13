@@ -86,6 +86,15 @@ export function walletActionError(error: unknown, action: string): string {
     return `${action} tried to swap for the missing $U and the swap failed on chain. Nothing was funded into escrow.`;
   }
 
+  /*
+   * The wallet returned a hash and the network never saw the
+   * transaction. Distinguished from a slow confirmation because the two
+   * call for opposite responses: wait, or try again.
+   */
+  if (/SUBMIT_NOT_BROADCAST/.test(message)) {
+    return `${action} was signed, but the network has no record of the transaction — it was never broadcast. Nothing was sent and no fee was paid. Try again.`;
+  }
+
   if (/INSUFFICIENT_PAYMENT_TOKEN/.test(message)) {
     return `${action} needs more $U than this wallet holds, and the swap did not cover it. Check the balance and try again.`;
   }
