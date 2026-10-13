@@ -5,7 +5,7 @@ import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import type { PokterJobEnvelope } from './job-envelope';
-import { extractAnswer, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
+import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -104,6 +104,7 @@ export async function sendPreparedBrief(
     if (isQuoteReply(object(object(payload.payload)?.result))) throw new PaidOnlyError('The agent answered with a price: it does this work only when paid through escrow.');
     throw new Error('The agent answered, but with no text and no data.');
   }
+  if (isPaidOnlyRefusal(answer)) throw new PaidOnlyError('Asked directly, the agent offers only its escrow skills: it does this work only when paid through escrow.');
   return {
     answer,
     answeredBy: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name, endpoint: payload.origin, skill: agent.skill.id },
