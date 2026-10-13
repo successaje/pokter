@@ -472,7 +472,17 @@ export default async function HomePage() {
                 ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
                 ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
                 ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
-                ['x402 / B402', 'Per-call payments', 'Planned', 'Not integrated'],
+                /*
+                  Says what was found, not only what is built.
+                  "Planned · Not integrated" described Pokter's roadmap and
+                  left the reader to assume the standard works and Pokter
+                  has not caught up. Measuring it says otherwise: the
+                  registration schema carries `x402Support` as a boolean
+                  with no field for where to pay, and of 47 declaring
+                  agents whose endpoints Pokter called, none answered the
+                  402 the protocol requires.
+                */
+                ['x402 / B402', 'Per-call payments', 'Checked, nothing to pay', 'Declared by 79,907 agents; none Pokter reached demands payment'],
                 ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
               ].map(([name, use, status, note]) => (
                 <tr key={name}>
