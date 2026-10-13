@@ -67,4 +67,3 @@ test('team-funded work cannot contribute because it is absent from outside-team 
   assert.equal(maturity.current, 'delivered');
   assert.equal(maturity.steps.find((step) => step.id === 'market-proven')?.earned, false);
 });
-

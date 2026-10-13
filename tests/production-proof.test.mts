@@ -88,4 +88,3 @@ test('a missing funder can never enter the outside-team population', () => {
   );
   assert.equal(selected.length, 0);
 });
-

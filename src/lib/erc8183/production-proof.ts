@@ -125,4 +125,3 @@ export function summarizeProductionProof(
     lastCheckedAt,
   };
 }
-

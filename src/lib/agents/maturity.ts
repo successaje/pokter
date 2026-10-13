@@ -114,4 +114,3 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
       : steps.find((step) => step.id === current)?.detail ?? 'Registered identity.';
   return { current, label: LABEL[current], summary, steps };
 }
-
