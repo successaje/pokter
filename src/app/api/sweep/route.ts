@@ -14,6 +14,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
+import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
@@ -227,6 +228,19 @@ export async function POST(request: Request): Promise<NextResponse> {
      * any marketplace can be read without scanning the chain per request.
      */
     const questIndex = await Promise.all([indexEscrowJobs(56).catch(() => null), indexEscrowJobs(97).catch(() => null)]);
+
+    /*
+     * Recover any job Pokter brokered that never reached its own index.
+     *
+     * The index was written from the browser, so a hire whose wallet
+     * returned no receipt hash — which `wallet_sendCalls` routinely does —
+     * or whose tab closed at the wrong moment, simply never arrived.
+     * Mainnet job 56980 sat funded on chain while /api/v1/activity
+     * reported no mainnet jobs at all. Reading the escrow needs no
+     * cooperation from any browser, and it is what makes the published
+     * counts checkable rather than asserted.
+     */
+    const reconciled = await reconcileJobIndex().catch(() => null);
     const agentWallets = listings
       ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
       : null;
@@ -270,6 +284,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       funders,
       healthFactorChecks,
       questIndex,
+      reconciled,
       followerAlerts,
       agentWallets,
       testnetSweep,
