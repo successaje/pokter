@@ -17,6 +17,9 @@ import { Readout } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
+import { GrowthShare } from '@/features/studio/GrowthShare';
+import { evidenceShareText } from '@/lib/builders/growth';
+import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Manage agent' };
@@ -72,6 +75,8 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   const mine = jobs.filter((j) => `${j.agentChainId ?? 56}:${j.agentTokenId}` === agent.key);
   const ad = agent.adoption;
   const ops = loadAgentOps(agent.chainId, agent.tokenId, mine);
+  const proofPath = `/proof?funder=outside-team&agent=${encodeURIComponent(agent.key)}`;
+  const listingPath = `/agents/${agent.chainId}/${agent.tokenId}`;
 
   return (
     <>
@@ -137,6 +142,51 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <Progress label="Separate active days" value={ad.activeDays} target={ad.daysTarget} met={ad.daysMet} />
             </section>
           )}
+          <section aria-labelledby="growth-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="growth-title" className="t-h3">Growth cockpit</h2>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">The shortest evidence-backed path from listing to a ranked outcome record.</p>
+                </div>
+                <span className="rounded-full border border-rule px-2 py-1 text-[11px] font-medium text-ink-2">{agent.growth.categoryLabel}</span>
+              </div>
+            </div>
+
+            {agent.growth.check ? (
+              <div className="rounded-[10px] border border-rule bg-paper p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium">{agent.growth.check.label}</span>
+                  <span className={agent.growth.check.status === 'passed' ? 'text-[12px] font-medium text-ok' : 'text-[12px] font-medium text-ink-3'}>
+                    {agent.growth.check.status === 'passed' ? 'Passed' : agent.growth.check.status === 'partial' ? 'Needs work' : 'Not verified'}
+                  </span>
+                </div>
+                <p className="mt-1 text-[12.5px] text-ink-2">{agent.growth.check.summary}</p>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">{agent.growth.check.limitation}</p>
+              </div>
+            ) : (
+              <p className="rounded-[10px] border border-rule bg-paper p-3 text-[12.5px] text-ink-3">Choose a truthful marketplace category before Pokter can run a category-specific check.</p>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[13px] font-medium">Outcome-ranking eligibility</span>
+                <span className={agent.growth.rankingEligible ? 'text-[12px] font-medium text-ok' : 'text-[12px] font-medium text-ink-3'}>
+                  {agent.growth.rankingEligible ? 'Eligible' : `${agent.growth.rankingGaps.length} threshold${agent.growth.rankingGaps.length === 1 ? '' : 's'} left`}
+                </span>
+              </div>
+              <Progress label="Accepted outside-team jobs" value={agent.growth.outcomes.completed} target={MIN_OUTCOME_COMPLETIONS} met={agent.growth.outcomes.completed >= MIN_OUTCOME_COMPLETIONS} />
+              <Progress label="Terminal outside-team jobs" value={agent.growth.outcomes.terminal} target={MIN_OUTCOME_TERMINAL} met={agent.growth.outcomes.terminal >= MIN_OUTCOME_TERMINAL} />
+              <Progress label="Known outside-team buyers" value={agent.growth.outcomes.uniqueBuyers} target={MIN_OUTCOME_BUYERS} met={agent.growth.outcomes.uniqueBuyers >= MIN_OUTCOME_BUYERS} />
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Outside-team means the funding wallet is not declared as Pokter&rsquo;s. It is not an independence claim.</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <GrowthShare name={agent.name} path={listingPath} text={evidenceShareText(agent.name, agent.growth)} />
+              <LinkButton href={proofPath} intent="ghost" size="s">View receipts</LinkButton>
+              <LinkButton href="/rankings" intent="ghost" size="s">View rankings</LinkButton>
+            </div>
+          </section>
           <section aria-labelledby="maturity-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
             <div>
               <h2 id="maturity-title" className="t-h3">Path to market proof</h2>

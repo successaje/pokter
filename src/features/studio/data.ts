@@ -18,6 +18,8 @@ import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
 import { escrowChainForHire } from '@/lib/network/escrow';
 import { getAssayStore } from '@/lib/assay/store';
 import { assayForCategory } from '@/lib/assay/catalog';
+import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/growth';
 
 export interface FleetAgent {
   key: string;
@@ -35,6 +37,7 @@ export interface FleetAgent {
   createdAt: string | null;
   adoption: AgentAdoption | null;
   maturity: AgentMaturity;
+  growth: BuilderGrowthSnapshot;
 }
 
 export async function studioOwner(): Promise<string | null> {
@@ -86,6 +89,13 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
       const category = classify(agent);
       const assayDefinition = assayForCategory(category);
       const assay = assayDefinition ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) : null;
+      const growth = buildGrowthSnapshot({
+        category,
+        categoryLabel: category === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(category)?.label ?? category),
+        definition: assayDefinition,
+        run: assay,
+        outcomes: history.outsideTeam,
+      });
       const maturity = deriveMaturity({
         registered: true,
         reachable: record.totalAnswered > 0,
@@ -113,6 +123,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         createdAt: agent.created_at ?? null,
         adoption: adoptions[i],
         maturity,
+        growth,
       };
     }),
   };
