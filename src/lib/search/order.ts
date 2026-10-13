@@ -1,4 +1,4 @@
-import { offersDirectHire, type SearchableAgent } from './match';
+import { letsJobsLapse, offersDirectHire, type SearchableAgent } from './match';
 
 export type MarketplaceOrder =
   | 'recommended'
@@ -92,18 +92,8 @@ function weekMedianMs(agent: SearchableAgent): number | null {
   return agent.record.windows.find((window) => window.label === '7d')?.medianMs ?? null;
 }
 
-/**
- * Lets funded work lapse more often than it delivers it.
- *
- * Answering probes and delivering paid work are different promises, and an
- * agent that keeps the first while breaking the second is not reliable in
- * the sense a buyer means. Missed covers jobs still FUNDED past their
- * deadline as well as EXPIRED ones (see economic-history).
- */
-export function letsJobsLapse(agent: SearchableAgent): boolean {
-  const missed = agent.history?.missed ?? 0;
-  return missed > 0 && missed > (agent.history?.delivered ?? 0);
-}
+// Defined beside the verdict, which it now also decides; kept importable from here.
+export { letsJobsLapse };
 
 /**
  * Agents that let jobs lapse go after every agent that does not. Among the
