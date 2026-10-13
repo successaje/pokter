@@ -4,10 +4,10 @@ import test from 'node:test';
 import { guidePicks } from '../src/lib/campaign/picks';
 import type { SearchableAgent } from '../src/lib/search/match';
 
-function agent(name: string, opts: { owner?: string; delivered?: number; missed?: number; probes?: number; hireable?: boolean; requiresAuth?: boolean } = {}): SearchableAgent {
+function agent(name: string, opts: { owner?: string; delivered?: number; missed?: number; probes?: number; hireable?: boolean; requiresAuth?: boolean; priced?: boolean } = {}): SearchableAgent {
   const probes = opts.probes ?? 0;
   return {
-    listing: { agent: { name, token_id: name, chain_id: 97, owner_address: opts.owner ?? `0x${name}` }, hireable: opts.hireable ?? true, requiresAuth: opts.requiresAuth },
+    listing: { agent: { name, token_id: name, chain_id: 97, owner_address: opts.owner ?? `0x${name}` }, hireable: opts.hireable ?? true, requiresAuth: opts.requiresAuth, quote: opts.priced ? { priceU: 0.1 } : null },
     record: { totalProbes: probes, totalAnswered: probes, windows: [{ label: '7d', probes, answered: probes, ratio: 1 }] },
     history: { delivered: opts.delivered ?? 0, missed: opts.missed ?? 0 },
   } as unknown as SearchableAgent;
@@ -50,4 +50,10 @@ test('an agent whose card requires a login is not recommended before its first j
   const gated = agent('gated', { probes: 266, requiresAuth: true });
   const open = agent('open', { probes: 30 });
   assert.deepEqual(names(guidePicks([gated, open], { isHireable })), ['open']);
+});
+
+test('an agent with a signed price is recommended before one without, whatever else', () => {
+  const unpriced = agent('unpriced', { probes: 300, delivered: 3 });
+  const priced = agent('priced', { probes: 25, priced: true });
+  assert.deepEqual(names(guidePicks([unpriced, priced], { isHireable })), ['priced', 'unpriced']);
 });

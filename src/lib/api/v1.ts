@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { Listing } from '@/lib/marketplace';
 import type { TrackRecord } from '@/lib/history/record';
-import type { Verdict } from '@/lib/proof/engine';
+import { VERDICT_LABEL, type Verdict } from '@/lib/proof/engine';
 
 /**
  * The public read schema, version 1.
@@ -52,6 +52,8 @@ export interface AgentSummary {
   owner: Measured<string | null>;
   category: Measured<string>;
   verdict: Measured<Verdict>;
+  /** How the site names `verdict`: the ids are stable for queries, the labels are what readers see. */
+  verdictLabel: string;
   /**
    * What the agent quoted for itself, or null when it has never named a price.
    * Null is a fact about the agent, not a missing field.
@@ -117,6 +119,7 @@ export function toAgentSummary(
       'calculated',
       'List-level signal. It never returns "proven": that needs attestations decoded to their measurers, which the agent detail endpoint does.',
     ),
+    verdictLabel: VERDICT_LABEL[verdict],
     price: measured(
       listing.quote
         ? {

@@ -150,6 +150,9 @@ export default async function MethodologyPage() {
             </div>
           ))}
         </dl>
+        <p>
+          <strong>Performance</strong> is the share of paid jobs through Pokter escrow that the agent delivered, out of those that were delivered or reached their deadline. It is unmeasured until one has, and realised returns are never estimated. <strong>Reliability</strong> is whether it answers Pokter&rsquo;s probes. An agent can answer every probe and still score low on Performance.
+        </p>
         <p>Weights are points out of 100 before rescaling over what was measured.</p>
       </DocSection>
 

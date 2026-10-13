@@ -2,6 +2,8 @@ import 'server-only';
 
 import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { catalogueCounts } from '@/lib/agents/catalogue-counts';
+import { firstPerAgent } from '@/lib/agents/distinct';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { listSearchableWithStatus, searchByName } from '@/lib/marketplace';
@@ -144,6 +146,10 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
 
   if (!q || usesGrammar) filtered = orderMarketplace(filtered, params.sort);
 
+  // One row per agent: an agent registered on both chains by the same owner
+  // is shown once, in its best-ranked registration, so the list and the
+  // counts above it agree. Filtering to one chain shows that chain's.
+  if (params.chain === 'any') filtered = firstPerAgent(filtered, (e) => e.listing.agent);
   const rows = findRows(filtered);
   return {
     rows: rows.map((row, i) => ({ ...row, reason: reasons.get(filtered[i]) ?? null })),
@@ -152,8 +158,8 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     advanced,
     categoryCounts,
     collections: {
-      hireable: promotable.filter((e) => offersDirectHire(e)).length,
-      priced: promotable.filter((e) => e.listing.quote != null).length,
+      // The same figures as the home page and the methodology census.
+      ...catalogueCounts(entries),
       answering: promotable.filter((e) => {
         const w = e.record.windows.find((x) => x.label === '7d');
         return Boolean(w && w.probes > 0 && (w.ratio ?? 0) > 0);

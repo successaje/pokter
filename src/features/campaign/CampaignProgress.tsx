@@ -79,7 +79,7 @@ export function CampaignProgress() {
       <p className="text-[12.5px] text-ink-3">A hire counts once its escrow is funded on chain. BNB Chain decides eligibility after the campaign closes, from on-chain data only.</p>
       <div className="flex flex-wrap gap-2">
         <LinkButton href={`/quest?address=${address}`} size="s" trailing={<Icon.Arrow size={14} />}>
-          Your hires on every marketplace
+          Your hires across marketplaces
         </LinkButton>
         <LinkButton href="/discover?hireable=1" size="s" intent="secondary">
           Find a hireable agent

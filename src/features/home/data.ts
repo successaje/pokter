@@ -8,8 +8,8 @@ import { findRows, type FindRow } from '@/lib/find/rows';
 import { getEcosystemStats, listSearchableWithStatus, type EcosystemStats } from '@/lib/marketplace';
 import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
-import { letsJobsLapse, offersDirectHire, type SearchableAgent } from '@/lib/search/match';
-import { distinctAgentCount } from '@/lib/agents/distinct';
+import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
+import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { mostReliable } from '@/lib/search/order';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
@@ -207,7 +207,6 @@ export async function loadHome(): Promise<HomeData> {
   const jobs = summarizeMarketplaceActivity(buyerJobs);
   const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
   const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
-  const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   return {
     reachable: !unreachable,
@@ -218,10 +217,7 @@ export async function loadHome(): Promise<HomeData> {
     reliable,
     activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
-    catalogue: {
-      // Distinct agents: one registered on both chains is one agent.
-      hireable: distinctAgentCount(promotable.filter((entry) => offersDirectHire(entry)).map((entry) => entry.listing.agent)),
-      priced: distinctAgentCount(promotable.filter((entry) => entry.listing.quote != null).map((entry) => entry.listing.agent)),
-    },
+    // The same figures Discover and the methodology census show.
+    catalogue: catalogueCounts(entries),
   };
 }

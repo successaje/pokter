@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { distinctAgentCount } from '../src/lib/agents/distinct';
+import { distinctAgentCount, firstPerAgent } from '../src/lib/agents/distinct';
 
 const OWNER = '0xDF1074a272c53a1a10b96fa0201eb58bbbaafe00';
 
@@ -26,4 +26,13 @@ test('the same name from different owners, or unnamed agents, stay separate', ()
     ]),
     4,
   );
+});
+
+test('a list keeps the first registration of each agent, in order', () => {
+  const rows = [
+    { id: 'keel-56', agent: { owner_address: OWNER, name: 'Keel', chain_id: 56, token_id: '341556' } },
+    { id: 'other', agent: { owner_address: '0x1', name: 'Other', chain_id: 97, token_id: '9' } },
+    { id: 'keel-97', agent: { owner_address: OWNER, name: 'Keel', chain_id: 97, token_id: '2238' } },
+  ];
+  assert.deepEqual(firstPerAgent(rows, (row) => row.agent).map((row) => row.id), ['keel-56', 'other']);
 });

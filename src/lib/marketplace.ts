@@ -442,7 +442,7 @@ export async function getDossier(
     proof,
     live,
     record,
-    score: computeScore({ agent, category, proof, attestations, record, live }),
+    score: computeScore({ agent, category, proof, attestations, record, live, history: summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)) }),
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
@@ -544,7 +544,7 @@ export async function getComparison(
     category,
     proof,
     record,
-    score: computeScore({ agent, category, proof, attestations, record }),
+    score: computeScore({ agent, category, proof, attestations, record, history: economicHistory }),
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),

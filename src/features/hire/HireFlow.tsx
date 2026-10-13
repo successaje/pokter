@@ -576,7 +576,7 @@ export function HireFlow(props: HireFlowProps) {
               <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">{hire.active.mode === 'passkey' ? 'Passkey wallet' : 'Browser wallet'}</span>
-                  <Address address={hire.active.address} />
+                  <Address address={hire.active.address} chainId={escrowChainId} />
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   {/*

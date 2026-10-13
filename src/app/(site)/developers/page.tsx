@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { VOCABULARY } from '@/lib/search/query';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { enabledEscrowChains } from '@/lib/network/escrow';
+import { VERDICT_LABEL } from '@/lib/proof/engine';
+import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { Doc, DocSection } from '@/features/content/Doc';
 
 export const metadata: Metadata = {
@@ -17,7 +19,9 @@ function Code({ children }: { children: string }) {
 }
 
 export default function Developers() {
-  const escrow = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  // Every escrow hires are funded on, each with its own contracts: a judge
+  // or builder looking for the mainnet address should find it here.
+  const escrows = enabledEscrowChains().map((chainId) => ({ chainId, addresses: correctedErc8183Addresses(chainId) }));
   return (
     <Doc
       label="Developers"
@@ -48,8 +52,12 @@ export default function Developers() {
         </ul>
         <Code>{`curl https://pokter.xyz/api/v1/agents?category=health-factor&q=has:price`}</Code>
         <p>
-          Try it: <Link href="/api/v1" className="link">/api/v1</Link>. The verdict values are{' '}
-          <span className="t-readout text-[13px]">proven, reliable, emerging, observed, failing, unproven</span>.
+          Try it: <Link href="/api/v1" className="link">/api/v1</Link>. The verdict values, which queries use, and the label the site shows for each
+          (also returned as <span className="t-readout text-[13px]">verdictLabel</span>):{' '}
+          <span className="t-readout text-[13px]">
+            {(['proven', 'reliable', 'emerging', 'observed', 'failing', 'unproven'] as const).map((v) => `${v} (${VERDICT_LABEL[v]})`).join(', ')}
+          </span>
+          .
         </p>
       </DocSection>
 
@@ -75,19 +83,34 @@ export default function Developers() {
       </DocSection>
 
       <DocSection id="contracts" title="Contracts">
-        <p>Escrow for hires made through Pokter, on {ALTANA_NETWORK.chain.name}:</p>
-        <dl className="ruled border-y border-rule text-[13.5px]">
-          {[
-            ['ERC-8183 commerce', escrow.commerce],
-            ['Evaluator router', escrow.router],
-            ['Payment token ($U)', escrow.paymentToken],
-          ].map(([k, v]) => (
-            <div key={k} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between">
-              <dt>{k}</dt>
-              <dd className="t-readout break-all text-ink">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <p>
+          Hires made through Pokter are funded on {escrows.map((e) => chainLabel(e.chainId)).join(' or ')}: an agent that signs its price in a token one of
+          these escrows settles in is hired there.
+        </p>
+        {escrows.map(({ chainId, addresses }) => (
+          <div key={chainId} className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold">
+              {chainLabel(chainId)} <span className="t-readout font-normal text-ink-3">chain {chainId}</span>
+            </h3>
+            <dl className="ruled border-y border-rule text-[13.5px]">
+              {[
+                ['ERC-8183 commerce', addresses.commerce],
+                ['Evaluator router', addresses.router],
+                ['Optimistic policy', addresses.policy],
+                ['Payment token ($U)', addresses.paymentToken],
+              ].map(([k, v]) => (
+                <div key={k} className="flex flex-col gap-1 py-3 sm:flex-row sm:justify-between">
+                  <dt>{k}</dt>
+                  <dd className="t-readout break-all text-ink">
+                    <a href={`${explorerBaseFor(chainId)}/address/${v}`} className="link" target="_blank" rel="noreferrer noopener">
+                      {v}
+                    </a>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
         <p>ERC-8004 and ERC-8183 are draft EIPs. Pokter tracks the deployments BNB Chain publishes and pins addresses where an SDK lagged behind them.</p>
       </DocSection>
 

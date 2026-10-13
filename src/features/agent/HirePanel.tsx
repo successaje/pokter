@@ -6,7 +6,7 @@ import { Icon } from '@/ui/icons';
 import type { AgentProfile } from './profile';
 
 export function priceSummary(p: AgentProfile) {
-  if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Signed by the agent' : 'Last signed price (expired)', signed: true };
+  if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Signed by the agent' : 'Last signed price expired · a fresh quote is signed when you hire', signed: true };
   if (p.suggestion) return { headline: p.suggestion.label, caption: 'Suggested budget · it has not signed a price', signed: false };
   return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default budget · it has not signed a price', signed: false };
 }

@@ -69,4 +69,5 @@ export interface PokterScore {
   calculatedAt: string;
 }
 
-export const SCORE_VERSION = '1.0.0';
+// 1.1.0: Performance is measured from paid jobs delivered and missed.
+export const SCORE_VERSION = '1.1.0';

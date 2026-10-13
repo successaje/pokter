@@ -86,7 +86,7 @@ export default async function SetAndEarn() {
               Your progress
             </h2>
             <Link href="/quest" className="text-[13px] font-medium text-ink hover:underline">
-              Hires on every marketplace: the tracker <Icon.Arrow size={13} className="inline" />
+              Hires across marketplaces: the tracker <Icon.Arrow size={13} className="inline" />
             </Link>
             <Link href="/studio" className="text-[13px] font-medium text-ink-2 hover:text-ink">
               Build track: your agent&rsquo;s hires, actions and active days are in Builder Studio <Icon.Arrow size={13} className="inline" />
@@ -135,7 +135,7 @@ export default async function SetAndEarn() {
               Each of the three must be a <strong>different agent</strong>.
             </li>
           </ul>
-          <p>On Pokter a hire is one funded escrow job, and Hire is only offered where the escrow can actually pay the agent&rsquo;s price. Three you can hire now, each from a different operator:</p>
+          <p>On Pokter a hire is one funded escrow job. An agent that signs a price is offered only where the escrow can pay that price; one that has not signed a price is hired at a budget you set. Three you can hire now, each from a different operator, agents with a signed price first:</p>
           {picks.length > 0 ? (
             <div className="ruled border-y border-rule">
               {picks.map((row) => (

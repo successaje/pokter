@@ -2,6 +2,7 @@ import 'server-only';
 
 import { getEcosystemStats, listSearchable } from '@/lib/marketplace';
 import { verdictFor } from '@/lib/search/match';
+import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import type { Verdict } from '@/lib/proof/engine';
 import type { Provenance } from '@/lib/api/v1';
@@ -55,10 +56,12 @@ export interface SupplyCensus {
 export async function supplyCensus(): Promise<SupplyCensus> {
   const [stats, all] = await Promise.all([
     getEcosystemStats(),
-    listSearchable({ limit: 30 }),
+    // The depth the home page and Discover read, so the census counts the same catalogue.
+    listSearchable({ limit: 400 }),
   ]);
 
-  const quoted = all.filter((e) => e.listing.quote).length;
+  // Distinct agents with a signed price: the figure every page shows.
+  const quoted = catalogueCounts(all).priced;
   const verdicts = all.map((e) => verdictFor(e));
 
   const steps: CensusStep[] = [

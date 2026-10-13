@@ -13,7 +13,7 @@ import { Icon } from '@/ui/icons';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Set and Earn tracker',
-  description: 'Your Set and Earn hires on every marketplace, read from BNB Chain’s escrow contracts. Paste a wallet address; no connection needed.',
+  description: 'Your Set and Earn hires across marketplaces, read from BNB Chain’s ERC-8183 escrow contracts. Paste a wallet address; no connection needed.',
   alternates: { canonical: '/quest' },
 };
 
@@ -108,7 +108,7 @@ function Result({ data }: { data: QuestLookup }) {
       )}
 
       <p className="text-[12.5px] leading-relaxed text-ink-3">
-        Read from BNB Chain&rsquo;s ERC-8183 escrow contracts on mainnet and testnet, which every shortlisted marketplace uses. A hire counts once its escrow is funded. The contract records a job&rsquo;s deadline, not when it was made, so jobs with a deadline after 1 October are shown. Indexed through job{' '}
+        Read from BNB Chain&rsquo;s ERC-8183 escrow contracts on mainnet and testnet. Hires settled through a marketplace&rsquo;s own contract are not included. A hire counts once its escrow is funded. The contract records a job&rsquo;s deadline, not when it was made, so jobs with a deadline after 1 October are shown. Indexed through job{' '}
         {data.coverage.map((c, i) => (
           <span key={c.chainId}>
             {i > 0 ? ' and ' : ''}#{c.throughJob} on {chainLabel(c.chainId)}
@@ -132,9 +132,9 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
         <span className="t-label flex items-center gap-2">
           <span className="tile" aria-hidden /> BNB Chain · Set and Earn · {CAMPAIGN_END_LABEL}
         </span>
-        <h1 className="t-h1">Your hires, on every marketplace</h1>
+        <h1 className="t-h1">Your hires, across marketplaces</h1>
         <p className="t-lede">
-          The hire track needs three different agents across at least two marketplaces. Every marketplace settles through the same BNB Chain escrow, so Pokter can read your hires wherever you made them.
+          The hire track needs three different agents across at least two marketplaces. Pokter reads the hires made through BNB Chain&rsquo;s ERC-8183 escrow contracts, on mainnet and testnet, whichever marketplace made them. Marketplaces that settle through contracts of their own are not visible here, so a hire made that way will not appear.
         </p>
         <form action="/quest" className="flex flex-col gap-2 pt-2 sm:flex-row" role="search">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-rule-strong bg-paper px-3 focus-within:border-ink">
