@@ -61,8 +61,14 @@ export interface AgentSummary {
   probes: Measured<{ total: number; answered: number; observedDays: number }>;
   attestations: Measured<number>;
   /**
-   * Declared, not observed. Pokter does not exercise x402 payment, so this is
-   * the registry's flag repeated — useful for filtering, not evidence.
+   * Declared, not observed, and the declaration has nowhere to point.
+   *
+   * `x402Support` is a bare boolean in the registration file — 79,907
+   * mainnet agents carry it — and the schema has no field for a payment
+   * endpoint, so the claim arrives with no address attached. Of 200
+   * declaring agents sampled, 47 publish an https endpoint; all answered,
+   * and none asked to be paid. Repeating the flag as "x402 supported" was
+   * the mistake this marketplace exists to catch.
    */
   x402: Measured<boolean>;
   links: { self: string; html: string };
@@ -144,7 +150,7 @@ export function toAgentSummary(
     x402: measured(
       agent.x402_supported,
       'declared',
-      'Flag published in the registry record. Pokter has not exercised an x402 payment against this agent.',
+      'Flag published in the registry record, and only that. The ERC-8004 schema carries `x402Support` as a boolean with no field for where to pay, so a declaring agent publishes no address a payment could be sent to. Treat it as a filter, never as evidence that this agent can be paid that way.',
     ),
     links: {
       self: `${origin}/api${path}`,
