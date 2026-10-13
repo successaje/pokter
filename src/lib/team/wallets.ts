@@ -13,6 +13,9 @@ import { getAddress } from 'viem';
  * cannot be forgotten here when the key changes.
  */
 export const TEAM_WALLETS: ReadonlyArray<{ address: `0x${string}`; label: string }> = [
+  { address: '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87', label: 'Retired Pokter operator (kept for historical classification)' },
+  { address: '0x93847647d7eb72a69E162117df6a8697dF53EDda', label: 'Pokter operator from 12 October 2026' },
+  { address: '0xEF869BB780a5163E6D39E83817cD29af6DEaA784', label: 'Pokter team and payout wallet' },
   { address: '0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf', label: 'Pokter team test wallet' },
   { address: '0xcE515e144c33EDbD1c3320fde0dE6373315885eD', label: 'Pokter team test wallet' },
 ];

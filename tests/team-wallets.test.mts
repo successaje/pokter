@@ -22,6 +22,10 @@ test('unreadable addresses are dropped from the set rather than matching everyth
 test('the published team wallets are valid and counted as the team', () => {
   const published = teamAddressSet();
   assert.equal(published.size, TEAM_WALLETS.length);
+  assert.equal(TEAM_WALLETS.length, 5);
+  assert.equal(fundedByTeam({ client: '0x60ef148485c2a5119fa52ca13c52e9fd98f28e87' }, published), true);
+  assert.equal(fundedByTeam({ client: '0x93847647d7eb72a69e162117df6a8697df53edda' }, published), true);
+  assert.equal(fundedByTeam({ client: '0xef869bb780a5163e6d39e83817cd29af6deaa784' }, published), true);
   assert.equal(fundedByTeam({ client: '0x3fb8779f4f42e1800f27aaec9564530bcaa852bf' }, published), true);
   assert.equal(fundedByTeam({ client: '0xce515e144c33edbd1c3320fde0de6373315885ed' }, published), true);
   // Outside builders' wallets are not the team's.

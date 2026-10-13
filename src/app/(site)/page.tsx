@@ -104,6 +104,11 @@ export default async function HomePage() {
             </div>
           ))}
         </div>
+        <div className="frame border-t border-rule py-3 text-right">
+          <Link href="/proof" className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">
+            Inspect jobs, failures and on-chain receipts <Icon.Arrow size={14} />
+          </Link>
+        </div>
       </section>
 
       {/* ───────────── Set and Earn, while it runs ───────────── */}
