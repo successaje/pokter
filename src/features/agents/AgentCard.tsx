@@ -6,6 +6,7 @@ import { cn } from '@/lib/ui/cn';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
+import { MaturityLabel } from '@/ui/Maturity';
 
 /** Paid jobs the agent let lapse, said only when there are some. */
 function MissedNote({ row, className }: { row: FindRow; className?: string }) {
@@ -96,6 +97,7 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
         {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 shrink-0 [&>span]:w-[3px]" />}
       </div>
       <MissedNote row={row} className="mt-1.5" />
+      <div className="mt-3"><MaturityLabel maturity={row.maturity} /></div>
 
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
         <VerdictLabel verdict={row.verdict} />
@@ -123,6 +125,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable</span>}
         </h3>
         <p className="truncate text-[13px] text-ink-2">{row.description || 'No description published.'}</p>
+        <span className="mt-1"><MaturityLabel maturity={row.maturity} /></span>
         {reason && (
           <p className="text-[12px] text-ink-3">
             <span className="text-ink-2">Why it matches:</span> {reason}
@@ -166,6 +169,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           </Link>
         </h3>
         <p className="line-clamp-3 text-sm leading-relaxed text-ink-2">{row.description}</p>
+        <span className="pt-1"><MaturityLabel maturity={row.maturity} /></span>
       </div>
       <dl className="mt-auto grid grid-cols-2 gap-3 border-t border-rule pt-4 text-[12.5px]">
         <div className="flex flex-col gap-0.5">

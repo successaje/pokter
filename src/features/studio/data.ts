@@ -12,6 +12,12 @@ import { stripCells, type StripCell } from '@/lib/history/strip';
 import { resolveAgentImage } from '@/lib/registry/image';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
+import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
+import { classify } from '@/lib/agents/categories';
+import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
+import { escrowChainForHire } from '@/lib/network/escrow';
+import { getAssayStore } from '@/lib/assay/store';
+import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 
 export interface FleetAgent {
   key: string;
@@ -28,6 +34,7 @@ export interface FleetAgent {
   completedJobs: number;
   createdAt: string | null;
   adoption: AgentAdoption | null;
+  maturity: AgentMaturity;
 }
 
 export async function studioOwner(): Promise<string | null> {
@@ -57,6 +64,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
     .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt));
   const since = new Date(Date.now() - 30 * 86_400_000);
   const store = getProbeStore();
+  const quotes = store.quotesFor(agents.map((agent) => ({ chainId: agent.chain_id, tokenId: agent.token_id })));
   const adoptions = await Promise.all(agents.map((a) => readAgentAdoption(a.chain_id, a.token_id, [owner]).catch(() => null)));
   /* The registry record, not the indexer's media proxy — see
      `resolveAgentImage`. A builder's own fleet is a handful of rows, and
@@ -73,6 +81,21 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
       const day = record.windows.find((w) => w.label === '24h');
       const online = day && day.probes > 0 ? day.answered > 0 : null;
       const mine = jobs.filter((j) => `${j.agentChainId ?? 56}:${j.agentTokenId}` === `${agent.chain_id}:${agent.token_id}`);
+      const history = summariseEconomicHistory(mine);
+      const quote = quotes.get(`${agent.chain_id}:${agent.token_id}`);
+      const category = classify(agent);
+      const assay = category === 'health-factor' ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID) : null;
+      const maturity = deriveMaturity({
+        registered: true,
+        reachable: record.totalAnswered > 0,
+        compatible: record.totalAnswered > 0 && escrowChainForHire(quote?.currency) !== null,
+        tested: Boolean(assay && assay.status === 'checked' && assay.total > 0 && assay.passed === assay.total),
+        hired: history.jobs > 0,
+        delivered: history.delivered > 0,
+        outsideTeam: history.outsideTeam,
+        probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
+        observedDays: record.observedDays,
+      });
       return {
         key: `${agent.chain_id}:${agent.token_id}`,
         chainId: agent.chain_id,
@@ -88,6 +111,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         completedJobs: mine.filter((j) => j.status === 'COMPLETED').length,
         createdAt: agent.created_at ?? null,
         adoption: adoptions[i],
+        maturity,
       };
     }),
   };

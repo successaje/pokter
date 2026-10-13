@@ -28,6 +28,7 @@ import { getProbeStore } from '@/lib/history/store';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
+import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -61,6 +62,7 @@ export interface AgentProfile {
   createdAt: string | null;
   category: { id: string; label: string; question: string; blurb: string } | null;
   verdict: { id: Verdict; label: string; meaning: string; rationale: string; recommended: boolean };
+  maturity: AgentMaturity;
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
@@ -148,6 +150,20 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   // The same rule the catalogue's verdict applies (`verdictFor`): answering
   // probes does not make an agent reliable while it lets paid jobs lapse.
   const history = summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
+  const healthFactorCheck = category === 'health-factor'
+    ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID)
+    : null;
+  const maturity = deriveMaturity({
+    registered: true,
+    reachable: record.totalAnswered > 0,
+    compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && payable !== false,
+    tested: Boolean(healthFactorCheck && healthFactorCheck.status === 'checked' && healthFactorCheck.total > 0 && healthFactorCheck.passed === healthFactorCheck.total),
+    hired: history.jobs > 0,
+    delivered: history.delivered > 0,
+    outsideTeam: history.outsideTeam,
+    probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
+    observedDays: record.observedDays,
+  });
   const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const verdict = adjusted.verdict;
   const verdictRationale = adjusted.note ? `${proof.rationale} ${adjusted.note}` : proof.rationale;
@@ -181,6 +197,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     createdAt: agent.created_at ?? null,
     category: meta ? { id: meta.id, label: meta.label, question: meta.question, blurb: meta.blurb } : null,
     verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
+    maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
     record: {
       windows: record.windows,
@@ -240,7 +257,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
-    healthFactorCheck: category === 'health-factor' ? getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID) : null,
+    healthFactorCheck,
     services,
     repositoryUrl: httpsOnly(services.find((s) => s.name.toLowerCase() === 'repository')?.endpoint),
     warnings,

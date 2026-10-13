@@ -16,6 +16,7 @@ import { Breadcrumbs } from '@/ui/Controls';
 import { Readout } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
+import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Manage agent' };
@@ -84,6 +85,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
             <p className="text-[13px] text-ink-3">
               ERC-8004 <span className="t-readout">#{agent.tokenId}</span> · {chainLabel(agent.chainId)}
             </p>
+            <MaturityLabel maturity={agent.maturity} className="mt-2" />
           </div>
         </div>
         <div className="flex gap-2">
@@ -135,6 +137,14 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <Progress label="Separate active days" value={ad.activeDays} target={ad.daysTarget} met={ad.daysMet} />
             </section>
           )}
+          <section aria-labelledby="maturity-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
+            <div>
+              <h2 id="maturity-title" className="t-h3">Path to market proof</h2>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">Earned from registry, probe, quote and escrow records. Outside-team means the buyer is not one of Pokter&rsquo;s declared wallets; it does not prove the buyer was unsubsidized.</p>
+            </div>
+            <MaturityLadder maturity={agent.maturity} compact />
+            <Link href="/methodology#maturity" className="link text-[13px]">Thresholds and definitions</Link>
+          </section>
           <section className="flex flex-col gap-3 rounded-[14px] border border-rule p-5 text-[13.5px] leading-relaxed text-ink-2">
             <h2 className="t-h3 text-ink">What strengthens the listing</h2>
             <ul className="flex flex-col gap-2">

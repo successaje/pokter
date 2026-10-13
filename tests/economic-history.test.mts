@@ -4,14 +4,14 @@ import test from 'node:test';
 import { summariseEconomicHistory } from '../src/lib/erc8183/economic-history.js';
 import type { HiredJob } from '../src/lib/erc8183/types.js';
 
-function job(status: HiredJob['status'], budgetRaw = '100000000000000000'): HiredJob {
+function job(status: HiredJob['status'], budgetRaw = '100000000000000000', client?: HiredJob['client']): HiredJob {
   return {
     id: crypto.randomUUID(), jobId: String(Math.random()), chainId: 97,
     isTestnet: true, agentChainId: 56, agentTokenId: '1', agentName: 'Agent',
     provider: '0x0000000000000000000000000000000000000001', task: 'task', budgetRaw,
     expiredAt: new Date().toISOString(), hiredAt: new Date().toISOString(),
     hireTxHash: '0x01', status, statusCheckedAt: new Date().toISOString(),
-    deliverableUrl: null, settleTxHash: null,
+    deliverableUrl: null, settleTxHash: null, client,
   };
 }
 
@@ -33,4 +33,24 @@ test('open or unfunded records do not become economic activity', () => {
 test('a chain-verified funded job is counted when a relay exposes no transaction hash', () => {
   const funded = { ...job('FUNDED'), hireTxHash: null };
   assert.equal(summariseEconomicHistory([funded]).jobs, 1);
+});
+
+test('outside-team market proof excludes declared wallets and unknown legacy funders', () => {
+  const outsideA = '0x0000000000000000000000000000000000000011';
+  const outsideB = '0x0000000000000000000000000000000000000012';
+  const team = '0x93847647d7eb72a69E162117df6a8697dF53EDda';
+  const history = summariseEconomicHistory([
+    job('COMPLETED', undefined, outsideA),
+    job('COMPLETED', undefined, outsideA),
+    job('EXPIRED', undefined, outsideB),
+    job('COMPLETED', undefined, team),
+    job('COMPLETED'),
+  ]);
+  assert.deepEqual(history.outsideTeam, {
+    jobs: 3,
+    completed: 2,
+    terminal: 3,
+    uniqueBuyers: 2,
+    completionRate: 2 / 3,
+  });
 });

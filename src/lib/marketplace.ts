@@ -35,6 +35,9 @@ import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc81
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
+import { getAssayStore } from '@/lib/assay/store';
+import { HF_SUITE_ID } from '@/lib/assay/health-factor';
+import type { SearchableAgent } from '@/lib/search/match';
 export { preferDistinctOwners };
 
 /**
@@ -44,6 +47,13 @@ export { preferDistinctOwners };
  * range, while seventeen shows only that minting is cheap.
  */
 export const MAX_LISTINGS_PER_OWNER_PER_CATEGORY = 2;
+type SearchableWithHistory = SearchableAgent & { history: AgentEconomicHistory };
+
+function passedCategoryCheck(agent: ScanAgent, category: Category | 'unclassified'): boolean {
+  if (category !== 'health-factor') return false;
+  const run = getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, HF_SUITE_ID);
+  return Boolean(run && run.status === 'checked' && run.total > 0 && run.passed === run.total);
+}
 
 /**
  * Retrieval is deliberately hybrid.
@@ -581,9 +591,7 @@ export async function getComparisons(keys: string[]): Promise<Comparison[]> {
  */
 export async function listSearchable(
   options: { chainId?: ChainId; limit?: number } = {},
-): Promise<
-  { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]
-> {
+): Promise<SearchableWithHistory[]> {
   return (await listSearchableWithStatus(options)).entries;
 }
 
@@ -612,7 +620,7 @@ export async function listSearchable(
 export async function searchByName(
   query: string,
   limit = 12,
-): Promise<{ listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[]> {
+): Promise<SearchableWithHistory[]> {
   const term = query.trim();
   if (term.length < 3) return [];
 
@@ -635,11 +643,12 @@ export async function searchByName(
   return found.map((agent) => {
     const key = `${agent.chain_id}:${agent.token_id}`;
     const quote = quotes.get(key) ?? null;
+    const category = classify(agent);
     return {
       listing: {
         agent,
         /* Whatever the classifier makes of it, including nothing. */
-        category: classify(agent),
+        category,
         confidence: 0,
         attestationCount: agent.total_feedbacks,
         quote,
@@ -648,6 +657,7 @@ export async function searchByName(
       },
       record: buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since)),
       history: summariseEconomicHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
+      tested: passedCategoryCheck(agent, category),
     };
   });
 }
@@ -655,7 +665,7 @@ export async function searchByName(
 export async function listSearchableWithStatus(
   options: { chainId?: ChainId; limit?: number } = {},
 ): Promise<{
-  entries: { listing: Listing; record: TrackRecord; history: AgentEconomicHistory }[];
+  entries: SearchableWithHistory[];
   unreachable: boolean;
 }> {
   const { sections, unreachable } = await listMarketplaceWithStatus(options);
@@ -698,6 +708,7 @@ export async function listSearchableWithStatus(
     history: summariseEconomicHistory(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
+    tested: passedCategoryCheck(listing.agent, listing.category),
   }));
 
   return { entries, unreachable };

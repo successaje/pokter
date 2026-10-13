@@ -24,6 +24,7 @@ import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
+import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,6 +190,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <VerdictChip verdict={p.verdict.id} />
+                  <MaturityLabel maturity={p.maturity} className="h-7 py-0" />
                   <span className={`inline-flex h-7 items-center gap-2 rounded-full border px-2.5 text-[13px] font-medium ${p.live.answered ? 'border-ok/30 text-ok' : 'border-rule-strong text-ink-3'}`}>
                     <span className={`size-1.5 rounded-full ${p.live.answered ? 'bg-ok pulse' : 'bg-rule-strong'}`} aria-hidden />
                     {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
@@ -239,6 +241,17 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             <h2 id="overview-title" className="sr-only">
               Overview
             </h2>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <span className="t-label">Commercial maturity</span>
+                  <p className="mt-1 text-[13px] text-ink-2">{p.maturity.summary}</p>
+                </div>
+                <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How milestones are earned</Link>
+              </div>
+              <MaturityLadder maturity={p.maturity} />
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Commercial maturity records registrations, checks and jobs. The {p.verdict.label} evidence verdict above separately judges probes and third-party attestations.</p>
+            </div>
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">

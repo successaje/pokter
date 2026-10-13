@@ -1,6 +1,15 @@
 import { formatUnits } from 'viem';
 
 import type { HiredJob } from './types';
+import { fundedByTeam, teamAddressSet } from '@/lib/team/wallets';
+
+export interface OutsideTeamHistory {
+  jobs: number;
+  completed: number;
+  terminal: number;
+  uniqueBuyers: number;
+  completionRate: number | null;
+}
 
 export interface AgentEconomicHistory {
   jobs: number;
@@ -21,6 +30,8 @@ export interface AgentEconomicHistory {
   totalFundedU: string;
   latestCheckedAt: string | null;
   recent: HiredJob[];
+  /** Demand not funded by a declared Pokter wallet. This is not called independent. */
+  outsideTeam: OutsideTeamHistory;
 }
 
 /**
@@ -36,6 +47,11 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
   const funded = jobs.filter((job) => job.status !== 'OPEN');
   const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now;
+  const team = teamAddressSet();
+  const outside = funded.filter((job) => !fundedByTeam(job, team));
+  const outsideCompleted = outside.filter((job) => job.status === 'COMPLETED').length;
+  const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status)).length;
+  const outsideBuyers = new Set(outside.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
 
   return {
     jobs: funded.length,
@@ -56,5 +72,12 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
         .map((job) => job.statusCheckedAt)
         .sort((a, b) => b.localeCompare(a))[0] ?? null,
     recent: funded.slice(0, 3),
+    outsideTeam: {
+      jobs: outside.length,
+      completed: outsideCompleted,
+      terminal: outsideTerminal,
+      uniqueBuyers: outsideBuyers.size,
+      completionRate: outsideTerminal > 0 ? outsideCompleted / outsideTerminal : null,
+    },
   };
 }

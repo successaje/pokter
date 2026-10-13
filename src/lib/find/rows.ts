@@ -6,6 +6,7 @@ import { escrowChainForHire } from '@/lib/network/escrow';
 import type { Verdict } from '@/lib/proof/engine';
 import { offersDirectHire, verdictFor, type SearchableAgent } from '@/lib/search/match';
 import { catalogueSuggestion, suggestionsByCategory, type Suggestion } from '@/lib/find/suggested';
+import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
 
 /**
  * One agent as the Find list needs it: every field already a string or a
@@ -59,6 +60,7 @@ export interface FindRow {
   hirable: boolean;
   deliveredByPokter: boolean;
   paid: { jobs: number; completed: number; delivered: number; missed: number };
+  maturity: AgentMaturity;
   owner: string;
 }
 
@@ -75,6 +77,18 @@ export function toFindRow(
   const quote = listing.quote;
   const priceU = quote ? Number(quote.priceU) : null;
   const priceFresh = quote != null && !(quote.expiresAt && Date.parse(quote.expiresAt) <= now);
+  const hirable = offersDirectHire(entry);
+  const maturity = deriveMaturity({
+    registered: true,
+    reachable: record.totalAnswered > 0,
+    compatible: record.totalAnswered > 0 && listing.quotePayable !== false,
+    tested: entry.tested === true,
+    hired: (history?.jobs ?? 0) > 0,
+    delivered: (history?.delivered ?? 0) > 0,
+    outsideTeam: history?.outsideTeam ?? { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
+    probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
+    observedDays: record.observedDays,
+  });
   return {
     key: `${agent.chain_id}:${agent.token_id}`,
     chainId: agent.chain_id,
@@ -96,9 +110,10 @@ export function toFindRow(
     priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'You set the budget',
     suggested: priceU !== null ? null : suggested,
     priceFresh,
-    hirable: offersDirectHire(entry),
+    hirable,
     deliveredByPokter: agent.chain_id !== ALTANA_NETWORK.chainId,
     paid: { jobs: history?.jobs ?? 0, completed: history?.completed ?? 0, delivered: history?.delivered ?? 0, missed: history?.missed ?? 0 },
+    maturity,
     owner: agent.owner_address.toLowerCase(),
   };
 }

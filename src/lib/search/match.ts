@@ -27,6 +27,8 @@ export interface SearchableAgent {
    * is not the same as none completed.
    */
   history?: AgentEconomicHistory;
+  /** Latest category-specific correctness suite passed in full. */
+  tested?: boolean;
 }
 
 function uptime(record: TrackRecord): number | null {
