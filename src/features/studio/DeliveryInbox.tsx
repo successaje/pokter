@@ -6,7 +6,7 @@ import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { chainLabel } from '@/lib/network/presentation';
-import { submitExternalDeliverable } from '@/lib/wallet/external';
+import { submitExternalDeliverable, transactionExists } from '@/lib/wallet/external';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
@@ -46,6 +46,14 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       return null;
     }
   });
+  const clearSubmittedTx = () => {
+    setSubmittedTxState(null);
+    try {
+      window.sessionStorage.removeItem(storeKey);
+    } catch {
+      /* Then it clears on the next tab. */
+    }
+  };
   const setSubmittedTx = (hash: `0x${string}`) => {
     setSubmittedTxState(hash);
     try {
@@ -87,7 +95,25 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
 
   async function deliver() {
     setError(null);
-    if (submittedTx) return confirm(submittedTx);
+    if (submittedTx) {
+      /*
+       * Remembered, then checked.
+       *
+       * The hash is kept so a submission is never sent twice, which was
+       * right about every case except the one that happened: a wallet
+       * returned a hash for a transaction that never reached the
+       * network. The chain had no record, the job stayed funded, and
+       * re-confirming could never succeed — so the seller could not
+       * deliver at all without clearing their own session storage.
+       *
+       * If the chain has never heard of it, there is nothing to
+       * confirm and nothing in flight, so the delivery starts again.
+       */
+      if (await transactionExists(job.chainId, submittedTx)) return confirm(submittedTx);
+      clearSubmittedTx();
+      setError('The wallet reported a transaction the network never received, so nothing was delivered. Sign and deliver again — no second submission can land, because the escrow refuses one once a delivery is in.');
+      return;
+    }
     try {
       setStage('authorizing');
       const challenge = (await post({ action: 'challenge', chainId: job.chainId, jobId: job.jobId })) as { challengeId: string; message: string };

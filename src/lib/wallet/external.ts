@@ -242,6 +242,36 @@ function explainSettleRevert(reason: unknown, action: 'approve' | 'dispute'): st
   return `The escrow would not ${verb}, so nothing was signed. The chain gave no reason: ${text.slice(0, 160)}`;
 }
 
+/**
+ * Whether a transaction hash the wallet handed back actually exists.
+ *
+ * A wallet can return a hash for a transaction that never reaches the
+ * network. It happened to a hand-delivery: the wallet reported
+ * 0x9ebbabe3…, the receipt wait timed out, and the chain had no record
+ * of it at all — not mined, not pending, the account's nonce untouched.
+ *
+ * That matters because the delivery composer remembers the hash so a
+ * submission is never sent twice, and then offers only to re-confirm it.
+ * For a hash that does not exist, re-confirming can never succeed and
+ * the seller cannot deliver at all without clearing their own session
+ * storage. Asking the chain is the difference between "already sent" and
+ * "never arrived".
+ */
+export async function transactionExists(chainId: number, hash: Hex): Promise<boolean> {
+  const { read } = clients(chainId);
+  try {
+    await read.getTransaction({ hash });
+    return true;
+  } catch {
+    /* viem throws TransactionNotFound rather than returning null, and a
+       transport failure is indistinguishable here — so an unreadable
+       chain reports "exists" and the caller keeps its no-resend rule.
+       Refusing to resend costs a retry; resending a live submission
+       costs gas on a transaction the escrow will reject. */
+    return false;
+  }
+}
+
 /** Release or contest escrow from the exact browser wallet that funded it. */
 export async function settleFromExternalWallet(input: {
   account: Address;
@@ -678,7 +708,25 @@ export async function submitExternalDeliverable(input: {
     optParams: stringToHex(JSON.stringify({ deliverable_url: input.deliverableUrl })),
   });
   const hash = await wallet.sendTransaction({ account: input.account, to: call.to as Address, data: call.data, chain: null });
-  const receipt = await read.waitForTransactionReceipt({ hash });
+  let receipt;
+  try {
+    receipt = await read.waitForTransactionReceipt({ hash });
+  } catch (reason) {
+    /*
+     * A wallet can hand back a hash for a transaction the network never
+     * receives. Waiting then times out with "Timed out while waiting for
+     * transaction … to be confirmed", which sends the reader to look for
+     * a slow confirmation that does not exist — the chain had no record
+     * of 0x9ebbabe3… at all, and the account's nonce never moved.
+     *
+     * Asking once more distinguishes the two, so the message says which
+     * happened and whether anything may still land.
+     */
+    if (!(await transactionExists(chainId, hash))) {
+      throw new Error('SUBMIT_NOT_BROADCAST');
+    }
+    throw reason;
+  }
   if (receipt.status !== 'success') throw new Error('SUBMIT_REVERTED');
   const after = await getErc8183Job(network, input.jobId);
   if (after.statusName !== 'SUBMITTED' || after.deliverable.toLowerCase() !== input.deliverable.toLowerCase()) {
