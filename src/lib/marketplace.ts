@@ -12,6 +12,8 @@ import { BSC_MAINNET, BSC_TESTNET } from '@/lib/scan/types';
 import { classify, scoreCategories, CATEGORIES } from '@/lib/agents/categories';
 import type { Category } from '@/lib/agents/categories';
 import { toAttestation, type Attestation } from '@/lib/proof/attestation';
+import { resolveAttestationAuthors } from '@/lib/proof/attestation-authors';
+import { registryOwner } from '@/lib/registry/onchain';
 import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
@@ -425,7 +427,9 @@ export async function getDossier(
     probeAgent(agent, { samples: 1 }),
   ]);
 
-  const attestations = feedbackPage.items.map(toAttestation);
+  const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
+  const authors = await resolveAttestationAuthors(chainId, currentOwner ?? agent.owner_address, feedbackPage.items);
+  const attestations = feedbackPage.items.map((row) => toAttestation(row, authors.get(row.id)));
 
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
   const record = buildTrackRecord(
@@ -533,7 +537,9 @@ export async function getComparison(
     limit: 50,
   }).catch(() => ({ items: [], total: 0, limit: 0, offset: 0 }));
 
-  const attestations = feedbackPage.items.map(toAttestation);
+  const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
+  const authors = await resolveAttestationAuthors(chainId, currentOwner ?? agent.owner_address, feedbackPage.items);
+  const attestations = feedbackPage.items.map((row) => toAttestation(row, authors.get(row.id)));
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
   const record = buildTrackRecord(
     getProbeStore().historyFor(chainId, tokenId, since),

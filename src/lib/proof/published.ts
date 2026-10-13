@@ -14,8 +14,8 @@ export interface PublishedEvidenceSummary {
   total: number;
   scorable: number;
   unscored: number;
-  namedMeasurers: string[];
-  unattributed: number;
+  independentAuthors: string[];
+  undeterminedAuthors: number;
 }
 
 export function summarisePublishedEvidence(
@@ -24,10 +24,11 @@ export function summarisePublishedEvidence(
   const published = attestations.filter((attestation) =>
     Boolean(attestation.transactionHash),
   );
-  const namedMeasurers = [
+  const independentAuthors = [
     ...new Set(
       published
-        .map((attestation) => attestation.measuredBy?.trim())
+        .filter((attestation) => attestation.independence === 'independent')
+        .map((attestation) => attestation.authorAddress?.trim())
         .filter((measurer): measurer is string => Boolean(measurer)),
     ),
   ];
@@ -41,10 +42,8 @@ export function summarisePublishedEvidence(
     total: published.length,
     scorable,
     unscored: published.length - scorable,
-    namedMeasurers,
-    unattributed: published.filter(
-      (attestation) => !attestation.measuredBy?.trim(),
-    ).length,
+    independentAuthors,
+    undeterminedAuthors: published.filter((attestation) => attestation.independence === 'undetermined').length,
   };
 }
 
@@ -54,17 +53,17 @@ export function publishedEvidenceLine(
   if (summary.total === 0) return 'No on-chain attestations published';
 
   const receipt = `${summary.total} on-chain ${summary.total === 1 ? 'attestation' : 'attestations'}`;
-  if (summary.namedMeasurers.length === 0) {
-    return `${receipt}; no named independent measurer`;
+  if (summary.independentAuthors.length === 0) {
+    return `${receipt}; no independently verified author wallet`;
   }
 
-  const named = `${summary.namedMeasurers.length} named ${
-    summary.namedMeasurers.length === 1 ? 'measurer' : 'measurers'
+  const named = `${summary.independentAuthors.length} independent author ${
+    summary.independentAuthors.length === 1 ? 'wallet' : 'wallets'
   }`;
-  const unattributed = summary.unattributed
-    ? `; ${summary.unattributed} ${
-        summary.unattributed === 1 ? 'receipt is' : 'receipts are'
-      } unattributed`
+  const unattributed = summary.undeterminedAuthors
+    ? `; ${summary.undeterminedAuthors} ${
+        summary.undeterminedAuthors === 1 ? 'author is' : 'authors are'
+      } undetermined`
     : '';
 
   return `${receipt} from ${named}${unattributed}`;

@@ -58,6 +58,11 @@ export async function GET(request: Request) {
         description:
           'Every job Pokter brokered, as identifiers anyone can check against the escrow contract: chain, job id, status, amount and an explorer link. The counts above are a claim; these are the things the claim is about.',
       },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/evaluators/schema`,
+        description: 'Schema, example and independence rules for ERC-8004 evaluator attestations.',
+      },
     ],
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
@@ -77,7 +82,7 @@ export async function GET(request: Request) {
       proven:
         'The list endpoint never returns the "proven" verdict: deciding it requires attestations decoded to their measurers, which only the detail endpoint does.',
       independence:
-        'Pokter’s own probing never counts toward measurer independence, so an agent measured only by Pokter cannot be proven however well it performs.',
+        'Independence is bound to the feedback transaction sender, not a self-declared name. Pokter wallets, agent owners and unreadable authors never count.',
       notMeasured:
         'Returns, drawdown, capital managed and gas costs are never reported. Nobody publishes them and inferring them from uptime would be fabrication.',
       rateLimits: '60 requests per minute per client; 30 for agent detail.',
@@ -85,6 +90,7 @@ export async function GET(request: Request) {
     links: {
       humanReadable: `${origin}/methodology`,
       diagnostic: `${origin}/compatibility`,
+      evaluators: `${origin}/evaluators`,
     },
   });
 }

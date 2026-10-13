@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
-import { formatDelivery, formatMs } from '@/lib/ui/format';
+import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates } from '@/lib/hire/taskTemplates';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
@@ -113,7 +113,7 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
             <li>
               <span className="t-readout">{p.evidence.total}</span> attestation{p.evidence.total === 1 ? '' : 's'}, <span className="t-readout">{p.evidence.scorable}</span> scorable
             </li>
-            <li>{p.evidence.namedMeasurers.length > 0 ? `From ${p.evidence.namedMeasurers.slice(0, 3).join(', ')}` : 'From unnamed measurers'}</li>
+            <li>{p.evidence.independentAuthors.length > 0 ? `Independent authors: ${p.evidence.independentAuthors.slice(0, 3).map(shortAddress).join(', ')}` : 'No independently verified author wallet'}</li>
             {p.evidence.unscored > 0 && <li className="text-ink-3">{p.evidence.unscored} could not be scored</li>}
           </ul>
         )}

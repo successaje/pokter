@@ -20,8 +20,10 @@ import type { Attestation } from '../src/lib/proof/attestation';
  */
 
 function attestation(over: Partial<Attestation> = {}): Attestation {
+  const id = over.id ?? 'a1';
+  const numeric = [...id].reduce((sum, char) => sum * 31 + char.charCodeAt(0), 0);
   return {
-    id: 'a1',
+    id,
     agentId: '1',
     chainId: 56,
     transactionHash: '0xabc',
@@ -30,6 +32,8 @@ function attestation(over: Partial<Attestation> = {}): Attestation {
     dimension: 'uptime',
     window: '1d',
     measuredBy: 'measurer-one',
+    authorAddress: `0x${Math.abs(numeric).toString(16).padStart(40, '0')}`,
+    independence: 'independent',
     reasoning: null,
     method: { probes: PROVEN_MIN_PROBES, windowDays: PROVEN_MIN_WINDOW_DAYS },
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -52,10 +56,10 @@ test('two independent measurers over the bar are proven', () => {
   assert.equal(result.verdict, 'proven');
 });
 
-test('Pokter never counts toward independence', () => {
+test('a related transaction author never counts toward independence', () => {
   const result = summariseProof([
     attestation({ id: 'a', measuredBy: 'measurer-one' }),
-    attestation({ id: 'b', measuredBy: 'Pokter' }),
+    attestation({ id: 'b', measuredBy: 'someone-else', independence: 'related' }),
   ]);
   assert.equal(
     result.verdict,
@@ -64,12 +68,44 @@ test('Pokter never counts toward independence', () => {
   );
 });
 
-test('casing does not smuggle Pokter into the measurer count', () => {
+test('a self-declared measurer name cannot decide independence', () => {
   const result = summariseProof([
     attestation({ id: 'a', measuredBy: 'measurer-one' }),
     attestation({ id: 'b', measuredBy: 'POKTER' }),
   ]);
+  assert.equal(result.verdict, 'proven');
+});
+
+test('two labels from one author wallet are one measurer', () => {
+  const authorAddress = '0x00000000000000000000000000000000000000aa';
+  const result = summariseProof([
+    attestation({ id: 'a', measuredBy: 'one', authorAddress }),
+    attestation({ id: 'b', measuredBy: 'two', authorAddress }),
+  ]);
   assert.equal(result.verdict, 'reliable');
+});
+
+test('an author Pokter could not resolve is not assumed independent', () => {
+  const result = summariseProof([
+    attestation({ id: 'a' }),
+    attestation({ id: 'b', authorAddress: null, independence: 'undetermined' }),
+  ]);
+  assert.equal(result.verdict, 'reliable');
+});
+
+test('an unscorable receipt cannot supply proof volume or independence', () => {
+  const result = summariseProof([
+    attestation({ id: 'a', method: { probes: PROVEN_MIN_PROBES, windowDays: PROVEN_MIN_WINDOW_DAYS } }),
+    attestation({
+      id: 'b',
+      verified: false,
+      method: { probes: 10_000, windowDays: 365 },
+    }),
+  ]);
+  assert.equal(result.verdict, 'reliable');
+  assert.equal(result.probes, PROVEN_MIN_PROBES);
+  assert.equal(result.windowDays, PROVEN_MIN_WINDOW_DAYS);
+  assert.equal(result.measurers.length, 1);
 });
 
 test('a synthetic attestation with no transaction is not a measurer', () => {

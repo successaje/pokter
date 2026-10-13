@@ -106,17 +106,19 @@ function unique(values: (string | null | undefined)[]): string[] {
 export function summariseProof(attestations: Attestation[]): ProofSummary {
   const usable = attestations.filter((a) => a.verified && a.ratio !== null);
   const published = attestations.filter((a) => a.transactionHash);
-  const measurers = unique(published.map((a) => a.measuredBy)).filter(
-    (measurer) => measurer.toLowerCase() !== 'pokter',
+  const measurers = unique(
+    usable
+      .filter((a) => a.transactionHash && a.independence === 'independent')
+      .map((a) => a.authorAddress?.toLowerCase()),
   );
   const disclosedDefects = unique(
-    attestations.flatMap((a) => a.method?.knownDefects ?? []),
+    usable.flatMap((a) => a.method?.knownDefects ?? []),
   );
-  const probes = attestations.reduce(
+  const probes = usable.reduce(
     (sum, a) => sum + (a.method?.probes ?? 0),
     0,
   );
-  const windowDays = attestations.reduce<number | null>((longest, a) => {
+  const windowDays = usable.reduce<number | null>((longest, a) => {
     const window = a.method?.windowDays;
     if (typeof window !== 'number') return longest;
     return longest === null ? window : Math.max(longest, window);

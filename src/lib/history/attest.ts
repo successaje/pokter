@@ -42,6 +42,8 @@ export function toSweepAttestation(
     dimension: 'uptime',
     window: window.label,
     measuredBy: 'Pokter',
+    authorAddress: null,
+    independence: 'related',
     reasoning:
       `Measured by Pokter from ${window.probes} probe(s) over ${window.label}: ` +
       `${(window.ratio * 100).toFixed(2)}%. A probe counts as answered only when the ` +

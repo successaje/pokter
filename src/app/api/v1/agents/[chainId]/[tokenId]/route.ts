@@ -68,7 +68,9 @@ export async function GET(
       measurers: proof.measurers,
       measurersExcludePokter: true,
       attestations: attestations.map((a) => ({
-        measuredBy: a.measuredBy,
+        declaredMeasurer: a.measuredBy,
+        authorAddress: a.authorAddress,
+        independence: a.independence,
         dimension: a.dimension,
         ratio: a.ratio,
         window: a.window,

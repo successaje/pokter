@@ -9,7 +9,7 @@ async function main() {
     { headers: { accept: 'application/json' } },
   );
   const page = (await res.json()) as ScanPage<ScanFeedback>;
-  const attestations = page.items.map(toAttestation);
+  const attestations = page.items.map((row) => toAttestation(row));
 
   const decoded = attestations.filter((a) => a.verified).length;
   console.log(`fetched ${page.items.length} feedbacks, decoded ${decoded}`);

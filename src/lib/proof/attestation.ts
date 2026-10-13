@@ -1,4 +1,5 @@
 import type { ScanFeedback } from '@/lib/scan/types';
+import type { ResolvedAttestationAuthor, AttestationIndependence } from './attestation-authors';
 
 /**
  * The measurement methodology embedded in an attestation. Measurers publish this
@@ -32,6 +33,8 @@ export interface AttestationBody {
   method?: AttestationMethod;
 }
 
+const AGENT_REGISTRY_PATTERN = /^eip155:(56|97):0x[0-9a-fA-F]{40}$/;
+
 /** A feedback row joined to its decoded body and normalised score. */
 export interface Attestation {
   id: string;
@@ -44,10 +47,14 @@ export interface Attestation {
   dimension: string;
   window: string | null;
   measuredBy: string | null;
+  /** Transaction sender, read from chain rather than trusted from the body. */
+  authorAddress: string | null;
+  /** Whether that sender is unrelated to the agent owner and Pokter. */
+  independence: AttestationIndependence;
   reasoning: string | null;
   method: AttestationMethod | null;
   createdAt: string | null;
-  /** True when the body decoded cleanly — an undecodable receipt is not a receipt. */
+  /** True when the body contains Pokter's minimum reproducible measurement fields. */
   verified: boolean;
 }
 
@@ -105,8 +112,24 @@ export function normaliseValue(
   return Math.min(1, Math.max(0, numeric / scale));
 }
 
+/** Minimum body needed before Pokter treats a feedback receipt as a measurement. */
+export function isScorableAttestationBody(body: AttestationBody | null): body is AttestationBody & { tag1: string; method: AttestationMethod } {
+  if (!body || typeof body.tag1 !== 'string' || body.tag1.trim().length === 0 || body.tag1.length > 80) return false;
+  if (typeof body.agentRegistry !== 'string' || !AGENT_REGISTRY_PATTERN.test(body.agentRegistry)) return false;
+  if (!Number.isInteger(body.agentId) || (body.agentId ?? -1) < 0) return false;
+  if (typeof body.createdAt !== 'string' || !Number.isFinite(Date.parse(body.createdAt))) return false;
+  if (typeof body.reasoning !== 'string' || body.reasoning.trim().length === 0 || body.reasoning.length > 2_000) return false;
+  const method = body.method;
+  if (!method || !Number.isInteger(method.probes) || (method.probes ?? 0) < 1) return false;
+  if (!Number.isInteger(method.answered) || (method.answered ?? -1) < 0 || (method.answered ?? 0) > (method.probes ?? 0)) return false;
+  if (typeof method.windowDays !== 'number' || !Number.isFinite(method.windowDays) || method.windowDays < 0) return false;
+  if (typeof method.vantage !== 'string' || method.vantage.trim().length === 0 || method.vantage.length > 200) return false;
+  if (!Array.isArray(method.knownDefects) || method.knownDefects.length > 20 || method.knownDefects.some((item) => typeof item !== 'string' || item.trim().length === 0 || item.length > 300)) return false;
+  return true;
+}
+
 /** Join a raw feedback row to its decoded attestation. */
-export function toAttestation(feedback: ScanFeedback): Attestation {
+export function toAttestation(feedback: ScanFeedback, author?: ResolvedAttestationAuthor): Attestation {
   const body = decodeAttestationUri(feedback.feedback_uri);
 
   const ratio =
@@ -123,9 +146,11 @@ export function toAttestation(feedback: ScanFeedback): Attestation {
     dimension: body?.tag1 ?? 'unspecified',
     window: body?.tag2 ?? null,
     measuredBy: body?.method?.measuredBy ?? null,
+    authorAddress: author?.address ?? null,
+    independence: author?.independence ?? 'undetermined',
     reasoning: body?.reasoning ?? null,
     method: body?.method ?? null,
     createdAt: body?.createdAt ?? feedback.created_at ?? null,
-    verified: body !== null,
+    verified: isScorableAttestationBody(body),
   };
 }

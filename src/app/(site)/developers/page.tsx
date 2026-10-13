@@ -31,6 +31,7 @@ export default function Developers() {
         { id: 'api', label: 'Public API' },
         { id: 'query', label: 'Query language' },
         { id: 'protocols', label: 'Agent protocol' },
+        { id: 'evaluators', label: 'Evaluator protocol' },
         { id: 'contracts', label: 'Contracts' },
         { id: 'studio', label: 'BNB Agent Studio' },
       ]}
@@ -43,6 +44,7 @@ export default function Developers() {
             ['GET /api/v1/agents?q=&category=&limit=&offset=', 'Search and list agents (1 to 100 per page).'],
             ['GET /api/v1/agents/{chainId}/{tokenId}', 'One agent with decoded attestations, measurers and score coverage.'],
             ['GET /api/v1/activity', 'Aggregate job and settlement counts, without wallets or task text.'],
+            ['GET /api/v1/evaluators/schema', 'Schema and independence rules for third-party measurements.'],
           ].map(([path, what]) => (
             <li key={path} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
               <span className="t-readout text-[13px] text-ink">{path}</span>
@@ -59,6 +61,11 @@ export default function Developers() {
           </span>
           .
         </p>
+      </DocSection>
+
+      <DocSection id="evaluators" title="Publish independent evidence">
+        <p>Evaluators publish measurements as ERC-8004 feedback. Pokter binds identity to the transaction sender, validates the measurement body and excludes agent owners and Pokter wallets from independence. A name inside the JSON is display text only.</p>
+        <p><Link href="/evaluators" className="link">Evaluator guide and example</Link> · <Link href="/api/v1/evaluators/schema" className="link">Machine-readable schema</Link></p>
       </DocSection>
 
       <DocSection id="query" title="Query language">

@@ -49,16 +49,32 @@ export interface AttestationAuthors {
   undetermined: number;
 }
 
+export type AttestationIndependence = 'independent' | 'related' | 'undetermined';
+export interface ResolvedAttestationAuthor {
+  address: Address | null;
+  independence: AttestationIndependence;
+}
+
+const authorCache = new Map<string, Address>();
+const AUTHOR_CACHE_LIMIT = 2_000;
+
 async function authorOf(
   chainId: number,
   transactionHash: string | null,
 ): Promise<Address | null> {
   if (!transactionHash || !isHash(transactionHash)) return null;
+  const cacheKey = `${chainId}:${transactionHash.toLowerCase()}`;
+  const cached = authorCache.get(cacheKey);
+  if (cached) return cached;
+
   const client = registryClient(chainId);
   if (!client) return null;
   try {
     const transaction = await client.getTransaction({ hash: transactionHash });
-    return getAddress(transaction.from);
+    const author = getAddress(transaction.from);
+    if (authorCache.size >= AUTHOR_CACHE_LIMIT) authorCache.clear();
+    authorCache.set(cacheKey, author);
+    return author;
   } catch {
     return null;
   }
@@ -69,6 +85,18 @@ export async function attestationAuthors(
   owner: string | null,
   rows: readonly ScanFeedback[],
 ): Promise<AttestationAuthors> {
+  const resolved = await resolveAttestationAuthors(chainId, owner, rows);
+  const summary: AttestationAuthors = { total: rows.length, independent: 0, related: 0, undetermined: 0 };
+  for (const row of rows) summary[resolved.get(row.id)?.independence ?? 'undetermined'] += 1;
+  return summary;
+}
+
+/** Resolve every receipt to the wallet that actually submitted its transaction. */
+export async function resolveAttestationAuthors(
+  chainId: number,
+  owner: string | null,
+  rows: readonly ScanFeedback[],
+): Promise<Map<string, ResolvedAttestationAuthor>> {
   let ownerAddress: Address | null = null;
   try {
     ownerAddress = owner ? getAddress(owner) : null;
@@ -77,17 +105,13 @@ export async function attestationAuthors(
   }
 
   const authors = await Promise.all(rows.map((row) => authorOf(chainId, row.transaction_hash)));
-
-  const summary: AttestationAuthors = {
-    total: rows.length,
-    independent: 0,
-    related: 0,
-    undetermined: 0,
-  };
-  for (const author of authors) {
-    if (!author) summary.undetermined += 1;
-    else if (isTeamWallet(author) || (ownerAddress && author === ownerAddress)) summary.related += 1;
-    else summary.independent += 1;
-  }
-  return summary;
+  return new Map(rows.map((row, index) => {
+    const address = authors[index];
+    const independence: AttestationIndependence = !address
+      ? 'undetermined'
+      : isTeamWallet(address) || (ownerAddress && address === ownerAddress)
+        ? 'related'
+        : 'independent';
+    return [row.id, { address, independence }];
+  }));
 }
