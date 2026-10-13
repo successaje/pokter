@@ -188,6 +188,19 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <LinkButton href="/rankings" intent="ghost" size="s">View rankings</LinkButton>
             </div>
           </section>
+          <section aria-labelledby="conversion-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
+            <div>
+              <h2 id="conversion-title" className="t-h3">Buyer funnel</h2>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">Last 30 days. Counts are tab-session events, not unique people.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Readout label="Listing views" value={agent.conversion.listingViewed} muted={!agent.conversion.listingViewed} />
+              <Readout label="Hire flow opened" value={agent.conversion.hireOpened} muted={!agent.conversion.hireOpened} />
+              <Readout label="Wallet reached" value={agent.conversion.walletConnected} muted={!agent.conversion.walletConnected} />
+              <Readout label="Jobs funded" value={agent.conversion.funded} muted={!agent.conversion.funded} />
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-ink-3">Pokter stores daily aggregate counts only—no visitor identifier, wallet, IP address or task text. A buyer returning in another tab can count again, so these are directional product signals rather than an attribution claim.</p>
+          </section>
           <section aria-labelledby="maturity-title" className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
             <div>
               <h2 id="maturity-title" className="t-h3">Path to market proof</h2>

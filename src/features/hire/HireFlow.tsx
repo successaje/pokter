@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
 import { useSwitchChain } from 'wagmi';
 
@@ -21,6 +21,7 @@ import { Notice } from '@/ui/Feedback';
 import { Checkbox, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
+import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -162,6 +163,14 @@ export function HireFlow(props: HireFlowProps) {
 
   const passkeyCurrent = hire.stage === 'sponsoring' ? 'sponsoring' : hire.stage === 'swapping' ? 'swapping' : hire.stage === 'hiring' ? 'hiring' : 'quote';
 
+  useEffect(() => {
+    if (hire.active.address) recordConversionOnce('wallet_connected', props.agent.chainId, props.agent.tokenId, escrowChainId);
+  }, [hire.active.address, props.agent.chainId, props.agent.tokenId, escrowChainId]);
+
+  useEffect(() => {
+    if (done) recordConversionOnce('funded', props.agent.chainId, props.agent.tokenId, escrowChainId);
+  }, [done, props.agent.chainId, props.agent.tokenId, escrowChainId]);
+
   // ── Done ──────────────────────────────────────────────
   if (done && hire.job) {
     const job = hire.job;
@@ -264,6 +273,7 @@ export function HireFlow(props: HireFlowProps) {
 
   return (
     <Shell agent={props.agent} step={step} testnet={testnet}>
+      <ConversionBeacon event="hire_opened" chainId={props.agent.chainId} tokenId={props.agent.tokenId} escrowChainId={escrowChainId} />
       {failure && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
           {failure.body}

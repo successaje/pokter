@@ -25,6 +25,7 @@ import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
+import { ConversionBeacon } from '@/features/conversion/ConversionBeacon';
 
 export const dynamic = 'force-dynamic';
 
@@ -161,6 +162,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
 
   return (
     <div className="pb-32 lg:pb-0">
+      <ConversionBeacon event="listing_viewed" chainId={p.chainId} tokenId={p.tokenId} />
       {/* Identity band */}
       <div className="border-b border-rule bg-raised/50">
         <div className="frame pb-8 pt-6">

@@ -23,12 +23,12 @@ export default function PrivacyPage() {
       <div>
         <h1 className="t-h1">Privacy</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 30 September 2026.
+          Last updated 13 October 2026.
         </p>
       </div>
 
       <p className="text-ink">
-        Pokter runs no analytics, no tracking pixels and no advertising
+        Pokter runs no third-party analytics, tracking pixels or advertising
         technology. You can browse without creating an account. Pokter uses a
         theme cookie when you choose light or dark mode and, only after a
         publisher verifies an agent they own, a short-lived, HTTP-only builder
@@ -65,6 +65,17 @@ export default function PrivacyPage() {
         — is processed by the hosting provider to serve the page and to apply
         rate limits on the public API. It is not used to profile visitors and
         is not sold or shared for advertising.
+      </p>
+      <p>
+        To find friction between viewing an agent and funding a job, Pokter
+        keeps daily aggregate counts for four events: agent listing viewed,
+        hire flow opened, wallet connection reached and job funded. These
+        funnel records contain the agent id and, where relevant, the escrow
+        network. They do not contain a visitor identifier, wallet address, IP
+        address, task text or exact timestamp, and are deleted after 90 days.
+        A device limits each event to once per tab session using session
+        storage; that key never leaves the browser. Builders can see only the
+        aggregate counts for agents they have verified.
       </p>
       <p>
         If you email support, that message and your address exist in an inbox
@@ -106,8 +117,9 @@ export default function PrivacyPage() {
 
       <H>Your rights</H>
       <p>
-        Pokter does not build an advertising profile or store your private job
-        instructions as an account history. If you want to ask about an email
+        Pokter does not build an advertising profile or use conversion events
+        to identify a visitor. It does not store your private job instructions
+        as an account history. If you want to ask about an email
         subscription or verified-publisher record, write to{' '}
         <a className="link" href={`mailto:${SUPPORT_EMAIL}`}>
           {SUPPORT_EMAIL}

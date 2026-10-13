@@ -22,6 +22,8 @@ import { CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/growth';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { chainLabel } from '@/lib/network/presentation';
+import { agentConversion } from '@/lib/conversion/store';
+import type { ConversionCounts } from '@/lib/conversion/funnel';
 
 export interface FleetAgent {
   key: string;
@@ -40,6 +42,7 @@ export interface FleetAgent {
   adoption: AgentAdoption | null;
   maturity: AgentMaturity;
   growth: BuilderGrowthSnapshot;
+  conversion: ConversionCounts;
 }
 
 export async function studioOwner(): Promise<string | null> {
@@ -129,6 +132,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         adoption: adoptions[i],
         maturity,
         growth,
+        conversion: agentConversion(agent.chain_id, agent.token_id),
       };
     }),
   };

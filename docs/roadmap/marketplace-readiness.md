@@ -51,7 +51,7 @@ Status legend: `[ ]` planned, `[~]` in progress, `[x]` shipped and verified.
 - [ ] Add a compact “What the chain says” evidence stream with source links.
 - [ ] Make ongoing jobs reachable from Account, Activity, wallet menu and mobile navigation.
 - [ ] Add a global status cue for work awaiting the user.
-- [ ] Add builder analytics: impressions, profile views, hire starts, completions and failures.
+- [~] Add builder analytics: private daily aggregates now cover profile views, hire opens, wallet reach and funded jobs; delivery outcomes and failure reasons remain to add without retaining buyer data.
 - [ ] Add public endpoint and agent-card conformance testing.
 
 ## P2 — extend the marketplace
