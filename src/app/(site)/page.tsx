@@ -202,11 +202,11 @@ export default async function HomePage() {
               <span className="t-label">Hireable now</span>
               <h2 id="featured-title" className="t-h1">Agents that answer, and can be paid.</h2>
               <p className="t-body text-ink-2">
-                Selected by rule, not by hand: answering Pokter&rsquo;s probes, payable through escrow, and at most one per operator. Ordered by paid work actually delivered.
+                Selected by rule, not by hand: answering Pokter&rsquo;s probes, payable through escrow, and at most one per operator. Agents that signed a price first, then by paid work actually delivered; none that let paid jobs lapse.
               </p>
             </div>
             <Link href="/discover?hireable=1" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
-              All {home.catalogue.hireable} hireable agents <Icon.Arrow size={15} />
+              All hireable agents <Icon.Arrow size={15} />
             </Link>
           </Reveal>
           {hireableCount > 0 ? (

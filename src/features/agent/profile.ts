@@ -9,6 +9,7 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { letsJobsLapse } from '@/lib/search/match';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
 import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
@@ -144,6 +145,16 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const answeredNow = live.ratio !== null && live.ratio > 0;
   const published = summarisePublishedEvidence(attestations);
 
+  // The same rule the catalogue's verdict applies (`verdictFor`): answering
+  // probes does not make an agent reliable while it lets paid jobs lapse.
+  const history = summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
+  const lapses = letsJobsLapse({ history });
+  const verdict = lapses && (proof.verdict === 'proven' || proof.verdict === 'reliable') ? 'emerging' : proof.verdict;
+  const verdictRationale =
+    verdict === proof.verdict
+      ? proof.rationale
+      : `${proof.rationale} It has also missed ${history.missed} of ${history.missed + history.delivered} paid jobs through Pokter escrow, so it is not called reliable.`;
+
   const warnings = [
     ...(!proof.recommendedForHire ? [proof.rationale] : []),
     ...(!answeredNow ? ['It did not answer Pokter’s live check when this page loaded.'] : []),
@@ -172,7 +183,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     agentWallet: agent.agent_wallet ?? null,
     createdAt: agent.created_at ?? null,
     category: meta ? { id: meta.id, label: meta.label, question: meta.question, blurb: meta.blurb } : null,
-    verdict: { id: proof.verdict, label: VERDICT_LABEL[proof.verdict], meaning: VERDICT_MEANING[proof.verdict], rationale: proof.rationale, recommended: proof.recommendedForHire },
+    verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
     record: {
       windows: record.windows,
@@ -221,7 +232,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     deliveredByPokter: agent.chain_id !== escrowChain,
     escrow: { chainId: escrowChain, paymentToken: addresses.paymentToken, commerce: addresses.commerce },
     escrowOptions,
-    history: summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)),
+    history,
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),

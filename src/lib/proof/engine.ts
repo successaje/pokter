@@ -321,7 +321,7 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 export const VERDICT_MEANING: Record<Verdict, string> = {
   proven: 'Independent measurers agree, over enough probes and a long enough window.',
   reliable: 'Answers nearly every probe Pokter sends, but nobody independent has corroborated it.',
-  emerging: 'Measured, and it misses probes. Nobody independent has corroborated it either.',
+  emerging: 'Measured, and it misses probes or lets paid jobs lapse. Nobody independent has corroborated it either.',
   observed: 'Measurement has started. Too few probes, or too short a window, to judge yet.',
   failing: 'Measured, and failing its own measurers.',
   unproven: 'Nothing has been measured. This says what Pokter lacks, not what the agent did.',
