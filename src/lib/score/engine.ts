@@ -25,6 +25,11 @@ export interface ScoreInputs {
   attestations: Attestation[];
   record: TrackRecord;
   /**
+   * Paid jobs through Pokter escrow: delivered, and missed (expired, or
+   * funded past the deadline). Optional for callers that predate it.
+   */
+  history?: { delivered: number; missed: number };
+  /**
    * The request-time probe, when one was taken. Omitted in list contexts, where
    * probing every candidate would cost seconds per page for a sample that adds
    * nothing to an accumulated record.
@@ -199,11 +204,31 @@ function scoreEfficiency({ record }: ScoreInputs): DimensionScore {
  * publishes neither, and no measurer currently attests to them, so both are
  * reported as unmeasured rather than approximated from something else.
  */
-function scorePerformance(): DimensionScore {
-  return unmeasured(
-    'performance',
-    'Realised returns are not published by the registry and no measurer attests to them. Pokter does not estimate performance from unrelated signals.',
-  );
+function scorePerformance({ history }: ScoreInputs): DimensionScore {
+  /*
+   * Doing the paid work it is hired for is the performance a buyer can see.
+   * Without it, an agent that answered every probe and missed six of seven
+   * paid jobs scored 78: the verdict beside it had been demoted for exactly
+   * that, and the score measured none of it.
+   */
+  const resolved = (history?.delivered ?? 0) + (history?.missed ?? 0);
+  if (!history || resolved === 0) {
+    return unmeasured(
+      'performance',
+      'No paid job through Pokter escrow has been delivered or missed yet, and realised returns are not published by the registry. Pokter does not estimate performance from unrelated signals.',
+    );
+  }
+  const weight = DIMENSION_WEIGHTS.performance;
+  return {
+    dimension: 'performance',
+    earned: weight * (history.delivered / resolved),
+    weight,
+    explanation: `Delivered ${history.delivered} of ${resolved} paid jobs through Pokter escrow that have reached delivery or their deadline. Realised returns are not measured.`,
+    inputs: [
+      { label: 'Paid jobs delivered', value: String(history.delivered) },
+      { label: 'Paid jobs missed', value: String(history.missed) },
+    ],
+  };
 }
 
 function scoreRisk(): DimensionScore {
@@ -223,7 +248,7 @@ function scoreRisk(): DimensionScore {
  */
 export function computeScore(inputs: ScoreInputs): PokterScore {
   const dimensions: DimensionScore[] = [
-    scorePerformance(),
+    scorePerformance(inputs),
     scoreReliability(inputs),
     scoreEvidence(inputs),
     scoreRisk(),

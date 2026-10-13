@@ -6,7 +6,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { CAMPAIGN_STARTS_AT } from '@/lib/campaign/window';
 import { getQuestStore, type EscrowJob } from './store';
 
-/** BNB Chain's ERC-8183 escrow contracts, shared by every shortlisted marketplace. */
+/** BNB Chain's ERC-8183 escrow contracts. Marketplaces that settle through their own contracts are not read. */
 export const QUEST_CHAINS = {
   56: { chain: bsc, rpc: process.env.BSC_MAINNET_RPC_URL ?? 'https://bsc-rpc.publicnode.com', commerce: '0xEa4DAa3100A767e86FDed867729ae7446476EBA6' as Address },
   97: { chain: bscTestnet, rpc: 'https://bsc-testnet-rpc.publicnode.com', commerce: '0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE' as Address },

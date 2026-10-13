@@ -91,7 +91,8 @@ export function PoolCheck({ pools }: { pools: ClientPool[] }) {
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-ink-3">
           <span>Impact per rebalance: <span className="t-readout text-ink-2">{pct(cost.impactPerRebalance)}</span></span>
           <span>Pool read {new Date(pool.readAt).toLocaleTimeString()}</span>
-          <Address address={pool.address} />
+          {/* Pools are read on BNB Chain mainnet (see pancakeswap/pool). */}
+          <Address address={pool.address} chainId={56} />
         </div>
         {cost.beyondTickRange && (
           <Notice tone="watch" title="This trade moves past the current tick">

@@ -12,7 +12,7 @@ type Check = { path: string; expect: number; contains?: string; location?: strin
 
 const CHECKS: Check[] = [
   { path: '/', expect: 200, contains: 'These do' },
-  { path: '/quest', expect: 200, contains: 'Your hires, on every marketplace' },
+  { path: '/quest', expect: 200, contains: 'Your hires, across marketplaces' },
   { path: '/discover', expect: 200, contains: 'Discover agents' },
   { path: '/discover?q=monitor%20my%20lending%20risk', expect: 200, contains: 'Reading this as' },
   { path: '/discover?hireable=1&view=list&pages=2', expect: 200 },

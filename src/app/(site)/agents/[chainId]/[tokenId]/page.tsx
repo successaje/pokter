@@ -285,7 +285,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-5 py-3 text-[12.5px] text-ink-3">
                     <span>
                       Job <span className="t-readout">#{p.sample.jobId}</span> · {p.sample.status.toLowerCase()}
-                      {p.sample.producer ? ` · produced by ${p.sample.producer}` : ''}
+                      {p.sample.producer
+                        ? /pokter delivery agent/i.test(p.sample.producer)
+                          ? ' · carried by Pokter’s delivery agent: the task went to this agent and its answer is shown unchanged'
+                          : ` · produced by ${p.sample.producer}`
+                        : ''}
                     </span>
                     <span className="t-readout" title={p.sample.manifestHash}>
                       hash {p.sample.manifestHash.slice(0, 10)}…
@@ -472,7 +476,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   { label: 'Signed price', value: <span className="t-readout">{p.quote.label}</span> },
                   { label: 'Signed by', value: <Address address={p.quote.signer} chainExplorer={false} />, hint: 'Recovered from the signature; must match the registered agent wallet' },
                   { label: 'Signed', value: new Date(p.quote.quotedAt).toUTCString().slice(5, 22) + ' UTC' },
-                  { label: 'Valid until', value: p.quote.expiresAt ? `${new Date(p.quote.expiresAt).toUTCString().slice(5, 22)} UTC${p.quote.current ? '' : ' (expired)'}` : 'No expiry stated' },
+                  { label: 'Valid until', value: p.quote.expiresAt ? `${new Date(p.quote.expiresAt).toUTCString().slice(5, 22)} UTC${p.quote.current ? '' : ' (expired; Pokter asks for a fresh signed quote when you hire, and stops if it is above your budget)'}` : 'No expiry stated' },
                   { label: 'Payable by this escrow', value: p.quote.payable === false ? <span className="text-bad">No, wrong token</span> : <span className="text-ok">Yes</span> },
                   { label: 'Network fee', value: 'Covered by Pokter for passkey wallets where available; otherwise a few cents of BNB' },
                 ]}
@@ -528,7 +532,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               rows={[
                 { label: 'Registry', value: `ERC-8004 · ${chainLabel(p.chainId)}` },
                 { label: 'Token ID', value: <span className="t-readout">#{p.tokenId}</span> },
-                { label: 'Owner', value: <Address address={p.owner} chainExplorer={p.chainId === 97 || p.chainId === 56} /> },
+                { label: 'Owner', value: <Address address={p.owner} chainExplorer={p.chainId === 97 || p.chainId === 56} chainId={p.chainId} /> },
                 { label: 'Agent wallet', value: p.agentWallet ? <Address address={p.agentWallet} chainExplorer={false} /> : <span className="text-ink-3">Not published</span>, hint: 'Signs quotes and receives payment' },
                 { label: 'Registered', value: p.createdAt ? new Date(p.createdAt).toUTCString().slice(5, 16) : '—' },
                 { label: 'Live check', value: `${p.live.protocol.toUpperCase()} · ${p.live.answered ? 'answered' : 'no answer'}` },

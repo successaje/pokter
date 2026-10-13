@@ -1,6 +1,10 @@
 import { getDossier } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { API_VERSION } from '@/lib/api/v1';
+import { VERDICT_LABEL } from '@/lib/proof/engine';
+import { deliveryAdjustedVerdict } from '@/lib/search/match';
+import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
+import { getJobStore } from '@/lib/erc8183/store';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +47,8 @@ export async function GET(
   }
 
   const { agent, proof, record, score, attestations, live } = dossier;
+  // The same delivery rule the agent page and catalogue apply.
+  const adjusted = deliveryAdjustedVerdict(proof.verdict, summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)));
   const origin = originOf(request);
 
   return apiJson({
@@ -55,8 +61,9 @@ export async function GET(
     agentWallet: agent.agent_wallet ?? null,
 
     evidence: {
-      verdict: proof.verdict,
-      rationale: proof.rationale,
+      verdict: adjusted.verdict,
+      verdictLabel: VERDICT_LABEL[adjusted.verdict],
+      rationale: adjusted.note ? `${proof.rationale} ${adjusted.note}` : proof.rationale,
       /** Third parties only. Pokter is never counted here. */
       measurers: proof.measurers,
       measurersExcludePokter: true,

@@ -481,8 +481,14 @@ export default async function HomePage() {
                   with no field for where to pay, and of 47 declaring
                   agents whose endpoints Pokter called, none answered the
                   402 the protocol requires.
+
+                  That finding is about Pokter's own probe, which calls an
+                  agent card and not a paid route, and it was being read as
+                  "nobody is paid over x402". Other marketplaces do pay
+                  agents in this index that way, so the row says what
+                  Pokter does and does not do instead.
                 */
-                ['x402 / B402', 'Per-call payments', 'Checked, nothing to pay', 'Declared by 79,907 agents; none Pokter reached demands payment'],
+                ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
                 ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
               ].map(([name, use, status, note]) => (
                 <tr key={name}>

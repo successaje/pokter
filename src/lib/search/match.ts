@@ -54,6 +54,24 @@ export function letsJobsLapse(agent: Pick<SearchableAgent, 'history'>): boolean 
   return missed > 0 && missed > (agent.history?.delivered ?? 0);
 }
 
+/**
+ * The proof engine's verdict, demoted when paid jobs lapse.
+ *
+ * The engine judges probes and attestations; it cannot see the escrow. The
+ * catalogue (`verdictFor`), the agent page and the API all apply this one
+ * rule, so the same agent never reads Reliable in one place and Intermittent
+ * in another.
+ */
+export function deliveryAdjustedVerdict(verdict: Verdict, history: { delivered: number; missed: number } | undefined): { verdict: Verdict; note: string | null } {
+  if (!letsJobsLapse({ history: history as SearchableAgent['history'] })) return { verdict, note: null };
+  if (verdict !== 'proven' && verdict !== 'reliable') return { verdict, note: null };
+  const { delivered, missed } = history!;
+  return {
+    verdict: 'emerging',
+    note: `It has missed ${missed} of ${missed + delivered} paid jobs through Pokter escrow, so it is not called reliable.`,
+  };
+}
+
 export function verdictFor(entry: SearchableAgent): Verdict {
   const { listing, record } = entry;
   const rate = uptime(record);
