@@ -47,6 +47,7 @@ export default function Developers() {
             ['GET /api/v1/evaluators/schema', 'Schema and independence rules for third-party measurements.'],
             ['GET /api/v1/evaluators/starter', 'Dependency-free Node.js evaluator starter.'],
             ['GET /api/v1/evaluators/challenge', 'Mainnet agents that are ready for unrelated measurement.'],
+            ['GET /api/v1/receipts/verifier', 'Dependency-free verifier for every indexed escrow receipt.'],
           ].map(([path, what]) => (
             <li key={path} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
               <span className="t-readout text-[13px] text-ink">{path}</span>

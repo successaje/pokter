@@ -55,6 +55,7 @@ export function GET(request: Request) {
       jobId: job.jobId,
       escrow: correctedErc8183Addresses(job.chainId).commerce,
       status: job.status,
+      provider: job.provider,
       budget: { raw: job.budgetRaw, amountU: formatUnits(BigInt(job.budgetRaw), 18) },
       agent: {
         chainId: job.agentChainId ?? null,
@@ -62,6 +63,7 @@ export function GET(request: Request) {
         name: job.agentName,
       },
       hiredAt: job.hiredAt,
+      statusCheckedAt: job.statusCheckedAt,
       /* Pokter's own test hires, marked rather than hidden. */
       fundedByPokter: fundedByTeam(job, team),
       transactionHash: job.hireTxHash ?? null,
@@ -86,6 +88,7 @@ export function GET(request: Request) {
     teamWallets: teamWalletList(),
     howToVerify: [
       'Call getJob(jobId) on the escrow contract for that chain. The status, provider and budget come back from the contract, not from Pokter.',
+      'Download /api/v1/receipts/verifier to check every row and recompute the totals without installing dependencies.',
       'Every job Pokter brokers carries {"protocol":"pokter-job"} in its on-chain description, so the full set can be found by reading the escrow without using this endpoint at all.',
       'Jobs funded by the wallets in teamWallets are Pokter\'s own tests. They are marked here and excluded from the buyer figures in /api/v1/activity.',
     ],

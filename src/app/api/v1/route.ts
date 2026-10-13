@@ -60,6 +60,11 @@ export async function GET(request: Request) {
       },
       {
         method: 'GET',
+        path: `/api/${API_VERSION}/receipts/verifier`,
+        description: 'Dependency-free Node.js verifier that checks every indexed receipt directly against its ERC-8183 escrow.',
+      },
+      {
+        method: 'GET',
         path: `/api/${API_VERSION}/evaluators/schema`,
         description: 'Schema, example and independence rules for ERC-8004 evaluator attestations.',
       },

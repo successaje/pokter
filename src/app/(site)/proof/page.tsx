@@ -218,7 +218,10 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
             <span className="t-label">Receipts</span>
             <h2 id="receipts-title" className="t-h1 mt-2">Verify every row yourself</h2>
           </div>
-          <Link href="/api/v1/receipts" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">Machine-readable receipts <Icon.Arrow size={15} /></Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <a href="/api/v1/receipts/verifier" download className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">Download independent verifier <Icon.Arrow size={15} /></a>
+            <Link href="/api/v1/receipts" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">Machine-readable receipts <Icon.Arrow size={15} /></Link>
+          </div>
         </div>
 
         {jobs.length > 0 ? (
@@ -256,6 +259,11 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
           <div className="mt-7 rounded-[14px] border border-dashed border-rule-strong px-6 py-12 text-center text-ink-2">No indexed jobs match these filters. Pokter shows an empty ledger rather than carrying activity in from another population.</div>
         )}
         {jobs.length > 100 && <p className="mt-3 text-[12px] text-ink-3">Showing the newest 100 of {jobs.length} matching jobs. The API contains the complete indexed ledger.</p>}
+        <div className="mt-7 rounded-[14px] border border-rule bg-sunken p-5 text-[13px] leading-relaxed text-ink-2">
+          <p className="font-medium text-ink">Reproduce the ledger from chain state</p>
+          <p className="mt-2">The dependency-free verifier downloads this index, calls each escrow contract itself, compares status, provider, budget and funding provenance, then recomputes the totals. Pokter supplies the job identifiers; BNB Chain supplies the answers.</p>
+          <pre className="mt-3 overflow-x-auto rounded-[9px] border border-rule bg-raised p-3 text-[12px] text-ink">{`curl -o pokter-receipt-verifier.mjs https://pokter.xyz/api/v1/receipts/verifier\nnode pokter-receipt-verifier.mjs`}</pre>
+        </div>
       </section>
 
       <section className="grid gap-8 rounded-[16px] border border-rule bg-raised p-6 sm:p-8 lg:grid-cols-2">
