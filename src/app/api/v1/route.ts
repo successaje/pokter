@@ -68,6 +68,11 @@ export async function GET(request: Request) {
         path: `/api/${API_VERSION}/evaluators/starter`,
         description: 'Dependency-free Node.js starter that measures a protocol handshake and prepares an ERC-8004 feedback call without signing it.',
       },
+      {
+        method: 'GET',
+        path: `/api/${API_VERSION}/evaluators/challenge`,
+        description: 'Mainnet agents ready for unrelated measurement, with verified independent-evidence gaps and prefilled starter commands.',
+      },
     ],
     enums: {
       categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })),

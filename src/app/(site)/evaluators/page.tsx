@@ -34,7 +34,7 @@ export default function EvaluatorsPage() {
 
       <DocSection id="starter" title="Run the dependency-free starter">
         <p>The starter measures a public A2A card or MCP endpoint repeatedly, saves every observation locally, and prepares the exact <span className="t-readout">giveFeedback</span> arguments. It does not ask for a private key, open a wallet or broadcast a transaction.</p>
-        <p><a className={buttonClass('primary')} href="/api/v1/evaluators/starter" download>Download evaluator starter (.mjs)</a></p>
+        <p className="flex flex-wrap gap-2"><a className={buttonClass('primary')} href="/api/v1/evaluators/starter" download>Download evaluator starter (.mjs)</a><Link className={buttonClass('secondary')} href="/evaluators/challenge">Choose an agent to evaluate</Link></p>
         <Code>{`node pokter-evaluator-starter.mjs \\
   --chain 56 \\
   --agent 372022 \\

@@ -22,6 +22,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/developers#api', label: 'Public API' },
       { href: '/developers#protocols', label: 'Protocols' },
       { href: '/evaluators', label: 'Evaluators' },
+      { href: '/evaluators/challenge', label: 'Evaluation challenge' },
       //{ href: GITHUB_REPO_URL, label: 'Source code', external: true },
     ],
   },
