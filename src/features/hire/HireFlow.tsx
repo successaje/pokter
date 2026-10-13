@@ -40,6 +40,11 @@ export interface HireFlowProps {
   campaignLive?: boolean;
   /** Every escrow this agent can be hired on; more than one means the buyer chooses. */
   escrowOptions?: number[];
+  /**
+   * The agent's declared skills, so its own examples can be offered as
+   * the task rather than a template picked by category.
+   */
+  declaredSkills?: { name: string; examples: string[] }[];
 }
 
 /**
@@ -105,7 +110,7 @@ function explainFailure(message: string): { title: string; body: string } {
 }
 
 export function HireFlow(props: HireFlowProps) {
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, escrowChainId: props.escrow.chainId });
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
   // Everything below describes the escrow this hire is funded on, which is
   // chosen per agent and is not necessarily the site's default network.
   const escrowChainId = props.escrow.chainId;
