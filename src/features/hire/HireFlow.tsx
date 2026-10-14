@@ -18,9 +18,11 @@ import { AgentAvatar } from '@/ui/Agent';
 import { Button, LinkButton, Spinner } from '@/ui/Button';
 import { Address, Details } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
-import { Checkbox, Textarea } from '@/ui/Field';
+import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
+import { TaskEditor } from './TaskEditor';
+import { taskFieldProblems, taskFields } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 
 type Step = 'describe' | 'review' | 'pay';
@@ -112,6 +114,11 @@ function explainFailure(message: string): { title: string; body: string } {
 
 export function HireFlow(props: HireFlowProps) {
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
+  // A task declared as JSON must have its required inputs before it can be funded.
+  const taskProblems = useMemo(() => {
+    const fields = taskFields(hire.task);
+    return fields ? taskFieldProblems(fields) : [];
+  }, [hire.task]);
   // Everything below describes the escrow this hire is funded on, which is
   // chosen per agent and is not necessarily the site's default network.
   const escrowChainId = props.escrow.chainId;
@@ -331,36 +338,15 @@ export function HireFlow(props: HireFlowProps) {
             ))}
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="task" className="text-sm font-medium">
-              Task
-            </label>
-            <Textarea id="task" value={hire.task} onChange={(e) => hire.setTask(e.target.value)} maxLength={2000} className="min-h-40" aria-describedby="task-hint" />
+            <TaskEditor task={hire.task} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
               <span>Stored on chain with the job, so anyone can read it. Never include keys, seed phrases or passwords.</span>
               <span className="t-readout shrink-0">{hire.task.length}/2000</span>
             </p>
           </div>
 
-          {props.providers.length > 1 && (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-medium">Who delivers</legend>
-              {props.providers.map((p) => (
-                <label key={p.address} className={cn('flex cursor-pointer items-start gap-3 rounded-[12px] border p-3.5', hire.providerAddress === p.address ? 'border-ink bg-raised' : 'border-rule')}>
-                  <input type="radio" name="provider" className="mt-1 accent-[var(--ink)]" checked={hire.providerAddress === p.address} onChange={() => hire.setProviderAddress(p.address)} disabled={!p.reachable} />
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold">
-                      {p.label} {!p.reachable && <span className="font-normal text-ink-3">· not reachable</span>}
-                    </span>
-                    <span className="text-[12.5px] leading-snug text-ink-3">{p.note}</span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          )}
-          {hire.substituted && (
-            <Notice tone="watch" title="Delivered through Pokter’s testnet courier">
-              This agent is registered on another network, so Pokter&rsquo;s seller carries your task to it and delivers its answer unchanged. If the agent does not answer, nothing is delivered and you reclaim the escrow after the deadline.
-            </Notice>
+          {props.providers.length > 0 && (
+            <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />
           )}
           <div className="flex justify-end">
             {/*
@@ -379,7 +365,10 @@ export function HireFlow(props: HireFlowProps) {
                 {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
               </Notice>
             )}
-            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
+            {taskProblems.length > 0 && (
+              <p className="mr-auto self-center text-[12.5px] text-ink-3">To continue: {taskProblems.join('; ')}.</p>
+            )}
+            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || taskProblems.length > 0 || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
               Review terms
             </Button>
           </div>
@@ -720,5 +709,48 @@ function Shell({ agent, step, testnet, children }: { agent: HireFlowProps['agent
         </main>
       </div>
     </div>
+  );
+}
+
+/**
+ * Who delivers, as one answer.
+ *
+ * Every provider used to be listed as an equal radio: the agent's own wallet
+ * marked "not reachable", Pokter's delivery agent, and sometimes a different
+ * seller altogether, followed by a warning box repeating the second option's
+ * description. The one that will deliver is shown on its own; the others,
+ * with why they are not the default, sit behind a disclosure.
+ */
+function ProviderChoices({ providers, selected, onSelect }: { providers: ProviderChoice[]; selected: string; onSelect: (address: string) => void }) {
+  const current = providers.find((p) => p.address === selected) ?? providers[0];
+  const others = providers.filter((p) => p.address !== current.address);
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-sm font-medium">Who delivers</legend>
+      <ProviderOption p={current} selected={selected} onSelect={onSelect} />
+      {others.length > 0 && (
+        <Details summary={`Other ways to deliver (${others.length})`}>
+          <div className="flex flex-col gap-2">
+            {others.map((p) => (
+              <ProviderOption key={p.address} p={p} selected={selected} onSelect={onSelect} />
+            ))}
+          </div>
+        </Details>
+      )}
+    </fieldset>
+  );
+}
+
+function ProviderOption({ p, selected, onSelect }: { p: ProviderChoice; selected: string; onSelect: (address: string) => void }) {
+  return (
+    <label className={cn('flex items-start gap-3 rounded-[12px] border p-3.5', p.reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-70', selected === p.address ? 'border-ink bg-raised' : 'border-rule')}>
+      <input type="radio" name="provider" className="mt-1 accent-[var(--ink)]" checked={selected === p.address} onChange={() => onSelect(p.address)} disabled={!p.reachable} />
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold">
+          {p.label} {!p.reachable && <span className="font-normal text-ink-3">· not available for this hire</span>}
+        </span>
+        <span className="text-[12.5px] leading-snug text-ink-3">{p.note}</span>
+      </span>
+    </label>
   );
 }
