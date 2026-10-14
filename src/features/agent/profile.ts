@@ -9,14 +9,12 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
-import { agentHistory } from '@/lib/agent/credited-history';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
-import { getAssayStore, type AssayRun } from '@/lib/assay/store';
-import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
-import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
+import type { AssayRun } from '@/lib/assay/store';
+import type { AssayDefinition } from '@/lib/assay/catalog';
+import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
-import { getJobStore } from '@/lib/erc8183/store';
 import { stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
@@ -29,7 +27,8 @@ import { getProbeStore } from '@/lib/history/store';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
-import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
+import type { AgentMaturity } from '@/lib/agents/maturity';
+import { dossierLadder } from '@/lib/agents/dossier-ladder';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -144,30 +143,12 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
      the agent it is about. */
   const alternativeImages = await resolveAgentImages(alternatives.map((alt) => alt.listing.agent));
 
-  const payable = d.quote ? quotePayableWith(d.quote.currency, addresses.paymentToken) : null;
   const answeredNow = live.ratio !== null && live.ratio > 0;
   const published = summarisePublishedEvidence(attestations);
 
   // The same rule the catalogue's verdict applies (`verdictFor`): answering
   // probes does not make an agent reliable while it lets paid jobs lapse.
-  const history = agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
-  const assayDefinition = assayForCategory(category);
-  const categoryCheck = assayDefinition
-    ? { definition: assayDefinition, run: getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) }
-    : null;
-  const maturity = deriveMaturity({
-    registered: true,
-    reachable: record.totalAnswered > 0,
-    // Priced means a signed price an escrow can pay, not merely no unpayable one.
-    compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && d.quote != null && payable === true,
-    tested: Boolean(categoryCheck?.run && categoryCheck.run.status === 'checked' && categoryCheck.run.total > 0 && categoryCheck.run.passed === categoryCheck.run.total),
-    hired: history.jobs > 0,
-    delivered: history.selfDelivered > 0,
-    deliveredByOperator: history.operatorDelivered > 0,
-    outsideTeam: history.outsideTeam,
-    probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
-    observedDays: record.observedDays,
-  });
+  const { maturity, payable, history, categoryCheck } = dossierLadder(d, escrowChain);
   const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const verdict = adjusted.verdict;
   const verdictRationale = adjusted.note ? `${proof.rationale} ${adjusted.note}` : proof.rationale;

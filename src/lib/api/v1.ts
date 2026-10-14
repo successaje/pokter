@@ -58,7 +58,7 @@ export interface AgentSummary {
    * What the agent quoted for itself, or null when it has never named a price.
    * Null is a fact about the agent, not a missing field.
    */
-  price: Measured<{ amountU: number; currency: string; quotedAt: string } | null>;
+  price: Measured<{ amountU: number; currency: string; quotedAt: string; expiresAt: string | null; payable: boolean | null } | null>;
   availability: Measured<number | null>;
   probes: Measured<{ total: number; answered: number; observedDays: number }>;
   attestations: Measured<number>;
@@ -126,10 +126,12 @@ export function toAgentSummary(
             amountU: listing.quote.priceU,
             currency: listing.quote.currency,
             quotedAt: listing.quote.quotedAt,
+            expiresAt: listing.quote.expiresAt ?? null,
+            payable: listing.quotePayable ?? null,
           }
         : null,
       'attested',
-      'Quoted by the agent and signed by its registered wallet. Null means it has never returned a signed quote.',
+      'Quoted by the agent and signed by its registered wallet. Null means it has never returned a signed quote. `payable` says whether an enabled escrow settles in the quoted token.',
     ),
     availability: measured(
       uptime,

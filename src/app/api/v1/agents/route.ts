@@ -1,5 +1,5 @@
 import { isPromotableAgent } from '@/lib/agents/eligibility';
-import { listSearchable } from '@/lib/marketplace';
+import { listSearchable, searchByName } from '@/lib/marketplace';
 import { matchesQuery, offersDirectHire, verdictFor } from '@/lib/search/match';
 import { parseQuery } from '@/lib/search/query';
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -56,6 +56,24 @@ export async function GET(request: Request) {
    * list here made `is:hireable` count different agents from the home page.
    */
   const all = await listSearchable({ limit: 400 });
+
+  /*
+   * No agent in the pool whose name matches: ask the registry by name, as
+   * Discover does. The pool is built from category listings, so an agent
+   * in no category could not be found by its own name here while the
+   * site found it. Every other filter still applies to what comes back.
+   */
+  const terms = parsed.qualifiers.flatMap((qualifier) => (qualifier.kind === 'text' ? [qualifier.value] : []));
+  const named = (entry: (typeof all)[number]) => {
+    const name = entry.listing.agent.name.toLowerCase();
+    return terms.length > 0 && terms.every((term) => name.includes(term));
+  };
+  if (terms.length > 0 && !all.some(named)) {
+    const have = new Set(all.map((entry) => `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`));
+    const byName = await searchByName(terms.join(' ')).catch(() => []);
+    all.push(...byName.filter((entry) => !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)));
+  }
+
   const matched = all
     .filter((entry) => isPromotableAgent(entry.listing.agent))
     .filter((entry) => (category ? entry.listing.category === category : true))
