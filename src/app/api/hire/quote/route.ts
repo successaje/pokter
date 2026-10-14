@@ -136,6 +136,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       signer: quote.signer,
       expiresAt: quote.expiresAt,
       domain: quote.domain,
+      anchor: quote.anchor,
     },
     /* The escrow this price can be paid on, which the caller funds and no other. */
     escrowChainId,

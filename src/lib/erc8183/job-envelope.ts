@@ -27,6 +27,44 @@ export interface PokterJobQuote {
   expiresAt?: number;
   /** The chain and contract the signature was bound to. */
   domain?: { chainId: number; verifyingContract: Address };
+  /**
+   * The signed quote in the reference SDK's own shape (see `AgentQuote.anchor`).
+   * Written at the top level of the description, where those sellers look
+   * for it, rather than inside `quote`.
+   */
+  anchor?: Record<string, unknown>;
+}
+
+/** The fields the reference SDK anchors in a job: the hashed content, the hash and the signature. */
+const ANCHOR_KEYS = new Set([
+  'version',
+  'negotiated_at',
+  'task',
+  'terms',
+  'price',
+  'currency',
+  'quote_expires_at',
+  'chain_id',
+  'verifying_contract',
+  'negotiation_hash',
+  'provider_sig',
+]);
+
+/**
+ * The anchor, when it is the anchor of this quote and nothing else.
+ *
+ * Only the reference keys pass, so an anchor cannot overwrite the fields
+ * that say which agent the job belongs to, and its hash and signature must
+ * be the quote's own.
+ */
+function referenceAnchor(quote: PokterJobQuote | undefined): Record<string, unknown> | undefined {
+  const anchor = quote?.anchor;
+  if (!quote || !anchor || typeof anchor !== 'object') return undefined;
+  if (Object.keys(anchor).some((key) => !ANCHOR_KEYS.has(key))) return undefined;
+  if (String(anchor.negotiation_hash).toLowerCase() !== quote.negotiationHash.toLowerCase()) return undefined;
+  if (String(anchor.provider_sig).toLowerCase() !== quote.providerSignature.toLowerCase()) return undefined;
+  if (anchor.version !== 1 || typeof anchor.task !== 'string') return undefined;
+  return anchor;
 }
 
 export interface PokterJobEnvelope {
@@ -159,7 +197,16 @@ export function encodePokterJobEnvelope(input: {
     task: input.task.trim(),
     quote: optionalQuote(input.quote),
   };
-  const encoded = JSON.stringify(envelope);
+  /*
+   * With a reference anchor, the signed quote goes at the top level as
+   * well, in the seller's own field names: sellers on the reference
+   * pattern refused Pokter's jobs as carrying "no signed quote", because
+   * they look for `negotiation_hash` there and re-derive it from the terms
+   * beside it. The task is the signed one, so the hash re-derives; it is
+   * the text the buyer funded, after the reference's own sanitising.
+   */
+  const anchor = referenceAnchor(input.quote);
+  const encoded = JSON.stringify(anchor ? { ...anchor, ...envelope, task: anchor.task } : envelope);
   if (new TextEncoder().encode(encoded).byteLength > 4096) {
     throw new Error('The task and identity envelope must be at most 4096 bytes.');
   }

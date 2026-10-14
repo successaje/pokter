@@ -6,7 +6,9 @@ import {
   encodePokterJobEnvelope,
   POKTER_JOB_ENVELOPE_VERSION,
 } from '../src/lib/erc8183/job-envelope';
-import { quoteUsableForEscrow } from '../src/lib/erc8183/negotiation';
+import { keccak256, toBytes } from 'viem';
+
+import { canonicalJson, quoteUsableForEscrow } from '../src/lib/erc8183/negotiation';
 
 const HASH = `0x${'1'.repeat(64)}`;
 const SIG = `0x${'2'.repeat(130)}`;
@@ -212,4 +214,69 @@ test('a real seller quote fits the envelope and survives it', () => {
     quoteUsableForEscrow(live, 97, new Date((live.expiresAt + 60) * 1000)).usable,
     false,
   );
+});
+
+/*
+ * The reference anchor. Sluicegate refused mainnet job 56995 with "no
+ * signed quote anchored in job description": the jobs it delivered carried
+ * the signed quote at the top level, in the reference SDK's own names, and
+ * Pokter's carried only a hash and signature nested under `quote`.
+ */
+function referenceSellerAccepts(description: string): boolean {
+  // What a reference seller does: read its own fields, re-derive the hash.
+  const job = JSON.parse(description) as Record<string, unknown>;
+  if (typeof job.negotiation_hash !== 'string' || typeof job.provider_sig !== 'string') return false;
+  const content: Record<string, unknown> = {};
+  for (const key of ['version', 'negotiated_at', 'task', 'terms', 'price', 'currency', 'quote_expires_at', 'chain_id', 'verifying_contract']) {
+    if (job[key] !== undefined) content[key] = job[key];
+  }
+  return keccak256(toBytes(canonicalJson(content))) === job.negotiation_hash;
+}
+
+function signedAnchor(task: string) {
+  const content = {
+    version: 1,
+    negotiated_at: 1791892454,
+    task,
+    terms: { deliverables: 'Net APR at size.', quality_standards: 'Sourced rates.' },
+    price: '100000000000000000',
+    currency: '0xcE24439F2D9C6a2289F741120FE202248B666666',
+    quote_expires_at: 1791893354,
+    chain_id: 56,
+    verifying_contract: COMMERCE,
+  };
+  const hash = keccak256(toBytes(canonicalJson(content)));
+  return { hash, anchor: { ...content, negotiation_hash: hash, provider_sig: SIG } };
+}
+
+test('a job carrying a reference anchor is one a reference seller accepts', () => {
+  const { hash, anchor } = signedAnchor(base.task);
+  const encoded = encodePokterJobEnvelope({ ...base, quote: { negotiationHash: hash, providerSignature: SIG, anchor } });
+  assert.equal(referenceSellerAccepts(encoded), true);
+  // And Pokter still reads its own envelope from the same description.
+  const decoded = decodePokterJobEnvelope(encoded);
+  assert.equal(decoded?.identity.tokenId, '265375');
+  assert.equal(decoded?.quote?.negotiationHash, hash);
+});
+
+test('the signed task wins, so the hash still re-derives', () => {
+  // The reference sanitises brackets before hashing; the buyer typed them.
+  const { hash, anchor } = signedAnchor('Route 500 USDT (idle).');
+  const encoded = encodePokterJobEnvelope({ ...base, task: 'Route 500 USDT [idle].', quote: { negotiationHash: hash, providerSignature: SIG, anchor } });
+  assert.equal(referenceSellerAccepts(encoded), true);
+});
+
+test('an anchor for another quote, or one with extra keys, is left out', () => {
+  const { anchor } = signedAnchor(base.task);
+  const other = encodePokterJobEnvelope({ ...base, quote: { negotiationHash: HASH, providerSignature: SIG, anchor } });
+  assert.equal('negotiation_hash' in JSON.parse(other), false);
+  const { hash, anchor: clean } = signedAnchor(base.task);
+  const sneaky = encodePokterJobEnvelope({ ...base, quote: { negotiationHash: hash, providerSignature: SIG, anchor: { ...clean, provider: '0x0000000000000000000000000000000000000001' } } });
+  assert.equal('negotiation_hash' in JSON.parse(sneaky), false);
+  assert.equal(JSON.parse(sneaky).provider.toLowerCase(), PROVIDER);
+});
+
+test('the job that was refused had no reference anchor', () => {
+  const encoded = encodePokterJobEnvelope({ ...base, quote: { negotiationHash: HASH, providerSignature: SIG } });
+  assert.equal(referenceSellerAccepts(encoded), false);
 });

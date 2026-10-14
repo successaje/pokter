@@ -137,11 +137,13 @@ async function negotiateForHire(
     priceU: number;
     expiresAt: string | null;
     domain: { chainId: number; verifyingContract: string } | null;
+    anchor?: Record<string, unknown> | null;
   };
   /* The envelope records the expiry in epoch seconds, as the seller sent it. */
   return {
     negotiationHash: q.negotiationHash,
     providerSignature: q.providerSignature,
+    anchor: q.anchor ?? undefined,
     priceRaw: q.priceRaw,
     priceU: q.priceU,
     expiresAt: q.expiresAt ? Math.floor(Date.parse(q.expiresAt) / 1000) : undefined,
