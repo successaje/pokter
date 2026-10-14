@@ -5,9 +5,10 @@ import {
   verifyErc8183ManifestText,
 } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { jobChainParam } from '@/lib/jobs/href';
 import { getJobStore } from '@/lib/erc8183/store';
-import { readDeliverable } from '@/lib/erc8183/deliverables';
+import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { erc8183ManifestHash } from '@altananetwork/sdk';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -45,9 +46,18 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid job id.' }, { status: 400 });
   }
 
+  /*
+   * The escrow the job is on (`?chain=`). This read testnet only, so a
+   * mainnet job was looked up on the testnet escrow, where that number is
+   * empty, and every mainnet buyer was told "Job is OPEN; no submitted
+   * receipt exists" about a delivered job.
+   */
+  const chainId = jobChainParam(requestUrl.searchParams.get('chain')) ?? ALTANA_NETWORK.chainId;
+  const network = altanaNetworkFor(chainId);
+
   try {
     const id = BigInt(jobId);
-    const job = await getErc8183Job(ALTANA_NETWORK, id);
+    const job = await getErc8183Job(network, id);
     if (job.statusName !== 'SUBMITTED' && job.statusName !== 'COMPLETED') {
       return NextResponse.json(
         { error: `Job is ${job.statusName}; no submitted receipt exists.` },
@@ -76,7 +86,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       .all()
       .find(
         (job) =>
-          job.chainId === ALTANA_NETWORK.chainId && job.jobId === jobId,
+          job.chainId === chainId && job.jobId === jobId,
       )?.deliverableUrl;
 
     /*
@@ -87,7 +97,7 @@ export async function GET(request: Request): Promise<NextResponse> {
      * is exact rather than approximate — the hash is recomputed from the same
      * bytes the chain committed to, and the check below still proves that.
      */
-    const stored = readDeliverable(jobId);
+    const stored = readDeliverable(deliverableKey(chainId, jobId));
     const derived = stored
       ? (() => {
           try {
@@ -95,6 +105,7 @@ export async function GET(request: Request): Promise<NextResponse> {
               `/api/seller/deliverables/${jobId}`,
               process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
             );
+            if (chainId !== 97) url.searchParams.set('chain', String(chainId));
             url.searchParams.set(
               'hash',
               erc8183ManifestHash(JSON.parse(stored.manifestText)),
@@ -116,7 +127,7 @@ export async function GET(request: Request): Promise<NextResponse> {
        * falling off a one-week cliff. 5,000 is chosen to sit under the range
        * cap public BSC RPCs apply to eth_getLogs.
        */
-      (await getErc8183DeliverableUrl(ALTANA_NETWORK, id, {
+      (await getErc8183DeliverableUrl(network, id, {
         scanWindow: 5_000n,
         maxWindows: 300,
       }));
