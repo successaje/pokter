@@ -11,6 +11,7 @@
     "test": "tsx --test \"tests/*.test.mts\"",
     "audit:protocol": "tsx scripts/protocol-safety-check.mts",
     "audit:rate-limit": "tsx --conditions=react-server scripts/rate-limit-check.mts",
+    "audit:receipts": "tsx scripts/receipt-audit.mts",
     "sweep": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/sweep.ts",
     "figures": "tsx scripts/figures.mts",
     "smoke": "tsx scripts/smoke-routes.mts"
