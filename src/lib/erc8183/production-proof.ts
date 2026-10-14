@@ -34,6 +34,12 @@ export interface ProductionProofSummary {
    * with the flattering number on the page people read.
    */
   selfHireJobs: number;
+  /**
+   * Self-hires inside the outside-funded set, which is the only self-hire
+   * figure that belongs beside it: the total includes team-funded ones, and
+   * subtracting it from the funder count gave arithmetic that did not work.
+   */
+  outsideSelfHireJobs: number;
   outsideDemandJobs: number;
   teamJobs: number;
   unknownFunderJobs: number;
@@ -88,6 +94,11 @@ export function filterCurrentProductionJobs(
 }
 
 /** Pure aggregation used by the page and tests; it never reads environment state. */
+/** Buyer and seller the same wallet: an operator funding their own agent. */
+function isSelfHire(job: HiredJob): boolean {
+  return Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
+}
+
 export function summarizeProductionProof(
   jobs: readonly HiredJob[],
   isTeamFunded: (job: HiredJob) => boolean,
@@ -105,8 +116,7 @@ export function summarizeProductionProof(
   for (const job of jobs) {
     byStatus[job.status] += 1;
     const team = isTeamFunded(job);
-    const selfHire = Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
-    if (selfHire) selfHireJobs += 1;
+    if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
     else outsideTeamJobs += 1;
     if (!job.client) unknownFunderJobs += 1;
@@ -134,10 +144,8 @@ export function summarizeProductionProof(
     completedValueRaw: completedValue.toString(),
     outsideTeamJobs,
     selfHireJobs,
-    outsideDemandJobs: jobs.filter((job) => {
-      const selfHire = Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
-      return !isTeamFunded(job) && !selfHire;
-    }).length,
+    outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
+    outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,
     teamJobs,
     unknownFunderJobs,
     byStatus,

@@ -88,3 +88,31 @@ test('a missing funder can never enter the outside-team population', () => {
   );
   assert.equal(selected.length, 0);
 });
+
+test('the funding split subtracts a figure that actually fits inside it', () => {
+  /*
+   * The self-hire count displayed under "Outside declared team" has to be the
+   * self-hires within that set, not every self-hire: a team-funded self-hire
+   * belongs to the team bucket, and subtracting the total from the funder
+   * count printed arithmetic that did not add up on the live page.
+   */
+  const selfWallet = '0x0000000000000000000000000000000000000009' as const;
+  const jobs = [
+    job('1', 'COMPLETED', { client: BUYER_A }),
+    job('2', 'COMPLETED', { client: BUYER_B }),
+    job('3', 'COMPLETED', { client: selfWallet, provider: selfWallet }),
+    job('4', 'COMPLETED', { client: TEAM, provider: TEAM }),
+    job('5', 'COMPLETED', { client: TEAM }),
+  ];
+  const summary = summarizeProductionProof(jobs, (j) => j.client?.toLowerCase() === TEAM);
+
+  assert.equal(summary.outsideTeamJobs, 3, 'two buyers plus the outside self-hire');
+  assert.equal(summary.outsideSelfHireJobs, 1, 'only the outside-funded self-hire');
+  assert.equal(summary.selfHireJobs, 2, 'both self-hires, including the team one');
+  assert.equal(summary.outsideDemandJobs, 2);
+  assert.equal(
+    summary.outsideTeamJobs - summary.outsideSelfHireJobs,
+    summary.outsideDemandJobs,
+    'the split shown to a reader must be arithmetic they can check',
+  );
+});
