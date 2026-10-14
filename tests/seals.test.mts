@@ -3,6 +3,10 @@ import test from 'node:test';
 
 import { NonCanonical, canonicalJson, sealHash } from '../src/lib/seals/canonical';
 import { buildSealDocument, diffSeals, sealMatches, sealOf, type SealedClaim } from '../src/lib/seals/document';
+import { sealAction } from '../src/lib/seals/cadence';
+
+const sealActionOf = (latest: { hash: string; sealedAt: string; anchored: boolean }) =>
+  sealAction(latest, new Date('2026-10-15T12:00:00Z'));
 
 /**
  * A seal's whole value is that the same claims hash the same way for
@@ -171,4 +175,36 @@ test('the shipped verifier computes real keccak256', async () => {
   } finally {
     rmSync(file, { force: true });
   }
+});
+
+test('a seal is published once a day, not once a sweep', async () => {
+  const { sealAction, SEAL_INTERVAL_MS } = await import('../src/lib/seals/cadence');
+  const now = new Date('2026-10-15T12:00:00Z');
+  const anchored = (sealedAt: string) => ({ hash: '0xaa', sealedAt, anchored: true });
+
+  assert.equal(sealAction(null, now).kind, 'create', 'the first run has nothing to skip');
+  assert.equal(
+    sealAction(anchored('2026-10-15T11:00:00Z'), now).kind,
+    'skip',
+    'the sweep runs far more often than daily and must not anchor every time',
+  );
+  assert.equal(sealAction(anchored('2026-10-14T11:59:59Z'), now).kind, 'create');
+
+  const skipped = sealAction(anchored('2026-10-15T11:00:00Z'), now);
+  assert.equal(
+    skipped.kind === 'skip' ? skipped.nextDueAt : null,
+    new Date(Date.parse('2026-10-15T11:00:00Z') + SEAL_INTERVAL_MS).toISOString(),
+  );
+});
+
+test('a seal that never reached the chain is anchored, not replaced', () => {
+  // Replacing it would strand the earlier document with no proof of its
+  // time and re-date today's claims to the retry, so a run of failed
+  // anchors would quietly erase a day from the record.
+  const unanchored = { hash: '0xbb', sealedAt: '2026-10-15T11:00:00Z', anchored: false };
+  assert.deepEqual(sealActionOf(unanchored), { kind: 'anchor', hash: '0xbb' });
+});
+
+test('an unreadable timestamp seals again rather than stopping forever', () => {
+  assert.equal(sealActionOf({ hash: '0xcc', sealedAt: 'not a date', anchored: true }).kind, 'create');
 });

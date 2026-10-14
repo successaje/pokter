@@ -22,10 +22,19 @@ import type { ChainId } from '@/lib/scan/types';
  * anyone reading the operator wallet's history.
  */
 
-/** Which chain seals are anchored on. Testnet unless told otherwise. */
+/**
+ * Which chain seals are anchored on. Mainnet unless told otherwise.
+ *
+ * A seal exists to convince a reader who does not already believe
+ * Pokter, and that reader discounts a testnet anchor on sight — testnet
+ * BNB is free, so a timestamp bought with it proves only that somebody
+ * ran a faucet. Mainnet costs real money for the same 32 bytes, which is
+ * the entire reason it is worth anything. At roughly 0.00002 BNB a seal,
+ * a year of daily anchors is under a cent.
+ */
 export function sealChain(): ChainId {
-  const configured = Number(process.env.SEAL_ANCHOR_CHAIN ?? 97);
-  return configured === 56 ? 56 : 97;
+  const configured = Number(process.env.SEAL_ANCHOR_CHAIN ?? 56);
+  return configured === 97 ? 97 : 56;
 }
 
 export interface Anchored {

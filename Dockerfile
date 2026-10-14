@@ -62,6 +62,7 @@ ENV FUNDER_DB_PATH=/data/funders.db
 ENV ASSAY_DB_PATH=/data/assay.db
 ENV QUEST_DB_PATH=/data/quest.db
 ENV CONVERSION_DB_PATH=/data/conversion.db
+ENV SEAL_DB_PATH=/data/seals.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs
