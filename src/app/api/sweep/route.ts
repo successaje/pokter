@@ -18,6 +18,7 @@ import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
+import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
@@ -265,6 +266,17 @@ export async function POST(request: Request): Promise<NextResponse> {
      * counts checkable rather than asserted.
      */
     const reconciled = await reconcileJobIndex().catch(() => null);
+
+    /*
+     * Seal what Pokter currently claims, after the sweep has refreshed it
+     * and before anyone acts on it.
+     *
+     * Order matters: sealing first would commit to yesterday's numbers
+     * and date them today. A failed seal is swallowed like the rest of
+     * the sweep's steps — a missing seal is a gap a reader can see, while
+     * a thrown error would lose the probe results this run just gathered.
+     */
+    const sealed = await publishSeal().catch(() => null);
     const agentWallets = listings
       ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
       : null;
@@ -312,6 +324,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       questIndex,
       answeredTasks,
       reconciled,
+      sealed,
       followerAlerts,
       agentWallets,
       testnetSweep,
