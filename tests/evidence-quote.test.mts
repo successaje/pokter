@@ -131,6 +131,14 @@ test('a buyer that can settle on several gets one this agent supports', () => {
   assert.equal(quoteChainFor({ escrowChains: [1, 8453, 97] }), 97);
 });
 
+test("the listing's own chain wins over a buyer's list that includes it", () => {
+  // The mainnet listing was priced in testnet $U for a buyer offering both.
+  assert.equal(quoteChainFor({ escrowChains: [97, 56], endpointChain: '56' }), 56);
+  assert.equal(quoteChainFor({ escrowChains: [56, 97], endpointChain: '97' }), 97);
+  // A buyer that cannot settle on the listing's chain is priced where it can.
+  assert.equal(quoteChainFor({ escrowChains: [97], endpointChain: '56' }), 97);
+});
+
 test("the listing's own endpoint decides when the caller says nothing", () => {
   assert.equal(quoteChainFor({ endpointChain: '97' }), 97);
   assert.equal(quoteChainFor({ escrowChains: [], endpointChain: '97' }), 97);
