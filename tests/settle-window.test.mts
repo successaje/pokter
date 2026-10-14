@@ -64,3 +64,14 @@ test('disputing is the inverse: inside the window only', () => {
 test('an undelivered job is not held back by a window that has not started', () => {
   assert.deepEqual(canSettle('approve', timing(SUBMITTED, { submittedAt: 0 })), { allowed: true });
 });
+
+test('a week-long window is said in days, with the moment it opens', () => {
+  const submittedAt = Date.parse('2026-10-14T18:30:40Z') / 1000;
+  const verdict = canSettle('approve', { now: submittedAt + 30 * 60, submittedAt, expiredAt: submittedAt + 8 * 86_400, disputeWindowSeconds: 604_800 });
+  assert.equal(verdict.allowed, false);
+  if (verdict.allowed === false && verdict.reason === 'too-early') {
+    assert.match(verdict.message, /review window of 7 days after delivery/);
+    assert.match(verdict.message, /opens 21 Oct, 18:30 UTC \(in 7 days\)/);
+    assert.doesNotMatch(verdict.message, /minutes/);
+  }
+});

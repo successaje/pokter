@@ -1,3 +1,5 @@
+import { describeSeconds } from './deadline';
+
 /**
  * When an escrow can actually be released, and when it cannot.
  *
@@ -43,10 +45,22 @@ export interface SettleTiming {
   now: number;
 }
 
-function minutes(seconds: number): string {
+/*
+ * At the scale of the window. Mainnet's is 7 days, and "10080 minutes" is
+ * how the first mainnet buyer to approve a delivery was told so.
+ */
+function span(seconds: number): string {
   if (seconds <= 90) return `${Math.max(1, Math.ceil(seconds))} seconds`;
-  const mins = Math.ceil(seconds / 60);
-  return mins === 1 ? 'a minute' : `${mins} minutes`;
+  if (seconds < 3600) {
+    const mins = Math.ceil(seconds / 60);
+    return mins === 1 ? 'a minute' : `${mins} minutes`;
+  }
+  return describeSeconds(Math.ceil(seconds / 60) * 60);
+}
+
+function utcMoment(epochSeconds: number): string {
+  const d = new Date(epochSeconds * 1000);
+  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
 }
 
 export function settleOpensAt(timing: Pick<SettleTiming, 'submittedAt' | 'disputeWindowSeconds'>): number {
@@ -92,7 +106,7 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
       allowed: false,
       reason: 'too-early',
       opensInSeconds,
-      message: `The escrow holds a review window open for ${minutes(timing.disputeWindowSeconds)} after delivery, so payment cannot be released yet. Try again in ${minutes(opensInSeconds)} — nothing is lost by waiting, and you can contest the delivery until then.`,
+      message: `Payment can’t be released yet: the escrow keeps a review window of ${span(timing.disputeWindowSeconds)} after delivery, even when you approve. It opens ${utcMoment(opensAt)} (in ${span(opensInSeconds)}). Until then you can dispute the delivery; nothing is lost by waiting.`,
     };
   }
 
