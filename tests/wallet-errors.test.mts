@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletActionError } from '../src/lib/wallet/errors';
+import { connectErrorMessage, walletActionError } from '../src/lib/wallet/errors';
 import { formatElapsed } from '../src/lib/ui/format';
 
 /*
@@ -129,4 +129,16 @@ test('a transaction the network never received is not reported as slow', () => {
   assert.match(text, /no fee was paid/);
   assert.match(text, /Try again/);
   assert.ok(!/timed out|wait/i.test(text), text);
+});
+
+test('a connection request already waiting in the wallet says where to look', () => {
+  const raw = "Request of type 'wallet_requestPermissions' already pending for origin https://pokter.xyz. Please wait.";
+  assert.match(connectErrorMessage(raw), /already has a connection request waiting\. Open the wallet/);
+  assert.match(connectErrorMessage('User rejected the request.'), /declined in the wallet/);
+  assert.equal(connectErrorMessage('Something odd\nstack line'), 'Something odd');
+});
+
+test('a transaction request stuck behind an open wallet prompt says so', () => {
+  const raw = "Request of type 'eth_sendTransaction' already pending for origin https://pokter.xyz. Please wait.";
+  assert.match(walletActionError({ message: raw }, 'Funding'), /^Funding is waiting on an earlier request in your wallet/);
 });
