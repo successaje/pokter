@@ -5,6 +5,7 @@ import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { isDemoSeller, submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { noticeSeller } from '@/lib/erc8183/seller-notice';
+import { indexIfMissing } from '@/lib/erc8183/job-identity';
 import { BSC_MAINNET, type ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -122,6 +123,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
     }
 
+    // A moment after funding, the chain read here sees the job even when the
+    // hire page's own index request was a block too early.
+    await indexIfMissing({
+      chainId: escrowChainId,
+      jobId,
+      onchain: job,
+      identityHint: { agentChainId, agentTokenId: tokenId },
+    }).catch(() => false);
     const notice = await noticeSeller({ agentChainId, tokenId, jobId, provider, escrowChainId });
     if (notice.status === 'unreachable') {
       return NextResponse.json(

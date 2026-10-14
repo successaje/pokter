@@ -354,31 +354,38 @@ export function useHire({
      * job came to be missing from Pokter's own activity figures. The
      * route verifies the job against the chain either way.
      */
-    try {
-      const response = await fetch('/api/jobs/index', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          chainId: hired.chainId,
-          jobId: hired.jobId,
-          ...(hired.hireTxHash ? { transactionHash: hired.hireTxHash } : {}),
-          // Needed when the job carries only the seller's signed quote; the
-          // route checks it against the registry before keeping it.
-          agentChainId: hired.agentChainId ?? agent.chainId,
-          agentTokenId: hired.agentTokenId,
-          agentName: hired.agentName,
-          providerLabel: hired.providerLabel,
-        }),
-      });
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        console.warn(payload.error ?? 'The funded job was not added to the public index.');
+    const body = JSON.stringify({
+      chainId: hired.chainId,
+      jobId: hired.jobId,
+      ...(hired.hireTxHash ? { transactionHash: hired.hireTxHash } : {}),
+      // Needed when the job carries only the seller's signed quote; the
+      // route checks it against the registry before keeping it.
+      agentChainId: hired.agentChainId ?? agent.chainId,
+      agentTokenId: hired.agentTokenId,
+      agentName: hired.agentName,
+      providerLabel: hired.providerLabel,
+    });
+    /*
+     * Retried: the server's node can be a block behind the wallet's and
+     * read the job as unfunded (409). The funded notice indexes too, so a
+     * miss here is recovered either way.
+     */
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetch('/api/jobs/index', { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+        if (response.ok) return;
+        if (response.status !== 409 && response.status !== 502) {
+          const payload = (await response.json()) as { error?: string };
+          console.warn(payload.error ?? 'The funded job was not added to the public index.');
+          return;
+        }
+      } catch (caught) {
+        // Indexing is a recoverable read-model operation. The chain transaction
+        // remains authoritative and a network failure here must never turn a
+        // successful hire into a failed hire in the buyer's UI.
+        console.warn('The funded job was not added to the public index.', caught);
       }
-    } catch (caught) {
-      // Indexing is a recoverable read-model operation. The chain transaction
-      // remains authoritative and a network failure here must never turn a
-      // successful hire into a failed hire in the buyer's UI.
-      console.warn('The funded job was not added to the public index.', caught);
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
     }
   };
 
@@ -527,7 +534,8 @@ export function useHire({
         };
 
         rememberJob(active.address, externalJob);
-        await indexFundedJob(externalJob);
+        // Not awaited: its retries must not hold up the seller's notice, which indexes too.
+        void indexFundedJob(externalJob);
         setJob(externalJob);
         setState('hired');
         await notifySeller(externalJob);
@@ -656,7 +664,8 @@ export function useHire({
         settleTxHash: null,
       };
       rememberJob(wallet.address, hired);
-      await indexFundedJob(hired);
+      // Not awaited: its retries must not hold up the seller's notice, which indexes too.
+      void indexFundedJob(hired);
       setJob(hired);
       setState('hired');
       await notifySeller(hired);
