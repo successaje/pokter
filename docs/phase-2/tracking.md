@@ -210,7 +210,11 @@ appearing as a user is precisely what the fair-play rule exists to prevent.
 All four of its jobs expired at `FUNDED` without delivery, so none represents
 a completed hire either.
 
-None of these addresses represents organic user activity; exclude all five
+The sixth wallet is added on 14 October, before it funded anything, so the
+figures published up to that date are unaffected by it. It is an EOA, held
+for mainnet testing once the migration lands.
+
+None of these addresses represents organic user activity; exclude all six
 from quest and campaign activity counts.
 
 ---
