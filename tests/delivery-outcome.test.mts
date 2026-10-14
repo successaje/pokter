@@ -8,6 +8,8 @@ function job(status: string, budgetU = 0.1): HiredJob {
   return {
     status, budgetRaw: String(BigInt(Math.round(budgetU * 1e6)) * 10n ** 12n),
     statusCheckedAt: new Date().toISOString(),
+    /* An ordinary agent's own wallet: not one of Pokter's declared ones. */
+    provider: '0x1111111111111111111111111111111111111111',
   } as unknown as HiredJob;
 }
 
@@ -64,4 +66,31 @@ test('a funded job past its deadline counts as missed even before anyone reclaim
   assert.equal(h.missed, 2);
   assert.equal(h.pending, 1);
   assert.equal(h.delivered, 1);
+});
+
+test('deliveries are split by who submitted them', () => {
+  const operator = (status: string) =>
+    ({ ...job(status), provider: '0x60eF148485C2a5119fa52CA13c52E9fd98F28e87' }) as HiredJob;
+  const h = summariseEconomicHistory([job('COMPLETED'), operator('COMPLETED')]);
+  assert.equal(h.delivered, 2);
+  assert.equal(h.selfDelivered, 1);
+  assert.equal(h.operatorDelivered, 1);
+});
+
+test('a delivery with no recorded submitter counts as neither', () => {
+  const unknown = { ...job('COMPLETED'), provider: undefined } as unknown as HiredJob;
+  const h = summariseEconomicHistory([unknown]);
+  assert.equal(h.delivered, 1);
+  assert.equal(h.selfDelivered, 0);
+  assert.equal(h.operatorDelivered, 0);
+});
+
+test('an operator hiring their own agent is not outside demand', () => {
+  const wallet = '0xf9Ad22cAA6C179Eee86806FA10176e845ea8e982';
+  const self = { ...job('COMPLETED'), client: wallet, provider: wallet } as unknown as HiredJob;
+  const real = { ...job('COMPLETED'), client: '0x0b306a358aEF8c391779bCC62a8253aaBF524993' } as unknown as HiredJob;
+  const h = summariseEconomicHistory([self, real]);
+  assert.equal(h.selfHire, 1);
+  assert.equal(h.outsideTeam.jobs, 1, 'the self-hire must not count as demand');
+  assert.equal(h.outsideTeam.uniqueBuyers, 1);
 });

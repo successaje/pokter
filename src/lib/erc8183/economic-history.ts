@@ -14,6 +14,20 @@ export interface OutsideTeamHistory {
 export interface AgentEconomicHistory {
   jobs: number;
   delivered: number;
+  /**
+   * Deliveries submitted by a wallet Pokter does not operate, which is the
+   * only kind that says anything about the agent.
+   *
+   * The buyer side of this record has always excluded Pokter's own wallets;
+   * the seller side did not, so a job Pokter delivered on an agent's behalf
+   * earned that agent a "Delivered" milestone. The LP Rebalancer's single
+   * delivery was submitted by a retired Pokter operator, and the ladder
+   * credited the agent for it. That is the same substitution Pokter declines
+   * to accept in anyone else's figures.
+   */
+  selfDelivered: number;
+  /** Deliveries a declared Pokter wallet submitted. Kept, and labelled. */
+  operatorDelivered: number;
   completed: number;
   rejected: number;
   expired: number;
@@ -34,6 +48,16 @@ export interface AgentEconomicHistory {
   uniqueBuyers: number;
   /** Demand not funded by a declared Pokter wallet. This is not called independent. */
   outsideTeam: OutsideTeamHistory;
+  /**
+   * Jobs whose buyer and seller are the same wallet.
+   *
+   * An operator funding their own agent is not demand, whoever they are.
+   * Three testnet jobs on one agent were counted as outside demand on this
+   * basis alone, and anyone could see it with the public receipt index and
+   * one `eth_call` — which is exactly what Pokter invites people to do. They
+   * are excluded from `outsideTeam` and reported here instead.
+   */
+  selfHire: number;
 }
 
 /**
@@ -50,17 +74,28 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
   const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now;
   const team = teamAddressSet();
-  const outside = funded.filter((job) => !fundedByTeam(job, team));
+  const selfHire = (job: HiredJob) =>
+    Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
+  const outside = funded.filter((job) => !fundedByTeam(job, team) && !selfHire(job));
   const outsideCompleted = outside.filter((job) => job.status === 'COMPLETED').length;
   const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status)).length;
   const outsideBuyers = new Set(outside.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
   const buyers = new Set(funded.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
+  const deliveries = funded.filter((job) => ['SUBMITTED', 'COMPLETED'].includes(job.status));
+  /*
+   * A row with no provider is not evidence either way, so it is counted as
+   * neither: `selfDelivered` and `operatorDelivered` can sum to less than
+   * `delivered`, which is the honest shape when the submitter is unknown.
+   */
+  const provider = (job: HiredJob) => typeof job.provider === 'string' ? job.provider.toLowerCase() : null;
+  const byOperator = (job: HiredJob) => { const p = provider(job); return p !== null && team.has(p); };
+  const bySelf = (job: HiredJob) => { const p = provider(job); return p !== null && !team.has(p); };
 
   return {
     jobs: funded.length,
-    delivered: funded.filter((job) =>
-      ['SUBMITTED', 'COMPLETED'].includes(job.status),
-    ).length,
+    delivered: deliveries.length,
+    selfDelivered: deliveries.filter(bySelf).length,
+    operatorDelivered: deliveries.filter(byOperator).length,
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
@@ -76,6 +111,7 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
         .sort((a, b) => b.localeCompare(a))[0] ?? null,
     recent: funded.slice(0, 3),
     uniqueBuyers: buyers.size,
+    selfHire: funded.filter(selfHire).length,
     outsideTeam: {
       jobs: outside.length,
       completed: outsideCompleted,

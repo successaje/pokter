@@ -16,7 +16,16 @@ export interface MaturityFacts {
   compatible: boolean;
   tested: boolean;
   hired: boolean;
+  /** A delivery from a wallet Pokter does not operate. */
   delivered: boolean;
+  /**
+   * A delivery reached escrow, but a declared Pokter wallet submitted it.
+   *
+   * Shown rather than dropped: the buyer was served and the escrow settled,
+   * which is worth knowing. It is just not evidence the agent can deliver,
+   * so it does not earn the milestone.
+   */
+  deliveredByOperator: boolean;
   outsideTeam: OutsideTeamHistory;
   probeRate: number | null;
   observedDays: number;
@@ -91,7 +100,14 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
     { id: 'compatible', label: LABEL.compatible, earned: earned.compatible, detail: 'A buyer can obtain payable terms and open the hire flow.' },
     { id: 'tested', label: LABEL.tested, earned: earned.tested, detail: 'Passed the latest category-specific correctness suite.' },
     { id: 'hired', label: LABEL.hired, earned: earned.hired, detail: 'At least one escrow job was funded.' },
-    { id: 'delivered', label: LABEL.delivered, earned: earned.delivered, detail: 'At least one delivery reached escrow.' },
+    {
+      id: 'delivered',
+      label: LABEL.delivered,
+      earned: earned.delivered,
+      detail: !earned.delivered && facts.deliveredByOperator
+        ? 'A delivery reached escrow, but a Pokter-operated wallet submitted it rather than the agent itself.'
+        : 'At least one delivery reached escrow from the agent’s own wallet.',
+    },
     {
       id: 'market-proven',
       label: LABEL['market-proven'],

@@ -12,6 +12,7 @@ function facts(overrides: Partial<MaturityFacts> = {}): MaturityFacts {
     tested: false,
     hired: false,
     delivered: false,
+    deliveredByOperator: false,
     outsideTeam: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
     probeRate: null,
     observedDays: 0,
@@ -66,4 +67,23 @@ test('team-funded work cannot contribute because it is absent from outside-team 
   }));
   assert.equal(maturity.current, 'delivered');
   assert.equal(maturity.steps.find((step) => step.id === 'market-proven')?.earned, false);
+});
+
+test('a delivery submitted by a Pokter wallet does not earn the agent the milestone', () => {
+  const maturity = deriveMaturity(facts({
+    reachable: true, compatible: true, hired: true,
+    delivered: false, deliveredByOperator: true,
+  }));
+  assert.equal(maturity.current, 'hired');
+  const step = maturity.steps.find((s) => s.id === 'delivered');
+  assert.equal(step?.earned, false);
+  assert.match(step?.detail ?? '', /Pokter-operated wallet submitted it/);
+});
+
+test('the agent delivering its own work still earns the milestone', () => {
+  const maturity = deriveMaturity(facts({
+    reachable: true, compatible: true, hired: true, delivered: true,
+  }));
+  assert.equal(maturity.current, 'delivered');
+  assert.match(maturity.steps.find((s) => s.id === 'delivered')?.detail ?? '', /own wallet/);
 });
