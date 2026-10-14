@@ -33,7 +33,8 @@ import { computeScore } from '@/lib/score/engine';
 import { ScanError } from '@/lib/scan/client';
 import type { PokterScore } from '@/lib/score/types';
 import { getJobStore } from '@/lib/erc8183/store';
-import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { agentHistory } from '@/lib/agent/credited-history';
 import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
@@ -457,7 +458,7 @@ export async function getDossier(
     proof,
     live,
     record,
-    score: computeScore({ agent, category, proof, attestations, record, live, history: summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)) }),
+    score: computeScore({ agent, category, proof, attestations, record, live, history: agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)) }),
     quote,
     quoteCurrent: Boolean(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
@@ -553,7 +554,7 @@ export async function getComparison(
     getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null,
     record.totalProbes,
   );
-  const economicHistory = summariseEconomicHistory(getJobStore().byAgent(chainId, tokenId));
+  const economicHistory = agentHistory(getJobStore().byAgent(chainId, tokenId));
   const reviews = getReviewStore().byAgent(chainId, tokenId);
 
   return {
@@ -663,7 +664,7 @@ export async function searchByName(
         requiresAuth: gated.has(key),
       },
       record: buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since)),
-      history: summariseEconomicHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
+      history: agentHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
       tested: passedCategoryCheck(agent, category),
     };
   });
@@ -712,7 +713,7 @@ export async function listSearchableWithStatus(
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
-    history: summariseEconomicHistory(
+    history: agentHistory(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
     tested: passedCategoryCheck(listing.agent, listing.category),
@@ -797,7 +798,7 @@ export async function listCategorySearchable(
     record: buildTrackRecord(
       store.historyFor(listing.agent.chain_id, listing.agent.token_id, since),
     ),
-    history: summariseEconomicHistory(
+    history: agentHistory(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
   }));

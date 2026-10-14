@@ -58,6 +58,13 @@ export interface AgentEconomicHistory {
    * are excluded from `outsideTeam` and reported here instead.
    */
   selfHire: number;
+  /**
+   * Jobs Pokter's seller closed with a receipt and no answer from the agent:
+   * lifecycle demonstrations. They prove the escrow works and say nothing
+   * about the agent, so none of the figures above count them, as a delivery
+   * or as a miss.
+   */
+  lifecycleDemos: number;
 }
 
 /**
@@ -66,11 +73,16 @@ export interface AgentEconomicHistory {
  * commerce contract does not carry the agent token id, so attribution depends
  * on Pokter's immutable job envelope and index.
  */
-export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): AgentEconomicHistory {
+export function summariseEconomicHistory(
+  jobs: HiredJob[],
+  now = Date.now(),
+  { isLifecycleDemo }: { isLifecycleDemo?: (job: HiredJob) => boolean } = {},
+): AgentEconomicHistory {
   // Entry into this store is itself chain-verified. Some relayed/batched hires
   // do not expose a transaction hash to the SDK even though the kernel reads
   // FUNDED, so requiring a hash here would silently erase valid paid work.
-  const funded = jobs.filter((job) => job.status !== 'OPEN');
+  const demos = isLifecycleDemo ? jobs.filter((job) => job.status !== 'OPEN' && isLifecycleDemo(job)) : [];
+  const funded = jobs.filter((job) => job.status !== 'OPEN' && !demos.includes(job));
   const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now;
   const team = teamAddressSet();
@@ -112,6 +124,7 @@ export function summariseEconomicHistory(jobs: HiredJob[], now = Date.now()): Ag
     recent: funded.slice(0, 3),
     uniqueBuyers: buyers.size,
     selfHire: funded.filter(selfHire).length,
+    lifecycleDemos: demos.length,
     outsideTeam: {
       jobs: outside.length,
       completed: outsideCompleted,

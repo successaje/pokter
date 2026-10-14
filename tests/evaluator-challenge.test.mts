@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluatorStarterCommand, selectEvaluationQueue, type EvaluationQueueFacts } from '../src/lib/evaluators/challenge';
+import { challengeScheduleText, evaluatorStarterCommand, selectEvaluationQueue, type EvaluationQueueFacts } from '../src/lib/evaluators/challenge';
 
 function candidate(over: Partial<EvaluationQueueFacts> = {}): EvaluationQueueFacts {
   return {
@@ -59,4 +59,8 @@ test('the prefilled command requests the proven evidence volume and quotes the e
   assert.match(command, /--interval-ms 2160000/);
   assert.match(command, /--agent 372022/);
   assert.equal(command.includes("it'\\''s-ready"), true);
+});
+
+test('the schedule sentence is derived from the command it describes', () => {
+  assert.equal(challengeScheduleText(40, 2_160_000), '40 samples 36 minutes apart, over about 23 hours');
 });

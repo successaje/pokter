@@ -123,7 +123,11 @@ export function MobileHireBar({ profile }: { profile: AgentProfile }) {
     <div className={cn('fixed inset-x-0 bottom-[calc(56px+max(12px,env(safe-area-inset-bottom)))] z-30 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] px-4 py-3 backdrop-blur-md lg:hidden')}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 flex-col">
-          <span className="t-readout text-[15px]">{price.headline}</span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="t-readout text-[15px]">{price.headline}</span>
+            {/* The "~" is a suggested budget, which the desktop panel says in its caption; say it here too. */}
+            {!price.signed && <span className="text-[11.5px] text-ink-3">suggested, no signed price</span>}
+          </span>
           {/*
             The bar showed a bare number and "Escrowed until delivered", so
             on a phone — where this is the primary call to action and the

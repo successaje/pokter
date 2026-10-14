@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { loadEvaluationChallenge } from '@/lib/evaluators/challenge-server';
 import { chainLabel } from '@/lib/network/presentation';
+import { challengeScheduleText } from '@/lib/evaluators/challenge';
 import { AgentAvatar } from '@/ui/Agent';
 import { CopyButton } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
@@ -77,7 +78,7 @@ export default async function EvaluationChallengePage() {
                 <pre className="overflow-x-auto rounded-[10px] border border-rule bg-sunken p-4 pr-24 text-[12px] leading-relaxed text-ink">{entry.starterCommand}</pre>
                 <CopyButton value={entry.starterCommand} label="Copy command" className="absolute right-2 top-2 bg-raised" />
               </div>
-              <p className="mt-3 text-[12.5px] leading-relaxed text-ink-3">Protocol: {entry.protocol.toUpperCase()} · The command takes 40 samples one hour apart. Replace the vantage placeholder honestly before running it.</p>
+              <p className="mt-3 text-[12.5px] leading-relaxed text-ink-3">Protocol: {entry.protocol.toUpperCase()} · The command takes {challengeScheduleText()}. Replace the vantage placeholder honestly before running it.</p>
             </li>
           ))}
         </ol>

@@ -1,4 +1,4 @@
-import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { isFeaturableAgent } from '@/lib/agents/eligibility';
 import { letsJobsLapse, reliabilityScore } from '@/lib/search/order';
 import type { SearchableAgent } from '@/lib/search/match';
 
@@ -29,7 +29,7 @@ export function guidePicks(
     .filter(
       (entry) =>
         isHireable(entry) &&
-        isPromotableAgent(entry.listing.agent) &&
+        isFeaturableAgent(entry.listing.agent) &&
         !letsJobsLapse(entry) &&
         // A card that requires a login answers probes while refusing the
         // work; recommending it is recommending a job that will lapse.
