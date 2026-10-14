@@ -183,6 +183,14 @@ That is not proof of theft — a legitimate smart-account withdrawal leaves
 the same trace — but nobody on the team moved it, and an unexplained
 mainnet delegation is reason enough. The key was rotated the same day.
 
+**Re-delegated since.** On 14 October the mainnet delegation reads
+`0xda92e8b5dfcaaa07d665362d05616b2b828a3f18`, not the `0x8360b5db…`
+recorded above. Nobody on the team changed it, so whoever could set the
+delegation on 12 October could still set it two days later: this is an
+address somebody else controls, not merely one we stopped using. Treat it
+as hostile rather than retired, and note that the testnet balance is a
+live exposure for as long as anything sits there.
+
 It stays in this table because its testnet history is real: thirteen jobs
 list it as the seller and all of them must remain excluded from quest
 counting. Removing the row would understate what we controlled.
