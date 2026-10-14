@@ -22,7 +22,8 @@ export default function StudioCard() {
       <Card
         context="Builder Studio"
         title="Check your agent the way a buyer’s hire would."
-        lede="Paste an ERC-8004 id and Pokter runs the checks a hire runs: identity, endpoint, whether it answers, whether its signed price can be settled."
+        lede="Identity · endpoint · liveness · agent card · signed quote · quote settles · category · attestations. Paste an ERC-8004 id and watch all eight run."
+        signalRule
         facts={[
           { label: 'CHECKS RUN', value: '8', note: 'the ones a hire depends on' },
           { label: 'COST', value: 'Free', note: 'no wallet to run them' },

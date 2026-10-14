@@ -54,12 +54,21 @@ export function Card({
   lede,
   facts,
   accent,
+  signalRule,
 }: {
   context: string;
   title: string;
   lede?: string;
   facts: CardFact[];
   accent?: string;
+  /**
+   * Draw the fact rule in the brand's signal colour.
+   *
+   * The accent cannot go on the title: #f0b90b on #f3f1eb is about 1.8:1,
+   * which is unreadable at any size. A rule carries no text, so it can
+   * hold the colour that makes the card recognisable in a feed.
+   */
+  signalRule?: boolean;
 }): ReactElement {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: PAPER, color: INK, padding: '64px 72px' }}>
@@ -78,7 +87,7 @@ export function Card({
           <div style={{ display: 'flex', fontSize: 27, color: INK2, lineHeight: 1.35, maxWidth: 940 }}>{lede}</div>
         ) : null}
       </div>
-      <div style={{ display: 'flex', marginTop: 'auto', borderTop: `2px solid ${RULE}` }}>
+      <div style={{ display: 'flex', marginTop: 'auto', borderTop: `2px solid ${signalRule ? SIGNAL : RULE}` }}>
         {facts.map((f, i) => (
           <div key={f.label} style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '28px 0 0', paddingLeft: i ? 32 : 0, borderLeft: i ? `2px solid ${RULE}` : 'none' }}>
             <div style={{ display: 'flex', fontSize: 18, color: INK3, letterSpacing: 2 }}>{f.label}</div>
