@@ -447,3 +447,29 @@ dialog.sheet[open] .sheet-panel { animation: sheet-up 320ms var(--ease-out); }
 .tab-in-right { animation: tab-in-right 340ms var(--ease-out) both; }
 .tab-in-left { animation: tab-in-left 340ms var(--ease-out) both; }
 
+
+/* ---------- Phone chrome on pages with a Hire bar ----------
+ * An agent page put its Hire bar on top of the tab bar, under the header and
+ * the campaign strip: four fixed layers on a phone. Where the page has its
+ * own call to action the tab bar steps aside and the Hire bar takes the
+ * bottom edge; the header menu still reaches every destination. Tablets have
+ * no tab bar, so the Hire bar sits at the edge there too. Browsers without
+ * :has() keep the stacked layout rather than hiding one bar under the other.
+ */
+@media (min-width: 768px) {
+  [data-hire-bar] {
+    bottom: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+@supports selector(:has(*)) {
+  @media (max-width: 767px) {
+    body:has([data-hire-bar]) .mobile-tab-bar {
+      display: none;
+    }
+    body:has([data-hire-bar]) [data-hire-bar] {
+      bottom: 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+  }
+}

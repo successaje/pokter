@@ -23,7 +23,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="App"
-      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_92%,transparent)] backdrop-blur-md md:hidden"
+      className="mobile-tab-bar pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_92%,transparent)] backdrop-blur-md md:hidden"
     >
       <ul className="grid grid-cols-4">
         {TABS.map((tab) => {
