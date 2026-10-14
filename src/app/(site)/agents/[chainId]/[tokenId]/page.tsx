@@ -27,6 +27,7 @@ import { Icon } from '@/ui/icons';
 import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { ConversionBeacon } from '@/features/conversion/ConversionBeacon';
+import { isHouseAgent } from '@/lib/house/wallets';
 
 export const dynamic = 'force-dynamic';
 
@@ -195,6 +196,15 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <MaturityLabel maturity={p.maturity} className="h-7 py-0" />
                   <VerdictChip verdict={p.verdict.id} prefix="Availability" />
+                  {/* Said where a reader judges the agent: Pokter runs it, and does not feature it. */}
+                  {isHouseAgent({ owner_address: p.owner, agent_wallet: p.agentWallet }) && (
+                    <span
+                      className="inline-flex h-7 items-center rounded-full border border-rule-strong bg-sunken px-2.5 text-[12.5px] font-medium text-ink-2"
+                      title="Pokter runs this agent from its own wallet. It is measured like any other and never placed in Pokter’s picks or spotlight."
+                    >
+                      Run by Pokter
+                    </span>
+                  )}
                   {/*
                     The live check is part of availability, so it is read as
                     its tail rather than as another chip; the category was a

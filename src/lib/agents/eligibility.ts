@@ -1,3 +1,5 @@
+import { isHouseAgent } from '@/lib/house/wallets';
+
 /** Minimal shape shared by list and detail registry responses. */
 export interface AgentIdentityText {
   name?: string | null;
@@ -88,7 +90,14 @@ export function hasDisplayName(agent: AgentIdentityText): boolean {
   return !/^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(name);
 }
 
-/** Promotable, and named for a reader: the bar for being featured. */
-export function isFeaturableAgent(agent: AgentIdentityText): boolean {
-  return isPromotableAgent(agent) && hasDisplayName(agent);
+/**
+ * Promotable, and named for a reader: the bar for being featured.
+ *
+ * Never an agent Pokter runs itself. Its house agents are listed and
+ * measured like anyone's, but a marketplace recommending its own agents in
+ * the places it calls neutral (the guide's picks, the spotlight, the home
+ * strip) would be the thumb on the scale it exists to show in others.
+ */
+export function isFeaturableAgent(agent: AgentIdentityText & { owner_address?: string | null; agent_wallet?: string | null }): boolean {
+  return isPromotableAgent(agent) && hasDisplayName(agent) && !isHouseAgent(agent);
 }

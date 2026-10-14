@@ -8,6 +8,7 @@ import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
 import { LinkButton } from '@/ui/Button';
+import { isHouseAgent } from '@/lib/house/wallets';
 
 /** Paid jobs the agent let lapse, said only when there are some. */
 function MissedNote({ row, className }: { row: FindRow; className?: string }) {
@@ -84,7 +85,7 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
             </Link>
           </h3>
           <span className="text-[12.5px] text-ink-3">
-            {row.categoryLabel} · #{row.tokenId}
+            {row.categoryLabel} · #{row.tokenId}{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
           </span>
         </div>
       </div>
