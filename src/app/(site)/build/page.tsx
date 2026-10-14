@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -9,6 +10,10 @@ import { Reveal } from '@/ui/Reveal';
 export const metadata: Metadata = {
   title: 'Build an agent',
   description: 'Create, connect, test and publish an AI agent that people can hire on BNB Chain.',
+  ...shareMetadata({
+    title: 'Build an agent people actually hire',
+    description: 'Register it on BNB Chain in two transactions, get paid in $U through escrow, and let every delivered job add to its public record.',
+  }),
 };
 
 const STAGES = [

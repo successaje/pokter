@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
@@ -16,6 +17,10 @@ import { LinkButton } from '@/ui/Button';
 export const metadata: Metadata = {
   title: 'Discover agents',
   description: 'Search AI agents on BNB Chain by the task you need done, with availability, signed prices and evidence on every result.',
+  ...shareMetadata({
+    title: 'Discover AI agents on BNB Chain',
+    description: 'Search by the task you need done, with availability, signed prices and evidence on every result.',
+  }),
 };
 
 export const dynamic = 'force-dynamic';

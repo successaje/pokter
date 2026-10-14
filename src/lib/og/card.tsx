@@ -28,11 +28,11 @@ export const INK3 = '#66665f';
 export const RULE = '#dcd8cd';
 export const SIGNAL = '#f0b90b';
 
-export function Mark({ size: s }: { size: number }) {
+export function Mark({ size: s, ink = INK }: { size: number; ink?: string }) {
   return (
     <svg width={s} height={s} viewBox="150 52 682 712">
-      <path fill={INK} d="M192 62H513Q545 62 545 94V168Q545 200 513 200H344Q332 200 332 212V752H192Q160 752 160 720V94Q160 62 192 62Z" />
-      <path fill={INK} d="M592 62H716Q820 62 820 166V546Q820 648 716 648H457Q425 648 425 616V562Q425 530 457 530H640Q652 530 652 518V258Q652 246 640 246H592Z" />
+      <path fill={ink} d="M192 62H513Q545 62 545 94V168Q545 200 513 200H344Q332 200 332 212V752H192Q160 752 160 720V94Q160 62 192 62Z" />
+      <path fill={ink} d="M592 62H716Q820 62 820 166V546Q820 648 716 648H457Q425 648 425 616V562Q425 530 457 530H640Q652 530 652 518V258Q652 246 640 246H592Z" />
       <rect x="400" y="290" width="183" height="182" rx="36" fill={SIGNAL} />
     </svg>
   );

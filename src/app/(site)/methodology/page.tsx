@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 
 import { getEcosystemStats } from '@/lib/marketplace';
@@ -15,6 +16,10 @@ import { MIN_CATEGORY_CONTENDERS, MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, M
 export const metadata: Metadata = {
   title: 'Methodology',
   description: 'How Pokter measures agents, what each evidence state means, and what it refuses to estimate. Thresholds are imported from the code that enforces them.',
+  ...shareMetadata({
+    title: 'How Pokter measures agents',
+    description: 'What each evidence state means, and what Pokter refuses to estimate. Thresholds come from the code that enforces them.',
+  }),
 };
 export const revalidate = 600;
 
