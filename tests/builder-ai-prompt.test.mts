@@ -211,3 +211,20 @@ test('with mainnet hires closed, it keeps every escrow on testnet', () => {
   assert.match(prompt, /every escrow settles on BNB Smart Chain Testnet/);
   assert.doesNotMatch(prompt, /needs real BNB for gas/);
 });
+
+test('an agent built from the prompt names Pokter Studio as its maker, exactly', () => {
+  const prompt = createAgentBuildPrompt({
+    name: 'Treasury Sentinel',
+    description: 'Returns a sourced treasury risk report.',
+    category: 'yield',
+    protocol: 'a2a',
+    target: 'Stablecoins',
+    policy: 'Capital preservation',
+    output: 'Risk report',
+  });
+  // The same field other builders' agents use, with Pokter's own value.
+  assert.ok(prompt.includes('"built_with": "Pokter Studio · https://pokter.xyz/studio"'));
+  assert.match(prompt, /agent card's `metadata` object and in the `metadata` of every delivery manifest/);
+  // Renumbered, not dropped: the verification checklist still closes the build.
+  assert.match(prompt, /12\. End with a verification checklist/);
+});

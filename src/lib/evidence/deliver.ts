@@ -28,6 +28,7 @@ import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
 import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
 import type { ChainId } from '@/lib/scan/types';
+import { builtWithPokter } from '@/lib/brand/built-with';
 
 /**
  * The evidence agent delivering a job it was paid for.
@@ -152,6 +153,7 @@ export async function deliverEvidenceJob(
     response: { content: JSON.stringify(report), content_type: 'application/json' },
     metadata: {
       producer: 'Pokter Evidence',
+      ...builtWithPokter,
       answered_by: `${ref.chainId}:${ref.tokenId}`,
       generated_at: new Date().toISOString(),
       proof:

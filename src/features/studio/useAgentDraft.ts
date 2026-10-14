@@ -20,6 +20,7 @@ import {
 } from './active-registration';
 import { claimStudioSession, type ClaimOutcome } from './claim-session';
 import { siteUrlClient } from './site';
+import { builtWithPokter } from '@/lib/brand/built-with';
 
 export type Draft = DraftFields;
 
@@ -308,6 +309,8 @@ export function useAgentDraft(initial?: StoredDraft | null) {
         x402Support: false,
         active: true,
         supportedTrust: ['reputation'],
+        // Made here, so it says so in the registry, where every marketplace reads it.
+        ...builtWithPokter,
       }) as Erc8004RegistrationFile,
     [draft, image],
   );

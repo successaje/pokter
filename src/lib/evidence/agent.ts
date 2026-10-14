@@ -1,5 +1,6 @@
 import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
 import type { ChainId } from '@/lib/scan/types';
+import { builtWithPokter } from '@/lib/brand/built-with';
 
 /*
  * No `server-only` here, and the chain list comes from `refs` rather than
@@ -113,6 +114,7 @@ export function evidenceCard(origin: URL, chainId?: ChainId) {
       ...(chainId ? { settles_on: chainId } : {}),
       reports_on: EVIDENCE_CHAINS,
       operated_by: 'Pokter',
+      ...builtWithPokter,
       ranks_agents: false,
       measures: 'availability and quote settleability, not correctness of the work',
     },

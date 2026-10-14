@@ -1,5 +1,6 @@
 import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
+import { BUILT_WITH_KEY, BUILT_WITH_POKTER } from '@/lib/brand/built-with';
 
 export type AgentBuildPromptInput = {
   name: string;
@@ -152,7 +153,8 @@ BUILD REQUIREMENTS
 8. Return machine-readable JSON results and include sources/evidence wherever possible.
 9. Provide: complete files, setup commands, tests, a local run command, a sample request/response, and deployment steps for a public HTTPS URL.
 10. Implement \`negotiate\` and \`notify_funded\` as described above, and publish both in the agent card's skills so Pokter can read them. Keep the signing key in an environment variable.
-11. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Treat the build as unfinished until all seven pass, and do not describe it to me as working on the strength of your own tests alone.
+11. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
+12. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Treat the build as unfinished until all seven pass, and do not describe it to me as working on the strength of your own tests alone.
 
 FINISH WITH THE LISTING, READY TO PASTE
 End your final message with a block headed "Pokter listing" containing exactly these fields and nothing else, each on its own line, filled in with real values — no placeholders, no commentary:
