@@ -42,6 +42,9 @@ test('the wallets declared to BNB are the wallets watched', () => {
       '0x93847647d7eb72a69e162117df6a8697df53edda',
       '0xce515e144c33edbd1c3320fde0de6373315885ed',
       '0xef869bb780a5163e6d39e83817cd29af6deaa784',
+      // Added 2026-10-14. Funded nothing before that date, so no published
+      // figure changes retroactively by declaring it.
+      '0xdab12cf15f4385188be62bda9f00877af4c1b32f',
     ].sort(),
   );
 });

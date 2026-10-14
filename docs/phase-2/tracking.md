@@ -162,6 +162,7 @@ escrow client-side, so the funds and the authority are the user's throughout.
 | Official team / payout wallet | `0xEF869BB780a5163E6D39E83817cD29af6DEaA784` |
 | Team passkey wallet — buyer side, end-to-end testing | `0x3fb8779f4f42e1800F27AAec9564530BCaa852Bf` |
 | Second team passkey wallet — buyer side, declared 2026-10-01 | `0xcE515e144c33EDbD1c3320fde0dE6373315885eD` |
+| Team wallet, added 2026-10-14 | `0xdAb12cf15F4385188bE62bda9F00877AF4C1b32f` |
 
 ### The retired operator address
 
