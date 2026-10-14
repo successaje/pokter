@@ -4,7 +4,7 @@ import { getAddress } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -119,7 +119,8 @@ export async function GET(
         agentChainId: indexed.agentChainId ?? 56,
         // This endpoint is public and these older jobs did not put the brief
         // on chain, so it is not returned. The funding device still has it.
-        task: 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
+        // A job written as the seller's signed quote alone carries its brief there.
+        task: decodeReferenceJobDescription(onchain.description)?.task ?? 'The brief for this job was not stored on chain, so it is only shown on the device that hired.',
         id: `${chainId}:${jobId}`,
         provider: onchain.provider,
         budgetRaw: onchain.budget.toString(),

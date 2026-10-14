@@ -7,6 +7,7 @@ import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/reviews/model';
 import { getReviewStore } from '@/lib/reviews/store';
+import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -56,8 +57,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (getAddress(job.client) !== getAddress(buyer)) {
       return NextResponse.json({ error: 'Only the on-chain buyer can review this job.' }, { status: 403 });
     }
+    // The envelope on chain, or for a job written as the seller's signed quote
+    // alone, Pokter's index (whose identity was checked against the registry).
     const envelope = decodePokterJobEnvelope(job.description);
-    if (!envelope || envelope.identity.chainId !== agentChainId || envelope.identity.tokenId !== agentTokenId) {
+    const indexed = envelope ? null : getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId) ?? null;
+    const identity = envelope
+      ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId }
+      : indexed && { chainId: indexed.agentChainId ?? 56, tokenId: indexed.agentTokenId };
+    if (!identity || identity.chainId !== agentChainId || identity.tokenId !== agentTokenId) {
       return NextResponse.json({ error: 'The job does not identify this agent.' }, { status: 409 });
     }
     const message = reviewMessage({ chainId, jobId, agentChainId, agentTokenId, content });
