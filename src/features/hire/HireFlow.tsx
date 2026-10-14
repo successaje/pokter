@@ -12,6 +12,9 @@ import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget } from '@/lib/erc8183/pricing';
+import { deadlineTerms } from '@/lib/erc8183/deadline';
+import { readDisputeWindow } from '@/lib/wallet/external';
+import { useQuery } from '@tanstack/react-query';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { Mark } from '@/shell/Logo';
 import { AgentAvatar } from '@/ui/Agent';
@@ -125,6 +128,18 @@ export function HireFlow(props: HireFlowProps) {
   const testnet = escrowChainId === 97;
   const nativeSymbol = testnet ? 'tBNB' : 'BNB';
   const networkLabel = chainLabel(escrowChainId);
+  /*
+   * The deadline is the agent's delivery time plus this escrow's dispute
+   * window, read from its policy: 15 minutes on testnet, 7 days on mainnet.
+   * Shown before funding because it is also how long the money stays
+   * locked if nothing is delivered.
+   */
+  const disputeWindow = useQuery({
+    queryKey: ['dispute-window', escrowChainId],
+    queryFn: () => readDisputeWindow(escrowChainId),
+    staleTime: 60 * 60_000,
+  });
+  const deadline = disputeWindow.data !== undefined ? deadlineTerms(disputeWindow.data) : null;
   const faucets = testnet ? FAUCETS : null;
   const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
@@ -487,8 +502,8 @@ export function HireFlow(props: HireFlowProps) {
                 ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and you accept, or the review window passes without a dispute'],
-                ['Deadline', '24 hours from funding'],
-                ['If nothing is delivered', 'You reclaim the full amount after the deadline'],
+                ['Deadline', deadline?.deadline ?? `24 hours for the agent to deliver, plus the escrow’s review window on ${networkLabel}`],
+                ['If nothing is delivered', deadline?.reclaim ?? 'You reclaim the full amount after the deadline'],
                 ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
               ].map(([k, v]) => (
                 <div key={k} className="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)]">

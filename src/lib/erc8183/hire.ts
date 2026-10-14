@@ -12,6 +12,7 @@ import type { Address } from 'viem';
 
 import { correctedErc8183Addresses } from './addresses';
 
+import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { getJobStore } from './store';
 import type { HiredJob, JobStatusName } from './types';
@@ -156,10 +157,10 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
   // in the same block the batch reverts harmlessly — registerJob is
   // client-only — so the counter is re-read on retry rather than cached.
   const jobId = jobCounter + 1n;
+  // The same rule as the browser-wallet hire (see `deadline.ts`).
   const expiredAt =
     BigInt(Math.floor(Date.now() / 1000)) +
-    BigInt(disputeWindow) +
-    BigInt(input.deadlineSeconds ?? 1800);
+    BigInt(jobLifetimeSeconds(disputeWindow, input.deadlineSeconds ?? DELIVERY_WINDOW_SECONDS));
 
   const calls = buildHireCalls({
     addresses,

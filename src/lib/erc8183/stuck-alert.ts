@@ -5,6 +5,7 @@ import { getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { getJobStore } from '@/lib/erc8183/store';
+import { estimatedFundedAt } from '@/lib/erc8183/dispute-window';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { alertChannels } from '@/lib/alerts/channels';
 import {
@@ -76,12 +77,12 @@ export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
           (notice ? ` · seller ${notice.status}${notice.reason ? `: ${notice.reason}` : ''}` : ' · seller never answered'),
         /*
          * The chain records when a job expires, not when it was funded, so
-         * the index's own timestamp is used where it parses. Where it does
-         * not, the expiry minus the fixed 24h window is the same instant.
+         * the index's own timestamp is used where it parses, else an
+         * estimate from the deadline (`estimatedFundedAt`).
          */
         fundedAtMs: Number.isFinite(hired)
           ? hired
-          : expiresAtMs - 24 * 60 * 60 * 1000,
+          : (await estimatedFundedAt(job.chainId, Number(onchain.expiredAt))).getTime(),
         expiresAtMs,
         statusName: onchain.statusName,
       });
