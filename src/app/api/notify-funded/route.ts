@@ -9,7 +9,8 @@ import { BSC_MAINNET, type ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 25;
+// Room for a seller that works before it answers (see SELLER_ANSWER_TIMEOUT_MS).
+export const maxDuration = 60;
 
 
 

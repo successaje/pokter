@@ -7,6 +7,8 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 
+export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
+
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -58,7 +60,13 @@ async function askSeller(input: {
       }),
       cache: 'no-store',
       redirect: 'error',
-      signal: AbortSignal.timeout(12_000),
+      /*
+       * Long, on purpose. Sellers on the reference pattern do the work and
+       * submit it before they answer: Sluicegate delivered job 56997 five
+       * seconds after Pokter stopped waiting at 12, and the buyer was told
+       * the agent could not be reached.
+       */
+      signal: AbortSignal.timeout(SELLER_ANSWER_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`The seller answered HTTP ${response.status}.`);
     return agentReply(await readJson(response));
@@ -94,7 +102,10 @@ export async function noticeSeller(input: {
 }): Promise<SellerNotice> {
   const answer = await askSeller(input).catch((error: unknown) => ({
     status: 'unreachable' as const,
-    reason: error instanceof Error ? error.message.slice(0, 300) : 'The seller could not be reached.',
+    reason:
+      error instanceof Error && /timeout|aborted/i.test(`${error.name} ${error.message}`)
+        ? 'The seller did not answer within 50 seconds. Some sellers do the work before answering, so it may still deliver.'
+        : error instanceof Error ? error.message.slice(0, 300) : 'The seller could not be reached.',
   }));
   const store = getJobStore();
   const before = store.noticeFor(input.escrowChainId, input.jobId);
