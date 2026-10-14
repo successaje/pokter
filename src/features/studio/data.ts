@@ -15,7 +15,7 @@ import type { ScanAgent } from '@/lib/scan/types';
 import { deriveMaturity, type AgentMaturity } from '@/lib/agents/maturity';
 import { classify } from '@/lib/agents/categories';
 import { agentHistory } from '@/lib/agent/credited-history';
-import { escrowChainForHire } from '@/lib/network/escrow';
+import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { getAssayStore } from '@/lib/assay/store';
 import { assayForCategory } from '@/lib/assay/catalog';
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
@@ -107,7 +107,8 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
       const maturity = deriveMaturity({
         registered: true,
         reachable: record.totalAnswered > 0,
-        compatible: record.totalAnswered > 0 && escrowChainForHire(quote?.currency) !== null,
+        // Priced means a signed price an escrow can pay, not merely no unpayable one.
+        compatible: record.totalAnswered > 0 && quote != null && escrowChainForCurrency(quote.currency) !== null,
         tested: Boolean(assay && assay.status === 'checked' && assay.total > 0 && assay.passed === assay.total),
         hired: history.jobs > 0,
         delivered: history.selfDelivered > 0,

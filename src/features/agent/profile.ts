@@ -158,7 +158,8 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const maturity = deriveMaturity({
     registered: true,
     reachable: record.totalAnswered > 0,
-    compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && payable !== false,
+    // Priced means a signed price an escrow can pay, not merely no unpayable one.
+    compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && d.quote != null && payable === true,
     tested: Boolean(categoryCheck?.run && categoryCheck.run.status === 'checked' && categoryCheck.run.total > 0 && categoryCheck.run.passed === categoryCheck.run.total),
     hired: history.jobs > 0,
     delivered: history.selfDelivered > 0,
