@@ -116,7 +116,7 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(sortValue(value)).replace(/[\u007f-￿]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-function sanitizeForClaim(s: unknown): string {
+export function sanitizeForClaim(s: unknown): string {
   if (typeof s !== 'string') return String(s);
   let out = '';
   for (const ch of s.replaceAll('[', '(').replaceAll(']', ')')) {
