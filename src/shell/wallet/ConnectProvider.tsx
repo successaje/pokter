@@ -9,6 +9,7 @@ import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { cn } from '@/lib/ui/cn';
 import { useWalletState } from './useWalletState';
+import { connectErrorMessage } from '@/lib/wallet/errors';
 
 interface ConnectContextValue {
   /** Opens the connect sheet. `reason` says why, in the person's terms. */
@@ -115,9 +116,7 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
           />
           {w.connectError && (
             <Notice tone="bad" title="The wallet did not connect">
-              {/reject|denied|cancel/i.test(w.connectError)
-                ? 'The request was declined in the wallet. Nothing was shared; try again when ready.'
-                : w.connectError}
+              {connectErrorMessage(w.connectError)}
             </Notice>
           )}
           <p className="pt-2 text-[12.5px] leading-relaxed text-ink-3">

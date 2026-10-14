@@ -48,6 +48,11 @@ export function walletActionError(error: unknown, action: string): string {
     '';
   const message = raw.trim();
 
+  // The wallet holds one prompt at a time; a second is refused until the first is answered.
+  if (/already pending|-32002/i.test(message)) {
+    return `${action} is waiting on an earlier request in your wallet. Open the wallet (the extension icon in your browser toolbar), approve or reject what is there, then try again.`;
+  }
+
   if (
     /NotAllowedError|user rejected|user denied|rejected the request|cancelled|canceled/i.test(
       message,
@@ -139,4 +144,27 @@ export function walletActionError(error: unknown, action: string): string {
   const detail = rpcDetail(error);
   const full = detail && !message.includes(detail) ? `${message} (${detail})` : message;
   return full.length > 500 ? `${full.slice(0, 497)}…` : full;
+}
+
+/**
+ * Why a wallet did not connect, in words a buyer can act on.
+ *
+ * The common case reached people as MetaMask's raw text: "Request of type
+ * 'wallet_requestPermissions' already pending for origin https://pokter.xyz.
+ * Please wait." It means an earlier connection prompt is still open in the
+ * wallet, often behind the browser window, and the wallet refuses a second
+ * until that one is answered. Clicking Connect again cannot fix it; opening
+ * the wallet can.
+ */
+export function connectErrorMessage(raw: string): string {
+  if (/already pending|-32002|resource not available|request already/i.test(raw)) {
+    return 'Your wallet already has a connection request waiting. Open the wallet (the extension icon in your browser toolbar) and approve or reject it, then connect again.';
+  }
+  if (/reject|denied|cancel/i.test(raw)) {
+    return 'The request was declined in the wallet. Nothing was shared; try again when ready.';
+  }
+  if (/no (?:injected|ethereum) provider|provider not found|connector not found/i.test(raw)) {
+    return 'No browser wallet was found. Install one, such as MetaMask, or use the wallet app or passkey options above.';
+  }
+  return raw.split('\n')[0].slice(0, 240);
 }
