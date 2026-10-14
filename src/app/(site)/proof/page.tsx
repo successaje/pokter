@@ -205,10 +205,12 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
           <p className="font-medium text-ink">Funding split in this view</p>
           <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
             <dt>Outside declared team</dt><dd className="t-readout text-ink">{summary.outsideTeamJobs}</dd>
+            <dt className="pl-3 text-ink-3">of which an operator funding their own agent</dt><dd className="t-readout text-ink-3">{summary.selfHireJobs}</dd>
+            <dt className="font-medium text-ink">Outside demand</dt><dd className="t-readout font-medium text-ink">{summary.outsideDemandJobs}</dd>
             <dt>Pokter team or legacy</dt><dd className="t-readout text-ink">{summary.teamJobs}</dd>
             <dt>Funder not retained</dt><dd className="t-readout text-ink">{summary.unknownFunderJobs}</dd>
           </dl>
-          <p className="mt-4 text-[12px] text-ink-3">Unknown legacy funders are placed in the team bucket, never the outside-team bucket.</p>
+          <p className="mt-4 text-[12px] text-ink-3">Unknown legacy funders are placed in the team bucket, never the outside-team bucket. A job with the same wallet on both sides is not demand, whoever owns the wallet, so it is shown and then subtracted.</p>
         </div>
       </section>
 

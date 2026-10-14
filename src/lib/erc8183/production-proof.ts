@@ -24,6 +24,17 @@ export interface ProductionProofSummary {
   agentsHired: number;
   completedValueRaw: string;
   outsideTeamJobs: number;
+  /**
+   * Of the outside-funded jobs, the ones whose buyer and seller are the same
+   * wallet, and the remainder that are actually demand.
+   *
+   * The funder split alone read "Outside declared team 9" while the receipt
+   * API published six, because one counts wallets and the other counts
+   * demand. Both were true and together they looked like a contradiction,
+   * with the flattering number on the page people read.
+   */
+  selfHireJobs: number;
+  outsideDemandJobs: number;
   teamJobs: number;
   unknownFunderJobs: number;
   byStatus: Record<JobStatusName, number>;
@@ -88,11 +99,14 @@ export function summarizeProductionProof(
   let outsideTeamJobs = 0;
   let teamJobs = 0;
   let unknownFunderJobs = 0;
+  let selfHireJobs = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
     byStatus[job.status] += 1;
     const team = isTeamFunded(job);
+    const selfHire = Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
+    if (selfHire) selfHireJobs += 1;
     if (team) teamJobs += 1;
     else outsideTeamJobs += 1;
     if (!job.client) unknownFunderJobs += 1;
@@ -119,6 +133,11 @@ export function summarizeProductionProof(
     agentsHired: agents.size,
     completedValueRaw: completedValue.toString(),
     outsideTeamJobs,
+    selfHireJobs,
+    outsideDemandJobs: jobs.filter((job) => {
+      const selfHire = Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
+      return !isTeamFunded(job) && !selfHire;
+    }).length,
     teamJobs,
     unknownFunderJobs,
     byStatus,
