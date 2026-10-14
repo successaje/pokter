@@ -3,8 +3,9 @@ import type { ChainId } from '@/lib/scan/types';
 import { API_VERSION } from '@/lib/api/v1';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
-import { agentHistory } from '@/lib/agent/credited-history';
-import { getJobStore } from '@/lib/erc8183/store';
+import { dossierLadder } from '@/lib/agents/dossier-ladder';
+import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -46,9 +47,13 @@ export async function GET(
     return apiError(`No agent ${tokenId} on chain ${chainId}.`, 404);
   }
 
-  const { agent, proof, record, score, attestations, live } = dossier;
+  const { agent, proof, record, score, attestations, live, quote } = dossier;
+  // The escrow the agent page offers first, so the ladder and `payable`
+  // here say what that page says.
+  const escrowChain = escrowOptionsForHire(quote?.currency)[0] ?? ALTANA_NETWORK.chainId;
+  const { maturity, payable, history } = dossierLadder(dossier, escrowChain);
   // The same delivery rule the agent page and catalogue apply.
-  const adjusted = deliveryAdjustedVerdict(proof.verdict, agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)));
+  const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const origin = originOf(request);
 
   return apiJson({
@@ -93,6 +98,39 @@ export async function GET(
         note: 'Computed only over dimensions carrying real data, and rounded to one decimal. Coverage travels with the number.',
       },
     },
+
+    /*
+     * The step the agent page names in its title, and every step behind
+     * it. `verdict` above is availability; this is how far the evidence
+     * goes, and the two answer different questions.
+     */
+    ladder: {
+      current: maturity.current,
+      label: maturity.label,
+      sustained: maturity.sustained,
+      steps: maturity.steps.map(({ id, label, earned, detail }) => ({ id, label, earned, detail })),
+    },
+
+    /*
+     * Null is a fact about the agent: it has never returned a signed quote.
+     * `payable` is whether the escrow Pokter would fund the hire on settles
+     * in the quoted token; a price nobody can pay is still a price, and is
+     * reported as one.
+     */
+    price: quote
+      ? {
+          amountU: quote.priceU,
+          currency: quote.currency,
+          signer: quote.signer,
+          quotedAt: quote.quotedAt,
+          expiresAt: quote.expiresAt ?? null,
+          current: dossier.quoteCurrent,
+          payable,
+          escrowChainId: escrowChain,
+          provenance: 'attested',
+          source: 'Quoted by the agent and signed by its registered wallet.',
+        }
+      : null,
 
     measured: {
       probes: record.totalProbes,
