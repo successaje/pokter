@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 
 import { guidePicks } from '@/lib/campaign/picks';
@@ -21,6 +22,10 @@ export const metadata: Metadata = {
   title: 'How to complete Set and Earn',
   description: 'Register, get test funds, hire three agents across two marketplaces, and build one of your own. The steps and the traps, in order.',
   alternates: { canonical: '/set-and-earn' },
+  ...shareMetadata({
+    title: 'How to complete BNB Chain Set and Earn',
+    description: 'Register, hire three agents across two marketplaces, and build one of your own. The steps and the traps, in order.',
+  }),
 };
 
 const deadline = `${CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' })}, ${CAMPAIGN_ENDS_AT.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;

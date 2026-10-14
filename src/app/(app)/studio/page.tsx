@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { formatUnits } from 'viem';
@@ -15,7 +16,13 @@ import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Builder Studio' };
+export const metadata: Metadata = {
+  title: 'Builder Studio',
+  ...shareMetadata({
+    title: 'Builder Studio: check your agent the way a buyer’s hire would',
+    description: 'Paste an ERC-8004 id and Pokter runs the checks a hire depends on. Free, and no wallet needed to run them.',
+  }),
+};
 
 const PATHS = [
   { href: '/studio/new', icon: <Icon.Spark size={20} />, title: 'Build a new agent', body: 'Start from an idea. Define it, connect a runtime, test it, and register its identity.' },
