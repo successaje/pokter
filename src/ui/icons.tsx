@@ -165,6 +165,9 @@ export const Icon = {
   Columns: (p: IconProps) => (
     <svg {...base(p)}><rect x="3" y="4" width="14" height="12" rx="1.5" /><path d="M10 4v12" /></svg>
   ),
+  More: (p: IconProps) => (
+    <svg {...base(p)}><circle cx="5" cy="10" r="0.9" fill="currentColor" /><circle cx="10" cy="10" r="0.9" fill="currentColor" /><circle cx="15" cy="10" r="0.9" fill="currentColor" /></svg>
+  ),
   Bell: (p: IconProps) => (
     <svg {...base(p)}><path d="M5.25 13.75V9a4.75 4.75 0 0 1 9.5 0v4.75l1.25 1.5H4l1.25-1.5ZM8.25 17h3.5" /></svg>
   ),
