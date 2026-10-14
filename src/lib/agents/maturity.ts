@@ -1,14 +1,18 @@
 import type { OutsideTeamHistory } from '@/lib/erc8183/economic-history';
 
-export type MaturityId =
-  | 'registered'
-  | 'reachable'
-  | 'compatible'
-  | 'tested'
-  | 'hired'
-  | 'delivered'
-  | 'market-proven'
-  | 'reliable-operator';
+/**
+ * The evidence ladder: what Pokter has seen an agent do, in the order a
+ * buyer needs it. One vocabulary for every card, page and API.
+ *
+ * It replaced an eight-step ladder (Registered, Reachable, Compatible, Task
+ * tested, Hired, Delivered, Market proven, Reliable operator) that sat beside
+ * a six-word verdict and the card pills, so one agent could carry three
+ * different status words at once. Registration is implied by being listed,
+ * a funded job says nothing about the agent until it delivers, and a long
+ * reliable record is a qualifier on the last step rather than a step of its
+ * own. The verdict remains, and is described as availability only.
+ */
+export type MaturityId = 'answers' | 'priced' | 'delivered' | 'checked' | 'proven-in-use';
 
 export interface MaturityFacts {
   registered: boolean;
@@ -39,10 +43,13 @@ export interface MaturityStep {
 }
 
 export interface AgentMaturity {
-  current: MaturityId;
+  /** The most advanced step earned, or null when none has been. */
+  current: MaturityId | null;
   label: string;
   summary: string;
   steps: MaturityStep[];
+  /** Proven in use, and kept up: 30+ observed days with a high completion and answer rate. */
+  sustained: boolean;
 }
 
 export const MARKET_PROVEN_BUYERS = 3;
@@ -51,26 +58,34 @@ export const RELIABLE_TERMINAL_JOBS = 5;
 export const RELIABLE_MIN_RATE = 0.9;
 export const RELIABLE_OBSERVED_DAYS = 30;
 
-const ORDER: MaturityId[] = ['registered', 'reachable', 'compatible', 'tested', 'hired', 'delivered', 'market-proven', 'reliable-operator'];
+const ORDER: MaturityId[] = ['answers', 'priced', 'delivered', 'checked', 'proven-in-use'];
 
 const LABEL: Record<MaturityId, string> = {
-  registered: 'Registered',
-  reachable: 'Reachable',
-  compatible: 'Compatible',
-  tested: 'Task tested',
-  hired: 'Hired',
+  answers: 'Answers',
+  priced: 'Priced',
   delivered: 'Delivered',
-  'market-proven': 'Market proven',
-  'reliable-operator': 'Reliable operator',
+  checked: 'Checked',
+  'proven-in-use': 'Proven in use',
 };
 
+/** What each step means, for methodology and anywhere a step needs explaining. */
+export const LADDER_MEANING: Record<MaturityId, string> = {
+  answers: 'Answered Pokter’s checks of its published endpoint.',
+  priced: 'A buyer can get current terms, signed by the agent’s wallet, that an escrow can pay.',
+  delivered: 'At least one paid job delivered from the agent’s own wallet. Lifecycle demonstrations and deliveries Pokter’s wallets submitted do not count.',
+  checked: 'Passed the latest correctness check for its category, judged against chain data.',
+  'proven-in-use': `Accepted work from at least ${MARKET_PROVEN_BUYERS} buyer wallets outside Pokter’s team, ${MARKET_PROVEN_COMPLETIONS} or more jobs.`,
+};
+
+/** The ladder's steps, in order, for pages that describe it. */
+export const LADDER: ReadonlyArray<{ id: MaturityId; label: string; meaning: string }> = ORDER.map((id) => ({ id, label: LABEL[id], meaning: LADDER_MEANING[id] }));
+
 /**
- * Commercial maturity, separate from Pokter's evidence verdict.
+ * The evidence ladder for one agent.
  *
- * Milestones are facts, not a strict funnel: an agent can deliver before
- * Pokter has a category-specific test for it. The current label is the most
- * advanced earned milestone, while the full ladder keeps skipped evidence
- * visible rather than pretending it happened.
+ * Steps are facts, not a strict funnel: an agent can deliver before Pokter
+ * has a category check for it, and the skipped step stays visible rather
+ * than being assumed. The label is the most advanced step earned.
  */
 export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
   const marketProven =
@@ -84,49 +99,41 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
     (facts.probeRate ?? 0) >= RELIABLE_MIN_RATE;
 
   const earned: Record<MaturityId, boolean> = {
-    registered: facts.registered,
-    reachable: facts.reachable,
-    compatible: facts.compatible,
-    tested: facts.tested,
-    hired: facts.hired,
+    answers: facts.reachable,
+    priced: facts.compatible,
     delivered: facts.delivered,
-    'market-proven': marketProven,
-    'reliable-operator': reliable,
+    checked: facts.tested,
+    'proven-in-use': marketProven,
   };
 
   const steps: MaturityStep[] = [
-    { id: 'registered', label: LABEL.registered, earned: earned.registered, detail: 'ERC-8004 identity exists.' },
-    { id: 'reachable', label: LABEL.reachable, earned: earned.reachable, detail: 'Answered at least one Pokter endpoint check.' },
-    { id: 'compatible', label: LABEL.compatible, earned: earned.compatible, detail: 'A buyer can obtain payable terms and open the hire flow.' },
-    { id: 'tested', label: LABEL.tested, earned: earned.tested, detail: 'Passed the latest category-specific correctness suite.' },
-    { id: 'hired', label: LABEL.hired, earned: earned.hired, detail: 'At least one escrow job was funded.' },
+    { id: 'answers', label: LABEL.answers, earned: earned.answers, detail: facts.probeRate === null ? 'Not checked yet.' : `Answered ${Math.round(facts.probeRate * 100)}% of Pokter’s checks.` },
+    { id: 'priced', label: LABEL.priced, earned: earned.priced, detail: earned.priced ? 'Signed, payable terms are available to a buyer.' : 'No current signed price an escrow can pay.' },
     {
       id: 'delivered',
       label: LABEL.delivered,
       earned: earned.delivered,
-      detail: !earned.delivered && facts.deliveredByOperator
-        ? 'A delivery reached escrow, but a Pokter-operated wallet submitted it rather than the agent itself.'
-        : 'At least one delivery reached escrow from the agent’s own wallet.',
+      detail: earned.delivered
+        ? 'A paid job delivered from the agent’s own wallet.'
+        : facts.deliveredByOperator
+          ? 'A delivery reached escrow, but a Pokter wallet submitted it rather than the agent.'
+          : facts.hired
+            ? 'Hired, with no delivery from the agent yet.'
+            : 'No paid delivery yet.',
     },
+    { id: 'checked', label: LABEL.checked, earned: earned.checked, detail: earned.checked ? 'Passed the latest correctness check for its category.' : 'No passing correctness check on record.' },
     {
-      id: 'market-proven',
-      label: LABEL['market-proven'],
-      earned: marketProven,
-      detail: `${facts.outsideTeam.completed}/${MARKET_PROVEN_COMPLETIONS} accepted outside-team jobs from ${facts.outsideTeam.uniqueBuyers}/${MARKET_PROVEN_BUYERS} buyer wallets.`,
-    },
-    {
-      id: 'reliable-operator',
-      label: LABEL['reliable-operator'],
-      earned: reliable,
-      detail: `${facts.outsideTeam.terminal}/${RELIABLE_TERMINAL_JOBS} terminal outside-team jobs · ${facts.outsideTeam.completionRate === null ? 'no rate yet' : `${Math.round(facts.outsideTeam.completionRate * 100)}% completed`} · ${Math.floor(facts.observedDays)}/${RELIABLE_OBSERVED_DAYS} observed days.`,
+      id: 'proven-in-use',
+      label: LABEL['proven-in-use'],
+      earned: earned['proven-in-use'],
+      detail:
+        `${facts.outsideTeam.completed}/${MARKET_PROVEN_COMPLETIONS} accepted outside-team jobs from ${facts.outsideTeam.uniqueBuyers}/${MARKET_PROVEN_BUYERS} buyer wallets.` +
+        (reliable ? ` Sustained: ${Math.floor(facts.observedDays)} observed days at ${Math.round((facts.outsideTeam.completionRate ?? 0) * 100)}% completion.` : ''),
     },
   ];
 
-  const current = [...ORDER].reverse().find((id) => earned[id]) ?? 'registered';
-  const summary = current === 'reliable-operator'
-    ? 'Repeated outside-team work, strong delivery outcomes and a sustained availability record.'
-    : current === 'market-proven'
-      ? 'Accepted work from at least three outside-team buyer wallets.'
-      : steps.find((step) => step.id === current)?.detail ?? 'Registered identity.';
-  return { current, label: LABEL[current], summary, steps };
+  const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
+  const label = current ? LABEL[current] : 'Not answering yet';
+  const summary = current ? LADDER_MEANING[current] : 'Listed in the registry; it has not answered Pokter’s checks.';
+  return { current, label, summary, steps, sustained: reliable };
 }

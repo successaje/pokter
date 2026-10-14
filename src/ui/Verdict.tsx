@@ -71,13 +71,22 @@ export function VerdictLabel({ verdict, className }: { verdict: Verdict; classNa
 }
 
 /** The verdict as a chip, for headers where it needs to stand alone. */
-export function VerdictChip({ verdict, className }: { verdict: Verdict; className?: string }) {
+/**
+ * The verdict as a chip, for headers where it needs to stand alone.
+ *
+ * Prefixed "Availability" wherever it sits beside the evidence ladder: the
+ * verdict judges probes and attestations, and the ladder what the agent has
+ * done, and a bare "Reliable" next to "Delivered" read as two answers to
+ * one question.
+ */
+export function VerdictChip({ verdict, className, prefix }: { verdict: Verdict; className?: string; prefix?: string }) {
   return (
     <span
       className={cn('inline-flex h-7 items-center gap-2 rounded-full px-2.5 text-[13px] font-medium', TONE_WASH[VERDICT_TONE[verdict]], className)}
-      title={VERDICT_MEANING[verdict]}
+      title={`${prefix ? `${prefix}: ` : ''}${VERDICT_MEANING[verdict]}`}
     >
       <VerdictGlyph verdict={verdict} />
+      {prefix && <span className="font-normal opacity-75">{prefix}</span>}
       {VERDICT_LABEL[verdict]}
     </span>
   );

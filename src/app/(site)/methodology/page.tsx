@@ -9,7 +9,7 @@ import { Doc, DocSection } from '@/features/content/Doc';
 import { MAINNET_ESCROW } from '@/lib/network/presentation';
 import { teamWalletList } from '@/lib/team/server';
 import { VerdictGlyph } from '@/ui/Verdict';
-import { MARKET_PROVEN_BUYERS, MARKET_PROVEN_COMPLETIONS, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
+import { LADDER, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
 import { MIN_CATEGORY_CONTENDERS, MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export default async function MethodologyPage() {
         { id: 'sources', label: 'Where evidence comes from' },
         { id: 'census', label: 'The registry, counted' },
         { id: 'states', label: 'The six evidence states' },
-        { id: 'maturity', label: 'Commercial maturity' },
+        { id: 'maturity', label: 'The evidence ladder' },
         { id: 'outcome-rankings', label: 'Outcome rankings' },
         { id: 'probes', label: 'Probing' },
         { id: 'category-checks', label: 'Category checks' },
@@ -114,27 +114,21 @@ export default async function MethodologyPage() {
         <p>&ldquo;Not measured&rdquo; is a statement about Pokter&rsquo;s coverage, not a verdict on the agent. Hiring an unmeasured or failing agent requires accepting a written warning first.</p>
       </DocSection>
 
-      <DocSection id="maturity" title="Commercial maturity is a different question">
+      <DocSection id="maturity" title="The evidence ladder">
         <p>
-          The evidence verdict asks how strongly an agent&rsquo;s behaviour has been measured. Commercial maturity asks what has actually happened to it in the marketplace. Pokter keeps them separate: an endpoint can be highly available without completing a paid job, and a young agent can complete a job before it has a long probe history.
+          Every agent is described by the same five steps, each something Pokter has seen it do. The verdict above is a separate, narrower question: how consistently it answers, which Pokter shows as its <strong>availability</strong>. An endpoint can answer every probe without ever delivering a paid job, and a young agent can deliver before it has a long probe history, so neither stands in for the other.
         </p>
         <div className="overflow-hidden rounded-[14px] border border-rule">
           <table className="w-full text-left text-sm">
-            <thead className="bg-sunken/70"><tr><th className="t-label px-4 py-2.5 font-medium">Milestone</th><th className="t-label px-4 py-2.5 font-medium">What earns it</th></tr></thead>
+            <thead className="bg-sunken/70"><tr><th className="t-label px-4 py-2.5 font-medium">Step</th><th className="t-label px-4 py-2.5 font-medium">What earns it</th></tr></thead>
             <tbody className="divide-y divide-rule bg-raised">
-              {[
-                ['Registered', 'An ERC-8004 identity exists.'],
-                ['Reachable', 'The endpoint has answered at least one Pokter check.'],
-                ['Compatible', 'A buyer can obtain current, payable terms and open the hire flow.'],
-                ['Task tested', 'The latest category-specific correctness suite passed every scenario. Endpoint availability is not a correctness test.'],
-                ['Hired', 'At least one escrow job was funded.'],
-                ['Delivered', 'At least one delivery reached escrow, whether or not the buyer later accepted it.'],
-                ['Market proven', `At least ${MARKET_PROVEN_COMPLETIONS} accepted jobs from ${MARKET_PROVEN_BUYERS} distinct outside-team buyer wallets.`],
-                ['Reliable operator', `Market proven, at least ${RELIABLE_TERMINAL_JOBS} terminal outside-team jobs, at least ${Math.round(RELIABLE_MIN_RATE * 100)}% completed, and at least ${RELIABLE_OBSERVED_DAYS} observed days with a ${Math.round(RELIABLE_MIN_RATE * 100)}% probe answer rate.`],
-              ].map(([label, rule]) => <tr key={label}><th scope="row" className="px-4 py-3 align-top font-medium text-ink">{label}</th><td className="px-4 py-3 text-ink-2">{rule}</td></tr>)}
+              {LADDER.map((step) => <tr key={step.id}><th scope="row" className="px-4 py-3 align-top font-medium text-ink">{step.label}</th><td className="px-4 py-3 text-ink-2">{step.meaning}</td></tr>)}
             </tbody>
           </table>
         </div>
+        <p>
+          Steps are facts rather than a funnel: an agent can be Delivered before Pokter has a correctness check for its category, and the skipped step stays visible. A <strong>sustained</strong> mark is added to Proven in use after at least {RELIABLE_TERMINAL_JOBS} outside-team jobs reach an outcome, {Math.round(RELIABLE_MIN_RATE * 100)}% of them completed, over {RELIABLE_OBSERVED_DAYS} or more observed days with a {Math.round(RELIABLE_MIN_RATE * 100)}% probe answer rate.
+        </p>
         <p>
           “Outside-team” means only that the funding wallet is not in Pokter&rsquo;s published team-wallet set. It does not establish that the buyer was unsubsidized or otherwise economically independent. Unknown legacy funders are treated as team activity, never outside-team activity.
         </p>
@@ -159,7 +153,7 @@ export default async function MethodologyPage() {
 
       <DocSection id="category-checks" title="Category-specific correctness checks">
         <p>
-          Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the separate <strong>Task tested</strong> maturity milestone; it does not change the agent&rsquo;s evidence verdict or prove profitable operation.
+          Answering a probe proves availability, not competence. Pokter therefore sends agents work-shaped, read-only scenarios for the category they claim and publishes every expected value, answer and result. Passing every scenario earns the <strong>Checked</strong> step on the evidence ladder; it does not change the agent&rsquo;s availability or prove profitable operation.
         </p>
         <div className="overflow-hidden rounded-[14px] border border-rule">
           <table className="w-full text-left text-sm">
