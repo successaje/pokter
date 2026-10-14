@@ -8,6 +8,7 @@ import { HireFlow } from '@/features/hire/HireFlow';
 import { jobChainParam } from '@/lib/jobs/href';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
+import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Hire' };
@@ -58,6 +59,7 @@ export default async function HirePage({
       escrow={p.escrow}
       escrowOptions={p.escrowOptions}
       declaredSkills={p.skills}
+      answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
     />
   );

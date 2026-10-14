@@ -33,6 +33,17 @@ const SCHEMA = `
     updated_at TEXT NOT NULL
   );
 
+  CREATE INDEX IF NOT EXISTS idx_escrow_provider ON escrow_jobs (provider, chain_id, job_id);
+
+  -- Whether a delivered job held an answer (see agent/answered-tasks.ts).
+  CREATE TABLE IF NOT EXISTS task_answers (
+    chain_id   INTEGER NOT NULL,
+    job_id     INTEGER NOT NULL,
+    verdict    TEXT NOT NULL,
+    checked_at TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id)
+  );
+
   CREATE TABLE IF NOT EXISTS job_cursors (
     chain_id    INTEGER PRIMARY KEY,
     first_job   INTEGER NOT NULL,
@@ -123,6 +134,45 @@ class QuestStore {
       | { chain_id: number; token_id: string; name: string | null }
       | undefined;
     return row ? { chainId: row.chain_id, tokenId: row.token_id, name: row.name } : null;
+  }
+
+  /** An agent's jobs with any stored answer verdict, newest first. */
+  byProviderWithVerdicts(provider: string, limit = 200): Array<EscrowJob & { verdict: string | null }> {
+    const rows = this.db
+      .prepare(
+        `SELECT e.*, a.verdict FROM escrow_jobs e
+           LEFT JOIN task_answers a ON a.chain_id = e.chain_id AND a.job_id = e.job_id
+          WHERE e.provider = ? ORDER BY e.job_id DESC LIMIT ?`,
+      )
+      .all(provider.toLowerCase(), limit) as Array<{ chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string; verdict: string | null }>;
+    return rows.map((r) => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description, verdict: r.verdict }));
+  }
+
+  /**
+   * Jobs for known agents that still need an answer verdict, newest first:
+   * never checked, or `pending` (funded, not yet delivered) or `unreadable`
+   * and last looked at before `recheckBefore`.
+   */
+  jobsNeedingVerdict(limit: number, recheckBefore: string): EscrowJob[] {
+    const rows = this.db
+      .prepare(
+        `SELECT e.* FROM escrow_jobs e
+           JOIN agent_wallets w ON w.wallet = e.provider
+           LEFT JOIN task_answers a ON a.chain_id = e.chain_id AND a.job_id = e.job_id
+          WHERE a.verdict IS NULL OR (a.verdict IN ('pending', 'unreadable') AND a.checked_at < ?)
+          ORDER BY e.job_id DESC LIMIT ?`,
+      )
+      .all(recheckBefore, limit) as Array<{ chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string }>;
+    return rows.map((r) => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description }));
+  }
+
+  saveTaskVerdict(chainId: number, jobId: number, verdict: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO task_answers (chain_id, job_id, verdict, checked_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT (chain_id, job_id) DO UPDATE SET verdict = excluded.verdict, checked_at = excluded.checked_at`,
+      )
+      .run(chainId, jobId, verdict, new Date().toISOString());
   }
 
   byClient(client: string): EscrowJob[] {

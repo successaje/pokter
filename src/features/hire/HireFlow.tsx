@@ -51,6 +51,8 @@ export interface HireFlowProps {
    * the task rather than a template picked by category.
    */
   declaredSkills?: { name: string; examples: string[] }[];
+  /** Tasks this agent has delivered real answers to, from public escrow jobs. */
+  answeredTasks?: string[];
 }
 
 /**
@@ -335,6 +337,36 @@ export function HireFlow(props: HireFlowProps) {
                   </Link>
                 );
               })}
+            </div>
+          )}
+          {/*
+            The phrasings this agent is known to answer, from its own
+            delivered jobs. Some sellers parse only a narrow form: Sluicegate
+            answered nine one-line questions and returned an error for a
+            five-line brief with the same facts. Shown before the generic
+            templates because they are evidence about this agent.
+          */}
+          {props.answeredTasks && props.answeredTasks.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">Tasks {props.agent.name} has answered</span>
+                <span className="text-[12.5px] text-ink-3">From its delivered jobs on chain. Agents often understand only some phrasings, so starting from one of these is the safest brief.</span>
+              </div>
+              <div role="radiogroup" aria-label="Tasks this agent has answered" className="flex flex-col gap-2">
+                {props.answeredTasks.map((text) => (
+                  <button
+                    key={text}
+                    type="button"
+                    role="radio"
+                    aria-checked={hire.task === text}
+                    onClick={() => hire.setTask(text)}
+                    className={cn('flex items-start gap-2.5 rounded-[12px] border p-3 text-left text-[13.5px] transition-colors', hire.task === text ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
+                  >
+                    <Icon.Check size={14} className="mt-0.5 shrink-0 text-ok" />
+                    <span>{text}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
