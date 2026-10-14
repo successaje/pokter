@@ -198,15 +198,20 @@ export function encodePokterJobEnvelope(input: {
     quote: optionalQuote(input.quote),
   };
   /*
-   * With a reference anchor, the signed quote goes at the top level as
-   * well, in the seller's own field names: sellers on the reference
-   * pattern refused Pokter's jobs as carrying "no signed quote", because
-   * they look for `negotiation_hash` there and re-derive it from the terms
-   * beside it. The task is the signed one, so the hash re-derives; it is
-   * the text the buyer funded, after the reference's own sanitising.
+   * With a reference anchor, the description is the signed quote and
+   * nothing else, in the seller's own field names.
+   *
+   * Sellers on the reference pattern re-derive `negotiation_hash` from the
+   * funded job's description before they work. Some hash only the quote's
+   * own fields; Sluicegate hashes every field except the hash and the
+   * signature, so Pokter's identity fields beside the quote changed the
+   * hash and it refused job 56996 as tampered. The jobs it delivered carried
+   * nothing else, so neither does this. Which agent the job is for is kept
+   * in Pokter's index, checked against the registry when it is recorded
+   * (see the jobs index route), rather than on chain.
    */
   const anchor = referenceAnchor(input.quote);
-  const encoded = JSON.stringify(anchor ? { ...anchor, ...envelope, task: anchor.task } : envelope);
+  const encoded = JSON.stringify(anchor ?? envelope);
   if (new TextEncoder().encode(encoded).byteLength > 4096) {
     throw new Error('The task and identity envelope must be at most 4096 bytes.');
   }
@@ -245,4 +250,41 @@ export function decodePokterJobEnvelope(value: string): PokterJobEnvelope | null
   } catch {
     return null;
   }
+}
+
+/** A job description written as the seller's signed quote alone (see `encodePokterJobEnvelope`). */
+export interface ReferenceJobDescription {
+  task: string;
+  quote: PokterJobQuote;
+  chainId: number | null;
+}
+
+export function decodeReferenceJobDescription(value: string): ReferenceJobDescription | null {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (typeof parsed.task !== 'string' || !parsed.task.trim()) return null;
+    const quote = optionalQuote({
+      negotiationHash: parsed.negotiation_hash,
+      providerSignature: parsed.provider_sig,
+      priceRaw: typeof parsed.price === 'string' ? parsed.price : undefined,
+      expiresAt: typeof parsed.quote_expires_at === 'number' ? parsed.quote_expires_at : undefined,
+      domain:
+        typeof parsed.chain_id === 'number' && typeof parsed.verifying_contract === 'string'
+          ? { chainId: parsed.chain_id, verifyingContract: parsed.verifying_contract }
+          : undefined,
+    });
+    if (!quote) return null;
+    return { task: parsed.task, quote, chainId: typeof parsed.chain_id === 'number' ? parsed.chain_id : null };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The brief a funded job carries, whichever way Pokter wrote it: its own
+ * envelope, or the seller's signed quote alone. The second names no agent;
+ * that comes from Pokter's index.
+ */
+export function jobTaskFromDescription(value: string): string | null {
+  return decodePokterJobEnvelope(value)?.task ?? decodeReferenceJobDescription(value)?.task ?? null;
 }

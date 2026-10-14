@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   decodePokterJobEnvelope,
+  decodeReferenceJobDescription,
+  jobTaskFromDescription,
   encodePokterJobEnvelope,
   POKTER_JOB_ENVELOPE_VERSION,
 } from '../src/lib/erc8183/job-envelope';
@@ -223,13 +225,12 @@ test('a real seller quote fits the envelope and survives it', () => {
  * Pokter's carried only a hash and signature nested under `quote`.
  */
 function referenceSellerAccepts(description: string): boolean {
-  // What a reference seller does: read its own fields, re-derive the hash.
+  // What Sluicegate does: hash every field except the hash and signature.
+  // Stricter than hashing only the quote's own fields, so passing this
+  // passes both kinds of seller.
   const job = JSON.parse(description) as Record<string, unknown>;
   if (typeof job.negotiation_hash !== 'string' || typeof job.provider_sig !== 'string') return false;
-  const content: Record<string, unknown> = {};
-  for (const key of ['version', 'negotiated_at', 'task', 'terms', 'price', 'currency', 'quote_expires_at', 'chain_id', 'verifying_contract']) {
-    if (job[key] !== undefined) content[key] = job[key];
-  }
+  const content = Object.fromEntries(Object.entries(job).filter(([key]) => key !== 'negotiation_hash' && key !== 'provider_sig'));
   return keccak256(toBytes(canonicalJson(content))) === job.negotiation_hash;
 }
 
@@ -253,10 +254,15 @@ test('a job carrying a reference anchor is one a reference seller accepts', () =
   const { hash, anchor } = signedAnchor(base.task);
   const encoded = encodePokterJobEnvelope({ ...base, quote: { negotiationHash: hash, providerSignature: SIG, anchor } });
   assert.equal(referenceSellerAccepts(encoded), true);
-  // And Pokter still reads its own envelope from the same description.
-  const decoded = decodePokterJobEnvelope(encoded);
-  assert.equal(decoded?.identity.tokenId, '265375');
-  assert.equal(decoded?.quote?.negotiationHash, hash);
+  // Nothing beside the signed quote: Sluicegate refused job 56996 because
+  // Pokter's identity fields sat next to it and changed the hash.
+  assert.deepEqual(Object.keys(JSON.parse(encoded)).sort(), Object.keys(anchor).sort());
+  // Pokter reads the brief and quote back; the agent comes from its index.
+  const decoded = decodeReferenceJobDescription(encoded);
+  assert.equal(decoded?.task, base.task);
+  assert.equal(decoded?.quote.negotiationHash, hash);
+  assert.equal(jobTaskFromDescription(encoded), base.task);
+  assert.equal(decodePokterJobEnvelope(encoded), null);
 });
 
 test('the signed task wins, so the hash still re-derives', () => {

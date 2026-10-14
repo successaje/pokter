@@ -145,14 +145,16 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
     try {
       const job = await getErc8183Job(ALTANA_NETWORK, id);
       const envelope = decodePokterJobEnvelope(job.description);
+      // A job written as the seller's signed quote alone names no agent on chain; the index does.
+      const indexed = envelope ? null : store.all().find((j) => j.chainId === ALTANA_NETWORK.chainId && j.jobId === id.toString()) ?? null;
       sightings.push({
         jobId: id.toString(),
         client: job.client,
         provider: job.provider,
         status: job.statusName,
         team: isTeamWallet(job.client),
-        viaPokter: envelope !== null,
-        agentName: envelope?.identity.name ?? undefined,
+        viaPokter: envelope !== null || indexed !== null,
+        agentName: envelope?.identity.name ?? indexed?.agentName ?? undefined,
       });
     } catch {
       // An unreadable id must not stall the cursor behind it forever: the

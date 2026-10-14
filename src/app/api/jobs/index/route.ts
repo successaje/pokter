@@ -12,7 +12,8 @@ import {
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
+import { getAgent } from '@/lib/scan/client';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -54,6 +55,44 @@ function receiptNamesJob(receipt: Awaited<ReturnType<ReturnType<typeof createPub
 }
 
 /** Add a buyer-signed job to Pokter's public index only after chain verification. */
+/**
+ * Which agent a funded job is for, and its brief.
+ *
+ * Pokter's own envelope says so on chain. A job written as the seller's
+ * signed quote alone does not (sellers that hash the whole description
+ * refuse anything beside the quote), so the hire page names the agent and
+ * this checks it: the registry's agent wallet for that identity must be the
+ * job's on-chain provider. A caller cannot attribute a job to an agent
+ * that is not the one being paid.
+ */
+async function jobIdentity(description: string, provider: string, body: Record<string, unknown>) {
+  const envelope = decodePokterJobEnvelope(description);
+  if (envelope) {
+    if (getAddress(envelope.provider) !== getAddress(provider)) return null;
+    return {
+      agentChainId: envelope.identity.chainId,
+      agentTokenId: envelope.identity.tokenId,
+      agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,
+      providerLabel: envelope.providerLabel,
+      task: envelope.task,
+    };
+  }
+  const reference = decodeReferenceJobDescription(description);
+  const agentChainId = Number(body.agentChainId);
+  const agentTokenId = String(body.agentTokenId ?? '');
+  if (!reference || (agentChainId !== 56 && agentChainId !== 97) || !/^\d+$/.test(agentTokenId)) return null;
+  const agent = await getAgent(agentChainId, agentTokenId).catch(() => null);
+  if (!agent?.agent_wallet || getAddress(agent.agent_wallet) !== getAddress(provider)) return null;
+  const label = typeof body.providerLabel === 'string' && body.providerLabel.length <= 120 ? body.providerLabel : undefined;
+  return {
+    agentChainId,
+    agentTokenId,
+    agentName: (agent.name || `Agent #${agentTokenId}`).slice(0, 120),
+    providerLabel: label,
+    task: reference.task,
+  };
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`job-index:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
   if (!rate.allowed) {
@@ -111,9 +150,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'The job exists but is not funded.' }, { status: 409 });
     }
 
-    const envelope = decodePokterJobEnvelope(onchain.description);
-    if (!envelope || getAddress(envelope.provider) !== getAddress(onchain.provider)) {
-      return NextResponse.json({ error: 'The funded job has no valid Pokter identity envelope.' }, { status: 409 });
+    const identity = await jobIdentity(onchain.description, onchain.provider, body);
+    if (!identity) {
+      return NextResponse.json({ error: 'The funded job has no valid Pokter identity envelope, and no registered agent with this provider wallet was named.' }, { status: 409 });
     }
 
     const now = new Date().toISOString();
@@ -122,13 +161,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       jobId: jobIdText,
       chainId,
       isTestnet: chainId === 97,
-      agentChainId: envelope.identity.chainId,
-      agentTokenId: envelope.identity.tokenId,
-      agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,
-      providerLabel: envelope.providerLabel,
+      agentChainId: identity.agentChainId,
+      agentTokenId: identity.agentTokenId,
+      agentName: identity.agentName,
+      providerLabel: identity.providerLabel,
       client: onchain.client,
       provider: onchain.provider,
-      task: envelope.task,
+      task: identity.task,
       budgetRaw: onchain.budget.toString(),
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
       hiredAt: now,

@@ -22,7 +22,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { readDeliverable, writeDeliverable } from '@/lib/erc8183/deliverables';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { evidenceAgentWallet } from '@/lib/evidence/negotiate';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
@@ -45,7 +45,7 @@ import type { ChainId } from '@/lib/scan/types';
  *
  * Nothing here trusts the message. The job is re-read from the escrow
  * and must be funded, must name this agent's own wallet as the provider,
- * and must carry a Pokter envelope pointing at this agent's identity.
+ * and must carry a brief naming an agent: Pokter's envelope, or the signed quote alone.
  * A caller who simply knows a job number cannot make the agent spend gas
  * on somebody else's work.
  */
@@ -120,9 +120,10 @@ export async function deliverEvidenceJob(
     return { status: 'refused', jobId: jobIdText, reason: 'This job does not name this agent as its provider.' };
   }
 
-  const envelope = decodePokterJobEnvelope(job.description);
-  if (!envelope) {
-    return { status: 'refused', jobId: jobIdText, reason: 'The job carries no Pokter envelope, so the brief cannot be read.' };
+  // Pokter's envelope, or the buyer's signed quote alone: both carry the brief.
+  const brief = jobTaskFromDescription(job.description);
+  if (brief === null) {
+    return { status: 'refused', jobId: jobIdText, reason: 'The job carries no readable brief.' };
   }
 
   /*
@@ -131,7 +132,7 @@ export async function deliverEvidenceJob(
    * answered with a guess — delivering the wrong agent's record would be
    * worse than delivering nothing.
    */
-  const ref = parseAgentRef(envelope.task, chainId);
+  const ref = parseAgentRef(brief, chainId);
   if (!ref) {
     return {
       status: 'refused',

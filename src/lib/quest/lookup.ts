@@ -4,6 +4,7 @@ import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { COMMERCE_ABI, JOB_STATUS, QUEST_CHAINS, questClient, type QuestChainId } from './indexer';
 import { marketplaceFromTask, POKTER_MARKETPLACE, summariseQuest, type QuestHire, type QuestSummary } from './progress';
 import { getQuestStore } from './store';
+import { getJobStore } from '@/lib/erc8183/store';
 
 export interface QuestLookup {
   address: string;
@@ -56,20 +57,27 @@ export async function lookupQuest(address: string): Promise<QuestLookup> {
     }),
   );
 
+  // Jobs written as the seller's signed quote alone carry no Pokter envelope;
+  // Pokter's own index still says it commissioned them.
+  const pokterIndexed = new Map(getJobStore().all().map((j) => [`${j.chainId}:${j.jobId}`, j]));
+
   const hires: QuestHire[] = [];
   for (const job of indexed) {
     const status = fresh.get(`${job.chainId}:${job.jobId}`) ?? job.status;
     if (status === 0) continue; // never funded: not a hire
     const envelope = decodePokterJobEnvelope(job.description);
+    const ours = envelope ? null : pokterIndexed.get(`${job.chainId}:${job.jobId}`) ?? null;
     const agent = envelope
       ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, name: envelope.identity.name ?? null }
-      : store.agentByWallet(job.provider);
+      : ours
+        ? { chainId: ours.agentChainId ?? 56, tokenId: ours.agentTokenId, name: ours.agentName }
+        : store.agentByWallet(job.provider);
     hires.push({
       chainId: job.chainId,
       jobId: String(job.jobId),
       provider: job.provider,
       agent,
-      marketplace: envelope ? POKTER_MARKETPLACE : marketplaceFromTask(taskOf(job.description)),
+      marketplace: envelope || ours ? POKTER_MARKETPLACE : marketplaceFromTask(taskOf(job.description)),
       status: JOB_STATUS[status] ?? String(status),
     });
   }

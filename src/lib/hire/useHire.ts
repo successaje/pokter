@@ -362,6 +362,12 @@ export function useHire({
           chainId: hired.chainId,
           jobId: hired.jobId,
           ...(hired.hireTxHash ? { transactionHash: hired.hireTxHash } : {}),
+          // Needed when the job carries only the seller's signed quote; the
+          // route checks it against the registry before keeping it.
+          agentChainId: hired.agentChainId ?? agent.chainId,
+          agentTokenId: hired.agentTokenId,
+          agentName: hired.agentName,
+          providerLabel: hired.providerLabel,
         }),
       });
       if (!response.ok) {
