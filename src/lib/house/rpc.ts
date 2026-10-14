@@ -6,6 +6,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { quoteChainFor } from '@/lib/evidence/refs';
 
 import { deliverHouseJob } from './deliver';
+import { isPriceEnquiry } from './rpc-enquiry';
 import { houseAccount } from './keys';
 import { signHouseQuote } from './quote';
 import { HOUSE_CHAINS, type HouseAgentDefinition, type HouseChainId } from './types';
@@ -59,8 +60,8 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
   const brief = String(data.task_description ?? data.task ?? data.brief ?? text ?? '').trim();
 
   if (skill === 'negotiate' || skill === 'quote') {
-    if (!brief) return message(id, { accepted: false, reason: 'Send the brief as task_description.', examples: definition.skill.examples });
-    const problem = definition.check(brief);
+    const enquiry = isPriceEnquiry(brief);
+    const problem = enquiry ? null : definition.check(brief);
     if (problem) return message(id, { accepted: false, reason: problem.error, need: problem.need, examples: definition.skill.examples });
     const chainId = quoteChainFor({ chainId: data.chain_id ?? data.chainId, escrowChains: data.escrow_chains, endpointChain }) as HouseChainId;
     const addresses = correctedErc8183Addresses(chainId);
@@ -72,7 +73,8 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
         chainId,
         paymentToken: getAddress(addresses.paymentToken),
         verifyingContract: addresses.commerce,
-        task: brief,
+        // The enquiry's own words when it sent some: the signature covers what was asked.
+        task: brief || `Quote ${definition.name}'s standard deliverable.`,
         deliverables: typeof terms?.deliverables === 'string' ? terms.deliverables : undefined,
         qualityStandards: typeof terms?.quality_standards === 'string' ? terms.quality_standards : undefined,
       });
