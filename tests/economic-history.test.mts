@@ -65,3 +65,26 @@ test('a lifecycle demonstration is neither a delivery nor a miss for the agent',
   assert.equal(history.jobs, 1);
   assert.equal(history.lifecycleDemos, 1);
 });
+
+test('a job the seller refused when funded is reported as refused, not missed', () => {
+  // Sluicegate refused job 56995 because Pokter left its signed quote out;
+  // counting that as a lapse would have marked it an agent that misses work.
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const refusedLapsed = { ...job('FUNDED'), expiredAt: past };
+  const refusedExpired = job('EXPIRED');
+  const silent = { ...job('FUNDED'), expiredAt: past };
+  const refusedIds = new Set([refusedLapsed.id, refusedExpired.id]);
+  const history = summariseEconomicHistory([refusedLapsed, refusedExpired, silent, job('COMPLETED')], Date.now(), {
+    refusedAtNotice: (j) => refusedIds.has(j.id),
+  });
+  assert.equal(history.refused, 2);
+  assert.equal(history.missed, 1);
+  assert.equal(history.pending, 0);
+});
+
+test('a refused job the seller delivered after all counts as delivered', () => {
+  const delivered = job('SUBMITTED');
+  const history = summariseEconomicHistory([delivered], Date.now(), { refusedAtNotice: () => true });
+  assert.equal(history.refused, 0);
+  assert.equal(history.delivered, 1);
+});

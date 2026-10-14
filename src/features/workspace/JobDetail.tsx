@@ -91,11 +91,65 @@ function Countdown({ to }: { to: string }) {
   return <>{ms <= 0 ? 'passed' : formatElapsed(ms)}</>;
 }
 
+interface SellerAnswer {
+  status: 'accepted' | 'rejected' | 'unreachable';
+  reason: string | null;
+  attempts: number;
+  at: string;
+}
+
+/** What the seller said when told the job was funded. Refreshed with the job while it is in progress. */
+function useSellerAnswer(job: HiredJob, live: boolean): SellerAnswer | null {
+  const query = useQuery({
+    queryKey: ['seller-notice', job.chainId, job.jobId],
+    refetchInterval: live ? 60_000 : false,
+    queryFn: async (): Promise<SellerAnswer | null> => {
+      const r = await fetch(`/api/jobs/${encodeURIComponent(job.jobId)}/notice?chain=${job.chainId}`, { cache: 'no-store' });
+      if (!r.ok) return null;
+      return ((await r.json()) as { notice: SellerAnswer | null }).notice;
+    },
+  });
+  return query.data ?? null;
+}
+
+/*
+ * The seller's answer, in the buyer's terms. A refusal used to reach no
+ * one: the page said "Waiting for the agent to deliver" until the job
+ * expired a day later. The reason is the seller's own words, quoted.
+ */
+function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnswer }) {
+  const who = job.providerLabel ?? job.agentName;
+  if (answer.status === 'rejected') {
+    return (
+      <Notice tone="bad" title={`${who} refused this job, so nothing will be delivered`}>
+        {answer.reason ? <>It said: “{answer.reason}”. </> : 'It gave no reason. '}
+        Your {budgetOf(job)} stays in escrow. You can reclaim all of it here once the deadline passes, in <Countdown to={job.expiredAt} />. Pokter’s team has been told.
+      </Notice>
+    );
+  }
+  if (answer.status === 'unreachable') {
+    return (
+      <Notice tone="watch" title={`Pokter could not tell ${who} this job is funded`}>
+        {answer.reason ? `${answer.reason} ` : ''}
+        {answer.attempts < 3 ? 'Pokter tries again automatically. ' : 'Pokter has stopped retrying. '}
+        An agent that watches the escrow itself can still deliver; if nothing arrives by the deadline, you can reclaim the full amount here.
+      </Notice>
+    );
+  }
+  return (
+    <p className="flex items-center gap-2 text-[13px] text-ink-2">
+      <Icon.Check size={14} /> {who} confirmed it received the job at {new Date(answer.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
+    </p>
+  );
+}
+
 function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: boolean; connected: boolean }) {
   const a = useJobActions(initial);
   const job = a.job;
   const phase = jobPhase(job);
-  const meta = PHASE[phase];
+  const answer = useSellerAnswer(job, phase === 'working');
+  const refused = phase === 'working' && answer?.status === 'rejected';
+  const meta = refused ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' } : PHASE[phase];
   const timeline = jobTimeline(job);
 
   return (
@@ -144,7 +198,8 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
             <p>
               Deadline in <strong className="font-semibold text-ink"><Countdown to={job.expiredAt} /></strong>. Pokter re-reads the job every 30 seconds while this page is open.
             </p>
-            {a.quiet && (
+            {answer && <SellerAnswerNotice job={job} answer={answer} />}
+            {a.quiet && !refused && (
               <Notice tone="watch" title="Nothing has been submitted for a while">
                 That is a fact about the job, not a diagnosis of the agent. If nothing arrives by the deadline, you can reclaim the full amount here.
               </Notice>

@@ -5,6 +5,7 @@ import { BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
+import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -191,6 +192,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const deliveryRetries = await retryStuckDeliveries().catch(() => null);
 
     /*
+     * Outside sellers, on every escrow chain: tell any that were never told
+     * their job is funded (a buyer who closed the tab first), and keep what
+     * they answer. The retry above only ever covered Pokter's own seller.
+     */
+    const sellerNotices = await noticeUnansweredJobs().catch(() => null);
+
+    /*
      * After the retry, not instead of it. What matters is the jobs still
      * unmoved once the automatic attempt has had its go — the retry trying
      * and failing used to look identical to the retry succeeding, because
@@ -293,6 +301,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       ...outcome, notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
+      sellerNotices,
       stuckJobs,
       funders,
       healthFactorChecks,

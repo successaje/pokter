@@ -400,6 +400,7 @@ export function useHire({
       });
       const payload = (await response.json()) as {
         status?: string;
+        reason?: string | null;
         error?: string;
         deliverableUrl?: string;
       };
@@ -429,7 +430,10 @@ export function useHire({
         }
       } else {
         setNotification('rejected');
-        setNotificationDetail('The seller verified the job but rejected the delivery request.');
+        // The seller's own words: the buyer has no other way to learn why.
+        setNotificationDetail(
+          `The seller refused the job${payload.reason ? `: “${payload.reason}”` : ' and gave no reason'}. Nothing will be delivered. Your escrow stays safe and can be reclaimed from the job page after the deadline.`,
+        );
       }
     } catch (caught) {
       setNotification('failed');

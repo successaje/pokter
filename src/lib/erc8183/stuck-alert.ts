@@ -2,7 +2,8 @@ import 'server-only';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { altanaNetworkFor } from '@/lib/altana/client';
+import { isEscrowChain } from '@/lib/network/escrow';
 import { getJobStore } from '@/lib/erc8183/store';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { alertChannels } from '@/lib/alerts/channels';
@@ -52,7 +53,8 @@ export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
 
   const indexed = store
     .all()
-    .filter((job) => job.chainId === ALTANA_NETWORK.chainId && job.status === 'FUNDED');
+    // Every escrow chain. This read testnet only, so no mainnet job was ever watched.
+    .filter((job) => isEscrowChain(job.chainId) && job.status === 'FUNDED');
 
   const candidates: StuckCandidate[] = [];
   for (const job of indexed) {
@@ -62,12 +64,16 @@ export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
        * the middle of refreshing, and raising an alarm about a job that was
        * delivered ten minutes ago is how a channel loses its reader.
        */
-      const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
+      const onchain = await getErc8183Job(altanaNetworkFor(job.chainId), BigInt(job.jobId));
       const expiresAtMs = Number(onchain.expiredAt) * 1000;
       const hired = Date.parse(job.hiredAt);
+      const notice = store.noticeFor(job.chainId, job.jobId);
       candidates.push({
-        jobId: job.jobId,
-        agentName: job.agentName,
+        // Keyed by chain too: job numbers are per escrow, not global.
+        jobId: `${job.chainId}:${job.jobId}`,
+        agentName:
+          job.agentName +
+          (notice ? ` · seller ${notice.status}${notice.reason ? `: ${notice.reason}` : ''}` : ' · seller never answered'),
         /*
          * The chain records when a job expires, not when it was funded, so
          * the index's own timestamp is used where it parses. Where it does
@@ -96,7 +102,7 @@ export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
   const lines = stuck
     .map(
       (job) =>
-        `#${job.jobId} · ${job.agentName}\n` +
+        `#${job.jobId.split(':')[1]} on chain ${job.jobId.split(':')[0]} · ${job.agentName}\n` +
         `funded ${describeDuration(job.stuckForMs)} ago, not delivered\n` +
         `${describeDuration(job.remainingMs)} left before the buyer must reclaim`,
     )

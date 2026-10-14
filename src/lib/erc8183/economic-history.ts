@@ -65,6 +65,17 @@ export interface AgentEconomicHistory {
    * or as a miss.
    */
   lifecycleDemos: number;
+  /**
+   * Jobs the seller refused, with its reason, when told they were funded.
+   *
+   * Not counted as missed. A miss is a job left to lapse in silence; a
+   * refusal is an answer, and the one that started this count was Pokter's
+   * fault: Sluicegate refused a job because Pokter had left its signed quote
+   * out of the description, and would otherwise have been marked as an
+   * agent that lets paid jobs lapse. Reported, so a seller that refuses
+   * everything is still visible as one.
+   */
+  refused: number;
 }
 
 /**
@@ -76,7 +87,10 @@ export interface AgentEconomicHistory {
 export function summariseEconomicHistory(
   jobs: HiredJob[],
   now = Date.now(),
-  { isLifecycleDemo }: { isLifecycleDemo?: (job: HiredJob) => boolean } = {},
+  {
+    isLifecycleDemo,
+    refusedAtNotice,
+  }: { isLifecycleDemo?: (job: HiredJob) => boolean; refusedAtNotice?: (job: HiredJob) => boolean } = {},
 ): AgentEconomicHistory {
   // Entry into this store is itself chain-verified. Some relayed/batched hires
   // do not expose a transaction hash to the SDK even though the kernel reads
@@ -84,13 +98,16 @@ export function summariseEconomicHistory(
   const demos = isLifecycleDemo ? jobs.filter((job) => job.status !== 'OPEN' && isLifecycleDemo(job)) : [];
   const funded = jobs.filter((job) => job.status !== 'OPEN' && !demos.includes(job));
   const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
-  const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now;
+  // Only an undelivered job can have been refused; a later delivery outranks the refusal.
+  const refused = (job: HiredJob) =>
+    Boolean(refusedAtNotice) && ['FUNDED', 'EXPIRED'].includes(job.status) && refusedAtNotice!(job);
+  const lapsed = (job: HiredJob) => job.status === 'FUNDED' && Date.parse(job.expiredAt) <= now && !refused(job);
   const team = teamAddressSet();
   const selfHire = (job: HiredJob) =>
     Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
   const outside = funded.filter((job) => !fundedByTeam(job, team) && !selfHire(job));
   const outsideCompleted = outside.filter((job) => job.status === 'COMPLETED').length;
-  const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status)).length;
+  const outsideTerminal = outside.filter((job) => ['COMPLETED', 'REJECTED', 'EXPIRED'].includes(job.status) && !refused(job)).length;
   const outsideBuyers = new Set(outside.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
   const buyers = new Set(funded.flatMap((job) => job.client ? [job.client.toLowerCase()] : []));
   const deliveries = funded.filter((job) => ['SUBMITTED', 'COMPLETED'].includes(job.status));
@@ -111,8 +128,9 @@ export function summariseEconomicHistory(
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
-    missed: funded.filter((job) => job.status === 'EXPIRED' || lapsed(job)).length,
-    pending: funded.filter((job) => job.status === 'FUNDED' && !lapsed(job)).length,
+    missed: funded.filter((job) => (job.status === 'EXPIRED' && !refused(job)) || lapsed(job)).length,
+    pending: funded.filter((job) => job.status === 'FUNDED' && !lapsed(job) && !refused(job)).length,
+    refused: funded.filter(refused).length,
     unresolved: funded.filter((job) =>
       ['FUNDED', 'SUBMITTED'].includes(job.status),
     ).length,
