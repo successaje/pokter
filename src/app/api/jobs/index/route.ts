@@ -14,6 +14,7 @@ import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 import { getAgent } from '@/lib/scan/client';
+import { getQuestStore } from '@/lib/quest/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -78,9 +79,18 @@ async function jobIdentity(description: string, provider: string, body: Record<s
     };
   }
   const reference = decodeReferenceJobDescription(description);
-  const agentChainId = Number(body.agentChainId);
-  const agentTokenId = String(body.agentTokenId ?? '');
-  if (!reference || (agentChainId !== 56 && agentChainId !== 97) || !/^\d+$/.test(agentTokenId)) return null;
+  if (!reference) return null;
+  /*
+   * Named by the hire page, or else found by the provider's wallet in the
+   * registry index. A page loaded before quote-only jobs existed sends no
+   * identity, which left job 56997 out of Pokter's index while its seller
+   * delivered it. Either way the registry check below decides.
+   */
+  const named = /^\d+$/.test(String(body.agentTokenId ?? '')) && (Number(body.agentChainId) === 56 || Number(body.agentChainId) === 97);
+  const found = named ? null : getQuestStore().agentByWallet(provider);
+  const agentChainId = named ? Number(body.agentChainId) : found?.chainId;
+  const agentTokenId = named ? String(body.agentTokenId) : found?.tokenId;
+  if ((agentChainId !== 56 && agentChainId !== 97) || !agentTokenId) return null;
   const agent = await getAgent(agentChainId, agentTokenId).catch(() => null);
   if (!agent?.agent_wallet || getAddress(agent.agent_wallet) !== getAddress(provider)) return null;
   const label = typeof body.providerLabel === 'string' && body.providerLabel.length <= 120 ? body.providerLabel : undefined;
