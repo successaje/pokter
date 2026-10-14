@@ -8,7 +8,8 @@ import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { agentHistory } from '@/lib/agent/credited-history';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import { getAssayStore, type AssayRun } from '@/lib/assay/store';
 import { assayForCategory, type AssayDefinition } from '@/lib/assay/catalog';
@@ -149,7 +150,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
 
   // The same rule the catalogue's verdict applies (`verdictFor`): answering
   // probes does not make an agent reliable while it lets paid jobs lapse.
-  const history = summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
+  const history = agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id));
   const assayDefinition = assayForCategory(category);
   const categoryCheck = assayDefinition
     ? { definition: assayDefinition, run: getAssayStore().latest({ chainId: agent.chain_id, tokenId: agent.token_id }, assayDefinition.id) }

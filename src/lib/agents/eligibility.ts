@@ -72,3 +72,23 @@ export function isPromotableAgent(agent: AgentIdentityText): boolean {
   const published = `${name} ${agent.description ?? ''}`.toLowerCase();
   return !NON_PRODUCTION_MARKERS.some((marker) => published.includes(marker));
 }
+
+/**
+ * Whether an agent has a name a buyer can read, as opposed to an identifier.
+ *
+ * Lowercase words joined by hyphens ("marketplace-operated-grid-planner")
+ * are a slug, usually another system's internal id. Such agents stay listed
+ * and counted, but the places Pokter features agents (the home page's
+ * strips and spotlight, the campaign guide, the evaluation queue) pick ones
+ * a reader can recognise and judge by name.
+ */
+export function hasDisplayName(agent: AgentIdentityText): boolean {
+  const name = (agent.name ?? '').trim();
+  if (!name) return false;
+  return !/^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(name);
+}
+
+/** Promotable, and named for a reader: the bar for being featured. */
+export function isFeaturableAgent(agent: AgentIdentityText): boolean {
+  return isPromotableAgent(agent) && hasDisplayName(agent);
+}

@@ -3,7 +3,7 @@ import type { ChainId } from '@/lib/scan/types';
 import { API_VERSION } from '@/lib/api/v1';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
-import { summariseEconomicHistory } from '@/lib/erc8183/economic-history';
+import { agentHistory } from '@/lib/agent/credited-history';
 import { getJobStore } from '@/lib/erc8183/store';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
 
@@ -48,7 +48,7 @@ export async function GET(
 
   const { agent, proof, record, score, attestations, live } = dossier;
   // The same delivery rule the agent page and catalogue apply.
-  const adjusted = deliveryAdjustedVerdict(proof.verdict, summariseEconomicHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)));
+  const adjusted = deliveryAdjustedVerdict(proof.verdict, agentHistory(getJobStore().byAgent(agent.chain_id, agent.token_id)));
   const origin = originOf(request);
 
   return apiJson({

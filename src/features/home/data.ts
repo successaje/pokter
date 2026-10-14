@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
-import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { isFeaturableAgent } from '@/lib/agents/eligibility';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { getJobStore } from '@/lib/erc8183/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
@@ -122,7 +122,7 @@ function specimenFor(entry: SearchableAgent, row: FindRow): Specimen {
  * Contrast is the argument; a carousel of three good agents would not make it.
  */
 function chooseSpecimens(entries: SearchableAgent[], rows: FindRow[]): Specimen[] {
-  const pairs = entries.map((entry, index) => ({ entry, row: rows[index] })).filter(({ entry }) => isPromotableAgent(entry.listing.agent) && (entry.listing.agent.description ?? '').length > 40);
+  const pairs = entries.map((entry, index) => ({ entry, row: rows[index] })).filter(({ entry }) => isFeaturableAgent(entry.listing.agent) && (entry.listing.agent.description ?? '').length > 40);
   // The agent shown as working must not be one that lets paid jobs lapse.
   const working = pairs.filter(({ entry }) => !letsJobsLapse(entry));
   const strong =
@@ -167,7 +167,7 @@ export async function loadHome(): Promise<HomeData> {
     // it is not featured as hireable now.
     // An agent that lets paid jobs lapse is not featured either, however well
     // it answers probes.
-    .filter((entry) => isPromotableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry))
+    .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry))
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)
     // A signed price first: a row reading "No signed price" asks the buyer to
@@ -191,7 +191,7 @@ export async function loadHome(): Promise<HomeData> {
   // mainnet owners have a funder on record; the rest stand alone.
   const ownerWallets = entries.map((entry) => entry.listing.agent.owner_address);
   const operatorOf = operatorResolver(ownerWallets, getFunderStore().funders(ownerWallets));
-  const reliable = mostReliable(entries.filter((entry) => isPromotableAgent(entry.listing.agent)), 5, operatorOf).map((entry) => {
+  const reliable = mostReliable(entries.filter((entry) => isFeaturableAgent(entry.listing.agent)), 5, operatorOf).map((entry) => {
     const week = entry.record.windows.find((window) => window.label === '7d');
     return {
       row: byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!,

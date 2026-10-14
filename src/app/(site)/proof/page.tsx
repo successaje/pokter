@@ -12,6 +12,8 @@ import {
 } from '@/lib/erc8183/production-proof';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
+import { isLifecycleDemo } from '@/lib/agent/credited-history';
+import { listSearchable } from '@/lib/marketplace';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { chainLabel, escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
@@ -46,7 +48,12 @@ function parseFilters(raw: Record<string, string | string[] | undefined>): Produ
   const window = one(raw.window);
   return {
     network: network === 'mainnet' || network === 'testnet' ? network : 'all',
-    funder: funder === 'team' || funder === 'outside-team' ? funder : 'all',
+    /*
+     * Outside-team by default: the question a visitor brings is whether
+     * agents hired here deliver for buyers, and the team's test hires answer
+     * a different one. Both stay one click away and are never hidden.
+     */
+    funder: funder === 'team' || funder === 'all' ? funder : 'outside-team',
     window: window === '7d' || window === '30d' ? window : 'all',
   };
 }
@@ -55,7 +62,7 @@ function proofHref(filters: ProductionProofFilters, change: Partial<ProductionPr
   const next = { ...filters, ...change };
   const params = new URLSearchParams();
   if (next.network !== 'all') params.set('network', next.network);
-  if (next.funder !== 'all') params.set('funder', next.funder);
+  if (next.funder !== 'outside-team') params.set('funder', next.funder);
   if (next.window !== 'all') params.set('window', next.window);
   if (agent) params.set('agent', agent);
   const query = params.toString();
@@ -127,6 +134,21 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam);
   const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam);
   const wallets = teamWalletList();
+  /*
+   * The agent's registry name, not the one written into each job: legacy
+   * jobs recorded a seller label ("Verified testnet seller") or nothing, so
+   * the same agent appeared under two names in one table.
+   */
+  const names = new Map(
+    (await listSearchable({ limit: 400 }).catch(() => [])).map((entry) => [`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`, entry.listing.agent.name] as const),
+  );
+  const agentLabel = (job: HiredJob): { name: string; registered: boolean } => {
+    if (!/^\d+$/.test(job.agentTokenId)) return { name: 'Early demo job', registered: false };
+    const registry = names.get(`${job.agentChainId ?? job.chainId}:${job.agentTokenId}`);
+    if (registry) return { name: registry, registered: true };
+    const recorded = job.agentName && !/^verified testnet seller$/i.test(job.agentName) ? job.agentName : null;
+    return { name: recorded ?? `Agent #${job.agentTokenId}`, registered: true };
+  };
   const rate = summary.completionRate === null ? '—' : `${Math.round(summary.completionRate * 100)}%`;
   const mainnetValue = formatUnits(BigInt(mainnetSummary.completedValueRaw), 18);
   const testnetValue = formatUnits(BigInt(testnetSummary.completedValueRaw), 18);
@@ -162,7 +184,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         <FilterGroup<ProofFunder>
           label="Funding provenance"
           value={filters.funder}
-          options={[{ value: 'all', label: 'All' }, { value: 'outside-team', label: 'Outside-team' }, { value: 'team', label: 'Pokter team' }]}
+          options={[{ value: 'outside-team', label: 'Outside-team' }, { value: 'all', label: 'All' }, { value: 'team', label: 'Pokter team' }]}
           href={(funder) => proofHref(filters, { funder }, agentKey)}
         />
         <FilterGroup<ProofWindow>
@@ -243,13 +265,29 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                 {jobs.slice(0, 100).map((job) => {
                   const money = escrowMoney(job.chainId);
                   const agentChain = job.agentChainId ?? job.chainId;
+                  const label = agentLabel(job);
                   return (
                     <tr key={job.id}>
                       <td className="px-4 py-3.5 align-top"><span className="font-medium text-ink">#{job.jobId}</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{job.hiredAt.slice(0, 10)}</span></td>
-                      <td className="max-w-56 px-4 py-3.5 align-top"><Link href={`/agents/${agentChain}/${job.agentTokenId}`} className="font-medium text-ink hover:underline">{job.agentName}</Link><span className="mt-0.5 block text-[11.5px] text-ink-3">ERC-8004 #{job.agentTokenId}</span></td>
+                      <td className="max-w-56 px-4 py-3.5 align-top">
+                        {label.registered ? (
+                          <>
+                            <Link href={`/agents/${agentChain}/${job.agentTokenId}`} className="font-medium text-ink hover:underline">{label.name}</Link>
+                            <span className="mt-0.5 block text-[11.5px] text-ink-3">ERC-8004 #{job.agentTokenId}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-medium text-ink">{label.name}</span>
+                            <span className="mt-0.5 block text-[11.5px] text-ink-3">Before registry identities were attached</span>
+                          </>
+                        )}
+                      </td>
                       <td className="px-4 py-3.5 align-top"><span className="text-ink">{formatUnits(BigInt(job.budgetRaw), 18)} $U</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{money.money} · {chainLabel(job.chainId)}</span></td>
                       <td className="px-4 py-3.5 align-top text-ink-2">{isTeam(job) ? 'Pokter team' : 'Outside-team'}</td>
-                      <td className="px-4 py-3.5 align-top font-medium text-ink">{STATUS_COPY[job.status]}</td>
+                      <td className="px-4 py-3.5 align-top font-medium text-ink">
+                        {STATUS_COPY[job.status]}
+                        {isLifecycleDemo(job) && <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">Lifecycle demo: no answer from the agent</span>}
+                      </td>
                       <td className="px-4 py-3.5 text-right align-top"><a href={receiptLink(job)} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-ink hover:underline">BscScan <Icon.External size={13} /></a></td>
                     </tr>
                   );

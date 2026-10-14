@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isPromotableAgent } from '../src/lib/agents/eligibility';
+import { hasDisplayName, isFeaturableAgent, isPromotableAgent } from '../src/lib/agents/eligibility';
 
 test('ordinary production agents may be promoted', () => {
   assert.equal(
@@ -93,4 +93,14 @@ test('a trailing parenthetical that qualifies rather than disclaims survives', (
   ]) {
     assert.equal(isPromotableAgent({ name }), true, name);
   }
+});
+
+test('a slug is not a display name, so the agent is listed but not featured', () => {
+  assert.equal(hasDisplayName({ name: 'marketplace-operated-grid-planner' }), false);
+  assert.equal(hasDisplayName({ name: 'mandaterebalance-agent' }), false);
+  assert.equal(hasDisplayName({ name: 'Health Factor Monitor' }), true);
+  assert.equal(hasDisplayName({ name: 'Keel' }), true);
+  assert.equal(hasDisplayName({ name: 'BORT Yield Weaver #10997' }), true);
+  assert.equal(isFeaturableAgent({ name: 'marketplace-operated-grid-planner', description: 'Grid planning seller.' }), false);
+  assert.equal(isPromotableAgent({ name: 'marketplace-operated-grid-planner', description: 'Grid planning seller.' }), true);
 });

@@ -61,6 +61,21 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+/**
+ * The challenge's measurement schedule: about a day of samples. The page's
+ * description is generated from these, so the command and the sentence
+ * under it cannot disagree again (they said "one hour apart" for 36 minutes).
+ */
+export const CHALLENGE_SAMPLES = 40;
+export const CHALLENGE_INTERVAL_MS = 2_160_000;
+
+/** "40 samples 36 minutes apart, over about 24 hours". */
+export function challengeScheduleText(samples = CHALLENGE_SAMPLES, intervalMs = CHALLENGE_INTERVAL_MS): string {
+  const minutes = Math.round(intervalMs / 60_000);
+  const hours = Math.round(((samples - 1) * intervalMs) / 3_600_000);
+  return `${samples} samples ${minutes} minutes apart, over about ${hours} hours`;
+}
+
 export function evaluatorStarterCommand(input: {
   chainId: number;
   tokenId: string;
@@ -73,8 +88,8 @@ export function evaluatorStarterCommand(input: {
     `--agent ${input.tokenId}`,
     `--endpoint ${shellQuote(input.endpoint)}`,
     `--protocol ${input.protocol}`,
-    '--samples 40',
-    '--interval-ms 2160000',
+    `--samples ${CHALLENGE_SAMPLES}`,
+    `--interval-ms ${CHALLENGE_INTERVAL_MS}`,
     `--vantage ${shellQuote('Describe your region and network')}`,
   ].join(' \\\n  ');
 }

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { getAddress } from 'viem';
 
-import { isPromotableAgent } from '@/lib/agents/eligibility';
+import { isFeaturableAgent } from '@/lib/agents/eligibility';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { getFunderStore } from '@/lib/funding/store';
 import { operatorResolver } from '@/lib/funding/operator';
@@ -54,7 +54,8 @@ function factsOf(entry: Awaited<ReturnType<typeof listSearchableWithStatus>>['en
     chainId: entry.listing.agent.chain_id,
     tokenId: entry.listing.agent.token_id,
     owner: entry.listing.agent.owner_address,
-    promotable: isPromotableAgent(entry.listing.agent),
+    // Featured as a work queue, so the bar is a readable name as well.
+    promotable: isFeaturableAgent(entry.listing.agent),
     hasProtocol: (entry.listing.agent.supported_protocols?.length ?? 0) > 0,
     requiresAuth: entry.listing.requiresAuth === true,
     quotePayable: entry.listing.quotePayable === true,

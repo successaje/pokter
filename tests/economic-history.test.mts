@@ -55,3 +55,13 @@ test('outside-team market proof excludes declared wallets and unknown legacy fun
   });
   assert.equal(history.uniqueBuyers, 3, 'all known buyers include the team wallet but never invent the unknown funder');
 });
+
+test('a lifecycle demonstration is neither a delivery nor a miss for the agent', () => {
+  const demo = { ...job('COMPLETED'), jobId: 'demo' };
+  const real = { ...job('COMPLETED'), jobId: 'real' };
+  const history = summariseEconomicHistory([demo, real], Date.now(), { isLifecycleDemo: (j) => j.jobId === 'demo' });
+  assert.equal(history.completed, 1);
+  assert.equal(history.delivered, 1);
+  assert.equal(history.jobs, 1);
+  assert.equal(history.lifecycleDemos, 1);
+});

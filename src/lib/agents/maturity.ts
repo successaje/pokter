@@ -118,7 +118,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
       id: 'reliable-operator',
       label: LABEL['reliable-operator'],
       earned: reliable,
-      detail: `${facts.outsideTeam.terminal}/${RELIABLE_TERMINAL_JOBS} terminal outside-team jobs · ${facts.outsideTeam.completionRate === null ? 'no rate yet' : `${Math.round(facts.outsideTeam.completionRate * 100)}% completed`} · ${facts.observedDays}/${RELIABLE_OBSERVED_DAYS} observed days.`,
+      detail: `${facts.outsideTeam.terminal}/${RELIABLE_TERMINAL_JOBS} terminal outside-team jobs · ${facts.outsideTeam.completionRate === null ? 'no rate yet' : `${Math.round(facts.outsideTeam.completionRate * 100)}% completed`} · ${Math.floor(facts.observedDays)}/${RELIABLE_OBSERVED_DAYS} observed days.`,
     },
   ];
 
