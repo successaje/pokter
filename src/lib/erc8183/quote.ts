@@ -1,7 +1,7 @@
 import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
-import { negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
 
@@ -46,6 +46,16 @@ export interface AgentQuote {
    * field that answers "can this be hired" never left the function.
    */
   domain: { chainId: number; verifyingContract: string } | null;
+  /**
+   * The signed quote as the reference SDK anchors it in a job: exactly the
+   * fields the negotiation hash covers, plus the hash and the signature.
+   *
+   * Sellers on that pattern read these from the funded job's description
+   * and re-derive the hash before they deliver. The hash and signature on
+   * their own are not enough: without the terms, the seller cannot show the
+   * hash is of its own quote, and refuses the job.
+   */
+  anchor: Record<string, unknown> | null;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -206,6 +216,7 @@ export async function requestQuote(
      * above. Derivation as in BNB's reference SDK.
      */
     if (!negotiationTermsBound(data, enquiry.task_description)) return null;
+    const content = negotiationContent(data, enquiry.task_description);
 
     const expiry = data.quote_expires_at || response?.quote_expires_at;
     /* Absent on some sellers, which is "unbound", not "bound to ours". */
@@ -230,6 +241,9 @@ export async function requestQuote(
         typeof verifyingContract === 'string'
           ? { chainId: domainChain, verifyingContract }
           : null,
+      anchor: content
+        ? { ...content, negotiation_hash: data.negotiation_hash, provider_sig: data.provider_sig }
+        : null,
     };
   } catch {
     return null;
