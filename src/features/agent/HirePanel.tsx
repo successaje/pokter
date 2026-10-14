@@ -120,7 +120,7 @@ export function MobileHireBar({ profile }: { profile: AgentProfile }) {
   const money = escrowMoney(profile.escrow.chainId);
   if (!profile.hireable) return null;
   return (
-    <div className={cn('fixed inset-x-0 bottom-[calc(56px+max(12px,env(safe-area-inset-bottom)))] z-30 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] px-4 py-3 backdrop-blur-md lg:hidden')}>
+    <div data-hire-bar className={cn('fixed inset-x-0 bottom-[calc(56px+max(12px,env(safe-area-inset-bottom)))] z-30 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] px-4 py-3 backdrop-blur-md lg:hidden')}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 flex-col">
           <span className="flex items-baseline gap-1.5">

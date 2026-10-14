@@ -37,7 +37,13 @@ export function Inspection({ specimens }: { specimens: Specimen[] }) {
   const [index, setIndex] = useState(0);
   // Progress is stored against the specimen it belongs to, so moving to the
   // next one starts it at zero without a reset render.
-  const [progress, setProgress] = useState<{ index: number; step: number }>({ index: 0, step: 0 });
+  /*
+   * The first specimen starts resolved. Starting at zero showed a card of
+   * dashes on first paint, to anyone whose script was slow and to every
+   * screenshot; the line-by-line reveal now plays only when the card moves
+   * on to the next agent.
+   */
+  const [progress, setProgress] = useState<{ index: number; step: number }>({ index: 0, step: Number.MAX_SAFE_INTEGER });
   const [paused, setPaused] = useState(false);
   const still = useSyncExternalStore(
     (onChange) => {
@@ -57,7 +63,8 @@ export function Inspection({ specimens }: { specimens: Specimen[] }) {
     if (!specimen || still) return;
     const timers: number[] = [];
     for (let step = 1; step <= total; step += 1) {
-      timers.push(window.setTimeout(() => setProgress({ index, step }), 380 + step * STEP_MS));
+      // Never backwards for the specimen on show, so the resolved first card stays resolved.
+      timers.push(window.setTimeout(() => setProgress((prev) => (prev.index === index && prev.step >= step ? prev : { index, step })), 380 + step * STEP_MS));
     }
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [index, still, total, specimen]);
