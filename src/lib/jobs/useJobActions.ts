@@ -235,7 +235,7 @@ export function useJobActions(initial: HiredJob) {
     setError(null);
     setReceiptVerified(false);
     try {
-      const response = await fetch(`/api/deliverables/verify?jobId=${encodeURIComponent(job.jobId)}`, { cache: 'no-store' });
+      const response = await fetch(`/api/deliverables/verify?jobId=${encodeURIComponent(job.jobId)}&chain=${job.chainId}`, { cache: 'no-store' });
       const result = (await response.json()) as { verified?: boolean; error?: string };
       if (!response.ok) throw new Error(result.error ?? 'Receipt verification failed.');
       if (!result.verified) throw new Error('The delivered file does not match the hash recorded on chain.');
