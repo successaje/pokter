@@ -19,6 +19,7 @@ import {
   writeDeliverable,
   type StoredDeliverable,
 } from '@/lib/erc8183/deliverables';
+import { builtWithPokter } from '@/lib/brand/built-with';
 
 const inFlight = new Map<string, Promise<DemoDeliveryResult>>();
 let sellerAddressPromise: Promise<Address> | undefined;
@@ -168,6 +169,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
     response: { content, content_type: 'application/json' },
     metadata: {
       producer: 'Pokter delivery agent (courier)',
+      ...builtWithPokter,
       answered_by: `${envelope.identity.chainId}:${envelope.identity.tokenId}`,
       generated_at: new Date().toISOString(),
       proof: 'ERC-8183 funded job re-read before submission; brief carried to the named agent over A2A',
