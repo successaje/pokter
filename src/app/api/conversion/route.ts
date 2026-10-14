@@ -17,6 +17,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (escrowChainId !== null && escrowChainId !== 56 && escrowChainId !== 97) {
     return NextResponse.json({ error: 'Invalid escrow chain.' }, { status: 400 });
   }
-  recordConversion({ event: body.event, chainId, tokenId, escrowChainId });
+  try {
+    recordConversion({ event: body.event, chainId, tokenId, escrowChainId });
+  } catch {
+    // A count that could not be written is a lost count, not a broken hire page.
+    return new NextResponse(null, { status: 503 });
+  }
   return new NextResponse(null, { status: 204 });
 }

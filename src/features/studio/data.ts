@@ -23,7 +23,21 @@ import { buildGrowthSnapshot, type BuilderGrowthSnapshot } from '@/lib/builders/
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { chainLabel } from '@/lib/network/presentation';
 import { agentConversion } from '@/lib/conversion/store';
-import type { ConversionCounts } from '@/lib/conversion/funnel';
+import { emptyConversionCounts, type ConversionCounts } from '@/lib/conversion/funnel';
+
+
+/*
+ * Funnel counts are a nicety on a builder's dashboard, not the dashboard.
+ * When their store could not be opened, every Studio with an agent in it
+ * failed to load; an empty funnel is the honest reading of "not counted".
+ */
+function conversionOrEmpty(chainId: number, tokenId: string): ConversionCounts {
+  try {
+    return agentConversion(chainId, tokenId);
+  } catch {
+    return emptyConversionCounts();
+  }
+}
 
 export interface FleetAgent {
   key: string;
@@ -134,7 +148,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
         adoption: adoptions[i],
         maturity,
         growth,
-        conversion: agentConversion(agent.chain_id, agent.token_id),
+        conversion: conversionOrEmpty(agent.chain_id, agent.token_id),
       };
     }),
   };
