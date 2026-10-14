@@ -45,12 +45,12 @@ export function evidenceChain(value: unknown): ChainId | null {
 /**
  * Which chain's token a quote should be denominated in.
  *
- * Three ways to say it, in descending order of how specifically the
- * caller said it. `chain_id` is the caller naming one. `escrow_chains` is
- * a buyer able to settle on several, so the first that this agent
- * supports is taken. `endpointChain` comes from the per-chain agent card,
- * which is how a listing registered on one chain gets quotes in that
- * chain's token without the caller doing anything.
+ * `chain_id` is the caller naming one, and wins. `endpointChain` comes
+ * from the per-chain agent card, which is how a listing registered on one
+ * chain gets quotes in that chain's token without the caller doing
+ * anything; it is used whenever the buyer can settle there. Otherwise
+ * `escrow_chains`, a buyer able to settle on several, gives the first
+ * that this agent supports.
  *
  * Only then the default. That default is what priced a testnet listing in
  * mainnet currency: honestly signed, verifying perfectly, and impossible
@@ -62,11 +62,21 @@ export function quoteChainFor(input: {
   escrowChains?: unknown;
   endpointChain?: unknown;
 }): ChainId {
-  const offered = Array.isArray(input.escrowChains) ? input.escrowChains : [];
+  const offered = (Array.isArray(input.escrowChains) ? input.escrowChains : [])
+    .map(evidenceChain)
+    .filter((value): value is ChainId => value !== null);
+  const endpoint = evidenceChain(input.endpointChain);
   return (
     evidenceChain(input.chainId) ??
-    offered.map(evidenceChain).find((value): value is ChainId => value !== null) ??
-    evidenceChain(input.endpointChain) ??
+    /*
+     * The listing's own chain, when the buyer can settle there. A buyer
+     * listing several escrows is saying which it can use, not which this
+     * listing is on; taking the first of them priced the mainnet listing
+     * in testnet $U for a buyer that could have paid on mainnet.
+     */
+    (endpoint !== null && (offered.length === 0 || offered.includes(endpoint)) ? endpoint : null) ??
+    offered[0] ??
+    endpoint ??
     (EVIDENCE_CHAINS[0] as ChainId)
   );
 }
