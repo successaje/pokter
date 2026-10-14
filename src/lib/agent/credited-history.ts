@@ -2,6 +2,7 @@ import 'server-only';
 
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { summariseEconomicHistory, type AgentEconomicHistory } from '@/lib/erc8183/economic-history';
+import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { deliveryKind } from './delivery-kind';
 
@@ -50,5 +51,9 @@ export function isLifecycleDemo(job: HiredJob): boolean {
  * page while another calls it a demonstration.
  */
 export function agentHistory(jobs: HiredJob[], now = Date.now()): AgentEconomicHistory {
-  return summariseEconomicHistory(jobs, now, { isLifecycleDemo });
+  const store = getJobStore();
+  return summariseEconomicHistory(jobs, now, {
+    isLifecycleDemo,
+    refusedAtNotice: (job) => store.noticeFor(job.chainId, job.jobId)?.status === 'rejected',
+  });
 }

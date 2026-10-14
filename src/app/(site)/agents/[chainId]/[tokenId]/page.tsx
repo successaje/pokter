@@ -448,14 +448,14 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <Readout label="Jobs funded" value={p.history.jobs} note={p.history.pending ? `${p.history.pending} still inside the deadline` : 'Through Pokter escrow'} />
                 <Readout
                   label="Delivered"
-                  value={p.history.jobs - p.history.pending > 0 ? `${p.history.delivered} of ${p.history.jobs - p.history.pending}` : '—'}
+                  value={p.history.jobs - p.history.pending - p.history.refused > 0 ? `${p.history.delivered} of ${p.history.jobs - p.history.pending - p.history.refused}` : '—'}
                   note={p.history.completed ? `${p.history.completed} settled` : p.history.jobs ? 'None settled yet' : 'No jobs yet'}
                   muted={!p.history.delivered}
                 />
                 <Readout
                   label="Missed deadline"
                   value={p.history.missed}
-                  note={p.history.missed ? 'Funded, nothing delivered in time' : 'None missed'}
+                  note={[p.history.missed ? 'Funded, nothing delivered in time' : 'None missed', p.history.refused ? `${p.history.refused} refused when funded, not counted` : null].filter(Boolean).join(' · ')}
                   muted={!p.history.missed}
                   className={p.history.missed ? '[&>span:nth-child(2)]:text-watch' : undefined}
                 />

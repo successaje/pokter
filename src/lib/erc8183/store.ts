@@ -7,6 +7,27 @@ import { dirname } from 'node:path';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
+ * What the seller said when told its job was funded.
+ *
+ * `accepted` and `rejected` are the seller's own answers; `unreachable` is
+ * Pokter failing to get one (no card, no notify skill, a timeout). The
+ * reason is the seller's words, kept because the buyer has no other way to
+ * learn them: a refused job otherwise looks like a slow one until it
+ * expires.
+ */
+export type SellerNoticeStatus = 'accepted' | 'rejected' | 'unreachable';
+
+export interface SellerNotice {
+  chainId: number;
+  jobId: string;
+  status: SellerNoticeStatus;
+  reason: string | null;
+  attempts: number;
+  firstAt: string;
+  lastAt: string;
+}
+
+/**
  * Pokter's index of jobs it commissioned.
  *
  * Authoritative job state lives in the AgenticCommerce kernel; this table only
@@ -30,6 +51,9 @@ export interface JobStore {
    */
   readCursor(name: string): string | null;
   writeCursor(name: string, value: string): void;
+  recordNotice(input: { chainId: number; jobId: string; status: SellerNoticeStatus; reason: string | null }): SellerNotice;
+  noticeFor(chainId: number, jobId: string): SellerNotice | null;
+  notices(): SellerNotice[];
 }
 
 const SCHEMA = `
@@ -64,7 +88,40 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
+
+  CREATE TABLE IF NOT EXISTS seller_notices (
+    chain_id INTEGER NOT NULL,
+    job_id   TEXT NOT NULL,
+    status   TEXT NOT NULL,
+    reason   TEXT,
+    attempts INTEGER NOT NULL,
+    first_at TEXT NOT NULL,
+    last_at  TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id)
+  );
 `;
+
+interface NoticeRow {
+  chain_id: number;
+  job_id: string;
+  status: string;
+  reason: string | null;
+  attempts: number;
+  first_at: string;
+  last_at: string;
+}
+
+function toNotice(row: NoticeRow): SellerNotice {
+  return {
+    chainId: row.chain_id,
+    jobId: row.job_id,
+    status: row.status as SellerNoticeStatus,
+    reason: row.reason,
+    attempts: row.attempts,
+    firstAt: row.first_at,
+    lastAt: row.last_at,
+  };
+}
 
 interface JobRow {
   id: string;
@@ -206,6 +263,32 @@ class SqliteJobStore implements JobStore {
                                           updated_at = excluded.updated_at`,
       )
       .run(name, value, new Date().toISOString());
+  }
+
+  recordNotice(input: { chainId: number; jobId: string; status: SellerNoticeStatus; reason: string | null }): SellerNotice {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO seller_notices (chain_id, job_id, status, reason, attempts, first_at, last_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?)
+         ON CONFLICT (chain_id, job_id) DO UPDATE SET
+           status = excluded.status, reason = excluded.reason,
+           attempts = seller_notices.attempts + 1, last_at = excluded.last_at`,
+      )
+      .run(input.chainId, input.jobId, input.status, input.reason?.slice(0, 500) ?? null, now, now);
+    return this.noticeFor(input.chainId, input.jobId)!;
+  }
+
+  noticeFor(chainId: number, jobId: string): SellerNotice | null {
+    const row = this.db
+      .prepare('SELECT * FROM seller_notices WHERE chain_id = ? AND job_id = ?')
+      .get(chainId, jobId) as unknown as NoticeRow | undefined;
+    return row ? toNotice(row) : null;
+  }
+
+  notices(): SellerNotice[] {
+    const rows = this.db.prepare('SELECT * FROM seller_notices').all() as unknown as NoticeRow[];
+    return rows.map(toNotice);
   }
 
   byId(id: string): HiredJob | null {
