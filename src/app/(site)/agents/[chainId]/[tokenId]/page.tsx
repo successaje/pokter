@@ -46,8 +46,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const p = result.profile;
   const measured =
     p.record.totalProbes === 0 ? 'Not measured by Pokter yet' : `answered ${p.record.totalAnswered} of ${p.record.totalProbes} probes`;
-  const title = `${p.name} — ${p.verdict.label}`;
-  const description = `${p.summary} ${p.verdict.label}: ${measured}.`.slice(0, 300);
+  // The evidence step, the same word the page leads with; availability follows in the description.
+  const title = `${p.name} — ${p.maturity.label}`;
+  const description = `${p.summary} ${p.maturity.label}. Availability ${p.verdict.label.toLowerCase()}: ${measured}.`.slice(0, 300);
   const url = `/agents/${p.chainId}/${p.tokenId}`;
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, type: 'profile' } };
 }
@@ -191,8 +192,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   </span>
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <VerdictChip verdict={p.verdict.id} />
                   <MaturityLabel maturity={p.maturity} className="h-7 py-0" />
+                  <VerdictChip verdict={p.verdict.id} prefix="Availability" />
                   <span className={`inline-flex h-7 items-center gap-2 rounded-full border px-2.5 text-[13px] font-medium ${p.live.answered ? 'border-ok/30 text-ok' : 'border-rule-strong text-ink-3'}`}>
                     <span className={`size-1.5 rounded-full ${p.live.answered ? 'bg-ok pulse' : 'bg-rule-strong'}`} aria-hidden />
                     {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
@@ -246,13 +247,13 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <span className="t-label">Commercial maturity</span>
+                  <span className="t-label">Evidence</span>
                   <p className="mt-1 text-[13px] text-ink-2">{p.maturity.summary}</p>
                 </div>
-                <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How milestones are earned</Link>
+                <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How each step is earned</Link>
               </div>
               <MaturityLadder maturity={p.maturity} />
-              <p className="text-[11.5px] leading-relaxed text-ink-3">Commercial maturity records registrations, checks and jobs. The {p.verdict.label} evidence verdict above separately judges probes and third-party attestations.</p>
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
             </div>
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

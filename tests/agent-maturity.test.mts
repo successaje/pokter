@@ -20,19 +20,24 @@ function facts(overrides: Partial<MaturityFacts> = {}): MaturityFacts {
   };
 }
 
-test('a registry entry alone earns only Registered', () => {
+test('a registry entry that has not answered has earned no step', () => {
   const maturity = deriveMaturity(facts());
-  assert.equal(maturity.current, 'registered');
-  assert.deepEqual(maturity.steps.filter((step) => step.earned).map((step) => step.id), ['registered']);
+  assert.equal(maturity.current, null);
+  assert.equal(maturity.label, 'Not answering yet');
+  assert.deepEqual(maturity.steps.filter((step) => step.earned), []);
 });
 
-test('real delivery remains visible even when no category test exists', () => {
+test('the ladder is the five evidence steps, in order', () => {
+  assert.deepEqual(deriveMaturity(facts()).steps.map((step) => step.label), ['Answers', 'Priced', 'Delivered', 'Checked', 'Proven in use']);
+});
+
+test('real delivery remains visible even when no category check exists', () => {
   const maturity = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true }));
   assert.equal(maturity.current, 'delivered');
-  assert.equal(maturity.steps.find((step) => step.id === 'tested')?.earned, false);
+  assert.equal(maturity.steps.find((step) => step.id === 'checked')?.earned, false);
 });
 
-test('market proof requires both three completions and three outside-team buyers', () => {
+test('proven in use requires both three completions and three outside-team buyers', () => {
   const twoBuyers = deriveMaturity(facts({
     delivered: true,
     outsideTeam: { jobs: 3, completed: 3, terminal: 3, uniqueBuyers: 2, completionRate: 1 },
@@ -43,10 +48,11 @@ test('market proof requires both three completions and three outside-team buyers
     delivered: true,
     outsideTeam: { jobs: 3, completed: 3, terminal: 3, uniqueBuyers: 3, completionRate: 1 },
   }));
-  assert.equal(threeBuyers.current, 'market-proven');
+  assert.equal(threeBuyers.current, 'proven-in-use');
+  assert.equal(threeBuyers.sustained, false);
 });
 
-test('reliable operator requires volume, delivery rate and sustained probes', () => {
+test('a sustained record is a qualifier on proven in use, needing volume, delivery rate and probes', () => {
   const maturity = deriveMaturity(facts({
     reachable: true,
     compatible: true,
@@ -56,7 +62,9 @@ test('reliable operator requires volume, delivery rate and sustained probes', ()
     probeRate: 0.9,
     observedDays: 30,
   }));
-  assert.equal(maturity.current, 'reliable-operator');
+  assert.equal(maturity.current, 'proven-in-use');
+  assert.equal(maturity.sustained, true);
+  assert.match(maturity.steps.find((step) => step.id === 'proven-in-use')?.detail ?? '', /Sustained: 30 observed days/);
 });
 
 test('team-funded work cannot contribute because it is absent from outside-team facts', () => {
@@ -66,21 +74,21 @@ test('team-funded work cannot contribute because it is absent from outside-team 
     outsideTeam: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
   }));
   assert.equal(maturity.current, 'delivered');
-  assert.equal(maturity.steps.find((step) => step.id === 'market-proven')?.earned, false);
+  assert.equal(maturity.steps.find((step) => step.id === 'proven-in-use')?.earned, false);
 });
 
-test('a delivery submitted by a Pokter wallet does not earn the agent the milestone', () => {
+test('a delivery submitted by a Pokter wallet does not earn the agent the step', () => {
   const maturity = deriveMaturity(facts({
     reachable: true, compatible: true, hired: true,
     delivered: false, deliveredByOperator: true,
   }));
-  assert.equal(maturity.current, 'hired');
+  assert.equal(maturity.current, 'priced');
   const step = maturity.steps.find((s) => s.id === 'delivered');
   assert.equal(step?.earned, false);
-  assert.match(step?.detail ?? '', /Pokter-operated wallet submitted it/);
+  assert.match(step?.detail ?? '', /a Pokter wallet submitted it/);
 });
 
-test('the agent delivering its own work still earns the milestone', () => {
+test('the agent delivering its own work still earns the step', () => {
   const maturity = deriveMaturity(facts({
     reachable: true, compatible: true, hired: true, delivered: true,
   }));

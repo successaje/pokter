@@ -187,7 +187,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
-          <dt className="t-label">Evidence</dt>
+          <dt className="t-label">Availability</dt>
           <dd>
             <VerdictLabel verdict={row.verdict} className="text-[12.5px]" />
           </dd>
