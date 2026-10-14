@@ -13,7 +13,12 @@ const iconButton =
   'inline-flex h-9 items-center gap-2 rounded-[8px] border border-rule-strong bg-raised px-3 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink';
 
 /** Saves to this device. Saved agents are re-checked in the background. */
-export function SaveButton({ agent, className }: { agent: Omit<SavedAgent, 'savedAt'>; className?: string }) {
+/** Wraps a button's text so `compact` shows only the icon on phones; screen readers keep the text. */
+function ButtonText({ compact, children }: { compact?: boolean; children: React.ReactNode }) {
+  return <span className={compact ? 'sr-only sm:not-sr-only' : undefined}>{children}</span>;
+}
+
+export function SaveButton({ agent, className, compact }: { agent: Omit<SavedAgent, 'savedAt'>; className?: string; compact?: boolean }) {
   const saved = useSyncExternalStore(
     subscribeToSavedAgents,
     () => isAgentSaved(agent.chainId, agent.tokenId),
@@ -28,7 +33,7 @@ export function SaveButton({ agent, className }: { agent: Omit<SavedAgent, 'save
       title={saved ? 'Saved on this device. Pokter will flag changes to its evidence, availability or price.' : 'Save to watch for changes'}
     >
       {saved ? <Icon.BookmarkFilled size={15} /> : <Icon.Bookmark size={15} />}
-      {saved ? 'Saved' : 'Save'}
+      <ButtonText compact={compact}>{saved ? 'Saved' : 'Save'}</ButtonText>
     </button>
   );
 }
@@ -67,7 +72,7 @@ export function ShareButton({ title, path, className }: { title: string; path: s
  * stops it. The button reflects what this device asked for: pending until
  * the link is opened, then following.
  */
-export function FollowButton({ chainId, tokenId, name, className }: { chainId: number; tokenId: string; name: string; className?: string }) {
+export function FollowButton({ chainId, tokenId, name, className, compact }: { chainId: number; tokenId: string; name: string; className?: string; compact?: boolean }) {
   const follow = useSyncExternalStore(subscribeToFollows, () => deviceFollow(chainId, tokenId), () => null);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
@@ -109,6 +114,7 @@ export function FollowButton({ chainId, tokenId, name, className }: { chainId: n
       <button
         type="button"
         aria-pressed={follow?.status === 'confirmed'}
+        title={follow?.status === 'confirmed' ? 'Following: email alerts when its evidence, availability or price changes' : 'Follow: email alerts when its evidence, availability or price changes'}
         className={cn(iconButton, follow?.status === 'confirmed' && 'border-ink text-ink', className)}
         onClick={() => {
           setState('idle');
@@ -116,7 +122,7 @@ export function FollowButton({ chainId, tokenId, name, className }: { chainId: n
         }}
       >
         {follow?.status === 'confirmed' ? <Icon.Check size={15} /> : follow?.status === 'pending' ? <Icon.Clock size={15} /> : <Icon.Bell size={15} />}
-        {label}
+        <ButtonText compact={compact}>{label}</ButtonText>
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={follow?.status === 'confirmed' ? `Following ${name}` : `Follow ${name}`} description="Email alerts when something Pokter measures about this agent changes.">
         {state === 'sent' ? (

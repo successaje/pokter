@@ -14,6 +14,7 @@ import { TrialPanel } from '@/features/agent/TrialPanel';
 import { AgentTabBar, AgentTabHint, AgentTabPanel } from '@/features/agent/AgentTabs';
 import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
+import { MoreActions, menuRow } from '@/features/agent/MoreActions';
 import { CompareToggle } from '@/features/compare/CompareControls';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -194,11 +195,15 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <MaturityLabel maturity={p.maturity} className="h-7 py-0" />
                   <VerdictChip verdict={p.verdict.id} prefix="Availability" />
-                  <span className={`inline-flex h-7 items-center gap-2 rounded-full border px-2.5 text-[13px] font-medium ${p.live.answered ? 'border-ok/30 text-ok' : 'border-rule-strong text-ink-3'}`}>
+                  {/*
+                    The live check is part of availability, so it is read as
+                    its tail rather than as another chip; the category was a
+                    chip too, and the breadcrumb above already names it.
+                  */}
+                  <span className={`inline-flex items-center gap-1.5 text-[12.5px] ${p.live.answered ? 'text-ok' : 'text-ink-3'}`}>
                     <span className={`size-1.5 rounded-full ${p.live.answered ? 'bg-ok pulse' : 'bg-rule-strong'}`} aria-hidden />
                     {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
                   </span>
-                  {p.category && <span className="inline-flex h-7 items-center rounded-full border border-rule-strong px-2.5 text-[13px] text-ink-2">{p.category.label}</span>}
                   {/*
                     Where a hire is funded, beside the chips a reader
                     already looks at.
@@ -219,11 +224,13 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <SaveButton agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, imageUrl: p.imageUrl, category: p.category?.id ?? 'unclassified', description: p.summary }} />
-              <FollowButton chainId={p.chainId} tokenId={p.tokenId} name={p.name} />
-              <ShareButton title={p.name} path={path} />
-              <CompareToggle agentKey={p.key} className="h-9 px-3 text-[13px]" />
+            <div className="flex shrink-0 items-center gap-2">
+              <FollowButton chainId={p.chainId} tokenId={p.tokenId} name={p.name} compact />
+              <SaveButton agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, imageUrl: p.imageUrl, category: p.category?.id ?? 'unclassified', description: p.summary }} compact />
+              <MoreActions label={`More for ${p.name}`}>
+                <ShareButton title={p.name} path={path} className={menuRow} />
+                <CompareToggle agentKey={p.key} className={menuRow} />
+              </MoreActions>
             </div>
           </div>
           <p className="t-lede mt-6 max-w-3xl">{p.summary}</p>
@@ -244,17 +251,6 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             <h2 id="overview-title" className="sr-only">
               Overview
             </h2>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <span className="t-label">Evidence</span>
-                  <p className="mt-1 text-[13px] text-ink-2">{p.maturity.summary}</p>
-                </div>
-                <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How each step is earned</Link>
-              </div>
-              <MaturityLadder maturity={p.maturity} />
-              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
-            </div>
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
@@ -294,6 +290,17 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </div>
             )}
 
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <span className="t-label">Evidence</span>
+                  <p className="mt-1 text-[13px] text-ink-2">{p.maturity.summary}</p>
+                </div>
+                <Link href="/methodology#maturity" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">How each step is earned</Link>
+              </div>
+              <MaturityLadder maturity={p.maturity} />
+              <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
+            </div>
             {p.sample && (
               <div className="flex flex-col gap-3">
                 <span className="t-label">{p.sample.kind === 'lifecycle' ? 'A lifecycle demonstration, not an answer' : 'A real delivery'}</span>
