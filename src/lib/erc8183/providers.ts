@@ -84,6 +84,12 @@ export async function providerChoicesFor(
   // Offered only where it can be hired. On another escrow it would sit in the
   // list as an option nobody can choose.
   if (escrowChainId !== 97) return choices;
+  /*
+   * The verified seller is a different agent. Offered beside the one the
+   * buyer chose, it read as a third way to hire that agent, which it is not;
+   * it remains only as a last resort when nothing can reach the agent.
+   */
+  if (choices.some((choice) => choice.reachable && choice.automatedDelivery)) return choices;
 
   choices.push({
     address: VERIFIED_TESTNET_PROVIDER,

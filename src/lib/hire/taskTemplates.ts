@@ -103,10 +103,12 @@ export function templatesFromSkills(
       const task = example.trim();
       if (!task || seen.has(task.toLowerCase())) continue;
       seen.add(task.toLowerCase());
+      // A JSON example reads as noise on a button; the skill's own name is the label.
+      const shown = task.startsWith('{') ? skill.name : task;
       templates.push({
         id: `declared-${templates.length}`,
-        label: task.length <= 28 ? task : `${task.slice(0, 27)}…`,
-        short: task.length <= 14 ? task : `${task.slice(0, 13)}…`,
+        label: shown.length <= 28 ? shown : `${shown.slice(0, 27)}…`,
+        short: shown.length <= 14 ? shown : `${shown.slice(0, 13)}…`,
         description: `From this agent's own card, under “${skill.name}”.`,
         task,
       });
