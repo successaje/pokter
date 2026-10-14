@@ -66,6 +66,13 @@ export function GET(request: Request) {
       statusCheckedAt: job.statusCheckedAt,
       /* Pokter's own test hires, marked rather than hidden. */
       fundedByPokter: fundedByTeam(job, team),
+      /*
+       * Buyer and seller the same wallet. Published because excluding these
+       * from the demand figures is a claim, and a claim nobody can check is
+       * worth nothing on a page about being checkable: the escrow names both
+       * parties, so a reader can confirm this field rather than trust it.
+       */
+      selfHire: Boolean(job.client) && job.client!.toLowerCase() === job.provider.toLowerCase(),
       transactionHash: job.hireTxHash ?? null,
       verify: {
         escrowContract: `${explorer}/address/${correctedErc8183Addresses(job.chainId).commerce}#readContract`,
@@ -84,6 +91,9 @@ export function GET(request: Request) {
         completed: receipts.filter((r) => r.chainId === chainId && r.status === 'COMPLETED').length,
       })),
       fundedByPokter: receipts.filter((r) => r.fundedByPokter).length,
+      selfHire: receipts.filter((r) => r.selfHire).length,
+      /* Outside money, and not the operator paying their own agent. */
+      outsideDemand: receipts.filter((r) => !r.fundedByPokter && !r.selfHire).length,
     },
     teamWallets: teamWalletList(),
     howToVerify: [
@@ -91,6 +101,7 @@ export function GET(request: Request) {
       'Download /api/v1/receipts/verifier to check every row and recompute the totals without installing dependencies.',
       'Every job Pokter brokers carries {"protocol":"pokter-job"} in its on-chain description, so the full set can be found by reading the escrow without using this endpoint at all.',
       'Jobs funded by the wallets in teamWallets are Pokter\'s own tests. They are marked here and excluded from the buyer figures in /api/v1/activity.',
+      'A job marked selfHire has the same wallet on both sides, so it is an operator funding their own agent rather than demand. Three such jobs were counted as outside demand until 14 October 2026; getJob returns both parties, so this is checkable rather than a promise.',
     ],
     scope: 'Jobs commissioned through Pokter and verified against ERC-8183 before indexing. No buyer address, task text or deliverable is returned; the job id makes the buyer findable on chain for anyone who wants it, which is the chain\'s doing.',
   });

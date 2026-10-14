@@ -25,7 +25,7 @@ const GET_JOB = '0xbf22c457';
 
 interface Receipt {
   chainId: number; jobId: string; escrow: string; status: string;
-  provider: string; fundedByPokter: boolean;
+  provider: string; fundedByPokter: boolean; selfHire?: boolean;
 }
 
 const word = (hex: string, i: number) => hex.slice(2 + i * 64, 2 + i * 64 + 64);
@@ -75,12 +75,21 @@ for (const row of rows) {
   if (row.onchainProvider !== row.provider.toLowerCase()) {
     problems.push(`${job}: the index names provider ${row.provider} and the escrow names ${row.onchainProvider}.`);
   }
-  if (row.client === row.onchainProvider && !row.fundedByPokter) {
-    problems.push(`${job}: buyer and seller are the same wallet (${row.client}), so it must not count as outside demand.`);
+  /* The escrow is the judge of who was on each side, so a selfHire flag that
+     disagrees with it is the failure — whether it claims too much or too little. */
+  const selfHire = row.client === row.onchainProvider;
+  if (selfHire !== Boolean(row.selfHire)) {
+    problems.push(`${job}: the escrow says selfHire=${selfHire} (buyer ${row.client}, seller ${row.onchainProvider}) and the index says ${Boolean(row.selfHire)}.`);
   }
 }
 
 const outside = rows.filter((row) => !row.fundedByPokter && row.client !== row.onchainProvider);
+/* What the endpoint claims, recomputed from the contract, so the two can be
+   compared instead of one being taken on faith. */
+const claimed = index.counts?.outsideDemand;
+if (typeof claimed === 'number' && claimed !== outside.length) {
+  problems.push(`The index claims ${claimed} outside-demand jobs; the escrows support ${outside.length}.`);
+}
 const armsLength = outside.filter((row) => !published.has(row.onchainProvider));
 
 console.log(JSON.stringify({
