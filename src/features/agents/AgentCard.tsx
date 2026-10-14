@@ -7,6 +7,7 @@ import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
+import { LinkButton } from '@/ui/Button';
 
 /** Paid jobs the agent let lapse, said only when there are some. */
 function MissedNote({ row, className }: { row: FindRow; className?: string }) {
@@ -99,15 +100,37 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
       <MissedNote row={row} className="mt-1.5" />
       <div className="mt-3"><MaturityLabel maturity={row.maturity} /></div>
 
+      {/*
+        Price and the next step, where a buyer looks to decide. The card had
+        no action of its own beyond Compare, and repeated the availability
+        line above as a verdict word; the status line and the evidence step
+        already say both.
+      */}
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
-        <VerdictLabel verdict={row.verdict} />
-        <span className="flex flex-col items-end gap-0.5">
+        <span className="flex min-w-0 flex-col gap-0.5">
           <PriceText row={row} className="text-[13px]" />
           <HireNetwork chainId={row.hireChainId} />
         </span>
+        <NextStep row={row} />
       </div>
       {action && <div className="relative z-10 mt-3">{action}</div>}
     </article>
+  );
+}
+
+/** Hire when the agent can be hired here; otherwise a way to read why not. */
+function NextStep({ row, size = 's' }: { row: FindRow; size?: 's' }) {
+  if (row.hirable) {
+    return (
+      <LinkButton href={`/hire/${row.chainId}/${row.tokenId}`} size={size} className="relative z-10 shrink-0" trailing={<Icon.Arrow size={14} />}>
+        Hire
+      </LinkButton>
+    );
+  }
+  return (
+    <Link href={agentHref(row)} className="relative z-10 shrink-0 text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">
+      View agent
+    </Link>
   );
 }
 
@@ -146,6 +169,11 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
         <span className="flex flex-col sm:items-end">
           <PriceText row={row} className="text-[13px]" />
           <HireNetwork chainId={row.hireChainId} />
+          {row.hirable && (
+            <Link href={`/hire/${row.chainId}/${row.tokenId}`} className="relative z-10 mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline">
+              Hire <Icon.Arrow size={12} />
+            </Link>
+          )}
         </span>
         {trailing}
       </span>

@@ -81,7 +81,8 @@ export function toFindRow(
   const maturity = deriveMaturity({
     registered: true,
     reachable: record.totalAnswered > 0,
-    compatible: record.totalAnswered > 0 && listing.quotePayable !== false,
+    // Priced means a signed price an escrow can pay, not merely no unpayable one.
+    compatible: record.totalAnswered > 0 && listing.quote != null && listing.quotePayable === true,
     tested: entry.tested === true,
     hired: (history?.jobs ?? 0) > 0,
     delivered: (history?.selfDelivered ?? 0) > 0,
