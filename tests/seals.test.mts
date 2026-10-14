@@ -26,6 +26,7 @@ function claim(overrides: Partial<SealedClaim> = {}): SealedClaim {
     priceRaw: '10000000000000000',
     priceCurrency: '0xcE24439F2D9C6a2289F741120FE202248B666666',
     attestations: 0,
+    houseOperated: false,
     ...overrides,
   };
 }
@@ -133,9 +134,10 @@ test('a known document has a stable hash', () => {
   });
   assert.equal(
     sealOf(doc).text,
-    '{"claims":[{"attestations":0,"category":"evidence","chainId":56,"observedDays":29,'
-      + '"priceCurrency":"0xcE24439F2D9C6a2289F741120FE202248B666666","priceRaw":"10000000000000000",'
-      + '"probes":{"answered":262,"total":262},"tokenId":"372022","verdict":"measured"}],'
+    '{"claims":[{"attestations":0,"category":"evidence","chainId":56,"houseOperated":false,'
+      + '"observedDays":29,"priceCurrency":"0xcE24439F2D9C6a2289F741120FE202248B666666",'
+      + '"priceRaw":"10000000000000000","probes":{"answered":262,"total":262},'
+      + '"tokenId":"372022","verdict":"measured"}],'
       + '"origin":"https://pokter.xyz","sealedAt":"2026-10-14T18:00:00Z","version":1}',
   );
   assert.equal(sealHash(doc), sealOf(doc).hash);
@@ -207,4 +209,28 @@ test('a seal that never reached the chain is anchored, not replaced', () => {
 
 test('an unreadable timestamp seals again rather than stopping forever', () => {
   assert.equal(sealActionOf({ hash: '0xcc', sealedAt: 'not a date', anchored: true }).kind, 'create');
+});
+
+test('whether Pokter operates an agent is part of the sealed bytes', () => {
+  /*
+   * A verdict on somebody else's agent is a measurement; the same verdict
+   * on a house agent is a marketplace grading its own work. If this flag
+   * were dropped from the document, both would seal identically and a
+   * reader could not tell them apart without going to fetch the wallet
+   * list themselves.
+   */
+  const doc = (houseOperated: boolean) =>
+    buildSealDocument({
+      sealedAt: new Date('2026-10-14T18:00:00Z'),
+      origin: 'https://pokter.xyz',
+      claims: [claim({ houseOperated })],
+    });
+
+  assert.ok(sealOf(doc(true)).text.includes('"houseOperated":true'));
+  assert.notEqual(sealOf(doc(true)).hash, sealOf(doc(false)).hash);
+  assert.deepEqual(
+    diffSeals(doc(false), doc(true)).changed.map((c) => c.field),
+    ['houseOperated'],
+    'a house agent quietly becoming ours must show up as a revision',
+  );
 });

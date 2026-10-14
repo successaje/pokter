@@ -2,6 +2,8 @@ import 'server-only';
 
 import { listSearchable } from '@/lib/marketplace';
 import { verdictFor } from '@/lib/search/match';
+import { isHouseAgent } from '@/lib/house/wallets';
+import { teamWalletSet } from '@/lib/team/server';
 import type { SealedClaim } from '@/lib/seals/document';
 
 /**
@@ -19,6 +21,7 @@ export const SEAL_POOL = 400;
 
 export async function readSealClaims(): Promise<SealedClaim[]> {
   const entries = await listSearchable({ limit: SEAL_POOL });
+  const team = teamWalletSet();
 
   return entries.map((entry): SealedClaim => {
     const { listing, record } = entry;
@@ -36,6 +39,17 @@ export async function readSealClaims(): Promise<SealedClaim[]> {
       priceRaw: quote ? quote.priceRaw : null,
       priceCurrency: quote ? quote.currency : null,
       attestations: listing.attestationCount,
+      /*
+       * Deliberately broader than the site's "Run by Pokter" label, which
+       * marks the house agents alone. A seal is answering a narrower
+       * question than the catalogue's — does Pokter have a stake in this
+       * verdict — and it does for an agent it merely owns as operator just
+       * as much as for one it runs as a product. Erring toward disclosure
+       * is the only direction that costs Pokter rather than a reader.
+       */
+      houseOperated:
+        isHouseAgent(listing.agent)
+        || Boolean(listing.agent.owner_address && team.has(listing.agent.owner_address.toLowerCase())),
     };
   });
 }

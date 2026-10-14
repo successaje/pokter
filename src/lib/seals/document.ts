@@ -50,6 +50,18 @@ export interface SealedClaim {
   priceCurrency: string | null;
   /** Attestations published by someone other than Pokter. */
   attestations: number;
+  /**
+   * Whether Pokter operates this agent.
+   *
+   * The one claim here Pokter is not disinterested about. A verdict on
+   * somebody else's agent is a measurement; the same verdict on a house
+   * agent is a marketplace grading its own work, and a reader diffing two
+   * seals should not have to go and check the wallet list to tell which
+   * they are looking at. It is derived the same way the receipt index
+   * derives `fundedByPokter`: from the declared team wallets, plus the
+   * wallets the house agents sign with.
+   */
+  houseOperated: boolean;
 }
 
 export interface SealDocument {
