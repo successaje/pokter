@@ -6,6 +6,7 @@ import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
+import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -249,6 +250,8 @@ export async function POST(request: Request): Promise<NextResponse> {
      * any marketplace can be read without scanning the chain per request.
      */
     const questIndex = await Promise.all([indexEscrowJobs(56).catch(() => null), indexEscrowJobs(97).catch(() => null)]);
+    // After the index, so the newest jobs are there to be judged.
+    const answeredTasks = await checkAnsweredTasks().catch(() => null);
 
     /*
      * Recover any job Pokter brokered that never reached its own index.
@@ -307,6 +310,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       healthFactorChecks,
       categoryChecks,
       questIndex,
+      answeredTasks,
       reconciled,
       followerAlerts,
       agentWallets,
