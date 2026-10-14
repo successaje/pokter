@@ -10,9 +10,6 @@ import { outcomeShortlist } from '@/lib/home/outcome-shortlist';
 import { chainLabel } from '@/lib/network/presentation';
 import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
-import { mostReliable } from '@/lib/search/order';
-import { operatorResolver } from '@/lib/funding/operator';
-import { getFunderStore } from '@/lib/funding/store';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 
@@ -140,8 +137,6 @@ export interface HomeData {
   specimens: Specimen[];
   featured: FindRow[];
   outcomes: Array<{ id: Category; label: string; count: number; top: FindRow[] }>;
-  /** The most reliable agents this week, one per operator, with this week's figures. */
-  reliable: Array<{ row: FindRow; probes: number; answered: number; medianMs: number | null }>;
   /**
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
    * `teamCompleted`. `completedMainnet` is the part paid in real $U.
@@ -187,20 +182,6 @@ export async function loadHome(): Promise<HomeData> {
     };
   });
 
-  // Owners first funded from the same wallet count as one operator. Only
-  // mainnet owners have a funder on record; the rest stand alone.
-  const ownerWallets = entries.map((entry) => entry.listing.agent.owner_address);
-  const operatorOf = operatorResolver(ownerWallets, getFunderStore().funders(ownerWallets));
-  const reliable = mostReliable(entries.filter((entry) => isFeaturableAgent(entry.listing.agent)), 5, operatorOf).map((entry) => {
-    const week = entry.record.windows.find((window) => window.label === '7d');
-    return {
-      row: byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!,
-      probes: week?.probes ?? 0,
-      answered: week?.answered ?? 0,
-      medianMs: week?.medianMs ?? null,
-    };
-  });
-
   const team = teamWalletSet();
   const allJobs = getJobStore().all();
   const buyerJobs = allJobs.filter((job) => !fundedByTeam(job, team));
@@ -214,7 +195,6 @@ export async function loadHome(): Promise<HomeData> {
     specimens: chooseSpecimens(entries, rows),
     featured,
     outcomes,
-    reliable,
     activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     // The same figures Discover and the methodology census show.

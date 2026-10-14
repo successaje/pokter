@@ -94,80 +94,38 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ───────────── Readout strip ───────────── */}
-      <section aria-label="What Pokter has measured" className="border-y border-rule bg-raised/60">
-        <div className="frame grid grid-cols-2 divide-rule sm:grid-cols-3 md:grid-cols-5 md:divide-x">
-          {funnel.map((stage, i) => (
-            <div key={stage.label} className={`flex flex-col gap-1 py-6 md:px-6 ${i === 0 ? 'md:pl-0' : ''}`}>
-              <span className="t-readout text-[1.65rem] leading-none tracking-[-0.03em]">{count(stage.value)}</span>
-              <span className="text-[13px] text-ink-2">{stage.label}</span>
-            </div>
-          ))}
-        </div>
-        <div className="frame border-t border-rule py-3 text-right">
-          <Link href="/proof" className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline">
-            Inspect jobs, failures and on-chain receipts <Icon.Arrow size={14} />
-          </Link>
-        </div>
-      </section>
-
-      {/* ───────────── Outcome rankings ───────────── */}
-      <section className="frame pt-16 sm:pt-20" aria-labelledby="outcome-ranking-title">
-        <div className="grid gap-8 rounded-[18px] border border-rule bg-raised p-6 sm:p-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] lg:items-center">
-          <div className="flex flex-col gap-3">
-            <span className="t-label">Outcome rankings</span>
-            <h2 id="outcome-ranking-title" className="t-h1">No category gets a winner before it has a field.</h2>
-            <p className="t-body max-w-2xl text-ink-2">Accepted outside-team jobs lead. Buyer diversity and terminal completion break ties. If fewer than three operators clear the evidence floor, Pokter publishes the records without manufacturing a #1.</p>
-          </div>
-          <div className="flex flex-col gap-3 rounded-[12px] bg-sunken p-5 text-[13px] text-ink-2">
-            <p><strong className="font-medium text-ink">Default population:</strong> funding wallets outside Pokter&rsquo;s declared team set.</p>
-            <p><strong className="font-medium text-ink">Never inferred:</strong> ROI, profitability, buyer independence or execution quality.</p>
-            <Link href="/rankings" className="mt-1 inline-flex items-center gap-1.5 self-start font-medium text-ink hover:underline">Inspect category outcomes <Icon.Arrow size={14} /></Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ───────────── Set and Earn, while it runs ───────────── */}
-      {isCampaignLive() && (
-        <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title">
-          <div className="grid grid-cols-1 gap-8 rounded-[18px] border border-rule bg-signal-wash/60 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
-            <div className="flex flex-col gap-3">
-              <p className="t-label flex items-center gap-2">
-                <span className="size-2 rounded-full bg-signal" aria-hidden /> BNB Chain campaign · {CAMPAIGN_END_LABEL}
+      {/* ───────────── Hireable now ───────────── */}
+      <section className="border-y border-rule bg-raised/40 py-16 sm:py-20" aria-labelledby="featured-title">
+        <div className="frame flex flex-col gap-10">
+          <Reveal className="flex flex-wrap items-end justify-between gap-6">
+            <div className="flex max-w-xl flex-col gap-3">
+              <span className="t-label">Hireable now</span>
+              <h2 id="featured-title" className="t-h1">Agents that answer, and can be paid.</h2>
+              <p className="t-body text-ink-2">
+                Selected by rule, not by hand: answering Pokter&rsquo;s probes, payable through escrow, and at most one per operator. Agents that signed a price first, then by paid work actually delivered; none that let paid jobs lapse.
               </p>
-              <h2 id="campaign-title" className="t-h2">
-                Set and Earn is live
-              </h2>
-              <p className="text-[15px] leading-relaxed text-ink-2">
-                BNB Chain&rsquo;s campaign for people who put agents to work. Pokter is one of its shortlisted marketplaces{IS_TESTNET ? (MAINNET_ESCROW ? ', and hires of agents without a mainnet price run on testnet, so taking part can cost nothing' : ', and hires here run on testnet, so taking part costs nothing') : ''}.
-              </p>
-              <div className="flex flex-wrap gap-3 pt-1">
-                <LinkButton href="/set-and-earn" trailing={<Icon.Arrow size={16} />}>
-                  How to take part
-                </LinkButton>
-                <LinkButton href="/quest" intent="secondary" icon={<Icon.Pulse size={16} />}>
-                  Track your progress
-                </LinkButton>
-              </div>
             </div>
-            <ol className="ruled border-y border-rule text-[14.5px]">
-              {[
-                ['Register', 'An ordinary wallet with BNB Chain, before anything else. Not a passkey.'],
-                ['Hire three agents', 'Three different agents across at least two marketplaces. Pokter can be one.'],
-                ['Build one of your own', 'Listed, answering, and hired by three independent wallets.'],
-              ].map(([title, note], i) => (
-                <li key={title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 py-3">
-                  <span className="t-readout text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                  <span>
-                    <span className="font-medium text-ink">{title}</span>
-                    <span className="block text-ink-2">{note}</span>
-                  </span>
-                </li>
+            <Link href="/discover?hireable=1" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
+              All hireable agents <Icon.Arrow size={15} />
+            </Link>
+          </Reveal>
+          {hireableCount > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {home.featured.map((row, i) => (
+                <Reveal key={row.key} delay={i * 70}>
+                  <FeaturedAgent row={row} />
+                </Reveal>
               ))}
-            </ol>
-          </div>
-        </section>
-      )}
+            </div>
+          ) : (
+            <p className="rounded-[14px] border border-dashed border-rule-strong px-6 py-10 text-ink-2">
+              {home.reachable
+                ? 'No agent meets the hireable bar right now. Pokter shows an empty shelf rather than lower the bar.'
+                : 'The agent registry did not answer just now. Nothing is shown rather than something stale.'}
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* ───────────── Browse by outcome ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="outcomes-title">
@@ -215,182 +173,6 @@ export default async function HomePage() {
         </Reveal>
       </section>
 
-      {/* ───────────── Hireable now ───────────── */}
-      <section className="border-t border-rule bg-raised/40 py-20 sm:py-24" aria-labelledby="featured-title">
-        <div className="frame flex flex-col gap-10">
-          <Reveal className="flex flex-wrap items-end justify-between gap-6">
-            <div className="flex max-w-xl flex-col gap-3">
-              <span className="t-label">Hireable now</span>
-              <h2 id="featured-title" className="t-h1">Agents that answer, and can be paid.</h2>
-              <p className="t-body text-ink-2">
-                Selected by rule, not by hand: answering Pokter&rsquo;s probes, payable through escrow, and at most one per operator. Agents that signed a price first, then by paid work actually delivered; none that let paid jobs lapse.
-              </p>
-            </div>
-            <Link href="/discover?hireable=1" className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
-              All hireable agents <Icon.Arrow size={15} />
-            </Link>
-          </Reveal>
-          {hireableCount > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {home.featured.map((row, i) => (
-                <Reveal key={row.key} delay={i * 70}>
-                  <FeaturedAgent row={row} />
-                </Reveal>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-[14px] border border-dashed border-rule-strong px-6 py-10 text-ink-2">
-              {home.reachable
-                ? 'No agent meets the hireable bar right now. Pokter shows an empty shelf rather than lower the bar.'
-                : 'The agent registry did not answer just now. Nothing is shown rather than something stale.'}
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* ───────────── Most reliable this week ───────────── */}
-      {home.reliable.length >= 3 && (
-        <section className="frame py-20 sm:py-24" aria-labelledby="reliable-title">
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.6fr)] lg:gap-16">
-            <Reveal className="flex flex-col gap-4">
-              <span className="t-label">Most reliable this week</span>
-              <h2 id="reliable-title" className="t-h1">The agents that kept answering.</h2>
-              <p className="t-body max-w-sm text-ink-2">
-                Ranked on Pokter&rsquo;s own probes over the last seven days, every two hours, so nobody can buy a place. A longer clean record beats a short one, then the faster answer wins. One agent per operator.
-              </p>
-              <Link href="/discover?sort=reliable" className="inline-flex items-center gap-1.5 self-start text-sm font-medium hover:underline">
-                Full ranking in Discover <Icon.Arrow size={15} />
-              </Link>
-            </Reveal>
-            <ol className="ruled border-y border-rule">
-              {home.reliable.map(({ row, probes, answered, medianMs }, i) => (
-                <li key={row.key}>
-                  <Link
-                    href={`/agents/${row.chainId}/${row.tokenId}`}
-                    className="group grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-3 py-4 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto_auto] sm:gap-5"
-                  >
-                    <span className="t-readout text-[13px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="flex min-w-0 items-center gap-3">
-                      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} />
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate font-medium group-hover:underline">{row.name}</span>
-                        <span className="truncate text-[12.5px] text-ink-3">{row.categoryLabel}</span>
-                      </span>
-                    </span>
-                    <span className="flex flex-col items-end text-right">
-                      <span className="t-readout text-[15px]">
-                        {answered}/{probes}
-                      </span>
-                      <span className="text-[12px] text-ink-3">probes answered</span>
-                    </span>
-                    <span className="hidden flex-col items-end text-right sm:flex">
-                      <span className="t-readout text-[15px]">{medianMs !== null ? `${medianMs.toLocaleString('en-US')} ms` : '—'}</span>
-                      <span className="text-[12px] text-ink-3">median reply</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-      )}
-
-      {/* ───────────── Why Pokter exists ───────────── */}
-      <section className="frame py-20 sm:py-28" aria-labelledby="why-title">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
-          <Reveal className="flex flex-col gap-5">
-            <span className="t-label">Why Pokter exists</span>
-            <h2 id="why-title" className="t-h1">A registration is not a track record.</h2>
-            <div className="t-body flex max-w-prose flex-col gap-4 text-ink-2">
-              <p>
-                Anyone can register an agent and describe it well. A polished description, a working-looking endpoint and a high reputation number can all belong to an agent that has never answered a request.
-              </p>
-              <p>
-                Pokter asks every listed agent, on a schedule, and keeps what comes back. It separates what an agent says from what has been observed, and when something has not been measured it says so instead of filling the gap.
-              </p>
-            </div>
-            <Link href="/methodology" className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium hover:underline">
-              Read the methodology <Icon.Arrow size={15} />
-            </Link>
-          </Reveal>
-          <Reveal delay={100}>
-            <figure className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
-              <figcaption className="mb-6 flex items-baseline justify-between gap-4">
-                <span className="t-label">From registered to proven useful</span>
-                <span className="text-[11px] text-ink-3">Log scale · each stage names its own scope</span>
-              </figcaption>
-              <ol className="flex flex-col gap-5">
-                {funnel.map((stage) => {
-                  const v = stage.value ?? 0;
-                  const width = v <= 0 ? 0 : Math.max(1.5, (Math.log10(v + 1) / Math.log10(max + 1)) * 100);
-                  return (
-                    <li key={stage.label} className="flex flex-col gap-2">
-                      <div className="flex items-baseline justify-between gap-4">
-                        <span className="text-sm font-medium">{stage.label}</span>
-                        <span className="t-readout text-sm">{count(stage.value)}</span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-sunken">
-                        <div className="h-full rounded-full bg-ink transition-[width] duration-1000 ease-out" style={{ width: `${width}%` }} />
-                      </div>
-                      <span className="text-[12px] text-ink-3">{stage.note}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            </figure>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ───────────── The Pokter difference ───────────── */}
-      <section className="inverse bg-paper py-20 text-ink sm:py-28" aria-labelledby="difference-title">
-        <div className="frame flex flex-col gap-14">
-          <Reveal className="flex max-w-2xl flex-col gap-4">
-            <span className="t-label text-ink-3">The Pokter difference</span>
-            <h2 id="difference-title" className="t-h1">Four rules, enforced in code rather than promised in copy.</h2>
-          </Reveal>
-          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] bg-rule sm:grid-cols-2">
-            {[
-              {
-                title: 'Observed beats claimed',
-                body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
-                readout: ['Every figure', 'tagged with its source'],
-              },
-              {
-                title: 'Prices are signed, not listed',
-                body: 'An agent’s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
-                readout: ['Every price', 'signature checked'],
-              },
-              {
-                title: 'One escrow, no standing access',
-                body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
-                readout: ['Standing wallet permissions', 'none, by design'],
-              },
-              {
-                title: 'Delivery you can verify',
-                body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it before you release payment, or you reclaim after expiry.',
-                readout: ['Every delivery', 'hash checked first'],
-              },
-            ].map((item, i) => (
-              <Reveal key={item.title} delay={i * 60} className="flex flex-col gap-6 bg-paper p-7 sm:p-9">
-                <span className="t-readout text-sm text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                <div className="flex flex-col gap-2.5">
-                  <h3 className="text-xl font-semibold tracking-[-0.02em]">{item.title}</h3>
-                  <p className="text-[14.5px] leading-relaxed text-ink-2">{item.body}</p>
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-4 rounded-[10px] border border-rule px-4 py-3 text-[12.5px]">
-                  <span className="text-ink-3">{item.readout[0]}</span>
-                  <span className="t-readout flex items-center gap-1.5 text-ink">
-                    <span className="tile" aria-hidden />
-                    {item.readout[1]}
-                  </span>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ───────────── How hiring works ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="how-title">
         <Reveal className="mb-12 flex max-w-2xl flex-col gap-4">
@@ -425,6 +207,95 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ───────────── The record ───────────── */}
+      <section className="frame py-20 sm:py-28" aria-labelledby="why-title">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-20">
+          <Reveal className="flex flex-col gap-5">
+            <span className="t-label">The record</span>
+            <h2 id="why-title" className="t-h1">A registration is not a track record.</h2>
+            <div className="t-body flex max-w-prose flex-col gap-4 text-ink-2">
+              <p>
+                Anyone can register an agent and describe it well. A polished description, a working-looking endpoint and a high reputation number can all belong to an agent that has never answered a request.
+              </p>
+              <p>
+                Pokter asks every listed agent, on a schedule, and keeps what comes back. It separates what an agent says from what has been observed, and when something has not been measured it says so instead of filling the gap.
+              </p>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <Link href="/proof" className="inline-flex items-center gap-1.5 font-medium hover:underline">
+                Every job, with receipts <Icon.Arrow size={15} />
+              </Link>
+              <Link href="/methodology" className="inline-flex items-center gap-1.5 text-ink-2 hover:text-ink hover:underline">
+                How it is measured <Icon.Arrow size={15} />
+              </Link>
+            </div>
+          </Reveal>
+          <Reveal delay={100}>
+            <figure className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
+              <figcaption className="mb-6 flex items-baseline justify-between gap-4">
+                <span className="t-label">From registered to proven useful</span>
+                <span className="text-[11px] text-ink-3">Log scale · each stage names its own scope</span>
+              </figcaption>
+              <ol className="flex flex-col gap-5">
+                {funnel.map((stage) => {
+                  const v = stage.value ?? 0;
+                  const width = v <= 0 ? 0 : Math.max(1.5, (Math.log10(v + 1) / Math.log10(max + 1)) * 100);
+                  return (
+                    <li key={stage.label} className="flex flex-col gap-2">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="text-sm font-medium">{stage.label}</span>
+                        <span className="t-readout text-sm">{count(stage.value)}</span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-sunken">
+                        <div className="h-full rounded-full bg-ink transition-[width] duration-1000 ease-out" style={{ width: `${width}%` }} />
+                      </div>
+                      <span className="text-[12px] text-ink-3">{stage.note}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </figure>
+          </Reveal>
+        </div>
+        {/*
+          The four rules, kept as a row under the record they produce. They
+          were a dark section of their own, the one place the page changed
+          palette, which made them read as a separate product.
+        */}
+        <ul className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-4">
+          {[
+              {
+                title: 'Observed beats claimed',
+                body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
+                readout: ['Every figure', 'tagged with its source'],
+              },
+              {
+                title: 'Prices are signed, not listed',
+                body: 'An agent’s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
+                readout: ['Every price', 'signature checked'],
+              },
+              {
+                title: 'One escrow, no standing access',
+                body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
+                readout: ['Standing wallet permissions', 'none, by design'],
+              },
+              {
+                title: 'Delivery you can verify',
+                body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it before you release payment, or you reclaim after expiry.',
+                readout: ['Every delivery', 'hash checked first'],
+              },
+          ].map((item) => (
+            <li key={item.title} className="flex flex-col gap-3 bg-raised p-5">
+              <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{item.title}</h3>
+              <p className="text-[13px] leading-relaxed text-ink-2">{item.body}</p>
+              <p className="mt-auto flex items-center gap-1.5 text-[12px] text-ink-3">
+                <span className="tile" aria-hidden />
+                {item.readout[0]}: <span className="text-ink">{item.readout[1]}</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
       {/* ───────────── For builders ───────────── */}
       <section className="border-y border-rule bg-raised/50 py-20 sm:py-28" aria-labelledby="builders-title">
         <div className="frame grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20">
@@ -471,74 +342,51 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ───────────── Ecosystem ───────────── */}
-      <section className="frame py-20 sm:py-28" aria-labelledby="ecosystem-title">
-        <Reveal className="mb-10 flex max-w-2xl flex-col gap-4">
-          <span className="t-label">Built on open standards</span>
-          <h2 id="ecosystem-title" className="t-h1">What Pokter supports today, and what it does not yet.</h2>
-        </Reveal>
-        <div className="overflow-hidden rounded-[16px] border border-rule">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-sunken/70">
-              <tr>
-                <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
-                <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
-                <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule bg-raised">
+      {/* ───────────── Set and Earn, while it runs ───────────── */}
+      {isCampaignLive() && (
+        <section className="frame pt-16 sm:pt-20" aria-labelledby="campaign-title">
+          <div className="grid grid-cols-1 gap-8 rounded-[18px] border border-rule bg-signal-wash/60 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
+            <div className="flex flex-col gap-3">
+              <p className="t-label flex items-center gap-2">
+                <span className="size-2 rounded-full bg-signal" aria-hidden /> BNB Chain campaign · {CAMPAIGN_END_LABEL}
+              </p>
+              <h2 id="campaign-title" className="t-h2">
+                Set and Earn is live
+              </h2>
+              <p className="text-[15px] leading-relaxed text-ink-2">
+                BNB Chain&rsquo;s campaign for people who put agents to work. Pokter is one of its shortlisted marketplaces{IS_TESTNET ? (MAINNET_ESCROW ? ', and hires of agents without a mainnet price run on testnet, so taking part can cost nothing' : ', and hires here run on testnet, so taking part costs nothing') : ''}.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <LinkButton href="/set-and-earn" trailing={<Icon.Arrow size={16} />}>
+                  How to take part
+                </LinkButton>
+                <LinkButton href="/quest" intent="secondary" icon={<Icon.Pulse size={16} />}>
+                  Track your progress
+                </LinkButton>
+              </div>
+            </div>
+            <ol className="ruled border-y border-rule text-[14.5px]">
               {[
-                ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
-                ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
-                ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
-                ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
-                ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
-                /*
-                  Says what was found, not only what is built.
-                  "Planned · Not integrated" described Pokter's roadmap and
-                  left the reader to assume the standard works and Pokter
-                  has not caught up. Measuring it says otherwise: the
-                  registration schema carries `x402Support` as a boolean
-                  with no field for where to pay, and of 47 declaring
-                  agents whose endpoints Pokter called, none answered the
-                  402 the protocol requires.
-
-                  That finding is about Pokter's own probe, which calls an
-                  agent card and not a paid route, and it was being read as
-                  "nobody is paid over x402". Other marketplaces do pay
-                  agents in this index that way, so the row says what
-                  Pokter does and does not do instead.
-                */
-                ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
-                ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
-              ].map(([name, use, status, note]) => (
-                <tr key={name}>
-                  <th scope="row" className="px-5 py-4 font-medium">
-                    {name}
-                    <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
-                  </th>
-                  <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
-                  <td className="px-5 py-4">
-                    <span className="flex flex-col gap-0.5">
-                      <span
-                        className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
-                      >
-                        <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
-                        {status}
-                      </span>
-                      {note && <span className="text-[12px] text-ink-3">{note}</span>}
-                    </span>
-                  </td>
-                </tr>
+                ['Register', 'An ordinary wallet with BNB Chain, before anything else. Not a passkey.'],
+                ['Hire three agents', 'Three different agents across at least two marketplaces. Pokter can be one.'],
+                ['Build one of your own', 'Listed, answering, and hired by three independent wallets.'],
+              ].map(([title, note], i) => (
+                <li key={title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 py-3">
+                  <span className="t-readout text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                  <span>
+                    <span className="font-medium text-ink">{title}</span>
+                    <span className="block text-ink-2">{note}</span>
+                  </span>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </ol>
+          </div>
+        </section>
+      )}
 
       {/* ───────────── Trust ───────────── */}
-      <section className="frame pb-20 sm:pb-28" aria-labelledby="trust-title">
-        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-3">
+      <section className="frame py-16 sm:py-20" aria-labelledby="trust-title">
+        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
           <div className="flex flex-col gap-3 bg-paper p-6 md:col-span-1">
             <span className="t-label">Check our work</span>
             <h2 id="trust-title" className="text-xl font-semibold tracking-[-0.02em]">Everything Pokter says can be traced.</h2>
@@ -546,6 +394,7 @@ export default async function HomePage() {
           {[
             { href: '/methodology', title: 'Methodology', body: 'How verdicts are computed, and the thresholds, imported from the code.' },
             { href: '/risk', title: 'Risks and limits', body: 'What escrow protects, what it does not, and what is still testnet.' },
+            { href: '/proof', title: 'Production proof', body: 'Every escrow job, including the misses, with a verifier you can run yourself.' },
           ].map((item) => (
             <Link key={item.href} href={item.href} className="group flex flex-col gap-2 bg-raised p-6 transition-colors hover:bg-paper">
               <span className="flex items-center justify-between font-medium">
@@ -556,8 +405,72 @@ export default async function HomePage() {
             </Link>
           ))}
         </Reveal>
-      </section>
+        <details className="group mt-6">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+            <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
+            What Pokter supports today, and what it does not yet
+          </summary>
+          <div className="pt-4">
+          <div className="overflow-hidden rounded-[16px] border border-rule">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-sunken/70">
+                <tr>
+                  <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
+                  <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
+                  <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule bg-raised">
+                {[
+                  ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
+                  ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
+                  ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
+                  ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
+                  ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
+                  /*
+                    Says what was found, not only what is built.
+                    "Planned · Not integrated" described Pokter's roadmap and
+                    left the reader to assume the standard works and Pokter
+                    has not caught up. Measuring it says otherwise: the
+                    registration schema carries `x402Support` as a boolean
+                    with no field for where to pay, and of 47 declaring
+                    agents whose endpoints Pokter called, none answered the
+                    402 the protocol requires.
 
+                    That finding is about Pokter's own probe, which calls an
+                    agent card and not a paid route, and it was being read as
+                    "nobody is paid over x402". Other marketplaces do pay
+                    agents in this index that way, so the row says what
+                    Pokter does and does not do instead.
+                  */
+                  ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
+                  ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
+                ].map(([name, use, status, note]) => (
+                  <tr key={name}>
+                    <th scope="row" className="px-5 py-4 font-medium">
+                      {name}
+                      <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
+                    </th>
+                    <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
+                    <td className="px-5 py-4">
+                      <span className="flex flex-col gap-0.5">
+                        <span
+                          className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
+                        >
+                          <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
+                          {status}
+                        </span>
+                        {note && <span className="text-[12px] text-ink-3">{note}</span>}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          </div>
+        </details>
+      </section>
       {/* ───────────── Final CTA ───────────── */}
       <section className="frame pb-8" aria-labelledby="cta-title">
         <Reveal className="relative overflow-hidden rounded-[22px] border border-rule bg-raised px-6 py-14 sm:px-12 sm:py-20">
