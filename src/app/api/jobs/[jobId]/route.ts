@@ -8,6 +8,7 @@ import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
+import { estimatedFundedAt } from '@/lib/erc8183/dispute-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,9 +152,11 @@ export async function GET(
      * identity. Nothing the caller sent is trusted beyond the id.
      *
      * `hiredAt` is unknown from chain: the contract records when a job
-     * expires, not when it was funded, and the window is a fixed 24h, so
-     * the expiry minus that window is the funding moment.
+     * expires, not when it was funded. The index's record is used where
+     * there is one, else an estimate from the deadline (`estimatedFundedAt`).
      */
+    const known = getJobStore().all().find((j) => j.jobId === jobId && j.chainId === chainId);
+    const hiredAt = known?.hiredAt ?? (await estimatedFundedAt(chainId, Number(onchain.expiredAt))).toISOString();
     const job: HiredJob = {
       id: `${chainId}:${jobId}`,
       jobId,
@@ -167,9 +170,7 @@ export async function GET(
       task: envelope.task,
       budgetRaw: onchain.budget.toString(),
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
-      hiredAt: new Date(
-        Number(onchain.expiredAt) * 1000 - 24 * 60 * 60 * 1000,
-      ).toISOString(),
+      hiredAt,
       hireTxHash: null,
       status: onchain.statusName,
       statusCheckedAt: now,

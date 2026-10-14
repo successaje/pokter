@@ -20,6 +20,7 @@ import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
 } from '@/lib/erc8183/job-envelope';
+import { DELIVERY_WINDOW_SECONDS } from '@/lib/erc8183/deadline';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useQuery } from '@tanstack/react-query';
@@ -488,7 +489,7 @@ export function useHire({
           task,
           quote: signedQuote ?? undefined,
           budgetU: budget,
-          ttlSeconds: 60 * 60 * 24,
+          ttlSeconds: DELIVERY_WINDOW_SECONDS,
           escrowChainId,
           onProgress: ({ step: reached, jobId: reachedId }) => {
             setExternalStep(reached);
@@ -509,7 +510,8 @@ export function useHire({
           provider: providerAddress as `0x${string}`,
           task,
           budgetRaw: parseUnits(String(budget), 18).toString(),
-          expiredAt: new Date(Date.now() + 60 * 60 * 24 * 1000).toISOString(),
+          // As written on chain: delivery time plus the escrow's dispute window.
+          expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
           hiredAt: at,
           hireTxHash: outcome.transactionHash,
           status: 'FUNDED',

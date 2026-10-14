@@ -11,6 +11,7 @@ import {
 } from '@altananetwork/sdk';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { jobLifetimeSeconds } from '@/lib/erc8183/deadline';
 import { canSettle } from '@/lib/erc8183/settle-window';
 import {
   encodePokterJobEnvelope,
@@ -31,6 +32,8 @@ export type HireStep =
 export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex }
 export interface ExternalHireResult {
   jobId: bigint;
+  /** Seconds since the epoch, as written on chain. */
+  expiredAt: bigint;
   transactionHash: Hex | null;
   callsId: string | null;
   atomic: boolean;
@@ -46,6 +49,7 @@ export interface ExternalHireInput {
   /** The seller's signed quote, when the seller is the on-chain provider. */
   quote?: PokterJobQuote;
   budgetU: number;
+  /** Time for the seller to deliver. The escrow's dispute window is added to it (see `deadline.ts`). */
   ttlSeconds: number;
   /** The escrow to fund, chosen per hire. Omitted, the site's default network. */
   escrowChainId?: number;
@@ -514,6 +518,21 @@ async function acquireShortfall({
   if (after < budget) throw new Error('INSUFFICIENT_PAYMENT_TOKEN');
 }
 
+const DISPUTE_WINDOW_ABI = [{ name: 'disputeWindow', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint64' }] }] as const;
+
+/** The escrow policy's dispute window on `chainId`, in seconds. Read, never assumed: 15 minutes on testnet, 7 days on mainnet. */
+export async function readDisputeWindow(chainId: number): Promise<number> {
+  // Public RPC only: the hire page reads this before any wallet is connected.
+  const network = walletNetworkFor(chainId);
+  const read = createPublicClient({
+    chain: network as never,
+    transport: fallback(browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url))),
+  });
+  const addresses = correctedErc8183Addresses(chainId);
+  const window = await read.readContract({ address: addresses.policy as Address, abi: DISPUTE_WINDOW_ABI, functionName: 'disputeWindow' });
+  return Number(window);
+}
+
 export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
   const chainId = input.escrowChainId ?? WALLET_NETWORK.chainId;
   const { wallet, read } = clients(chainId);
@@ -524,7 +543,9 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   const budget = parseUnits(String(input.budgetU), 18);
   if (budget <= 0n) throw new Error('INVALID_BUDGET');
   if (!Number.isSafeInteger(input.ttlSeconds) || input.ttlSeconds <= 0) throw new Error('INVALID_EXPIRY');
-  const expiredAt = BigInt(Math.floor(Date.now() / 1000) + input.ttlSeconds);
+  // The dispute window has to fit after delivery, or the seller's submit reverts.
+  const disputeWindow = await readDisputeWindow(chainId);
+  const expiredAt = BigInt(Math.floor(Date.now() / 1000) + jobLifetimeSeconds(disputeWindow, input.ttlSeconds));
   const description = encodePokterJobEnvelope({
     identityChainId: input.identityChainId, agentTokenId: input.agentTokenId,
     agentName: input.agentName, category: input.category, provider: input.provider,
@@ -589,7 +610,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     await verifyFundedJob({ chainId, jobId: predictedJobId, account,
       provider: input.provider, budget, description });
     report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
-    return { jobId: predictedJobId, transactionHash, callsId, atomic: true };
+    return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true };
   }
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
@@ -618,7 +639,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   report({ step: 'confirming', jobId, hash: funded.hash });
   await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description });
   report({ step: 'done', jobId, hash: funded.hash });
-  return { jobId, transactionHash: funded.hash, callsId: null, atomic: false };
+  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false };
 }
 
 export interface ExternalBalances {
