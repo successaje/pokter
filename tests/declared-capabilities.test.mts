@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { declaredCapabilities } from '../src/lib/agents/capabilities';
+import { readFileSync } from 'node:fs';
+
+import { declaredCapabilities, examplesInDescription } from '../src/lib/agents/capabilities';
 
 /*
  * Shapes taken from real cards in the catalogue, including the plumbing that
@@ -61,4 +63,36 @@ test('a malformed card is not a crash', () => {
   assert.deepEqual(declaredCapabilities(null), []);
   assert.deepEqual(declaredCapabilities('skills'), []);
   assert.deepEqual(declaredCapabilities([null, 7, 'x']), []);
+});
+
+/*
+ * Two live cards as published on 15 October 2026. Stockroom documents its
+ * brief only inside its negotiate skill; IVL's negotiate skill is generic
+ * and its brief format sits on a free preview skill.
+ */
+const stockroom = JSON.parse(readFileSync(new URL('./fixtures/card-stockroom.json', import.meta.url), 'utf8'));
+const ivl = JSON.parse(readFileSync(new URL('./fixtures/card-ivl.json', import.meta.url), 'utf8'));
+
+test('a negotiate skill named after the work is kept as the paid job, with its example', () => {
+  const skills = declaredCapabilities(stockroom.skills);
+  assert.equal(skills.length, 1);
+  assert.equal(skills[0].kind, 'paid');
+  assert.equal(skills[0].name, 'Quote a Stockroom borrow desk brief');
+  assert.deepEqual(skills[0].examples, ['Desk brief for shorting 0.01 NVDAB against 10 USDT over the weekend']);
+  // What it is for, without the wire instructions.
+  assert.match(skills[0].description ?? '', /^Ask the Stockroom Desk Analyst for a borrow desk brief/);
+  assert.doesNotMatch(skills[0].description ?? '', /Send a data part/);
+});
+
+test('a free preview is kept apart from the paid job, and a placeholder is not an example', () => {
+  const skills = declaredCapabilities(ivl.skills);
+  assert.deepEqual(skills.map((s) => [s.name, s.kind]), [['Preview the rebalance plan (free)', 'preview']]);
+  assert.deepEqual(skills[0].examples, ['BNB-USDT 0xYourWallet']);
+  assert.deepEqual(examplesInDescription('{"skill": "negotiate", "task_description": "...", "terms": {}}'), []);
+});
+
+test('the preview’s description keeps what it needs and drops the payload', () => {
+  const [preview] = declaredCapabilities(ivl.skills);
+  assert.doesNotMatch(preview.description ?? '', /\{/);
+  assert.match(preview.description ?? '', /Omit the wallet to get the pair-level reading only/);
 });

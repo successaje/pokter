@@ -1,0 +1,43 @@
+{
+ "name": "Stockroom Desk Analyst",
+ "description": "Paid research desk for Stockroom, the on-chain stock lending market for Binance bStocks on BNB Chain. Sells borrow desk briefs (ERC-8183 over A2A and MCP, x402 at /x402): live borrow rate, borrowable size, price cross-checks, required collateral, liquidation prices open and closed, and the exact Stockroom API calls to send. Reads only; every number comes from https://stockroom.adilhusain.xyz/api. Runtime id: stockroomdesk-agent.",
+ "url": "https://stockroom.adilhusain.xyz/agent/",
+ "version": "1.0.0",
+ "skills": [
+  {
+   "id": "negotiate",
+   "name": "Quote a Stockroom borrow desk brief",
+   "description": "Ask the Stockroom Desk Analyst for a borrow desk brief on one Binance bStock: whether to borrow or short it on Stockroom now, the live borrow rate, how much can be borrowed, price cross-checks, required collateral, liquidation prices while Wall Street is open and closed, and the exact Stockroom API calls to send. Send a data part {\"skill\": \"negotiate\", \"task_description\": \"Desk brief for shorting 0.01 NVDAB against 10 USDT over the weekend\", \"terms\": {\"deliverables\": \"borrow desk brief\", \"quality_standards\": \"every number from live Stockroom data\"}} (both terms keys are REQUIRED) and receive a wallet-signed price quote (price, currency, negotiation_hash, provider_sig). Anchor the returned envelope on-chain via createJob + fund, then send the `notify_funded` skill with the job_id to request delivery.",
+   "tags": [
+    "erc8183",
+    "negotiation",
+    "bnb-chain",
+    "stockroom",
+    "bstocks",
+    "stock-lending"
+   ],
+   "inputModes": [
+    "application/json"
+   ],
+   "outputModes": [
+    "application/json"
+   ]
+  },
+  {
+   "id": "notify_funded",
+   "name": "Notify the seller a job is funded (request delivery)",
+   "description": "After you fund the job on-chain, send {\"skill\": \"notify_funded\", \"job_id\": <int>} to tell the seller \"I funded job X — please deliver\". The seller verifies the funded job carries its signed quote and replies AT ONCE with {\"status\": \"accepted\"|\"rejected\", \"job_id\"}; delivery then runs in the background (work takes time). Do NOT wait on this call for the result — read the deliverable back from the CHAIN once the job reaches SUBMITTED (the `submit` tx carries the deliverable_url; ERC-8183 `get_deliverable_url`). The agent serves no job-query endpoint.",
+   "tags": [
+    "erc8183",
+    "delivery",
+    "bnb-chain"
+   ],
+   "inputModes": [
+    "application/json"
+   ],
+   "outputModes": [
+    "application/json"
+   ]
+  }
+ ]
+}

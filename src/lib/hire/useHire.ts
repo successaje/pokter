@@ -31,7 +31,7 @@ import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { planShortfallSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
-import { commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
+import { briefSourceFor, commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
@@ -218,7 +218,7 @@ export function useHire({
   lastSignedU?: number | null;
   riskWarnings?: string[];
   /** The agent's own skills, whose examples beat a category guess. */
-  declaredSkills?: readonly { name: string; examples: readonly string[] }[];
+  declaredSkills?: readonly { name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
 }) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
@@ -236,6 +236,8 @@ export function useHire({
    */
   const declared = templatesFromSkills(declaredSkills ?? []);
   const taskTemplates = declared.length > 0 ? declared : commissionTaskTemplates(agent.category);
+  const briefSource = briefSourceFor(declaredSkills ?? []);
+  const previewSkill = (declaredSkills ?? []).find((s) => s.kind === 'preview') ?? null;
 
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable && p.automatedDelivery)?.address ??
@@ -246,7 +248,14 @@ export function useHire({
   const [selectedTemplate, setSelectedTemplate] = useState<CommissionTaskTemplate['id'] | null>(
     taskTemplates[0].id,
   );
-  const [task, setTaskState] = useState(taskTemplates[0].task);
+  /*
+   * A template in a guided format starts empty: its example's figures are
+   * the operator's, shown as placeholders, never funded as the buyer's.
+   */
+  const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : template.task);
+  const [task, setTaskState] = useState(startingTask(taskTemplates[0]));
+  /** The guided format in use; kept while the brief is edited, like the schema. */
+  const [recipeId, setRecipeId] = useState(taskTemplates[0].recipe ?? null);
   /*
    * The template the buyer started from: its fields and their types stay
    * fixed while values are edited (see `fieldsWithValues`). Editing the
@@ -382,12 +391,16 @@ export function useHire({
     setTaskState(value);
   };
 
+  /* A guided field changed: the template's format stays selected. */
+  const setTaskKeepingFormat = (value: string) => setTaskState(value);
+
   const chooseTemplate = (id: CommissionTaskTemplate['id']) => {
     const template = taskTemplates.find((t) => t.id === id);
     if (!template) return;
     setSelectedTemplate(template.id);
-    setTaskState(template.task);
+    setTaskState(startingTask(template));
     setSchemaSource(template.task);
+    setRecipeId(template.recipe ?? null);
   };
 
   const indexFundedJob = async (hired: HiredJob) => {
@@ -808,6 +821,11 @@ export function useHire({
     job,
     error,
     errorLayer,
+    briefSource,
+    previewSkill,
+    recipeId,
+    setTaskKeepingFormat,
+    recipeExample: recipeId ? (taskTemplates.find((t) => t.recipe === recipeId)?.task ?? null) : null,
     heldAfterFailure,
     externalStep,
     externalJobId,

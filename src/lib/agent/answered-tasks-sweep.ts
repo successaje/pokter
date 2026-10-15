@@ -4,7 +4,7 @@ import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, decodeFunctionData, getAddress, http, type Address } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { deliveryAnswered, pickAnsweredTasks, type AnswerVerdict } from '@/lib/agent/answered-tasks';
+import { deliveryAnswered, pickAnsweredTasks, type AnsweredTask, type AnswerVerdict } from '@/lib/agent/answered-tasks';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { getQuestStore } from '@/lib/quest/store';
@@ -117,12 +117,16 @@ export async function checkAnsweredTasks({ budgetMs = 60_000 }: { budgetMs?: num
   return { checked, answered };
 }
 
-/** Up to three tasks this agent's wallet has answered, for the hire page. */
-export function answeredTasksFor(agentWallet: string | null | undefined): string[] {
+/**
+ * Up to three wordings that returned an output in jobs paid to this
+ * agent's wallet, for the hire page. Keyed by wallet: that is who the
+ * escrow pays, and the page says so rather than "this agent".
+ */
+export function answeredTasksFor(agentWallet: string | null | undefined): AnsweredTask[] {
   if (!agentWallet) return [];
   try {
     const jobs = getQuestStore().byProviderWithVerdicts(agentWallet);
-    return pickAnsweredTasks(jobs.map((job) => ({ jobId: job.jobId, description: job.description, verdict: job.verdict as AnswerVerdict | null })));
+    return pickAnsweredTasks(jobs.map((job) => ({ jobId: job.jobId, chainId: job.chainId, description: job.description, verdict: job.verdict as AnswerVerdict | null })));
   } catch {
     return [];
   }

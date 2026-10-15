@@ -4,7 +4,8 @@ import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
-import { BRIEF_MIN, briefAcceptable } from '@/lib/hire/brief';
+import { BRIEF_MIN, briefAcceptable, declaredBriefs } from '@/lib/hire/brief';
+import { declaredTaskProblems } from '@/lib/hire/task-fields';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -75,6 +76,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       { error: `The brief must be at least ${BRIEF_MIN} characters, or one of the examples this agent publishes on its card.` },
       { status: 400 },
     );
+  }
+
+  /*
+   * The same rules the hire form applies, enforced here: a JSON task is
+   * read against the examples the agent declares before any seller sees it.
+   */
+  if (/^[[{]/.test(task)) {
+    const problems = declaredTaskProblems(task, await declaredBriefs(agent));
+    if (problems.length > 0) {
+      return NextResponse.json(
+        { error: `The brief does not match what ${agent.name || `Agent #${tokenId}`} declares: ${problems.join('; ')}.`, layer: 'input', code: 'invalid-task', problems },
+        { status: 400 },
+      );
+    }
   }
 
   let refusal: string | null = null;

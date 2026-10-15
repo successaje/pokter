@@ -25,9 +25,13 @@ import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 import { TaskEditor } from './TaskEditor';
+import { BriefSourceNotice } from './BriefSource';
+import { GuidedBrief } from './GuidedBrief';
+import { recipeById } from '@/lib/hire/brief-recipes';
 import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
+import type { AnsweredTask } from '@/lib/agent/answered-tasks';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -53,9 +57,9 @@ export interface HireFlowProps {
    * The agent's declared skills, so its own examples can be offered as
    * the task rather than a template picked by category.
    */
-  declaredSkills?: { name: string; examples: string[] }[];
+  declaredSkills?: { name: string; kind?: string; description?: string | null; examples: string[] }[];
   /** Tasks this agent has delivered real answers to, from public escrow jobs. */
-  answeredTasks?: string[];
+  answeredTasks?: AnsweredTask[];
 }
 
 /**
@@ -343,26 +347,46 @@ export function HireFlow(props: HireFlowProps) {
           {props.answeredTasks && props.answeredTasks.length > 0 && (
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">Tasks {props.agent.name} has answered</span>
-                <span className="text-[12.5px] text-ink-3">From its delivered jobs on chain. Agents often understand only some phrasings, so starting from one of these is the safest brief.</span>
+                <span className="text-sm font-medium">Wording that previously returned an output</span>
+                <span className="text-[12.5px] text-ink-3">
+                  From delivered jobs paid to this agent’s wallet, where the delivery held content rather than only an error. That shows
+                  the wording was understood, not that the answer was right.
+                </span>
               </div>
-              <div role="radiogroup" aria-label="Tasks this agent has answered" className="flex flex-col gap-2">
-                {props.answeredTasks.map((text) => (
-                  <button
-                    key={text}
-                    type="button"
-                    role="radio"
-                    aria-checked={hire.task === text}
-                    onClick={() => hire.setTask(text)}
-                    className={cn('flex items-start gap-2.5 rounded-[12px] border p-3 text-left text-[13.5px] transition-colors', hire.task === text ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
-                  >
-                    <Icon.Check size={14} className="mt-0.5 shrink-0 text-ok" />
-                    <span>{text}</span>
-                  </button>
+              <div role="radiogroup" aria-label="Wording that previously returned an output" className="flex flex-col gap-2">
+                {props.answeredTasks.map((answered) => (
+                  <div key={answered.task} className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={hire.task === answered.task}
+                      onClick={() => hire.setTask(answered.task)}
+                      className={cn('flex items-start gap-2.5 rounded-[12px] border p-3 text-left text-[13.5px] transition-colors', hire.task === answered.task ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
+                    >
+                      <Icon.Check size={14} className="mt-0.5 shrink-0 text-ok" />
+                      <span className="flex flex-col gap-0.5">
+                        <span>{answered.task}</span>
+                        <span className="text-[11.5px] text-ink-3">
+                          Job #{answered.jobId} on {chainLabel(answered.chainId)}
+                          {answered.figures.length > 0 ? ` · ${answered.figures.join(', ')} were that buyer’s figures: change them to yours` : ''}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
           )}
+          <BriefSourceNotice
+            source={hire.briefSource}
+            agentName={props.agent.name}
+            chainId={props.agent.chainId}
+            tokenId={props.agent.tokenId}
+            task={hire.task}
+            preview={hire.previewSkill}
+            wallet={hire.active.address ?? null}
+            onUseExample={hire.setTask}
+          />
           <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {hire.taskTemplates.map((t) => (
               <button
@@ -378,6 +402,16 @@ export function HireFlow(props: HireFlowProps) {
               </button>
             ))}
           </div>
+          {recipeById(hire.recipeId ?? undefined) && (
+            <GuidedBrief
+              key={hire.recipeId}
+              recipe={recipeById(hire.recipeId ?? undefined)!}
+              example={hire.recipeExample}
+              agentName={props.agent.name}
+              task={hire.task}
+              onChange={hire.setTaskKeepingFormat}
+            />
+          )}
           <div className="flex flex-col gap-1.5">
             <TaskEditor task={hire.task} schema={hire.taskSchema} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">

@@ -1,3 +1,5 @@
+import { recipeForExample } from './brief-recipes';
+
 export interface CommissionTaskTemplate {
   id: 'analyse' | 'recommend' | 'monitor' | `declared-${number}`;
   label: string;
@@ -11,6 +13,8 @@ export interface CommissionTaskTemplate {
   short: string;
   description: string;
   task: string;
+  /** A guided format the agent's example is written in (`brief-recipes`). */
+  recipe?: string;
 }
 
 const CATEGORY_CONTEXT: Record<
@@ -93,12 +97,17 @@ export function commissionTaskTemplates(
  * the category templates. Nothing is invented here.
  */
 export function templatesFromSkills(
-  skills: readonly { name: string; examples: readonly string[] }[],
+  skills: readonly { name: string; kind?: string; examples: readonly string[] }[],
 ): CommissionTaskTemplate[] {
   const templates: CommissionTaskTemplate[] = [];
   const seen = new Set<string>();
 
-  for (const skill of skills) {
+  /*
+   * A free preview's input is how to ask for the preview. It is not
+   * evidence of what the paid job accepts, so it is never offered as a
+   * paid brief (see `briefSourceFor`).
+   */
+  for (const skill of skills.filter((s) => s.kind !== 'preview')) {
     for (const example of skill.examples) {
       const task = example.trim();
       if (!task || seen.has(task.toLowerCase())) continue;
@@ -109,12 +118,43 @@ export function templatesFromSkills(
         id: `declared-${templates.length}`,
         label: shown.length <= 28 ? shown : `${shown.slice(0, 27)}…`,
         short: shown.length <= 14 ? shown : `${shown.slice(0, 13)}…`,
-        description: `From this agent's own card, under “${skill.name}”.`,
+        // Figures in an operator's example are theirs, not market data or the buyer's choice.
+        description: `From this agent's own card, under “${skill.name}”.${/\d/.test(task) ? ' Its figures are the operator’s example: replace them with yours.' : ''}`,
         task,
+        recipe: recipeForExample(task)?.id,
       });
       if (templates.length === 3) return templates;
     }
   }
 
   return templates;
+}
+
+/**
+ * Where the hire page's brief comes from, so it can say so.
+ *
+ * - `declared`: the agent's card shows how to ask for its paid work.
+ * - `preview-only`: the card documents a free preview but not the paid
+ *   job's input. The preview's format is shown as what it is, and the
+ *   buyer can try it free, but it is not passed off as the paid brief.
+ * - `unknown`: the card says nothing about input. Pokter's generic wording
+ *   is offered, labelled as Pokter's, not as something the agent supports.
+ */
+export type BriefSource = 'declared' | 'preview-only' | 'unknown';
+
+export function briefSourceFor(
+  skills: readonly { kind?: string; examples: readonly string[] }[],
+): BriefSource {
+  if (templatesFromSkills(skills.map((s) => ({ name: '', ...s }))).length > 0) return 'declared';
+  if (skills.some((s) => s.kind === 'preview')) return 'preview-only';
+  return 'unknown';
+}
+
+/**
+ * An example's wallet placeholder ("0xYourWallet") becomes the buyer's own
+ * connected wallet, or is left out: a placeholder sent as written is not
+ * an address, and agents that take a wallet here treat it as optional.
+ */
+export function withOwnWallet(example: string, wallet: string | null): string {
+  return example.replace(/\s*\b0x(?:your[a-z_]*|\.{2,}|…)(?![0-9a-f])/gi, wallet ? ` ${wallet}` : '').trim();
 }
