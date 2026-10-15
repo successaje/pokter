@@ -12,15 +12,15 @@
 import { spawnSync } from 'node:child_process';
 
 const APP = process.env.FLY_APP ?? 'pokter';
-const [slug, chain] = process.argv.slice(2);
+const [slug, chain, recoverFromTx] = process.argv.slice(2);
 if (!/^[a-z0-9-]+$/.test(slug ?? '') || !['56', '97'].includes(chain ?? '')) {
-  console.error('Usage: node scripts/house-register.mjs <agent> <56|97>');
+  console.error('Usage: node scripts/house-register.mjs <agent> <56|97> [mint tx hash to recover from]');
   process.exit(1);
 }
 const payload = `fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/api/house/register', {
   method: 'POST',
   headers: { authorization: 'Bearer ' + process.env.SWEEP_SECRET, 'content-type': 'application/json' },
-  body: JSON.stringify({ slug: ${JSON.stringify(slug)}, chainId: ${Number(chain)} }),
+  body: JSON.stringify({ slug: ${JSON.stringify(slug)}, chainId: ${Number(chain)}${/^0x[0-9a-fA-F]{64}$/.test(recoverFromTx ?? '') ? `, recoverFromTx: ${JSON.stringify(recoverFromTx)}` : ''} }),
 }).then((r) => r.text()).then((t) => console.log(t)).catch((e) => console.error(String(e)));`;
 const encoded = Buffer.from(payload).toString('base64');
 /*

@@ -11,7 +11,6 @@ import {
   createWalletClient,
   createPublicClient,
   getAddress,
-  http,
   stringToHex,
   type Address,
   type Hex,
@@ -29,6 +28,7 @@ import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
 import { EVIDENCE_CHAINS } from '@/lib/evidence/refs';
 import type { ChainId } from '@/lib/scan/types';
 import { builtWithPokter } from '@/lib/brand/built-with';
+import { sendingTransport } from '@/lib/chain/transport';
 
 /**
  * The evidence agent delivering a job it was paid for.
@@ -184,8 +184,8 @@ export async function deliverEvidenceJob(
 
   const chain = chainId === 56 ? bsc : bscTestnet;
   const account = submitterAccount();
-  const walletClient = createWalletClient({ account, chain, transport: http(network.publicRpcUrl) });
-  const read = createPublicClient({ chain, transport: http(network.publicRpcUrl) });
+  const walletClient = createWalletClient({ account, chain, transport: sendingTransport(chainId) });
+  const read = createPublicClient({ chain, transport: sendingTransport(chainId) });
 
   const transactionHash = await walletClient.sendTransaction({
     to: call.to as Address,

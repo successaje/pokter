@@ -19,13 +19,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Not authorised.' }, { status: 401 });
   }
-  const body = (await request.json().catch(() => ({}))) as { slug?: unknown; chainId?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { slug?: unknown; chainId?: unknown; recoverFromTx?: unknown };
   const definition = houseAgent(String(body.slug ?? ''));
   const chainId = Number(body.chainId);
   if (!definition) return NextResponse.json({ error: 'No such house agent.' }, { status: 404 });
   if (!(HOUSE_CHAINS as readonly number[]).includes(chainId)) return NextResponse.json({ error: 'chainId must be 56 or 97.' }, { status: 400 });
   try {
-    return NextResponse.json(await registerHouseAgent(definition, chainId as HouseChainId));
+    const recoverFromTx = typeof body.recoverFromTx === 'string' && /^0x[0-9a-fA-F]{64}$/.test(body.recoverFromTx) ? (body.recoverFromTx as `0x${string}`) : undefined;
+    return NextResponse.json(await registerHouseAgent(definition, chainId as HouseChainId, { recoverFromTx }));
   } catch (error) {
     const status = error instanceof HouseAgentNotConfigured ? 409 : 502;
     return NextResponse.json({ error: (error as Error).message }, { status });
