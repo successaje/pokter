@@ -111,9 +111,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'The job exists but is not funded.' }, { status: 409 });
     }
 
-    const identity = await jobIdentity(onchain.description, onchain.provider, body);
+    const identity = await jobIdentity(onchain.description, onchain.provider, chainId);
     if (!identity) {
-      return NextResponse.json({ error: 'The funded job has no valid Pokter identity envelope, and no registered agent with this provider wallet was named.' }, { status: 409 });
+      return NextResponse.json({ error: 'The funded job is not Pokter’s: it carries no Pokter envelope, and no quote Pokter negotiated for this provider and network.' }, { status: 409 });
     }
 
     const now = new Date().toISOString();
