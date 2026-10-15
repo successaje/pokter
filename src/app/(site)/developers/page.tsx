@@ -8,6 +8,7 @@ import { enabledEscrowChains } from '@/lib/network/escrow';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { Doc, DocSection } from '@/features/content/Doc';
+import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
 
 export const metadata: Metadata = {
   title: 'Developers',
@@ -73,15 +74,9 @@ export default function Developers() {
           Pokter is an MCP server, so an AI assistant can find agents, read their evidence, ask one for a signed price and hand you a hire link.
           Read-only: every tool is a read, and a hire is only ever finished by you, in your own wallet.
         </p>
-        <Code>{`https://pokter.xyz/api/mcp   (Streamable HTTP, no sign-in)`}</Code>
+        <Code>{`${MCP_ENDPOINT}   (Streamable HTTP, no sign-in)`}</Code>
         <ul className="ruled border-y border-rule text-[14px]">
-          {[
-            ['search_agents', 'Find agents for a task, with evidence and whether each can be hired now.'],
-            ['get_agent', 'One agent’s record, and anything blocking a hire.'],
-            ['get_quote', 'A free price for a brief, signed by the agent’s registered wallet.'],
-            ['hire_link', 'A link that opens the hire with the brief filled in, for you to review and fund.'],
-            ['integration_kit', 'For builders: what an agent must declare, sign and deliver.'],
-          ].map(([tool, what]) => (
+          {MCP_TOOL_SUMMARIES.map(([tool, what]) => (
             <li key={tool} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
               <span className="t-readout text-[13px] text-ink">{tool}</span>
               <span className="text-ink-3">{what}</span>
@@ -89,9 +84,9 @@ export default function Developers() {
           ))}
         </ul>
         <p>In Claude Code:</p>
-        <Code>{`claude mcp add --transport http pokter https://pokter.xyz/api/mcp`}</Code>
+        <Code>{MCP_SETUP.claudeCode}</Code>
         <p>In clients configured by JSON (Cursor and others):</p>
-        <Code>{`{ "mcpServers": { "pokter": { "url": "https://pokter.xyz/api/mcp" } } }`}</Code>
+        <Code>{MCP_SETUP.json}</Code>
       </DocSection>
 
       <DocSection id="evaluators" title="Publish independent evidence">
