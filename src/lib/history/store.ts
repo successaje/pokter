@@ -43,6 +43,15 @@ export interface QuoteRecord {
 }
 
 /** Summary of one sweep across the roster. */
+export interface QuoteFailureRecord {
+  chainId: number;
+  tokenId: string;
+  code: string;
+  detail: string | null;
+  sellerReason: string | null;
+  observedAt: string;
+}
+
 export interface SweepRecord {
   startedAt: string;
   finishedAt: string;
@@ -97,6 +106,10 @@ export interface ProbeStore {
   applyCorrections(corrections: ProbeCorrection[]): number;
   /** Corrected rows for one agent, by reason, for the agent page to disclose. */
   correctionsFor(chainId: number, tokenId: string): Array<{ rule: string; reason: string; count: number }>;
+  /** Records why price requests failed, and clears the agents that quoted. */
+  recordQuoteOutcomes(failed: QuoteFailureRecord[], quoted: { chainId: number; tokenId: string }[]): void;
+  /** Why the latest price request to an agent failed, or null when it quoted or was never asked. */
+  quoteFailureFor(chainId: number, tokenId: string): QuoteFailureRecord | null;
   /** Agents that have signed a price for Pokter: offered for sale, so measured. */
   quotedAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
@@ -174,6 +187,18 @@ const SCHEMA = `
     chain_id    INTEGER NOT NULL,
     token_id    TEXT    NOT NULL,
     enrolled_at TEXT    NOT NULL,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
+  -- Why the latest price request to an agent failed, if it did. One row per
+  -- agent, replaced each sweep and removed when the agent quotes.
+  CREATE TABLE IF NOT EXISTS quote_failures (
+    chain_id      INTEGER NOT NULL,
+    token_id      TEXT    NOT NULL,
+    code          TEXT    NOT NULL,
+    detail        TEXT,
+    seller_reason TEXT,
+    observed_at   TEXT    NOT NULL,
     PRIMARY KEY (chain_id, token_id)
   );
 
@@ -459,6 +484,31 @@ class SqliteProbeStore implements ProbeStore {
       this.db.exec('ROLLBACK');
       throw error;
     }
+  }
+
+  recordQuoteOutcomes(failed: QuoteFailureRecord[], quoted: { chainId: number; tokenId: string }[]): void {
+    if (failed.length === 0 && quoted.length === 0) return;
+    const upsert = this.db.prepare(
+      `INSERT INTO quote_failures (chain_id, token_id, code, detail, seller_reason, observed_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (chain_id, token_id) DO UPDATE SET code = excluded.code, detail = excluded.detail, seller_reason = excluded.seller_reason, observed_at = excluded.observed_at`,
+    );
+    const clear = this.db.prepare('DELETE FROM quote_failures WHERE chain_id = ? AND token_id = ?');
+    this.db.exec('BEGIN');
+    try {
+      for (const f of failed) upsert.run(f.chainId, f.tokenId, f.code, f.detail, f.sellerReason, f.observedAt);
+      for (const q of quoted) clear.run(q.chainId, q.tokenId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  quoteFailureFor(chainId: number, tokenId: string): QuoteFailureRecord | null {
+    const row = this.db
+      .prepare('SELECT * FROM quote_failures WHERE chain_id = ? AND token_id = ?')
+      .get(chainId, tokenId) as { chain_id: number; token_id: string; code: string; detail: string | null; seller_reason: string | null; observed_at: string } | undefined;
+    return row ? { chainId: row.chain_id, tokenId: row.token_id, code: row.code, detail: row.detail, sellerReason: row.seller_reason, observedAt: row.observed_at } : null;
   }
 
   quotedAgents(): { chainId: number; tokenId: string }[] {

@@ -12,11 +12,13 @@ import { requestQuote } from '@/lib/erc8183/quote';
 import {
   getProbeStore,
   type ProbeRecord,
+  type QuoteFailureRecord,
   type QuoteRecord,
   type SweepRecord,
 } from './store';
 import { getQuestStore } from '@/lib/quest/store';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
+import type { QuoteFailure } from '@/lib/hire/failure';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -207,6 +209,7 @@ export async function runSweep({
   let failed = 0;
   const errors = new Set<string>();
   const quotes: QuoteRecord[] = [];
+  const quoteFailures: QuoteFailureRecord[] = [];
   const access: { chainId: number; tokenId: string; requiresAuth: boolean; observedAt: string }[] = [];
 
   // Agents are swept a few at a time: each one costs a registry lookup plus
@@ -247,7 +250,21 @@ export async function runSweep({
      * An agent that will not quote simply has no row, and the interface says
      * so rather than substituting a default and calling it a price.
      */
-    const quote = await requestQuote(agent);
+    // Why it would not quote, kept: the agent's page says so to its owner.
+    let failure: QuoteFailure | null = null;
+    let refusal: string | null = null;
+    const quote = await requestQuote(agent, {
+      onFailure: (reason) => {
+        failure = reason;
+      },
+      onRefused: (reason) => {
+        refusal = reason;
+      },
+    });
+    if (!quote && failure) {
+      const known = failure as QuoteFailure;
+      quoteFailures.push({ chainId: agent.chain_id, tokenId: agent.token_id, code: known.code, detail: known.detail ?? null, sellerReason: refusal ?? known.sellerReason ?? null, observedAt: new Date().toISOString() });
+    }
     if (quote) {
       quotes.push({
         chainId: agent.chain_id,
@@ -282,6 +299,7 @@ export async function runSweep({
 
   store.record(records);
   store.recordQuotes(quotes);
+  store.recordQuoteOutcomes(quoteFailures, quotes.map((q) => ({ chainId: q.chainId, tokenId: q.tokenId })));
   store.recordCardAccess(access);
 
   const outcome: SweepOutcome = {

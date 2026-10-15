@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { DEFAULT_BUDGET_LABEL } from '@/lib/erc8183/pricing';
 import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
@@ -53,6 +54,20 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           No standing access to your wallet. One payment, one job.
         </li>
       </ul>
+      {/*
+        Why it cannot be priced, from the latest sweep: said where its owner
+        looks, with the part of the integration kit that explains the fix.
+      */}
+      {profile.hireBlocker && (
+        <div className="border-t border-rule px-5 py-3.5">
+          <p className="mb-1 text-[13px] font-semibold text-ink">{profile.hireBlocker.transient ? 'Could not be priced at the last check' : 'Why it cannot be priced'}</p>
+          <p className="text-[12.5px] leading-snug text-ink-2">{profile.hireBlocker.reason}</p>
+          <p className="mt-1.5 text-[12px] text-ink-3">
+            Is this your agent? <Link href={profile.hireBlocker.fix.href} className="link">{profile.hireBlocker.fix.label}</Link> explains the fix.
+            {profile.hireBlocker.observedAt ? ` Checked ${new Date(profile.hireBlocker.observedAt).toUTCString().slice(5, 22)} UTC.` : ''}
+          </p>
+        </div>
+      )}
       {profile.warnings.length > 0 && (
         <div className="border-t border-rule bg-watch-wash/60 px-5 py-3.5">
           <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-watch">

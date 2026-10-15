@@ -7,6 +7,7 @@ import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
+import { currentHireBlocker } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,18 @@ export async function GET(
      * it. `verdict` above is availability; this is how far the evidence
      * goes, and the two answer different questions.
      */
+    /*
+     * Why it cannot be priced or hired right now, from the latest sweep's
+     * price request, in words its owner can act on. Null when it has a
+     * signed price an escrow can pay, or was never asked.
+     */
+    hireBlocker: (() => {
+      const blocker = currentHireBlocker(agent, quote, payable);
+      return blocker
+        ? { code: blocker.code, reason: blocker.reason, transient: blocker.transient, fix: `https://pokter.xyz${blocker.fix.href}`, observedAt: blocker.observedAt, provenance: 'pokter-measured', source: 'The latest sweep’s read-only price request to the agent.' }
+        : null;
+    })(),
+
     ladder: {
       current: maturity.current,
       label: maturity.label,

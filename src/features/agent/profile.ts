@@ -31,6 +31,8 @@ import type { AgentMaturity } from '@/lib/agents/maturity';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { readinessRows, type ReadinessRow } from '@/lib/agents/readiness';
 import { chainLabel } from '@/lib/network/presentation';
+import type { HireBlocker } from '@/lib/hire/blocker';
+import { currentHireBlocker } from '@/lib/hire/blocker-live';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -102,6 +104,12 @@ export interface AgentProfile {
   warnings: string[];
   /** Probe rows excluded as Pokter's own measurement error, by reason. */
   corrections: Array<{ rule: string; reason: string; count: number }>;
+  /**
+   * Why it cannot be priced or hired right now, from the latest sweep's
+   * price request, for its owner to act on. Null when it has a payable
+   * signed price, or was never asked.
+   */
+  hireBlocker: (HireBlocker & { observedAt: string | null }) | null;
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
   readiness: ReadinessRow[];
   hireable: boolean;
@@ -269,6 +277,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
         }
       : null,
     corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
+    hireBlocker: currentHireBlocker(agent, d.quote, payable),
     readiness: readinessRows({
       now: Date.now(),
       live: { answered: answeredNow, medianMs: live.medianMs },
