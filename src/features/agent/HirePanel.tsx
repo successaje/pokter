@@ -37,8 +37,8 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           {price.signed && <Icon.Shield size={13} className="text-ok" />}
           {price.caption}
         </span>
-        <NetworkRow chainId={profile.escrow.chainId} className="mt-3" />
       </div>
+      <NetworkRow chainId={profile.escrow.chainId} className="border-t border-rule px-5 py-3" />
       <ul className="flex flex-col gap-2.5 border-t border-rule px-5 py-4 text-[13px] text-ink-2">
         <li className="flex gap-2.5">
           <Icon.Lock size={16} className="mt-px shrink-0 text-ink-3" />

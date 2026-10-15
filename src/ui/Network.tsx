@@ -23,9 +23,9 @@ export function NetworkRow({ chainId, className }: { chainId: number; className?
   const money = escrowMoney(chainId);
   const stage = chainId === 56 ? 'Mainnet' : chainId === 97 ? 'Testnet' : null;
   return (
-    <div className={cn('flex items-center gap-3 border-y border-rule py-3', className)}>
-      <BnbMark size={28} />
-      <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold text-ink">
+    <div className={cn('flex items-center gap-3', className)}>
+      <BnbMark size={24} />
+      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">
         {stage ? `BNB Chain · ${stage}` : money.network}
       </span>
       {money.money && (
