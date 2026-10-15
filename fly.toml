@@ -61,7 +61,9 @@ primary_region = 'iad'
   # Sweeps probe dozens of endpoints concurrently and the SQLite writes are
   # synchronous, so the smallest shared CPU is not enough headroom.
   size = 'shared-cpu-1x'
-  memory = '1gb'
+  # 2 GB since 15 October 2026: at 1 GB the machine exited abruptly mid-sweep
+  # and dropped every request in flight, a mainnet registration among them.
+  memory = '2gb'
 
 [mounts]
   source = 'pokter_data'
