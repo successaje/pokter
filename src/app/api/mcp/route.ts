@@ -26,7 +26,15 @@ function tools(request: Request): McpTool[] {
   const origin = originOf(request);
   const local = new URL(request.url).origin;
   // Only the headers the rate limit and logs read: the inner requests carry their own bodies.
-  const passed = Object.fromEntries(['fly-client-ip', 'x-forwarded-for', 'user-agent'].flatMap((h) => (request.headers.get(h) ? [[h, request.headers.get(h) as string]] : [])));
+  const passed: Record<string, string> = Object.fromEntries(['fly-client-ip', 'x-forwarded-for', 'user-agent'].flatMap((h) => (request.headers.get(h) ? [[h, request.headers.get(h) as string]] : [])));
+  /*
+   * And the public host: the routes build their links with originOf, which
+   * reads the proxy's forwarded headers. Without them get_agent's links
+   * came out as https://0.0.0.0:8080/…, the machine's own address.
+   */
+  const publicUrl = new URL(origin);
+  passed['x-forwarded-host'] = publicUrl.host;
+  passed['x-forwarded-proto'] = publicUrl.protocol.replace(':', '');
   const forward = (url: string, init: RequestInit = {}) => new Request(url, { ...init, headers: { ...passed, ...(init.headers as Record<string, string> | undefined) } });
   const chain = (value: unknown) => (value === 56 || value === 97 || value === '56' || value === '97' ? Number(value) : null);
   const token = (value: unknown) => (typeof value === 'string' || typeof value === 'number') && /^\d{1,12}$/.test(String(value)) ? String(value) : null;
