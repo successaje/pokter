@@ -6,6 +6,7 @@ import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
+import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -101,6 +102,9 @@ export async function sendPreparedBrief(
 
   const answer = extractAnswer(payload.payload);
   if (!answer) {
+    // Say what the agent actually did, rather than "no answer".
+    const pending = notAnAnswer(readA2AReply(payload.payload));
+    if (pending) throw new Error(pending);
     if (isQuoteReply(object(object(payload.payload)?.result))) throw new PaidOnlyError('The agent answered with a price: it does this work only when paid through escrow.');
     throw new Error('The agent answered, but with no text and no data.');
   }
