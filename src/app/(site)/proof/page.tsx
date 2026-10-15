@@ -130,9 +130,16 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const jobs = filterCurrentProductionJobs(getJobStore().all(), filters, isTeam)
     .filter((job) => !agentKey || `${job.agentChainId ?? job.chainId}:${job.agentTokenId}` === agentKey)
     .sort((a, b) => b.hiredAt.localeCompare(a.hiredAt));
-  const summary = summarizeProductionProof(jobs, isTeam);
-  const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam);
-  const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam);
+  const summary = summarizeProductionProof(jobs, isTeam, isLifecycleDemo);
+  /*
+   * These two are read for their settled value, which counts a demo's money
+   * like any other because the escrow really did move it. They are given the
+   * demo test anyway: an un-wired summary reports every accepted job as
+   * answered, and a later reader of `answeredDeliveries` would get that
+   * silently rather than as an error.
+   */
+  const mainnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 56), isTeam, isLifecycleDemo);
+  const testnetSummary = summarizeProductionProof(jobs.filter((job) => job.chainId === 97), isTeam, isLifecycleDemo);
   const wallets = teamWalletList();
   /*
    * The agent's registry name, not the one written into each job: legacy
@@ -197,8 +204,24 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
       {agentKey && <div className="border-b border-rule py-3 text-[13px] text-ink-2">Filtered to ERC-8004 identity <span className="t-readout">{agentKey}</span>. <Link href={proofHref(filters, {})} className="ml-2 font-medium hover:underline">Clear agent filter</Link></div>}
 
       <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-3 lg:grid-cols-6">
-        <Metric value={summary.completed.toLocaleString('en-US')} label="Accepted deliveries" note="Escrow reached COMPLETED." />
-        <Metric value={rate} label="Terminal completion" note={`${summary.completed} accepted of ${summary.terminal} terminal outcomes.`} />
+        {/*
+          The answered count leads, because "Accepted deliveries" counted
+          Pokter's own lifecycle demonstrations — which settle identically
+          and carry no answer — and the rows below already said so one by
+          one. The accepted total stays in the note: it is a true escrow
+          fact, and the two figures have to add up for a reader checking
+          them against the outcome bars.
+        */}
+        <Metric
+          value={summary.answeredDeliveries.toLocaleString('en-US')}
+          label="Answered deliveries"
+          note={
+            summary.lifecycleDemoJobs > 0
+              ? `${summary.completed} accepted by escrow; ${summary.lifecycleDemoJobs} were lifecycle demos carrying no answer.`
+              : 'Escrow reached COMPLETED with an answer from the agent.'
+          }
+        />
+        <Metric value={rate} label="Terminal completion" note={`${summary.completed} accepted of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
         <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note="Distinct recorded funders in this view." />
         <Metric value={summary.agentsHired.toLocaleString('en-US')} label="Agents hired" note="Distinct registry identities commissioned." />
         <Metric value={summary.repeatKnownBuyers.toLocaleString('en-US')} label="Repeat buyers" note="Known wallets with at least two jobs." />

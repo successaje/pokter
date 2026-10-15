@@ -202,3 +202,41 @@ test('an empty view reports no completion rate rather than zero', () => {
   assert.equal(summary.jobs, 0);
   assert.equal(summary.lastCheckedAt, null);
 });
+
+test('accepted deliveries separate the lifecycle demos from the answers', () => {
+  /*
+   * The page published "13 Accepted deliveries" and an 87% terminal
+   * completion rate above rows that each said "Lifecycle demo: no answer
+   * from the agent". Five of the thirteen were demos, so the headline
+   * overstated useful work by 38% while the detail underneath was honest.
+   */
+  const jobs = [
+    job('1', 'COMPLETED', { client: BUYER_A }),
+    job('2', 'COMPLETED', { client: BUYER_B }),
+    job('3', 'COMPLETED', { client: BUYER_A }),
+    job('4', 'EXPIRED', { client: BUYER_B }),
+  ];
+  const demos = new Set(['2']);
+  const summary = summarizeProductionProof(jobs, () => false, (j) => demos.has(j.jobId));
+
+  assert.equal(summary.completed, 3, 'the escrow fact is unchanged: three reached COMPLETED');
+  assert.equal(summary.lifecycleDemoJobs, 1);
+  assert.equal(summary.answeredDeliveries, 2, 'only the accepted jobs that carried an answer');
+  assert.equal(
+    summary.answeredDeliveries + summary.lifecycleDemoJobs,
+    summary.completed,
+    'a reader must be able to check the two figures against the accepted count',
+  );
+  // The rate stays an escrow measure, so the demos do not change it.
+  assert.equal(summary.completionRate, 3 / 4);
+});
+
+test('an unwired caller reports every accepted delivery as answered', () => {
+  // Absent means "no demo is known", never "none exist": a caller that
+  // cannot read manifests must not silently under-report useful work.
+  const jobs = [job('1', 'COMPLETED', { client: BUYER_A }), job('2', 'COMPLETED', { client: BUYER_B })];
+  const summary = summarizeProductionProof(jobs, () => false);
+
+  assert.equal(summary.lifecycleDemoJobs, 0);
+  assert.equal(summary.answeredDeliveries, summary.completed);
+});

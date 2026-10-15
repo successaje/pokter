@@ -43,6 +43,25 @@ export interface ProductionProofSummary {
   outsideDemandJobs: number;
   teamJobs: number;
   unknownFunderJobs: number;
+  /**
+   * Accepted jobs whose deliverable carried no answer from the agent, and
+   * the remainder that did.
+   *
+   * `completed` is an escrow fact: the contract reached COMPLETED. It is not
+   * a count of useful work, because Pokter's own lifecycle demonstrations
+   * settle exactly the same way — five of the thirteen accepted deliveries
+   * on this page were demos with no agent answer, and the page published
+   * "13 Accepted deliveries" and "87% terminal completion" above rows that
+   * said so one by one. The per-row labels were honest and the headline
+   * undid them.
+   *
+   * Agent pages already drop demos from economic history
+   * (`summariseEconomicHistory`); this is the same exclusion for the proof
+   * page, as a separate figure rather than a redefinition of `completed`.
+   * The escrow fact stays available, and nothing is removed from the rows.
+   */
+  lifecycleDemoJobs: number;
+  answeredDeliveries: number;
   byStatus: Record<JobStatusName, number>;
   lastCheckedAt: string | null;
 }
@@ -102,6 +121,14 @@ function isSelfHire(job: HiredJob): boolean {
 export function summarizeProductionProof(
   jobs: readonly HiredJob[],
   isTeamFunded: (job: HiredJob) => boolean,
+  /*
+   * Optional, and absent means "no demo is known" rather than "none exist":
+   * the caller reads stored manifests to decide, which not every caller can
+   * do. Left out, `answeredDeliveries` equals `completed` — the figure the
+   * page showed before, so an un-wired caller cannot silently under-report
+   * useful work.
+   */
+  isLifecycleDemo: (job: HiredJob) => boolean = () => false,
 ): ProductionProofSummary {
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<JobStatusName, number>;
   const buyers = new Map<string, number>();
@@ -111,10 +138,12 @@ export function summarizeProductionProof(
   let teamJobs = 0;
   let unknownFunderJobs = 0;
   let selfHireJobs = 0;
+  let lifecycleDemoJobs = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
     byStatus[job.status] += 1;
+    if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
@@ -144,6 +173,8 @@ export function summarizeProductionProof(
     completedValueRaw: completedValue.toString(),
     outsideTeamJobs,
     selfHireJobs,
+    lifecycleDemoJobs,
+    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
     outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,
     teamJobs,
