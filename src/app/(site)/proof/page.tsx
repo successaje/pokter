@@ -203,7 +203,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
       </section>
       {agentKey && <div className="border-b border-rule py-3 text-[13px] text-ink-2">Filtered to ERC-8004 identity <span className="t-readout">{agentKey}</span>. <Link href={proofHref(filters, {})} className="ml-2 font-medium hover:underline">Clear agent filter</Link></div>}
 
-      <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-3 lg:grid-cols-6">
+      <section aria-label="Production metrics" className="grid grid-cols-2 gap-x-5 py-8 sm:grid-cols-4 lg:grid-cols-7">
         {/*
           The answered count leads, because "Accepted deliveries" counted
           Pokter's own lifecycle demonstrations — which settle identically
@@ -212,14 +212,22 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
           fact, and the two figures have to add up for a reader checking
           them against the outcome bars.
         */}
+        {/*
+          And the demos get a tile of their own. Kept in a note, the split
+          was there for anyone who read it and invisible to anyone who
+          scanned: an outside review read the page as 12 accepted with a
+          footnote, when the figure that means something is the 7 answered.
+          Side by side, the two add up to the escrow's accepted total.
+        */}
         <Metric
           value={summary.answeredDeliveries.toLocaleString('en-US')}
           label="Answered deliveries"
-          note={
-            summary.lifecycleDemoJobs > 0
-              ? `${summary.completed} accepted by escrow; ${summary.lifecycleDemoJobs} were lifecycle demos carrying no answer.`
-              : 'Escrow reached COMPLETED with an answer from the agent.'
-          }
+          note={`Accepted by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} accepted jobs.`}
+        />
+        <Metric
+          value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
+          label="Lifecycle demos"
+          note={summary.lifecycleDemoJobs > 0 ? 'Pokter testing the escrow path end to end: accepted, but carrying no answer. Not counted as delivered work.' : 'None in this view.'}
         />
         <Metric value={rate} label="Terminal completion" note={`${summary.completed} accepted of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
         <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note="Distinct recorded funders in this view." />
