@@ -76,8 +76,19 @@ function NetworkSwitch({ p }: { p: DiscoverParams }) {
     { chain: '56', label: 'BNB Chain' },
     { chain: '97', label: 'Testnet' },
   ];
+  /*
+   * Labelled, because the word alone is ambiguous and the ambiguity reads
+   * as a broken filter. Selecting "BNB Chain" lists agents registered on
+   * chain 56, and most of those signed a price in testnet $U — so their
+   * cards correctly say "Test tokens · BNB Testnet", and a buyer sees a
+   * BNB Chain filter returning testnet agents. Both facts are true; only
+   * the heading was missing. The tooltip said this already, and a tooltip
+   * is not where a filter explains itself.
+   */
   return (
-    <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Network" title="Where the agent is registered. Each agent’s price says which money it settles in.">
+    <div className="flex items-center gap-2">
+      <span className="t-label shrink-0 text-ink-3">Registered on</span>
+      <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Registered on" title="Where the agent’s identity lives. Each agent’s card says which money a hire of it settles in, which is often the other network.">
       {options.map((o) => (
         <Link
           key={o.chain}
@@ -89,6 +100,7 @@ function NetworkSwitch({ p }: { p: DiscoverParams }) {
           {o.label}
         </Link>
       ))}
+      </div>
     </div>
   );
 }

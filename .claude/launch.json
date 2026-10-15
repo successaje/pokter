@@ -4,8 +4,29 @@
     {
       "name": "pokter2",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "--hostname", "localhost", "--port", "4313"],
+      "runtimeArgs": [
+        "next",
+        "dev",
+        "--hostname",
+        "localhost",
+        "--port",
+        "4313"
+      ],
       "port": 4313
+    },
+    {
+      "name": "pokter2-notify",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "dev",
+        "/Users/finisher/Documents/github/pokter2-notify",
+        "--hostname",
+        "localhost",
+        "--port",
+        "4314"
+      ],
+      "port": 4314
     }
   ]
 }
