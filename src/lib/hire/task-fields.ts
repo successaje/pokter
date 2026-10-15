@@ -165,3 +165,40 @@ export function withWallet(fields: TaskField[], address: string): TaskField[] | 
   });
   return changed ? next : null;
 }
+
+/**
+ * A task checked on the server against the JSON examples the agent declares.
+ *
+ * The hire form validates as the buyer types, but anything posting to the
+ * quote route directly, or a raw-JSON edit the form did not catch, reached
+ * the seller unchecked. Prose is the agent's to judge and passes here. A
+ * task that looks like JSON must be a JSON object; when the agent declares
+ * JSON examples, the task is read against the closest one (same routing
+ * value first, then most keys in common) with the same rules as the form,
+ * and its routing values (`skill` and the like) must be the declared ones.
+ */
+export function declaredTaskProblems(task: string, declaredExamples: readonly string[]): string[] {
+  const trimmed = task.trim();
+  if (!/^[[{]/.test(trimmed)) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return ['The task starts like JSON but is not valid JSON'];
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ['A JSON task must be an object'];
+  const values = parsed as Record<string, unknown>;
+  const schemas = declaredExamples.map((example) => taskFields(example)).filter((schema): schema is TaskField[] => schema !== null);
+  if (schemas.length === 0) {
+    const own = taskFields(trimmed);
+    return own ? taskFieldProblems(own) : [];
+  }
+  const score = (schema: TaskField[]) =>
+    (schema.some((field) => field.fixed && values[field.key] === field.example) ? 100 : 0) +
+    schema.filter((field) => field.key in values).length;
+  const schema = [...schemas].sort((a, b) => score(b) - score(a))[0];
+  const routing = schema
+    .filter((field) => field.fixed && values[field.key] !== field.example)
+    .map((field) => `${field.key} must be "${field.example}", as the agent declares`);
+  return [...routing, ...taskProblems(schema, trimmed)];
+}
