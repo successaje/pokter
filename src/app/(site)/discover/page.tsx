@@ -56,8 +56,47 @@ function Toggle({ href, on, label, hint }: { href: string; on: boolean; label: s
   );
 }
 
-function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }> }) {
-  const total = counts.reduce((sum, c) => sum + c.count, 0);
+/**
+ * Which network's registrations to show, where the results are read.
+ *
+ * It sat at the foot of the filter column, under availability and
+ * evidence, and was missed: people searching for a mainnet agent saw its
+ * testnet twin and concluded the mainnet one was absent. It is now beside
+ * the result count and sort, on every screen size.
+ */
+/** The match reason, and the other network an agent shown once is also on. */
+function withNetworks(row: { reason: string | null; alsoOn: number[] }): string | null {
+  const also = row.alsoOn.includes(97) ? 'Also on testnet' : row.alsoOn.includes(56) ? 'Also on BNB Chain' : null;
+  return [row.reason, also].filter(Boolean).join(' · ') || null;
+}
+
+function NetworkSwitch({ p }: { p: DiscoverParams }) {
+  const options: Array<{ chain: DiscoverParams['chain']; label: string }> = [
+    { chain: 'any', label: 'All networks' },
+    { chain: '56', label: 'BNB Chain' },
+    { chain: '97', label: 'Testnet' },
+  ];
+  return (
+    <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Network" title="Where the agent is registered. Each agent’s price says which money it settles in.">
+      {options.map((o) => (
+        <Link
+          key={o.chain}
+          href={discoverHref({ chain: o.chain }, p)}
+          scroll={false}
+          aria-current={p.chain === o.chain ? 'true' : undefined}
+          className={cn('inline-flex h-7 items-center rounded-[6px] px-2.5 text-[12.5px] font-medium', p.chain === o.chain ? 'bg-ink text-paper' : 'text-ink-2 hover:text-ink')}
+        >
+          {o.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
+  // Counted under the same filters as the results; the sum of the tasks
+  // left out agents in no task, so it never matched the list.
+  const total = allTasks;
   return (
     <div className="flex flex-col gap-7">
       <section className="flex flex-col gap-1" aria-label="Task">
@@ -88,33 +127,6 @@ function Filters({ p, counts }: { p: DiscoverParams; counts: Array<{ id: string;
         <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>
           Has published attestations
         </FilterLink>
-      </section>
-      {/*
-        Named for what it filters, and what it does not.
-
-        "Registered on" was accurate and still read as "hire on", because
-        for a buyer there is only one network that matters and it is the
-        one their money moves on. Those differ for most of this
-        catalogue: an agent registered on BNB Chain is hired on testnet
-        whenever its signed price is in testnet $U. The note says so
-        rather than leaving the filter to look broken, and each card now
-        carries the network its own price settles on.
-      */}
-      <section className="flex flex-col gap-1" aria-label="Registry network">
-        <h2 className="t-label mb-1.5 px-2.5">Registry network</h2>
-        <FilterLink href={discoverHref({ chain: 'any' }, p)} on={p.chain === 'any'}>
-          Any network
-        </FilterLink>
-        <FilterLink href={discoverHref({ chain: '56' }, p)} on={p.chain === '56'}>
-          BNB Chain
-        </FilterLink>
-        <FilterLink href={discoverHref({ chain: '97' }, p)} on={p.chain === '97'}>
-          BNB testnet
-        </FilterLink>
-        <p className="px-2.5 pt-1 text-[12px] leading-relaxed text-ink-3">
-          Where the identity is registered, which is not always where a hire is
-          funded. Each agent&rsquo;s price says which money it settles in.
-        </p>
       </section>
       <p className="px-2.5 text-[12px] leading-relaxed text-ink-3">
         Power search: <span className="t-readout">is:reliable</span>, <span className="t-readout">has:price</span>,{' '}
@@ -187,10 +199,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </section>
       )}
 
-      {result.reading && (
+      {/* With no results, the not-found message below says it better. */}
+      {result.reading && result.total > 0 && (
         <div className="anim-fade mt-6 flex flex-col gap-2 rounded-[12px] border border-rule bg-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink-2">
-            {result.reading.categoryLabel ? (
+            {result.reading.byName ? (
+              <>Agents whose names match &ldquo;{p.q}&rdquo; come first{result.reading.categoryLabel ? `, then ${result.reading.categoryLabel} agents` : ''}{result.reading.terms.length ? ', then agents whose descriptions use your words' : ''}.</>
+            ) : result.reading.categoryLabel ? (
               <>
                 Reading this as <strong className="font-semibold text-ink">{result.reading.categoryLabel}</strong>
                 {result.reading.matched.length > 0 && (
@@ -222,7 +237,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="hidden lg:block" aria-label="Filters">
           <div className="sticky top-20">
-            <Filters p={base} counts={result.categoryCounts} />
+            <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
           </div>
         </aside>
 
@@ -230,7 +245,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
             <div className="flex items-center gap-3">
               <MobileFilters count={activeFilters}>
-                <Filters p={base} counts={result.categoryCounts} />
+                <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
               </MobileFilters>
               <p className="text-sm text-ink-2" aria-live="polite">
                 <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
@@ -241,7 +256,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 </Link>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <NetworkSwitch p={base} />
               <SortSelect params={base} />
               <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Layout">
                 <Link href={discoverHref({ view: 'grid' }, p)} scroll={false} aria-label="Grid view" aria-current={p.view === 'grid' ? 'true' : undefined} className={cn('grid size-7 place-items-center rounded-[6px]', p.view === 'grid' ? 'bg-sunken text-ink' : 'text-ink-3')}>
@@ -255,34 +271,50 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
 
           {result.total === 0 ? (
-            <EmptyState
-              title={p.q ? 'No measured agent matches that yet' : 'Nothing matches these filters'}
-              action={
-                <>
-                  <LinkButton href="/discover" intent="secondary" size="s">
-                    Clear everything
-                  </LinkButton>
-                  {p.q && (
-                    <LinkButton href={discoverHref({ q: '' }, p)} intent="ghost" size="s">
-                      Keep filters, drop the words
+            <div className="flex flex-col gap-6">
+              <EmptyState
+                title={p.q ? (result.suggestions?.close.length ? `No agent named “${p.q}”` : `Nothing found for “${p.q}”`) : 'Nothing matches these filters'}
+                action={
+                  <>
+                    <LinkButton href="/discover" intent="secondary" size="s">
+                      Clear everything
                     </LinkButton>
-                  )}
-                </>
-              }
-            >
-              Pokter only lists agents it can say something true about. Loosen a filter, or describe the outcome rather than the method.
-            </EmptyState>
+                    {p.q && activeFilters > 0 && (
+                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
+                        Keep the words, drop the filters
+                      </LinkButton>
+                    )}
+                  </>
+                }
+              >
+                {p.q
+                  ? result.suggestions?.close.length
+                    ? 'No listed agent has that name. These are the closest names Pokter knows.'
+                    : 'No listed agent has that name or describes that task. These answered this week and can be hired now.'
+                  : 'Loosen a filter to see more.'}
+              </EmptyState>
+              {result.suggestions && (result.suggestions.close.length > 0 || result.suggestions.active.length > 0) && (
+                <section aria-label={result.suggestions.close.length ? 'Did you mean' : 'Hireable now'}>
+                  <h2 className="t-label mb-2">{result.suggestions.close.length ? 'Did you mean' : 'Hireable now'}</h2>
+                  <div className="ruled">
+                    {(result.suggestions.close.length ? result.suggestions.close : result.suggestions.active).map((row) => (
+                      <AgentRow key={row.key} row={row} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
           ) : p.view === 'list' ? (
             <div className="ruled">
               {shown.map((row) => (
-                <AgentRow key={row.key} row={row} reason={row.reason ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
+                <AgentRow key={row.key} row={row} reason={withNetworks(row) ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
               ))}
             </div>
           ) : (
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {shown.map((row) => (
                 <li key={row.key} className="flex min-w-0 flex-col">
-                  <AgentCard row={row} action={<div className="flex items-center justify-between gap-2">{row.reason ? <span className="truncate text-[12px] text-ink-3" title={row.reason}>{row.reason}</span> : <span />}<CompareToggle agentKey={row.key} /></div>} />
+                  <AgentCard row={row} action={<div className="flex items-center justify-between gap-2">{withNetworks(row) ? <span className="truncate text-[12px] text-ink-3" title={withNetworks(row) ?? undefined}>{withNetworks(row)}</span> : <span />}<CompareToggle agentKey={row.key} /></div>} />
                 </li>
               ))}
             </ul>

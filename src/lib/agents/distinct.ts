@@ -30,3 +30,35 @@ export function firstPerAgent<T>(items: T[], agentOf: (item: T) => AgentIdentity
     return true;
   });
 }
+
+/**
+ * One item per agent, preferring the mainnet registration.
+ *
+ * `firstPerAgent` kept whichever registration ranked higher, and a new
+ * mainnet listing has no record yet while its testnet twin already has
+ * deliveries, so the testnet one won every time and a mainnet agent could
+ * only be found by filtering to BNB Chain. The agent keeps the place its
+ * best registration earned; the row shown is its mainnet one, and the
+ * other networks it is on are returned so the row can say so.
+ */
+export function mainnetFirstPerAgent<T>(items: T[], agentOf: (item: T) => AgentIdentity): { items: T[]; alsoOn: Map<T, number[]> } {
+  const groups = new Map<string, T[]>();
+  const order: string[] = [];
+  for (const item of items) {
+    const key = agentIdentityKey(agentOf(item));
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key)!.push(item);
+  }
+  const alsoOn = new Map<T, number[]>();
+  const picked = order.map((key) => {
+    const group = groups.get(key)!;
+    const chosen = group.find((item) => agentOf(item).chain_id === 56) ?? group[0];
+    const others = [...new Set(group.filter((item) => item !== chosen).map((item) => agentOf(item).chain_id))];
+    if (others.length) alsoOn.set(chosen, others);
+    return chosen;
+  });
+  return { items: picked, alsoOn };
+}
