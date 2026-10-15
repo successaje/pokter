@@ -32,6 +32,9 @@ primary_region = 'iad'
   QUEST_DB_PATH = '/data/quest.db'
   CONVERSION_DB_PATH = '/data/conversion.db'
   SEAL_DB_PATH = '/data/seals.db'
+  # The server schedules its own probe sweeps (src/lib/history/scheduler.ts);
+  # GitHub's cron is the backup. Set only here, so no other host sweeps.
+  SWEEP_SCHEDULER = 'on'
   ALTANA_NETWORK = 'bnb-testnet'
   # The public origin. demo-seller writes this into the deliverable URL it
   # commits on chain, so it must match the live host before anything delivers.
@@ -61,7 +64,9 @@ primary_region = 'iad'
   # Sweeps probe dozens of endpoints concurrently and the SQLite writes are
   # synchronous, so the smallest shared CPU is not enough headroom.
   size = 'shared-cpu-1x'
-  memory = '1gb'
+  # 2GB: the machine crashed at 1GB during a sweep, and was scaled by hand
+  # without this file, so every deploy put it back to 1GB.
+  memory = '2gb'
 
 [mounts]
   source = 'pokter_data'

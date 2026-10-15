@@ -13,22 +13,44 @@ on:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Trigger sweep
         run: |
-          response=$(curl -sS -w '\n%{http_code}' --max-time 480 \
-            -X POST "https://pokter.xyz/api/sweep" \
-            -H "authorization: Bearer ${{ secrets.SWEEP_SECRET }}")
+          # The server sweeps on its own schedule now; this is the backup.
+          # A manual run forces a sweep; a scheduled one stands down when
+          # the server swept recently or is sweeping now.
+          query=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then query="?force=1"; fi
 
-          body=$(echo "$response" | head -n -1)
-          status=$(echo "$response" | tail -n 1)
+          for attempt in 1 2; do
+            response=$(curl -sS -w '\n%{http_code}' --max-time 480 \
+              -X POST "https://pokter.xyz/api/sweep${query}" \
+              -H "authorization: Bearer ${{ secrets.SWEEP_SECRET }}" || printf '\n000')
+            body=$(echo "$response" | head -n -1)
+            status=$(echo "$response" | tail -n 1)
+            # One retry after a gateway failure: a deploy restarting the
+            # machine mid-sweep answers 502, and a minute later it is back.
+            case "$status" in 502|503|504|000)
+              if [ "$attempt" = 1 ]; then echo "HTTP $status; retrying in 60s"; sleep 60; continue; fi;;
+            esac
+            break
+          done
 
           echo "$body"
 
+          if [ "$status" = "409" ]; then
+            echo "A sweep is already running on the server."
+            exit 0
+          fi
           if [ "$status" != "200" ]; then
             echo "::error::Sweep failed with HTTP $status"
             exit 1
+          fi
+          skipped=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('skipped',''))")
+          if [ -n "$skipped" ]; then
+            echo "Skipped: the server swept recently."
+            exit 0
           fi
 
           # A sweep that recorded nothing is a failed sweep, however it exited.
