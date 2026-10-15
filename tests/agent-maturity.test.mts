@@ -95,3 +95,18 @@ test('the agent delivering its own work still earns the step', () => {
   assert.equal(maturity.current, 'delivered');
   assert.match(maturity.steps.find((s) => s.id === 'delivered')?.detail ?? '', /own wallet/);
 });
+
+test('a live answer counts only while no scheduled check exists, and the wording follows', () => {
+  // Stockroom: answered the page's live check, never swept.
+  const unswept = deriveMaturity(facts({ liveAnswered: true }));
+  assert.equal(unswept.current, 'answers');
+  assert.match(unswept.steps[0].detail, /live check when this page loaded; no scheduled checks yet/);
+
+  // Never checked at all is not "has not answered".
+  assert.equal(deriveMaturity(facts()).summary, 'Listed in the registry; Pokter has not checked it yet.');
+
+  // A history of failures is not overturned by one live answer.
+  const failing = deriveMaturity(facts({ liveAnswered: true, probeRate: 0 }));
+  assert.equal(failing.current, null);
+  assert.equal(failing.summary, 'Listed in the registry; it has not answered Pokter’s checks.');
+});

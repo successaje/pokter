@@ -29,6 +29,8 @@ import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
 import type { AgentMaturity } from '@/lib/agents/maturity';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
+import { readinessRows, type ReadinessRow } from '@/lib/agents/readiness';
+import { chainLabel } from '@/lib/network/presentation';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -87,6 +89,10 @@ export interface AgentProfile {
   services: Array<{ name: string; endpoint: string }>;
   repositoryUrl: string | null;
   warnings: string[];
+  /** Probe rows excluded as Pokter's own measurement error, by reason. */
+  corrections: Array<{ rule: string; reason: string; count: number }>;
+  /** Each observation on its own, with its scope and age (see `readinessRows`). */
+  readiness: ReadinessRow[];
   hireable: boolean;
   trialAvailable: boolean;
   alternatives: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; verdict: Verdict; answered: number; probes: number }>;
@@ -148,7 +154,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
 
   // The same rule the catalogue's verdict applies (`verdictFor`): answering
   // probes does not make an agent reliable while it lets paid jobs lapse.
-  const { maturity, payable, history, categoryCheck } = dossierLadder(d, escrowChain);
+  const { maturity, payable, history, categoryCheck } = dossierLadder(d, escrowChain, { liveAnswered: answeredNow });
   const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const verdict = adjusted.verdict;
   const verdictRationale = adjusted.note ? `${proof.rationale} ${adjusted.note}` : proof.rationale;
@@ -234,6 +240,16 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           payable,
         }
       : null,
+    corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
+    readiness: readinessRows({
+      now: Date.now(),
+      live: { answered: answeredNow, medianMs: live.medianMs },
+      record: { totalProbes: record.totalProbes, totalAnswered: record.totalAnswered, observedDays: record.observedDays, lastSeen: record.lastSeen },
+      quote: d.quote ? { quotedAt: d.quote.quotedAt, expiresAt: d.quote.expiresAt ?? null, current: d.quoteCurrent, payable } : null,
+      escrowLabel: chainLabel(escrowChain),
+      history,
+      categoryCheck: categoryCheck ? { name: categoryCheck.definition.label, run: categoryCheck.run } : null,
+    }),
     suggestion: suggested,
     providers,
     deliveredByPokter: agent.chain_id !== escrowChain,

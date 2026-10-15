@@ -12,6 +12,7 @@ import { orderMarketplace } from '@/lib/search/order';
 import type { DiscoverParams } from './params';
 import { parseQuery } from '@/lib/search/query';
 import { closestNames, describeNameMatch, nameMatch } from '@/lib/search/names';
+import { chainLabel } from '@/lib/network/presentation';
 
 const STOP = new Set([
   'i', 'me', 'my', 'need', 'want', 'someone', 'something', 'an', 'a', 'the', 'to', 'of', 'for', 'and', 'or', 'agent',
@@ -33,6 +34,8 @@ export interface DiscoverResult {
   /** Sizes of the curated shortcuts, over everything listed. */
   collections: { hireable: number; priced: number; answering: number; corroborated: number };
   unreachable: boolean;
+  /** Category labels on a chain where a registry read failed, so results there may be missing. */
+  incomplete: string[];
 }
 
 function textTerms(q: string) {
@@ -56,7 +59,7 @@ function haystack(entry: SearchableAgent) {
  * Every result carries the reason it matched, in words.
  */
 export async function discover(params: DiscoverParams): Promise<DiscoverResult> {
-  const { entries, unreachable } = await listSearchableWithStatus({ limit: 400 });
+  const { entries, unreachable, incomplete } = await listSearchableWithStatus({ limit: 400 });
   const promotable = entries.filter((entry) => isPromotableAgent(entry.listing.agent));
 
   const q = params.q.trim();
@@ -177,6 +180,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     },
     suggestions,
     unreachable,
+    incomplete: [...new Set(incomplete.map(({ category, chainId }) => `${CATEGORY_BY_ID.get(category)?.label ?? category} on ${chainLabel(chainId)}`))],
   };
 }
 

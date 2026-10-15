@@ -58,7 +58,7 @@ export interface AgentSummary {
    * What the agent quoted for itself, or null when it has never named a price.
    * Null is a fact about the agent, not a missing field.
    */
-  price: Measured<{ amountU: number; currency: string; quotedAt: string; expiresAt: string | null; payable: boolean | null } | null>;
+  price: Measured<{ amountU: number; currency: string; quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null } | null>;
   availability: Measured<number | null>;
   probes: Measured<{ total: number; answered: number; observedDays: number }>;
   attestations: Measured<number>;
@@ -127,11 +127,13 @@ export function toAgentSummary(
             currency: listing.quote.currency,
             quotedAt: listing.quote.quotedAt,
             expiresAt: listing.quote.expiresAt ?? null,
+            // An expired price read beside `payable: true` looked like terms a buyer could take.
+            current: listing.quote.expiresAt ? Date.parse(listing.quote.expiresAt) > Date.now() : null,
             payable: listing.quotePayable ?? null,
           }
         : null,
       'attested',
-      'Quoted by the agent and signed by its registered wallet. Null means it has never returned a signed quote. `payable` says whether an enabled escrow settles in the quoted token.',
+      'Quoted by the agent and signed by its registered wallet. Null means it has never returned a signed quote. `current` says whether it is still within its stated expiry (null when none is stated); a hire asks for a fresh quote either way. `payable` says whether an enabled escrow settles in the quoted token.',
     ),
     availability: measured(
       uptime,

@@ -129,6 +129,14 @@ class QuestStore {
     }
   }
 
+  /** Registered agents whose wallet has been paid through escrow at least once. */
+  hiredAgents(): Array<{ chainId: number; tokenId: string }> {
+    const rows = this.db
+      .prepare('SELECT DISTINCT w.chain_id, w.token_id FROM escrow_jobs e JOIN agent_wallets w ON w.wallet = e.provider')
+      .all() as Array<{ chain_id: number; token_id: string }>;
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
   agentByWallet(wallet: string): { chainId: number; tokenId: string; name: string | null } | null {
     const row = this.db.prepare('SELECT chain_id, token_id, name FROM agent_wallets WHERE wallet = ?').get(wallet.toLowerCase()) as
       | { chain_id: number; token_id: string; name: string | null }

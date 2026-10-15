@@ -19,6 +19,9 @@ export interface ProbeTotals {
  * apply it, and it is named rather than numbered: `node:sqlite` rejects
  * SQLite's `?1` spelling with "column index out of range" no matter what is
  * bound to it.
+ *
+ * Rows marked as Pokter's own measurement error (`probe_corrections`) are
+ * left out, as they are everywhere availability is read.
  */
 export function readProbeTotals(
   db: DatabaseSync,
@@ -32,7 +35,8 @@ export function readProbeTotals(
               COUNT(DISTINCT CASE WHEN ok = 1
                     THEN chain_id || ':' || token_id END) AS answering
          FROM probes
-        WHERE (:chainId IS NULL OR chain_id = :chainId)`,
+        WHERE (:chainId IS NULL OR chain_id = :chainId)
+          AND id NOT IN (SELECT probe_id FROM probe_corrections)`,
     )
     .get({ chainId: chainId ?? null }) as unknown as ProbeTotals;
 }

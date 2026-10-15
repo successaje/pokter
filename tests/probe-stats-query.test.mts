@@ -14,6 +14,7 @@ function seeded(): DatabaseSync {
        ok       INTEGER NOT NULL
      )`,
   );
+  db.exec('CREATE TABLE probe_corrections (probe_id INTEGER PRIMARY KEY, rule TEXT NOT NULL, reason TEXT NOT NULL, corrected_at TEXT NOT NULL)');
   db.exec(
     `INSERT INTO probes (chain_id, token_id, ok) VALUES
        (56, '100', 1), (56, '100', 0), (56, '200', 1),
@@ -74,9 +75,19 @@ test('a chain nobody has probed reports zeroes rather than throwing', () => {
 test('an empty table reports zeroes', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(
-    'CREATE TABLE probes (chain_id INTEGER NOT NULL, token_id TEXT NOT NULL, ok INTEGER NOT NULL)',
+    'CREATE TABLE probes (id INTEGER PRIMARY KEY, chain_id INTEGER NOT NULL, token_id TEXT NOT NULL, ok INTEGER NOT NULL)',
   );
+  db.exec('CREATE TABLE probe_corrections (probe_id INTEGER PRIMARY KEY, rule TEXT NOT NULL, reason TEXT NOT NULL, corrected_at TEXT NOT NULL)');
   const totals = readProbeTotals(db);
   assert.equal(totals.taken, 0);
   assert.equal(totals.answered, 0);
+});
+
+test('a row marked as Pokter’s measurement error is not counted', () => {
+  const db = seeded();
+  // Row 2 is (56, '100', 0): the failure is Pokter's, not the agent's.
+  db.exec("INSERT INTO probe_corrections (probe_id, rule, reason, corrected_at) VALUES (2, 'test', 'test', '2026-10-15')");
+  const totals = readProbeTotals(db, 56);
+  assert.equal(totals.taken, 2);
+  assert.equal(totals.answered, 2);
 });

@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { readProbeTotals } from '@/lib/history/stats-query';
+import type { CorrectableProbe, ProbeCorrection } from './corrections';
 
 /** One recorded probe of one agent at one moment. */
 export interface ProbeRecord {
@@ -17,6 +18,8 @@ export interface ProbeRecord {
   status: number | null;
   detail: string;
   probedAt: string;
+  /** The probe revision that took it (`PROBE_ADAPTER`); null on rows from before it was recorded. */
+  adapter?: string | null;
 }
 
 /**
@@ -88,6 +91,14 @@ export interface ProbeStore {
   enroll(agents: { chainId: number; tokenId: string }[]): void;
   /** Agents asked to be measured, whether or not they have been yet. */
   enrolledAgents(): { chainId: number; tokenId: string }[];
+  /** Every MCP probe row, with whether it is already corrected, for planning corrections. */
+  correctableMcpRows(): CorrectableProbe[];
+  /** Marks rows as Pokter's measurement error. Idempotent; returns how many were newly marked. */
+  applyCorrections(corrections: ProbeCorrection[]): number;
+  /** Corrected rows for one agent, by reason, for the agent page to disclose. */
+  correctionsFor(chainId: number, tokenId: string): Array<{ rule: string; reason: string; count: number }>;
+  /** Agents that have signed a price for Pokter: offered for sale, so measured. */
+  quotedAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
   /** Aggregate counts for the ecosystem panel. */
   /**
@@ -166,6 +177,15 @@ const SCHEMA = `
     PRIMARY KEY (chain_id, token_id)
   );
 
+  -- A probe row Pokter mismeasured: the row itself is never edited or
+  -- deleted, and reads that feed availability leave corrected rows out.
+  CREATE TABLE IF NOT EXISTS probe_corrections (
+    probe_id     INTEGER PRIMARY KEY,
+    rule         TEXT    NOT NULL,
+    reason       TEXT    NOT NULL,
+    corrected_at TEXT    NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS sweeps (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at  TEXT    NOT NULL,
@@ -186,6 +206,7 @@ interface ProbeRow {
   status: number | null;
   detail: string;
   probed_at: string;
+  adapter?: string | null;
 }
 
 interface QuoteRow {
@@ -220,6 +241,7 @@ function rowToProbe(row: ProbeRow): ProbeRecord {
     status: row.status,
     detail: row.detail,
     probedAt: row.probed_at,
+    adapter: row.adapter ?? null,
   };
 }
 
@@ -237,6 +259,7 @@ class SqliteProbeStore implements ProbeStore {
     for (const statement of [
       'ALTER TABLE quotes ADD COLUMN domain_chain_id INTEGER',
       'ALTER TABLE quotes ADD COLUMN domain_contract TEXT',
+      'ALTER TABLE probes ADD COLUMN adapter TEXT',
     ]) {
       try {
         this.db.exec(statement);
@@ -253,8 +276,8 @@ class SqliteProbeStore implements ProbeStore {
 
     const insert = this.db.prepare(
       `INSERT INTO probes
-         (chain_id, token_id, endpoint, protocol, ok, latency_ms, status, detail, probed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (chain_id, token_id, endpoint, protocol, ok, latency_ms, status, detail, probed_at, adapter)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     this.db.exec('BEGIN');
@@ -270,6 +293,7 @@ class SqliteProbeStore implements ProbeStore {
           p.status,
           p.detail,
           p.probedAt,
+          p.adapter ?? null,
         );
       }
       this.db.exec('COMMIT');
@@ -401,6 +425,7 @@ class SqliteProbeStore implements ProbeStore {
       .prepare(
         `SELECT * FROM probes
           WHERE chain_id = ? AND token_id = ? AND probed_at >= ?
+            AND id NOT IN (SELECT probe_id FROM probe_corrections)
           ORDER BY probed_at DESC`,
       )
       .all(chainId, tokenId, since.toISOString()) as unknown as ProbeRow[];
@@ -436,6 +461,52 @@ class SqliteProbeStore implements ProbeStore {
     }
   }
 
+  quotedAgents(): { chainId: number; tokenId: string }[] {
+    const rows = this.db
+      .prepare('SELECT DISTINCT chain_id, token_id FROM quotes')
+      .all() as unknown as { chain_id: number; token_id: string }[];
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  correctableMcpRows(): CorrectableProbe[] {
+    const rows = this.db
+      .prepare(
+        `SELECT p.id, p.chain_id, p.token_id, p.protocol, p.ok, p.status, p.probed_at, c.probe_id AS corrected
+           FROM probes p LEFT JOIN probe_corrections c ON c.probe_id = p.id
+          WHERE p.protocol = 'mcp'`,
+      )
+      .all() as unknown as Array<{ id: number; chain_id: number; token_id: string; protocol: string; ok: number; status: number | null; probed_at: string; corrected: number | null }>;
+    return rows.map((r) => ({ id: r.id, chainId: r.chain_id, tokenId: r.token_id, protocol: r.protocol, ok: r.ok === 1, status: r.status, probedAt: r.probed_at, corrected: r.corrected !== null }));
+  }
+
+  applyCorrections(corrections: ProbeCorrection[]): number {
+    if (corrections.length === 0) return 0;
+    const now = new Date().toISOString();
+    const insert = this.db.prepare(
+      `INSERT INTO probe_corrections (probe_id, rule, reason, corrected_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (probe_id) DO NOTHING`,
+    );
+    let added = 0;
+    this.db.exec('BEGIN');
+    try {
+      for (const c of corrections) added += Number(insert.run(c.probeId, c.rule, c.reason, now).changes);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return added;
+  }
+
+  correctionsFor(chainId: number, tokenId: string): Array<{ rule: string; reason: string; count: number }> {
+    return this.db
+      .prepare(
+        `SELECT c.rule, c.reason, COUNT(*) AS count FROM probe_corrections c JOIN probes p ON p.id = c.probe_id
+          WHERE p.chain_id = ? AND p.token_id = ? GROUP BY c.rule, c.reason`,
+      )
+      .all(chainId, tokenId) as unknown as Array<{ rule: string; reason: string; count: number }>;
+  }
+
   enrolledAgents(): { chainId: number; tokenId: string }[] {
     const rows = this.db
       .prepare('SELECT chain_id, token_id FROM enrolled')
@@ -445,7 +516,7 @@ class SqliteProbeStore implements ProbeStore {
 
   recent(limit: number): ProbeRecord[] {
     const rows = this.db
-      .prepare('SELECT * FROM probes ORDER BY probed_at DESC LIMIT ?')
+      .prepare('SELECT * FROM probes WHERE id NOT IN (SELECT probe_id FROM probe_corrections) ORDER BY probed_at DESC LIMIT ?')
       .all(limit) as unknown as ProbeRow[];
     return rows.map(rowToProbe);
   }

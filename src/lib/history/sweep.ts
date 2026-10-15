@@ -15,6 +15,8 @@ import {
   type QuoteRecord,
   type SweepRecord,
 } from './store';
+import { getQuestStore } from '@/lib/quest/store';
+import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -124,10 +126,28 @@ async function buildRoster(
    */
   const onThisChain = (entry: { chainId: number }) => entry.chainId === chainId;
 
+  /*
+   * Agents that are for sale, whatever their classification or score.
+   *
+   * Stockroom signed a price for Pokter and was hireable from its page,
+   * but it is unclassified and new, so neither the listing nor the scored
+   * registry tier reached it and it had no scheduled check at all. An agent
+   * Pokter will take payment for is an agent Pokter should measure: one
+   * that has signed a price, or whose wallet escrow has paid.
+   */
+  let hired: { chainId: number; tokenId: string }[] = [];
+  try {
+    hired = getQuestStore().hiredAgents();
+  } catch {
+    /* The job index is a convenience here; the other tiers still stand. */
+  }
+
   return [
     ...listed,
     ...store.trackedAgents().filter(onThisChain),
     ...store.enrolledAgents().filter(onThisChain),
+    ...store.quotedAgents().filter(onThisChain),
+    ...hired.filter(onThisChain),
     ...fromRegistry,
   ]
     .filter(onThisChain)
@@ -252,6 +272,7 @@ export async function runSweep({
       status: probe.status,
       detail: probe.detail,
       probedAt: probe.at,
+      adapter: PROBE_ADAPTER,
     }));
   });
 
