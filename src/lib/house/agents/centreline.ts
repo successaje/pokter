@@ -1,6 +1,6 @@
 import { getAddress, parseAbi, type Address } from 'viem';
 
-import { venusClient } from '@/lib/assay/venus';
+import { settledBlockNumber, venusClient } from '@/lib/assay/venus';
 
 import type { HouseAgentDefinition } from '../types';
 import { positionReport, readCentrelineBrief, type PositionInput } from './centreline-math';
@@ -87,7 +87,7 @@ export const centreline: HouseAgentDefinition = {
     if (!account) return { ok: false, error: 'The brief names no wallet address', need: 'Include the wallet to check' };
     const owner = getAddress(account) as Address;
     const client = venusClient();
-    const block = await client.getBlockNumber();
+    const block = await settledBlockNumber(client);
     const [inWallet, inFarm, header] = await Promise.all([ownedIds(client, POSITION_MANAGER, owner, block), ownedIds(client, FARM, owner, block), client.getBlock({ blockNumber: block })]);
     const all = [...inWallet.map((id) => ({ id, staked: false })), ...inFarm.map((id) => ({ id, staked: true }))].slice(0, MAX_POSITIONS);
     const positions = await Promise.all(

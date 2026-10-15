@@ -1,6 +1,6 @@
 import { parseAbi, type Address } from 'viem';
 
-import { VENUS_COMPTROLLER, venusClient } from '@/lib/assay/venus';
+import { settledBlockNumber, VENUS_COMPTROLLER, venusClient } from '@/lib/assay/venus';
 
 import type { HouseAgentDefinition } from '../types';
 import { crestholdAnswer, ratesFromPerBlock, readCrestholdBrief, STABLES, swapTooCostly, type Stable, type VenueFigures } from './cresthold-math';
@@ -134,7 +134,7 @@ export const cresthold: HouseAgentDefinition = {
     const question = readCrestholdBrief(brief);
     if (!question) return { ok: false, error: 'The brief names no amount and stablecoin', need: 'Say how much and which stablecoin' };
     const client = venusClient();
-    const block = await client.getBlockNumber();
+    const block = await settledBlockNumber(client);
     const [markets, header, gasPrice] = await Promise.all([stableMarkets(client, block), client.getBlock({ blockNumber: block }), client.getGasPrice()]);
     const from = markets.find((m) => m.asset === question.asset);
     if (!from) return { ok: false, error: `${question.asset} has no Venus Core market`, need: `Use one of ${markets.map((m) => m.asset).join(', ')}` };

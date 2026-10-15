@@ -42,6 +42,19 @@ const ORACLE_ABI = parseAbi(['function getUnderlyingPrice(address) view returns 
 const BORROW_EVENT = parseAbiItem('event Borrow(address borrower, uint256 borrowAmount, uint256 accountBorrows, uint256 totalBorrows)');
 const REPAY_EVENT = parseAbiItem('event RepayBorrow(address payer, address borrower, uint256 repayAmount, uint256 accountBorrows, uint256 totalBorrows)');
 
+/**
+ * A block every node behind a load-balanced public RPC already has.
+ *
+ * Reads pinned to the newest block failed now and then with "block not
+ * found": one node reported the head and the next request landed on a
+ * node a block or two behind. Three blocks is about a second and a half
+ * on BNB Chain, nothing for a reading that is reported with its block.
+ */
+export async function settledBlockNumber(client: { getBlockNumber(): Promise<bigint> }): Promise<bigint> {
+  const head = await client.getBlockNumber();
+  return head > 3n ? head - 3n : head;
+}
+
 export function venusClient() {
   return createPublicClient({ chain: bsc, transport: http(RPC_URL), batch: { multicall: true } });
 }
@@ -85,7 +98,7 @@ export interface VenusReading {
 const usd = (raw: bigint) => Number((raw * 100n) / 10n ** 18n) / 100;
 
 export async function readVenusPosition(client: Client, account: Address): Promise<VenusReading> {
-  const block = await client.getBlockNumber();
+  const block = await settledBlockNumber(client);
   const [oracle, assets, liquidityTuple] = await Promise.all([
     client.readContract({ address: VENUS_COMPTROLLER, abi: COMPTROLLER_ABI, functionName: 'oracle', blockNumber: block }),
     client.readContract({ address: VENUS_COMPTROLLER, abi: COMPTROLLER_ABI, functionName: 'getAssetsIn', args: [account], blockNumber: block }),
