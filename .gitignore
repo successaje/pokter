@@ -74,3 +74,9 @@ docs/upstream/
 # Working notes. Outreach drafts name publishers and their mistakes;
 # this repository is public and that is not something to publish.
 notes/
+
+# The evaluator starter writes its attestation into the working directory,
+# so running it from the repository root leaves one here. It is a reading
+# taken at a moment, not source, and the published script is the thing
+# worth keeping.
+evaluator-attestation-*.json
