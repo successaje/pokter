@@ -224,6 +224,12 @@ export function useJobActions(initial: HiredJob) {
         body: JSON.stringify({ action, transactionHash, chainId: job.chainId }),
       }).catch(() => {});
     } catch (caught) {
+      // Someone else already finished it: show the job as it is now, and say so plainly.
+      if (/ALREADY_(COMPLETED|REJECTED)/.test((caught as Error)?.message ?? '')) {
+        await syncFromChain(undefined, true).catch(() => {});
+        setError((caught as Error).message.replace(/^ALREADY_(COMPLETED|REJECTED): /, ''));
+        return;
+      }
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));
     } finally {
       setBusy(null);
