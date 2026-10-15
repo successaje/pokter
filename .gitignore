@@ -80,3 +80,8 @@ notes/
 # taken at a moment, not source, and the published script is the thing
 # worth keeping.
 evaluator-attestation-*.json
+
+# Kept local at the operator's request: opens a real Venus position with a
+# real key. `git add -A` has swept a stray file into a commit once today,
+# and this one signs transactions.
+scripts/venus-testnet-position.mts
