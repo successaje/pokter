@@ -16,6 +16,10 @@ export async function register(): Promise<void> {
 
   const { listMarketplace, getEcosystemStats } = await import('@/lib/marketplace');
 
+  // Sweeps on the server's own clock; off unless fly.toml turns it on.
+  const { startSweepScheduler } = await import('@/lib/history/scheduler');
+  startSweepScheduler();
+
   const started = Date.now();
   void Promise.all([
     listMarketplace({ limit: 8 }),

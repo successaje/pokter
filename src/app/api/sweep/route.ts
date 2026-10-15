@@ -22,10 +22,15 @@ import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
+import { getProbeStore } from '@/lib/history/store';
+import { sweepRecent } from '@/lib/history/schedule';
 
 export const dynamic = 'force-dynamic';
 /** A sweep probes the whole roster; it needs more than the default budget. */
 export const maxDuration = 300;
+
+/** Held while a sweep runs in this process (there is one machine). */
+let sweepRunning = false;
 
 /**
  * Scheduled sweep endpoint, for a platform cron (Vercel Cron, GitHub Actions, or
@@ -80,6 +85,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   }
 
+  /*
+   * One sweep at a time, and none straight after another. The server now
+   * schedules its own sweeps (src/lib/history/scheduler.ts) and GitHub's
+   * cron remains as a backup, so two triggers can arrive together; a second
+   * sweep would double the calls to every third-party endpoint for no new
+   * evidence. `?force=1` runs one regardless of the last, never alongside one.
+   */
+  if (sweepRunning) {
+    return NextResponse.json({ skipped: 'running', note: 'A sweep is already running.' }, { status: 409 });
+  }
+  const last = getProbeStore().lastSweep();
+  if (new URL(request.url).searchParams.get('force') !== '1' && sweepRecent(last?.finishedAt ?? null, Date.now())) {
+    return NextResponse.json({ skipped: 'recent', lastFinishedAt: last?.finishedAt ?? null });
+  }
+
+  sweepRunning = true;
   try {
     const outcome = await runSweep();
 
@@ -344,5 +365,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { error: `Sweep failed: ${(error as Error).message}` },
       { status: 500 },
     );
+  } finally {
+    sweepRunning = false;
   }
 }
