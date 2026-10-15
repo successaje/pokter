@@ -29,7 +29,7 @@ import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { planShortfallSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
 import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
-import { commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
+import { briefSourceFor, commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
@@ -203,7 +203,7 @@ export function useHire({
   suggestedU?: number | null;
   riskWarnings?: string[];
   /** The agent's own skills, whose examples beat a category guess. */
-  declaredSkills?: readonly { name: string; examples: readonly string[] }[];
+  declaredSkills?: readonly { name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
 }) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
@@ -221,6 +221,8 @@ export function useHire({
    */
   const declared = templatesFromSkills(declaredSkills ?? []);
   const taskTemplates = declared.length > 0 ? declared : commissionTaskTemplates(agent.category);
+  const briefSource = briefSourceFor(declaredSkills ?? []);
+  const previewSkill = (declaredSkills ?? []).find((s) => s.kind === 'preview') ?? null;
 
   const [providerAddress, setProviderAddress] = useState(
     providers.find((p) => p.reachable && p.automatedDelivery)?.address ??
@@ -793,6 +795,8 @@ export function useHire({
     job,
     error,
     errorLayer,
+    briefSource,
+    previewSkill,
     heldAfterFailure,
     externalStep,
     externalJobId,

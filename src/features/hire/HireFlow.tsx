@@ -25,6 +25,7 @@ import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 import { TaskEditor } from './TaskEditor';
+import { BriefSourceNotice } from './BriefSource';
 import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
@@ -51,7 +52,7 @@ export interface HireFlowProps {
    * The agent's declared skills, so its own examples can be offered as
    * the task rather than a template picked by category.
    */
-  declaredSkills?: { name: string; examples: string[] }[];
+  declaredSkills?: { name: string; kind?: string; description?: string | null; examples: string[] }[];
   /** Tasks this agent has delivered real answers to, from public escrow jobs. */
   answeredTasks?: string[];
 }
@@ -361,6 +362,15 @@ export function HireFlow(props: HireFlowProps) {
               </div>
             </div>
           )}
+          <BriefSourceNotice
+            source={hire.briefSource}
+            agentName={props.agent.name}
+            chainId={props.agent.chainId}
+            tokenId={props.agent.tokenId}
+            task={hire.task}
+            preview={hire.previewSkill}
+            onUseExample={hire.setTask}
+          />
           <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {hire.taskTemplates.map((t) => (
               <button

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { commissionTaskTemplates, templatesFromSkills } from '../src/lib/hire/taskTemplates';
+import { briefSourceFor, commissionTaskTemplates, templatesFromSkills } from '../src/lib/hire/taskTemplates';
 
 /*
  * Which task a buyer is offered.
@@ -90,4 +90,18 @@ test('free text still has to say something', () => {
 
 test('a long brief needs no template at all', () => {
   assert.equal(ready('Analyse the lending position and report the risks.', []), true);
+});
+
+test('a free preview example is not offered as the paid brief, and the source says so', () => {
+  const ivl = [{ name: 'Preview the rebalance plan (free)', kind: 'preview', examples: ['BNB-USDT 0xYourWallet'] }];
+  assert.deepEqual(templatesFromSkills(ivl), []);
+  assert.equal(briefSourceFor(ivl), 'preview-only');
+  assert.equal(briefSourceFor([]), 'unknown');
+});
+
+test('an operator example with figures is labelled as the operator’s, not the buyer’s', () => {
+  const stockroom = [{ name: 'Quote a Stockroom borrow desk brief', kind: 'paid', examples: ['Desk brief for shorting 0.01 NVDAB against 10 USDT over the weekend'] }];
+  const [template] = templatesFromSkills(stockroom);
+  assert.match(template.description, /figures are the operator’s example/);
+  assert.equal(briefSourceFor(stockroom), 'declared');
 });
