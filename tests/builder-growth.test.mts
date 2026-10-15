@@ -35,7 +35,7 @@ test('share copy states only observed evidence and a passed category check', () 
     category: 'yield',
     categoryLabel: 'Yield Optimisation',
     definition,
-    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', results: [] },
+    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', via: 'free-call', results: [] },
     outcomes,
   });
   const copy = evidenceShareText('Agent A', growth);
@@ -60,7 +60,7 @@ test('launch copy names the actual hire networks and category check', () => {
     category: 'yield',
     categoryLabel: 'Yield Optimisation',
     definition,
-    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', results: [] },
+    run: { suite: 'yield-v1', status: 'checked', detail: null, passed: 3, total: 3, ranAt: '2026-10-13T00:00:00Z', via: 'free-call', results: [] },
     outcomes,
     hireNetworks: [{ chainId: 56, label: 'BNB Chain' }, { chainId: 97, label: 'BNB Testnet' }],
   });

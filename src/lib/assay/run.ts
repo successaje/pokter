@@ -47,7 +47,7 @@ export async function currentSample(): Promise<Address[]> {
 export async function runHealthFactorSuite(target: { chainId: number; tokenId: string }, accounts: Address[]): Promise<Omit<AssayRun, 'ranAt'>> {
   const store = getAssayStore();
   const client = venusClient();
-  const base = { suite: HF_SUITE_ID, total: accounts.length };
+  const base = { suite: HF_SUITE_ID, total: accounts.length, via: 'free-call' as const };
   let agent;
   try {
     agent = await prepareAgent({ ...target, category: 'health-factor' });

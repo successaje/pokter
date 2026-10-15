@@ -433,7 +433,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </dl>
               </div>
               <ClaimVsObserved p={p} />
-              {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} />}
+              {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />}
               <div className="flex flex-col gap-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="t-label">Daily answer rate, last 30 days</span>

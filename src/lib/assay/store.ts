@@ -54,30 +54,9 @@ const SCHEMA = `
   );
 `;
 
-export type AssayRunStatus = 'checked' | 'not-askable' | 'paid-only';
+import type { AssayRun, AssayRunStatus, AssayVia } from './types';
 
-export interface AssayScenarioResult {
-  scenario: string;
-  expected: unknown;
-  observed: unknown;
-  excerpt: string | null;
-  pass: boolean;
-  /** correct, borrow-limit (a different definition), wrong, or unreadable. */
-  outcome: string;
-  reason: string;
-  latencyMs: number | null;
-}
-
-export interface AssayRun {
-  suite: string;
-  status: AssayRunStatus;
-  /** Why the agent could not be asked, or why it was not checked (paid only). */
-  detail: string | null;
-  passed: number;
-  total: number;
-  ranAt: string;
-  results: AssayScenarioResult[];
-}
+export type { AssayRun, AssayRunStatus, AssayScenarioResult, AssayVia } from './types';
 
 class AssayStore {
   private readonly db: DatabaseSync;
@@ -87,18 +66,35 @@ class AssayStore {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec(SCHEMA);
+    /*
+     * Added when checks learned to grade a paid delivery. Existing rows
+     * were all free calls, which is what the default says, so the column
+     * is backfilled by its own definition rather than by a rewrite — and
+     * a recorded check is evidence shown on an agent's page, so dropping
+     * the table to recreate it would destroy published results.
+     */
+    for (const migration of [
+      "ALTER TABLE assay_runs ADD COLUMN via TEXT NOT NULL DEFAULT 'free-call'",
+      'ALTER TABLE assay_results ADD COLUMN job_id TEXT',
+    ]) {
+      try {
+        this.db.exec(migration);
+      } catch (error) {
+        if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+      }
+    }
   }
 
   record(target: { chainId: number; tokenId: string }, run: Omit<AssayRun, 'ranAt'>): void {
     const ranAt = new Date().toISOString();
     const { lastInsertRowid } = this.db
-      .prepare('INSERT INTO assay_runs (chain_id, token_id, suite, status, detail, passed, total, ran_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(target.chainId, target.tokenId, run.suite, run.status, run.detail, run.passed, run.total, ranAt);
+      .prepare('INSERT INTO assay_runs (chain_id, token_id, suite, status, detail, passed, total, ran_at, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(target.chainId, target.tokenId, run.suite, run.status, run.detail, run.passed, run.total, ranAt, run.via);
     const insert = this.db.prepare(
-      'INSERT INTO assay_results (run_id, scenario, expected, observed, excerpt, pass, outcome, reason, latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO assay_results (run_id, scenario, expected, observed, excerpt, pass, outcome, reason, latency_ms, job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     for (const r of run.results) {
-      insert.run(Number(lastInsertRowid), r.scenario, JSON.stringify(r.expected), r.observed === undefined ? null : JSON.stringify(r.observed), r.excerpt, r.pass ? 1 : 0, r.outcome, r.reason, r.latencyMs);
+      insert.run(Number(lastInsertRowid), r.scenario, JSON.stringify(r.expected), r.observed === undefined ? null : JSON.stringify(r.observed), r.excerpt, r.pass ? 1 : 0, r.outcome, r.reason, r.latencyMs, r.jobId ?? null);
     }
   }
 
@@ -106,11 +102,11 @@ class AssayStore {
     const run = this.db
       .prepare('SELECT * FROM assay_runs WHERE chain_id = ? AND token_id = ? AND suite = ? ORDER BY ran_at DESC, id DESC LIMIT 1')
       .get(target.chainId, target.tokenId, suite) as
-      | { id: number; suite: string; status: AssayRunStatus; detail: string | null; passed: number; total: number; ran_at: string }
+      | { id: number; suite: string; status: AssayRunStatus; detail: string | null; passed: number; total: number; ran_at: string; via: AssayVia | null }
       | undefined;
     if (!run) return null;
     const rows = this.db.prepare('SELECT * FROM assay_results WHERE run_id = ? ORDER BY rowid').all(run.id) as Array<{
-      scenario: string; expected: string; observed: string | null; excerpt: string | null; pass: number; outcome: string | null; reason: string; latency_ms: number | null;
+      scenario: string; expected: string; observed: string | null; excerpt: string | null; pass: number; outcome: string | null; reason: string; latency_ms: number | null; job_id: string | null;
     }>;
     return {
       suite: run.suite,
@@ -119,6 +115,8 @@ class AssayStore {
       passed: run.passed,
       total: run.total,
       ranAt: run.ran_at,
+      // Rows written before the column existed were all free calls.
+      via: run.via ?? 'free-call',
       results: rows.map((r) => ({
         scenario: r.scenario,
         expected: JSON.parse(r.expected),
@@ -128,6 +126,7 @@ class AssayStore {
         outcome: r.outcome ?? (r.pass === 1 ? 'correct' : 'wrong'),
         reason: r.reason,
         latencyMs: r.latency_ms,
+        jobId: r.job_id,
       })),
     };
   }

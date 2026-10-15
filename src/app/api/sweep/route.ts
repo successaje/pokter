@@ -17,6 +17,7 @@ import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
+import { gradeDuePaidChecks } from '@/lib/assay/paid-run';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
@@ -267,6 +268,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       : null;
 
     /*
+     * Fixture hires that have since been delivered, graded against the
+     * published scenario they were asked. A fixture is funded in one
+     * request and delivered later, so nothing that triggers a hire can
+     * assemble its own result. Local reads and arithmetic only — no
+     * network — so it runs every pass and a check finishes itself once the
+     * last delivery lands.
+     */
+    const paidChecks = (() => {
+      try {
+        return gradeDuePaidChecks();
+      } catch {
+        return null;
+      }
+    })();
+
+    /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
      * id, and listed agents' registered wallets, so any wallet's hires on
      * any marketplace can be read without scanning the chain per request.
@@ -342,6 +359,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       funders,
       healthFactorChecks,
       categoryChecks,
+      paidChecks,
       questIndex,
       answeredTasks,
       reconciled,

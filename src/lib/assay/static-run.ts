@@ -19,7 +19,7 @@ export async function runStaticCategorySuite(
 ): Promise<Omit<AssayRun, 'ranAt'>> {
   const store = getAssayStore();
   const suite = STATIC_SUITES[target.category];
-  const base = { suite: suite.id, total: suite.scenarios.length };
+  const base = { suite: suite.id, total: suite.scenarios.length, via: 'free-call' as const };
   let agent;
   try {
     agent = await prepareAgent(target);
