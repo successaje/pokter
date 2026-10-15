@@ -445,13 +445,22 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               </div>
 
-              {p.defects.length > 0 && (
-                <Details summary={`Known limits of the measurement (${p.defects.length})`}>
-                  <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13px] text-ink-2">
-                    {p.defects.map((d) => (
-                      <li key={d}>{d}</li>
+              {p.defectsByMeasurer.length > 0 && (
+                <Details summary={`Known limits of the measurement (${p.defectsByMeasurer.reduce((n, g) => n + g.defects.length, 0)})`}>
+                  <div className="flex flex-col gap-4">
+                    {p.defectsByMeasurer.map((group) => (
+                      <div key={group.measurer} className="flex flex-col gap-1.5">
+                        <span className="text-[12.5px] font-medium text-ink">
+                          {group.measurer === 'Pokter' ? 'Pokter’s own' : `Disclosed by ${group.measurer}`}
+                        </span>
+                        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[13px] text-ink-2">
+                          {group.defects.map((d) => (
+                            <li key={d}>{d}</li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </Details>
               )}
               {p.score.overall !== null && (

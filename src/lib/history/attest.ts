@@ -46,8 +46,8 @@ export function toSweepAttestation(
     independence: 'related',
     reasoning:
       `Measured by Pokter from ${window.probes} probe(s) over ${window.label}: ` +
-      `${(window.ratio * 100).toFixed(2)}%. A probe counts as answered only when the ` +
-      `endpoint returns well-formed JSON; an HTTP 200 alone is not counted.`,
+      `${(window.ratio * 100).toFixed(2)}%. A probe counts as answered only on a valid A2A ` +
+      `agent card or MCP tools/list response; an HTTP 200 alone is not counted.`,
     method: {
       measuredBy: 'Pokter',
       protocol: 'a2a',

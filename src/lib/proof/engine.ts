@@ -62,6 +62,14 @@ export interface ProofSummary {
   probes: number;
   /** Defects the measurers themselves disclosed, de-duplicated. */
   disclosedDefects: string[];
+  /**
+   * The same evidence by who measured it. One merged list read as Pokter's
+   * own method: an independent measurer's "a probe counts only on a
+   * completed MCP initialize handshake" sat beside Pokter's limits as if
+   * Pokter had said it, and a probe total of 420 gave no hint that 316 of
+   * them were somebody else's.
+   */
+  byMeasurer?: Array<{ measurer: string; probes: number; defects: string[] }>;
   /** Plain-language explanation of how this verdict was reached. */
   rationale: string;
   /** Whether Pokter recommends the normal, low-friction hire path. */
@@ -124,7 +132,23 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
     return longest === null ? window : Math.max(longest, window);
   }, null);
 
+  const groups = new Map<string, { measurer: string; probes: number; defects: string[] }>();
+  for (const a of usable) {
+    const name = a.measuredBy ?? a.method?.measuredBy ?? null;
+    // Pokter's own sweep record carries no transaction; a published one names its author.
+    const measurer =
+      !a.transactionHash && name === 'Pokter'
+        ? 'Pokter'
+        : `${name ?? 'Unnamed measurer'}${a.authorAddress ? ` (${a.authorAddress.slice(0, 6)}…${a.authorAddress.slice(-4)})` : ''}`;
+    const group = groups.get(measurer) ?? { measurer, probes: 0, defects: [] };
+    group.probes += a.method?.probes ?? 0;
+    group.defects = unique([...group.defects, ...(a.method?.knownDefects ?? [])]);
+    groups.set(measurer, group);
+  }
+  const byMeasurer = [...groups.values()].sort((x, y) => (x.measurer === 'Pokter' ? -1 : y.measurer === 'Pokter' ? 1 : y.probes - x.probes));
+
   const base = {
+    byMeasurer,
     usableCount: usable.length,
     totalCount: attestations.length,
     measurers,

@@ -289,3 +289,16 @@ test('the quality split sits exactly on the proven score bar', () => {
   assert.equal(measured(PROVEN_MIN_SCORE - 0.01), 'emerging');
   assert.equal(measured(1), 'reliable', 'a flawless record is not "emerging"');
 });
+
+test('probes and disclosed limits are kept under the measurer that reported them', () => {
+  const kawal = '0xc7F5cdC8dd028E0b9aF2cA9d3891F135b23f4B92';
+  const result = summariseProof([
+    attestation({ id: 'k1', measuredBy: 'Kawal', authorAddress: kawal, method: { probes: 200, windowDays: 5, knownDefects: ['A probe counts as answered only on a completed MCP initialize handshake.'] } }),
+    attestation({ id: 'k2', measuredBy: 'Kawal', authorAddress: kawal, method: { probes: 116, windowDays: 2 } }),
+    attestation({ id: 'sweep', measuredBy: 'Pokter', authorAddress: null, transactionHash: null, independence: 'related', method: { probes: 104, windowDays: 29, knownDefects: ['Sweeps sample periodically.'] } }),
+  ]);
+  assert.equal(result.probes, 420);
+  assert.deepEqual(result.byMeasurer?.map((m) => [m.measurer, m.probes]), [['Pokter', 104], ['Kawal (0xc7F5…4B92)', 316]]);
+  assert.deepEqual(result.byMeasurer?.[1].defects, ['A probe counts as answered only on a completed MCP initialize handshake.']);
+  assert.deepEqual(result.byMeasurer?.[0].defects, ['Sweeps sample periodically.']);
+});
