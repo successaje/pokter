@@ -20,6 +20,15 @@ export interface SealRow {
   /** The canonical bytes. This is what the hash commits to. */
   text: string;
   claimCount: number;
+  /**
+   * Why the last anchor attempt failed, when one has.
+   *
+   * A seal with no anchor and no reason is a dead end: the retry runs
+   * blind every sweep and a reader cannot tell a busy node from a missing
+   * key. The reason is published, because "we could not reach a node" is
+   * a better answer to a sceptic than an unexplained gap.
+   */
+  anchorError: string | null;
   /** Null until the anchoring transaction confirms. */
   anchor: {
     chainId: number;
@@ -31,8 +40,9 @@ export interface SealRow {
 }
 
 export interface SealStore {
-  record(row: Omit<SealRow, 'anchor'>): void;
+  record(row: Omit<SealRow, 'anchor' | 'anchorError'>): void;
   anchor(hash: string, anchor: NonNullable<SealRow['anchor']>): void;
+  anchorFailed(hash: string, reason: string): void;
   byHash(hash: string): SealRow | null;
   /** Newest first. */
   recent(limit: number): SealRow[];
@@ -49,6 +59,7 @@ interface Raw {
   anchor_tx: string | null;
   anchor_block: number | null;
   anchor_block_time: string | null;
+  anchor_error: string | null;
 }
 
 function toRow(raw: Raw): SealRow {
@@ -57,6 +68,7 @@ function toRow(raw: Raw): SealRow {
     sealedAt: raw.sealed_at,
     text: raw.text,
     claimCount: raw.claim_count,
+    anchorError: raw.anchor_error ?? null,
     anchor:
       raw.anchor_tx && raw.anchor_chain_id !== null && raw.anchor_block !== null && raw.anchor_block_time
         ? {
@@ -84,13 +96,26 @@ class SqliteSealStore implements SealStore {
         anchor_chain_id INTEGER,
         anchor_tx TEXT,
         anchor_block INTEGER,
-        anchor_block_time TEXT
+        anchor_block_time TEXT,
+        anchor_error TEXT
       );
       CREATE INDEX IF NOT EXISTS seals_sealed_at ON seals (sealed_at DESC);
     `);
+
+    /*
+     * CREATE TABLE IF NOT EXISTS does not add a column to a table that is
+     * already there, and the first seal was written before this column
+     * existed. Dropping the table instead would destroy a published
+     * document — the one thing a reader is promised will not change.
+     */
+    try {
+      this.db.exec('ALTER TABLE seals ADD COLUMN anchor_error TEXT');
+    } catch (error) {
+      if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+    }
   }
 
-  record(row: Omit<SealRow, 'anchor'>): void {
+  record(row: Omit<SealRow, 'anchor' | 'anchorError'>): void {
     /*
      * A seal is never rewritten. Re-running a seal that already exists is
      * a no-op rather than an update: the text behind a published hash is
@@ -107,10 +132,19 @@ class SqliteSealStore implements SealStore {
   anchor(hash: string, anchor: NonNullable<SealRow['anchor']>): void {
     this.db
       .prepare(
-        `UPDATE seals SET anchor_chain_id = ?, anchor_tx = ?, anchor_block = ?, anchor_block_time = ?
+        `UPDATE seals SET anchor_chain_id = ?, anchor_tx = ?, anchor_block = ?, anchor_block_time = ?,
+           anchor_error = NULL
          WHERE hash = ? AND anchor_tx IS NULL`,
       )
       .run(anchor.chainId, anchor.transactionHash, anchor.blockNumber, anchor.blockTime, hash);
+  }
+
+  anchorFailed(hash: string, reason: string): void {
+    /* Never over an anchor that landed: a late error from a retry must not
+       make a proven seal look unproven. */
+    this.db
+      .prepare('UPDATE seals SET anchor_error = ? WHERE hash = ? AND anchor_tx IS NULL')
+      .run(reason.slice(0, 500), hash);
   }
 
   byHash(hash: string): SealRow | null {

@@ -50,6 +50,7 @@ export async function publishSeal(now = new Date()): Promise<SealOutcome> {
       store.anchor(action.hash, await anchorSeal(action.hash as `0x${string}`));
       return { status: 'anchored', hash: action.hash };
     } catch (error) {
+      store.anchorFailed(action.hash, error instanceof Error ? error.message : 'unknown');
       return {
         status: 'stored',
         hash: action.hash,
@@ -68,6 +69,7 @@ export async function publishSeal(now = new Date()): Promise<SealOutcome> {
     store.anchor(hash, await anchorSeal(hash));
     return { status: 'sealed', hash, sealedAt: document.sealedAt, claims: claims.length };
   } catch (error) {
+    store.anchorFailed(hash, error instanceof Error ? error.message : 'unknown');
     /*
      * A failed anchor keeps the document. Throwing it away because a
      * public node was busy would leave a gap in the record that looks

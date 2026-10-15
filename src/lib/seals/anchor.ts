@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { createPublicClient, createWalletClient, http, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { bsc, bscTestnet } from 'viem/chains';
 
-import { altanaNetworkFor } from '@/lib/altana/client';
+import { sendingTransport } from '@/lib/chain/transport';
 import type { ChainId } from '@/lib/scan/types';
 
 /**
@@ -64,7 +64,11 @@ export async function anchorSeal(hash: Hex): Promise<Anchored> {
 
   const chainId = sealChain();
   const chain = chainId === 56 ? bsc : bscTestnet;
-  const transport = http(altanaNetworkFor(chainId).publicRpcUrl);
+  /* The same transport the deliveries use. The SDK's default endpoint
+     refuses eth_getTransactionReceipt on BNB Chain, so an anchor sent
+     through it lands and is then never confirmed — which is how the first
+     seal came to be written and never anchored. */
+  const transport = sendingTransport(chainId);
   const account = privateKeyToAccount(key as Hex);
 
   const wallet = createWalletClient({ account, chain, transport });

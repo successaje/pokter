@@ -55,6 +55,9 @@ export function GET(request: Request) {
             explorer: `${explorerBaseFor(seal.anchor.chainId)}/tx/${seal.anchor.transactionHash}`,
           }
         : null,
+      /* Published rather than hidden: an unanchored seal with no reason
+         is indistinguishable from one somebody chose not to anchor. */
+      anchorError: seal.anchor ? null : seal.anchorError,
       document: `${origin}/api/v1/seals/${seal.hash}`,
     }));
 
