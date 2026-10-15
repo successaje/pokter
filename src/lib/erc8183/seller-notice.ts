@@ -7,6 +7,7 @@ import { statedDeliverableUrl } from '@/lib/erc8183/stated-url';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
+import { readA2AReply } from '@/lib/a2a/reply';
 
 export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
 
@@ -15,13 +16,8 @@ function object(value: unknown): Record<string, unknown> | null {
 }
 
 function agentReply(payload: unknown): Record<string, unknown> | null {
-  const result = object(object(payload)?.result);
-  const parts = Array.isArray(result?.parts) ? result.parts : [];
-  for (const part of parts) {
-    const data = object(object(part)?.data);
-    if (data) return data;
-  }
-  return null;
+  // The seller's answer to the notice, whether sent as a message or a task.
+  return readA2AReply(payload).data;
 }
 
 async function askSeller(input: {

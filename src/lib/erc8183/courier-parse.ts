@@ -1,3 +1,5 @@
+import { readA2AReply } from '@/lib/a2a/reply';
+
 /**
  * The pure halves of the courier: which skill to ask for, and what counts as
  * an answer. Kept free of fetches so they are tested without an agent.
@@ -115,30 +117,10 @@ export function extractAnswer(payload: unknown): AgentAnswer | null {
   if (!root || root.error) return null;
   const result = object(root.result);
   if (!result || isQuoteReply(result)) return null;
-
-  const parts: unknown[] = [];
-  const statusMessage = object(object(result.status)?.message);
-  for (const source of [result, statusMessage]) {
-    if (source && Array.isArray(source.parts)) parts.push(...source.parts);
-  }
-  if (Array.isArray(result.artifacts)) {
-    for (const artifact of result.artifacts) {
-      const value = object(artifact);
-      if (value && Array.isArray(value.parts)) parts.push(...value.parts);
-    }
-  }
-
-  const texts: string[] = [];
-  let data: Record<string, unknown> | null = null;
-  for (const entry of parts) {
-    const part = object(entry);
-    if (!part) continue;
-    if (typeof part.text === 'string' && part.text.trim()) texts.push(part.text.trim());
-    if (!data) {
-      const candidate = object(part.data);
-      if (candidate && Object.keys(candidate).length > 0 && !isQuoteReply(candidate)) data = candidate;
-    }
-  }
-  if (texts.length === 0 && !data) return null;
-  return { text: texts.length ? texts.join('\n\n') : null, data };
+  // Only a final reply is an answer: a working, failed or input-required task is not.
+  const reply = readA2AReply(payload);
+  if (reply.kind === 'task' && reply.state !== 'completed') return null;
+  const data = reply.data && !isQuoteReply(reply.data) ? reply.data : null;
+  if (reply.texts.length === 0 && !data) return null;
+  return { text: reply.texts.length ? reply.texts.join('\n\n') : null, data };
 }

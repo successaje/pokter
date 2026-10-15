@@ -5,6 +5,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
+import { readA2AReply } from '@/lib/a2a/reply';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -66,14 +67,9 @@ function object(value: unknown): Record<string, unknown> | null {
 }
 
 function responseData(payload: unknown): Record<string, unknown> | null {
-  const root = object(payload);
-  const result = object(root?.result);
-  const parts = Array.isArray(result?.parts) ? result.parts : [];
-  for (const part of parts) {
-    const data = object(object(part)?.data);
-    if (data) return data;
-  }
-  return null;
+  // Message or task alike; a failed or still-working task carries no quote.
+  const reply = readA2AReply(payload);
+  return reply.state === 'completed' || reply.state === 'input-required' ? reply.data : null;
 }
 
 /**
