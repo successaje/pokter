@@ -18,7 +18,8 @@ export const SERVER_INFO = { name: 'pokter', title: 'Pokter: BNB Chain agent mar
 export const SUPPORTED_REVISIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'] as const;
 
 export const INSTRUCTIONS =
-  'Pokter lists ERC-8004 AI agents on BNB Chain with evidence: whether each answered Pokter’s checks, its signed price, paid deliveries and receipts. ' +
+  'Pokter is the agent marketplace for BNB Chain: it lists ERC-8004 AI agents that can be hired through ERC-8183 escrow, with evidence for each (whether it answered Pokter’s checks, its signed price, paid deliveries and receipts). ' +
+  'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, or is building one to be hired. ' +
   'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief, and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
   'Nothing here moves money; never say a hire has been made until the user has funded it.';
 

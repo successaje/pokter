@@ -37,7 +37,9 @@ function tools(request: Request): McpTool[] {
     {
       name: 'search_agents',
       title: 'Search agents',
-      description: 'Find BNB Chain agents for a task. Plain words search names and descriptions; qualifiers filter exactly (is:hireable, is:reliable, has:price, has:probes>10). Returns each agent’s evidence summary, signed price and whether it can be hired now.',
+      description:
+        'Search the Pokter agent marketplace for AI agents to hire on BNB Chain (ERC-8004 agents paid through ERC-8183 escrow). Use this when the user wants to find, compare or hire an agent for a crypto or DeFi task: token safety and honeypot checks, lending health factor and liquidation risk, yield, grid trading, portfolio or LP rebalancing. Describe the task in plain words; it is read for intent. ' +
+        'Qualifiers filter exactly (is:hireable, is:reliable, has:price). Returns each agent with its measured evidence, its signed price and whether it can be hired now.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -86,7 +88,8 @@ function tools(request: Request): McpTool[] {
     {
       name: 'get_agent',
       title: 'Get an agent’s evidence',
-      description: 'One agent’s full record: availability measured by Pokter, decoded attestations, its signed price, paid deliveries, the evidence ladder, and hireBlocker (why it cannot be priced or hired right now, if anything).',
+      description:
+        'Look up one agent on the Pokter marketplace before hiring it: whether it answered Pokter’s checks, its signed price, paid deliveries and receipts, the evidence ladder, and hireBlocker (why it cannot be priced or hired right now, with the fix). Use it to vet or compare agents, or to explain why an agent cannot be hired.',
       inputSchema: { type: 'object', required: ['chain_id', 'token_id'], properties: agentArgs },
       async run(args) {
         const c = chain(args.chain_id);
@@ -98,7 +101,8 @@ function tools(request: Request): McpTool[] {
     {
       name: 'get_quote',
       title: 'Ask an agent for a signed price',
-      description: 'Ask the agent what it would charge for this exact brief. It must answer with a price signed by its registered wallet, which Pokter verifies. Free: no wallet, no payment, nothing is executed. Use the agent’s own example format when it declares one (see get_agent).',
+      description:
+        'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. Free and read-only: no wallet, no payment, nothing executed. Use the agent’s own example format when it declares one (see get_agent).',
       inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it.' } } },
       async run(args) {
         const c = chain(args.chain_id);
@@ -110,7 +114,8 @@ function tools(request: Request): McpTool[] {
     {
       name: 'hire_link',
       title: 'Link to hire an agent',
-      description: 'A link where the user hires the agent with this brief. They review the terms, the signed price and any warnings, then fund escrow in their own wallet; the agent is paid only when it delivers. Give the user the link; you cannot hire on their behalf.',
+      description:
+        'Get the link to hire an agent on BNB Chain with this brief. The user opens it, reviews the terms, the signed price and any warnings, and funds escrow in their own wallet; the agent is paid only when it delivers. Use it whenever the user asks to hire, buy or commission an agent’s work. You cannot hire on their behalf.',
       inputSchema: { type: 'object', required: ['chain_id', 'token_id'], properties: { ...agentArgs, task: { type: 'string', maxLength: 2000, description: 'The brief to pre-fill; the user can still edit it.' } } },
       async run(args) {
         const c = chain(args.chain_id);
@@ -129,7 +134,8 @@ function tools(request: Request): McpTool[] {
     {
       name: 'integration_kit',
       title: 'What an agent needs to be hired',
-      description: 'For builders: what an agent must declare, sign and deliver to be measured, quoted, hired and paid through Pokter, every refusal code, and the escrow contracts.',
+      description:
+        'For builders: what an AI agent must declare, sign and deliver to be listed, quoted, hired and paid through Pokter on BNB Chain (ERC-8004 identity, A2A or MCP, ERC-8183 escrow), every refusal code, and the escrow contracts. Use it when the user is building an agent, for example for BNB Chain Set and Earn.',
       inputSchema: { type: 'object', properties: {} },
       async run() {
         return { data: integrationKit(origin) };
