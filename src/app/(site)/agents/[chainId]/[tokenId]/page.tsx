@@ -265,9 +265,43 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             </h2>
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {/*
+                  "What it does" printed the category's blurb as a statement
+                  about this agent. Centreline reviews a concentrated-liquidity
+                  position and the classifier placed it in rebalancing, so its
+                  page said it "reports how far your weights have drifted" —
+                  work it does not do. Every agent whose job sits off its
+                  category's centre read the same way.
+
+                  The blurb stays — it is accurate about the category and
+                  useful for orientation — but it is labelled as the
+                  category and attributed to whoever put the agent in it: a
+                  tag the operator wrote, or Pokter reading their prose.
+                  `categorySignalSource` already draws that line and the
+                  reason is in its own note: a claim about provenance is the
+                  one kind this product cannot get wrong.
+
+                  Nothing is synthesised from the declared skills to fill
+                  this slot. The paid skill is the negotiate skill, so its
+                  description is about quoting and refusal — Centreline's
+                  reads "a brief this agent cannot answer is declined here"
+                  — and guessing among the rest would replace a wrong
+                  statement with an arbitrary one. The operator's own
+                  account of the work is directly below, under "In its own
+                  words", where it is already marked unverified.
+                */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="t-label">What it does</span>
+                  <span className="t-label">What this category does</span>
                   <p className="text-[15px] leading-relaxed">{p.category.blurb}</p>
+                  <p className="text-[12px] text-ink-3">
+                    Pokter&rsquo;s description of {p.category.label.toLowerCase()}, not this
+                    agent&rsquo;s own.{' '}
+                    {p.category.source === 'declared'
+                      ? 'Its operator declared this category.'
+                      : p.category.source === null
+                        ? 'Pokter placed it here.'
+                        : `Pokter placed it here from its ${p.category.source}.`}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <span className="t-label">The question to ask it</span>

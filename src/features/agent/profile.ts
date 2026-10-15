@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, categorySignalSource } from '@/lib/agents/categories';
 import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
 import type { DeclaredSkill } from '@/lib/agents/capabilities';
 import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
@@ -62,7 +62,17 @@ export interface AgentProfile {
   owner: string;
   agentWallet: string | null;
   createdAt: string | null;
-  category: { id: string; label: string; question: string; blurb: string } | null;
+  /**
+   * The category, and what put the agent in it.
+   *
+   * `blurb` describes the category, not this agent. The page printed it
+   * under "What it does", so Centreline — a concentrated-liquidity position
+   * service the classifier placed in rebalancing — told every reader it
+   * "reports how far your weights have drifted". `source` is how the
+   * category was reached, so a blurb can be attributed to whoever earned
+   * it: the operator's own tag, or Pokter reading their prose.
+   */
+  category: { id: string; label: string; question: string; blurb: string; source: 'declared' | 'name' | 'description' | null } | null;
   verdict: { id: Verdict; label: string; meaning: string; rationale: string; recommended: boolean };
   maturity: AgentMaturity;
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
@@ -187,7 +197,15 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     owner: agent.owner_address,
     agentWallet: agent.agent_wallet ?? null,
     createdAt: agent.created_at ?? null,
-    category: meta ? { id: meta.id, label: meta.label, question: meta.question, blurb: meta.blurb } : null,
+    category: meta
+      ? {
+          id: meta.id,
+          label: meta.label,
+          question: meta.question,
+          blurb: meta.blurb,
+          source: category === 'unclassified' ? null : categorySignalSource(agent, category),
+        }
+      : null,
     verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
     maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
