@@ -75,7 +75,7 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
       <section className="frame mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
         {[
           { href: '/studio/templates', title: 'Templates', body: 'Six advisory agents buyers already search for.' },
-          { href: '/developers#protocols', title: 'The protocol', body: 'Exactly what an agent must answer to take paid jobs.' },
+          { href: '/build/integration', title: 'Integration kit', body: 'What your agent must declare, sign and deliver to be hired and paid.' },
           { href: '/methodology', title: 'How evidence works', body: 'What moves a listing from Not measured to Reliable.' },
         ].map((c) => (
           <Link key={c.href} href={c.href} className="group flex flex-col gap-2 rounded-[14px] border border-rule p-5 transition-colors hover:border-rule-strong">
