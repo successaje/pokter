@@ -205,10 +205,20 @@ function rank(listing: Listing): number {
  * where the median agent is unproven, having a record at all is the strongest
  * differentiator we can surface cheaply.
  */
-export const listCategory = cache(async function listCategory(
+/**
+ * One category's listings and how many of its registry reads failed.
+ *
+ * Each read swallows its own failure so one bad query cannot take the
+ * category down, and that is kept. What was lost was the count: a category
+ * whose every read failed came back as an empty list, indistinguishable
+ * from a category with no agents in it, so an outage reached the reader as
+ * "nothing matches".
+ */
+const readCategory = cache(async function readCategory(
   category: Category,
-  { chainId = BSC_MAINNET, limit = 8 }: { chainId?: ChainId; limit?: number } = {},
-): Promise<Listing[]> {
+  chainId: ChainId,
+  limit: number,
+): Promise<{ listings: Listing[]; failed: number; total: number }> {
   const queries = DISCOVERY_QUERIES[category];
 
   const empty = { items: [] as ScanAgent[], total: 0, limit: 0, offset: 0 };
@@ -224,8 +234,12 @@ export const listCategory = cache(async function listCategory(
   // a key the ceiling is 600/min, and the real cost is now latency rather than
   // quota — so the slow semantic queries run alongside each other instead of
   // queueing behind one another.
+  let failed = 0;
   const pages = await mapWithConcurrency(lookups, 6, (run) =>
-    run().catch(() => empty),
+    run().catch(() => {
+      failed += 1;
+      return empty;
+    }),
   );
 
   const candidates = dedupe(pages.flatMap((p) => p.items));
@@ -248,11 +262,24 @@ export const listCategory = cache(async function listCategory(
    * keeps their strongest listings rather than whichever the registry
    * happened to return first.
    */
-  return capPerOwner(
+  const listings = capPerOwner(
     collapseClones(scored).sort((a, b) => rank(b) - rank(a)),
     MAX_LISTINGS_PER_OWNER_PER_CATEGORY,
   ).slice(0, limit);
+  return { listings, failed, total: lookups.length };
 });
+
+/** Throws when every registry read for the category failed: that is an outage, not an empty category. */
+export async function listCategory(
+  category: Category,
+  { chainId = BSC_MAINNET, limit = 8 }: { chainId?: ChainId; limit?: number } = {},
+): Promise<Listing[]> {
+  const read = await readCategory(category, chainId, limit);
+  if (read.total > 0 && read.failed === read.total) {
+    throw new Error(`The registry did not answer any read for ${category} on chain ${chainId}.`);
+  }
+  return read.listings;
+}
 
 /** The full marketplace: every category, fetched in parallel, treated equally. */
 /**
@@ -299,26 +326,29 @@ export async function listMarketplaceWithStatus(
 ): Promise<{
   sections: { category: Category; listings: Listing[] }[];
   unreachable: boolean;
+  /** Categories where some or all registry reads failed, so listings may be missing. */
+  incomplete: Array<{ category: Category; chainId: ChainId }>;
 }> {
   const chains = options.chainId ? [options.chainId] : LISTED_CHAINS;
   let attempts = 0;
   let failures = 0;
+  const incomplete: Array<{ category: Category; chainId: ChainId }> = [];
 
   // All categories at once. The inner fan-out is what used to trip the
   // rate limit; with a key in place, serialising categories only adds the
   // slowest semantic query's latency four times over.
   const sections = await mapWithConcurrency(CATEGORIES, 4, async ({ id }) => {
-    const perChain = await mapWithConcurrency(chains, 2, (chainId) => {
+    const perChain = await mapWithConcurrency(chains, 2, async (chainId) => {
       attempts += 1;
-      return listCategory(id, { ...options, chainId }).catch(() => {
-        failures += 1;
-        return [] as Listing[];
-      });
+      const read = await readCategory(id, chainId, options.limit ?? 8).catch(() => ({ listings: [] as Listing[], failed: 1, total: 1 }));
+      if (read.failed > 0) incomplete.push({ category: id, chainId });
+      if (read.total > 0 && read.failed === read.total) failures += 1;
+      return read.listings;
     });
     return { category: id, listings: perChain.flat() };
   });
 
-  return { sections, unreachable: attempts > 0 && failures === attempts };
+  return { sections, unreachable: attempts > 0 && failures === attempts, incomplete };
 }
 
 /** Everything the detail page needs to justify or warn against a hire. */
@@ -675,8 +705,9 @@ export async function listSearchableWithStatus(
 ): Promise<{
   entries: SearchableWithHistory[];
   unreachable: boolean;
+  incomplete: Array<{ category: Category; chainId: ChainId }>;
 }> {
-  const { sections, unreachable } = await listMarketplaceWithStatus(options);
+  const { sections, unreachable, incomplete } = await listMarketplaceWithStatus(options);
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
@@ -719,7 +750,7 @@ export async function listSearchableWithStatus(
     tested: passedCategoryCheck(listing.agent, listing.category),
   }));
 
-  return { entries, unreachable };
+  return { entries, unreachable, incomplete };
 }
 
 /**

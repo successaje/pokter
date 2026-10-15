@@ -233,6 +233,11 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           Showing only what Pokter could read. Results may be incomplete; nothing has been filled in to hide the gap.
         </Notice>
       )}
+      {!result.unreachable && result.incomplete.length > 0 && (
+        <Notice tone="watch" className="mt-6" title="Part of the registry did not answer">
+          Some reads failed for {result.incomplete.join(', ')}. Agents there may be missing from these results, and counts may be low.
+        </Notice>
+      )}
 
       <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="hidden lg:block" aria-label="Filters">
