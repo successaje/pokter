@@ -13,7 +13,22 @@ import { NO_ENDPOINT, probeX402, readX402Response } from '../src/lib/x402/probe'
  */
 
 test('a real challenge is the only thing called payable', () => {
-  const r = readX402Response(402, { accepts: [{ scheme: 'exact', network: 'eip155:56' }] });
+  const r = readX402Response(402, { x402Version: 1, accepts: [{ scheme: 'exact', network: 'bsc', maxAmountRequired: '10000', payTo: '0x1111111111111111111111111111111111111111', asset: '0x2222222222222222222222222222222222222222' }] });
+  assert.equal(r.observation, 'demands-payment');
+  assert.equal(r.options, 1);
+  assert.match(r.detail, /does not show that anyone has paid/);
+});
+
+test('an option without an amount or payee, or an unknown version, is not payable', () => {
+  assert.equal(readX402Response(402, { accepts: [{ scheme: 'exact', network: 'eip155:56' }] }).observation, 'malformed-challenge');
+  assert.equal(readX402Response(402, { x402Version: 9, accepts: [{ scheme: 'exact', network: 'eip155:56', amount: '1', payTo: '0x1' }] }).observation, 'malformed-challenge');
+});
+
+test('a version 2 challenge is read from its PAYMENT-REQUIRED header', async () => {
+  const challenge = { x402Version: 2, accepts: [{ scheme: 'exact', network: 'eip155:56', amount: '10000', payTo: '0x1111111111111111111111111111111111111111', asset: '0x2' }] };
+  const header = Buffer.from(JSON.stringify(challenge)).toString('base64');
+  const spy = (async () => new Response(null, { status: 402, headers: { 'payment-required': header } })) as unknown as typeof fetch;
+  const r = await probeX402('https://agent.example/paid', spy);
   assert.equal(r.observation, 'demands-payment');
   assert.equal(r.options, 1);
 });

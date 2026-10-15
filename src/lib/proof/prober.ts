@@ -11,6 +11,9 @@ import { Agent } from 'undici';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { AttestationMethod } from './attestation';
+import { readRpcResponse } from '@/lib/protocol/stream';
+import { listMcpTools, type McpTool } from '@/lib/mcp/probe';
+import { isAgentCard, jsonRpcEndpoint } from '@/lib/a2a/card';
 
 /**
  * Pokter as a measurer.
@@ -37,6 +40,8 @@ export interface ProbeResult {
   capabilities?: string[];
   /** The A2A card says its endpoint needs credentials (see `cardRequiresAuth`). */
   requiresAuth?: boolean;
+  /** MCP tools as declared, input schemas included (see `listMcpTools`). */
+  tools?: McpTool[];
   at: string;
 }
 
@@ -49,6 +54,8 @@ export interface LiveReading {
   ratio: number | null;
   medianMs: number | null;
   capabilities: string[];
+  /** MCP tools with their input schemas, from the first probe that listed them. */
+  tools: McpTool[];
   /** A card read on this visit said its endpoint needs credentials. */
   requiresAuth: boolean;
   method: AttestationMethod;
@@ -216,37 +223,13 @@ export async function withPublicEndpoint<T>(
   }
 }
 
-export async function readJson(response: Response): Promise<unknown> {
-  const announced = Number(response.headers.get('content-length') ?? 0);
-  if (announced > MAX_RESPONSE_BYTES) throw new Error('Response is larger than 256 KiB');
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('Response body was empty');
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_RESPONSE_BYTES) {
-      await reader.cancel();
-      throw new Error('Response is larger than 256 KiB');
-    }
-    chunks.push(value);
-  }
-
-  const text = new TextDecoder().decode(
-    chunks.length === 1 ? chunks[0] : Buffer.concat(chunks),
-  );
-  const payload = response.headers.get('content-type')?.includes('text/event-stream')
-    ? text
-        .split('\n')
-        .find((line) => line.startsWith('data:'))
-        ?.slice(5)
-        .trim()
-    : text;
-  if (!payload) throw new Error('Response body was empty');
-  return JSON.parse(payload) as unknown;
+/**
+ * A JSON body, or the awaited JSON-RPC response in an event stream, read
+ * within the size limit. See `readRpcResponse`: pass the request's id when
+ * there is one, so an event for another message is never taken as its answer.
+ */
+export async function readJson(response: Response, { expectId }: { expectId?: string | number } = {}): Promise<unknown> {
+  return readRpcResponse(response, { expectId, maxBytes: MAX_RESPONSE_BYTES });
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -291,33 +274,28 @@ async function probeAt(
 
   try {
     endpointHandle = await assertPublicEndpoint(endpoint);
+    if (protocol === 'mcp') {
+      const handle = endpointHandle;
+      const listing = await listMcpTools(
+        (init) => handle.fetch({ ...init, signal: AbortSignal.timeout(PROBE_TIMEOUT_MS), cache: 'no-store', redirect: 'error' }),
+        { version, maxBytes: MAX_RESPONSE_BYTES },
+      );
+      return {
+        result: {
+          ok: listing.ok,
+          latencyMs: Date.now() - startedAt,
+          status: listing.status,
+          detail: listing.detail,
+          capabilities: listing.tools.map((tool) => tool.name),
+          tools: listing.tools,
+          requiresAuth: false,
+          at,
+        },
+      };
+    }
     const response = await endpointHandle.fetch({
-      method: protocol === 'mcp' ? 'POST' : 'GET',
-      headers:
-        protocol === 'mcp'
-          ? {
-              accept: 'application/json, text/event-stream',
-              'content-type': 'application/json',
-              'mcp-protocol-version': version ?? MCP_PROTOCOL_VERSION,
-              'mcp-method': 'tools/list',
-            }
-          : { accept: 'application/json' },
-      body:
-        protocol === 'mcp'
-          ? JSON.stringify({
-              jsonrpc: '2.0',
-              id: 'pokter-capabilities',
-              method: 'tools/list',
-              params: {
-                _meta: {
-                  'io.modelcontextprotocol/clientInfo': {
-                    name: 'pokter-prober',
-                    version: '1.0',
-                  },
-                },
-              },
-            })
-          : undefined,
+      method: 'GET',
+      headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       cache: 'no-store',
       redirect: 'error',
@@ -349,43 +327,33 @@ async function probeAt(
           },
         };
       }
-      const capabilities =
-        protocol === 'mcp'
-          ? ((asObject(body.result)?.tools as unknown[]) ?? [])
-              .map((tool) => asObject(tool)?.name)
-              .filter((name): name is string => typeof name === 'string')
-          : Array.isArray(body.skills)
-            ? body.skills
-                .map((skill) => asObject(skill)?.name ?? asObject(skill)?.id)
-                .filter((name): name is string => typeof name === 'string')
-            : [];
-      const valid =
-        protocol === 'mcp'
-          ? body.jsonrpc === '2.0' && asObject(body.result) !== null && Array.isArray(asObject(body.result)?.tools)
-          : typeof body.name === 'string' &&
-            typeof body.url === 'string' &&
-            typeof body.protocolVersion === 'string' &&
-            Array.isArray(body.skills);
-      if (!valid) {
+      const capabilities = Array.isArray(body.skills)
+        ? body.skills
+            .map((skill) => asObject(skill)?.name ?? asObject(skill)?.id)
+            .filter((name): name is string => typeof name === 'string')
+        : [];
+      // Either card format: a top-level url (to v0.3) or supportedInterfaces (current).
+      if (!isAgentCard(body)) {
         return {
           result: {
             ok: false,
             latencyMs,
             status: response.status,
-            detail: `Endpoint returned JSON, but not a valid ${protocol.toUpperCase()} capability response.`,
+            detail: 'Endpoint returned JSON, but not a valid A2A agent card.',
             at,
           },
           body,
         };
       }
+      const callable = jsonRpcEndpoint(body);
       return {
         result: {
           ok: true,
           latencyMs,
           status: response.status,
-          detail: `${protocol.toUpperCase()} capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared ${protocol === 'mcp' ? 'tools' : 'skills'}` : ''}.`,
+          detail: `A2A capability handshake succeeded${capabilities.length ? ` with ${capabilities.length} declared skills` : ''}.${callable ? '' : ' Its card offers no HTTPS JSON-RPC interface, which is the one Pokter calls, so it cannot be quoted or hired here.'}`,
           capabilities,
-          requiresAuth: protocol === 'a2a' ? cardRequiresAuth(body) : false,
+          requiresAuth: cardRequiresAuth(body),
           at,
         },
       };
@@ -459,6 +427,7 @@ export async function probeAgent(
       ratio: null,
       medianMs: null,
       capabilities: [],
+      tools: [],
       requiresAuth: false,
       method: { ...method, probes: 0, answered: 0 },
     };
@@ -482,6 +451,7 @@ export async function probeAgent(
     ratio: probes.length === 0 ? null : answered / probes.length,
     medianMs,
     capabilities: [...new Set(probes.flatMap((probe) => probe.capabilities ?? []))],
+    tools: probes.find((probe) => probe.tools?.length)?.tools ?? [],
     requiresAuth: probes.some((probe) => probe.requiresAuth === true),
     method: { ...method, probes: probes.length, answered, medianMs },
   };

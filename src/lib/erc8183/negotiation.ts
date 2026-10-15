@@ -71,10 +71,11 @@ export function quoteUsableForEscrow(
   now: Date = new Date(),
   /** The escrow contract on that chain. A quote naming another is refused. */
   expectedContract?: string,
-): { usable: true } | { usable: false; reason: string } {
+): { usable: true } | { usable: false; reason: string; code: 'wrong-chain' | 'wrong-contract' | 'expired' } {
   if (quote.domain && quote.domain.chainId !== escrowChainId) {
     return {
       usable: false,
+      code: 'wrong-chain',
       reason:
         `The seller signed this quote for chain ${quote.domain.chainId}, ` +
         `and the escrow settles on chain ${escrowChainId}. It will not ` +
@@ -96,6 +97,7 @@ export function quoteUsableForEscrow(
     if (!matches) {
       return {
         usable: false,
+        code: 'wrong-contract',
         reason: `The seller signed this quote for escrow ${quote.domain.verifyingContract}, not the escrow Pokter funds on chain ${escrowChainId}. It will not recognise the funded job.`,
       };
     }
@@ -105,6 +107,7 @@ export function quoteUsableForEscrow(
     if (expiresAt <= now.getTime()) {
       return {
         usable: false,
+        code: 'expired',
         reason: 'The quote has expired. Negotiate again before funding.',
       };
     }

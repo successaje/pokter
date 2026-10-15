@@ -142,6 +142,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       {
         error: unpayablePriceNote(quote.currency, !isEscrowChain(56)),
         reason: 'currency',
+        layer: 'payment',
+        code: 'payment-incompatible',
+        retryable: false,
       },
       { status: 409 },
     );
@@ -162,7 +165,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   );
   if (!usable.usable) {
     return NextResponse.json(
-      { error: usable.reason, reason: 'domain' },
+      {
+        error: usable.reason,
+        reason: 'domain',
+        // Expired is worth asking again; a quote for another chain or contract is not.
+        layer: usable.code === 'expired' ? 'protocol' : 'payment',
+        code: usable.code === 'expired' ? 'quote-expired' : 'payment-incompatible',
+        retryable: usable.code === 'expired',
+      },
       { status: 409 },
     );
   }
