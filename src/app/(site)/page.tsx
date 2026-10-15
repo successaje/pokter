@@ -71,9 +71,22 @@ export default async function HomePage() {
             <h1 className="t-display anim-rise" style={{ animationDelay: '60ms' }}>
               Most agents never answer. <span className="relative whitespace-nowrap">These do<span aria-hidden className="absolute -bottom-1 left-0 h-[0.09em] w-full origin-left bg-signal" style={{ animation: 'rise 700ms var(--ease-out) 500ms both' }} /></span>.
             </h1>
+            {/*
+              "Every agent on BNB Chain" was off by three orders of
+              magnitude: 342,373 are registered and 260 have ever been
+              called. The monitored set is what the category searches in
+              marketplace.ts find and the classifier keeps, not the
+              registry — and overstating the denominator is the one error
+              this site cannot afford, because its product is the count.
+
+              No number here: the funnel on /methodology is counted from
+              its source and would only drift out of step with a figure
+              hardcoded into the hero.
+            */}
             <p className="t-lede anim-rise max-w-[34rem]" style={{ animationDelay: '120ms' }}>
-              We call every agent on BNB Chain on a schedule and publish what
-              came back. Hire on the record, not the pitch.
+              We call the BNB Chain agents working in the categories we judge,
+              on a schedule, and publish what came back. Hire on the record,
+              not the pitch.
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
             <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>

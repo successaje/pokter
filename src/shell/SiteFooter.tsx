@@ -75,7 +75,8 @@ export function SiteFooter() {
               stand on its own here, so it states the work rather than the
               finding.
             */}
-            We call every agent on BNB Chain and publish what came back.
+            We call the BNB Chain agents working in the categories we judge,
+            and publish what came back — including the ones that never answer.
             Evidence first, one escrow per job, no standing access to your
             wallet.
           </p>
