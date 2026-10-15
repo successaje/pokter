@@ -72,8 +72,8 @@ export function startSweepScheduler(): void {
         signal: AbortSignal.timeout(SWEEP_TIMEOUT_MS),
         dispatcher: patient,
       } as RequestInit);
-      const body = (await response.json().catch(() => ({}))) as { probes?: number; skipped?: string; error?: string };
-      console.log(`[sweep-scheduler] ${response.status} ${body.skipped ? `skipped (${body.skipped})` : body.error ?? `${body.probes ?? 0} probes`}`);
+      const body = (await response.json().catch(() => ({}))) as { probes?: number; answered?: number; standDown?: string; error?: string };
+      console.log(`[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : body.error ?? `${body.probes ?? 0} probes, ${body.answered ?? 0} answered`}`);
     } catch (error) {
       console.warn(`[sweep-scheduler] sweep request failed: ${(error as Error).message}`);
     } finally {
