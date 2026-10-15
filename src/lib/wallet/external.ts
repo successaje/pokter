@@ -291,6 +291,18 @@ export async function settleFromExternalWallet(input: {
   if (getAddress(before.client) !== getAddress(input.account)) {
     throw new Error('The connected wallet did not fund this job.');
   }
+  /*
+   * Said as what happened, not as a refusal. After the review window anyone
+   * may release a job's payment, and keepers do: a buyer approving job 1457
+   * was told it "is completed and cannot be settled", when the agent had
+   * simply been paid twenty-five minutes earlier by someone else's call.
+   */
+  if (before.statusName === 'COMPLETED') {
+    throw new Error('ALREADY_COMPLETED: The agent has already been paid. After the review window anyone can release the escrow, and someone did. Nothing is left to do.');
+  }
+  if (before.statusName === 'REJECTED') {
+    throw new Error('ALREADY_REJECTED: This job was already disputed and resolved, so there is nothing to approve.');
+  }
   if (before.statusName !== 'SUBMITTED') {
     throw new Error(`This job is ${before.statusName.toLowerCase()} and cannot be settled.`);
   }
