@@ -75,7 +75,8 @@ test('a wrong answer fails as wrong, and an undelivered job fails as undelivered
   const scenario = scenarioOf('yield', STATIC_SUITES.yield.scenarios[0].id);
   assert.ok(scenario);
 
-  const wrong = gradePaidScenario({ scenario, jobId: '1', manifestText: manifestWith({ ...scenario.expected, best_route: 'definitely-not' }) });
+  // Changed the buyer's amount: the fixture's whole point is catching that.
+  const wrong = gradePaidScenario({ scenario, jobId: '1', manifestText: manifestWith({ ...(scenario.expected as Record<string, unknown>), amount: 814 }) });
   assert.equal(wrong.pass, false);
   assert.equal(wrong.outcome, 'wrong');
 

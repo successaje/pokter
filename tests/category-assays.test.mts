@@ -35,8 +35,18 @@ test('rebalancing expected values include threshold boundary', () => {
   assert.deepEqual(STATIC_SUITES.rebalancing.scenarios[1].expected, { max_drift_pct: 5, rebalance_needed: true });
 });
 
-test('yield suite deducts gas and impermanent loss rather than ranking headline APY', () => {
-  assert.deepEqual(STATIC_SUITES.yield.scenarios[0].expected, { best_route: 'efficient', net_annual_usd: 85 });
+test('yield suite expects the buyer\'s own terms back, not a rate it cannot verify', () => {
+  /*
+   * This asserted { best_route: 'efficient', net_annual_usd: 85 } — the
+   * answer to arithmetic over a route table supplied as JSON, which no
+   * yield agent accepts as a brief. The fixture now asks in the buyer's
+   * idiom and expects what the brief itself fixes; rates and the chosen
+   * venue are live and rest on the agent's own cost model, so pinning
+   * them here would be Pokter marking its own homework.
+   */
+  assert.deepEqual(STATIC_SUITES.yield.scenarios[0].expected, {
+    amount: 1_000, asset: 'USDT', holding_days: 30, current_apr_pct: 0, threshold_pp: 0.5,
+  });
 });
 
 test('token safety rule distinguishes blocked sales, controls and clean supplied facts', () => {

@@ -1,9 +1,27 @@
 import type { Category } from '@/lib/agents/categories';
 
+/*
+ * Version 2 for grid and yield: the fixture changed, so the id changes.
+ *
+ * Version 1 asked for arithmetic over values supplied as JSON — current
+ * weights, route tables, bare prices — with an `answer_shape` telling the
+ * agent what to return. No agent in those categories accepts that. Every
+ * one reads its inputs from a brief written the way a buyer writes one,
+ * so Pokter's own three refused their own category's fixture on every
+ * scenario: Centreline wants a wallet, Gridloom an asset and a budget,
+ * Cresthold an amount and a stablecoin. A suite nothing can answer
+ * measures nothing.
+ *
+ * Version 2 asks in the buyer's idiom and expects only what the brief
+ * itself determines — the geometric step a stated range and level count
+ * imply, the amount and horizon echoed back. Live figures in the same
+ * answer are not expected values here; they are what the paid health
+ * factor check grades against a reading of its own.
+ */
 export const CATEGORY_SUITE_IDS = {
   rebalancing: 'rebalancing-arithmetic-1',
-  'grid-trading': 'grid-arithmetic-1',
-  yield: 'yield-net-return-1',
+  'grid-trading': 'grid-plan-2',
+  yield: 'yield-net-return-2',
   'token-safety': 'token-safety-facts-1',
 } as const satisfies Partial<Record<Category, string>>;
 
@@ -37,36 +55,65 @@ const rebalance = (id: string, current: number[], target: number[]): StaticScena
   };
 };
 
-const grid = (id: string, lower: number, upper: number, levels: number): StaticScenario => {
-  const stepPct = (Math.pow(upper / lower, 1 / (levels - 1)) - 1) * 100;
-  const expected = { step_pct: Number(stepPct.toFixed(4)), intervals: levels - 1 };
+/**
+ * A grid brief in the words a buyer uses, with the arithmetic its own
+ * numbers fix.
+ *
+ * A stated range and grid count determine the geometric step and the
+ * number of levels whatever the market does, so they can be expected
+ * exactly. The budget is expected back because losing it is a real
+ * failure mode: a competitor's grid agent read a 1,000 USDT budget as
+ * 814 — the upper price bound — and allocated that instead.
+ *
+ * `price_now` is deliberately not expected. It is live, and an answer is
+ * not wrong for having been produced at a different minute.
+ */
+const grid = (id: string, base: string, budgetUsd: number, lower: number, upper: number, grids: number): StaticScenario => {
+  const step = Math.exp(Math.log(upper / lower) / grids) - 1;
   return {
     id,
-    expected,
+    expected: {
+      pair: `${base}/USDT`,
+      step_pct: Math.round(step * 100 * 1000) / 1000,
+      levels: grids + 1,
+      budget_usd: budgetUsd,
+    },
     brief: {
-      text: 'Read-only grid check. For a geometric grid including both bounds, calculate the percentage step between adjacent prices and the number of intervals. Reply with JSON only: {"step_pct": number, "intervals": number}.',
-      data: { suite: CATEGORY_SUITE_IDS['grid-trading'], lower_price: lower, upper_price: upper, levels, answer_shape: { step_pct: 'number', intervals: 'number' } },
+      text: `Grid plan for ${base} with ${budgetUsd} USDT, range ${lower} to ${upper}, ${grids} grids. Geometric spacing. Reply with JSON only.`,
+      data: { suite: CATEGORY_SUITE_IDS['grid-trading'], base, budget_usdt: budgetUsd, range: { lower, upper }, grids, spacing: 'geometric' },
     },
   };
 };
 
-type YieldRoute = { id: string; apy_pct: number; annual_gas_usd: number; expected_il_pct: number };
-
-const yieldScenario = (id: string, principal: number, routes: YieldRoute[]): StaticScenario => {
-  const ranked = routes.map((route) => ({
-    id: route.id,
-    net: principal * ((route.apy_pct - route.expected_il_pct) / 100) - route.annual_gas_usd,
-  })).sort((a, b) => b.net - a.net);
-  const expected = { best_route: ranked[0].id, net_annual_usd: Number(ranked[0].net.toFixed(2)) };
-  return {
-    id,
-    expected,
-    brief: {
-      text: 'Read-only yield comparison. For each route, net annual USD equals principal × (APY − expected IL) − annual gas. Name the best route and its net annual USD. Reply with JSON only: {"best_route": string, "net_annual_usd": number}.',
-      data: { suite: CATEGORY_SUITE_IDS.yield, principal_usd: principal, routes, answer_shape: { best_route: 'string', net_annual_usd: 'number' } },
-    },
-  };
-};
+/**
+ * A stablecoin-yield brief as a buyer writes it, expecting back only what
+ * the brief fixes.
+ *
+ * The amount, the asset, the horizon and the threshold are the buyer's own
+ * terms, and an answer that quietly changes them has answered a different
+ * question — the failure this is for. A review of Pokter found exactly
+ * that shape worth asking about: a 1,000 USDT brief answered with a USDC
+ * recommendation, where whether the conversion cost was carried could not
+ * be told from the outside.
+ *
+ * Rates, the recommended venue and the net figure are not expected. They
+ * are live, they depend on the agent's own cost model, and pinning them
+ * here would be Pokter marking its own homework.
+ */
+const yieldScenario = (id: string, amount: number, asset: string, days: number, currentAprPct: number, thresholdPp: number): StaticScenario => ({
+  id,
+  expected: {
+    amount,
+    asset,
+    holding_days: days,
+    current_apr_pct: currentAprPct,
+    threshold_pp: thresholdPp,
+  },
+  brief: {
+    text: `I hold ${amount} ${asset} earning ${currentAprPct}% and can leave it for ${days} days. Only move it for at least ${thresholdPp} points more. Where is the best net stablecoin yield? Reply with JSON only.`,
+    data: { suite: CATEGORY_SUITE_IDS.yield, amount, asset, holding_days: days, current_apr_pct: currentAprPct, threshold_pp: thresholdPp },
+  },
+});
 
 type TokenFacts = { sellable: boolean; owner_can_mint: boolean; owner_can_blacklist: boolean; upgradeable: boolean };
 
@@ -89,7 +136,21 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
     category: 'rebalancing',
     label: 'Rebalancing arithmetic',
     provenance: 'Fixed portfolio weights with answers calculated by Pokter.',
-    limitation: 'Checks arithmetic and threshold handling, not execution quality, slippage or realised returns.',
+    /*
+     * Still version 1, and still the synthetic form, because the fitting
+     * replacement needs something Pokter cannot yet produce: a wallet that
+     * holds a live concentrated-liquidity position.
+     *
+     * The category holds two different jobs. This fixture asks the one
+     * about portfolio weights drifting from a target. Centreline, which
+     * the classifier places here, reviews a PancakeSwap v3 position range
+     * for a named wallet and refuses a brief with no address — so it fails
+     * this fixture on every scenario, and that failure would be Pokter's
+     * mis-fit rather than the agent's error. Do not hire this suite for an
+     * LP-range service; `sampleVenusBorrowers` is the shape of what is
+     * missing, for v3 position holders.
+     */
+    limitation: 'Checks portfolio-weight drift arithmetic and threshold handling, not execution quality, slippage or realised returns. It does not fit an agent that reviews a concentrated-liquidity position range, which is a different job under the same category name.',
     scenarios: [
       rebalance('balanced', [50, 30, 20], [50, 30, 20]),
       rebalance('threshold', [55, 25, 20], [50, 30, 20]),
@@ -99,21 +160,25 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
   'grid-trading': {
     id: CATEGORY_SUITE_IDS['grid-trading'],
     category: 'grid-trading',
-    label: 'Grid arithmetic',
-    provenance: 'Fixed ranges with geometric-grid answers calculated by Pokter.',
-    limitation: 'Checks grid construction arithmetic, not whether a range will be profitable in a live market.',
-    scenarios: [grid('tight-range', 90, 110, 5), grid('wide-range', 60, 140, 9), grid('decimal-range', 0.72, 1.08, 7)],
+    label: 'Grid plan',
+    provenance: 'Briefs naming an asset, a budget, a range and a grid count, with the step and level count those numbers imply calculated by Pokter.',
+    limitation: 'Checks that the plan keeps the budget and bounds it was given and spaces the grid correctly. It does not check the live price quoted beside them, and says nothing about whether a range will be profitable.',
+    scenarios: [
+      grid('bnb-stated-range', 'BNB', 1_000, 900, 1_100, 8),
+      grid('cake-wide-range', 'CAKE', 500, 600, 900, 6),
+      grid('eth-tight-range', 'ETH', 2_000, 1_800, 2_200, 4),
+    ],
   },
   yield: {
     id: CATEGORY_SUITE_IDS.yield,
     category: 'yield',
-    label: 'Net yield comparison',
-    provenance: 'Fixed route assumptions with net returns calculated by Pokter.',
-    limitation: 'Checks fee and impermanent-loss arithmetic, not whether quoted APY persists or a protocol is safe.',
+    label: 'Net yield at your size',
+    provenance: "Briefs naming an amount, a stablecoin, a horizon and a threshold, checked against the terms the brief itself states.",
+    limitation: 'Checks that the answer is about the amount, asset and horizon it was asked for. It does not check the rates quoted, the venue chosen or the net figure, which are live and rest on the agent\'s own cost model.',
     scenarios: [
-      yieldScenario('gas-changes-winner', 1_000, [{ id: 'high-apy', apy_pct: 14, annual_gas_usd: 90, expected_il_pct: 1 }, { id: 'efficient', apy_pct: 10, annual_gas_usd: 10, expected_il_pct: 0.5 }]),
-      yieldScenario('il-changes-winner', 5_000, [{ id: 'volatile-lp', apy_pct: 18, annual_gas_usd: 20, expected_il_pct: 9 }, { id: 'lending', apy_pct: 10, annual_gas_usd: 12, expected_il_pct: 0 }]),
-      yieldScenario('simple-net', 10_000, [{ id: 'route-a', apy_pct: 8.5, annual_gas_usd: 25, expected_il_pct: 0 }, { id: 'route-b', apy_pct: 9.5, annual_gas_usd: 50, expected_il_pct: 1 }]),
+      yieldScenario('usdt-30-days', 1_000, 'USDT', 30, 0, 0.5),
+      yieldScenario('usdc-at-size', 25_000, 'USDC', 90, 2, 1),
+      yieldScenario('fdusd-short-horizon', 5_000, 'FDUSD', 14, 3.5, 1.5),
     ],
   },
   'token-safety': {
