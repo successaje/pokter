@@ -1,3 +1,4 @@
+import { statedRefusal } from '@/lib/erc8183/refusal';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
@@ -114,6 +115,7 @@ export async function requestQuote(
   {
     timeoutMs = 12_000,
     enquiry = PRICE_ENQUIRY,
+    onRefused,
   }: {
     timeoutMs?: number;
     /*
@@ -130,6 +132,15 @@ export async function requestQuote(
       task_description: string;
       terms: { deliverables: string; quality_standards: string };
     };
+    /**
+     * The seller's own words when it declines, so a buyer is told what to
+     * change rather than that the agent "may be unreachable".
+     *
+     * A refusal is usually the most useful thing a seller says: "needs the
+     * token address" is a brief a buyer can fix in seconds, and discarding
+     * it turns a fixable hire into an agent that looks broken.
+     */
+    onRefused?: (reason: string) => void;
   } = {},
 ): Promise<AgentQuote | null> {
   const endpoint = agent.services?.a2a?.endpoint?.replace(
@@ -194,6 +205,8 @@ export async function requestQuote(
       typeof currency !== 'string' ||
       !/^\d+$/.test(priceRaw)
     ) {
+      const stated = statedRefusal(data?.reason);
+      if (stated) onRefused?.(stated);
       return null;
     }
 

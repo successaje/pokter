@@ -74,15 +74,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  let refusal: string | null = null;
   const quote = await requestQuote(agent, {
     timeoutMs: 20_000,
     enquiry: { task_description: task, terms: POKTER_TERMS },
+    onRefused: (reason) => {
+      refusal = reason;
+    },
   });
   if (!quote) {
+    /*
+     * A seller that says why is quoted verbatim. "lp_tier_plan needs the
+     * token address" is a brief the buyer can fix; "it may be unreachable"
+     * reads as a broken agent and loses the hire. Attributed, because these
+     * are the seller's words and not Pokter's assessment.
+     */
     return NextResponse.json(
       {
-        error:
-          'The agent did not return a signed quote for this brief. It may be unreachable, or may not sell this work.',
+        error: refusal
+          ? `${agent.name} declined this brief: “${refusal}”`
+          : 'The agent did not return a signed quote for this brief. It may be unreachable, or may not sell this work.',
       },
       { status: 502 },
     );
