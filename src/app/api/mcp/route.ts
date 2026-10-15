@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 
 import { GET as agentDetail } from '@/app/api/v1/agents/[chainId]/[tokenId]/route';
-import { GET as listAgents } from '@/app/api/v1/agents/route';
 import { POST as trial } from '@/app/api/trial/route';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
+import { discover } from '@/features/discover/search';
+import { parseDiscoverParams } from '@/features/discover/params';
+import { apiRateLimit, originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -20,7 +22,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
  * and hire_link only builds a link the user opens and funds themselves.
  */
 function tools(request: Request): McpTool[] {
-  const origin = new URL(request.url).origin;
+  // The public origin for links a user opens; the socket's (0.0.0.0:8080 behind the proxy) only for in-process calls.
+  const origin = originOf(request);
+  const local = new URL(request.url).origin;
   // Only the headers the rate limit and logs read: the inner requests carry their own bodies.
   const passed = Object.fromEntries(['fly-client-ip', 'x-forwarded-for', 'user-agent'].flatMap((h) => (request.headers.get(h) ? [[h, request.headers.get(h) as string]] : [])));
   const forward = (url: string, init: RequestInit = {}) => new Request(url, { ...init, headers: { ...passed, ...(init.headers as Record<string, string> | undefined) } });
@@ -44,12 +48,39 @@ function tools(request: Request): McpTool[] {
         },
       },
       async run(args) {
-        const url = new URL('/api/v1/agents', origin);
-        const q = [typeof args.query === 'string' ? args.query.slice(0, 200) : '', args.hireable_only ? 'is:hireable' : ''].filter(Boolean).join(' ');
-        if (q) url.searchParams.set('q', q);
-        if (typeof args.category === 'string') url.searchParams.set('category', args.category);
-        url.searchParams.set('limit', String(Math.min(Math.max(Number(args.limit) || 8, 1), 20)));
-        return read(await listAgents(forward(url.href)));
+        /*
+         * Discover's search, not the API's literal one: it reads a request
+         * for intent, so "token safety" finds the token-safety agents even
+         * where no description says "safety". An assistant phrases things
+         * the way people do.
+         */
+        const params = parseDiscoverParams({
+          q: typeof args.query === 'string' ? args.query.slice(0, 200) : '',
+          category: typeof args.category === 'string' ? args.category : undefined,
+          hireable: args.hireable_only ? '1' : undefined,
+        });
+        const found = await discover(params);
+        const limit = Math.min(Math.max(Number(args.limit) || 8, 1), 20);
+        return {
+          data: {
+            total: found.total,
+            reading: found.reading ? { category: found.reading.categoryLabel, terms: found.reading.terms, byName: found.reading.byName } : null,
+            agents: found.rows.slice(0, limit).map((row) => ({
+              chainId: row.chainId,
+              tokenId: row.tokenId,
+              name: row.name,
+              category: row.categoryLabel,
+              description: row.description,
+              verdict: row.verdict,
+              answeredToday: row.answeringToday,
+              price: row.priceU !== null ? `${row.priceU} $U, signed by the agent` : null,
+              hiredOn: row.hireChainId,
+              why: row.reason,
+              page: `${origin}/agents/${row.chainId}/${row.tokenId}`,
+            })),
+            ...(found.total === 0 && found.suggestions ? { suggestions: [...found.suggestions.close, ...found.suggestions.active].slice(0, 5).map((row) => ({ chainId: row.chainId, tokenId: row.tokenId, name: row.name })) } : {}),
+          },
+        };
       },
     },
     {
@@ -61,7 +92,7 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t) return { data: { error: 'chain_id must be 56 or 97 and token_id a number.' }, isError: true };
-        return read(await agentDetail(forward(new URL(`/api/v1/agents/${c}/${t}`, origin).href), { params: Promise.resolve({ chainId: String(c), tokenId: t }) }));
+        return read(await agentDetail(forward(new URL(`/api/v1/agents/${c}/${t}`, local).href), { params: Promise.resolve({ chainId: String(c), tokenId: t }) }));
       },
     },
     {
@@ -73,7 +104,7 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
-        return read(await trial(forward(new URL('/api/trial', origin).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
+        return read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
       },
     },
     {
@@ -108,6 +139,9 @@ function tools(request: Request): McpTool[] {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Per client, like the public API: each call may search the catalogue or reach an agent.
+  const limited = apiRateLimit(request, 'mcp', 60);
+  if (limited) return limited;
   const body = await request.json().catch(() => undefined);
   if (body === undefined) {
     return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: the body is not JSON.' } }, { status: 400, headers: CORS });

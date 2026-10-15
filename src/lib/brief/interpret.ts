@@ -61,17 +61,41 @@ const SIGNALS: Record<Category, string[]> = {
  * an agent, because the moment it does, the product is repeating claims again
  * instead of checking them.
  */
+/**
+ * Where each signal occurs in the text.
+ *
+ * Signals were counted per category, one point each, and ties went to
+ * whichever category is listed first. "safe" (health factor) sits inside
+ * "safe to buy" and "safety" (token safety), so "Check if a token is safe
+ * to buy" — one of the home page's own example searches — tied one-all and
+ * was read as Health Factor. A signal now counts only where no longer
+ * matched signal covers it, and a category scores the length of what it
+ * matched, so the more specific phrase wins.
+ */
+function occurrences(text: string, signal: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  for (let at = text.indexOf(signal); at !== -1; at = text.indexOf(signal, at + 1)) spans.push([at, at + signal.length]);
+  return spans;
+}
+
 export function interpretBrief(brief: string): BriefReading {
   const text = brief.toLowerCase();
 
+  const found = CATEGORIES.flatMap((category) =>
+    SIGNALS[category.id].flatMap((signal) => occurrences(text, signal).map(([start, end]) => ({ category, signal, start, end }))),
+  );
+  // A match lying entirely inside a longer match (of any category) is part of that phrase, not a signal of its own.
+  const standing = found.filter(
+    (m) => !found.some((other) => other !== m && other.end - other.start > m.end - m.start && other.start <= m.start && other.end >= m.end),
+  );
+
   const scored = CATEGORIES.map((category) => {
-    const matched = SIGNALS[category.id].filter((signal) =>
-      text.includes(signal),
-    );
-    return { id: category.id, label: category.label, matched };
+    const mine = standing.filter((m) => m.category.id === category.id);
+    const matched = [...new Set(mine.map((m) => m.signal))];
+    return { id: category.id, label: category.label, matched, weight: matched.reduce((sum, signal) => sum + signal.length, 0) };
   })
     .filter((entry) => entry.matched.length > 0)
-    .sort((a, b) => b.matched.length - a.matched.length);
+    .sort((a, b) => b.weight - a.weight || b.matched.length - a.matched.length);
 
   const [best] = scored;
 
