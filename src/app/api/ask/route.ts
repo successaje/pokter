@@ -70,7 +70,7 @@ export async function GET(request: Request) {
        */
       price:
         listing.quote != null
-          ? formatQuotedPrice(listing.quote.priceU)
+          ? formatQuotedPrice(listing.quote.priceU, listing.quote.currency)
           : null,
     };
   });

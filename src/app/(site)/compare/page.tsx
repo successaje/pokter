@@ -32,7 +32,7 @@ const ROWS: Row[] = [
   { label: 'Answered probes', hint: 'All time, by Pokter', value: (c) => (c.record.totalProbes ? `${Math.round(rate(c)! * 100)}% of ${c.record.totalProbes}` : 'Not probed'), raw: (c) => String(rate(c)) },
   { label: 'Typical reply', value: (c) => formatMs(c.record.windows.find((w) => w.label === '30d')?.medianMs ?? null) },
   { label: 'Published attestations', value: (c) => (c.proof.totalCount ? `${c.proof.totalCount} (${c.proof.usableCount} scorable)` : 'None'), raw: (c) => String(c.proof.totalCount) },
-  { label: 'Signed price', value: (c) => (c.quote ? `${formatQuotedPrice(Number(c.quote.priceU))}${c.quoteCurrent ? '' : ' (expired)'}` : 'Not signed'), raw: (c) => String(c.quote?.priceU ?? '') },
+  { label: 'Signed price', value: (c) => (c.quote ? `${formatQuotedPrice(Number(c.quote.priceU), c.quote.currency)}${c.quoteCurrent ? '' : ' (expired)'}` : 'Not signed'), raw: (c) => String(c.quote?.priceU ?? '') },
   { label: 'Paid jobs', hint: 'Through Pokter escrow', value: (c) => `${c.economicHistory.completed} completed of ${c.economicHistory.jobs}`, raw: (c) => `${c.economicHistory.completed}/${c.economicHistory.jobs}` },
   { label: 'Signed reviews', value: (c) => (c.reviewCount ? `${c.reviewCount} · avg ${c.reviewAverage?.toFixed(1)}/5` : 'None'), raw: (c) => String(c.reviewCount) },
   { label: 'Wallet access needed', value: () => 'None. One escrow payment', raw: () => 'none' },

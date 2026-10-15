@@ -224,7 +224,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     quote: d.quote
       ? {
           priceU: Number(d.quote.priceU),
-          label: formatQuotedPrice(Number(d.quote.priceU)),
+          label: formatQuotedPrice(Number(d.quote.priceU), d.quote.currency),
           currency: d.quote.currency,
           signer: d.quote.signer,
           quotedAt: d.quote.quotedAt,

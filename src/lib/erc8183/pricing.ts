@@ -34,8 +34,45 @@ export function formatBudget(amountU: number): string {
  * Anything above zero that would round away is shown as a bound instead, so
  * the number is never smaller than the truth.
  */
-export function formatQuotedPrice(amountU: number): string {
+export function formatQuotedPrice(amountU: number, currency?: string | null): string {
   if (amountU === 0) return 'Free';
-  if (amountU < 0.01) return '< 0.01 $U';
-  return formatBudget(amountU);
+  const token = tokenLabel(currency);
+  if (amountU < 0.01) return `< 0.01 ${token}`;
+  return `${amountU.toFixed(2)} ${token}`;
 }
+
+/**
+ * The token a price is actually denominated in.
+ *
+ * Every quoted price was printed as "$U" regardless of its token, so an
+ * agent quoting 1 USDT was shown as "1.00 $U" on its own page — the right
+ * number against the wrong money, on the one figure a buyer uses to
+ * decide. The row below it said "Payable by this escrow: No, wrong token",
+ * which is the contradiction a reader has to resolve rather than a warning
+ * they can act on.
+ *
+ * An unrecognised token is named by its address rather than guessed at. A
+ * short address is less useful than a symbol and more useful than a symbol
+ * that is wrong.
+ */
+export function tokenLabel(currency?: string | null): string {
+  if (!currency) return '$U';
+  const address = currency.toLowerCase();
+  if (ESCROW_TOKENS.has(address)) return '$U';
+  const known = KNOWN_TOKENS[address];
+  return known ?? `${currency.slice(0, 6)}…${currency.slice(-4)}`;
+}
+
+/* The escrow payment tokens, which are the only ones Pokter settles in. */
+const ESCROW_TOKENS = new Set([
+  '0xce24439f2d9c6a2289f741120fe202248b666666',
+  '0xc70b8741b8b07a6d61e54fd4b20f22fa648e5565',
+]);
+
+/* Named only so a buyer sees what they were quoted, never to imply Pokter
+   can settle it. */
+const KNOWN_TOKENS: Record<string, string> = {
+  '0x55d398326f99059ff775485246999027b3197955': 'USDT',
+  '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
+  '0xe9e7cea3dedca5984780bafc599bd69add087d56': 'BUSD',
+};

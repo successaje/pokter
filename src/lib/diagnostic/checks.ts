@@ -209,7 +209,7 @@ export async function diagnose(
         ? ok(
             'quote',
             'Signed price quote',
-            `Quoted ${formatQuotedPrice(quote.priceU)}, signed by ${quote.signer}, which matches the registered agent wallet.`,
+            `Quoted ${formatQuotedPrice(quote.priceU, quote.currency)}, signed by ${quote.signer}, which matches the registered agent wallet.`,
           )
         : bad(
             'quote',

@@ -126,11 +126,33 @@ export async function GET(
           expiresAt: quote.expiresAt ?? null,
           current: dossier.quoteCurrent,
           payable,
-          escrowChainId: escrowChain,
+          /*
+           * The escrow this price settles on, which is none when no enabled
+           * escrow holds its token. It used to report the chain the hire
+           * would run on — testnet, always offered as a fallback — so a
+           * mainnet agent quoting USDT published `escrowChainId: 97`, which
+           * reads as "this price settles on 97" and is false twice over.
+           * Where a hire would actually run is `hire`, below.
+           */
+          escrowChainId: payable === false ? null : escrowChain,
           provenance: 'attested',
           source: 'Quoted by the agent and signed by its registered wallet.',
         }
       : null,
+
+    /*
+     * Where a hire would run, which is a different question from where the
+     * signed price settles. Testnet is always offered while it is enabled,
+     * because an agent whose price no escrow can pay can still be tried
+     * there — Pokter's delivery agent carries the task and the buyer sets
+     * the budget. Reporting that chain inside `price` made it look like the
+     * agent's own quote settled there.
+     */
+    hire: {
+      escrowChainId: escrowChain,
+      escrowOptions: escrowOptionsForHire(quote?.currency),
+      priceSettlesHere: payable === true,
+    },
 
     measured: {
       probes: record.totalProbes,
