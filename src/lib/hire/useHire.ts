@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createPublicClient, fallback, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import { formatEther, formatUnits, parseUnits } from 'viem';
@@ -32,6 +32,7 @@ import { commissionTaskTemplates, templatesFromSkills, type CommissionTaskTempla
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
+import { taskFields } from '@/lib/hire/task-fields';
 
 /**
  * A provider the escrow can actually reach.
@@ -226,6 +227,13 @@ export function useHire({
     taskTemplates[0].id,
   );
   const [task, setTaskState] = useState(taskTemplates[0].task);
+  /*
+   * The template the buyer started from: its fields and their types stay
+   * fixed while values are edited (see `fieldsWithValues`). Editing the
+   * task never changes it; choosing another template does.
+   */
+  const [schemaSource, setSchemaSource] = useState(taskTemplates[0].task);
+  const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
   const [budget, setBudget] = useState(signedQuoteU ?? suggestedU ?? DEFAULT_BUDGET_U);
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [screen, setScreen] = useState<HireScreen>('describe');
@@ -357,6 +365,7 @@ export function useHire({
     if (!template) return;
     setSelectedTemplate(template.id);
     setTaskState(template.task);
+    setSchemaSource(template.task);
   };
 
   const indexFundedJob = async (hired: HiredJob) => {
@@ -745,6 +754,7 @@ export function useHire({
     taskTemplates,
     taskReady,
     selectedTemplate,
+    taskSchema,
     chooseTemplate,
     task,
     setTask,

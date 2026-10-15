@@ -25,7 +25,7 @@ import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 import { TaskEditor } from './TaskEditor';
-import { taskFieldProblems, taskFields } from '@/lib/hire/task-fields';
+import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 
 type Step = 'describe' | 'review' | 'pay';
@@ -120,10 +120,9 @@ function explainFailure(message: string): { title: string; body: string } {
 export function HireFlow(props: HireFlowProps) {
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
   // A task declared as JSON must have its required inputs before it can be funded.
-  const taskProblems = useMemo(() => {
-    const fields = taskFields(hire.task);
-    return fields ? taskFieldProblems(fields) : [];
-  }, [hire.task]);
+  // Read against the layout of the template the buyer started from, so a
+  // value of the wrong type is not re-read as a different kind of field.
+  const taskIssues = useMemo(() => taskProblems(hire.taskSchema, hire.task), [hire.taskSchema, hire.task]);
   // Everything below describes the escrow this hire is funded on, which is
   // chosen per agent and is not necessarily the site's default network.
   const escrowChainId = props.escrow.chainId;
@@ -385,7 +384,7 @@ export function HireFlow(props: HireFlowProps) {
             ))}
           </div>
           <div className="flex flex-col gap-1.5">
-            <TaskEditor task={hire.task} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
+            <TaskEditor task={hire.task} schema={hire.taskSchema} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
               <span>Stored on chain with the job, so anyone can read it. Never include keys, seed phrases or passwords.</span>
               <span className="t-readout shrink-0">{hire.task.length}/2000</span>
@@ -412,10 +411,10 @@ export function HireFlow(props: HireFlowProps) {
                 {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
               </Notice>
             )}
-            {taskProblems.length > 0 && (
-              <p className="mr-auto self-center text-[12.5px] text-ink-3">To continue: {taskProblems.join('; ')}.</p>
+            {taskIssues.length > 0 && (
+              <p className="mr-auto self-center text-[12.5px] text-ink-3">To continue: {taskIssues.join('; ')}.</p>
             )}
-            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || taskProblems.length > 0 || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
+            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
               Review terms
             </Button>
           </div>

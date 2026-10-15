@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { composeTask, taskFieldProblems, taskFields, withWallet, type TaskField } from '@/lib/hire/task-fields';
+import { composeTask, fieldsWithValues, taskFieldProblems, taskFields, withWallet, type TaskField } from '@/lib/hire/task-fields';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { Input, Textarea } from '@/ui/Field';
@@ -22,16 +22,20 @@ function labelOf(key: string): string {
  */
 export function TaskEditor({
   task,
+  schema,
   onChange,
   wallet,
   hintId,
 }: {
   task: string;
+  /** The template's fixed field layout; null for a prose task. */
+  schema?: TaskField[] | null;
   onChange: (task: string) => void;
   wallet: string | null;
   hintId: string;
 }) {
-  const fields = useMemo(() => taskFields(task), [task]);
+  // Values read into the template's layout, so a field keeps its type while edited.
+  const fields = useMemo(() => (schema ? fieldsWithValues(schema, task) : taskFields(task)), [schema, task]);
   const [asJson, setAsJson] = useState(false);
   // A wallet the buyer cleared or typed stays as they left it.
   const walletTouched = useRef(false);
@@ -132,10 +136,10 @@ function FieldRow({ field, wallet, problem, onChange, onBlur }: { field: TaskFie
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
           inputMode={field.kind === 'number' ? 'decimal' : undefined}
-          placeholder={field.wallet ? '0x… the address to check' : field.example}
+          placeholder={field.wallet ? '0x… the address to check' : field.address ? '0x… the token, pool or contract address' : field.example}
           spellCheck={false}
           autoComplete="off"
-          className={cn(field.wallet && 't-readout text-[13px]')}
+          className={cn((field.wallet || field.address) && 't-readout text-[13px]')}
           aria-invalid={Boolean(problem)}
         />
       )}
