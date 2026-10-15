@@ -31,6 +31,7 @@ import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wal
 import { commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
+import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 
 /**
  * A provider the escrow can actually reach.
@@ -117,14 +118,14 @@ async function negotiateForHire(
   chainId: number,
   tokenId: string,
   task: string,
-): Promise<PokterJobQuote & { priceU: number }> {
+): Promise<PokterJobQuote & { priceU: number; intent: Omit<PurchaseIntent, 'provider'> }> {
   const response = await fetch('/api/hire/quote', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chainId, tokenId, task }),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { quote?: Record<string, unknown>; error?: string }
+    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string }
     | null;
   if (!response.ok || !payload?.quote) {
     throw new Error(
@@ -139,7 +140,9 @@ async function negotiateForHire(
     expiresAt: string | null;
     domain: { chainId: number; verifyingContract: string } | null;
     anchor?: Record<string, unknown> | null;
+    currency: string;
   };
+  const expiresAt = q.expiresAt ? Math.floor(Date.parse(q.expiresAt) / 1000) : undefined;
   /* The envelope records the expiry in epoch seconds, as the seller sent it. */
   return {
     negotiationHash: q.negotiationHash,
@@ -147,7 +150,18 @@ async function negotiateForHire(
     anchor: q.anchor ?? undefined,
     priceRaw: q.priceRaw,
     priceU: q.priceU,
-    expiresAt: q.expiresAt ? Math.floor(Date.parse(q.expiresAt) / 1000) : undefined,
+    expiresAt,
+    // The terms as signed, kept whole: the escrow the route chose for this
+    // currency, not the one the page was opened for (see purchase-intent).
+    intent: {
+      task: payload.task ?? task,
+      amountRaw: q.priceRaw,
+      currency: q.currency as `0x${string}`,
+      chainId: payload.escrowChainId ?? q.domain?.chainId ?? Number.NaN,
+      verifyingContract: (q.domain?.verifyingContract as `0x${string}` | undefined) ?? null,
+      expiresAt: expiresAt ?? null,
+      negotiationHash: q.negotiationHash,
+    },
     domain: q.domain
       ? {
           chainId: q.domain.chainId,
@@ -487,6 +501,13 @@ export function useHire({
             `${agent.name} signed a price of ${signedQuote.priceU} $U for this brief and the budget is ${budget} $U. Raise the budget to at least the signed price.`,
           );
         }
+        // The signed terms against this hire, before any wallet is asked.
+        const funding = correctedErc8183Addresses(escrowChainId);
+        const check = checkPurchaseIntent(
+          { ...signedQuote.intent, provider: providerAddress as `0x${string}` },
+          { provider: providerAddress as string, task, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
+        );
+        if (!check.ok) throw new Error(check.reason);
       }
 
       if (active.mode === 'external') {
@@ -501,6 +522,7 @@ export function useHire({
           providerLabel: provider?.label,
           task,
           quote: signedQuote ?? undefined,
+          intent: signedQuote ? { ...signedQuote.intent, provider: providerAddress as `0x${string}` } : undefined,
           budgetU: budget,
           ttlSeconds: DELIVERY_WINDOW_SECONDS,
           escrowChainId,
