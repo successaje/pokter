@@ -15,7 +15,7 @@ import { AgentTabBar, AgentTabHint, AgentTabPanel } from '@/features/agent/Agent
 import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { MoreActions, menuRow } from '@/features/agent/MoreActions';
-import { CompareToggle } from '@/features/compare/CompareControls';
+import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
@@ -627,6 +627,15 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         <HirePanel profile={p} />
       </div>
       <MobileHireBar profile={p} />
+      {/*
+        The tray was rendered on Discover alone, so pressing Compare here
+        stored the pick and showed nothing: the button said "Comparing" and
+        the page was otherwise unchanged, with no count, no way to reach the
+        comparison and no sign a second agent was needed. The selection
+        already survives between pages by design — only the thing that says
+        so was missing.
+      */}
+      <CompareTray />
     </div>
   );
 }

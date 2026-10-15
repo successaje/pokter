@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 /**
  * The agents a person has picked to compare, kept for the session so the
@@ -36,6 +36,17 @@ function write(next: string[]) {
 const EMPTY: string[] = [];
 
 export function useCompare() {
+  /*
+   * The server cannot read sessionStorage, so the first render is always
+   * empty and nothing notifies the store afterwards: a selection made on
+   * one page was invisible on the next until something was toggled, which
+   * is the opposite of the "survives moving between pages" this exists
+   * for. One notification after mount re-reads the stored snapshot.
+   */
+  useEffect(() => {
+    for (const l of listeners) l();
+  }, []);
+
   const keys = useSyncExternalStore(
     (l) => {
       listeners.add(l);
