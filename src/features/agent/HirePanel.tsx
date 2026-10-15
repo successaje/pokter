@@ -3,6 +3,7 @@ import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { NetworkRow } from '@/ui/Network';
 import type { AgentProfile } from './profile';
 
 export function priceSummary(p: AgentProfile) {
@@ -11,34 +12,11 @@ export function priceSummary(p: AgentProfile) {
   return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default budget · it has not signed a price', signed: false };
 }
 
-/**
- * Which money a hire spends, where a reader cannot miss it.
- *
- * The network was stated once, in the third of three grey 13px lines
- * below the price — accurate and easy to read past. It is the most
- * consequential fact on the page: "0.10 $U" is a real cost on one chain
- * and faucet currency on the other, and the number looks identical
- * either way. So it sits with the price, in colour.
+/*
+ * Which money a hire spends sits with the price, as the network row
+ * (`NetworkRow`): "0.10 $U" is a real cost on one chain and faucet
+ * currency on the other, and the number looks identical either way.
  */
-export function MoneyBadge({ chainId, className }: { chainId: number; className?: string }) {
-  const money = escrowMoney(chainId);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 self-start rounded-full border px-2 py-0.5 text-[12px] font-semibold',
-        money.real === false
-          ? 'border-watch/40 bg-watch-wash text-watch'
-          : money.real === true
-            ? 'border-rule-strong bg-sunken text-ink'
-            : 'border-rule-strong bg-sunken text-ink-2',
-        className,
-      )}
-    >
-      <Icon.Lock size={12} aria-hidden />
-      {money.note}
-    </span>
-  );
-}
 
 /**
  * The sticky decision panel. It answers, in order: what will it cost, what
@@ -59,7 +37,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           {price.signed && <Icon.Shield size={13} className="text-ok" />}
           {price.caption}
         </span>
-        <MoneyBadge chainId={profile.escrow.chainId} className="mt-1.5" />
+        <NetworkRow chainId={profile.escrow.chainId} className="mt-3" />
       </div>
       <ul className="flex flex-col gap-2.5 border-t border-rule px-5 py-4 text-[13px] text-ink-2">
         <li className="flex gap-2.5">
