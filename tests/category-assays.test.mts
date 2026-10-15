@@ -15,7 +15,9 @@ test('every marketplace category has a disclosed correctness suite', () => {
 });
 
 test('static suites use three deterministic scenarios and stable ids', () => {
-  assert.equal(STATIC_SUITES.rebalancing.id, CATEGORY_SUITE_IDS.rebalancing);
+  for (const [category, id] of Object.entries(CATEGORY_SUITE_IDS)) {
+    assert.equal(STATIC_SUITES[category as keyof typeof CATEGORY_SUITE_IDS].id, id);
+  }
   for (const suite of Object.values(STATIC_SUITES)) {
     assert.equal(suite.scenarios.length, 3, suite.category);
     assert.equal(new Set(suite.scenarios.map((scenario) => scenario.id)).size, 3);
@@ -31,8 +33,16 @@ test('briefs disclose output types without leaking the expected answer', () => {
   }
 });
 
-test('rebalancing expected values include threshold boundary', () => {
-  assert.deepEqual(STATIC_SUITES.rebalancing.scenarios[1].expected, { max_drift_pct: 5, rebalance_needed: true });
+test('rebalancing has no free fixture, because no listed service answers one', () => {
+  /*
+   * There was a portfolio-weight drift suite here. The service Pokter
+   * lists under rebalancing reviews a concentrated-liquidity position
+   * range for a named wallet and refuses a brief with no address, so the
+   * fixture could only ever record failures it had not earned. The
+   * category is measured by the paid position-range check instead.
+   */
+  assert.equal(assayForCategory('rebalancing')?.id, 'v3-range-1');
+  assert.equal(staticSuiteFor('rebalancing'), null);
 });
 
 test('yield suite expects the buyer\'s own terms back, not a rate it cannot verify', () => {

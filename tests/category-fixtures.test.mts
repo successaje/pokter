@@ -74,5 +74,6 @@ test('the suite ids change when the fixture changes', () => {
   // would make old results read as results for the new question.
   assert.equal(STATIC_SUITES['grid-trading'].id, 'grid-plan-2');
   assert.equal(STATIC_SUITES.yield.id, 'yield-net-return-2');
-  assert.equal(STATIC_SUITES.rebalancing.id, 'rebalancing-arithmetic-1', 'unchanged, so its id is unchanged');
+  // Rebalancing has no free fixture at all now: see category-assays.
+  assert.equal((STATIC_SUITES as Record<string, unknown>).rebalancing, undefined);
 });

@@ -2,6 +2,9 @@ import 'server-only';
 
 import type { Address } from 'viem';
 
+const V3_SAMPLE_MS = 7 * 86_400_000;
+const V3_SAMPLE_SIZE = 3;
+
 import type { HiredJob } from '@/lib/erc8183/types';
 
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
@@ -9,7 +12,9 @@ import { getJobStore } from '@/lib/erc8183/store';
 
 import { STATIC_SUITES, type StaticAssayCategory } from './category-suites';
 import { HF_SUITE_ID } from './health-factor';
-import { categoryOfSuite, fixtureJobsBySuite, readCheckMarker } from './paid-brief';
+import { readV3Positions, sampleV3PositionHolders, v3Client } from './pancakeswap-v3';
+import { gradePaidV3Scenarios } from './v3-grade';
+import { V3_SUITE_ID, categoryOfSuite, fixtureJobsBySuite, readCheckMarker } from './paid-brief';
 import { gradePaidHfScenario } from './paid-hf-grade';
 import { readVenusPosition, venusClient } from './venus';
 import { gradePaidScenario } from './paid-grade';
@@ -289,6 +294,115 @@ export async function gradeDuePaidHfChecks(): Promise<{ graded: number; incomple
   for (const target of agents.values()) {
     if (alreadyGraded(target, HF_SUITE_ID, fixtureJobsForAgent(target, HF_SUITE_ID))) continue;
     const outcome = await gradePaidHealthFactorCheck(target).catch(() => null);
+    if (outcome?.state === 'recorded') {
+      graded += 1;
+      if (outcome.run.passed === outcome.run.total) passedAll += 1;
+    } else if (outcome?.state === 'incomplete') {
+      incomplete += 1;
+    }
+  }
+  return { graded, incomplete, passedAll };
+}
+
+/**
+ * The wallets every position-range check asks about, drawn once a week.
+ *
+ * Finding a holder means scanning recent position transfers and verifying
+ * each candidate, which took half a minute for three. The sweep already
+ * runs close to its budget, so the set is cached exactly as the health
+ * factor sample is, and a scan happens only when it has expired.
+ */
+export async function currentV3Sample(): Promise<Address[]> {
+  const store = getAssayStore();
+  const cached = store.sample(V3_SUITE_ID);
+  if (cached && Date.now() - Date.parse(cached.sampledAt) < V3_SAMPLE_MS && cached.accounts.length > 0) {
+    return cached.accounts as Address[];
+  }
+  const accounts = await sampleV3PositionHolders(v3Client(), { count: V3_SAMPLE_SIZE });
+  if (accounts.length > 0) store.saveSample(V3_SUITE_ID, accounts);
+  return accounts;
+}
+
+/**
+ * Grade a position-range agent's paid fixtures against the pools now.
+ *
+ * One hire asks about one wallet and returns every position in it, so a
+ * job yields a row per position. As with the health factor check, rows
+ * that cannot fairly be compared are set aside rather than counted, and
+ * with nothing gradeable nothing is recorded.
+ */
+export async function gradePaidV3Check(
+  target: { chainId: number; tokenId: string },
+  { record = true }: { record?: boolean } = {},
+): Promise<PaidCheckOutcome> {
+  const fixtures = fixtureJobsForAgent(target, V3_SUITE_ID);
+  if (fixtures.size === 0) return { state: 'incomplete', hired: 0, total: 0, missing: [] };
+
+  const client = v3Client();
+  const readAt = new Date().toISOString();
+  const graded: AssayScenarioResult[] = [];
+
+  for (const [account, job] of fixtures) {
+    const reading = await readV3Positions(client, account as Address).catch(() => null);
+    const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    graded.push(
+      ...gradePaidV3Scenarios({
+        jobId: job.jobId,
+        manifestText: stored?.manifestText ?? null,
+        deliveryOpen: deliveryOpen(job),
+        reading,
+        readAt,
+      }),
+    );
+  }
+
+  const pending = graded.filter((r) => r.outcome === 'pending').length;
+  const aside = graded.filter((r) => r.outcome === 'not-comparable').length;
+  const scored = graded.filter((r) => r.outcome !== 'pending' && r.outcome !== 'not-comparable');
+  if (scored.length === 0) {
+    return { state: 'incomplete', hired: fixtures.size, total: fixtures.size, missing: graded.map((r) => r.scenario) };
+  }
+
+  const notes = [
+    pending > 0 ? `${pending} still inside its delivery window` : null,
+    aside > 0 ? `${aside} could not be compared` : null,
+  ].filter(Boolean);
+
+  const run: Omit<AssayRun, 'ranAt'> = {
+    suite: V3_SUITE_ID,
+    status: 'checked',
+    detail: notes.length > 0 ? `Of ${graded.length} rows, ${notes.join(' and ')}. Those are not counted either way.` : null,
+    passed: scored.filter((r) => r.pass).length,
+    total: scored.length,
+    via: 'paid-hire',
+    results: graded,
+  };
+
+  if (record) getAssayStore().record(target, run);
+  return { state: 'recorded', run };
+}
+
+/**
+ * Grade every position-range agent that has paid fixtures.
+ *
+ * Separate from the static loop because this reads the chain, and from
+ * the health factor loop because it reads different contracts.
+ */
+export async function gradeDuePaidV3Checks(): Promise<{ graded: number; incomplete: number; passedAll: number }> {
+  const agents = new Map<string, { chainId: number; tokenId: string }>();
+  for (const job of getJobStore().all()) {
+    const marker = readCheckMarker(job.task);
+    if (!marker || marker.suite !== V3_SUITE_ID) continue;
+    const chainId = job.agentChainId ?? job.chainId;
+    agents.set(`${chainId}:${job.agentTokenId}`, { chainId, tokenId: job.agentTokenId });
+  }
+
+  let graded = 0;
+  let incomplete = 0;
+  let passedAll = 0;
+  for (const target of agents.values()) {
+    if (alreadyGraded(target, V3_SUITE_ID, fixtureJobsForAgent(target, V3_SUITE_ID))) continue;
+    const outcome = await gradePaidV3Check(target).catch(() => null);
     if (outcome?.state === 'recorded') {
       graded += 1;
       if (outcome.run.passed === outcome.run.total) passedAll += 1;

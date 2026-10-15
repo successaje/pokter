@@ -19,7 +19,6 @@ import type { Category } from '@/lib/agents/categories';
  * factor check grades against a reading of its own.
  */
 export const CATEGORY_SUITE_IDS = {
-  rebalancing: 'rebalancing-arithmetic-1',
   'grid-trading': 'grid-plan-2',
   yield: 'yield-net-return-2',
   'token-safety': 'token-safety-facts-1',
@@ -41,19 +40,6 @@ export interface StaticSuite {
   limitation: string;
   scenarios: StaticScenario[];
 }
-
-const rebalance = (id: string, current: number[], target: number[]): StaticScenario => {
-  const maxDrift = Math.max(...current.map((weight, index) => Math.abs(weight - target[index])));
-  const expected = { max_drift_pct: maxDrift, rebalance_needed: maxDrift >= 5 };
-  return {
-    id,
-    expected,
-    brief: {
-      text: 'Read-only portfolio check. Calculate the largest absolute drift in percentage points and whether the 5 percentage-point rebalance threshold is met. Reply with JSON only: {"max_drift_pct": number, "rebalance_needed": boolean}.',
-      data: { suite: CATEGORY_SUITE_IDS.rebalancing, current_weights_pct: current, target_weights_pct: target, threshold_pct: 5, answer_shape: { max_drift_pct: 'number', rebalance_needed: 'boolean' } },
-    },
-  };
-};
 
 /**
  * A grid brief in the words a buyer uses, with the arithmetic its own
@@ -131,32 +117,6 @@ const tokenSafety = (id: string, facts: TokenFacts): StaticScenario => {
 };
 
 export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
-  rebalancing: {
-    id: CATEGORY_SUITE_IDS.rebalancing,
-    category: 'rebalancing',
-    label: 'Rebalancing arithmetic',
-    provenance: 'Fixed portfolio weights with answers calculated by Pokter.',
-    /*
-     * Still version 1, and still the synthetic form, because the fitting
-     * replacement needs something Pokter cannot yet produce: a wallet that
-     * holds a live concentrated-liquidity position.
-     *
-     * The category holds two different jobs. This fixture asks the one
-     * about portfolio weights drifting from a target. Centreline, which
-     * the classifier places here, reviews a PancakeSwap v3 position range
-     * for a named wallet and refuses a brief with no address — so it fails
-     * this fixture on every scenario, and that failure would be Pokter's
-     * mis-fit rather than the agent's error. Do not hire this suite for an
-     * LP-range service; `sampleVenusBorrowers` is the shape of what is
-     * missing, for v3 position holders.
-     */
-    limitation: 'Checks portfolio-weight drift arithmetic and threshold handling, not execution quality, slippage or realised returns. It does not fit an agent that reviews a concentrated-liquidity position range, which is a different job under the same category name.',
-    scenarios: [
-      rebalance('balanced', [50, 30, 20], [50, 30, 20]),
-      rebalance('threshold', [55, 25, 20], [50, 30, 20]),
-      rebalance('large-drift', [67, 18, 15], [50, 30, 20]),
-    ],
-  },
   'grid-trading': {
     id: CATEGORY_SUITE_IDS['grid-trading'],
     category: 'grid-trading',
