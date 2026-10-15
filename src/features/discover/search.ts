@@ -3,7 +3,7 @@ import 'server-only';
 import { CATEGORIES, CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
-import { firstPerAgent } from '@/lib/agents/distinct';
+import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
 import { findRows, type FindRow } from '@/lib/find/rows';
 import { listSearchableWithStatus, searchByName } from '@/lib/marketplace';
@@ -11,6 +11,7 @@ import { offersDirectHire, matchesQuery, type SearchableAgent } from '@/lib/sear
 import { orderMarketplace } from '@/lib/search/order';
 import type { DiscoverParams } from './params';
 import { parseQuery } from '@/lib/search/query';
+import { closestNames, describeNameMatch, nameMatch } from '@/lib/search/names';
 
 const STOP = new Set([
   'i', 'me', 'my', 'need', 'want', 'someone', 'something', 'an', 'a', 'the', 'to', 'of', 'for', 'and', 'or', 'agent',
@@ -19,10 +20,14 @@ const STOP = new Set([
 ]);
 
 export interface DiscoverResult {
-  rows: Array<FindRow & { reason: string | null }>;
+  rows: Array<FindRow & { reason: string | null; alsoOn: number[] }>;
   total: number;
+  /** Agents under every filter but the task: the "All tasks" count. */
+  allTasksCount: number;
+  /** When a search finds nothing: names close to it, else agents hireable now. */
+  suggestions: { close: FindRow[]; active: FindRow[] } | null;
   /** How a natural-language query was read; null for no query or advanced syntax. */
-  reading: (BriefReading & { categoryLabel: string | null; terms: string[] }) | null;
+  reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean }) | null;
   advanced: { unknown: string[] } | null;
   categoryCounts: Array<{ id: Category; label: string; count: number }>;
   /** Sizes of the curated shortcuts, over everything listed. */
@@ -69,103 +74,113 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     const brief = interpretBrief(q);
     const terms = textTerms(q);
     const categoryLabel = brief.category ? (CATEGORY_BY_ID.get(brief.category)?.label ?? null) : null;
-    reading = { ...brief, categoryLabel, terms };
+    reading = { ...brief, categoryLabel, terms, byName: false };
+    // One or two letters are a name being typed, not a task being described.
+    const describesTask = q.length >= 3;
 
     const scored = pool
       .map((entry) => {
         const text = haystack(entry);
-        const hits = terms.filter((term) => text.includes(term));
-        const inCategory = brief.category !== null && entry.listing.category === brief.category;
-        // Coarse bands, so relevance groups results and the chosen order (by
-        // default: hireable and answering first) decides within each group.
-        return { entry, hits, inCategory, score: (inCategory ? 2 : 0) + (hits.length > 0 ? 1 : 0) };
+        const hits = describesTask ? terms.filter((term) => text.includes(term)) : [];
+        const inCategory = describesTask && brief.category !== null && entry.listing.category === brief.category;
+        const named = nameMatch(entry.listing.agent.name, q);
+        // A name match outranks any description match; within each, the
+        // chosen order (by default hireable and answering first) decides.
+        return { entry, hits, inCategory, named, score: named * 10 + (inCategory ? 2 : 0) + (hits.length > 0 ? 1 : 0) };
       })
-      .filter((s) => (brief.category ? s.inCategory || s.hits.length >= 2 : s.hits.length > 0));
+      .filter((s) => s.named > 0 || (brief.category ? s.inCategory || s.hits.length >= 2 : s.hits.length > 0));
 
+    reading.byName = scored.some((s) => s.named > 0);
     for (const s of scored) {
       const parts: string[] = [];
+      if (s.named > 0) parts.push(describeNameMatch(s.named, q));
       if (s.inCategory && categoryLabel) parts.push(`${categoryLabel} agent`);
       if (s.hits.length) parts.push(`describes ${s.hits.slice(0, 3).map((h) => `“${h}”`).join(', ')}`);
       reasons.set(s.entry, parts.join(' · '));
     }
     const rank = new Map(scored.map((s) => [s.entry, s.score]));
-    pool = scored.map((s) => s.entry);
-    // Relevance first; the chosen order breaks ties within a relevance band.
-    pool = orderMarketplace(pool, params.sort).sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
+    pool = orderMarketplace(scored.map((s) => s.entry), params.sort).sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
 
     /*
      * No agent whose name matches: ask the registry by name.
      *
-     * The pool is built from the five category listings, so an agent in
-     * no category is not in it — and typing that agent's exact name
-     * found nothing, which reads as "no such agent" rather than "not in
-     * a category". Pokter's own evidence agents are the clearest case:
-     * both answer, both sign a price, neither was findable.
-     *
-     * The trigger is a missing name match rather than an empty pool,
-     * because the pool is rarely empty and that is the trap. "Pokter
-     * Evidence" already returned nine agents whose descriptions happen
-     * to contain "evidence", so a search for an exact name looked
-     * answered while the agent itself stayed invisible. Nine wrong
-     * answers is worse than none, not better.
-     *
-     * Results are merged ahead of the weak text hits and deduped, and
-     * the reason says how they were reached.
+     * The pool is built from the category listings, so an agent in no
+     * category is not in it, and typing its exact name found nothing:
+     * "no such agent" rather than "not in a category". Asked whenever no
+     * name in the pool matches, because the pool is rarely empty and a
+     * page of description matches can hide that the named agent is absent.
      */
-    const named = (entry: SearchableAgent) => {
-      const name = entry.listing.agent.name.toLowerCase();
-      return terms.length > 0 && terms.every((term) => name.includes(term));
-    };
-    if (!pool.some(named)) {
+    if (describesTask && !scored.some((s) => s.named > 0)) {
       const have = new Set(pool.map((entry) => `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`));
       const byName = (await searchByName(q)).filter(
-        (entry) =>
-          isPromotableAgent(entry.listing.agent) &&
-          !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
+        (entry) => isPromotableAgent(entry.listing.agent) && !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
       );
       for (const entry of byName) reasons.set(entry, 'Found by name · not in a category listing');
       pool = [...orderMarketplace(byName, params.sort), ...pool];
     }
   }
 
-  const categoryCounts = CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: pool.filter((e) => e.listing.category === c.id).length }));
+  /*
+   * Every filter is one rule, used for the results and for every count
+   * beside them. The task counts used to be taken before the availability,
+   * evidence and network filters, so "All tasks 165" sat over 61 results,
+   * and the collection cards counted registrations where the list showed
+   * agents. A count now says what picking it would show.
+   */
+  const rules: Record<'category' | 'chain' | 'hireable' | 'answering' | 'priced' | 'evidence', (e: SearchableAgent) => boolean> = {
+    category: (e) => !params.category || e.listing.category === params.category,
+    chain: (e) => params.chain === 'any' || String(e.listing.agent.chain_id) === params.chain,
+    hireable: (e) => !params.hireable || offersDirectHire(e),
+    answering: (e) => !params.answering || answeredThisWeek(e),
+    priced: (e) => !params.priced || e.listing.quote != null,
+    evidence: (e) => (params.evidence === 'measured' ? e.record.totalProbes > 0 : params.evidence === 'corroborated' ? e.listing.attestationCount > 0 : true),
+  };
+  const applying = (items: SearchableAgent[], skip?: keyof typeof rules) =>
+    items.filter((e) => (Object.keys(rules) as Array<keyof typeof rules>).every((key) => key === skip || rules[key](e)));
+  // One row per agent across networks, shown in its mainnet registration;
+  // a single network shows that network's.
+  const perAgent = (items: SearchableAgent[]) =>
+    params.chain === 'any' ? mainnetFirstPerAgent(items, (e) => e.listing.agent) : { items, alsoOn: new Map<SearchableAgent, number[]>() };
 
-  let filtered = pool;
-  if (params.category) filtered = filtered.filter((e) => e.listing.category === params.category);
-  if (params.chain !== 'any') filtered = filtered.filter((e) => String(e.listing.agent.chain_id) === params.chain);
-  if (params.hireable) filtered = filtered.filter((e) => offersDirectHire(e));
-  if (params.answering) {
-    filtered = filtered.filter((e) => {
-      const day = e.record.windows.find((w) => w.label === '7d');
-      return Boolean(day && day.probes > 0 && (day.ratio ?? 0) > 0);
-    });
-  }
-  if (params.priced) filtered = filtered.filter((e) => e.listing.quote != null);
-  if (params.evidence === 'measured') filtered = filtered.filter((e) => e.record.totalProbes > 0);
-  if (params.evidence === 'corroborated') filtered = filtered.filter((e) => e.listing.attestationCount > 0);
-
+  let filtered = applying(pool);
   if (!q || usesGrammar) filtered = orderMarketplace(filtered, params.sort);
+  const { items: shown, alsoOn } = perAgent(filtered);
 
-  // One row per agent: an agent registered on both chains by the same owner
-  // is shown once, in its best-ranked registration, so the list and the
-  // counts above it agree. Filtering to one chain shows that chain's.
-  if (params.chain === 'any') filtered = firstPerAgent(filtered, (e) => e.listing.agent);
-  const rows = findRows(filtered);
+  const forTasks = perAgent(applying(pool, 'category')).items;
+  const categoryCounts = CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length }));
+
+  const rows = findRows(shown);
+  const distinct = (items: SearchableAgent[]) => distinctAgentCount(items.map((e) => e.listing.agent));
+
+  let suggestions: DiscoverResult['suggestions'] = null;
+  if (q && !usesGrammar && rows.length === 0) {
+    const everyone = mainnetFirstPerAgent(promotable, (e) => e.listing.agent).items;
+    const close = closestNames(everyone, (e) => e.listing.agent.name, q);
+    const active = close.length
+      ? []
+      : orderMarketplace(everyone.filter((e) => offersDirectHire(e) && answeredThisWeek(e)), 'recommended').slice(0, 3);
+    suggestions = { close: findRows(close), active: findRows(active) };
+  }
+
   return {
-    rows: rows.map((row, i) => ({ ...row, reason: reasons.get(filtered[i]) ?? null })),
+    rows: rows.map((row, i) => ({ ...row, reason: reasons.get(shown[i]) ?? null, alsoOn: alsoOn.get(shown[i]) ?? [] })),
     total: rows.length,
+    allTasksCount: forTasks.length,
     reading,
     advanced,
     categoryCounts,
     collections: {
-      // The same figures as the home page and the methodology census.
+      // Each card's count is what clicking it shows: one rule, one agent each.
       ...catalogueCounts(entries),
-      answering: promotable.filter((e) => {
-        const w = e.record.windows.find((x) => x.label === '7d');
-        return Boolean(w && w.probes > 0 && (w.ratio ?? 0) > 0);
-      }).length,
-      corroborated: promotable.filter((e) => e.listing.attestationCount > 0).length,
+      answering: distinct(promotable.filter(answeredThisWeek)),
+      corroborated: distinct(promotable.filter((e) => e.listing.attestationCount > 0)),
     },
+    suggestions,
     unreachable,
   };
+}
+
+function answeredThisWeek(entry: SearchableAgent): boolean {
+  const week = entry.record.windows.find((w) => w.label === '7d');
+  return Boolean(week && week.probes > 0 && (week.ratio ?? 0) > 0);
 }
