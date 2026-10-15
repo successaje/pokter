@@ -8,6 +8,7 @@ import { BRIEF_MIN, briefAcceptable } from '@/lib/hire/brief';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -129,6 +130,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         : undefined,
     },
     escrowChainId,
+    new Date(),
+    correctedErc8183Addresses(escrowChainId).commerce,
   );
   if (!usable.usable) {
     return NextResponse.json(

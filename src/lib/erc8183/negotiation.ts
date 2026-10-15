@@ -69,6 +69,8 @@ export function quoteUsableForEscrow(
   },
   escrowChainId: number,
   now: Date = new Date(),
+  /** The escrow contract on that chain. A quote naming another is refused. */
+  expectedContract?: string,
 ): { usable: true } | { usable: false; reason: string } {
   if (quote.domain && quote.domain.chainId !== escrowChainId) {
     return {
@@ -78,6 +80,25 @@ export function quoteUsableForEscrow(
         `and the escrow settles on chain ${escrowChainId}. It will not ` +
         `recognise the funded job.`,
     };
+  }
+  /*
+   * Right chain, wrong contract: correctly signed, and for a job the seller
+   * would never recognise. A quote that names no domain is unbound, not
+   * bound to ours, and stays usable; the seller's own check governs it.
+   */
+  if (quote.domain && expectedContract) {
+    let matches = false;
+    try {
+      matches = getAddress(quote.domain.verifyingContract) === getAddress(expectedContract);
+    } catch {
+      matches = false;
+    }
+    if (!matches) {
+      return {
+        usable: false,
+        reason: `The seller signed this quote for escrow ${quote.domain.verifyingContract}, not the escrow Pokter funds on chain ${escrowChainId}. It will not recognise the funded job.`,
+      };
+    }
   }
   if (quote.expiresAt !== undefined) {
     const expiresAt = quote.expiresAt * 1000;
