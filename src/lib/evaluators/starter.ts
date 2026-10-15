@@ -30,6 +30,8 @@ Required:
   --agent       ERC-8004 token id
   --endpoint    Public HTTPS A2A card or MCP endpoint
   --protocol    a2a or mcp
+  --mcp-version pin the MCP revision (e.g. 2025-06-18); omitted by default,
+                and sent only if the server refuses the request without it
   --vantage     Honest description of where these requests originate
 
 Optional:
@@ -101,21 +103,37 @@ async function readJson(response) {
   return JSON.parse(payload);
 }
 
-async function probe(endpoint, protocol, timeoutMs) {
+/*
+ * MCP servers disagree about the protocol revision header, and sending one
+ * a server does not implement is answered with 400 — a working agent then
+ * reads as unreachable. The header is omitted first and sent only if the
+ * server refuses without it. Pass --mcp-version to pin one; an agent's
+ * registry record names the revision it speaks.
+ */
+const DEFAULT_MCP_VERSION = '2026-07-28';
+
+async function mcpFetch(endpoint, timeoutMs, version) {
+  const send = (v) => fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+      ...(v ? { 'mcp-protocol-version': v, 'mcp-method': 'tools/list' } : { 'mcp-method': 'tools/list' }),
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'independent-evaluator', method: 'tools/list', params: {} }),
+    redirect: 'error',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (version) return send(version);
+  const first = await send();
+  if (first.ok || first.status < 400 || first.status >= 500) return first;
+  return send(DEFAULT_MCP_VERSION);
+}
+
+async function probe(endpoint, protocol, timeoutMs, mcpVersion) {
   const started = Date.now();
   try {
-    const response = await fetch(endpoint, protocol === 'mcp' ? {
-      method: 'POST',
-      headers: {
-        accept: 'application/json, text/event-stream',
-        'content-type': 'application/json',
-        'mcp-protocol-version': '2026-07-28',
-        'mcp-method': 'tools/list',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 'independent-evaluator', method: 'tools/list', params: {} }),
-      redirect: 'error',
-      signal: AbortSignal.timeout(timeoutMs),
-    } : {
+    const response = protocol === 'mcp' ? await mcpFetch(endpoint, timeoutMs, mcpVersion) : await fetch(endpoint, {
       headers: { accept: 'application/json' },
       redirect: 'error',
       signal: AbortSignal.timeout(timeoutMs),
@@ -147,6 +165,10 @@ const agentId = integer(args.agent, '--agent', 0, Number.MAX_SAFE_INTEGER);
 const samples = integer(args.samples ?? '10', '--samples', 2, 1000);
 const intervalMs = integer(args['interval-ms'] ?? '0', '--interval-ms', 0, 86_400_000);
 const timeoutMs = integer(args['timeout-ms'] ?? '10000', '--timeout-ms', 1000, 60_000);
+const mcpVersion = args['mcp-version'] ?? null;
+if (mcpVersion !== null && !/^\\d{4}-\\d{2}-\\d{2}$/.test(mcpVersion)) {
+  throw new Error('--mcp-version must be a date like 2025-06-18.');
+}
 const protocol = args.protocol;
 if (protocol !== 'a2a' && protocol !== 'mcp') throw new Error('--protocol must be a2a or mcp.');
 if (!args.vantage?.trim()) throw new Error('--vantage is required. Describe the probe location honestly.');
@@ -157,7 +179,7 @@ if (endpoint.protocol !== 'https:') throw new Error('--endpoint must use HTTPS.'
 const startedAt = new Date();
 const observations = [];
 for (let index = 0; index < samples; index += 1) {
-  observations.push(await probe(endpoint.href, protocol, timeoutMs));
+  observations.push(await probe(endpoint.href, protocol, timeoutMs, mcpVersion));
   if (index + 1 < samples && intervalMs > 0) await new Promise((resolve) => setTimeout(resolve, intervalMs));
 }
 const completedAt = new Date();

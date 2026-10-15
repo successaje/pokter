@@ -1,3 +1,4 @@
+import { MCP_PROTOCOL_VERSION } from '@/lib/proof/probe-target';
 import { NextResponse } from 'next/server';
 
 import { interpretTrialResponse, selectTrialCapability } from '@/lib/builder/trial';
@@ -13,6 +14,46 @@ function object(value: unknown): Record<string, unknown> | null {
 }
 
 /** Execute only an endpoint's explicitly advertised preview/dry-run capability. */
+
+/**
+ * An MCP call to an endpoint whose protocol revision is unknown.
+ *
+ * The builder is testing their own endpoint before it is registered, so
+ * there is no record to read a revision from. Sending one anyway is what
+ * broke the catalogue's probe: a server implementing an earlier revision
+ * answers 400, and three working agents were recorded as unreachable for
+ * it.
+ *
+ * So the header is omitted first, and sent only if the server refuses
+ * without it. That is the order that cannot be worse than before — a
+ * server wanting the revision still gets it, one revision later than it
+ * implements still gets a chance, and a server happy without it is no
+ * longer told something untrue about itself.
+ */
+async function mcpFetch(
+  handle: { fetch: (init: RequestInit) => Promise<Response> },
+  body: unknown,
+  timeoutMs = 8_000,
+): Promise<Response> {
+  const send = (version?: string) =>
+    handle.fetch({
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        ...(version ? { 'mcp-protocol-version': version } : {}),
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+  const first = await send();
+  if (first.ok || first.status < 400 || first.status >= 500) return first;
+  return send(MCP_PROTOCOL_VERSION);
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`builder-trial:${requestClientKey(request)}`, {
     limit: 3,
@@ -56,12 +97,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       target = card.url;
     } else {
       const tools = await withPublicEndpoint(endpoint, async (handle) => {
-        const response = await handle.fetch({
-          method: 'POST',
-          headers: { accept: 'application/json, text/event-stream', 'content-type': 'application/json', 'mcp-protocol-version': '2026-07-28' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/list', params: {} }),
-          cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8_000),
-        });
+        const response = await mcpFetch(handle, { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/list', params: {} });
         if (!response.ok) throw new Error(`MCP handshake answered ${response.status}.`);
         return object(await readJson(response));
       });
@@ -72,26 +108,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     if (!capability) throw new Error('Endpoint does not currently advertise a supported preview, simulate or dry-run capability.');
 
+    const call = protocol === 'mcp' ? {
+      jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/call',
+      params: { name: capability, arguments: { task, dryRun: true } },
+    } : {
+      jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send',
+      params: {
+        message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill: capability, task, mode: 'dry-run' } }] },
+        configuration: { acceptedOutputModes: ['application/json'], blocking: true },
+      },
+    };
     const payload = await withPublicEndpoint(target, async (handle) => {
-      const response = await handle.fetch({
-        method: 'POST',
-        headers: {
-          accept: 'application/json, text/event-stream',
-          'content-type': 'application/json',
-          ...(protocol === 'mcp' ? { 'mcp-protocol-version': '2026-07-28' } : {}),
-        },
-        body: JSON.stringify(protocol === 'mcp' ? {
-          jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/call',
-          params: { name: capability, arguments: { task, dryRun: true } },
-        } : {
-          jsonrpc: '2.0', id: crypto.randomUUID(), method: 'message/send',
-          params: {
-            message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill: capability, task, mode: 'dry-run' } }] },
-            configuration: { acceptedOutputModes: ['application/json'], blocking: true },
-          },
-        }),
-        cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12_000),
-      });
+      const response = protocol === 'mcp'
+        ? await mcpFetch(handle, call, 12_000)
+        : await handle.fetch({
+            method: 'POST',
+            headers: { accept: 'application/json, text/event-stream', 'content-type': 'application/json' },
+            body: JSON.stringify(call),
+            cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12_000),
+          });
       if (!response.ok) throw new Error(`Endpoint answered ${response.status} ${response.statusText}.`);
       return readJson(response);
     });
