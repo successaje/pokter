@@ -60,6 +60,8 @@ export interface HireFlowProps {
   declaredSkills?: { name: string; kind?: string; description?: string | null; examples: string[] }[];
   /** Tasks this agent has delivered real answers to, from public escrow jobs. */
   answeredTasks?: AnsweredTask[];
+  /** A brief to start from, from the link (`?task=`). */
+  initialTask?: string | null;
 }
 
 /**
@@ -117,7 +119,7 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
 }
 
 export function HireFlow(props: HireFlowProps) {
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.

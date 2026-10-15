@@ -18,9 +18,11 @@ export default async function HirePage({
   searchParams,
 }: {
   params: Promise<{ chainId: string; tokenId: string }>;
-  searchParams: Promise<{ escrow?: string }>;
+  searchParams: Promise<{ escrow?: string; task?: string }>;
 }) {
-  const [{ chainId: rawChain, tokenId }, { escrow }] = await Promise.all([params, searchParams]);
+  const [{ chainId: rawChain, tokenId }, { escrow, task: linkedTask }] = await Promise.all([params, searchParams]);
+  // A brief from the link, e.g. one an assistant composed through Pokter's MCP server. Prose only, and capped.
+  const initialTask = typeof linkedTask === 'string' && linkedTask.trim() ? linkedTask.trim().slice(0, 2000) : null;
   const chainId = Number(rawChain);
   if ((chainId !== 56 && chainId !== 97) || !/^\d{1,12}$/.test(tokenId)) notFound();
 
@@ -62,6 +64,7 @@ export default async function HirePage({
       declaredSkills={p.skills}
       answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
+      initialTask={initialTask}
     />
   );
 }

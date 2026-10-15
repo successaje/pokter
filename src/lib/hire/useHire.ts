@@ -188,6 +188,7 @@ export function useHire({
   riskWarnings = [],
   declaredSkills = [],
   escrowChainId = WALLET_NETWORK.chainId,
+  initialTask = null,
 }: {
   agent: HireAgent;
   providers: ProviderChoice[];
@@ -197,6 +198,8 @@ export function useHire({
    * on this chain.
    */
   escrowChainId?: number;
+  /** A brief to start from (`/hire/…?task=`), e.g. one an assistant composed; the buyer can still edit it. */
+  initialTask?: string | null;
   signedQuoteU?: number | null;
   /**
    * What the box opens on when the agent has never signed a price. A median
@@ -246,16 +249,16 @@ export function useHire({
       '',
   );
   const [selectedTemplate, setSelectedTemplate] = useState<CommissionTaskTemplate['id'] | null>(
-    taskTemplates[0].id,
+    initialTask ? null : taskTemplates[0].id,
   );
   /*
    * A template in a guided format starts empty: its example's figures are
    * the operator's, shown as placeholders, never funded as the buyer's.
    */
   const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : template.task);
-  const [task, setTaskState] = useState(startingTask(taskTemplates[0]));
+  const [task, setTaskState] = useState(initialTask ?? startingTask(taskTemplates[0]));
   /** The guided format in use; kept while the brief is edited, like the schema. */
-  const [recipeId, setRecipeId] = useState(taskTemplates[0].recipe ?? null);
+  const [recipeId, setRecipeId] = useState(initialTask ? null : (taskTemplates[0].recipe ?? null));
   /*
    * The template the buyer started from: its fields and their types stay
    * fixed while values are edited (see `fieldsWithValues`). Editing the
