@@ -10,11 +10,42 @@ const OUTCOME: Record<string, { label: string; tone: string }> = {
   'borrow-limit': { label: 'Borrowing-limit ratio', tone: 'bg-watch-wash text-ink' },
   wrong: { label: 'Does not match', tone: 'bg-bad-wash text-ink' },
   unreadable: { label: 'No readable answer', tone: 'bg-sunken text-ink-2' },
+  /*
+   * A paid check can end three ways that are not the agent answering
+   * badly, and all three fell through to "No readable answer" — which
+   * says the agent replied with nonsense when it had not replied at all,
+   * or had not been given the chance yet.
+   */
+  pending: { label: 'Awaiting delivery', tone: 'bg-sunken text-ink-2' },
+  undelivered: { label: 'Not delivered', tone: 'bg-bad-wash text-ink' },
+  'not-comparable': { label: 'Not comparable', tone: 'bg-sunken text-ink-2' },
 };
 
-function readingOf(expected: unknown): number | null {
-  const before = (expected as { before?: { healthFactor?: number | null } })?.before;
-  return typeof before?.healthFactor === 'number' ? before.healthFactor : null;
+/**
+ * What Pokter read, from either shape a run records.
+ *
+ * The free check reads the position before and after the agent's reply and
+ * stores `{ before, after }`. A paid check grades a delivery that arrived
+ * much later, so it has one reading and stores it flat.
+ *
+ * Only `before` was read here, so a paid run's reading was not found and
+ * the cell fell through to the literal "No debt" — two Venus positions
+ * carrying real debt were published as having none, beside the verdict
+ * that had been computed from the true figure. A missing reading is not a
+ * reading of zero, so an absent one now renders as unknown.
+ */
+function readingOf(expected: unknown): number | null | undefined {
+  const e = expected as { before?: { healthFactor?: number | null }; healthFactor?: number | null } | null;
+  if (!e) return undefined;
+  if (e.before && 'healthFactor' in e.before) return e.before.healthFactor;
+  if ('healthFactor' in e) return e.healthFactor;
+  return undefined;
+}
+
+function readingCell(expected: unknown): string {
+  const reading = readingOf(expected);
+  if (reading === undefined) return '—';
+  return reading === null ? 'No debt' : reading.toFixed(3);
 }
 
 function answerOf(observed: unknown): string {
@@ -26,7 +57,7 @@ function answerOf(observed: unknown): string {
 
 function summary(run: AssayRun): { text: string; tone: 'ok' | 'watch' | 'bad' | 'none' } {
   if (run.status === 'not-askable') return { text: `Could not be checked. ${run.detail ?? ''}`.trim(), tone: 'none' };
-  if (run.status === 'paid-only') return { text: 'Not checked: this agent answers only with a price and does the work once paid. Pokter does not pay for checks.', tone: 'none' };
+  if (run.status === 'paid-only') return { text: 'Not checked by a direct call: this agent answers one with a price and does the work once paid. Pokter checks these by hiring the published positions and grading what is delivered; that has not been done for this agent yet.', tone: 'none' };
   const borrowLimit = run.results.filter((r) => r.outcome === 'borrow-limit').length;
   const text = `Matched Venus on ${run.passed} of ${run.total} live position${run.total === 1 ? '' : 's'}${borrowLimit ? `; ${borrowLimit} answered with the borrowing-limit ratio instead` : ''}.`;
   return { text, tone: run.passed === run.total ? 'ok' : run.results.some((r) => r.outcome === 'wrong') ? 'bad' : 'watch' };
@@ -57,7 +88,7 @@ export function HealthFactorCheck({ run }: { run: AssayRun | null }) {
             <span>
               {summary(run).text}{' '}
               <span className="text-ink-3">
-                {run.status === 'checked' ? 'Checked' : 'Last tried'} {new Date(run.ranAt).toUTCString().slice(5, 22)} UTC.
+                {run.status === 'checked' ? (run.via === 'paid-hire' ? 'Graded from the work funded jobs delivered' : 'Asked directly, outside escrow') : 'Last tried'}, {new Date(run.ranAt).toUTCString().slice(5, 22)} UTC.
               </span>
             </span>
           </p>
@@ -70,6 +101,7 @@ export function HealthFactorCheck({ run }: { run: AssayRun | null }) {
                     <th scope="col" className="px-4 py-2.5 font-medium">Pokter read</th>
                     <th scope="col" className="px-4 py-2.5 font-medium">Agent answered</th>
                     <th scope="col" className="px-4 py-2.5 font-medium">Result</th>
+                    {run.via === 'paid-hire' && <th scope="col" className="px-4 py-2.5 font-medium">Paid job</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-rule">
@@ -82,12 +114,15 @@ export function HealthFactorCheck({ run }: { run: AssayRun | null }) {
                             {shortAddress(r.scenario)}
                           </a>
                         </td>
-                        <td className="t-readout px-4 py-3">{readingOf(r.expected)?.toFixed(3) ?? 'No debt'}</td>
+                        <td className="t-readout px-4 py-3">{readingCell(r.expected)}</td>
                         <td className="t-readout px-4 py-3">{answerOf(r.observed)}</td>
                         <td className="px-4 py-3">
                           <span className={cn('inline-block rounded-[5px] px-1.5 py-px text-[11.5px] font-medium', outcome.tone)}>{outcome.label}</span>
                           <p className="mt-1 max-w-sm text-[12px] leading-snug text-ink-3">{r.reason}</p>
                         </td>
+                        {run.via === 'paid-hire' && (
+                          <td className="whitespace-nowrap px-4 py-3 t-readout">{r.jobId ? `#${r.jobId}` : '—'}</td>
+                        )}
                       </tr>
                     );
                   })}
@@ -96,7 +131,9 @@ export function HealthFactorCheck({ run }: { run: AssayRun | null }) {
             </div>
           )}
           {run.results.length > 0 && <p className="text-[12px] leading-relaxed text-ink-3">
-            Pokter reads each position from Venus on BNB Smart Chain just before and just after asking the agent; an answer within 2% of either reading matches. This checks the reported figure, not advice or any action the agent might take.
+            {run.via === 'paid-hire'
+              ? 'Pokter hires each position as its own ERC-8183 job and grades the delivered answer against its own reading of Venus on BNB Smart Chain, within 2%. A position that moved too far between the delivery and the reading is set aside rather than counted either way. This checks the reported figure, not advice or any action the agent might take.'
+              : 'Pokter reads each position from Venus on BNB Smart Chain just before and just after asking the agent; an answer within 2% of either reading matches. This checks the reported figure, not advice or any action the agent might take.'}
           </p>}
         </>
       )}

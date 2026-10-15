@@ -5,6 +5,17 @@ import type { AssayRun } from '@/lib/assay/store';
 import { cn } from '@/lib/ui/cn';
 import { HealthFactorCheck } from './HealthFactorCheck';
 
+/*
+ * Outcomes that are not the agent answering wrongly: it has not answered
+ * yet, or never did, or the fixture moved under it. Read as "Did not
+ * match" they accuse the agent of a mistake it did not make.
+ */
+const UNSCORED: Record<string, string | undefined> = {
+  pending: 'Awaiting delivery',
+  undelivered: 'Not delivered',
+  'not-comparable': 'Not comparable',
+};
+
 function shown(value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -59,7 +70,7 @@ export function CategoryCheck({ definition, run, agentKey }: { definition: Assay
                     <td className="max-w-52 break-words px-4 py-3">{shown(result.expected)}</td>
                     <td className="max-w-52 break-words px-4 py-3">{shown(result.observed)}</td>
                     <td className="px-4 py-3">
-                      <span className={cn('inline-block rounded-[5px] px-1.5 py-px text-[11.5px] font-medium', result.pass ? 'bg-ok-wash text-ink' : 'bg-bad-wash text-ink')}>{result.pass ? 'Matched' : 'Did not match'}</span>
+                      <span className={cn('inline-block rounded-[5px] px-1.5 py-px text-[11.5px] font-medium', result.pass ? 'bg-ok-wash text-ink' : UNSCORED[result.outcome] ? 'bg-sunken text-ink-2' : 'bg-bad-wash text-ink')}>{result.pass ? 'Matched' : (UNSCORED[result.outcome] ?? 'Did not match')}</span>
                       <p className="mt-1 max-w-sm text-[12px] leading-snug text-ink-3">{result.reason}</p>
                     </td>
                     {paid && (
