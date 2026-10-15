@@ -27,6 +27,7 @@ import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 import { TaskEditor } from './TaskEditor';
 import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
+import { explainFailure } from '@/lib/hire/failure';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -109,14 +110,6 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
   );
 }
 
-function explainFailure(message: string): { title: string; body: string } {
-  if (/reject|denied|cancel|dismiss|NotAllowed/i.test(message)) return { title: 'You declined in the wallet', body: 'Nothing was sent and no funds moved. You can try again when ready.' };
-  if (/insufficient|balance|needs at least|You need/i.test(message)) return { title: 'Not enough in the wallet', body: message };
-  if (/signed a price|signed quote|quote/i.test(message)) return { title: 'The agent’s quote stopped this hire', body: message };
-  if (/network|chain|switch/i.test(message)) return { title: 'Wrong network', body: message };
-  return { title: 'The hire did not complete', body: message };
-}
-
 export function HireFlow(props: HireFlowProps) {
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
   // A task declared as JSON must have its required inputs before it can be funded.
@@ -171,7 +164,7 @@ export function HireFlow(props: HireFlowProps) {
 
   const busy = hire.state === 'hiring';
   const done = hire.state === 'hired' && hire.job;
-  const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error) : null;
+  const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer) : null;
 
   const passkeySteps = useMemo(
     () => [

@@ -22,6 +22,7 @@ import {
 } from '@/lib/erc8183/job-envelope';
 import { DELIVERY_WINDOW_SECONDS } from '@/lib/erc8183/deadline';
 import { walletActionError } from '@/lib/wallet/errors';
+import { HireFailure, isWalletRejection, type FailureLayer } from '@/lib/hire/failure';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useQuery } from '@tanstack/react-query';
 import { useWalletFunding } from '@/lib/wallet/use-funding';
@@ -126,11 +127,15 @@ async function negotiateForHire(
     body: JSON.stringify({ chainId, tokenId, task }),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string }
+    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string; layer?: FailureLayer; code?: string; retryable?: boolean }
     | null;
   if (!response.ok || !payload?.quote) {
-    throw new Error(
+    // The route says which layer refused: the brief, the seller, the protocol or the network.
+    throw new HireFailure(
       payload?.error ?? 'The agent did not return a signed quote for this brief.',
+      payload?.layer ?? (response.status === 400 ? 'input' : response.status >= 500 ? 'network' : 'seller'),
+      payload?.code,
+      payload?.retryable ?? response.status >= 500,
     );
   }
   const q = payload.quote as {
@@ -243,6 +248,8 @@ export function useHire({
   const [state, setState] = useState<HireState>('idle');
   const [job, setJob] = useState<HiredJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Which layer the last failure came from; only 'wallet' may say the buyer declined. */
+  const [errorLayer, setErrorLayer] = useState<FailureLayer | null>(null);
   const [heldAfterFailure, setHeldAfterFailure] = useState<string | null>(null);
   const [externalStep, setExternalStep] = useState<HireStep | null>(null);
   const [externalJobId, setExternalJobId] = useState<bigint | null>(null);
@@ -483,6 +490,7 @@ export function useHire({
     setStage('hiring');
     setSwapQuote(null);
     setError(null);
+    setErrorLayer(null);
     setHeldAfterFailure(null);
     setExternalStep(null);
     setRevoked(false);
@@ -701,7 +709,8 @@ export function useHire({
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
-      setError(walletActionError(caught, 'Commissioning'));
+      setErrorLayer(caught instanceof HireFailure ? caught.layer : isWalletRejection(caught) ? 'wallet' : null);
+      setError(caught instanceof HireFailure ? caught.message : walletActionError(caught, 'Commissioning'));
       setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
     }
@@ -783,6 +792,7 @@ export function useHire({
     swapQuote,
     job,
     error,
+    errorLayer,
     heldAfterFailure,
     externalStep,
     externalJobId,
