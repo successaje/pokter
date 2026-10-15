@@ -10,6 +10,7 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { describeQuoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -77,13 +78,23 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   let refusal: string | null = null;
+  let failure: QuoteFailure | null = null;
   const quote = await requestQuote(agent, {
     timeoutMs: 20_000,
     enquiry: { task_description: task, terms: POKTER_TERMS },
     onRefused: (reason) => {
       refusal = reason;
     },
+    onFailure: (reason) => {
+      failure = reason;
+    },
   });
+  if (!quote && failure) {
+    // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
+    const known = failure as QuoteFailure;
+    const { message, status } = describeQuoteFailure(known.code === 'seller-declined' && refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
+    return NextResponse.json({ error: message, layer: known.layer, code: known.code, retryable: known.retryable }, { status });
+  }
   if (!quote) {
     /*
      * A seller that says why is quoted verbatim. "lp_tier_plan needs the

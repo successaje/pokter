@@ -6,6 +6,7 @@ import { negotiationContent, negotiationTermsBound, verifyNegotiationSignature }
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
 import { readA2AReply } from '@/lib/a2a/reply';
+import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -112,6 +113,7 @@ export async function requestQuote(
     timeoutMs = 12_000,
     enquiry = PRICE_ENQUIRY,
     onRefused,
+    onFailure,
   }: {
     timeoutMs?: number;
     /*
@@ -137,20 +139,26 @@ export async function requestQuote(
      * it turns a fixable hire into an agent that looks broken.
      */
     onRefused?: (reason: string) => void;
+    /** Why no quote came back, when none did: which layer, and whether to retry. */
+    onFailure?: (failure: QuoteFailure) => void;
   } = {},
 ): Promise<AgentQuote | null> {
   const endpoint = agent.services?.a2a?.endpoint?.replace(
     '{agentId}',
     agent.token_id,
   );
-  if (!endpoint || !agent.agent_wallet) return null;
+  const fail = (failure: QuoteFailure) => {
+    onFailure?.(failure);
+    return null;
+  };
+  if (!endpoint || !agent.agent_wallet) return fail(quoteFailure('no-endpoint'));
 
   try {
     const card = await readAgentCard(endpoint);
 
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const negotiateSkill = negotiationSkillOf(skills);
-    if (!negotiateSkill || typeof card?.url !== 'string') return null;
+    if (!negotiateSkill || typeof card?.url !== 'string') return fail(quoteFailure(card ? 'no-price-skill' : 'no-endpoint'));
 
     const payload = await withPublicEndpoint(card.url, async (service) => {
       const response = await service.fetch({
@@ -203,7 +211,10 @@ export async function requestQuote(
     ) {
       const stated = statedRefusal(data?.reason);
       if (stated) onRefused?.(stated);
-      return null;
+      const reply = readA2AReply(payload);
+      if (stated || data?.accepted === false || data?.status === 'rejected') return fail(quoteFailure('seller-declined', { sellerReason: stated ?? undefined }));
+      if (reply.state === 'working' || reply.state === 'submitted') return fail(quoteFailure('seller-not-ready'));
+      return fail(quoteFailure('no-quote'));
     }
 
     /*
@@ -216,6 +227,8 @@ export async function requestQuote(
       negotiationHash: data.negotiation_hash,
       providerSignature: data.provider_sig,
       expectedProvider: agent.agent_wallet,
+    }).catch((error: unknown) => {
+      throw new Error(`signature check failed: ${error instanceof Error ? error.message : String(error)}`);
     });
 
     /*
@@ -224,7 +237,7 @@ export async function requestQuote(
      * signed: a replayed hash with a different price would pass the check
      * above. Derivation as in BNB's reference SDK.
      */
-    if (!negotiationTermsBound(data, enquiry.task_description)) return null;
+    if (!negotiationTermsBound(data, enquiry.task_description)) return fail(quoteFailure('terms-mismatch'));
     const content = negotiationContent(data, enquiry.task_description);
 
     const expiry = data.quote_expires_at || response?.quote_expires_at;
@@ -254,8 +267,8 @@ export async function requestQuote(
         ? { ...content, negotiation_hash: data.negotiation_hash, provider_sig: data.provider_sig }
         : null,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    return fail(classifyQuoteError(error));
   }
 }
 
