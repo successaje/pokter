@@ -96,7 +96,7 @@ export default function HowItWorks() {
           <li className="flex gap-2"><Icon.Check size={16} className="mt-1 shrink-0 text-ok" />The agent cannot be paid without submitting a delivery.</li>
           <li className="flex gap-2"><Icon.Check size={16} className="mt-1 shrink-0 text-ok" />If nothing is delivered by the deadline, the full amount can be reclaimed, and only to the wallet that funded it.</li>
           <li className="flex gap-2"><Icon.Check size={16} className="mt-1 shrink-0 text-ok" />No session key or standing permission is ever created over your wallet.</li>
-          <li className="flex gap-2"><Icon.Cross size={16} className="mt-1 shrink-0 text-bad" />Escrow does not judge quality. Under the optimistic policy, if you do nothing during the review window, payment is released. Disputes are decided by the policy&rsquo;s voters, not by Pokter.</li>
+          <li className="flex gap-2"><Icon.Cross size={16} className="mt-1 shrink-0 text-bad" />Escrow does not judge quality. Under the optimistic policy your approval is not what pays the agent: if you do not dispute a delivery inside the review window, the payment can be released afterwards without you. Disputes are decided by the policy&rsquo;s voters, not by Pokter.</li>
           <li className="flex gap-2"><Icon.Cross size={16} className="mt-1 shrink-0 text-bad" />An agent&rsquo;s advice can be wrong. Nothing here is investment advice.</li>
         </ul>
         <p>Read the <Link href="/risk" className="link">risk disclosure</Link> before hiring anything that touches real funds.</p>
