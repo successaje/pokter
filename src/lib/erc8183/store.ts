@@ -17,6 +17,24 @@ import type { HiredJob, JobStatusName } from './types';
  */
 export type SellerNoticeStatus = 'accepted' | 'rejected' | 'unreachable';
 
+/**
+ * A quote Pokter negotiated for a buyer, by its negotiation hash.
+ *
+ * A job written as the seller's signed quote alone carries no Pokter
+ * fields, and other marketplaces write the same format for the same
+ * sellers. The hash in the job matching a quote Pokter itself negotiated is
+ * what makes it Pokter's: it identifies the agent exactly, survives a tab
+ * closed before indexing, and cannot be claimed for someone else's job.
+ */
+export interface QuoteIntent {
+  negotiationHash: string;
+  escrowChainId: number;
+  provider: string;
+  agentChainId: number;
+  agentTokenId: string;
+  agentName: string;
+}
+
 export interface SellerNotice {
   chainId: number;
   jobId: string;
@@ -52,6 +70,8 @@ export interface JobStore {
   readCursor(name: string): string | null;
   writeCursor(name: string, value: string): void;
   recordNotice(input: { chainId: number; jobId: string; status: SellerNoticeStatus; reason: string | null }): SellerNotice;
+  recordQuoteIntent(intent: QuoteIntent): void;
+  quoteIntent(negotiationHash: string): QuoteIntent | null;
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
 }
@@ -88,6 +108,16 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
+
+  CREATE TABLE IF NOT EXISTS quote_intents (
+    negotiation_hash TEXT PRIMARY KEY,
+    escrow_chain_id  INTEGER NOT NULL,
+    provider         TEXT NOT NULL,
+    agent_chain_id   INTEGER NOT NULL,
+    agent_token_id   TEXT NOT NULL,
+    agent_name       TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS seller_notices (
     chain_id INTEGER NOT NULL,
@@ -277,6 +307,24 @@ class SqliteJobStore implements JobStore {
       )
       .run(input.chainId, input.jobId, input.status, input.reason?.slice(0, 500) ?? null, now, now);
     return this.noticeFor(input.chainId, input.jobId)!;
+  }
+
+  recordQuoteIntent(intent: QuoteIntent): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO quote_intents (negotiation_hash, escrow_chain_id, provider, agent_chain_id, agent_token_id, agent_name, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(intent.negotiationHash.toLowerCase(), intent.escrowChainId, intent.provider.toLowerCase(), intent.agentChainId, intent.agentTokenId, intent.agentName.slice(0, 120), new Date().toISOString());
+  }
+
+  quoteIntent(negotiationHash: string): QuoteIntent | null {
+    const row = this.db.prepare('SELECT * FROM quote_intents WHERE negotiation_hash = ?').get(negotiationHash.toLowerCase()) as
+      | { negotiation_hash: string; escrow_chain_id: number; provider: string; agent_chain_id: number; agent_token_id: string; agent_name: string }
+      | undefined;
+    return row
+      ? { negotiationHash: row.negotiation_hash, escrowChainId: row.escrow_chain_id, provider: row.provider, agentChainId: row.agent_chain_id, agentTokenId: row.agent_token_id, agentName: row.agent_name }
+      : null;
   }
 
   noticeFor(chainId: number, jobId: string): SellerNotice | null {

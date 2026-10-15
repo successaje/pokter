@@ -8,6 +8,7 @@ import { BRIEF_MIN, briefAcceptable } from '@/lib/hire/brief';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { getJobStore } from '@/lib/erc8183/store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -135,6 +136,24 @@ export async function POST(request: Request): Promise<NextResponse> {
       { error: usable.reason, reason: 'domain' },
       { status: 409 },
     );
+  }
+
+  /*
+   * Recorded before the buyer funds, so the job this quote governs is known
+   * to be Pokter's by its hash alone: recoverable if the tab closes, and not
+   * claimable for another marketplace's job in the same format.
+   */
+  try {
+    getJobStore().recordQuoteIntent({
+      negotiationHash: quote.negotiationHash,
+      escrowChainId,
+      provider: agent.agent_wallet ?? quote.signer,
+      agentChainId: chainId,
+      agentTokenId: tokenId,
+      agentName: agent.name || `Agent #${tokenId}`,
+    });
+  } catch {
+    /* A record that cannot be written costs recovery, not the quote. */
   }
 
   return NextResponse.json({

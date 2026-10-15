@@ -1,12 +1,11 @@
 import 'server-only';
 
-import { getAddress } from 'viem';
 import { getErc8183Job } from '@altananetwork/sdk';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { indexIfMissing, jobIdentity } from '@/lib/erc8183/job-identity';
+import { nextPending, parsePending, REVISIT_PER_RUN } from '@/lib/erc8183/reconcile-pending';
 import { getJobStore } from '@/lib/erc8183/store';
-import type { HiredJob } from '@/lib/erc8183/types';
 import { scanRange } from '@/lib/erc8183/reconcile-window';
 import { enabledEscrowChains, type EscrowChainId } from '@/lib/network/escrow';
 
@@ -34,6 +33,7 @@ import { enabledEscrowChains, type EscrowChainId } from '@/lib/network/escrow';
  */
 
 const CURSOR = (chainId: number) => `reconcile:${chainId}`;
+const PENDING = (chainId: number) => `reconcile-pending:${chainId}`;
 
 export interface ReconcileOutcome {
   chainId: number;
@@ -45,43 +45,6 @@ export interface ReconcileOutcome {
   recoveredIds: string[];
   from: number;
   to: number;
-}
-
-function toHiredJob(
-  chainId: EscrowChainId,
-  jobId: bigint,
-  onchain: Awaited<ReturnType<typeof getErc8183Job>>,
-  envelope: NonNullable<ReturnType<typeof decodePokterJobEnvelope>>,
-): HiredJob {
-  const now = new Date().toISOString();
-  return {
-    id: `${chainId}:${jobId}`,
-    jobId: jobId.toString(),
-    chainId,
-    isTestnet: chainId === 97,
-    agentChainId: envelope.identity.chainId,
-    agentTokenId: envelope.identity.tokenId,
-    agentName: envelope.identity.name ?? `Agent #${envelope.identity.tokenId}`,
-    providerLabel: envelope.providerLabel,
-    client: onchain.client,
-    provider: onchain.provider,
-    task: envelope.task,
-    budgetRaw: onchain.budget.toString(),
-    expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
-    /*
-     * The chain does not record when a job was created, only when it
-     * expires, so a recovered row is stamped now. It is the one field a
-     * reconciled job cannot report truthfully, and dating it to the scan
-     * is better than inventing a creation time from the expiry.
-     */
-    hiredAt: now,
-    hireTxHash: null,
-    status: onchain.statusName,
-    statusCheckedAt: now,
-    deliverableUrl: null,
-    settleTxHash: null,
-    disputeTxHash: null,
-  };
 }
 
 async function reconcileChain(chainId: EscrowChainId): Promise<ReconcileOutcome> {
@@ -105,35 +68,48 @@ async function reconcileChain(chainId: EscrowChainId): Promise<ReconcileOutcome>
 
   const recoveredIds: string[] = [];
   let scanned = 0;
+  const pendingBefore = parsePending(store.readCursor(PENDING(chainId)));
+  const revisit = pendingBefore.slice(0, REVISIT_PER_RUN);
+  const stillPending: number[] = [];
+  const resolved: number[] = [];
 
-  for (let id = from; id <= to; id += 1) {
-    if (store.byId(`${chainId}:${id}`)) continue;
+  /*
+   * One job: recover it if it is Pokter's and funded; keep it for another
+   * look if it could not be read, or is Pokter's and not yet funded.
+   */
+  const visit = async (id: number) => {
+    if (store.byId(`${chainId}:${id}`) || store.all().some((job) => job.chainId === chainId && job.jobId === String(id))) {
+      resolved.push(id);
+      return;
+    }
     let onchain;
     try {
       onchain = await getErc8183Job(network, BigInt(id));
     } catch {
-      /* One unreadable job must not stop the pass; the cursor still moves
-         past it, and a later run will not revisit it. */
-      continue;
+      stillPending.push(id);
+      return;
     }
     scanned += 1;
-    if (onchain.statusName === 'OPEN') continue;
-
-    const envelope = decodePokterJobEnvelope(onchain.description);
-    if (!envelope) continue;
-    /* The same check the client-facing route makes: an envelope naming a
-       provider the job does not pay is somebody else's job wearing our
-       label. */
-    try {
-      if (getAddress(envelope.provider) !== getAddress(onchain.provider)) continue;
-    } catch {
-      continue;
+    const identity = await jobIdentity(onchain.description, onchain.provider, chainId).catch(() => null);
+    if (!identity) {
+      resolved.push(id);
+      return;
     }
+    if (onchain.statusName === 'OPEN') {
+      // Pokter's, created and not yet funded: look again next run.
+      stillPending.push(id);
+      return;
+    }
+    if (await indexIfMissing({ chainId, jobId: String(id), onchain })) recoveredIds.push(String(id));
+    resolved.push(id);
+  };
 
-    store.record(toHiredJob(chainId, BigInt(id), onchain, envelope));
-    recoveredIds.push(String(id));
-  }
+  for (const id of revisit) await visit(id);
+  for (let id = from; id <= to; id += 1) await visit(id);
 
+  // Old enough that any deadline has long passed: no longer worth a look.
+  const oldestAllowed = Math.max(1, counter - 20_000);
+  store.writeCursor(PENDING(chainId), JSON.stringify(nextPending(pendingBefore.filter((id) => !revisit.includes(id)), stillPending, resolved, oldestAllowed)));
   store.writeCursor(CURSOR(chainId), String(to));
   return { chainId, scanned, recovered: recoveredIds.length, recoveredIds, from, to };
 }

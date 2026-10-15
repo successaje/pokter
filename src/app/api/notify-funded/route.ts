@@ -129,7 +129,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       chainId: escrowChainId,
       jobId,
       onchain: job,
-      identityHint: { agentChainId, agentTokenId: tokenId },
     }).catch(() => false);
     const notice = await noticeSeller({ agentChainId, tokenId, jobId, provider, escrowChainId });
     if (notice.status === 'unreachable') {
