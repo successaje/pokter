@@ -112,3 +112,31 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
 
   return { allowed: true };
 }
+
+/**
+ * What the buyer of a delivered job is told about its review window.
+ *
+ * The job page said "release payment or dispute it within the window" and,
+ * a paragraph later, that the escrow will not release early: two
+ * instructions that contradict each other, and no date for either. The
+ * window's close is the one moment a buyer needs, so it is stated, with
+ * what they can do before it and what happens after.
+ */
+export function reviewWindowSummary(timing: SettleTiming): { open: boolean; closesAt: number; closes: string; text: string } {
+  const closesAt = settleOpensAt(timing);
+  const closes = utcMoment(closesAt);
+  if (timing.now < closesAt) {
+    return {
+      open: true,
+      closesAt,
+      closes,
+      text: `The review window closes ${closes} (in ${span(closesAt - timing.now)}). Until then you can dispute the delivery. After it, the payment can be released to the agent, by you or by anyone, and it can no longer be disputed.`,
+    };
+  }
+  return {
+    open: false,
+    closesAt,
+    closes,
+    text: `The review window closed ${closes}. The payment can now be released to the agent, by you or by anyone; the delivery can no longer be disputed.`,
+  };
+}

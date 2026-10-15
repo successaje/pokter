@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canSettle, settleOpensAt } from '../src/lib/erc8183/settle-window';
+import { canSettle, reviewWindowSummary, settleOpensAt } from '../src/lib/erc8183/settle-window';
 
 /* Job 1440 on BNB testnet, the one that produced the gas error. */
 const SUBMITTED = 1791795365;          // 2026-10-12T08:56:05Z
@@ -74,4 +74,18 @@ test('a week-long window is said in days, with the moment it opens', () => {
     assert.match(verdict.message, /opens 21 Oct, 18:30 UTC \(in 7 days\)/);
     assert.doesNotMatch(verdict.message, /minutes/);
   }
+});
+
+test('a delivered job says when its review window closes, and what each side of it allows', () => {
+  // Job #57005 on mainnet: submitted 15 Oct 14:14:33 UTC, 7-day window.
+  const submittedAt = Date.parse('2026-10-15T14:14:33Z') / 1000;
+  const timing = { submittedAt, expiredAt: submittedAt + 8 * 86_400, disputeWindowSeconds: 604_800 };
+  const open = reviewWindowSummary({ ...timing, now: submittedAt + 3_600 });
+  assert.equal(open.open, true);
+  assert.equal(open.closes, '22 Oct, 14:14 UTC');
+  assert.match(open.text, /closes 22 Oct, 14:14 UTC \(in 7 days\)/);
+  assert.match(open.text, /Until then you can dispute/);
+  const closed = reviewWindowSummary({ ...timing, now: submittedAt + 604_800 + 60 });
+  assert.equal(closed.open, false);
+  assert.match(closed.text, /closed 22 Oct, 14:14 UTC/);
 });
