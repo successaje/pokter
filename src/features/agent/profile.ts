@@ -89,6 +89,8 @@ export interface AgentProfile {
   services: Array<{ name: string; endpoint: string }>;
   repositoryUrl: string | null;
   warnings: string[];
+  /** Probe rows excluded as Pokter's own measurement error, by reason. */
+  corrections: Array<{ rule: string; reason: string; count: number }>;
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
   readiness: ReadinessRow[];
   hireable: boolean;
@@ -237,6 +239,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           payable,
         }
       : null,
+    corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
     readiness: readinessRows({
       now: Date.now(),
       live: { answered: answeredNow, medianMs: live.medianMs },

@@ -16,6 +16,7 @@ import {
   type SweepRecord,
 } from './store';
 import { getQuestStore } from '@/lib/quest/store';
+import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 
 export interface SweepOptions {
   chainId?: ChainId;
@@ -271,6 +272,7 @@ export async function runSweep({
       status: probe.status,
       detail: probe.detail,
       probedAt: probe.at,
+      adapter: PROBE_ADAPTER,
     }));
   });
 

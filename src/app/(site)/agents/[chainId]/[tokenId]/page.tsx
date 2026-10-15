@@ -400,6 +400,11 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   <span className="t-label">Daily answer rate, last 30 days</span>
                   <span className="text-[12px] text-ink-3">Grey ticks: not probed that day</span>
                 </div>
+                {p.corrections.map((c) => (
+                  <p key={c.rule} className="rounded-[10px] border border-rule bg-paper px-3 py-2 text-[12.5px] leading-snug text-ink-2">
+                    <span className="font-medium text-ink">{c.count} earlier probe{c.count === 1 ? '' : 's'} left out as Pokter’s own error.</span> {c.reason} The raw rows are kept.
+                  </p>
+                ))}
                 {p.record.totalProbes > 0 ? (
                   <ProbeStrip cells={p.record.cells} className="h-10 [&>span]:w-full [&>span]:flex-1" label="Daily answer rate, last 30 days" />
                 ) : (

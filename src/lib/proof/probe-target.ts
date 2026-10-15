@@ -21,6 +21,14 @@ import type { ScanAgentDetail } from '@/lib/scan/types';
  */
 export const MCP_PROTOCOL_VERSION = '2026-07-28';
 
+/**
+ * Which revision of Pokter's own probe took a measurement. Stored on every
+ * probe row, so a fault later found in the probe can be tied to the rows it
+ * produced instead of inferred from dates. Bump it whenever the way an
+ * agent is called changes.
+ */
+export const PROBE_ADAPTER = '2026-10-15.declared-mcp-revision';
+
 export function probeTarget(
   agent: ScanAgentDetail,
 ): { endpoint: string; protocol: 'a2a' | 'mcp'; version: string | null } | null {
