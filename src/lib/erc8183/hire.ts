@@ -5,9 +5,10 @@ import {
   settleErc8183Job,
   getErc8183Job,
   getErc8183DeliverableUrl,
+  buildClaimRefundCall,
   buildHireCalls,
 } from '@altananetwork/sdk';
-import { parseUnits, formatUnits, erc20Abi, createPublicClient, http } from 'viem';
+import { parseUnits, formatUnits, erc20Abi, createPublicClient, getAddress, http } from 'viem';
 import type { Address } from 'viem';
 
 import { correctedErc8183Addresses } from './addresses';
@@ -310,4 +311,65 @@ export function listJobs(): HiredJob[] {
 
 export function formatBudget(job: HiredJob): string {
   return `${formatUnits(BigInt(job.budgetRaw), 18)} $U`;
+}
+
+/**
+ * Pull an expired escrow back to the wallet that funded it.
+ *
+ * `settleJob` releases or contests a delivery; neither applies to a job
+ * that was never delivered. The only reclaim path was
+ * `reclaimFromExternalWallet`, which signs with the browser wallet, so a
+ * hire funded by the admin signer — every script and route hire — had no
+ * way to get its budget back. Expired test escrow simply accumulated.
+ *
+ * The escrow refuses a reclaim before expiry and the revert says nothing
+ * useful, so the preconditions are read from chain first and reported as
+ * sentences. Reclaiming is the buyer's own action, here as in the UI:
+ * nothing reclaims on a schedule.
+ */
+export async function reclaimJob(jobId: string): Promise<{ jobId: string; transactionHash: string | null; budget: string }> {
+  if (!/^\d+$/.test(jobId)) throw new Error(`"${jobId}" is not a job id.`);
+  const client = altanaClient();
+  const signer = adminSigner('legacy-hire');
+  const wallet = await client.createWallet({ signer });
+
+  const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(jobId));
+  if (getAddress(onchain.client) !== getAddress(wallet.address)) {
+    throw new Error(`Job ${jobId} was funded by ${onchain.client}, not by this wallet (${wallet.address}).`);
+  }
+  if (onchain.statusName !== 'FUNDED' && onchain.statusName !== 'EXPIRED') {
+    throw new Error(`Job ${jobId} is ${onchain.statusName.toLowerCase()}; there is no escrow left to reclaim.`);
+  }
+  const expiresAt = Number(onchain.expiredAt) * 1000;
+  if (expiresAt > Date.now()) {
+    throw new Error(
+      `Job ${jobId} expires ${new Date(expiresAt).toISOString()}; the agent still has time to deliver, and the escrow will not release before then.`,
+    );
+  }
+
+  const call = buildClaimRefundCall(ALTANA_NETWORK.chainId, BigInt(jobId));
+  let result;
+  try {
+    result = await client.execute({ wallet, signer, calls: [call] });
+  } catch (error) {
+    throw new Error(explainRevert((error as Error).message));
+  }
+
+  /*
+   * Found by job id and escrow chain, not by row id: `hireAgent` writes a
+   * UUID there while the chain indexer writes "<chainId>:<jobId>", so a
+   * `byId` lookup finds only half the rows and silently skips the rest.
+   */
+  const existing = getJobStore()
+    .all()
+    .find((job) => job.jobId === jobId && job.chainId === ALTANA_NETWORK.chainId);
+  if (existing) {
+    getJobStore().record({
+      ...existing,
+      reclaimTxHash: (result.transactionHash ?? null) as HiredJob['reclaimTxHash'],
+      statusCheckedAt: new Date().toISOString(),
+    });
+  }
+
+  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, 18) };
 }

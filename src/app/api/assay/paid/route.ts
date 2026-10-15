@@ -45,6 +45,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     category?: unknown;
     budgetU?: unknown;
     apply?: unknown;
+    rehire?: unknown;
   };
 
   const agentKey = typeof body.agent === 'string' ? body.agent : '';
@@ -57,6 +58,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const budgetU = typeof body.budgetU === 'number' && body.budgetU > 0 && body.budgetU <= 5 ? body.budgetU : 0.1;
   const apply = body.apply === true;
+  /*
+   * Fund a scenario again even though it has been hired before.
+   *
+   * `fixtureJobsBySuite` keeps the newest job per scenario, so a re-hire
+   * supersedes the earlier attempt rather than competing with it — which
+   * is what this is for: two fixtures were funded with a raw description
+   * the escrow indexer cannot recognise, so they can never deliver and
+   * their scenario slots would otherwise stay occupied by dead jobs.
+   *
+   * Off by default, because the ordinary reading of "already hired" is
+   * "do not pay twice".
+   */
+  const rehire = body.rehire === true;
 
   /*
    * Mainnet fixtures spend real money, and a correctness check is not worth
@@ -93,7 +107,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // What is already hired, so a re-run tops up rather than paying twice.
   const already = fixtureJobsForAgent({ chainId, tokenId }, suite.id);
-  const todo = scenarios.filter((scenario) => !already.has(scenario.id));
+  const todo = rehire ? scenarios : scenarios.filter((scenario) => !already.has(scenario.id));
 
   const funded: Array<{ scenario: string; jobId?: string; error?: string }> = [];
   if (apply) {
@@ -139,6 +153,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     suite,
     escrowChainId: ALTANA_NETWORK.chainId,
     mode: apply ? 'applied' : 'dry-run',
+    rehire,
     alreadyHired: [...already.entries()].map(([scenario, job]) => ({ scenario, jobId: job.jobId, status: job.status })),
     wouldHire: apply ? [] : todo.map((scenario) => scenario.id),
     funded,
