@@ -72,6 +72,7 @@ export interface AgentProfile {
   latency: Array<{ at: string; ms: number }>;
   evidence: PublishedEvidenceSummary & { measurers: string[]; windowDays: number | null };
   defects: string[];
+  defectsByMeasurer: Array<{ measurer: string; defects: string[] }>;
   score: { overall: number | null; measured: number; total: number; dimensions: Array<{ label: string; earned: number | null; weight: number; explanation: string }> };
   quote: { priceU: number; label: string; currency: string; signer: string; quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
   suggestion: { label: string; note: string; u: number } | null;
@@ -217,6 +218,15 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     })),
     evidence: { ...published, measurers: proof.measurers, windowDays: proof.windowDays },
     defects: [...new Set([...(live.method.knownDefects ?? []), ...proof.disclosedDefects])],
+    // Each measurer's own limits under its name; Pokter's live check joins Pokter's sweep limits.
+    defectsByMeasurer: (() => {
+      const groups = (proof.byMeasurer ?? []).map((m) => ({ measurer: m.measurer, defects: m.defects }));
+      const pokter = groups.find((g) => g.measurer === 'Pokter');
+      const liveLimits = live.method.knownDefects ?? [];
+      if (pokter) pokter.defects = [...new Set([...liveLimits, ...pokter.defects])];
+      else if (liveLimits.length) groups.unshift({ measurer: 'Pokter', defects: liveLimits });
+      return groups.filter((g) => g.defects.length > 0);
+    })(),
     score: {
       overall: score.measuredDimensions > 0 ? score.overall : null,
       measured: score.measuredDimensions,

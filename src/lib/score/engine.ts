@@ -148,7 +148,10 @@ function scoreEvidence({ proof, record }: ScoreInputs): DimensionScore {
     earned,
     weight,
     explanation:
-      `${measurerCount || 'No'} independent measurer(s), ${proof.probes} probe(s), ` +
+      `${measurerCount || 'No'} independent measurer(s), ${proof.probes} probe(s)` +
+      // Whose probes they are, when more than one party measured.
+      ((proof.byMeasurer?.length ?? 0) > 1 ? ` (${proof.byMeasurer!.map((m) => `${m.probes} by ${m.measurer}`).join(', ')})` : '') +
+      ', ' +
       `over ${proof.windowDays ?? 0} day(s) of observation. Independence is weighted most heavily, ` +
       'because probing more often does not make a single measurer more trustworthy.',
     inputs: [

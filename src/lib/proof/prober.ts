@@ -75,7 +75,7 @@ const KNOWN_DEFECTS = [
   'Single vantage point: an agent that geo-blocks or ASN-blocks this prober appears unreachable when it may be healthy.',
   'Cannot distinguish "the agent is down" from "unreachable from here".',
   'Liveness is not correctness: an agent that answers every probe may still trade badly.',
-  'Probes run on demand rather than on a schedule, so samples are not evenly spaced in time.',
+  'A live check is one call made when a page loads: it says the agent answers now, not that it stays up. Sustained availability comes from the two-hourly sweeps.',
 ];
 
 function median(values: number[]): number | null {
