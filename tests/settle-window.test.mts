@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canSettle, reviewWindowSummary, settleOpensAt } from '../src/lib/erc8183/settle-window';
+import { canSettle, disputeSummary, reviewWindowSummary, settleOpensAt } from '../src/lib/erc8183/settle-window';
 
 /* Job 1440 on BNB testnet, the one that produced the gas error. */
 const SUBMITTED = 1791795365;          // 2026-10-12T08:56:05Z
@@ -88,4 +88,15 @@ test('a delivered job says when its review window closes, and what each side of 
   const closed = reviewWindowSummary({ ...timing, now: submittedAt + 604_800 + 60 });
   assert.equal(closed.open, false);
   assert.match(closed.text, /closed 22 Oct, 14:14 UTC/);
+});
+
+test('a disputed job says how the vote stands and both ways it ends', () => {
+  // Job #56997: disputed 15 Oct, deadline 22 Oct 18:28 UTC, quorum 3, no votes yet.
+  const expiredAt = Date.parse('2026-10-22T18:28:00Z') / 1000;
+  const open = disputeSummary({ rejectVotes: 0, quorum: 3, expiredAt, now: expiredAt - 86_400 });
+  assert.match(open.text, /0 of 3 reject votes so far/);
+  assert.match(open.text, /At 3 the job is rejected/);
+  assert.match(open.text, /deadline, 22 Oct, 18:28 UTC, the job expires and you reclaim it then/);
+  const over = disputeSummary({ rejectVotes: 1, quorum: 3, expiredAt, now: expiredAt + 60 });
+  assert.match(over.text, /did not reach its quorum \(1 of 3/);
 });

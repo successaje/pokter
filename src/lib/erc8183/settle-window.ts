@@ -140,3 +140,23 @@ export function reviewWindowSummary(timing: SettleTiming): { open: boolean; clos
     text: `The review window closed ${closes}. The payment can now be released to the agent, by you or by anyone; the delivery can no longer be disputed.`,
   };
 }
+
+/**
+ * What the buyer of a disputed job is told.
+ *
+ * A dispute leaves the job SUBMITTED while whitelisted voters decide:
+ * `quorum` reject votes make it REJECTED and the escrow refundable; with
+ * no quorum by the deadline it expires and the buyer reclaims it then.
+ * Either way the delivery is no longer approved by silence.
+ */
+export function disputeSummary(input: { rejectVotes: number; quorum: number; expiredAt: number; now: number }): { title: string; text: string } {
+  const deadline = utcMoment(input.expiredAt);
+  const votes = input.quorum > 0 ? `${input.rejectVotes} of ${input.quorum} reject votes so far` : `${input.rejectVotes} reject votes so far`;
+  const past = input.now >= input.expiredAt;
+  return {
+    title: 'You disputed this delivery',
+    text: past
+      ? `The vote did not reach its quorum (${votes}) before the deadline, ${deadline}, so the job has expired and the escrow can be reclaimed.`
+      : `The escrow policy's voters decide: ${votes}. At ${input.quorum || 'the quorum'} the job is rejected and you can reclaim the escrow. If the quorum is not reached by the deadline, ${deadline}, the job expires and you reclaim it then. Until one of those happens the agent cannot be paid.`,
+  };
+}

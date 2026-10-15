@@ -7,8 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
-import { reviewWindowSummary } from '@/lib/erc8183/settle-window';
-import { readReviewTiming } from '@/lib/wallet/external';
+import { disputeSummary, reviewWindowSummary } from '@/lib/erc8183/settle-window';
+import { readDisputeState, readReviewTiming } from '@/lib/wallet/external';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { supportMailto } from '@/lib/support/contact';
 import { cn } from '@/lib/ui/cn';
@@ -163,8 +163,23 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   });
   const now = useNow();
   const review = reviewTiming.data && reviewTiming.data.submittedAt > 0 ? reviewWindowSummary({ ...reviewTiming.data, now: Math.floor(now / 1000) }) : null;
+  // A dispute leaves the job SUBMITTED; the policy records it and its vote.
+  const disputeState = useQuery({
+    queryKey: ['dispute-state', job.chainId, job.jobId, a.job.disputeTxHash ?? null],
+    queryFn: () => readDisputeState(job.chainId, BigInt(job.jobId)),
+    enabled: phase === 'review',
+    staleTime: 60_000,
+  });
+  const dispute =
+    disputeState.data?.disputed && reviewTiming.data
+      ? disputeSummary({ ...disputeState.data, expiredAt: reviewTiming.data.expiredAt, now: Math.floor(now / 1000) })
+      : null;
   const refused = phase === 'working' && answer?.status === 'rejected';
-  const meta = refused ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' } : PHASE[phase];
+  const meta = refused
+    ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' }
+    : dispute
+      ? { ...PHASE[phase], needsYou: false, next: 'You disputed the delivery. The escrow policy’s voters decide whether it is rejected.' }
+      : PHASE[phase];
   const timeline = jobTimeline(job);
 
   return (
@@ -179,7 +194,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
             <p className="text-[13px] text-ink-3">
               Job <span className="t-readout">#{job.jobId}</span> · {chainLabel(job.chainId)} · hired {new Date(job.hiredAt).toLocaleString()}
             </p>
-            <PhaseLabel job={job} className="text-sm" />
+            {dispute ? <span className="text-sm font-medium text-watch">Disputed · voters deciding</span> : <PhaseLabel job={job} className="text-sm" />}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -224,7 +239,12 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
         {phase === 'review' && (
           <div className="flex flex-col gap-4">
-            {review && (
+            {dispute && (
+              <Notice tone="watch" title={dispute.title}>
+                {dispute.text}
+              </Notice>
+            )}
+            {review && !dispute && (
               <p className="flex items-start gap-2 rounded-[12px] border border-rule bg-paper px-4 py-3 text-[13px] text-ink-2">
                 <Icon.Clock size={15} className="mt-0.5 shrink-0 text-ink-3" />
                 <span>{review.text}</span>
@@ -254,7 +274,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 )}
               </li>
             </ol>
-            {owned && (
+            {owned && !dispute && (
               <div className="flex flex-col gap-3 border-t border-rule pt-4 sm:flex-row sm:items-start sm:justify-between">
                 <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || !a.reviewed || review?.open === true}>
                   {review?.open ? `Release opens ${review.closes}` : 'Release payment'}
