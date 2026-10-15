@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import type { BriefSource } from '@/lib/hire/taskTemplates';
+import { withOwnWallet, type BriefSource } from '@/lib/hire/taskTemplates';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 
@@ -31,6 +31,7 @@ export function BriefSourceNotice({
   tokenId,
   task,
   preview,
+  wallet,
   onUseExample,
 }: {
   source: BriefSource;
@@ -39,6 +40,8 @@ export function BriefSourceNotice({
   tokenId: string;
   task: string;
   preview: { name: string; description?: string | null; examples: readonly string[] } | null;
+  /** The connected wallet, put in place of an example's wallet placeholder. */
+  wallet: string | null;
   onUseExample: (example: string) => void;
 }) {
   const [running, setRunning] = useState(false);
@@ -83,7 +86,7 @@ export function BriefSourceNotice({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-ink-3">Its example:</span>
             {preview.examples.map((example) => (
-              <button key={example} type="button" onClick={() => onUseExample(example)} className="t-readout rounded-[8px] border border-rule bg-paper px-2 py-1 text-[12.5px] hover:border-rule-strong">
+              <button key={example} type="button" onClick={() => onUseExample(withOwnWallet(example, wallet))} className="t-readout rounded-[8px] border border-rule bg-paper px-2 py-1 text-[12.5px] hover:border-rule-strong">
                 {example}
               </button>
             ))}

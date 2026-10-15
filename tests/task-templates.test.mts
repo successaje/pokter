@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { briefSourceFor, commissionTaskTemplates, templatesFromSkills } from '../src/lib/hire/taskTemplates';
+import { briefSourceFor, commissionTaskTemplates, templatesFromSkills, withOwnWallet } from '../src/lib/hire/taskTemplates';
 
 /*
  * Which task a buyer is offered.
@@ -104,4 +104,11 @@ test('an operator example with figures is labelled as the operator’s, not the 
   const [template] = templatesFromSkills(stockroom);
   assert.match(template.description, /figures are the operator’s example/);
   assert.equal(briefSourceFor(stockroom), 'declared');
+});
+
+test('an example’s wallet placeholder becomes the buyer’s wallet, or is left out', () => {
+  const wallet = '0x1234567890abcdef1234567890abcdef12345678';
+  assert.equal(withOwnWallet('BNB-USDT 0xYourWallet', wallet), `BNB-USDT ${wallet}`);
+  assert.equal(withOwnWallet('BNB-USDT 0xYourWallet', null), 'BNB-USDT');
+  assert.equal(withOwnWallet(`BNB-USDT ${wallet}`, null), `BNB-USDT ${wallet}`);
 });

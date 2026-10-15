@@ -90,3 +90,9 @@ test('a free preview is kept apart from the paid job, and a placeholder is not a
   assert.deepEqual(skills[0].examples, ['BNB-USDT 0xYourWallet']);
   assert.deepEqual(examplesInDescription('{"skill": "negotiate", "task_description": "...", "terms": {}}'), []);
 });
+
+test('the preview’s description keeps what it needs and drops the payload', () => {
+  const [preview] = declaredCapabilities(ivl.skills);
+  assert.doesNotMatch(preview.description ?? '', /\{/);
+  assert.match(preview.description ?? '', /Omit the wallet to get the pair-level reading only/);
+});

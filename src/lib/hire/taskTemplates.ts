@@ -149,3 +149,12 @@ export function briefSourceFor(
   if (skills.some((s) => s.kind === 'preview')) return 'preview-only';
   return 'unknown';
 }
+
+/**
+ * An example's wallet placeholder ("0xYourWallet") becomes the buyer's own
+ * connected wallet, or is left out: a placeholder sent as written is not
+ * an address, and agents that take a wallet here treat it as optional.
+ */
+export function withOwnWallet(example: string, wallet: string | null): string {
+  return example.replace(/\s*\b0x(?:your[a-z_]*|\.{2,}|…)(?![0-9a-f])/gi, wallet ? ` ${wallet}` : '').trim();
+}

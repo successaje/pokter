@@ -69,11 +69,13 @@ export function recipeProblems(recipe: BriefRecipe, values: Record<string, strin
   const problems: string[] = [];
   for (const field of recipe.fields) {
     const value = (values[field.key] ?? '').trim();
-    if (!value) problems.push(`${field.label.toLowerCase()} is empty`);
-    else if (field.kind === 'number' && !(/^\d+(?:\.\d+)?$/.test(value) && Number(value) > 0)) problems.push(`${field.label.toLowerCase()} must be a positive number`);
-    else if (field.kind === 'symbol' && !/^[A-Za-z0-9]{2,15}$/.test(value)) problems.push(`${field.label.toLowerCase()} must be a token symbol`);
-    else if (field.kind === 'choice' && !field.options?.some((o) => o.value === value)) problems.push(`choose a ${field.label.toLowerCase()}`);
-    else if (field.kind === 'text' && (value.length < 3 || value.length > 80)) problems.push(`${field.label.toLowerCase()} must be 3 to 80 characters`);
+    // "bStock" keeps its capital; "Collateral token" reads as a phrase.
+    const name = field.label[0].toLowerCase() + field.label.slice(1);
+    if (!value) problems.push(field.kind === 'choice' ? `choose a ${name}` : `${name} is empty`);
+    else if (field.kind === 'number' && !(/^\d+(?:\.\d+)?$/.test(value) && Number(value) > 0)) problems.push(`${name} must be a positive number`);
+    else if (field.kind === 'symbol' && !/^[A-Za-z0-9]{2,15}$/.test(value)) problems.push(`${name} must be a token symbol`);
+    else if (field.kind === 'choice' && !field.options?.some((o) => o.value === value)) problems.push(`choose a ${name}`);
+    else if (field.kind === 'text' && (value.length < 3 || value.length > 80)) problems.push(`${name} must be 3 to 80 characters`);
   }
   return problems;
 }

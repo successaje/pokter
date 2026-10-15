@@ -382,6 +382,7 @@ export function HireFlow(props: HireFlowProps) {
             tokenId={props.agent.tokenId}
             task={hire.task}
             preview={hire.previewSkill}
+            wallet={hire.active.address ?? null}
             onUseExample={hire.setTask}
           />
           <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">

@@ -104,15 +104,17 @@ export function examplesInDescription(description: string): string[] {
 }
 
 /**
- * The description without the wire instructions that follow it. "Send a
- * data part {...}" is how to call the skill, which the hire flow does for
- * the buyer; the sentence before it is what the skill is for. Kept whole
- * when nothing comes before the instructions.
+ * The description without its wire instructions. Sentences holding a
+ * payload ("Send a data part {...}") or the escrow steps ("Anchor the
+ * returned envelope…") say how to call the skill, which the hire flow does
+ * for the buyer; the rest say what it is for and what it needs. Kept whole
+ * when nothing else is left.
  */
 export function readableDescription(description: string): string {
-  const cut = description.search(/\s(?:Send|Anchor|POST)\b[^.]*(?:\{|data part)/);
-  const before = cut > 0 ? description.slice(0, cut).trim() : '';
-  return before.length >= 20 ? before : description;
+  const sentences = description.split(/(?<=[.!?])\s+(?=[A-Z])/);
+  const kept = sentences.filter((sentence) => !sentence.includes('{') && !/^(?:Anchor|POST|Then send)\b/.test(sentence.trim()));
+  const readable = kept.join(' ').trim();
+  return readable.length >= 20 ? readable : description;
 }
 
 /**
