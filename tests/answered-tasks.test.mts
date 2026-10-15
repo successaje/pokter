@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { deliveryAnswered, isReusableTask, pickAnsweredTasks, stripMarketplaceTag, taskFromDescription } from '../src/lib/agent/answered-tasks';
+import { deliveryAnswered, figuresIn, isReusableTask, pickAnsweredTasks, stripMarketplaceTag, taskFromDescription } from '../src/lib/agent/answered-tasks';
 
 const manifest = (content: unknown) => JSON.stringify({ job_id: 1, response: { content: typeof content === 'string' ? content : JSON.stringify(content), content_type: 'text/plain' } });
 
@@ -41,5 +41,13 @@ test('answered tasks: newest first, distinct, answered only', () => {
     { jobId: 3, description: task('Best net yield: 1000 USDT on BNB Smart Chain, via example-market.com'), verdict: 'answered' },
     { jobId: 2, description: task('Still funded, not yet delivered'), verdict: 'pending' },
   ]);
-  assert.deepEqual(picked, ['where should 1000 usdt earn the most on BNB Chain right now', 'Best net yield: 1000 USDT on BNB Smart Chain']);
+  assert.deepEqual(picked.map((p) => p.task), ['where should 1000 usdt earn the most on BNB Chain right now', 'Best net yield: 1000 USDT on BNB Smart Chain']);
+  // Where each wording was seen, and whose figures it carries.
+  assert.deepEqual(picked.map((p) => p.jobId), [5, 3]);
+  assert.deepEqual(picked[1].figures, ['1000 USDT']);
+});
+
+test('figures are another buyer’s amounts and percentages, not every number', () => {
+  assert.deepEqual(figuresIn('Move 2.5 BNB if the APY drops below 4%, checking every 6 hours'), ['2.5 BNB', '4%']);
+  assert.deepEqual(figuresIn('Top 3 yields on BNB Chain'), []);
 });

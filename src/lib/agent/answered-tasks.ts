@@ -83,15 +83,40 @@ export function deliveryAnswered(manifestText: string): AnswerVerdict {
 }
 
 /**
+ * A wording that previously returned an output, with where it was seen.
+ *
+ * "Answered" is a heuristic: the delivery held content rather than only an
+ * error. It says the agent parsed the wording, not that the answer was
+ * right, so the job it came from travels with it.
+ */
+export interface AnsweredTask {
+  task: string;
+  jobId: number;
+  chainId: number;
+  /**
+   * Amounts in the wording ("1000 USDT", "2.5%"). They were another
+   * buyer's; the hire page says so instead of passing them off as a
+   * suggestion.
+   */
+  figures: string[];
+}
+
+/** Amounts and percentages in a brief: somebody's own numbers. */
+export function figuresIn(task: string): string[] {
+  const found = task.match(/\b\d[\d,]*(?:\.\d+)?\s*(?:%|[A-Z][A-Za-z0-9]{1,9}\b|bnb\b|usdt\b|usdc\b)/g) ?? [];
+  return [...new Set(found.map((figure) => figure.trim()))];
+}
+
+/**
  * Up to `limit` distinct answered tasks, most recent first. Tasks that
  * differ only in case, spacing or a trailing question mark count once.
  */
 export function pickAnsweredTasks(
-  jobs: Array<{ jobId: number; description: string; verdict: AnswerVerdict | null }>,
+  jobs: Array<{ jobId: number; chainId?: number; description: string; verdict: AnswerVerdict | null }>,
   limit = 3,
-): string[] {
+): AnsweredTask[] {
   const seen = new Set<string>();
-  const picked: string[] = [];
+  const picked: AnsweredTask[] = [];
   for (const job of [...jobs].sort((a, b) => b.jobId - a.jobId)) {
     if (job.verdict !== 'answered') continue;
     const task = taskFromDescription(job.description);
@@ -101,7 +126,7 @@ export function pickAnsweredTasks(
     const key = clean.toLowerCase().replace(/\s+/g, ' ').replace(/[?.!]+$/, '');
     if (seen.has(key)) continue;
     seen.add(key);
-    picked.push(clean);
+    picked.push({ task: clean, jobId: job.jobId, chainId: job.chainId ?? 56, figures: figuresIn(clean) });
     if (picked.length >= limit) break;
   }
   return picked;
