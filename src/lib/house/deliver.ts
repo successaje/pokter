@@ -1,11 +1,12 @@
 import 'server-only';
 
 import { buildSubmitCall, encodeErc8183Manifest, erc8183ManifestHash, getErc8183Job, type Erc8183DeliverableManifest } from '@altananetwork/sdk';
-import { createPublicClient, createWalletClient, getAddress, http, stringToHex, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, getAddress, stringToHex, type Address, type Hex } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { builtWithPokter } from '@/lib/brand/built-with';
+import { sendingTransport } from '@/lib/chain/transport';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableKey, readDeliverable, writeDeliverable } from '@/lib/erc8183/deliverables';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
@@ -101,8 +102,8 @@ export async function deliverHouseJob(definition: HouseAgentDefinition, chainId:
     optParams: stringToHex(JSON.stringify({ deliverable_url: deliveryUrl(chainId, jobId, hash) })),
   });
   const chain = chainId === 56 ? bsc : bscTestnet;
-  const wallet = createWalletClient({ account, chain, transport: http(network.publicRpcUrl) });
-  const read = createPublicClient({ chain, transport: http(network.publicRpcUrl) });
+  const wallet = createWalletClient({ account, chain, transport: sendingTransport(chainId) });
+  const read = createPublicClient({ chain, transport: sendingTransport(chainId) });
   const transactionHash = await wallet.sendTransaction({ to: call.to as Address, data: call.data as Hex });
   const receipt = await read.waitForTransactionReceipt({ hash: transactionHash });
   if (receipt.status !== 'success') {

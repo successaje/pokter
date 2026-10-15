@@ -8,10 +8,11 @@ import {
   getErc8004Agent,
   withErc8004Registration,
 } from '@altananetwork/sdk';
-import { createPublicClient, createWalletClient, formatEther, http, parseAbi, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, formatEther, getAddress, parseAbi, type Address, type Hex } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
+import { sendingTransport } from '@/lib/chain/transport';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getProbeStore } from '@/lib/history/store';
 import { siteOrigin } from '@/lib/evidence/origin';
@@ -44,18 +45,34 @@ export type HouseRegistration =
  * mint confirms, so an interrupted run resumes at the second step instead
  * of minting a duplicate, and a repeated call changes nothing.
  */
-export async function registerHouseAgent(definition: HouseAgentDefinition, chainId: HouseChainId): Promise<HouseRegistration> {
+export async function registerHouseAgent(definition: HouseAgentDefinition, chainId: HouseChainId, options: { recoverFromTx?: Hex } = {}): Promise<HouseRegistration> {
   const account = houseAccount(definition);
   const network = altanaNetworkFor(chainId);
   const chain = chainId === 56 ? bsc : bscTestnet;
-  const read = createPublicClient({ chain, transport: http(network.publicRpcUrl) });
-  const wallet = createWalletClient({ account, chain, transport: http(network.publicRpcUrl) });
+  const read = createPublicClient({ chain, transport: sendingTransport(chainId) });
+  const wallet = createWalletClient({ account, chain, transport: sendingTransport(chainId) });
   const registry = erc8183Addresses(chainId).registry as Address;
   const store = getJobStore();
   const file = houseRegistrationFile(definition, chainId, siteOrigin());
   const transactions: Hex[] = [];
 
   let agentIdText = store.readCursor(cursorName(definition.slug, chainId));
+  /*
+   * Recovery from a mint that confirmed while Pokter could not read its
+   * receipt: the id comes from that receipt, and only if this agent's own
+   * wallet sent it. Nothing is minted.
+   */
+  if (!agentIdText && options.recoverFromTx) {
+    const receipt = await read.getTransactionReceipt({ hash: options.recoverFromTx });
+    const sent = await read.getTransaction({ hash: options.recoverFromTx });
+    if (receipt.status !== 'success' || getAddress(sent.from) !== account.address) {
+      throw new Error('That transaction is not a successful registration sent by this agent’s wallet.');
+    }
+    const minted = registeredAgentIdFromReceipt(receipt, registry, account.address);
+    if (minted === undefined) throw new Error('That transaction’s receipt carries no registration for this agent.');
+    agentIdText = minted.toString();
+    store.writeCursor(cursorName(definition.slug, chainId), agentIdText);
+  }
   if (!agentIdText) {
     const owned = await read.readContract({ address: registry, abi: parseAbi(['function balanceOf(address) view returns (uint256)']), functionName: 'balanceOf', args: [account.address] });
     if (owned > 0n) {
