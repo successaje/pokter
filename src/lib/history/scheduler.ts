@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { Agent } from 'undici';
+
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getProbeStore } from '@/lib/history/store';
 import { staleAlertDue, sweepDue } from '@/lib/history/schedule';
@@ -7,6 +9,15 @@ import { staleAlertDue, sweepDue } from '@/lib/history/schedule';
 const TICK_MS = 10 * 60 * 1000;
 /** A sweep takes a few minutes; the route's own budget is longer. */
 const SWEEP_TIMEOUT_MS = 15 * 60 * 1000;
+
+/*
+ * The route answers only when the sweep and everything after it is done,
+ * which took just over five minutes on 15 October. Node's fetch gives up
+ * on a response whose headers take more than 300 seconds, so the first
+ * scheduled sweep finished and was recorded while the scheduler logged
+ * "fetch failed". Its own dispatcher waits as long as the abort signal.
+ */
+const patient = new Agent({ headersTimeout: SWEEP_TIMEOUT_MS, bodyTimeout: SWEEP_TIMEOUT_MS });
 
 let started = false;
 let inFlight = false;
@@ -59,7 +70,8 @@ export function startSweepScheduler(): void {
         method: 'POST',
         headers: { authorization: `Bearer ${process.env.SWEEP_SECRET}` },
         signal: AbortSignal.timeout(SWEEP_TIMEOUT_MS),
-      });
+        dispatcher: patient,
+      } as RequestInit);
       const body = (await response.json().catch(() => ({}))) as { probes?: number; skipped?: string; error?: string };
       console.log(`[sweep-scheduler] ${response.status} ${body.skipped ? `skipped (${body.skipped})` : body.error ?? `${body.probes ?? 0} probes`}`);
     } catch (error) {
