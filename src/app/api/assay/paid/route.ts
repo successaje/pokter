@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { STATIC_SUITES, type StaticAssayCategory } from '@/lib/assay/category-suites';
-import { checkBrief, fixtureJobsBySuite } from '@/lib/assay/paid-brief';
-import { gradePaidCategoryCheck } from '@/lib/assay/paid-run';
+import { checkBrief, hfCheckBrief } from '@/lib/assay/paid-brief';
+import { fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck } from '@/lib/assay/paid-run';
+import { HF_SUITE_ID } from '@/lib/assay/health-factor';
+import { currentSample } from '@/lib/assay/run';
 import { hireAgent } from '@/lib/erc8183/hire';
-import { getJobStore } from '@/lib/erc8183/store';
+import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -46,12 +48,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   };
 
   const agentKey = typeof body.agent === 'string' ? body.agent : '';
-  const category = body.category as StaticAssayCategory;
+  const category = body.category as StaticAssayCategory | 'health-factor';
   if (!/^\d{1,10}:\d{1,12}$/.test(agentKey)) {
     return NextResponse.json({ error: 'agent must be "<chainId>:<tokenId>".' }, { status: 400 });
   }
-  if (typeof category !== 'string' || !(category in STATIC_SUITES)) {
-    return NextResponse.json({ error: `category must be one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
+  if (typeof category !== 'string' || !(category === 'health-factor' || category in STATIC_SUITES)) {
+    return NextResponse.json({ error: `category must be health-factor or one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
   }
   const budgetU = typeof body.budgetU === 'number' && body.budgetU > 0 && body.budgetU <= 5 ? body.budgetU : 0.1;
   const apply = body.apply === true;
@@ -66,7 +68,22 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const [chainText, tokenId] = agentKey.split(':');
   const chainId = Number(chainText);
-  const suite = STATIC_SUITES[category];
+  const live = category === 'health-factor';
+  /*
+   * A health-factor fixture is a real Venus borrower, drawn from the same
+   * weekly sample the free check uses so both ask about the same positions.
+   * The static suites carry their scenarios with them.
+   */
+  const scenarios = live
+    ? (await currentSample().catch(() => [])).map((account) => ({ id: account.toLowerCase(), task: hfCheckBrief(account)?.task ?? null }))
+    : STATIC_SUITES[category].scenarios.map((scenario) => ({ id: scenario.id, task: checkBrief(category as StaticAssayCategory, scenario.id)?.task ?? null }));
+  const suite = live
+    ? { id: HF_SUITE_ID, label: 'Health factor check', scenarios: scenarios.length }
+    : { id: STATIC_SUITES[category].id, label: STATIC_SUITES[category].label, scenarios: scenarios.length };
+
+  if (scenarios.length === 0) {
+    return NextResponse.json({ error: 'No fixtures to hire: Venus borrowers could not be sampled.' }, { status: 503 });
+  }
 
   const agent = await getAgent(chainId as ChainId, tokenId).catch(() => null);
   if (!agent) return NextResponse.json({ error: `Could not read agent ${agentKey} from the registry.` }, { status: 404 });
@@ -75,16 +92,31 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!provider) return NextResponse.json({ error: 'The agent publishes no wallet an escrow could pay.' }, { status: 400 });
 
   // What is already hired, so a re-run tops up rather than paying twice.
-  const already = fixtureJobsBySuite(getJobStore().byAgent(chainId, tokenId), suite.id);
-  const todo = suite.scenarios.filter((scenario) => !already.has(scenario.id));
+  const already = fixtureJobsForAgent({ chainId, tokenId }, suite.id);
+  const todo = scenarios.filter((scenario) => !already.has(scenario.id));
 
   const funded: Array<{ scenario: string; jobId?: string; error?: string }> = [];
   if (apply) {
     for (const scenario of todo) {
-      const built = checkBrief(category, scenario.id);
-      if (!built) continue;
+      if (!scenario.task) continue;
       try {
-        const job = await hireAgent({ agentTokenId: tokenId, agentName: agent.name ?? agentKey, provider, task: built.task, budgetU });
+        /*
+         * The envelope goes on chain; the fixture stays the task. A raw
+         * brief written as the description is not a `pokter-job` envelope,
+         * so `jobIdentity` does not recognise it — by design, so another
+         * marketplace's jobs cannot be counted as Pokter hires — and the
+         * job can never be indexed, noticed or delivered. Two fixtures
+         * were funded that way and could not complete.
+         */
+        const description = encodePokterJobEnvelope({
+          identityChainId: chainId,
+          agentTokenId: tokenId,
+          agentName: agent.name ?? undefined,
+          category,
+          provider,
+          task: scenario.task,
+        });
+        const job = await hireAgent({ agentTokenId: tokenId, agentChainId: chainId, agentName: agent.name ?? agentKey, provider, task: scenario.task, description, budgetU });
         funded.push({ scenario: scenario.id, jobId: job.jobId });
       } catch (error) {
         funded.push({ scenario: scenario.id, error: (error as Error).message });
@@ -97,12 +129,14 @@ export async function POST(request: Request): Promise<NextResponse> {
    * delivered. Jobs funded in this request will not have delivered yet; the
    * sweep picks them up.
    */
-  const outcome = gradePaidCategoryCheck({ chainId, tokenId }, category);
+  const outcome = live
+    ? await gradePaidHealthFactorCheck({ chainId, tokenId })
+    : gradePaidCategoryCheck({ chainId, tokenId }, category as StaticAssayCategory);
 
   return NextResponse.json({
     agent: agentKey,
     name: agent.name,
-    suite: { id: suite.id, label: suite.label, scenarios: suite.scenarios.length },
+    suite,
     escrowChainId: ALTANA_NETWORK.chainId,
     mode: apply ? 'applied' : 'dry-run',
     alreadyHired: [...already.entries()].map(([scenario, job]) => ({ scenario, jobId: job.jobId, status: job.status })),

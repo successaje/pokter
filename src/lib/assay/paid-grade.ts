@@ -70,16 +70,26 @@ export function scenarioOf(category: StaticAssayCategory, scenarioId: string): S
 /**
  * One scenario's result, from the job that paid for it.
  *
- * `delivered` absent means the job was funded and never delivered, which is
- * a failure of the check and not an absence of evidence: the buyer paid and
- * got nothing. It is recorded as `undelivered` rather than `wrong`, because
- * a reader deciding whether to hire the agent needs to know which happened.
+ * No manifest means one of two different things, and conflating them
+ * publishes a failure the agent has not earned:
+ *
+ *  - `pending`: the job is funded and its deadline has not passed, so the
+ *    agent may still deliver. Not gradeable, and the runner leaves it out
+ *    of the score rather than counting it against anybody. The first run
+ *    of this check recorded "0 of 2" against an agent whose fixtures had
+ *    been funded forty seconds earlier.
+ *  - `undelivered`: the window closed with nothing submitted. That is a
+ *    real failure — the buyer paid and got nothing — and it is kept
+ *    distinct from `wrong`, because a reader deciding whether to hire
+ *    needs to know which happened.
  */
 export function gradePaidScenario(input: {
   scenario: StaticScenario;
   jobId: string;
-  /** The stored manifest, or null when the job never delivered one. */
+  /** The stored manifest, or null when the job has delivered nothing. */
   manifestText: string | null;
+  /** Whether the job can still deliver: funded, and not past its deadline. */
+  deliveryOpen?: boolean;
   latencyMs?: number | null;
 }): AssayScenarioResult {
   const base = {
@@ -90,7 +100,9 @@ export function gradePaidScenario(input: {
   };
 
   if (input.manifestText === null) {
-    return { ...base, observed: null, excerpt: null, pass: false, outcome: 'undelivered', reason: 'The job was funded and no deliverable was submitted.' };
+    return input.deliveryOpen
+      ? { ...base, observed: null, excerpt: null, pass: false, outcome: 'pending', reason: 'The job is funded and its deadline has not passed; the agent may still deliver.' }
+      : { ...base, observed: null, excerpt: null, pass: false, outcome: 'undelivered', reason: 'The job was funded and its window closed with no deliverable submitted.' };
   }
 
   const answer = answerFromManifest(input.manifestText);

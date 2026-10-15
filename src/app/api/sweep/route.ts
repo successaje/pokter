@@ -17,7 +17,7 @@ import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
-import { gradeDuePaidChecks } from '@/lib/assay/paid-run';
+import { gradeDuePaidChecks, gradeDuePaidHfChecks } from '@/lib/assay/paid-run';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
@@ -282,6 +282,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         return null;
       }
     })();
+    // Health factor fixtures read Venus, so they are graded separately and
+    // caught: a slow or failing RPC must not cost the measurements above.
+    const paidHfChecks = await gradeDuePaidHfChecks().catch(() => null);
 
     /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
@@ -360,6 +363,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       healthFactorChecks,
       categoryChecks,
       paidChecks,
+      paidHfChecks,
       questIndex,
       answeredTasks,
       reconciled,

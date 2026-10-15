@@ -28,9 +28,32 @@ import type { HiredJob, JobStatusName } from './types';
 
 export interface HireInput {
   agentTokenId: string;
+  /**
+   * The agent's ERC-8004 registry chain, when the caller knows it.
+   *
+   * Left unset the row stores NULL, and `byAgent` reads NULL as "chain 56"
+   * for the legacy rows written before the column existed — so a hire of a
+   * chain-97 agent became unfindable by its own identity. Never defaulted
+   * to the escrow chain: a mainnet-registered agent is hired on testnet
+   * whenever its price cannot settle on 56, and that would file it under
+   * the wrong registry.
+   */
+  agentChainId?: number;
   agentName: string;
   provider: Address;
   task: string;
+  /**
+   * What goes on chain as the job description, when it differs from `task`.
+   *
+   * The two were one field, so the brief was written to chain raw. A
+   * description that is not a `pokter-job` envelope is not recognised by
+   * `jobIdentity` — deliberately, so another marketplace's jobs cannot be
+   * counted as Pokter hires — so such a job can never be indexed, noticed
+   * or delivered. Two fixture hires were funded that way and could not
+   * complete. The envelope belongs on chain; `task` stays the brief the
+   * store keeps and the agent is asked.
+   */
+  description?: string;
   /** Budget in whole $U, e.g. 0.1. */
   budgetU: number;
   /** Submission time beyond the policy's dispute window. */
@@ -166,7 +189,7 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     addresses,
     jobId,
     provider: input.provider,
-    description: input.task,
+    description: input.description ?? input.task,
     budget,
     expiredAt,
   });
@@ -189,6 +212,7 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     task: input.task,
     budgetRaw: budget.toString(),
     expiredAt: new Date(Number(expiredAt) * 1000).toISOString(),
+    ...(input.agentChainId === undefined ? {} : { agentChainId: input.agentChainId }),
     hiredAt: new Date().toISOString(),
     hireTxHash: result.transactionHash ?? null,
     status: 'FUNDED',

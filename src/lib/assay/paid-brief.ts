@@ -1,5 +1,7 @@
 import type { HiredJob } from '@/lib/erc8183/types';
 
+import { HF_SUITE_ID, hfBrief } from './health-factor';
+
 import { STATIC_SUITES, type StaticAssayCategory } from './category-suites';
 
 /**
@@ -106,4 +108,32 @@ export function fixtureJobsBySuite(jobs: readonly HiredJob[], suiteId: string): 
 export function categoryOfSuite(suiteId: string): StaticAssayCategory | null {
   const found = (Object.keys(STATIC_SUITES) as StaticAssayCategory[]).find((category) => STATIC_SUITES[category].id === suiteId);
   return found ?? null;
+}
+
+/**
+ * A health-factor fixture brief, for a paid hire.
+ *
+ * The scenario id is the account, as in the free suite: a health-factor
+ * agent is asked about one real Venus borrower at a time, and the account
+ * is what distinguishes one scenario from another.
+ *
+ * The position is deliberately not attached. Brinkwatch and every other
+ * agent in this category read the chain themselves, so a fixture that
+ * supplied the rows would be checking arithmetic the agent never performs
+ * — the mismatch that makes the static suites useless here. This asks the
+ * declared service the question it declares it answers.
+ */
+export function hfCheckBrief(account: string): { task: string; marker: CheckMarker } | null {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(account)) return null;
+  const brief = hfBrief(account);
+  const marker: CheckMarker = { suite: HF_SUITE_ID, scenario: account.toLowerCase() };
+  return {
+    task: JSON.stringify({
+      task: brief.text,
+      data: brief.data,
+      requested_by: 'Pokter correctness check',
+      [CHECK_KEY]: marker,
+    }),
+    marker,
+  };
 }

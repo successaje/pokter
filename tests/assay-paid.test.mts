@@ -87,7 +87,7 @@ test('a wrong answer fails as wrong, and an undelivered job fails as undelivered
   const missing = gradePaidScenario({ scenario, jobId: '2', manifestText: null });
   assert.equal(missing.pass, false);
   assert.equal(missing.outcome, 'undelivered');
-  assert.match(missing.reason, /no deliverable was submitted/);
+  assert.match(missing.reason, /window closed with no deliverable submitted/);
 });
 
 const hiredJob = (jobId: string, task: string, hiredAt: string) =>
@@ -124,4 +124,22 @@ test('no fixture jobs means no fixtures found, not a failing check', () => {
   // while any scenario is unhired; this is the input that tells it so.
   const jobs = [hiredJob('1', JSON.stringify({ task: 'a real brief' }), '2026-10-01T00:00:00Z')];
   assert.equal(fixtureJobsBySuite(jobs, STATIC_SUITES.yield.id).size, 0);
+});
+
+test('a funded fixture inside its window is pending, not undelivered', () => {
+  /*
+   * The first real run of this check recorded "0 of 2" against an agent
+   * whose fixtures had been funded forty seconds earlier. Funded-and-waiting
+   * and funded-and-never-delivered are different facts about the agent.
+   */
+  const scenario = scenarioOf('yield', STATIC_SUITES.yield.scenarios[0].id)!;
+
+  const pending = gradePaidScenario({ scenario, jobId: '1460', manifestText: null, deliveryOpen: true });
+  assert.equal(pending.outcome, 'pending');
+  assert.equal(pending.pass, false);
+  assert.match(pending.reason, /may still deliver/);
+
+  const closed = gradePaidScenario({ scenario, jobId: '1461', manifestText: null, deliveryOpen: false });
+  assert.equal(closed.outcome, 'undelivered');
+  assert.match(closed.reason, /window closed/);
 });
