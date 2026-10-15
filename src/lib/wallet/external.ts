@@ -548,6 +548,28 @@ export async function readDisputeWindow(chainId: number): Promise<number> {
   return Number(window);
 }
 
+const JOB_TIMING_ABI = [{ name: 'getJob', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'tuple', components: [
+  { name: 'id', type: 'uint256' }, { name: 'client', type: 'address' }, { name: 'provider', type: 'address' }, { name: 'evaluator', type: 'address' }, { name: 'description', type: 'string' }, { name: 'budget', type: 'uint256' }, { name: 'expiredAt', type: 'uint256' }, { name: 'status', type: 'uint8' }, { name: 'hook', type: 'address' }, { name: 'submittedAt', type: 'uint256' }, { name: 'deliverable', type: 'bytes32' }] }] }] as const;
+
+/**
+ * When a delivered job was submitted, when it expires, and its policy's
+ * dispute window: what the job page needs to say when the review window
+ * closes. Public RPC only, so it reads before any wallet is connected.
+ */
+export async function readReviewTiming(chainId: number, jobId: bigint): Promise<{ submittedAt: number; expiredAt: number; disputeWindowSeconds: number }> {
+  const network = walletNetworkFor(chainId);
+  const read = createPublicClient({
+    chain: network as never,
+    transport: fallback(browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url))),
+  });
+  const addresses = correctedErc8183Addresses(chainId);
+  const [job, disputeWindowSeconds] = await Promise.all([
+    read.readContract({ address: addresses.commerce as Address, abi: JOB_TIMING_ABI, functionName: 'getJob', args: [jobId] }),
+    readDisputeWindow(chainId),
+  ]);
+  return { submittedAt: Number(job.submittedAt), expiredAt: Number(job.expiredAt), disputeWindowSeconds };
+}
+
 export async function hireFromExternalWallet(input: ExternalHireInput): Promise<ExternalHireResult> {
   const chainId = input.escrowChainId ?? WALLET_NETWORK.chainId;
   const { wallet, read } = clients(chainId);

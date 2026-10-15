@@ -129,7 +129,7 @@ export function jobPhase(job: HiredJob, now = Date.now()): JobPhase {
 export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'info' | 'bad' | 'none'; needsYou: boolean; next: string }> = {
   unfunded: { label: 'Not funded', tone: 'none', needsYou: false, next: 'This job was created but never funded. Nothing is held.' },
   working: { label: 'In progress', tone: 'info', needsYou: false, next: 'Escrow is funded. Waiting for the agent to deliver.' },
-  review: { label: 'Delivered · review it', tone: 'watch', needsYou: true, next: 'The agent delivered. Check the file, then release payment or dispute it within the window.' },
+  review: { label: 'Delivered · review it', tone: 'watch', needsYou: true, next: 'The agent delivered. Check the file now: you can dispute it until the review window closes, and the payment is released after it.' },
   reclaim: { label: 'Not delivered · reclaim', tone: 'watch', needsYou: true, next: 'The deadline passed with nothing delivered. Your escrow can be reclaimed.' },
   settled: { label: 'Settled', tone: 'ok', needsYou: false, next: 'Payment was released to the agent.' },
   disputed: { label: 'Disputed', tone: 'bad', needsYou: false, next: 'You contested the delivery. The policy’s voters decide whether the escrow is refunded.' },

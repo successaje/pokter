@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
+import { reviewWindowSummary } from '@/lib/erc8183/settle-window';
+import { readReviewTiming } from '@/lib/wallet/external';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { supportMailto } from '@/lib/support/contact';
 import { cn } from '@/lib/ui/cn';
@@ -19,7 +21,7 @@ import { Address, Details, TxLink } from '@/ui/Data';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
-import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
+import { jobPhase, PHASE, STATUS_NAME, useMyJobs, useNow } from './hooks';
 import { budgetOf, PhaseLabel } from './parts';
 import { ReviewForm } from './ReviewForm';
 import { JobEmailAlert } from './JobEmailAlert';
@@ -148,6 +150,19 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const job = a.job;
   const phase = jobPhase(job);
   const answer = useSellerAnswer(job, phase === 'working');
+  /*
+   * When the review window closes, read from the escrow: the policy's
+   * window after the seller's submission. 15 minutes on testnet, 7 days on
+   * mainnet, and the one date a buyer of a delivered job needs.
+   */
+  const reviewTiming = useQuery({
+    queryKey: ['review-timing', job.chainId, job.jobId],
+    queryFn: () => readReviewTiming(job.chainId, BigInt(job.jobId)),
+    enabled: phase === 'review',
+    staleTime: 60_000,
+  });
+  const now = useNow();
+  const review = reviewTiming.data && reviewTiming.data.submittedAt > 0 ? reviewWindowSummary({ ...reviewTiming.data, now: Math.floor(now / 1000) }) : null;
   const refused = phase === 'working' && answer?.status === 'rejected';
   const meta = refused ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' } : PHASE[phase];
   const timeline = jobTimeline(job);
@@ -209,6 +224,12 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
         {phase === 'review' && (
           <div className="flex flex-col gap-4">
+            {review && (
+              <p className="flex items-start gap-2 rounded-[12px] border border-rule bg-paper px-4 py-3 text-[13px] text-ink-2">
+                <Icon.Clock size={15} className="mt-0.5 shrink-0 text-ink-3" />
+                <span>{review.text}</span>
+              </p>
+            )}
             <ol className="flex flex-col gap-3">
               <li className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
                 <span className="flex items-center gap-3 text-sm">
@@ -235,8 +256,8 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
             </ol>
             {owned && (
               <div className="flex flex-col gap-3 border-t border-rule pt-4 sm:flex-row sm:items-start sm:justify-between">
-                <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || !a.reviewed}>
-                  Release payment
+                <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || !a.reviewed || review?.open === true}>
+                  {review?.open ? `Release opens ${review.closes}` : 'Release payment'}
                 </Button>
                 <div className="flex flex-col gap-2 sm:items-end">
                   <Checkbox checked={a.disputeConfirmed} onChange={(e) => a.setDisputeConfirmed(e.target.checked)} label="It did not deliver what I asked" />
@@ -247,7 +268,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
               </div>
             )}
             <p className="text-[12.5px] text-ink-3">
-              Under the escrow&rsquo;s optimistic policy, if you do nothing before the review window closes, payment is released to the agent anyway — and until it closes, the escrow will not let you release it early. A dispute is decided by the policy&rsquo;s voters, and can only be opened while the window is open.
+              Under the escrow&rsquo;s optimistic policy, doing nothing accepts the delivery: once the review window closes, the payment can be released to the agent. A dispute can only be opened while the window is open, and is decided by the policy&rsquo;s voters.
             </p>
           </div>
         )}
