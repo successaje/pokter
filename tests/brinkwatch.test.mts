@@ -53,3 +53,27 @@ test('dust in a volatile asset does not make the reading approximate', () => {
   const report = full(brinkwatchReport({ ...base, healthFactor: 1.99, collateral: { XRP: { amount: 274_588, liqThreshold: 0.65 } }, debt: { USDT: 88_690, USDC: 35_312, BTC: 6.93 } }));
   assert.match(report.liquidation.assumption, /stablecoins/);
 });
+
+test('the report answers the exact shape its brief asks for', () => {
+  /*
+   * The brief says: Reply with JSON only: {"health_factor": number or null
+   * when there is no debt, "liquidatable": boolean}. The report returned
+   * `status` and no `liquidatable`, so a caller reading the promised shape
+   * found the field missing — and the first paid correctness check passed
+   * only because the judge treats an unstated liquidation as not
+   * contradicting Venus.
+   */
+  const safe = brinkwatchReport({ ...base, healthFactor: 2.0686, collateral: { BNB: { amount: 10_000, liqThreshold: 0.8 } }, debt: { USDT: 3_867 } });
+  assert.equal(safe.liquidatable, false);
+  assert.equal(typeof safe.health_factor, 'number');
+
+  // Venus's own shortfall, not a re-derivation from the health factor here.
+  const under = brinkwatchReport({ ...base, liquidatable: true, healthFactor: 0.94, collateral: { BNB: { amount: 10_000, liqThreshold: 0.8 } }, debt: { USDT: 8_500 } });
+  assert.equal(under.liquidatable, true);
+  assert.equal(under.status, 'liquidatable');
+
+  // A position with no debt cannot be liquidated, and still says so.
+  const none = brinkwatchReport({ ...base, healthFactor: null, collateral: {}, debt: {} });
+  assert.equal(none.liquidatable, false);
+  assert.equal(none.health_factor, null);
+});

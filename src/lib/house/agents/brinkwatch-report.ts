@@ -56,6 +56,21 @@ export function brinkwatchReport(input: BrinkwatchInput) {
     as_of: { block: input.block, time: input.blockTime },
     status,
     health_factor: input.healthFactor === null ? null : round(input.healthFactor, 4),
+    /*
+     * Asked for by name and not answered.
+     *
+     * Brinkwatch's brief says "Reply with JSON only: {"health_factor":
+     * number or null when there is no debt, "liquidatable": boolean}", and
+     * the report returned `status` instead — "comfortable", "at-risk" — so
+     * a caller reading the shape it was promised found the field missing.
+     * The first paid correctness check passed it only because the judge
+     * treats an unstated liquidation as not contradicting Venus.
+     *
+     * Taken from Venus's own shortfall rather than derived from the health
+     * factor here: the protocol's answer to "can this be liquidated now"
+     * is the one that matters, and `status` is Pokter's banding of it.
+     */
+    liquidatable: input.liquidatable,
     borrow_limit_used: input.borrowLimitRatio === null || input.borrowLimitRatio === 0 ? null : round(1 / input.borrowLimitRatio, 4),
     collateral_usd: round(collateralUsd),
     debt_usd: round(D),
