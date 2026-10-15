@@ -7,6 +7,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
+import { jsonRpcEndpoint } from '@/lib/a2a/card';
 
 export interface CourierResult {
   answer: AgentAnswer;
@@ -49,8 +50,10 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
 
   const card = await readAgentCard(endpoint);
   const skill = pickWorkSkill(card?.skills);
-  if (!skill || typeof card?.url !== 'string') throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
-  return { ...target, name: agent.name ?? null, serviceUrl: card.url, skill };
+  const serviceUrl = jsonRpcEndpoint(card);
+  if (!skill) throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
+  if (!serviceUrl) throw new NotAskableError('The agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls.');
+  return { ...target, name: agent.name ?? null, serviceUrl, skill };
 }
 
 /**

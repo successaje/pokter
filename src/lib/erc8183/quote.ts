@@ -7,6 +7,7 @@ import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
 import { readA2AReply } from '@/lib/a2a/reply';
 import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
+import { jsonRpcEndpoint } from '@/lib/a2a/card';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -158,10 +159,13 @@ export async function requestQuote(
 
     const skills = Array.isArray(card?.skills) ? card.skills : [];
     const negotiateSkill = negotiationSkillOf(skills);
-    if (!negotiateSkill || typeof card?.url !== 'string') return fail(quoteFailure(card ? 'no-price-skill' : 'no-endpoint'));
+    if (!negotiateSkill) return fail(quoteFailure(card ? 'no-price-skill' : 'no-endpoint'));
+    // The card's JSON-RPC interface, in either card format (see `jsonRpcEndpoint`).
+    const serviceUrl = jsonRpcEndpoint(card);
+    if (!serviceUrl) return fail(quoteFailure('no-endpoint', { detail: 'no HTTPS JSON-RPC interface on its card' }));
 
     const rpcId = crypto.randomUUID();
-    const payload = await withPublicEndpoint(card.url, async (service) => {
+    const payload = await withPublicEndpoint(serviceUrl, async (service) => {
       const response = await service.fetch({
         method: 'POST',
         headers: {

@@ -3,6 +3,7 @@ import 'server-only';
 import { a2aCardFallback } from '@/lib/proof/card-access';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { declaredCapabilities, type DeclaredSkill } from './capabilities';
+import { isAgentCard } from '@/lib/a2a/card';
 
 /**
  * Reads an agent's own Agent Card and returns the capabilities it advertises.
@@ -26,13 +27,9 @@ import { declaredCapabilities, type DeclaredSkill } from './capabilities';
  * completes in under one — so 2.5s accepts the ones that work and gives up
  * quickly on the ones that do not.
  */
+/** A card in either format: a top-level url, or supportedInterfaces (see `a2aInterfaces`). */
 function isCard(body: unknown): body is Record<string, unknown> {
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    Array.isArray((body as Record<string, unknown>).skills) &&
-    typeof (body as Record<string, unknown>).url === 'string'
-  );
+  return isAgentCard(body);
 }
 
 async function fetchJson(url: string, timeoutMs: number): Promise<{ status: number; body: unknown }> {

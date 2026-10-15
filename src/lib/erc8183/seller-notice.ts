@@ -8,6 +8,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readA2AReply } from '@/lib/a2a/reply';
+import { jsonRpcEndpoint } from '@/lib/a2a/card';
 
 export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
 
@@ -34,12 +35,12 @@ async function askSeller(input: {
   if (!cardEndpoint) return { status: 'unreachable', reason: 'The provider publishes no A2A agent card.', deliverableUrl: null };
   const card = await readAgentCard(cardEndpoint);
   const skills = Array.isArray(card?.skills) ? card.skills : [];
-  if (!skills.some((skill) => object(skill)?.id === 'notify_funded') || typeof card?.url !== 'string') {
+  if (!skills.some((skill) => object(skill)?.id === 'notify_funded') || !jsonRpcEndpoint(card)) {
     return { status: 'unreachable', reason: 'The provider does not publish notify_funded, so it has to find the job on chain itself.', deliverableUrl: null };
   }
 
   const rpcId = crypto.randomUUID();
-  const reply = await withPublicEndpoint(card.url, async (service) => {
+  const reply = await withPublicEndpoint(jsonRpcEndpoint(card) as string, async (service) => {
     const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },

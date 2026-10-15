@@ -5,6 +5,7 @@ import { interpretTrialResponse, selectTrialCapability } from '@/lib/builder/tri
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { jsonRpcEndpoint } from '@/lib/a2a/card';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -89,12 +90,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     let capability: string | null = null;
     if (protocol === 'a2a') {
       const card = await readAgentCard(endpoint);
-      if (typeof card?.url !== 'string') throw new Error('Agent Card publishes no service URL.');
+      const callable = jsonRpcEndpoint(card);
+      if (!callable) throw new Error('Agent Card publishes no HTTPS JSON-RPC interface, which is the one Pokter calls.');
       const published = Array.isArray(card.skills)
         ? card.skills.map((skill) => object(skill)?.id ?? object(skill)?.name).filter((value): value is string => typeof value === 'string')
         : [];
       capability = selectTrialCapability(published);
-      target = card.url;
+      target = callable;
     } else {
       const tools = await withPublicEndpoint(endpoint, async (handle) => {
         const response = await mcpFetch(handle, { jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/list', params: {} });
