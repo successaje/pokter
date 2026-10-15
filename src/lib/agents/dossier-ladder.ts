@@ -26,7 +26,7 @@ export interface DossierLadder {
  * diverge the usual way: the page derived the ladder inline, and an API
  * deriving it again would drift the first time either changed.
  */
-export function dossierLadder(d: AgentDossier, escrowChain: number): DossierLadder {
+export function dossierLadder(d: AgentDossier, escrowChain: number, { liveAnswered }: { liveAnswered?: boolean } = {}): DossierLadder {
   const { agent, category, record } = d;
   const escrowOptions = escrowOptionsForHire(d.quote?.currency);
   const payable = d.quote ? quotePayableWith(d.quote.currency, correctedErc8183Addresses(escrowChain).paymentToken) : null;
@@ -39,7 +39,7 @@ export function dossierLadder(d: AgentDossier, escrowChain: number): DossierLadd
     registered: true,
     reachable: record.totalAnswered > 0,
     // Priced means a signed price an escrow can pay, not merely no unpayable one.
-    compatible: record.totalAnswered > 0 && escrowOptions.length > 0 && d.quote != null && payable === true,
+    compatible: (record.totalAnswered > 0 || (record.totalProbes === 0 && liveAnswered === true)) && escrowOptions.length > 0 && d.quote != null && payable === true,
     tested: Boolean(categoryCheck?.run && categoryCheck.run.status === 'checked' && categoryCheck.run.total > 0 && categoryCheck.run.passed === categoryCheck.run.total),
     hired: history.jobs > 0,
     delivered: history.selfDelivered > 0,
@@ -47,6 +47,7 @@ export function dossierLadder(d: AgentDossier, escrowChain: number): DossierLadd
     outsideTeam: history.outsideTeam,
     probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
     observedDays: record.observedDays,
+    liveAnswered,
   });
   return { maturity, payable, history, categoryCheck };
 }

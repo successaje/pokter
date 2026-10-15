@@ -88,6 +88,8 @@ export interface ProbeStore {
   enroll(agents: { chainId: number; tokenId: string }[]): void;
   /** Agents asked to be measured, whether or not they have been yet. */
   enrolledAgents(): { chainId: number; tokenId: string }[];
+  /** Agents that have signed a price for Pokter: offered for sale, so measured. */
+  quotedAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
   /** Aggregate counts for the ecosystem panel. */
   /**
@@ -434,6 +436,13 @@ class SqliteProbeStore implements ProbeStore {
       this.db.exec('ROLLBACK');
       throw error;
     }
+  }
+
+  quotedAgents(): { chainId: number; tokenId: string }[] {
+    const rows = this.db
+      .prepare('SELECT DISTINCT chain_id, token_id FROM quotes')
+      .all() as unknown as { chain_id: number; token_id: string }[];
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
   }
 
   enrolledAgents(): { chainId: number; tokenId: string }[] {

@@ -379,6 +379,20 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <p className="text-[14px] font-medium">{p.verdict.meaning}</p>
                 <p className="text-[13.5px] leading-relaxed text-ink-2">{p.verdict.rationale}</p>
               </div>
+              <div className="flex flex-col gap-3">
+                <span className="t-label">Observed, one fact at a time</span>
+                <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-2">
+                  {p.readiness.map((row) => (
+                    <div key={row.id} className="flex flex-col gap-1 bg-raised px-4 py-3">
+                      <dt className="text-[12px] text-ink-3">{row.label}</dt>
+                      <dd className="flex flex-col gap-0.5">
+                        <span className={`text-[14px] font-medium ${row.tone === 'ok' ? 'text-ok' : row.tone === 'bad' ? 'text-bad' : 'text-ink'}`}>{row.value}</span>
+                        <span className="text-[12.5px] leading-snug text-ink-3">{row.detail}</span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
               <ClaimVsObserved p={p} />
               {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} />}
               <div className="flex flex-col gap-3">
@@ -389,12 +403,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 {p.record.totalProbes > 0 ? (
                   <ProbeStrip cells={p.record.cells} className="h-10 [&>span]:w-full [&>span]:flex-1" label="Daily answer rate, last 30 days" />
                 ) : (
-                  <p className="text-[13px] text-ink-3">Not probed yet. New agents enter the schedule within a day of being listed.</p>
+                  <p className="text-[13px] text-ink-3">No scheduled checks yet. An agent enters the schedule once it is listed, enrolled, has signed a price or has been hired.</p>
                 )}
                 <div className="grid grid-cols-2 gap-4 pt-2 sm:grid-cols-4">
                   <Readout label="Answered" value={`${p.record.totalAnswered}/${p.record.totalProbes}`} />
                   <Readout label="Watched for" value={`${Math.round(p.record.observedDays)} d`} />
-                  <Readout label="Median reply" value={p.live.medianMs ? formatMs(p.live.medianMs) : '—'} muted={!p.live.medianMs} />
+                  <Readout label="Reply just now" value={p.live.medianMs ? formatMs(p.live.medianMs) : '—'} muted={!p.live.medianMs} />
                   <Readout label="Longest outage" value={p.record.longestOutage ? `${Math.max(1, Math.round((Date.parse(p.record.longestOutage.to) - Date.parse(p.record.longestOutage.from)) / 3_600_000))} h` : 'None'} muted={!p.record.longestOutage} />
                 </div>
               </div>

@@ -32,6 +32,13 @@ export interface MaturityFacts {
   deliveredByOperator: boolean;
   outsideTeam: OutsideTeamHistory;
   probeRate: number | null;
+  /**
+   * Answered the live check made when its page loaded. Counts for
+   * "Answers" when no scheduled check has run: an agent that answered a
+   * moment ago was being described as one that "has not answered Pokter's
+   * checks", when none had been made.
+   */
+  liveAnswered?: boolean;
   observedDays: number;
 }
 
@@ -99,7 +106,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
     (facts.probeRate ?? 0) >= RELIABLE_MIN_RATE;
 
   const earned: Record<MaturityId, boolean> = {
-    answers: facts.reachable,
+    answers: facts.reachable || (facts.probeRate === null && facts.liveAnswered === true),
     priced: facts.compatible,
     delivered: facts.delivered,
     checked: facts.tested,
@@ -107,7 +114,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
   };
 
   const steps: MaturityStep[] = [
-    { id: 'answers', label: LABEL.answers, earned: earned.answers, detail: facts.probeRate === null ? 'Not checked yet.' : `Answered ${Math.round(facts.probeRate * 100)}% of Pokter’s checks.` },
+    { id: 'answers', label: LABEL.answers, earned: earned.answers, detail: facts.probeRate === null ? (facts.liveAnswered ? 'Answered the live check when this page loaded; no scheduled checks yet.' : 'Not checked yet.') : `Answered ${Math.round(facts.probeRate * 100)}% of Pokter’s checks.` },
     { id: 'priced', label: LABEL.priced, earned: earned.priced, detail: earned.priced ? 'Signed, payable terms are available to a buyer.' : 'No current signed price an escrow can pay.' },
     {
       id: 'delivered',
@@ -134,6 +141,10 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
 
   const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
   const label = current ? LABEL[current] : 'Not answering yet';
-  const summary = current ? LADDER_MEANING[current] : 'Listed in the registry; it has not answered Pokter’s checks.';
+  const summary = current
+    ? LADDER_MEANING[current]
+    : facts.probeRate === null
+      ? 'Listed in the registry; Pokter has not checked it yet.'
+      : 'Listed in the registry; it has not answered Pokter’s checks.';
   return { current, label, summary, steps, sustained: reliable };
 }
