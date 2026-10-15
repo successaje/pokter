@@ -41,6 +41,8 @@ export interface HireFlowProps {
   providers: ProviderChoice[];
   signedQuoteU: number | null;
   suggestedU: number | null;
+  /** The newest signed price, expired. Used as the budget default. */
+  lastSignedU?: number | null;
   warnings: string[];
   escrow: { chainId: number; commerce: string; paymentToken: string };
   /** Set and Earn is running: warn that passkey hires cannot count on a second marketplace. */
@@ -111,7 +113,7 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
 }
 
 export function HireFlow(props: HireFlowProps) {
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.
@@ -512,7 +514,17 @@ export function HireFlow(props: HireFlowProps) {
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$U</span>
               </div>
               <span id="budget-hint" className={cn('text-[12.5px]', budgetError ? 'text-bad' : 'text-ink-3')}>
-                {budgetError ?? (props.signedQuoteU !== null ? `Signed price ${props.signedQuoteU} $U` : props.suggestedU !== null ? `Suggested ${props.suggestedU} $U · no signed price` : 'No signed price; you set it')}
+                {budgetError
+                  ?? (props.signedQuoteU !== null
+                    ? `Signed price ${props.signedQuoteU} $U`
+                    : props.lastSignedU != null
+                      /* Expired, which almost every stored quote is: they last
+                         fifteen minutes. Saying so beats hiding the number the
+                         hire will be measured against. */
+                      ? `Last signed price ${props.lastSignedU} $U · a fresh quote is signed when you hire`
+                      : props.suggestedU !== null
+                        ? `Suggested ${props.suggestedU} $U · no signed price`
+                        : 'No signed price; you set it')}
               </span>
             </div>
             <p className="text-[12.5px] text-ink-3">

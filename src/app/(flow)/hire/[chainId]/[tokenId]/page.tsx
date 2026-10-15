@@ -54,6 +54,7 @@ export default async function HirePage({
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
       providers={p.providers}
       signedQuoteU={p.quote && p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
+      lastSignedU={p.quote && !p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
       suggestedU={p.suggestion?.u ?? null}
       warnings={p.warnings}
       escrow={p.escrow}

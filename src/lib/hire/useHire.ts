@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+
+import { budgetDefault } from '@/lib/hire/budget-default';
 import { createPublicClient, fallback, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import { formatEther, formatUnits, parseUnits } from 'viem';
@@ -10,7 +12,7 @@ import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
-import { DEFAULT_BUDGET_U } from '@/lib/erc8183/pricing';
+
 import type { HiredJob } from '@/lib/erc8183/types';
 import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
@@ -182,6 +184,7 @@ export function useHire({
   providers,
   signedQuoteU = null,
   suggestedU = null,
+  lastSignedU = null,
   riskWarnings = [],
   declaredSkills = [],
   escrowChainId = WALLET_NETWORK.chainId,
@@ -201,6 +204,18 @@ export function useHire({
    * `suggestionsByCategory`. Null falls back to the flat default.
    */
   suggestedU?: number | null;
+  /**
+   * The newest price this agent signed, even though it has expired.
+   *
+   * A signed quote lasts fifteen minutes, so almost every quote on a page
+   * is expired, and treating that as "no price" set the budget to the
+   * 0.1 default. The hire then negotiated a fresh quote, found it above
+   * the budget, and refused — the buyer was shown "No signed price; you
+   * set it" and then told their number was wrong. The agent's last price
+   * is the best estimate of its next one, and is a far better default
+   * than a constant.
+   */
+  lastSignedU?: number | null;
   riskWarnings?: string[];
   /** The agent's own skills, whose examples beat a category guess. */
   declaredSkills?: readonly { name: string; examples: readonly string[] }[];
@@ -239,7 +254,7 @@ export function useHire({
    */
   const [schemaSource, setSchemaSource] = useState(taskTemplates[0].task);
   const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
-  const [budget, setBudget] = useState(signedQuoteU ?? suggestedU ?? DEFAULT_BUDGET_U);
+  const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [screen, setScreen] = useState<HireScreen>('describe');
 
