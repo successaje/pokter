@@ -12,4 +12,6 @@ export const MCP_TOOL_SUMMARIES: ReadonlyArray<readonly [name: string, what: str
 export const MCP_SETUP = {
   claudeCode: `claude mcp add --transport http pokter ${MCP_ENDPOINT}`,
   json: `{ "mcpServers": { "pokter": { "url": "${MCP_ENDPOINT}" } } }`,
+  codex: `codex mcp add pokter --url ${MCP_ENDPOINT}`,
+  codexToml: `[mcp_servers.pokter]\nurl = "${MCP_ENDPOINT}"`,
 };

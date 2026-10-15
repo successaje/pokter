@@ -28,7 +28,20 @@ export interface McpTool {
   title: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** A `ui://` view (MCP Apps) that hosts able to render one show for this tool's result. */
+  ui?: string;
   run: (args: Record<string, unknown>) => Promise<{ data: unknown; isError?: boolean }>;
+}
+
+/** A resource the server serves: here, the MCP Apps views. */
+export interface McpResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  text: string;
+  /** Per the MCP Apps spec: rendering preferences and the view's sandbox policy. */
+  meta?: Record<string, unknown>;
 }
 
 type RpcId = string | number | null;
@@ -49,7 +62,7 @@ function object(value: unknown): Record<string, unknown> {
 /** Every tool is a read against Pokter or, for get_quote, a free signed-price request to an agent. */
 const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 
-async function handle(message: RpcRequest, tools: readonly McpTool[]): Promise<unknown | null> {
+async function handle(message: RpcRequest, tools: readonly McpTool[], resources: readonly McpResource[]): Promise<unknown | null> {
   const id = message.id ?? null;
   const isNotification = message.id === undefined;
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
@@ -62,14 +75,35 @@ async function handle(message: RpcRequest, tools: readonly McpTool[]): Promise<u
     case 'initialize': {
       const asked = object(message.params).protocolVersion;
       const protocolVersion = SUPPORTED_REVISIONS.includes(asked as (typeof SUPPORTED_REVISIONS)[number]) ? asked : SUPPORTED_REVISIONS[0];
-      return result(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO, instructions: INSTRUCTIONS });
+      return result(id, {
+        protocolVersion,
+        capabilities: { tools: { listChanged: false }, ...(resources.length ? { resources: { listChanged: false } } : {}) },
+        serverInfo: SERVER_INFO,
+        instructions: INSTRUCTIONS,
+      });
     }
     case 'ping':
       return result(id, {});
     case 'tools/list':
       return result(id, {
-        tools: tools.map((tool) => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: { title: tool.title, ...ANNOTATIONS } })),
+        tools: tools.map((tool) => ({
+          name: tool.name,
+          title: tool.title,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: { title: tool.title, ...ANNOTATIONS },
+          // MCP Apps: hosts that render views show this one with the result; others ignore it.
+          ...(tool.ui ? { _meta: { ui: { resourceUri: tool.ui } } } : {}),
+        })),
       });
+    case 'resources/list':
+      return result(id, { resources: resources.map(({ uri, name, description, mimeType }) => ({ uri, name, description, mimeType })) });
+    case 'resources/read': {
+      const uri = object(message.params).uri;
+      const found = resources.find((r) => r.uri === uri);
+      if (!found) return error(id, -32002, `Resource not found: ${String(uri)}`);
+      return result(id, { contents: [{ uri: found.uri, mimeType: found.mimeType, text: found.text, ...(found.meta ? { _meta: found.meta } : {}) }] });
+    }
     case 'tools/call': {
       const params = object(message.params);
       const tool = tools.find((t) => t.name === params.name);
@@ -92,10 +126,10 @@ async function handle(message: RpcRequest, tools: readonly McpTool[]): Promise<u
 }
 
 /** One POST body, a single message or a batch, answered; null when it held only notifications. */
-export async function answerMcp(body: unknown, tools: readonly McpTool[]): Promise<unknown | null> {
+export async function answerMcp(body: unknown, tools: readonly McpTool[], resources: readonly McpResource[] = []): Promise<unknown | null> {
   if (Array.isArray(body)) {
-    const answers = (await Promise.all(body.map((m) => handle(object(m) as RpcRequest, tools)))).filter((a) => a !== null);
+    const answers = (await Promise.all(body.map((m) => handle(object(m) as RpcRequest, tools, resources)))).filter((a) => a !== null);
     return answers.length ? answers : null;
   }
-  return handle(object(body) as RpcRequest, tools);
+  return handle(object(body) as RpcRequest, tools, resources);
 }

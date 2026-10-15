@@ -4,7 +4,9 @@ import { GET as agentDetail } from '@/app/api/v1/agents/[chainId]/[tokenId]/rout
 import { POST as trial } from '@/app/api/trial/route';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
-import { answerMcp, type McpTool } from '@/lib/mcp/server';
+import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
+import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME } from '@/lib/mcp/agent-card';
+import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
 import { discover } from '@/features/discover/search';
 import { parseDiscoverParams } from '@/features/discover/params';
 import { apiRateLimit, originOf } from '@/lib/api/respond';
@@ -39,6 +41,11 @@ function tools(request: Request): McpTool[] {
   const chain = (value: unknown) => (value === 56 || value === 97 || value === '56' || value === '97' ? Number(value) : null);
   const token = (value: unknown) => (typeof value === 'string' || typeof value === 'number') && /^\d{1,12}$/.test(String(value)) ? String(value) : null;
   const read = async (response: Response) => ({ data: await response.json().catch(() => ({ error: `HTTP ${response.status}` })), isError: !response.ok });
+  // The agent's public record, for the card the three agent tools carry.
+  const detail = async (c: number, t: string) => {
+    const response = await agentDetail(forward(new URL(`/api/v1/agents/${c}/${t}`, local).href), { params: Promise.resolve({ chainId: String(c), tokenId: t }) });
+    return response.ok ? ((await response.json()) as Record<string, unknown>) : null;
+  };
   const agentArgs = { chain_id: { type: 'integer', enum: [56, 97], description: 'The ERC-8004 registry chain: 56 for BNB Chain, 97 for BNB Testnet.' }, token_id: { type: 'string', pattern: '^\\d{1,12}$', description: 'The agent’s ERC-8004 token id.' } };
 
   return [
@@ -95,6 +102,7 @@ function tools(request: Request): McpTool[] {
     },
     {
       name: 'get_agent',
+      ui: AGENT_CARD_URI,
       title: 'Get an agent’s evidence',
       description:
         'Look up one agent on the Pokter marketplace before hiring it: whether it answered Pokter’s checks, its signed price, paid deliveries and receipts, the evidence ladder, and hireBlocker (why it cannot be priced or hired right now, with the fix). Use it to vet or compare agents, or to explain why an agent cannot be hired.',
@@ -103,11 +111,14 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t) return { data: { error: 'chain_id must be 56 or 97 and token_id a number.' }, isError: true };
-        return read(await agentDetail(forward(new URL(`/api/v1/agents/${c}/${t}`, local).href), { params: Promise.resolve({ chainId: String(c), tokenId: t }) }));
+        const record = await detail(c, t);
+        if (!record) return { data: { error: 'No such agent, or the registry did not answer.' }, isError: true };
+        return { data: { ...record, card: buildAgentCard(record, { origin }) } };
       },
     },
     {
       name: 'get_quote',
+      ui: AGENT_CARD_URI,
       title: 'Ask an agent for a signed price',
       description:
         'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. Free and read-only: no wallet, no payment, nothing executed. Use the agent’s own example format when it declares one (see get_agent).',
@@ -116,11 +127,19 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
-        return read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
+        const answered = await read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
+        if (answered.isError) return answered;
+        const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string } } }; verifiedSigner?: string; termsBound?: boolean };
+        const record = await detail(c, t);
+        const card = record
+          ? buildAgentCard(record, { origin, brief: args.task, quote: quoted.receipt?.response?.terms?.price && quoted.verifiedSigner ? { priceRaw: quoted.receipt.response.terms.price, signer: quoted.verifiedSigner, termsBound: Boolean(quoted.termsBound) } : null })
+          : null;
+        return { data: { ...(answered.data as object), ...(card ? { card } : {}) } };
       },
     },
     {
       name: 'hire_link',
+      ui: AGENT_CARD_URI,
       title: 'Link to hire an agent',
       description:
         'Get the link to hire an agent on BNB Chain with this brief. The user opens it, reviews the terms, the signed price and any warnings, and funds escrow in their own wallet; the agent is paid only when it delivers. Use it whenever the user asks to hire, buy or commission an agent’s work. You cannot hire on their behalf.',
@@ -131,8 +150,10 @@ function tools(request: Request): McpTool[] {
         if (!c || !t) return { data: { error: 'chain_id must be 56 or 97 and token_id a number.' }, isError: true };
         const url = new URL(`/hire/${c}/${t}`, origin);
         if (typeof args.task === 'string' && args.task.trim()) url.searchParams.set('task', args.task.trim().slice(0, 2000));
+        const record = await detail(c, t);
         return {
           data: {
+            ...(record ? { card: buildAgentCard(record, { origin, brief: typeof args.task === 'string' && args.task.trim() ? args.task.trim() : null }) } : {}),
             url: url.href,
             next: 'The user opens the link, reviews the brief, price and warnings, and funds escrow from their own wallet. Nothing is paid until they sign; the agent is paid only after it delivers.',
           },
@@ -160,11 +181,24 @@ export async function POST(request: Request): Promise<Response> {
   if (body === undefined) {
     return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: the body is not JSON.' } }, { status: 400, headers: CORS });
   }
-  const answer = await answerMcp(body, tools(request));
+  const answer = await answerMcp(body, tools(request), RESOURCES);
   // Only notifications: accepted, nothing to say.
   if (answer === null) return new Response(null, { status: 202, headers: CORS });
   return NextResponse.json(answer, { headers: CORS });
 }
+
+/** The MCP Apps views this server offers: the agent card. */
+const RESOURCES: McpResource[] = [
+  {
+    uri: AGENT_CARD_URI,
+    name: 'Agent card',
+    description: 'An agent’s evidence step, signed price, network and any hire blocker, with a button to hire it on Pokter.',
+    mimeType: MCP_APP_MIME,
+    text: AGENT_CARD_HTML,
+    // Self-contained: no network, no external images, so the default sandbox suffices.
+    meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [] } } },
+  },
+];
 
 /** No server-initiated stream: every answer comes back on its POST. */
 export function GET(): Response {
