@@ -1,5 +1,9 @@
 import 'server-only';
 
+import { MCP_PROTOCOL_VERSION, probeTarget } from '@/lib/proof/probe-target';
+
+export { MCP_PROTOCOL_VERSION, probeTarget };
+
 import { a2aCardFallback, cardRequiresAuth } from './card-access';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
@@ -252,23 +256,6 @@ function asObject(value: unknown): Record<string, unknown> | null {
 }
 
 /** Resolve the endpoint we can actually probe, preferring A2A over MCP. */
-export function probeTarget(
-  agent: ScanAgentDetail,
-): { endpoint: string; protocol: 'a2a' | 'mcp' } | null {
-  const services = agent.services ?? {};
-  for (const protocol of ['a2a', 'mcp'] as const) {
-    const endpoint = services[protocol]?.endpoint;
-    if (!endpoint) continue;
-
-    // Registry entries sometimes ship an unexpanded template placeholder.
-    const resolved = endpoint.replace('{agentId}', agent.token_id);
-    if (resolved.includes('{') || !resolved.startsWith('https://')) continue;
-
-    return { endpoint: resolved, protocol };
-  }
-  return null;
-}
-
 /**
  * One probe. For A2A, an endpoint that answers with something other than an
  * agent card is given one more chance at the card's location (see
@@ -278,13 +265,14 @@ export function probeTarget(
 async function probeOnce(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
+  version: string | null = null,
 ): Promise<ProbeResult> {
-  const { result, body } = await probeAt(endpoint, protocol);
+  const { result, body } = await probeAt(endpoint, protocol, version);
   // Only an endpoint that answered: an unreachable host has no card either.
   if (protocol !== 'a2a' || result.ok || result.status === null) return result;
   const card = a2aCardFallback(endpoint, body);
   if (!card) return result;
-  const retried = (await probeAt(card, protocol)).result;
+  const retried = (await probeAt(card, protocol, version)).result;
   if (!retried.ok) return result;
   return {
     ...retried,
@@ -295,6 +283,7 @@ async function probeOnce(
 async function probeAt(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
+  version: string | null = null,
 ): Promise<{ result: ProbeResult; body?: Record<string, unknown> }> {
   const startedAt = Date.now();
   const at = new Date().toISOString();
@@ -309,7 +298,7 @@ async function probeAt(
           ? {
               accept: 'application/json, text/event-stream',
               'content-type': 'application/json',
-              'mcp-protocol-version': '2026-07-28',
+              'mcp-protocol-version': version ?? MCP_PROTOCOL_VERSION,
               'mcp-method': 'tools/list',
             }
           : { accept: 'application/json' },
@@ -437,8 +426,9 @@ async function probeAt(
 export async function probeEndpoint(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
+  version: string | null = null,
 ): Promise<ProbeResult> {
-  return probeOnce(endpoint, protocol);
+  return probeOnce(endpoint, protocol, version);
 }
 
 /**
@@ -476,7 +466,7 @@ export async function probeAgent(
 
   const probes: ProbeResult[] = [];
   for (let i = 0; i < samples; i += 1) {
-    probes.push(await probeOnce(target.endpoint, target.protocol));
+    probes.push(await probeOnce(target.endpoint, target.protocol, target.version));
   }
 
   const answered = probes.filter((p) => p.ok).length;
