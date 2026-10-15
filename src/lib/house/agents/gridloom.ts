@@ -1,6 +1,6 @@
 import { parseAbi, type Address } from 'viem';
 
-import { venusClient } from '@/lib/assay/venus';
+import { settledBlockNumber, venusClient } from '@/lib/assay/venus';
 
 import type { HouseAgentDefinition } from '../types';
 import { gridPlan, readGridBrief, realisedDailyVol, type Base } from './gridloom-math';
@@ -92,7 +92,7 @@ export const gridloom: HouseAgentDefinition = {
     const question = readGridBrief(brief);
     if (!question) return { ok: false, error: 'The brief names no asset and budget', need: 'Say which asset and how many USDT' };
     const client = venusClient();
-    const block = await client.getBlockNumber();
+    const block = await settledBlockNumber(client);
     const [pool, feed, header] = await Promise.all([deepestPool(client, question.base), hourlyFeed(client, question.base), client.getBlock({ blockNumber: block })]);
     if (!pool) return { ok: false, error: `No PancakeSwap v3 pool for ${question.base}/USDT`, need: 'Choose BNB, ETH, BTC or CAKE' };
     const dailyVol = realisedDailyVol(feed.samples);
