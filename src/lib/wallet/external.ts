@@ -24,6 +24,7 @@ import {
 import { browserRpcUrls, RECEIPT_POLL_MS } from '@/lib/wallet/browser-rpc';
 import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
+import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 
 export type HireStep =
   | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
@@ -48,6 +49,8 @@ export interface ExternalHireInput {
   task: string;
   /** The seller's signed quote, when the seller is the on-chain provider. */
   quote?: PokterJobQuote;
+  /** The terms that quote fixed; checked again just before the job is created. */
+  intent?: PurchaseIntent;
   budgetU: number;
   /** Time for the seller to deliver. The escrow's dispute window is added to it (see `deadline.ts`). */
   ttlSeconds: number;
@@ -592,6 +595,15 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     await acquireShortfall({
       read, wallet, account, budget, held: balance, addresses, report,
     });
+  }
+  /*
+   * Last look before any job exists. Approvals and a swap may have taken
+   * minutes; the price can expire meanwhile, and the terms must still be the
+   * ones signed. A mismatch here sends nothing further.
+   */
+  if (input.intent) {
+    const check = checkPurchaseIntent(input.intent, { provider: input.provider, task: input.task, chainId, commerce: addresses.commerce, paymentToken: addresses.paymentToken });
+    if (!check.ok) throw new Error(check.reason);
   }
   const counter = await read.readContract({
     address: addresses.commerce as Address,
