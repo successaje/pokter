@@ -233,7 +233,14 @@ export function useHire({
   const [selectedTemplate, setSelectedTemplate] = useState<CommissionTaskTemplate['id'] | null>(
     taskTemplates[0].id,
   );
-  const [task, setTaskState] = useState(taskTemplates[0].task);
+  /*
+   * A template in a guided format starts empty: its example's figures are
+   * the operator's, shown as placeholders, never funded as the buyer's.
+   */
+  const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : template.task);
+  const [task, setTaskState] = useState(startingTask(taskTemplates[0]));
+  /** The guided format in use; kept while the brief is edited, like the schema. */
+  const [recipeId, setRecipeId] = useState(taskTemplates[0].recipe ?? null);
   /*
    * The template the buyer started from: its fields and their types stay
    * fixed while values are edited (see `fieldsWithValues`). Editing the
@@ -369,12 +376,16 @@ export function useHire({
     setTaskState(value);
   };
 
+  /* A guided field changed: the template's format stays selected. */
+  const setTaskKeepingFormat = (value: string) => setTaskState(value);
+
   const chooseTemplate = (id: CommissionTaskTemplate['id']) => {
     const template = taskTemplates.find((t) => t.id === id);
     if (!template) return;
     setSelectedTemplate(template.id);
-    setTaskState(template.task);
+    setTaskState(startingTask(template));
     setSchemaSource(template.task);
+    setRecipeId(template.recipe ?? null);
   };
 
   const indexFundedJob = async (hired: HiredJob) => {
@@ -797,6 +808,9 @@ export function useHire({
     errorLayer,
     briefSource,
     previewSkill,
+    recipeId,
+    setTaskKeepingFormat,
+    recipeExample: recipeId ? (taskTemplates.find((t) => t.recipe === recipeId)?.task ?? null) : null,
     heldAfterFailure,
     externalStep,
     externalJobId,

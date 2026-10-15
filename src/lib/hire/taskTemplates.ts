@@ -1,3 +1,5 @@
+import { recipeForExample } from './brief-recipes';
+
 export interface CommissionTaskTemplate {
   id: 'analyse' | 'recommend' | 'monitor' | `declared-${number}`;
   label: string;
@@ -11,6 +13,8 @@ export interface CommissionTaskTemplate {
   short: string;
   description: string;
   task: string;
+  /** A guided format the agent's example is written in (`brief-recipes`). */
+  recipe?: string;
 }
 
 const CATEGORY_CONTEXT: Record<
@@ -117,6 +121,7 @@ export function templatesFromSkills(
         // Figures in an operator's example are theirs, not market data or the buyer's choice.
         description: `From this agent's own card, under “${skill.name}”.${/\d/.test(task) ? ' Its figures are the operator’s example: replace them with yours.' : ''}`,
         task,
+        recipe: recipeForExample(task)?.id,
       });
       if (templates.length === 3) return templates;
     }

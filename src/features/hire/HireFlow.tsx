@@ -26,6 +26,8 @@ import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
 import { TaskEditor } from './TaskEditor';
 import { BriefSourceNotice } from './BriefSource';
+import { GuidedBrief } from './GuidedBrief';
+import { recipeById } from '@/lib/hire/brief-recipes';
 import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
@@ -386,6 +388,16 @@ export function HireFlow(props: HireFlowProps) {
               </button>
             ))}
           </div>
+          {recipeById(hire.recipeId ?? undefined) && (
+            <GuidedBrief
+              key={hire.recipeId}
+              recipe={recipeById(hire.recipeId ?? undefined)!}
+              example={hire.recipeExample}
+              agentName={props.agent.name}
+              task={hire.task}
+              onChange={hire.setTaskKeepingFormat}
+            />
+          )}
           <div className="flex flex-col gap-1.5">
             <TaskEditor task={hire.task} schema={hire.taskSchema} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
