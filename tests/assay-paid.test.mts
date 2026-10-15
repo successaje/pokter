@@ -143,3 +143,22 @@ test('a funded fixture inside its window is pending, not undelivered', () => {
   assert.equal(closed.outcome, 'undelivered');
   assert.match(closed.reason, /window closed/);
 });
+
+test('a resolved run is not re-graded, but a changed one is', () => {
+  /*
+   * The sweep calls the graders every pass and the health-factor grader
+   * reads Venus per fixture. The sweep already runs ~245s of a 300s
+   * budget, so "nothing has changed since we graded" has to be cheap to
+   * answer and has to stay responsive to a new delivery.
+   *
+   * This pins the shape the skip depends on: a run records the job that
+   * answered each scenario, and a pending row means work remains.
+   */
+  const scenario = scenarioOf('yield', STATIC_SUITES.yield.scenarios[0].id)!;
+  const resolved = gradePaidScenario({ scenario, jobId: '1464', manifestText: null, deliveryOpen: false });
+  const pending = gradePaidScenario({ scenario, jobId: '1464', manifestText: null, deliveryOpen: true });
+
+  assert.equal(resolved.jobId, '1464', 'the job id is what identifies a graded fixture');
+  assert.notEqual(resolved.outcome, 'pending', 'a closed window is resolved and need not be re-read');
+  assert.equal(pending.outcome, 'pending', 'an open window leaves work for the next sweep');
+});

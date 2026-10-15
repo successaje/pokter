@@ -68,6 +68,35 @@ export type PaidCheckOutcome =
  * for the rest yet, which reads as a correctness failure it did not earn —
  * the same mistake as counting a lifecycle demo as an accepted delivery.
  */
+/**
+ * Whether a recorded run already covers exactly these fixture jobs.
+ *
+ * The sweep calls the graders every pass, and re-grading is deliberate so a
+ * redelivery after a fix supersedes the earlier result. But the health
+ * factor grader reads Venus per fixture, and the sweep already runs about
+ * 245 seconds of its 300-second budget — PR #120 exists because the
+ * scheduler timed out waiting for it. Unbounded per-sweep network work
+ * added to that is a timeout waiting to happen.
+ *
+ * So a run is skipped when nothing has changed since it was recorded: the
+ * same jobs, all resolved. A new fixture, a re-hire, or a fixture still
+ * inside its delivery window all leave work to do and are not skipped, so
+ * a delivery is still picked up on the next pass rather than in three days.
+ * Store reads only, no network.
+ */
+function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: string, fixtures: Map<string, HiredJob>): boolean {
+  const run = getAssayStore().latest(target, suiteId);
+  if (!run || run.via !== 'paid-hire') return false;
+  // A pending row means the agent may still deliver: keep looking.
+  if (run.results.some((result) => result.outcome === 'pending')) return false;
+  const graded = new Set(run.results.map((result) => `${result.scenario}:${result.jobId ?? ''}`));
+  if (graded.size !== fixtures.size) return false;
+  for (const [scenario, job] of fixtures) {
+    if (!graded.has(`${scenario}:${job.jobId}`)) return false;
+  }
+  return true;
+}
+
 export function gradePaidCategoryCheck(
   target: { chainId: number; tokenId: string },
   category: StaticAssayCategory,
@@ -225,6 +254,8 @@ export function gradeDuePaidChecks(): { graded: number; incomplete: number; pass
   let incomplete = 0;
   let passedAll = 0;
   for (const target of bySuite.values()) {
+    const suiteId = STATIC_SUITES[target.category].id;
+    if (alreadyGraded(target, suiteId, fixtureJobsForAgent(target, suiteId))) continue;
     const outcome = gradePaidCategoryCheck({ chainId: target.chainId, tokenId: target.tokenId }, target.category);
     if (outcome.state === 'recorded') {
       graded += 1;
@@ -256,6 +287,7 @@ export async function gradeDuePaidHfChecks(): Promise<{ graded: number; incomple
   let incomplete = 0;
   let passedAll = 0;
   for (const target of agents.values()) {
+    if (alreadyGraded(target, HF_SUITE_ID, fixtureJobsForAgent(target, HF_SUITE_ID))) continue;
     const outcome = await gradePaidHealthFactorCheck(target).catch(() => null);
     if (outcome?.state === 'recorded') {
       graded += 1;
