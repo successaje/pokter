@@ -47,9 +47,11 @@ jobs:
             echo "::error::Sweep failed with HTTP $status"
             exit 1
           fi
-          skipped=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('skipped',''))")
-          if [ -n "$skipped" ]; then
-            echo "Skipped: the server swept recently."
+          # A completed sweep also reports `skipped` (agents it could not probe),
+          # so standing down is its own field.
+          stood_down=$(echo "$body" | python3 -c "import sys,json;print(json.load(sys.stdin).get('standDown',''))")
+          if [ -n "$stood_down" ]; then
+            echo "Stood down: the server swept recently."
             exit 0
           fi
 

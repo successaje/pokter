@@ -94,11 +94,12 @@ export async function POST(request: Request): Promise<NextResponse> {
    * evidence. `?force=1` runs one regardless of the last, never alongside one.
    */
   if (sweepRunning) {
-    return NextResponse.json({ skipped: 'running', note: 'A sweep is already running.' }, { status: 409 });
+    // `standDown`, not `skipped`: a completed sweep already reports `skipped`, the agents it could not probe.
+    return NextResponse.json({ standDown: 'running', note: 'A sweep is already running.' }, { status: 409 });
   }
   const last = getProbeStore().lastSweep();
   if (new URL(request.url).searchParams.get('force') !== '1' && sweepRecent(last?.finishedAt ?? null, Date.now())) {
-    return NextResponse.json({ skipped: 'recent', lastFinishedAt: last?.finishedAt ?? null });
+    return NextResponse.json({ standDown: 'recent', lastFinishedAt: last?.finishedAt ?? null });
   }
 
   sweepRunning = true;
