@@ -108,7 +108,7 @@ export const cresthold: HouseAgentDefinition = {
   version: '1.0.0',
   category: 'yield',
   description:
-    'Finds where a stablecoin amount earns the most on Venus Core Pool, net of what moving costs: the supply rate after your deposit, the PancakeSwap swap if the best market is another stablecoin, and gas in and out, spread over how long you hold. Recommends only when the best beats what you earn now by your threshold, and declines otherwise. Needs the amount and stablecoin; read-only, Venus Core Pool only.',
+    'Yield optimisation for stablecoins on BNB Chain. Finds where an amount earns the most on Venus Core Pool, net of what moving costs: the supply rate after your deposit, the PancakeSwap swap if the best market is another stablecoin, and gas in and out, spread over how long you hold. Recommends only when the best beats what you earn now by your threshold, and declines otherwise. Needs the amount and stablecoin; read-only, Venus Core Pool only.',
   priceU: 0.1,
   skill: {
     id: 'net_yield_at_size',

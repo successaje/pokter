@@ -48,3 +48,8 @@ test('statuses and brief reading', () => {
   assert.equal(readBrief('Check my position target 9').target, 1.5); // out of range falls back
   assert.equal(readBrief('no address here').account, null);
 });
+
+test('dust in a volatile asset does not make the reading approximate', () => {
+  const report = full(brinkwatchReport({ ...base, healthFactor: 1.99, collateral: { XRP: { amount: 274_588, liqThreshold: 0.65 } }, debt: { USDT: 88_690, USDC: 35_312, BTC: 6.93 } }));
+  assert.match(report.liquidation.assumption, /stablecoins/);
+});
