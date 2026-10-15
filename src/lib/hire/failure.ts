@@ -37,6 +37,13 @@ export interface QuoteFailure {
   detail?: string;
 }
 
+/** Every code, in the order the integration kit lists them. */
+export const QUOTE_FAILURE_CODES: readonly QuoteFailureCode[] = [
+  'no-endpoint', 'no-price-skill', 'auth-required', 'seller-declined', 'seller-not-ready',
+  'no-quote', 'bad-signature', 'terms-mismatch', 'quote-expired', 'payment-incompatible',
+  'rate-limited', 'timeout', 'http-error', 'unreachable',
+];
+
 const LAYER: Record<QuoteFailureCode, FailureLayer> = {
   'no-endpoint': 'seller',
   'no-price-skill': 'seller',
@@ -86,11 +93,11 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
     case 'no-price-skill':
       return { status: 409, message: `${agentName} does not offer a priced job (its card has no negotiate skill), so it cannot be hired through escrow.` };
     case 'auth-required':
-      return { status: 409, message: `${agentName}'s endpoint requires credentials Pokter does not hold (${failure.detail}). It cannot be hired through Pokter.` };
+      return { status: 409, message: `${agentName}'s endpoint requires credentials Pokter does not hold${failure.detail ? ` (${failure.detail})` : ''}. It cannot be hired through Pokter.` };
     case 'rate-limited':
       return { status: 503, message: `${agentName} is limiting requests right now. Try again in a minute; nothing has been paid.` };
     case 'http-error':
-      return { status: 502, message: `${agentName} answered with an error (${failure.detail}). Try again shortly; nothing has been paid.` };
+      return { status: 502, message: `${agentName} answered with an error${failure.detail ? ` (${failure.detail})` : ''}. Try again shortly; nothing has been paid.` };
     case 'timeout':
       return { status: 504, message: `${agentName} did not answer in time. Try again shortly; nothing has been paid.` };
     case 'unreachable':
