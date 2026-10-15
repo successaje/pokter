@@ -23,7 +23,12 @@ const payload = `fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/api/
   body: JSON.stringify({ slug: ${JSON.stringify(slug)}, chainId: ${Number(chain)} }),
 }).then((r) => r.text()).then((t) => console.log(t)).catch((e) => console.error(String(e)));`;
 const encoded = Buffer.from(payload).toString('base64');
-const run = spawnSync('fly', ['ssh', 'console', '-a', APP, '-C', `node -e eval(Buffer.from('${encoded}','base64').toString())`], { encoding: 'utf8' });
+/*
+ * No quotes anywhere in the remote command: `fly ssh console -C` strips
+ * them, which turned 'base64' into a bare name the first time this ran.
+ * The request travels as its own argument and is decoded with atob.
+ */
+const run = spawnSync('fly', ['ssh', 'console', '-a', APP, '-C', `node -e eval(atob(process.argv[1])) ${encoded}`], { encoding: 'utf8' });
 process.stdout.write(run.stdout);
 if (run.status !== 0) process.stderr.write(run.stderr);
 process.exit(run.status ?? 1);
