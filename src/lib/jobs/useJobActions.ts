@@ -225,9 +225,9 @@ export function useJobActions(initial: HiredJob) {
       }).catch(() => {});
     } catch (caught) {
       // Someone else already finished it: show the job as it is now, and say so plainly.
-      if (/ALREADY_(COMPLETED|REJECTED)/.test((caught as Error)?.message ?? '')) {
+      if (/ALREADY_(COMPLETED|REJECTED|DISPUTED)/.test((caught as Error)?.message ?? '')) {
         await syncFromChain(undefined, true).catch(() => {});
-        setError((caught as Error).message.replace(/^ALREADY_(COMPLETED|REJECTED): /, ''));
+        setError((caught as Error).message.replace(/^ALREADY_(COMPLETED|REJECTED|DISPUTED): /, ''));
         return;
       }
       setError(settlementError(caught, Date.parse(job.expiredAt) <= Date.now()));

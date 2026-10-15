@@ -338,6 +338,10 @@ export async function settleFromExternalWallet(input: {
     now: Math.floor(Date.now() / 1000),
   });
   if (!verdict.allowed) throw new Error(verdict.message);
+  // A second dispute would revert, or cost gas for nothing; the vote is already open.
+  if (input.action === 'dispute' && (await readDisputeState(chainId, input.jobId)).disputed) {
+    throw new Error('ALREADY_DISPUTED: This delivery is already disputed. The escrow policy’s voters decide it now.');
+  }
 
   const target = input.action === 'approve' ? addresses.router : addresses.policy;
   const data = input.action === 'approve'
@@ -375,10 +379,22 @@ export async function settleFromExternalWallet(input: {
   });
   const receipt = await read.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error('The escrow transaction reverted.');
+  /*
+   * A dispute does not reject the job. It opens a vote: whitelisted voters
+   * call voteReject, and only a quorum of them makes the job REJECTED; if
+   * none is reached by the deadline it expires and the buyer reclaims. So
+   * the job stays SUBMITTED, and the page told the first mainnet buyer to
+   * dispute that their confirmed dispute had come out "submitted instead
+   * of rejected". What a dispute changes is the policy's own record.
+   */
+  if (input.action === 'dispute') {
+    const state = await readDisputeState(chainId, input.jobId);
+    if (!state.disputed) throw new Error('The transaction confirmed, but the escrow policy does not record a dispute for this job.');
+    return hash;
+  }
   const after = await getErc8183Job(network, input.jobId);
-  const expected = input.action === 'approve' ? 'COMPLETED' : 'REJECTED';
-  if (after.statusName !== expected) {
-    throw new Error(`The transaction confirmed, but the job is ${after.statusName.toLowerCase()} instead of ${expected.toLowerCase()}.`);
+  if (after.statusName !== 'COMPLETED') {
+    throw new Error(`The transaction confirmed, but the job is ${after.statusName.toLowerCase()} instead of completed.`);
   }
   return hash;
 }
@@ -556,6 +572,33 @@ const JOB_TIMING_ABI = [{ name: 'getJob', type: 'function', stateMutability: 'vi
  * dispute window: what the job page needs to say when the review window
  * closes. Public RPC only, so it reads before any wallet is connected.
  */
+const DISPUTE_STATE_ABI = [
+  { name: 'disputed', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'rejectVotes', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
+  { name: 'voteQuorum', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+] as const;
+
+/**
+ * Whether the policy records a dispute for a job, and how its vote stands.
+ * A dispute leaves the job SUBMITTED; whitelisted voters call voteReject,
+ * and `voteQuorum` of them make it REJECTED. Without a quorum by the
+ * deadline the job expires and the buyer reclaims.
+ */
+export async function readDisputeState(chainId: number, jobId: bigint): Promise<{ disputed: boolean; rejectVotes: number; quorum: number }> {
+  const network = walletNetworkFor(chainId);
+  const read = createPublicClient({
+    chain: network as never,
+    transport: fallback(browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url))),
+  });
+  const policy = correctedErc8183Addresses(chainId).policy as Address;
+  const [disputed, rejectVotes, quorum] = await Promise.all([
+    read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'disputed', args: [jobId] }),
+    read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'rejectVotes', args: [jobId] }).catch(() => 0n),
+    read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'voteQuorum' }).catch(() => 0n),
+  ]);
+  return { disputed, rejectVotes: Number(rejectVotes), quorum: Number(quorum) };
+}
+
 export async function readReviewTiming(chainId: number, jobId: bigint): Promise<{ submittedAt: number; expiredAt: number; disputeWindowSeconds: number }> {
   const network = walletNetworkFor(chainId);
   const read = createPublicClient({
