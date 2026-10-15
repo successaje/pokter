@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { jsonRpcEndpoint } from '@/lib/a2a/card';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { previewSkillId } from '@/lib/agents/capabilities';
 import { readA2AReply } from '@/lib/a2a/reply';
@@ -52,14 +53,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!skill) {
       return NextResponse.json({ error: `${name} declares no free preview on its card.`, layer: 'seller', code: 'no-preview' }, { status: 409 });
     }
+    // The card's JSON-RPC interface, in either card format, as every other call uses.
+    const serviceUrl = jsonRpcEndpoint(card);
+    if (!serviceUrl) {
+      return NextResponse.json({ error: `${name}'s card offers no HTTPS JSON-RPC interface, which is the one Pokter calls.`, layer: 'seller', code: 'no-endpoint' }, { status: 409 });
+    }
     const startedAt = Date.now();
-    const payload = await withPublicEndpoint(String(card.url), async (service) => {
+    const rpcId = crypto.randomUUID();
+    const payload = await withPublicEndpoint(serviceUrl, async (service) => {
       const response = await service.fetch({
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          id: crypto.randomUUID(),
+          id: rpcId,
           method: 'message/send',
           params: {
             message: { role: 'user', messageId: crypto.randomUUID(), parts: [{ kind: 'data', data: { skill, task_description: task } }] },
@@ -71,7 +78,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         signal: AbortSignal.timeout(20_000),
       });
       if (!response.ok) throw new Error(`Agent answered ${response.status}.`);
-      return readJson(response);
+      return readJson(response, { expectId: rpcId });
     });
     const reply = readA2AReply(payload);
     const content = reply.data ? JSON.stringify(reply.data, null, 2) : reply.texts.join('\n\n');
