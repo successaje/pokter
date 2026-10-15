@@ -63,7 +63,7 @@ export const centreline: HouseAgentDefinition = {
   version: '1.0.0',
   category: 'rebalancing',
   description:
-    'Checks every PancakeSwap v3 liquidity position a wallet holds on BNB Chain, in the wallet or staked in the PancakeSwap farm: whether each is in range and earning, how far price must move to re-enter, what it holds and is worth, its uncollected fees, and a re-centre plan (same-width range on today’s price, the split it needs and the swap to get there). Needs the wallet address. Read-only: it never signs or moves funds.',
+    'Rebalancing for PancakeSwap v3 liquidity on BNB Chain. Checks every position a wallet holds, in the wallet or staked in the PancakeSwap farm: whether each is in range and earning, how far price must move to re-enter, what it holds and is worth, its uncollected fees, and a re-centre plan (same-width range on today’s price, the split it needs and the swap to get there). Needs the wallet address. Read-only: it never signs or moves funds.',
   priceU: 0.1,
   skill: {
     id: 'lp_range_check',

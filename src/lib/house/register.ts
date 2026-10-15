@@ -13,6 +13,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { getJobStore } from '@/lib/erc8183/store';
+import { getProbeStore } from '@/lib/history/store';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { registeredAgentIdFromReceipt } from '@/lib/registry/registration-receipt';
 
@@ -74,6 +75,14 @@ export async function registerHouseAgent(definition: HouseAgentDefinition, chain
     agentIdText = minted.toString();
     store.writeCursor(cursorName(definition.slug, chainId), agentIdText);
   }
+
+  /*
+   * Enrolled for the scheduled checks on every path, a repeat included. The
+   * sweep measures listed, tracked and enrolled agents; a new registration
+   * is none of those until it is enrolled, so the first five sat at "Not
+   * checked yet", and therefore never "Priced", until this ran.
+   */
+  getProbeStore().enroll([{ chainId, tokenId: agentIdText }]);
 
   const agentId = BigInt(agentIdText);
   const completedUri = encodeErc8004AgentUri(withErc8004Registration(file, agentId, chainId));

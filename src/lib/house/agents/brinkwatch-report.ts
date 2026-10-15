@@ -71,7 +71,8 @@ export function brinkwatchReport(input: BrinkwatchInput) {
   const hf = input.healthFactor as number;
   const repay = Math.max(0, D - W / input.target);
   const addWeighted = Math.max(0, input.target * D - W);
-  const volatileDebt = Object.keys(input.debt).filter((symbol) => !STABLE.has(symbol.toUpperCase()));
+  // Dust does not move the answer: a 7 USD BTC leg on 124,000 of debt flagged a whole reading as approximate.
+  const volatileDebt = Object.entries(input.debt).filter(([symbol, usd]) => !STABLE.has(symbol.toUpperCase()) && usd >= D * 0.01).map(([symbol]) => symbol);
   const perAsset = Object.fromEntries(
     Object.entries(weighted).map(([symbol, w]) => {
       const drop = w > 0 ? (W - D) / w : 0;

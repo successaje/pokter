@@ -26,3 +26,11 @@ test('the registration points each chain at its own card and names its maker', (
   assert.equal(file.built_with, 'Pokter Studio · https://pokter.xyz/studio');
   assert.equal(file.image, 'https://pokter.xyz/api/avatars/brinkwatch');
 });
+
+test('every house agent is classified from its description alone, as the registry index stores no tags', async () => {
+  const { classify } = await import('../src/lib/agents/categories');
+  const { HOUSE_AGENTS } = await import('../src/lib/house/registry');
+  for (const agent of HOUSE_AGENTS) {
+    assert.equal(classify({ name: agent.name, description: agent.description, tags: [] } as never), agent.category, agent.slug);
+  }
+});
