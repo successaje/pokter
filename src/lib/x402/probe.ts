@@ -25,6 +25,12 @@
  * It never pays. Observing that a price is demanded is the measurement;
  * settling it is a different act with a different risk, and a marketplace
  * should not spend money to satisfy its own curiosity.
+ *
+ * An experiment, not an adapter: no route calls it yet, and Pokter neither
+ * pays nor reads x402 payments. A 402 is a statement of terms, never proof
+ * that anyone has paid or that paying buys useful work. Whoever wires it
+ * into a route must pass the guarded, DNS-pinned fetcher (`fetchImpl` has
+ * no default for that reason).
  */
 
 export type X402Observation =
@@ -49,11 +55,36 @@ export interface X402Result {
   detail: string;
 }
 
-/** A 402 body carries its terms in `accepts`; anything else cannot be paid. */
-function paymentOptions(body: unknown): number {
-  if (!body || typeof body !== 'object') return 0;
-  const accepts = (body as { accepts?: unknown }).accepts;
-  return Array.isArray(accepts) ? accepts.length : 0;
+/**
+ * The payment options a payer could act on.
+ *
+ * Version 1 puts the challenge in the body; version 2 in a base64 JSON
+ * `PAYMENT-REQUIRED` header, with the amount as `amount` rather than
+ * `maxAmountRequired`. An option counts only with a scheme, a network,
+ * an amount and somewhere to pay; a declared version other than 1 or 2 is
+ * one this reader does not know, and nothing in it is counted.
+ */
+function paymentOptions(challenge: unknown): number {
+  if (!challenge || typeof challenge !== 'object') return 0;
+  const { x402Version, accepts } = challenge as { x402Version?: unknown; accepts?: unknown };
+  if (x402Version !== undefined && x402Version !== 1 && x402Version !== 2) return 0;
+  if (!Array.isArray(accepts)) return 0;
+  return accepts.filter((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const o = entry as Record<string, unknown>;
+    const amount = o.amount ?? o.maxAmountRequired;
+    return typeof o.scheme === 'string' && typeof o.network === 'string' && typeof o.payTo === 'string' && (typeof amount === 'string' || typeof amount === 'number');
+  }).length;
+}
+
+/** A version 2 challenge, from its header. Null when absent or unreadable. */
+export function challengeFromHeader(value: string | null): unknown {
+  if (!value) return null;
+  try {
+    return JSON.parse(Buffer.from(value, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
 }
 
 export function readX402Response(status: number, body: unknown): X402Result {
@@ -72,14 +103,14 @@ export function readX402Response(status: number, body: unknown): X402Result {
       status,
       options: 0,
       detail:
-        'The endpoint answered 402 without a readable `accepts` list, so there is nothing a payer could act on.',
+        'The endpoint answered 402 without a readable payment option (scheme, network, amount and payee, in a known x402 version), so there is nothing a payer could act on.',
     };
   }
   return {
     observation: 'demands-payment',
     status,
     options,
-    detail: `The endpoint answered 402 and offered ${options} payment option${options === 1 ? '' : 's'}.`,
+    detail: `The endpoint answered 402 and offered ${options} payment option${options === 1 ? '' : 's'}. That states its terms; it does not show that anyone has paid or what payment buys.`,
   };
 }
 
@@ -103,17 +134,23 @@ export function unreachable(reason: string): X402Result {
 /** The claim, checked. Never pays; a 402 is the whole observation. */
 export async function probeX402(
   endpoint: string | null,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch,
   timeoutMs = 8_000,
 ): Promise<X402Result> {
   if (!endpoint || !endpoint.startsWith('https://')) return NO_ENDPOINT;
   try {
     const response = await fetchImpl(endpoint, {
       method: 'GET',
-      redirect: 'follow',
+      // A redirect could lead anywhere; the guarded fetchers refuse them too.
+      redirect: 'error',
       signal: AbortSignal.timeout(timeoutMs),
     });
-    const body = response.status === 402 ? await response.json().catch(() => null) : null;
+    if (response.status !== 402) {
+      await response.body?.cancel().catch(() => undefined);
+      return readX402Response(response.status, null);
+    }
+    const header = challengeFromHeader(response.headers.get('payment-required'));
+    const body = header ?? (await response.json().catch(() => null));
     return readX402Response(response.status, body);
   } catch (reason) {
     return unreachable((reason as Error)?.name ?? 'no answer');
