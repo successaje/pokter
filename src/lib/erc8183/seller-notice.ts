@@ -38,13 +38,14 @@ async function askSeller(input: {
     return { status: 'unreachable', reason: 'The provider does not publish notify_funded, so it has to find the job on chain itself.', deliverableUrl: null };
   }
 
+  const rpcId = crypto.randomUUID();
   const reply = await withPublicEndpoint(card.url, async (service) => {
     const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
-        id: crypto.randomUUID(),
+        id: rpcId,
         method: 'message/send',
         params: {
           message: {
@@ -66,7 +67,7 @@ async function askSeller(input: {
       signal: AbortSignal.timeout(SELLER_ANSWER_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`The seller answered HTTP ${response.status}.`);
-    return agentReply(await readJson(response));
+    return agentReply(await readJson(response, { expectId: rpcId }));
   });
   if (!reply || (reply.status !== 'accepted' && reply.status !== 'rejected')) {
     return { status: 'unreachable', reason: 'The seller answered without saying whether it accepted the job.', deliverableUrl: null };

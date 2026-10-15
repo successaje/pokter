@@ -74,13 +74,14 @@ export async function sendPreparedBrief(
   };
   const askedAt = new Date().toISOString();
   const started = Date.now();
+  const rpcId = crypto.randomUUID();
   const payload = await withPublicEndpoint(agent.serviceUrl, async (service) => {
     const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0',
-        id: crypto.randomUUID(),
+        id: rpcId,
         method: 'message/send',
         params: {
           message: {
@@ -97,7 +98,7 @@ export async function sendPreparedBrief(
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) throw new Error(`The agent answered ${response.status} ${response.statusText}.`);
-    return { payload: await readJson(response), origin: service.url.origin };
+    return { payload: await readJson(response, { expectId: rpcId }), origin: service.url.origin };
   });
 
   const answer = extractAnswer(payload.payload);

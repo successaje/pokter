@@ -11,6 +11,7 @@ import { Agent } from 'undici';
 
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { AttestationMethod } from './attestation';
+import { readRpcResponse } from '@/lib/protocol/stream';
 
 /**
  * Pokter as a measurer.
@@ -216,37 +217,13 @@ export async function withPublicEndpoint<T>(
   }
 }
 
-export async function readJson(response: Response): Promise<unknown> {
-  const announced = Number(response.headers.get('content-length') ?? 0);
-  if (announced > MAX_RESPONSE_BYTES) throw new Error('Response is larger than 256 KiB');
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('Response body was empty');
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_RESPONSE_BYTES) {
-      await reader.cancel();
-      throw new Error('Response is larger than 256 KiB');
-    }
-    chunks.push(value);
-  }
-
-  const text = new TextDecoder().decode(
-    chunks.length === 1 ? chunks[0] : Buffer.concat(chunks),
-  );
-  const payload = response.headers.get('content-type')?.includes('text/event-stream')
-    ? text
-        .split('\n')
-        .find((line) => line.startsWith('data:'))
-        ?.slice(5)
-        .trim()
-    : text;
-  if (!payload) throw new Error('Response body was empty');
-  return JSON.parse(payload) as unknown;
+/**
+ * A JSON body, or the awaited JSON-RPC response in an event stream, read
+ * within the size limit. See `readRpcResponse`: pass the request's id when
+ * there is one, so an event for another message is never taken as its answer.
+ */
+export async function readJson(response: Response, { expectId }: { expectId?: string | number } = {}): Promise<unknown> {
+  return readRpcResponse(response, { expectId, maxBytes: MAX_RESPONSE_BYTES });
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -337,7 +314,7 @@ async function probeAt(
     }
 
     try {
-      const body = asObject(await readJson(response));
+      const body = asObject(await readJson(response, protocol === 'mcp' ? { expectId: 'pokter-capabilities' } : {}));
       if (!body) {
         return {
           result: {

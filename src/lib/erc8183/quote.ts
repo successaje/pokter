@@ -160,6 +160,7 @@ export async function requestQuote(
     const negotiateSkill = negotiationSkillOf(skills);
     if (!negotiateSkill || typeof card?.url !== 'string') return fail(quoteFailure(card ? 'no-price-skill' : 'no-endpoint'));
 
+    const rpcId = crypto.randomUUID();
     const payload = await withPublicEndpoint(card.url, async (service) => {
       const response = await service.fetch({
         method: 'POST',
@@ -169,7 +170,7 @@ export async function requestQuote(
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          id: crypto.randomUUID(),
+          id: rpcId,
           method: 'message/send',
           params: {
             message: {
@@ -193,7 +194,7 @@ export async function requestQuote(
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) throw new Error(`Agent answered ${response.status}.`);
-      return readJson(response);
+      return readJson(response, { expectId: rpcId });
     });
 
     const data = responseData(payload);
