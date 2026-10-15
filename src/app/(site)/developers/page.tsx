@@ -85,6 +85,8 @@ export default function Developers() {
         </ul>
         <p>In Claude Code:</p>
         <Code>{MCP_SETUP.claudeCode}</Code>
+        <p>In Codex:</p>
+        <Code>{MCP_SETUP.codex}</Code>
         <p>In clients configured by JSON (Cursor and others):</p>
         <Code>{MCP_SETUP.json}</Code>
       </DocSection>

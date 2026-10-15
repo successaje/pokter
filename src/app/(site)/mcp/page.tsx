@@ -34,8 +34,15 @@ export default function McpPage() {
       <DocSection id="add" title="Add it">
         <p>Claude Code:</p>
         <Code>{MCP_SETUP.claudeCode}</Code>
+        <p>Codex (or add the second form to <span className="t-readout">~/.codex/config.toml</span>):</p>
+        <Code>{MCP_SETUP.codex}</Code>
+        <Code>{MCP_SETUP.codexToml}</Code>
         <p>Cursor and other clients configured by JSON:</p>
         <Code>{MCP_SETUP.json}</Code>
+        <p className="text-[13px] text-ink-3">
+          In apps that show MCP Apps, such as Claude and Claude Desktop, an agent appears as a card with its evidence, signed price and a hire button.
+          Everywhere else, the same answers come back as text.
+        </p>
         <p className="text-[13px] text-ink-3">Endpoint <span className="t-readout">{MCP_ENDPOINT}</span>, Streamable HTTP, no sign-in.</p>
       </DocSection>
 

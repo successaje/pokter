@@ -32,7 +32,7 @@ test('a failing tool is a tool error the assistant can read; an unknown method i
   const failed = (await answerMcp({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'boom' } }, [boom])) as { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(failed.result.isError, true);
   assert.equal(failed.result.content[0].text, 'upstream refused');
-  const missing = (await answerMcp({ jsonrpc: '2.0', id: 6, method: 'resources/list' }, [echo])) as { error: { code: number } };
+  const missing = (await answerMcp({ jsonrpc: '2.0', id: 6, method: 'prompts/list' }, [echo])) as { error: { code: number } };
   assert.equal(missing.error.code, -32601);
 });
 
@@ -40,4 +40,18 @@ test('notifications get no answer, and a batch answers each request', async () =
   assert.equal(await answerMcp({ jsonrpc: '2.0', method: 'notifications/initialized' }, [echo]), null);
   const batch = (await answerMcp([{ jsonrpc: '2.0', id: 1, method: 'ping' }, { jsonrpc: '2.0', method: 'notifications/initialized' }], [echo])) as unknown[];
   assert.equal(batch.length, 1);
+});
+
+test('a tool names its view, and the view is served as an MCP App resource', async () => {
+  const withUi = { ...echo, name: 'card', ui: 'ui://pokter/agent-card' };
+  const view = { uri: 'ui://pokter/agent-card', name: 'Agent card', description: 'x', mimeType: 'text/html;profile=mcp-app', text: '<!doctype html>', meta: { ui: { prefersBorder: false } } };
+  const init = (await answerMcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, [withUi], [view])) as { result: { capabilities: Record<string, unknown> } };
+  assert.ok(init.result.capabilities.resources);
+  const list = (await answerMcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, [withUi], [view])) as { result: { tools: Array<{ _meta?: { ui?: { resourceUri: string } } }> } };
+  assert.equal(list.result.tools[0]._meta?.ui?.resourceUri, 'ui://pokter/agent-card');
+  const read = (await answerMcp({ jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'ui://pokter/agent-card' } }, [withUi], [view])) as { result: { contents: Array<{ mimeType: string; text: string; _meta: unknown }> } };
+  assert.equal(read.result.contents[0].mimeType, 'text/html;profile=mcp-app');
+  assert.deepEqual(read.result.contents[0]._meta, { ui: { prefersBorder: false } });
+  const missing = (await answerMcp({ jsonrpc: '2.0', id: 4, method: 'resources/read', params: { uri: 'ui://nope' } }, [withUi], [view])) as { error: { code: number } };
+  assert.equal(missing.error.code, -32002);
 });
