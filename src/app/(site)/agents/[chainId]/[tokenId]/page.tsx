@@ -6,7 +6,7 @@ import { Suspense } from 'react';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
-import { commissionTaskTemplates } from '@/lib/hire/taskTemplates';
+import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
@@ -160,7 +160,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
 
   const p = result.profile;
   const path = `/agents/${p.chainId}/${p.tokenId}`;
-  const templates = commissionTaskTemplates(p.category?.id ?? 'unclassified');
+  // The agent's own example first, as on the hire page; Pokter's category wording only when it declares none.
+  const declaredTemplates = templatesFromSkills(p.skills);
+  const templates = declaredTemplates.length > 0 ? declaredTemplates : commissionTaskTemplates(p.category?.id ?? 'unclassified');
   const explorer = explorerBaseFor(p.chainId);
 
   return (
