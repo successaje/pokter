@@ -202,6 +202,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
       .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number })),
     skills: skills.slice(0, 12).map((s) => ({
       name: clean(s.name, 80),
+      kind: s.kind,
       description: s.description ? clean(s.description, 300) : null,
       /* Carried through: the hire page builds its task suggestions from
          these, so an agent that documents how to ask it gets asked that

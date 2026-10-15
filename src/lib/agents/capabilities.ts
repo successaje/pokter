@@ -28,7 +28,9 @@
  * of a short line — on several agents it is the only thing that would show.
  *
  * Matched on id, with a name fallback, because the same plumbing appears
- * under `negotiate`, `negotiate-erc8183-job` and `erc8183-job-status`.
+ * under `negotiate`, `negotiate-erc8183-job` and `erc8183-job-status`. A
+ * negotiate skill whose operator named it after the work is kept as the
+ * paid job (see `SkillKind`).
  */
 const PLUMBING_IDS = new Set([
   'negotiate',
@@ -40,8 +42,23 @@ const PLUMBING_IDS = new Set([
 
 const PLUMBING_NAME = /^(negotiate\b|erc-?8183\b|job funded$|notify)/i;
 
+/**
+ * What a declared skill is for, as far as Pokter acts on it.
+ *
+ * - `paid`: the priced job (the ERC-8183 negotiate skill) when its operator
+ *   named it after the work. Stockroom calls its negotiate skill "Quote a
+ *   Stockroom borrow desk brief" and documents the brief format there and
+ *   nowhere else; dropping it as plumbing left its profile saying "No skills
+ *   declared" and its hire page offering a generic brief.
+ * - `preview`: a free call outside escrow (IVL's `preview`). Its input format
+ *   says how to ask for the preview, not what the paid job accepts.
+ * - `capability`: anything else the agent says it does.
+ */
+export type SkillKind = 'capability' | 'paid' | 'preview';
+
 export interface DeclaredSkill {
   name: string;
+  kind: SkillKind;
   description: string | null;
   /**
    * How the agent says to ask it, in its own words.
@@ -58,6 +75,44 @@ export interface DeclaredSkill {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+const PAID_IDS = new Set(['negotiate', 'negotiate-erc8183-job']);
+
+function kindOf(id: string, name: string, tags: unknown): SkillKind | null {
+  const tagged = Array.isArray(tags) ? tags.map((tag) => text(tag).toLowerCase()) : [];
+  if (PAID_IDS.has(id)) return PLUMBING_NAME.test(name) ? null : 'paid';
+  if (PLUMBING_IDS.has(id) || PLUMBING_NAME.test(name)) return null;
+  if (id === 'preview' || tagged.includes('preview') || /\(free\)|\bfree preview\b/i.test(name)) return 'preview';
+  return 'capability';
+}
+
+/**
+ * Example requests written into a skill's description rather than its
+ * `examples` array: the `task_description` of a data part the operator
+ * shows. Stockroom documents its only brief format this way. A placeholder
+ * ("...", "…") is the operator saying nothing, and is not an example.
+ */
+export function examplesInDescription(description: string): string[] {
+  const found: string[] = [];
+  for (const match of description.matchAll(/"task_description"\s*:\s*"((?:[^"\\]|\\.){1,200})"/g)) {
+    const example = match[1].replace(/\\"/g, '"').trim();
+    if (example.length < 3 || /^(?:\.{2,}|…|<[^>]*>)$/.test(example)) continue;
+    found.push(example);
+  }
+  return found;
+}
+
+/**
+ * The description without the wire instructions that follow it. "Send a
+ * data part {...}" is how to call the skill, which the hire flow does for
+ * the buyer; the sentence before it is what the skill is for. Kept whole
+ * when nothing comes before the instructions.
+ */
+export function readableDescription(description: string): string {
+  const cut = description.search(/\s(?:Send|Anchor|POST)\b[^.]*(?:\{|data part)/);
+  const before = cut > 0 ? description.slice(0, cut).trim() : '';
+  return before.length >= 20 ? before : description;
 }
 
 /**
@@ -84,24 +139,37 @@ export function declaredCapabilities(
     const name = text(skill.name);
 
     if (!name) continue;
-    if (PLUMBING_IDS.has(id) || PLUMBING_NAME.test(name)) continue;
+    const kind = kindOf(id, name, skill.tags);
+    if (!kind) continue;
 
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const description = text(skill.description);
+    const listed = Array.isArray(skill.examples) ? skill.examples.map((example) => text(example)) : [];
     kept.push({
       name,
-      description: text(skill.description) || null,
-      examples: Array.isArray(skill.examples)
-        ? skill.examples
-            .map((example) => text(example))
-            .filter((example) => example.length > 0 && example.length <= 200)
-            .slice(0, 4)
-        : [],
+      kind,
+      description: description ? readableDescription(description) : null,
+      examples: [...new Set([...listed, ...examplesInDescription(description)])]
+        .filter((example) => example.length > 0 && example.length <= 200)
+        .slice(0, 4),
     });
     if (kept.length === limit) break;
   }
 
   return kept;
+}
+
+/** The id of a card's free preview skill, if it declares one. */
+export function previewSkillId(skills: unknown): string | null {
+  if (!Array.isArray(skills)) return null;
+  for (const entry of skills) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const skill = entry as Record<string, unknown>;
+    const id = text(skill.id);
+    if (id && kindOf(id.toLowerCase(), text(skill.name), skill.tags) === 'preview') return id;
+  }
+  return null;
 }

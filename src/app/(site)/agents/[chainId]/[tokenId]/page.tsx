@@ -292,7 +292,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {p.skills.map((s) => (
                     <li key={s.name} className="rounded-[10px] border border-rule bg-raised px-4 py-3">
-                      <p className="t-readout text-[13px] font-medium">{s.name}</p>
+                      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="t-readout text-[13px] font-medium">{s.name}</span>
+                        {s.kind !== 'capability' && <span className="t-label text-ink-3">{s.kind === 'paid' ? 'Paid job' : 'Free preview'}</span>}
+                      </p>
                       {s.description && <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-ink-3">{s.description}</p>}
                     </li>
                   ))}
