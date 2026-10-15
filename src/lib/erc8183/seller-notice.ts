@@ -3,6 +3,7 @@ import 'server-only';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getJobStore, type SellerNotice, type SellerNoticeStatus } from '@/lib/erc8183/store';
+import { statedDeliverableUrl } from '@/lib/erc8183/stated-url';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -28,17 +29,17 @@ async function askSeller(input: {
   tokenId: string;
   jobId: string;
   provider: string;
-}): Promise<{ status: SellerNoticeStatus; reason: string | null }> {
+}): Promise<{ status: SellerNoticeStatus; reason: string | null; deliverableUrl: string | null }> {
   const agent = await getAgent(input.agentChainId, input.tokenId);
   if (agent.agent_wallet?.toLowerCase() !== input.provider) {
-    return { status: 'unreachable', reason: 'The registry agent and the funded job do not name the same provider.' };
+    return { status: 'unreachable', reason: 'The registry agent and the funded job do not name the same provider.', deliverableUrl: null };
   }
   const cardEndpoint = agent.services?.a2a?.endpoint?.replace('{agentId}', input.tokenId);
-  if (!cardEndpoint) return { status: 'unreachable', reason: 'The provider publishes no A2A agent card.' };
+  if (!cardEndpoint) return { status: 'unreachable', reason: 'The provider publishes no A2A agent card.', deliverableUrl: null };
   const card = await readAgentCard(cardEndpoint);
   const skills = Array.isArray(card?.skills) ? card.skills : [];
   if (!skills.some((skill) => object(skill)?.id === 'notify_funded') || typeof card?.url !== 'string') {
-    return { status: 'unreachable', reason: 'The provider does not publish notify_funded, so it has to find the job on chain itself.' };
+    return { status: 'unreachable', reason: 'The provider does not publish notify_funded, so it has to find the job on chain itself.', deliverableUrl: null };
   }
 
   const reply = await withPublicEndpoint(card.url, async (service) => {
@@ -72,10 +73,10 @@ async function askSeller(input: {
     return agentReply(await readJson(response));
   });
   if (!reply || (reply.status !== 'accepted' && reply.status !== 'rejected')) {
-    return { status: 'unreachable', reason: 'The seller answered without saying whether it accepted the job.' };
+    return { status: 'unreachable', reason: 'The seller answered without saying whether it accepted the job.', deliverableUrl: null };
   }
   const reason = typeof reply.reason === 'string' ? reply.reason.trim().slice(0, 500) || null : null;
-  return { status: reply.status, reason };
+  return { status: reply.status, reason, deliverableUrl: statedDeliverableUrl(reply) };
 }
 
 /**
@@ -106,10 +107,24 @@ export async function noticeSeller(input: {
       error instanceof Error && /timeout|aborted/i.test(`${error.name} ${error.message}`)
         ? 'The seller did not answer within 50 seconds. Some sellers do the work before answering, so it may still deliver.'
         : error instanceof Error ? error.message.slice(0, 300) : 'The seller could not be reached.',
+    deliverableUrl: null,
   }));
   const store = getJobStore();
   const before = store.noticeFor(input.escrowChainId, input.jobId);
-  const notice = store.recordNotice({ chainId: input.escrowChainId, jobId: input.jobId, ...answer });
+  const { deliverableUrl, ...recorded } = answer;
+  const notice = store.recordNotice({ chainId: input.escrowChainId, jobId: input.jobId, ...recorded });
+
+  /*
+   * Kept the moment the seller says it, because the chain copy stops being
+   * readable within about two hours: no free BNB Chain endpoint serves
+   * eth_getLogs deeper than that, so a receipt verified later could not
+   * find its own deliverable. Never overwritten — a seller re-asked about
+   * a settled job must not be able to repoint a URL already delivered.
+   */
+  if (deliverableUrl) {
+    const job = store.byId(`${input.escrowChainId}:${input.jobId}`);
+    if (job && !job.deliverableUrl) store.record({ ...job, deliverableUrl });
+  }
 
   if (answer.status !== 'accepted' && before?.status !== answer.status) {
     const who = input.agentName ?? `${input.agentChainId}/${input.tokenId}`;

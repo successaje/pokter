@@ -121,15 +121,22 @@ export async function GET(request: Request): Promise<NextResponse> {
       indexed ??
       derived ??
       /*
-       * Wider windows than the SDK's default for the same total work: it
-       * stops as soon as it scans past the submission, so a recent job still
-       * costs a couple of calls while an older one stays reachable instead of
-       * falling off a one-week cliff. 5,000 is chosen to sit under the range
-       * cap public BSC RPCs apply to eth_getLogs.
+       * Wider windows than the SDK's default for the same total reach: the
+       * scan stops as soon as it passes the submission, so a recent job
+       * costs a couple of calls while an older one stays reachable instead
+       * of falling off a one-week cliff.
+       *
+       * 2,500 rather than the 5,000 this used to send. The cap was assumed
+       * rather than measured, and it was wrong: BNB Chain's own dataseed
+       * endpoints refuse eth_getLogs at any width, and publicnode serves
+       * 3,000 blocks and refuses 4,000 with "Archive requests require a
+       * personal token" — a message about range dressed as one about
+       * archives. Every verification of a mainnet receipt failed on it.
+       * maxWindows doubles so the reach is unchanged.
        */
       (await getErc8183DeliverableUrl(network, id, {
-        scanWindow: 5_000n,
-        maxWindows: 300,
+        scanWindow: 2_500n,
+        maxWindows: 600,
       }));
     if (!value) {
       return NextResponse.json(
