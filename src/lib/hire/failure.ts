@@ -24,7 +24,9 @@ export type QuoteFailureCode =
   | 'unreachable'
   | 'no-quote'
   | 'bad-signature'
-  | 'terms-mismatch';
+  | 'terms-mismatch'
+  | 'quote-expired'
+  | 'payment-incompatible';
 
 export interface QuoteFailure {
   code: QuoteFailureCode;
@@ -48,9 +50,13 @@ const LAYER: Record<QuoteFailureCode, FailureLayer> = {
   'no-quote': 'protocol',
   'bad-signature': 'protocol',
   'terms-mismatch': 'protocol',
+  // Signed and verified, but for terms no enabled escrow can fund.
+  'quote-expired': 'protocol',
+  'payment-incompatible': 'payment',
 };
 
-const RETRYABLE = new Set<QuoteFailureCode>(['rate-limited', 'http-error', 'timeout', 'unreachable', 'seller-not-ready']);
+// An expired quote is asked for again; the next one may be fresh.
+const RETRYABLE = new Set<QuoteFailureCode>(['rate-limited', 'http-error', 'timeout', 'unreachable', 'seller-not-ready', 'quote-expired']);
 
 export function quoteFailure(code: QuoteFailureCode, extra: { sellerReason?: string; detail?: string } = {}): QuoteFailure {
   return { code, layer: LAYER[code], retryable: RETRYABLE.has(code), ...extra };
@@ -93,6 +99,10 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
       return { status: 409, message: `${agentName} returned a price that is not signed by its registered wallet, so Pokter will not fund against it.` };
     case 'terms-mismatch':
       return { status: 409, message: `${agentName} signed terms that do not match this brief, so Pokter will not fund against them.` };
+    case 'quote-expired':
+      return { status: 409, message: `${agentName} signed a quote that had already expired when it arrived. Ask again; nothing has been paid.` };
+    case 'payment-incompatible':
+      return { status: 409, message: `${agentName} signed a quote no enabled escrow can pay${failure.detail ? `: ${failure.detail}` : '.'} Nothing has been paid.` };
     default:
       return { status: 502, message: `${agentName} did not return a signed price for this brief.` };
   }
@@ -124,6 +134,7 @@ export function explainFailure(message: string, layer: FailureLayer | null = nul
   if (layer === 'seller') return { title: 'The agent did not take this brief', body: message };
   if (layer === 'network') return { title: 'The agent could not be reached', body: message };
   if (layer === 'protocol') return { title: 'The agent’s quote stopped this hire', body: message };
+  if (layer === 'payment') return { title: 'The agent’s price cannot be paid here', body: message };
   if (/insufficient|balance|needs at least|You need/i.test(message)) return { title: 'Not enough in the wallet', body: message };
   if (/signed a price|signed quote|quote/i.test(message)) return { title: 'The agent’s quote stopped this hire', body: message };
   if (/network|chain|switch/i.test(message)) return { title: 'Wrong network', body: message };

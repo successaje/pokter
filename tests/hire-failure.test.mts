@@ -53,3 +53,14 @@ test('protocol failures are not retryable and are not called network errors', ()
   assert.equal(quoteFailure('no-price-skill').layer, 'seller');
   assert.equal(describeQuoteFailure(quoteFailure('seller-not-ready'), 'X').status, 409);
 });
+
+test('an expired quote is worth asking again; a quote no escrow can pay is not', () => {
+  const expired = quoteFailure('quote-expired');
+  assert.equal(expired.retryable, true);
+  assert.equal(describeQuoteFailure(expired, 'X').status, 409);
+  const unpayable = quoteFailure('payment-incompatible', { detail: 'it is priced in another chain’s token' });
+  assert.equal(unpayable.layer, 'payment');
+  assert.equal(unpayable.retryable, false);
+  assert.match(describeQuoteFailure(unpayable, 'X').message, /no enabled escrow can pay: it is priced/);
+  assert.equal(explainFailure('…', 'payment').title, 'The agent’s price cannot be paid here');
+});
