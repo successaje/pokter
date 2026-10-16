@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  addressChangePlan, describeAddressChange, sendPermitted,
-  UNSOLICITED_PERMITTED, type StoredConsent,
+  addressChangePlan, CONSENT_NOT_REQUIRED, describeAddressChange,
+  sendPermitted, type StoredConsent,
 } from '../src/lib/notifications/preferences';
 
 const consents: StoredConsent[] = [
@@ -27,9 +27,17 @@ test('following a job is not agreeing to hear about agents, or the reverse', () 
   assert.equal(sendPermitted(consents, { mailClass: 'builder', subject: '97:1502' }), false);
 });
 
-test('nothing is sendable without a consent naming it', () => {
-  assert.deepEqual([...UNSOLICITED_PERMITTED], [], 'Pokter sends no unsolicited mail today');
+test('only the mail that asks for consent may be sent without one', () => {
+  /*
+   * It cannot require what it exists to obtain, and it carries nothing
+   * worth obtaining either: a confirmation names the job or the agent and
+   * holds no delivered answer, no preview and no figures.
+   */
+  assert.deepEqual([...CONSENT_NOT_REQUIRED], ['confirmation']);
+  assert.equal(sendPermitted([], { mailClass: 'confirmation', subject: '97:1502' }), true);
   assert.equal(sendPermitted([], { mailClass: 'job', subject: '97:1502' }), false);
+  assert.equal(sendPermitted([], { mailClass: 'agent-watch', subject: '56:41' }), false);
+  assert.equal(sendPermitted([], { mailClass: 'builder', subject: '0xabc' }), false);
 });
 
 const running = [{ chainId: 97, jobId: '1502' }, { chainId: 56, jobId: '880' }];

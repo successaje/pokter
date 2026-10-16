@@ -49,6 +49,9 @@ jobs:
       - name: Run rate-limit checks
         run: npm run audit:rate-limit
 
+      - name: Run notification consent checks
+        run: npm run audit:notifications
+
       # The reason this retry existed is gone: the build used to resolve
       # Newsreader and the body face over the network through
       # next/font/google, and that fetch twice returned null mid-release and

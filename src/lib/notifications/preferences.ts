@@ -16,17 +16,21 @@
  * two is that no stored row can be read as agreement to a broadcast.
  */
 
-export type MailClass = 'job' | 'agent-watch' | 'builder';
+export type MailClass = 'job' | 'agent-watch' | 'builder' | 'confirmation';
 
 /**
- * Mail nobody has to opt into, because it is the answer to something they
- * did. Empty on purpose: Pokter sends no such mail today, and an empty set
- * is the honest version of that.
+ * The classes that need no stored consent.
  *
- * Kept as a named concept so a future "your dispute was decided" lands here
- * deliberately rather than being slipped in under an existing consent.
+ * Exactly one: the mail that asks for consent. It cannot require what it
+ * exists to obtain, and it carries nothing worth obtaining either way —
+ * a confirmation names the job or the agent and holds no delivered answer,
+ * no preview, and no figures.
+ *
+ * Everything else is listed above it rather than here. A future "your
+ * dispute was decided" has to be added deliberately and argued for, not
+ * slipped in under a consent somebody gave for something else.
  */
-export const UNSOLICITED_PERMITTED: readonly MailClass[] = [];
+export const CONSENT_NOT_REQUIRED: readonly MailClass[] = ['confirmation'];
 
 export interface StoredConsent {
   mailClass: MailClass;
@@ -42,7 +46,7 @@ export interface StoredConsent {
  * about the rest of the catalogue.
  */
 export function sendPermitted(consents: readonly StoredConsent[], send: { mailClass: MailClass; subject: string }): boolean {
-  if (UNSOLICITED_PERMITTED.includes(send.mailClass)) return true;
+  if (CONSENT_NOT_REQUIRED.includes(send.mailClass)) return true;
   return consents.some((c) => c.mailClass === send.mailClass && c.subject === send.subject);
 }
 
