@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { identityState, maskEmail, sendingAddress } from '@/lib/notifications/identity';
+import { confirmedAddress, identityState, maskEmail } from '@/lib/notifications/identity';
 import { describeAddressChange, type AddressChangeChoice } from '@/lib/notifications/preferences';
 import {
-  consumeIdentityChallenge, createIdentityChallenge, readIdentity,
-  recordIdentityProof, removeIdentity, runningJobUpdates,
+  claimNotificationEmail, consumeIdentityChallenge, createIdentityChallenge,
+  readIdentity, removeIdentity, runningJobUpdates,
 } from '@/lib/notifications/server';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -108,19 +108,39 @@ export async function POST(request: Request): Promise<NextResponse> {
      * stop hearing about work they already paid for.
      */
     const onVerify: AddressChangeChoice = body.runningJobs === 'stop' ? 'stop' : 'move';
-    const token = crypto.randomUUID();
-    recordIdentityProof({ wallet, chainId, email: challenge.email, token, onVerify });
+    /*
+     * Mailed from the server, and the token never comes back here.
+     *
+     * The first version returned it, so that tests need not send real mail.
+     * That handed the second half of the proof to whoever asked for it: a
+     * wallet could sign for any stranger's address, redeem the link itself,
+     * and Pokter would start mailing somebody who never agreed to hear from
+     * it. The signature says where updates may go; only the inbox can say
+     * it wants them.
+     */
+    const sent = await claimNotificationEmail({ wallet, chainId, email: challenge.email, onVerify });
     const row = readIdentity(wallet, chainId);
+
+    if (!sent.emailed) {
+      /*
+       * The proof is already stored, so this is retryable rather than
+       * broken: asking again replaces the pending link instead of stacking
+       * a second one.
+       */
+      console.error('[notifications/identity] confirmation not sent:', sent.reason);
+      return NextResponse.json(
+        {
+          state: identityState(row),
+          email: maskEmail(challenge.email),
+          error: 'Your wallet signed, but the confirmation email could not be sent just now. Try again in a moment; nothing is sent to that address until it is confirmed.',
+        },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({
       state: identityState(row),
       email: maskEmail(challenge.email),
-      /*
-       * The link is returned rather than emailed from here: sending live
-       * mail is a separate, approved step, and a route that silently sent
-       * it would make every test run a real send.
-       */
-      verification: { token },
       next: describeAddressChange(onVerify, runningJobUpdates(wallet, chainId).length),
     });
   }
@@ -173,13 +193,20 @@ export async function GET(request: Request): Promise<NextResponse> {
   const state = identityState(row);
   return NextResponse.json({
     state,
-    email: row ? maskEmail(row.email) : null,
     /*
-     * Where mail is going right now, which during a change is the old
-     * address. Reporting only the new one would have Settings claim an
-     * inbox that has confirmed nothing is already receiving.
+     * Tied to the state, not merely to the row's existence. A removed row
+     * keeps its address so a later claim of the same one can be
+     * recognised, and reporting it alongside `state: "none"` left the two
+     * fields disagreeing about whether this wallet has an address.
      */
-    sendingTo: sendingAddress(row) ? maskEmail(sendingAddress(row)!) : null,
+    email: state === 'none' ? null : maskEmail(row!.email),
+    /*
+     * Where mail can actually go right now: during a change the old
+     * address, and on a first claim nothing at all. Reporting the new one
+     * had Settings claim an inbox that has confirmed nothing was already
+     * receiving.
+     */
+    sendingTo: confirmedAddress(row) ? maskEmail(confirmedAddress(row)!) : null,
     jobs: runningJobUpdates(wallet, chainId),
   });
 }

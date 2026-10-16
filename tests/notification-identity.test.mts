@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   canSubscribeSilently, identityKey, identityState, identityUsable,
-  maskEmail, notificationIdentityMessage, sendingAddress,
+  confirmedAddress, maskEmail, notificationIdentityMessage, subscriptionAddress,
   type IdentityPurpose, type NotificationIdentity,
 } from '../src/lib/notifications/identity';
 
@@ -125,8 +125,27 @@ test('during a change, mail is still going to the old address', () => {
    * nothing is sending, while their old inbox keeps filling up.
    */
   const changing = row({ email: 'new@example.com', verifiedAt: null, previousEmail: 'buyer@example.com' });
-  assert.equal(sendingAddress(changing), 'buyer@example.com');
-  assert.equal(sendingAddress(row()), 'buyer@example.com', 'with nothing in flight it is simply the address');
-  assert.equal(sendingAddress(row({ removedAt: '2026-10-16T13:00:00Z' })), null, 'a removed address sends nothing');
-  assert.equal(sendingAddress(null), null);
+  assert.equal(subscriptionAddress(changing), 'buyer@example.com');
+  assert.equal(subscriptionAddress(row()), 'buyer@example.com', 'with nothing in flight it is simply the address');
+  assert.equal(subscriptionAddress(row({ removedAt: '2026-10-16T13:00:00Z' })), null, 'a removed address sends nothing');
+  assert.equal(subscriptionAddress(null), null);
+});
+
+test('an unconfirmed address is still queried, but never called the one in use', () => {
+  /*
+   * Two different questions. A buyer may have typed this address into a job
+   * page long before any wallet signed for it, so its rows are live and
+   * have to be found — but a first-time claim has confirmed nothing, and
+   * reporting it as the address in use had Settings tell somebody "updates
+   * keep going to" an inbox that had never agreed to receive any.
+   */
+  const fresh = row({ verifiedAt: null, previousEmail: null });
+  assert.equal(subscriptionAddress(fresh), 'buyer@example.com', 'its typed rows are still live');
+  assert.equal(confirmedAddress(fresh), null, 'but nothing is confirmed to go there');
+
+  assert.equal(confirmedAddress(row()), 'buyer@example.com');
+  const changing = row({ email: 'new@example.com', verifiedAt: null, previousEmail: 'buyer@example.com' });
+  assert.equal(confirmedAddress(changing), 'buyer@example.com', 'mid-change it is the old, confirmed one');
+  assert.equal(confirmedAddress(row({ removedAt: '2026-10-16T13:00:00Z' })), null);
+  assert.equal(confirmedAddress(null), null);
 });

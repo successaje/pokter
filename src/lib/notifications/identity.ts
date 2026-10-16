@@ -190,17 +190,37 @@ export function canSubscribeSilently(row: NotificationIdentity | null): boolean 
 }
 
 /**
- * The address mail is actually going to right now.
+ * The address whose per-job subscriptions belong to this wallet.
  *
  * During a change that is the old, confirmed address — not the new one.
  * The new one has proven nothing yet, and the jobs already running are
  * still sending to the address on file. Anything that reads, stops or
  * lists live subscriptions has to use this, or it will miss them and tell
  * the buyer nothing is sending while their inbox fills up.
+ *
+ * Deliberately not conditional on confirmation: a buyer may have typed
+ * this same address into a job page long before any wallet signed for it,
+ * and those rows are live and sending. Dropping them because the identity
+ * is unconfirmed would report silence over a working subscription.
  */
-export function sendingAddress(row: NotificationIdentity | null): string | null {
+export function subscriptionAddress(row: NotificationIdentity | null): string | null {
   if (!row || row.removedAt) return null;
   return row.previousEmail ?? row.email;
+}
+
+/**
+ * The address Pokter can actually send to right now, or null.
+ *
+ * Stricter than `subscriptionAddress`, and the difference matters where it
+ * is shown rather than queried: a first-time claim has an address on file
+ * that has confirmed nothing, and reporting it as the one in use had
+ * Settings tell a buyer "updates keep going to" an inbox that had never
+ * agreed to receive any.
+ */
+export function confirmedAddress(row: NotificationIdentity | null): string | null {
+  if (!row || row.removedAt) return null;
+  if (row.previousEmail) return row.previousEmail;
+  return row.verifiedAt ? row.email : null;
 }
 
 /**

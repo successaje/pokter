@@ -31,6 +31,7 @@ const SENDERS: { fn: string; mailClass: MailClass; table?: string }[] = [
   { fn: 'createSubscription', mailClass: 'confirmation' },
   { fn: 'createBuilderSubscription', mailClass: 'confirmation' },
   { fn: 'createAgentFollow', mailClass: 'confirmation' },
+  { fn: 'claimNotificationEmail', mailClass: 'confirmation' },
   { fn: 'notifyJobEvent', mailClass: 'job', table: 'notification_subscriptions' },
   { fn: 'notifyBuilderJobEvent', mailClass: 'builder', table: 'builder_notification_subscriptions' },
   { fn: 'notifyFollowers', mailClass: 'agent-watch', table: 'agent_follows' },

@@ -12,7 +12,7 @@ import { jobHref } from '@/lib/jobs/href';
 import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import {
-  IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage, sendingAddress,
+  IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage, subscriptionAddress,
   type IdentityPurpose, type IdentityPurposeKind, type NotificationIdentity,
 } from '@/lib/notifications/identity';
 import { subscriptionPreVerified, type JobUpdateRow } from '@/lib/notifications/job-updates';
@@ -698,7 +698,7 @@ export function readIdentity(wallet: string, chainId: number): NotificationIdent
  * does not exist.
  */
 export function runningJobUpdates(wallet: string, chainId: number): { jobId: string; includeAnswer: boolean }[] {
-  const email = sendingAddress(readIdentity(wallet, chainId));
+  const email = subscriptionAddress(readIdentity(wallet, chainId));
   if (!email) return [];
   return (db()
     .prepare(`SELECT job_id,include_answer FROM notification_subscriptions
@@ -745,6 +745,37 @@ export function recordIdentityProof(input: {
       input.wallet.toLowerCase(), input.chainId, input.email, hash(input.token), now,
       keepVerified ? existing!.verifiedAt : null, now, previous, input.onVerify ?? 'move',
     );
+}
+
+/**
+ * Claim an address: record the wallet's proof, then mail the inbox its
+ * link.
+ *
+ * Reports whether the mail went rather than throwing, because the proof is
+ * already recorded and a buyer should be told "we could not send it, try
+ * again" rather than see a failure that hides a row they now have.
+ */
+export async function claimNotificationEmail(input: {
+  wallet: string; chainId: number; email: string; onVerify?: AddressChangeChoice;
+}): Promise<{ emailed: boolean; reason?: string }> {
+  const token = randomUUID();
+  recordIdentityProof({ ...input, token });
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : chainLabel(input.chainId);
+  try {
+    await sendEmail({
+      to: input.email,
+      subject: 'Confirm this email for your Pokter job updates',
+      idempotencyKey: `identity-${hash(`${input.email}:${input.chainId}:${token}`).slice(0, 48)}`,
+      html: emailShell(
+        `<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Email verification</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Confirm this address</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">A Pokter wallet asked to send its job updates here. Confirming lets it do that in one click per job \u2014 it does not subscribe you to anything on its own, and nothing is sent here until you confirm.</p>${emailContext([['Wallet', input.wallet], ['Network', network]])}<div>${emailButton(verifyUrl, 'Confirm this address')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only enables notifications. It cannot sign transactions or access any wallet. If you did not ask for this, ignore this email and nothing will be sent here.</p>`,
+        'Confirm an email address for Pokter job updates.',
+      ),
+    });
+    return { emailed: true };
+  } catch (error) {
+    return { emailed: false, reason: (error as Error).message };
+  }
 }
 
 /**
@@ -923,7 +954,7 @@ export function advanceWatermark(input: { wallet: string; chainId: number; seenT
  * address".
  */
 export function readJobUpdateRow(input: { wallet: string; chainId: number; jobId: string }): JobUpdateRow | null {
-  const email = sendingAddress(readIdentity(input.wallet, input.chainId));
+  const email = subscriptionAddress(readIdentity(input.wallet, input.chainId));
   if (!email) return null;
   const row = db()
     .prepare(`SELECT email,verified_at,unsubscribed_at,include_answer FROM notification_subscriptions
@@ -986,7 +1017,7 @@ export function subscribeFromIdentity(input: {
  * this direction costs a signature when turning updates on does not.
  */
 export function stopJobUpdates(input: { wallet: string; chainId: number; jobId: string }): boolean {
-  const email = sendingAddress(readIdentity(input.wallet, input.chainId));
+  const email = subscriptionAddress(readIdentity(input.wallet, input.chainId));
   if (!email) return false;
   const result = db()
     .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
@@ -1009,7 +1040,7 @@ export function stopJobUpdates(input: { wallet: string; chainId: number; jobId: 
  */
 export function removeIdentity(wallet: string, chainId: number): { stoppedJobs: number } {
   const now = new Date().toISOString();
-  const email = sendingAddress(readIdentity(wallet, chainId));
+  const email = subscriptionAddress(readIdentity(wallet, chainId));
   const stopped = email
     ? db()
       .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
