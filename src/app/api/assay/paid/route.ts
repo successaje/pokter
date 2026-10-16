@@ -7,6 +7,7 @@ import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { currentSample } from '@/lib/assay/run';
 import { hireAgent } from '@/lib/erc8183/hire';
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+import { noticeSeller } from '@/lib/erc8183/seller-notice';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -114,7 +115,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const already = fixtureJobsForAgent({ chainId, tokenId }, suite.id);
   const todo = rehire ? scenarios : scenarios.filter((scenario) => !already.has(scenario.id));
 
-  const funded: Array<{ scenario: string; jobId?: string; error?: string }> = [];
+  const funded: Array<{ scenario: string; jobId?: string; error?: string; notice?: { status: string; reason: string | null } }> = [];
   if (apply) {
     for (const scenario of todo) {
       if (!scenario.task) continue;
@@ -144,9 +145,34 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   /*
-   * Graded now in case the fixtures were hired earlier and have since been
-   * delivered. Jobs funded in this request will not have delivered yet; the
-   * sweep picks them up.
+   * Tell each agent its fixture is funded, as the hire page does for a
+   * buyer. Without this the jobs waited for the sweep, which notices five
+   * funded jobs a run: thirteen fixtures funded on 16 October sat at FUNDED
+   * until each agent was told by hand, and every one delivered within
+   * seconds of being told. In parallel, because a seller may take up to
+   * 50 seconds to answer and the route has 300. A failed notice is
+   * reported, not fatal: the sweep still tries again.
+   */
+  await Promise.all(
+    funded.map(async (entry) => {
+      if (!entry.jobId) return;
+      const notice = await noticeSeller({
+        agentChainId: chainId as ChainId,
+        tokenId,
+        jobId: entry.jobId,
+        provider: provider.toLowerCase(),
+        escrowChainId: ALTANA_NETWORK.chainId,
+        agentName: agent.name ?? undefined,
+      }).catch((error: unknown) => ({ status: 'unreachable', reason: error instanceof Error ? error.message : null }));
+      entry.notice = { status: notice.status, reason: notice.reason };
+    }),
+  );
+
+  /*
+   * Graded now: fixtures hired earlier may have delivered since, and a
+   * seller that does the work before answering its notice has already
+   * delivered this request's. Anything still outstanding is graded by the
+   * sweep when it arrives.
    */
   const outcome = live
     ? await gradePaidHealthFactorCheck({ chainId, tokenId })
