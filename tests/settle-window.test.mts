@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  canSettle, disputeSummary, mayOfferSettleUnchecked, reviewWindowSummary,
-  settleCallerRule, settleOpensAt,
+  canSettle, canSettleAs, disputeSummary, reviewWindowSummary,
+  settleCallerAllowed, settleOpensAt,
 } from '../src/lib/erc8183/settle-window';
 
 /* Job 1440 on BNB testnet, the one that produced the gas error. */
@@ -104,29 +104,47 @@ test('a disputed job says how the vote stands and both ways it ends', () => {
   assert.match(over.text, /did not reach its quorum \(1 of 3/);
 });
 
-test('who may settle is a separate question from when, and an open one', () => {
+test('anybody may release an escrow once the review window has closed', () => {
   /*
-   * Pokter's release button is gated on being the buyer, which is Pokter's
-   * rule rather than demonstrably the contract's. Simulated on BNB testnet
-   * against job 1460: `settle` reverted identically for the buyer and for
-   * an unrelated address (0x17be5b7b), while `dispute` reverted differently
-   * (0x58ae8479 vs 0x20dbc874) — the contracts distinguish callers where
-   * they mean to, and `settle` does not appear to.
+   * Settled on chain rather than argued. BNB testnet job #1502: buyer
+   * 0x9384…EDda, provider 0xB723…051a, and a third address holding nothing
+   * but gas, 0x5CbD…07FB, which called Router.settle after the 900-second
+   * window and moved 0.1 $U to the provider
+   * (0x78900c506b00ac114bc0658c69e39738ee141180e59b9ebc801b940b0a2e1ff6).
    *
-   * Evidence, not proof: a caller check after the state check would look
-   * the same on a job that is not settleable yet. So nothing asserts it.
+   * Which makes Pokter's own promise — "the payment can be released
+   * afterwards without you" — a fact rather than a claim.
    */
-  assert.equal(settleCallerRule('dispute'), 'client-only');
-  assert.equal(settleCallerRule('approve'), 'ask-the-chain');
+  for (const caller of ['buyer', 'seller', 'anyone-else'] as const) {
+    assert.equal(settleCallerAllowed('approve', caller), true);
+  }
 });
 
-test('only the buyer is offered a release without asking the chain first', () => {
+test('only the buyer may contest a delivery', () => {
   /*
-   * Every completed job settled that way, so that path has precedent.
-   * Anyone else — the seller included, whose own payment it is — gets a
-   * simulation, or Pokter is promising something that may revert.
+   * The contrast that made the result above legible: inside the window,
+   * dispute succeeds for the buyer and refuses everyone else with
+   * 0x20dbc874, which is NotClient() by preimage. The contracts have a
+   * caller gate and use it — settle simply does not have one.
    */
-  assert.equal(mayOfferSettleUnchecked('buyer'), true);
-  assert.equal(mayOfferSettleUnchecked('seller'), false);
-  assert.equal(mayOfferSettleUnchecked('anyone-else'), false);
+  assert.equal(settleCallerAllowed('dispute', 'buyer'), true);
+  assert.equal(settleCallerAllowed('dispute', 'seller'), false);
+  assert.equal(settleCallerAllowed('dispute', 'anyone-else'), false);
+});
+
+test('a caller who may never make the call is told that, not asked to wait', () => {
+  // "Come back in twelve minutes" to somebody who can never dispute at all
+  // is the wrong answer however good the timing maths is.
+  const inside = canSettleAs('dispute', 'seller', timing(SUBMITTED + 60));
+  assert.equal(inside.allowed, false);
+  assert.equal(inside.allowed === false && inside.reason, 'not-your-call');
+  assert.match(inside.allowed === false ? inside.message : '', /Only the wallet that funded this job/);
+  assert.match(inside.allowed === false ? inside.message : '', /open to anyone/);
+});
+
+test('an allowed caller still has to wait for the window', () => {
+  // Both halves, or a surface ships a button that reverts.
+  const early = canSettleAs('approve', 'anyone-else', timing(SUBMITTED + 60));
+  assert.equal(early.allowed === false && early.reason, 'too-early');
+  assert.equal(canSettleAs('approve', 'anyone-else', timing(SUBMITTED + WINDOW + 1)).allowed, true);
 });

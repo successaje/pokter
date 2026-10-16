@@ -32,7 +32,9 @@ export type SettleVerdict =
   | { allowed: true }
   | { allowed: false; reason: 'too-early'; opensInSeconds: number; message: string }
   | { allowed: false; reason: 'window-closed'; message: string }
-  | { allowed: false; reason: 'expired'; message: string };
+  | { allowed: false; reason: 'expired'; message: string }
+  /** The caller may never make this call, whatever the timing. */
+  | { allowed: false; reason: 'not-your-call'; message: string };
 
 export interface SettleTiming {
   /** Seconds since epoch the seller submitted, or 0 when it has not. */
@@ -164,46 +166,59 @@ export function disputeSummary(input: { rejectVotes: number; quorum: number; exp
 /**
  * Who may release an escrow, as distinct from when.
  *
- * `canSettle` above answers the timing. This answers the caller, and the
- * two are not the same question: Pokter's release button is gated on being
- * the buyer, which is a Pokter rule and not necessarily the contract's.
+ * `canSettle` above answers the timing. This answers the caller, and they
+ * are different questions: Pokter's release button is gated on being the
+ * buyer, which was Pokter's rule and nobody had checked whether it was the
+ * contract's.
  *
- * Measured by simulation on BNB testnet (eth_call, nothing sent) against
- * job 1460, from the buyer and from an address with no relationship to the
- * job:
+ * It is not. Settled on chain, BNB testnet, job #1502:
  *
- *   settle   buyer 0x17be5b7b · stranger 0x17be5b7b   identical
- *   dispute  buyer 0x58ae8479 · stranger 0x20dbc874   different
+ *   buyer    0x93847647d7eb72a69E162117df6a8697dF53EDda
+ *   provider 0xB72335e083A7eed9731D24C48dbf07c4Ef1f051a  (Brinkwatch)
+ *   settler  0x5CbDd86a2FA8Dc4bDdd8a8f69dBa48572EeC07FB  (neither)
  *
- * So the contracts do distinguish callers where they mean to — `dispute`
- * turns a stranger away with its own error, matching the SDK's
- * "client-only" — and `settle` does not appear to. That is evidence rather
- * than proof: a caller check placed after the state check would look the
- * same on a job that is not settleable yet, and no job was in the
- * delivered-and-past-window state to test against.
+ * The third address held nothing but gas. After the 900-second window
+ * closed it called `Router.settle(1502, "0x")` in
+ * 0x78900c506b00ac114bc0658c69e39738ee141180e59b9ebc801b940b0a2e1ff6,
+ * the job became COMPLETED, and the provider's balance went from 0.5 $U
+ * to 0.6 $U. So an escrow is released to the seller by anybody at all,
+ * and Pokter's "the payment can be released afterwards without you" is a
+ * fact rather than a claim.
  *
- * Which is why nothing here asserts it. The answer is `'ask-the-chain'`,
- * and any surface that wants to offer a non-buyer a release must simulate
- * that exact call first and report what the chain said. An assumption in
- * either direction is a button that reverts, or a payment nobody collects.
+ * `dispute` is the opposite, and the contrast is what makes the result
+ * legible. Inside the window it succeeds only for the buyer and refuses
+ * everyone else with `0x20dbc874`, which is `NotClient()` — confirmed by
+ * preimage, not guessed. The contracts have a caller gate and use it;
+ * `settle` simply does not have one. Before the window both calls refuse
+ * everybody including the buyer, with `0x17be5b7b`, so that one is about
+ * state rather than identity.
  */
 export type SettleCaller = 'buyer' | 'seller' | 'anyone-else';
 
-export function settleCallerRule(action: SettleAction): 'client-only' | 'ask-the-chain' {
-  /*
-   * `dispute` is the SDK's documented client-only call, and the differing
-   * revert above is the contract agreeing. `settle` is the open question.
-   */
-  return action === 'dispute' ? 'client-only' : 'ask-the-chain';
+/** Whether this caller may make this call at all, timing aside. */
+export function settleCallerAllowed(action: SettleAction, caller: SettleCaller): boolean {
+  return action === 'dispute' ? caller === 'buyer' : true;
 }
 
 /**
- * Whether Pokter may offer this caller a release without asking the chain.
+ * The whole answer: may this caller do this, now?
  *
- * Only the buyer, and only because that is the path with on-chain
- * precedent: every completed job settled that way. Everyone else needs a
- * simulation, including the seller — whose own payment it is.
+ * Both halves in one place, because a surface that offers a release to
+ * somebody other than the buyer needs the timing *and* the caller rule,
+ * and checking one of them is how a button that reverts gets shipped.
  */
-export function mayOfferSettleUnchecked(caller: SettleCaller): boolean {
-  return caller === 'buyer';
+export function canSettleAs(
+  action: SettleAction,
+  caller: SettleCaller,
+  timing: SettleTiming,
+): SettleVerdict {
+  if (!settleCallerAllowed(action, caller)) {
+    return {
+      allowed: false,
+      reason: 'not-your-call',
+      message:
+        'Only the wallet that funded this job can contest a delivery. Releasing the payment, once the review window has closed, is open to anyone.',
+    };
+  }
+  return canSettle(action, timing);
 }
