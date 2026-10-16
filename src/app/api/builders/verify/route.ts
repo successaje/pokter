@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAddress, isAddress, isHex, verifyMessage, type Address, type Hex } from 'viem';
+import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
 import { BUILDER_SESSION_COOKIE, BUILDER_SESSION_SECONDS, createBuilderChallenge, createBuilderSession, consumeBuilderChallenge, readBuilderChallenge, saveVerifiedPublisher } from '@/lib/builders/store';
-import { registryClient, registryOwner } from '@/lib/registry/onchain';
+import { registryOwner } from '@/lib/registry/onchain';
+import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -27,53 +28,6 @@ async function ownerOfIdentity(chainId: ChainId, tokenId: string): Promise<Addre
     return isAddress(agent.owner_address) ? getAddress(agent.owner_address) : null;
   } catch {
     return null;
-  }
-}
-
-/**
- * The signature check, which now also accepts a contract wallet.
- *
- * `verifyMessage` from viem recovers an EOA and nothing else, so a smart
- * account could own an agent and never prove it. With a chain client the
- * same call falls through to ERC-1271, which is how a contract wallet says
- * a signature is its own. EOAs are unaffected.
- */
-async function signedByOwner(chainId: number, owner: Address, message: string, signature: Hex): Promise<boolean> {
-  const client = registryClient(chainId);
-  try {
-    if (client) return await client.verifyMessage({ address: owner, message, signature });
-  } catch {
-    /* An RPC failure must not pass an unverified signature; fall back to
-       the local EOA check, which is what this did before. */
-  }
-  return verifyMessage({ address: owner, message, signature });
-}
-
-/** An EIP-191 signature is 65 bytes; a contract-wallet signature is not. */
-function looksLikeEoaSignature(signature: Hex): boolean {
-  return signature.length === 132;
-}
-
-/**
- * Whether a smart-account signature could be checked at all.
- *
- * A smart account validates its own signatures, so if it has no code the
- * check cannot even be attempted — and the Altana SDK is explicit that a
- * freshly created wallet is counterfactual until its first `execute`. A
- * wallet in that state is told what is actually true, rather than that
- * its signature did not match, which would send somebody hunting for a
- * wallet they do not have.
- */
-async function ownerCanBeChecked(chainId: number, owner: Address, signature: Hex): Promise<boolean> {
-  if (looksLikeEoaSignature(signature)) return true;
-  const client = registryClient(chainId);
-  if (!client) return true;
-  try {
-    const code = await client.getCode({ address: owner });
-    return Boolean(code && code !== '0x');
-  } catch {
-    /* Unknown is not a refusal: let the signature check decide. */
-    return true;
   }
 }
 
@@ -102,7 +56,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const challenge = readBuilderChallenge(challengeId);
     if (!challenge) return NextResponse.json({ error: 'This challenge expired or was already used.' }, { status: 409 });
     try {
-      if (!(await ownerCanBeChecked(challenge.chainId, challenge.owner, signature as Hex))) {
+      if (!(await walletCanBeChecked(challenge.chainId, challenge.owner, signature as Hex))) {
         return NextResponse.json(
           {
             error:
@@ -111,7 +65,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           { status: 409 },
         );
       }
-      if (!(await signedByOwner(challenge.chainId, challenge.owner, challenge.message, signature as Hex))) {
+      if (!(await signedByWallet(challenge.chainId, challenge.owner, challenge.message, signature as Hex))) {
         return NextResponse.json({ error: 'The signature does not match the registered owner.' }, { status: 403 });
       }
       const owner = await ownerOfIdentity(challenge.chainId as ChainId, challenge.tokenId);

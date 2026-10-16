@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import type { Address } from 'viem';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -10,6 +11,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { jobHref } from '@/lib/jobs/href';
 import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
+import { IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage, type NotificationIdentity } from '@/lib/notifications/identity';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
@@ -539,4 +541,131 @@ export async function notifyFollowers(states: Map<string, { name: string; state:
     db().prepare('UPDATE agent_follows SET last_state=?, agent_name=? WHERE id=?').run(JSON.stringify(current.state), current.name || row.agent_name, row.id);
   }
   return { checked: rows.length, sent };
+}
+
+/* ---------------------------------------------------------------------- *
+ * Wallet-proven notification identity (§3)
+ *
+ * Kept beside the per-job subscriptions rather than replacing them. The
+ * existing rows prove an inbox and an address nobody checked; these prove
+ * both halves, and nothing promotes one to the other. See
+ * `notifications/identity.ts` for why that line matters.
+ * ---------------------------------------------------------------------- */
+
+function identityDb() {
+  const database = db();
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS notification_identities (
+      wallet_address TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      verification_hash TEXT NOT NULL,
+      proven_at TEXT,
+      verified_at TEXT,
+      removed_at TEXT,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (wallet_address, chain_id)
+    );
+    CREATE TABLE IF NOT EXISTS notification_identity_challenges (
+      id TEXT PRIMARY KEY,
+      nonce_hash TEXT NOT NULL,
+      message TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT
+    );
+  `);
+  return database;
+}
+
+/** A challenge for a wallet to sign, single-use and short-lived. */
+export function createIdentityChallenge(input: { wallet: Address; chainId: number; email: string }) {
+  const id = randomUUID();
+  const nonce = randomBytes(24).toString('base64url');
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + IDENTITY_CHALLENGE_TTL_MS);
+  const message = notificationIdentityMessage({
+    challengeId: id, nonce, chainId: input.chainId, wallet: input.wallet,
+    email: input.email, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString(),
+  });
+  identityDb()
+    .prepare(`INSERT INTO notification_identity_challenges
+      (id,nonce_hash,message,wallet_address,chain_id,email,expires_at) VALUES (?,?,?,?,?,?,?)`)
+    .run(id, hash(nonce), message, input.wallet.toLowerCase(), input.chainId, input.email, expiresAt.toISOString());
+  return { challengeId: id, message, expiresAt: expiresAt.toISOString() };
+}
+
+/**
+ * The challenge to check a signature against, consumed on read.
+ *
+ * Single use and expiry-checked here rather than at the call site, so a
+ * replayed signature cannot bind an inbox a second time.
+ */
+export function consumeIdentityChallenge(id: string): { wallet: string; chainId: number; email: string; message: string } | null {
+  const database = identityDb();
+  const row = database
+    .prepare('SELECT * FROM notification_identity_challenges WHERE id = ? AND used_at IS NULL')
+    .get(id) as { wallet_address: string; chain_id: number; email: string; message: string; expires_at: string } | undefined;
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  database.prepare('UPDATE notification_identity_challenges SET used_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+  return { wallet: row.wallet_address, chainId: row.chain_id, email: row.email, message: row.message };
+}
+
+export function readIdentity(wallet: string, chainId: number): NotificationIdentity | null {
+  const row = identityDb()
+    .prepare('SELECT * FROM notification_identities WHERE wallet_address = ? AND chain_id = ?')
+    .get(wallet.toLowerCase(), chainId) as
+    | { wallet_address: string; chain_id: number; email: string; proven_at: string | null; verified_at: string | null; removed_at: string | null }
+    | undefined;
+  if (!row) return null;
+  return {
+    wallet: row.wallet_address, chainId: row.chain_id, email: row.email,
+    provenAt: row.proven_at, verifiedAt: row.verified_at, removedAt: row.removed_at,
+  };
+}
+
+/**
+ * Record a wallet's proof and send the inbox its link.
+ *
+ * The signature is checked by the caller, which owns the EOA and
+ * contract-wallet distinction. Idempotent: claiming the same address twice
+ * replaces the pending link rather than stacking two live ones, and a
+ * verified row keeps its verification until a new address is confirmed —
+ * so changing an email never silently stops updates mid-job.
+ */
+export function recordIdentityProof(input: { wallet: string; chainId: number; email: string; token: string }): void {
+  const now = new Date().toISOString();
+  const existing = readIdentity(input.wallet, input.chainId);
+  const keepVerified = existing && existing.email === input.email && existing.verifiedAt && !existing.removedAt;
+  identityDb()
+    .prepare(`INSERT INTO notification_identities
+      (wallet_address,chain_id,email,verification_hash,proven_at,verified_at,removed_at,created_at)
+      VALUES (?,?,?,?,?,?,NULL,?)
+      ON CONFLICT(wallet_address,chain_id) DO UPDATE SET
+        email=excluded.email, verification_hash=excluded.verification_hash,
+        proven_at=excluded.proven_at, verified_at=excluded.verified_at, removed_at=NULL`)
+    .run(input.wallet.toLowerCase(), input.chainId, input.email, hash(input.token), now, keepVerified ? existing!.verifiedAt : null, now);
+}
+
+/** Confirm the inbox, from the emailed link. */
+export function verifyIdentity(token: string): { wallet: string; chainId: number } | null {
+  const database = identityDb();
+  const row = database
+    .prepare('SELECT wallet_address, chain_id FROM notification_identities WHERE verification_hash = ? AND removed_at IS NULL')
+    .get(hash(token)) as { wallet_address: string; chain_id: number } | undefined;
+  if (!row) return null;
+  database
+    .prepare('UPDATE notification_identities SET verified_at = COALESCE(verified_at, ?) WHERE wallet_address = ? AND chain_id = ?')
+    .run(new Date().toISOString(), row.wallet_address, row.chain_id);
+  return { wallet: row.wallet_address, chainId: row.chain_id };
+}
+
+/** Remove the association, at the buyer's request. */
+export function removeIdentity(wallet: string, chainId: number): void {
+  identityDb()
+    .prepare('UPDATE notification_identities SET removed_at = ? WHERE wallet_address = ? AND chain_id = ?')
+    .run(new Date().toISOString(), wallet.toLowerCase(), chainId);
 }
