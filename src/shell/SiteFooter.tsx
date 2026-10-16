@@ -31,6 +31,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
     links: [
       { href: '/how-it-works', label: 'How it works' },
       { href: '/methodology', label: 'Methodology' },
+      { href: '/corrections', label: 'Where we were wrong' },
       { href: '/agent-advantage', label: 'Agent vs by hand' },
       { href: '/support', label: 'Help and support' },
       { href: '/set-and-earn', label: 'Set and Earn campaign' },

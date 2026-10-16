@@ -105,6 +105,13 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
     facts.observedDays >= RELIABLE_OBSERVED_DAYS &&
     (facts.probeRate ?? 0) >= RELIABLE_MIN_RATE;
 
+  /*
+   * Delivered, but only ever to Pokter's team. The house agents reached
+   * "Delivered" on team-funded test hires, and the label alone read like a
+   * customer had paid. Said in the label as well as the step, so a card
+   * shows it without opening the ladder.
+   */
+  const teamOnlyDeliveries = facts.delivered && facts.outsideTeam.completed === 0;
   const earned: Record<MaturityId, boolean> = {
     answers: facts.reachable || (facts.probeRate === null && facts.liveAnswered === true),
     priced: facts.compatible,
@@ -121,7 +128,9 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
       label: LABEL.delivered,
       earned: earned.delivered,
       detail: earned.delivered
-        ? 'A paid job delivered from the agent’s own wallet.'
+        ? teamOnlyDeliveries
+          ? 'Paid jobs delivered from the agent’s own wallet, all funded by Pokter’s team so far: no outside buyer has settled one yet.'
+          : 'A paid job delivered from the agent’s own wallet.'
         : facts.deliveredByOperator
           ? 'A delivery reached escrow, but a Pokter wallet submitted it rather than the agent.'
           : facts.hired
@@ -140,7 +149,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
   ];
 
   const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
-  const label = current ? LABEL[current] : 'Not answering yet';
+  const label = current === 'delivered' && teamOnlyDeliveries ? 'Delivered (team hires)' : current ? LABEL[current] : 'Not answering yet';
   const summary = current
     ? LADDER_MEANING[current]
     : facts.probeRate === null

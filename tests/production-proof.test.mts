@@ -9,14 +9,16 @@ const BUYER_A = '0x0000000000000000000000000000000000000002' as const;
 const BUYER_B = '0x0000000000000000000000000000000000000003' as const;
 
 function job(id: string, status: JobStatusName, options: Partial<HiredJob> = {}): HiredJob {
+  const tokenId = options.agentTokenId ?? (id === '4' ? '2' : '1');
   return {
+    // Named per token, so unrelated test agents stay distinct agents.
+    agentName: `Agent ${tokenId}`,
     id,
     jobId: id,
     chainId: 56,
     isTestnet: false,
     agentChainId: 56,
     agentTokenId: id === '4' ? '2' : '1',
-    agentName: 'Agent',
     provider: '0x0000000000000000000000000000000000000004',
     client: BUYER_A,
     task: 'private',
@@ -147,16 +149,43 @@ test('a job with no recorded funder is counted as nobody, not as a buyer', () =>
   assert.equal(summary.repeatKnownBuyers, 0);
 });
 
-test('agents hired counts distinct identities, not jobs', () => {
-  const jobs = [
-    job('1', 'COMPLETED', { agentChainId: 56, agentTokenId: '7' }),
-    job('2', 'COMPLETED', { agentChainId: 56, agentTokenId: '7' }),
-    job('3', 'COMPLETED', { agentChainId: 97, agentTokenId: '7' }),
-  ];
-  const summary = summarizeProductionProof(jobs, () => false);
-  /* The same token id on two chains is two identities, so the key carries the
-     chain: counting token ids alone would merge a testnet and a mainnet agent. */
-  assert.equal(summary.agentsHired, 2);
+test('agents hired counts each agent once, across its chains', () => {
+  // Two different agents that share token id 7 on two chains are two agents.
+  const different = summarizeProductionProof([
+    job('1', 'COMPLETED', { agentChainId: 56, agentTokenId: '7', agentName: 'Keel' }),
+    job('2', 'COMPLETED', { agentChainId: 56, agentTokenId: '7', agentName: 'Keel' }),
+    job('3', 'COMPLETED', { agentChainId: 97, agentTokenId: '7', agentName: 'Other' }),
+  ], () => false);
+  assert.equal(different.agentsHired, 2);
+
+  // One agent registered on both chains (same name, same agent wallet) is one agent, two registrations.
+  const keel = summarizeProductionProof([
+    job('1', 'COMPLETED', { agentChainId: 56, agentTokenId: '341556', agentName: 'Keel' }),
+    job('2', 'COMPLETED', { agentChainId: 97, agentTokenId: '2238', agentName: 'keel ' }),
+  ], () => false);
+  assert.equal(keel.agentsHired, 1);
+  assert.equal(keel.agentRegistrationsHired, 2);
+
+  // A job labelled with something other than the agent's name does not split its registration.
+  const labelled = summarizeProductionProof([
+    job('1', 'COMPLETED', { agentChainId: 97, agentTokenId: '2618', agentName: 'Brinkwatch' }),
+    job('2', 'COMPLETED', { agentChainId: 97, agentTokenId: '2618', agentName: 'Seller-release proof' }),
+  ], () => false);
+  assert.equal(labelled.agentsHired, 1);
+
+  // Two agents one operator runs from a shared wallet stay two agents.
+  const shared = summarizeProductionProof([
+    job('1', 'COMPLETED', { agentChainId: 56, agentTokenId: '302258', agentName: 'Grid Planner' }),
+    job('2', 'COMPLETED', { agentChainId: 56, agentTokenId: '304493', agentName: 'Venus Yield Ranking' }),
+  ], () => false);
+  assert.equal(shared.agentsHired, 2);
+
+  // Pokter's testnet delivery agent carries hires for different agents under one wallet and label: never merged.
+  const delivered = summarizeProductionProof([
+    job('1', 'COMPLETED', { agentChainId: 97, agentTokenId: '293902', agentName: 'Verified testnet seller' }),
+    job('2', 'COMPLETED', { agentChainId: 97, agentTokenId: '302257', agentName: 'Verified testnet seller' }),
+  ], () => false);
+  assert.equal(delivered.agentsHired, 2);
 });
 
 test('the status breakdown accounts for every job and terminal excludes live work', () => {

@@ -110,3 +110,12 @@ test('a live answer counts only while no scheduled check exists, and the wording
   assert.equal(failing.current, null);
   assert.equal(failing.summary, 'Listed in the registry; it has not answered Pokter’s checks.');
 });
+
+test('deliveries funded only by Pokter’s team say so', () => {
+  const teamOnly = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true }));
+  assert.equal(teamOnly.label, 'Delivered (team hires)');
+  assert.match(teamOnly.steps.find((s) => s.id === 'delivered')!.detail, /funded by Pokter’s team/);
+
+  const outside = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true, outsideTeam: { jobs: 1, completed: 1, terminal: 1, uniqueBuyers: 1, completionRate: 1 } }));
+  assert.equal(outside.label, 'Delivered');
+});
