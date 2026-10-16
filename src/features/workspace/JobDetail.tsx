@@ -31,6 +31,7 @@ import { useClockThrough } from '@/lib/ui/use-moment';
 import { budgetOf, PhaseLabel } from './parts';
 import { ReviewForm } from './ReviewForm';
 import { JobUpdates } from './JobUpdates';
+import { localMoment } from '@/lib/time/local-moment';
 
 /**
  * Finds the job in this device's memory, or rebuilds it from chain. A job
@@ -149,19 +150,6 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
       <Icon.Check size={14} /> {who} confirmed it received the job at {new Date(answer.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.
     </p>
   );
-}
-
-/**
- * The same moment in the reader's own timezone.
- *
- * The window's close was shown in UTC only, which is the right thing to
- * record and the wrong thing to read: a buyer deciding whether they have
- * time to look at a delivery should not have to convert. Shown beside the
- * UTC text rather than instead of it.
- */
-function localMoment(epochSeconds: number): string {
-  const d = new Date(epochSeconds * 1000);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' });
 }
 
 /** The escrowed amount, as the buyer agreed it. */
