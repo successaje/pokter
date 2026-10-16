@@ -49,7 +49,7 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
   if (!endpoint) throw new NotAskableError('The agent publishes no A2A endpoint, so a brief cannot be sent to it.');
 
   const card = await readAgentCard(endpoint);
-  const skill = pickWorkSkill(card?.skills);
+  const skill = pickWorkSkill(card?.skills, target.category);
   const serviceUrl = jsonRpcEndpoint(card);
   if (!skill) throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
   if (!serviceUrl) throw new NotAskableError('The agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls.');

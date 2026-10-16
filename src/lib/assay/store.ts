@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { freeRunStatus } from './run-status';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -116,7 +117,7 @@ class AssayStore {
     const rows = this.db.prepare('SELECT * FROM assay_results WHERE run_id = ? ORDER BY rowid').all(run.id) as Array<{
       scenario: string; expected: string; observed: string | null; excerpt: string | null; pass: number; outcome: string | null; reason: string; latency_ms: number | null; job_id: string | null;
     }>;
-    return {
+    const loaded: AssayRun = {
       suite: run.suite,
       status: run.status,
       detail: run.detail,
@@ -137,6 +138,16 @@ class AssayStore {
         jobId: r.job_id,
       })),
     };
+    /*
+     * Free runs recorded before freeRunStatus counted every brief as a
+     * failure even when nothing was answered. Read with today's rule so
+     * those 0/N records stop showing as failures without rewriting them.
+     */
+    if (loaded.status === 'checked' && loaded.via === 'free-call') {
+      const judged = freeRunStatus(loaded.results);
+      if (judged.status === 'not-askable') return { ...loaded, status: 'not-askable', detail: judged.detail, passed: 0 };
+    }
+    return loaded;
   }
 
   sample(suite: string): { accounts: string[]; sampledAt: string } | null {
