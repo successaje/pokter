@@ -12,6 +12,7 @@ import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
+import { siteUrl } from '@/lib/site';
 
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
@@ -200,7 +201,7 @@ function hash(value: string): string {
 }
 
 function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311').replace(/\/$/, '');
+  return siteUrl();
 }
 
 function escapeHtml(value: string): string {

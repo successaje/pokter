@@ -179,7 +179,14 @@ export async function sponsorGas(rawAddress: string, clientKey: string): Promise
     }
     return { status: 'funded', balance, amount, transactionHash };
   } catch (error) {
-    if (error instanceof AltanaNotConfiguredError) return { status: 'refused', reason: error.message };
+    /*
+     * The configuration error names secrets and the command that sets them:
+     * right for an operator's log, not for a public route's reply.
+     */
+    if (error instanceof AltanaNotConfiguredError) {
+      console.error(`[sponsor] ${error.message}`);
+      return { status: 'refused', reason: 'Pokter cannot cover the network fee right now. You can still add BNB yourself.' };
+    }
     return { status: 'refused', reason: 'The network fee could not be covered just now. You can still add BNB yourself.' };
   }
 }

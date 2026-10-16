@@ -79,7 +79,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
     if (error instanceof AltanaNotConfiguredError) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
+      // The message names secrets; it belongs in the log, not the reply.
+      console.error(error.message);
+      return NextResponse.json({ error: 'Escrow is not configured on this server.' }, { status: 503 });
     }
     return NextResponse.json(
       { error: `Hire failed: ${(error as Error).message}` },

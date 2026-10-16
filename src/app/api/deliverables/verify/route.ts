@@ -12,6 +12,7 @@ import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { erc8183ManifestHash } from '@altananetwork/sdk';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -103,7 +104,7 @@ export async function GET(request: Request): Promise<NextResponse> {
           try {
             const url = new URL(
               `/api/seller/deliverables/${jobId}`,
-              process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
+              siteUrl(),
             );
             if (chainId !== 97) url.searchParams.set('chain', String(chainId));
             url.searchParams.set(
@@ -146,7 +147,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
     const candidate = new URL(value);
     const ownOrigin = new URL(
-      process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
+      siteUrl(),
     ).origin;
     // Our own origin needs no SSRF check; anything else is validated and then
     // pinned to the address that was checked (POK-008).

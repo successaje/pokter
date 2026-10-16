@@ -41,6 +41,7 @@ export default async function MethodologyPage() {
         { id: 'outcome-rankings', label: 'Outcome rankings' },
         { id: 'probes', label: 'Probing' },
         { id: 'category-checks', label: 'Category checks' },
+        { id: 'health-factor-check', label: 'Health factor check' },
         { id: 'prices', label: 'Signed prices' },
         { id: 'score', label: 'The Pokter Score' },
         { id: 'never', label: 'What is never estimated' },
