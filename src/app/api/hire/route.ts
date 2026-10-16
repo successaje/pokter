@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { isAddress } from 'viem';
 
+import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
+
 import {
   hireAgent,
   listJobs,
@@ -62,10 +64,53 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  /*
+   * The description that goes on chain.
+   *
+   * Written as a `pokter-job` envelope whenever the caller names a real
+   * ERC-8004 registration, because a raw description is not readable by
+   * any agent Pokter lists: the house agents refuse a funded job with
+   * "The job carries no readable brief", and nothing indexes it. This
+   * route could therefore only ever hire a seller that reads raw text,
+   * which is not what an operator-funded testnet hire is for.
+   *
+   * The raw fallback stays for exactly that seller — the unregistered
+   * reference one, hired with a non-numeric token id.
+   */
+  const identityChainId = Number(body.identityChainId ?? 0);
+  let description: string | undefined;
+  if (/^\d+$/.test(agentTokenId) && Number.isSafeInteger(identityChainId) && identityChainId > 0) {
+    try {
+      description = encodePokterJobEnvelope({
+        identityChainId,
+        agentTokenId,
+        agentName: agentName || undefined,
+        category: String(body.category ?? '').trim() || 'Uncategorised',
+        provider,
+        task,
+      });
+    } catch (error) {
+      return NextResponse.json({ error: `Envelope rejected: ${(error as Error).message}` }, { status: 400 });
+    }
+    /*
+     * The kernel's 4096-byte cap applies to what actually goes on chain,
+     * which is now the envelope rather than the task. Checking only the
+     * task would let a brief just under the limit become a description
+     * just over it, and arrive as an opaque revert.
+     */
+    if (Buffer.byteLength(description, 'utf8') > 4096) {
+      return NextResponse.json(
+        { error: 'The brief is too long once wrapped for on-chain storage. Shorten it.' },
+        { status: 400 },
+      );
+    }
+  }
+
   try {
     const job = await hireAgent({
       provider,
       task,
+      description,
       agentName: agentName || 'Unnamed agent',
       agentTokenId: agentTokenId || 'unknown',
       budgetU,
