@@ -5,7 +5,10 @@ import { POST as trial } from '@/app/api/trial/route';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
-import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME } from '@/lib/mcp/agent-card';
+import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME, networkOf } from '@/lib/mcp/agent-card';
+import { agentIdentityKey } from '@/lib/agents/distinct';
+import { escrowChainForHire } from '@/lib/network/escrow';
+import { formatUnits } from 'viem';
 import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
 import { discover } from '@/features/discover/search';
 import { parseDiscoverParams } from '@/features/discover/params';
@@ -47,6 +50,55 @@ function tools(request: Request): McpTool[] {
     return response.ok ? ((await response.json()) as Record<string, unknown>) : null;
   };
   const agentArgs = { chain_id: { type: 'integer', enum: [56, 97], description: 'The ERC-8004 registry chain: 56 for BNB Chain, 97 for BNB Testnet.' }, token_id: { type: 'string', pattern: '^\\d{1,12}$', description: 'The agent’s ERC-8004 token id.' } };
+  /*
+   * The same agent's registrations on the other network. Builders register
+   * one agent on both, and the evidence differs between them: the house
+   * agents passed their correctness checks on testnet, so an assistant
+   * reading only the mainnet record told users no check had passed.
+   */
+  const twins = async (record: Record<string, unknown>) => {
+    const name = typeof record.name === 'string' ? record.name : '';
+    const owner = typeof record.owner === 'string' ? record.owner : '';
+    if (!name || !owner) return [];
+    const self = `${record.chainId}:${record.tokenId}`;
+    const key = agentIdentityKey({ owner_address: owner, name, chain_id: Number(record.chainId), token_id: String(record.tokenId) });
+    const other = Number(record.chainId) === 56 ? '97' : '56';
+    const found = await discover(parseDiscoverParams({ q: name, chain: other })).catch(() => null);
+    return (found?.rows ?? [])
+      .filter((row) => `${row.chainId}:${row.tokenId}` !== self && agentIdentityKey({ owner_address: row.owner, name: row.name, chain_id: row.chainId, token_id: row.tokenId }) === key)
+      .map((row) => ({ chainId: row.chainId, tokenId: row.tokenId, evidence: row.maturity.label, page: `${origin}/agents/${row.chainId}/${row.tokenId}` }));
+  };
+  /*
+   * What the user will be asked to agree to on the hire page, said beside
+   * the link so an assistant can state it before the user opens it.
+   */
+  const hireTerms = (record: Record<string, unknown>) => {
+    const price = record.price as { amountU?: number; current?: boolean; expiresAt?: string } | null | undefined;
+    const hire = record.hire as { escrowChainId?: number | null } | null | undefined;
+    const blocker = record.hireBlocker as { reason?: string } | null | undefined;
+    const network = networkOf(hire?.escrowChainId ?? null);
+    return {
+      network: network?.label ?? null,
+      money: network?.money ?? null,
+      price: typeof price?.amountU === 'number' ? `${price.amountU} $U` : null,
+      priceCurrent: typeof price?.amountU === 'number' ? Boolean(price.current) : null,
+      ...(typeof price?.amountU === 'number' && !price.current ? { priceNote: 'The stored price has expired. The hire page asks the agent for a fresh one before anything is funded; get_quote shows it now.' } : {}),
+      ...(typeof price?.amountU !== 'number' ? { priceNote: 'No signed price: the user sets the budget on the hire page, and the agent may decline.' } : {}),
+      blocker: blocker?.reason ?? null,
+    };
+  };
+  /** A signed price in words: amount, money, network and how long it holds. */
+  const termsOf = (priceRaw: string, currency: string | undefined, expiresAt: string | undefined) => {
+    const network = networkOf(escrowChainForHire(currency));
+    const until = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+    return {
+      price: `${formatUnits(BigInt(priceRaw), 18)} $U`,
+      network: network?.label ?? 'No escrow Pokter enables settles this token',
+      money: network?.money ?? null,
+      validUntil: Number.isFinite(until) ? new Date(until).toISOString() : null,
+      validForMinutes: Number.isFinite(until) ? Math.max(0, Math.round((until - Date.now()) / 60_000)) : null,
+    };
+  };
 
   return [
     {
@@ -89,9 +141,18 @@ function tools(request: Request): McpTool[] {
               category: row.categoryLabel,
               description: row.description,
               verdict: row.verdict,
+              evidence: row.maturity.label,
               answeredToday: row.answeringToday,
               price: row.priceU !== null ? `${row.priceU} $U, signed by the agent` : null,
+              // A signed price holds for minutes; an expired one is a guide, and get_quote asks for a current one.
+              priceCurrent: row.priceU !== null ? row.priceFresh : null,
+              ...(row.priceU === null
+                ? { noPrice: row.hirable ? 'It has not signed a price: on the hire page the buyer sets the budget, and the agent may decline.' : 'It has not signed a price and cannot be hired now; get_agent says why.' }
+                : {}),
+              hireable: row.hirable,
               hiredOn: row.hireChainId,
+              network: networkOf(row.hireChainId),
+              ...(row.alsoOn.length ? { alsoRegisteredOn: row.alsoOn, alsoRegisteredNote: 'Evidence is kept per registration; get_agent lists each one and what it has earned.' } : {}),
               why: row.reason,
               page: `${origin}/agents/${row.chainId}/${row.tokenId}`,
             })),
@@ -113,7 +174,8 @@ function tools(request: Request): McpTool[] {
         if (!c || !t) return { data: { error: 'chain_id must be 56 or 97 and token_id a number.' }, isError: true };
         const record = await detail(c, t);
         if (!record) return { data: { error: 'No such agent, or the registry did not answer.' }, isError: true };
-        return { data: { ...record, card: buildAgentCard(record, { origin }) } };
+        const otherRegistrations = await twins(record);
+        return { data: { ...record, ...(otherRegistrations.length ? { otherRegistrations } : {}), card: buildAgentCard(record, { origin }) } };
       },
     },
     {
@@ -129,12 +191,15 @@ function tools(request: Request): McpTool[] {
         if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
         const answered = await read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
         if (answered.isError) return answered;
-        const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string } } }; verifiedSigner?: string; termsBound?: boolean };
+        const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string; currency?: string } }; quote_expires_at?: string }; verifiedSigner?: string; termsBound?: boolean };
+        const priceRaw = quoted.receipt?.response?.terms?.price;
+        // The raw receipt is wei and a token address; say it in words too, so an assistant does not convert it.
+        const terms = priceRaw && /^\d+$/.test(priceRaw) ? { ...termsOf(priceRaw, quoted.receipt?.response?.terms?.currency, quoted.receipt?.quote_expires_at), signedByAgentWallet: Boolean(quoted.verifiedSigner), boundToThisBrief: Boolean(quoted.termsBound) } : null;
         const record = await detail(c, t);
         const card = record
           ? buildAgentCard(record, { origin, brief: args.task, quote: quoted.receipt?.response?.terms?.price && quoted.verifiedSigner ? { priceRaw: quoted.receipt.response.terms.price, signer: quoted.verifiedSigner, termsBound: Boolean(quoted.termsBound) } : null })
           : null;
-        return { data: { ...(answered.data as object), ...(card ? { card } : {}) } };
+        return { data: { ...(terms ? { terms } : {}), ...(answered.data as object), ...(card ? { card } : {}) } };
       },
     },
     {
@@ -155,6 +220,7 @@ function tools(request: Request): McpTool[] {
           data: {
             ...(record ? { card: buildAgentCard(record, { origin, brief: typeof args.task === 'string' && args.task.trim() ? args.task.trim() : null }) } : {}),
             url: url.href,
+            ...(record ? { terms: hireTerms(record) } : {}),
             next: 'The user opens the link, reviews the brief, price and warnings, and funds escrow from their own wallet. Nothing is paid until they sign; the agent is paid only after it delivers and the review window passes without a dispute.',
           },
         };
@@ -164,7 +230,7 @@ function tools(request: Request): McpTool[] {
       name: 'integration_kit',
       title: 'What an agent needs to be hired',
       description:
-        'For builders: what an AI agent must declare, sign and deliver to be listed, quoted, hired and paid through Pokter on BNB Chain (ERC-8004 identity, A2A or MCP, ERC-8183 escrow), every refusal code, and the escrow contracts. Use it when the user is building an agent, for example for BNB Chain Set and Earn.',
+        'For builders: what an AI agent must declare, sign and deliver to be listed, quoted, hired and paid through Pokter on BNB Chain (ERC-8004 identity; an A2A endpoint with a negotiate skill to be priced and hired, where MCP alone can only be measured; ERC-8183 escrow), every refusal code, and the escrow contracts. Use it when the user is building an agent, for example for BNB Chain Set and Earn.',
       inputSchema: { type: 'object', properties: {} },
       async run() {
         return { data: integrationKit(origin) };
