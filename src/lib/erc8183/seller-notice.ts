@@ -3,11 +3,10 @@ import 'server-only';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getJobStore, type SellerNotice, type SellerNoticeStatus } from '@/lib/erc8183/store';
-import { readNoticeReply } from '@/lib/erc8183/notice-reply';
+import { noticeReplyData, readNoticeReply } from '@/lib/erc8183/notice-reply';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
-import { readA2AReply } from '@/lib/a2a/reply';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
 
 export const SELLER_ANSWER_TIMEOUT_MS = 50_000;
@@ -17,8 +16,8 @@ function object(value: unknown): Record<string, unknown> | null {
 }
 
 function agentReply(payload: unknown): Record<string, unknown> | null {
-  // The seller's answer to the notice, whether sent as a message or a task.
-  return readA2AReply(payload).data;
+  // The seller's answer to the notice: a message, a task, or the bare result.
+  return noticeReplyData(payload);
 }
 
 async function askSeller(input: {

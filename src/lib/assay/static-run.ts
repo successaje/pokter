@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { freeRunStatus } from './run-status';
 import type { Category } from '@/lib/agents/categories';
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
 import { STATIC_SUITES, judgeStaticAnswer, staticSuiteFor, type StaticAssayCategory } from './category-suites';
@@ -61,7 +62,8 @@ export async function runStaticCategorySuite(
       results.push({ scenario: scenario.id, expected: scenario.expected, observed: null, excerpt: null, pass: false, outcome: 'unreadable', reason: `No answer: ${(error as Error).message}`, latencyMs: null });
     }
   }
-  const run = { ...base, status: 'checked' as const, detail: null, passed: results.filter((result) => result.pass).length, results };
+  const { status, detail } = freeRunStatus(results);
+  const run = { ...base, status, detail, passed: results.filter((result) => result.pass).length, results };
   store.record(target, run);
   return run;
 }

@@ -21,7 +21,10 @@ export interface ProductionProofSummary {
   completionRate: number | null;
   uniqueKnownBuyers: number;
   repeatKnownBuyers: number;
+  /** Distinct agents, one per agent however many chains it is registered on. */
   agentsHired: number;
+  /** Distinct registry identities (chain and token id) behind `agentsHired`. */
+  agentRegistrationsHired: number;
   completedValueRaw: string;
   outsideTeamJobs: number;
   /**
@@ -120,6 +123,44 @@ export function isSelfHire(job: HiredJob): boolean {
   return Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
 }
 
+/**
+ * One agent, however many chains it is registered on.
+ *
+ * An agent registered on BNB Chain and on testnet and hired on both was
+ * counted twice under a tile that says "agents": Pokter's own five house
+ * agents are the case in the record. Two registrations are the same agent
+ * when they are on different chains and their jobs share an agent wallet
+ * and a name, the rule search uses.
+ *
+ * Never two registrations on the same chain, and never on a name alone.
+ * Jobs that Pokter's testnet delivery agent carried all share its wallet
+ * and its label ("Verified testnet seller") whichever agent was hired, and
+ * one operator runs several agents from one wallet. A job's stored name can
+ * also be a label rather than the agent's ("Seller-release proof"), which
+ * is why jobs are grouped by registration first.
+ */
+function distinctAgents(registrations: Set<string>, names: Map<string, Set<string>>): number {
+  const parent = new Map<string, string>([...registrations].map((r) => [r, r]));
+  const find = (r: string): string => {
+    let root = r;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    parent.set(r, root);
+    return root;
+  };
+  const chainOf = (registration: string) => registration.split(':')[0];
+  const seenOn = new Map<string, string[]>();
+  for (const [registration, set] of names) {
+    for (const key of set) {
+      const earlier = seenOn.get(key) ?? [];
+      for (const other of earlier) {
+        if (chainOf(other) !== chainOf(registration)) parent.set(find(registration), find(other));
+      }
+      seenOn.set(key, [...earlier, registration]);
+    }
+  }
+  return new Set([...registrations].map(find)).size;
+}
+
 export function summarizeProductionProof(
   jobs: readonly HiredJob[],
   isTeamFunded: (job: HiredJob) => boolean,
@@ -134,7 +175,8 @@ export function summarizeProductionProof(
 ): ProductionProofSummary {
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<JobStatusName, number>;
   const buyers = new Map<string, number>();
-  const agents = new Set<string>();
+  const registrations = new Set<string>();
+  const registrationNames = new Map<string, Set<string>>();
   let completedValue = 0n;
   let outsideTeamJobs = 0;
   let teamJobs = 0;
@@ -157,7 +199,14 @@ export function summarizeProductionProof(
       const buyer = job.client.toLowerCase();
       buyers.set(buyer, (buyers.get(buyer) ?? 0) + 1);
     }
-    agents.add(`${job.agentChainId ?? job.chainId}:${job.agentTokenId}`);
+    const registration = `${job.agentChainId ?? job.chainId}:${job.agentTokenId}`;
+    registrations.add(registration);
+    const name = (job.agentName ?? '').trim().toLowerCase();
+    if (name && job.provider) {
+      const names = registrationNames.get(registration) ?? new Set<string>();
+      names.add(`${job.provider.toLowerCase()}|${name}`);
+      registrationNames.set(registration, names);
+    }
     if (job.status === 'COMPLETED') completedValue += BigInt(job.budgetRaw);
     if (!lastCheckedAt || job.statusCheckedAt > lastCheckedAt) lastCheckedAt = job.statusCheckedAt;
   }
@@ -173,7 +222,8 @@ export function summarizeProductionProof(
     completionRate: terminal > 0 ? byStatus.COMPLETED / terminal : null,
     uniqueKnownBuyers: buyers.size,
     repeatKnownBuyers: [...buyers.values()].filter((count) => count >= 2).length,
-    agentsHired: agents.size,
+    agentsHired: distinctAgents(registrations, registrationNames),
+    agentRegistrationsHired: registrations.size,
     completedValueRaw: completedValue.toString(),
     outsideTeamJobs,
     selfHireJobs,

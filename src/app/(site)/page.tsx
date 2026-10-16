@@ -31,7 +31,13 @@ export default async function HomePage() {
   const funnel = [
     { label: 'Registered on BNB Chain', note: 'ERC-8004 identities on mainnet, per 8004scan', value: home.stats?.registered ?? null },
     { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
-    { label: 'Hireable now', note: 'Answering, and payable through escrow', value: home.catalogue.hireable },
+    /*
+     * More agents are hireable than have signed a price: one that never names
+     * a price can still be hired on testnet at a budget the buyer sets. The
+     * note said "payable through escrow" beside a smaller "signed a price"
+     * count, which read as a contradiction.
+     */
+    { label: 'Hireable now', note: 'Answering and fundable through escrow: at a signed price, or on testnet at a budget you set', value: home.catalogue.hireable },
     { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
     {
       label: 'Paid jobs answered',

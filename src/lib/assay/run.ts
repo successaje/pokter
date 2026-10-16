@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { freeRunStatus } from './run-status';
 import type { Address } from 'viem';
 
 import { NotAskableError, PaidOnlyError, prepareAgent, sendPreparedBrief } from '@/lib/erc8183/courier';
@@ -93,7 +94,8 @@ export async function runHealthFactorSuite(target: { chainId: number; tokenId: s
       results.push({ scenario: account, expected: { before: expectedOf(before) }, observed: null, excerpt: null, pass: false, outcome: 'unreadable', reason: `No answer: ${(error as Error).message}`, latencyMs: null });
     }
   }
-  const run = { ...base, status: 'checked' as const, detail: null, passed: results.filter((r) => r.pass).length, results };
+  const { status, detail } = freeRunStatus(results);
+  const run = { ...base, status, detail, passed: results.filter((r) => r.pass).length, results };
   store.record(target, run);
   return run;
 }

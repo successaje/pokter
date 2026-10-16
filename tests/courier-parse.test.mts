@@ -71,3 +71,19 @@ test('a priced preview is paid-only, not an unreadable answer', () => {
   // A preview that names no price is just data, and is graded as given.
   assert.equal(isPaidOnlyRefusal({ data: { preview: true, health_factor: 1.4 } }), false);
 });
+
+test('an escrow job-status skill is plumbing, not the work', () => {
+  // One operator's per-agent cards, as served: job status declared before the work.
+  const card = [{ id: 'negotiate-erc8183-job' }, { id: 'notify_funded' }, { id: 'erc8183-job-status', name: 'ERC-8183 job status' }, { id: 'grid_plan', name: 'Grid trading plan' }];
+  assert.equal(pickWorkSkill(card)?.id, 'grid_plan');
+});
+
+test('a card serving several agents gives each its own category’s skill', () => {
+  const card = [{ id: 'negotiate' }, { id: 'health_factor', name: 'Venus health factor' }, { id: 'grid_plan', name: 'Grid trading plan' }, { id: 'yield_plan', name: 'Venus yield ranking' }];
+  assert.equal(pickWorkSkill(card, 'grid-trading')?.id, 'grid_plan');
+  assert.equal(pickWorkSkill(card, 'yield')?.id, 'yield_plan');
+  assert.equal(pickWorkSkill(card, 'health-factor')?.id, 'health_factor');
+  // No category, or none matching: the first work skill, as before.
+  assert.equal(pickWorkSkill(card)?.id, 'health_factor');
+  assert.equal(pickWorkSkill(card, 'token-safety')?.id, 'health_factor');
+});

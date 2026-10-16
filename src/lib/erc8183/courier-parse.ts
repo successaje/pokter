@@ -15,7 +15,13 @@ export interface SkillChoice {
  * to. Matched loosely because agents name them freely: "negotiate",
  * "negotiate-erc8183-job", "notify_funded", "notifyFunded".
  */
-const PLUMBING = /negotiat|notify|^quote$|^ping$|^health$|^healthcheck$|^status$/i;
+/*
+ * Escrow plumbing as well as liveness: `erc8183-job-status` is declared
+ * before the work skill on every one of one operator's agent cards, and
+ * the free check sent it health-factor and grid briefs, then published the
+ * error it returned ("requires an integer 'job_id'") as a failed answer.
+ */
+const PLUMBING = /negotiat|notify|^quote$|^ping$|^health$|^healthcheck$|^status$|job[-_ ]?status|^erc-?8183[-_]/i;
 
 /*
  * "health" and "status" are also what a health-factor or position agent
@@ -31,24 +37,37 @@ function object(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+/** Words a category's work skill is named or described with. */
+const CATEGORY_WORDS: Record<string, RegExp> = {
+  'health-factor': /health|liquidat|venus|lending|loan|collateral/i,
+  'grid-trading': /grid/i,
+  yield: /yield|apy|apr|supply rate/i,
+  rebalancing: /rebalanc|range|position|lp\b|liquidity/i,
+  'token-safety': /token|honeypot|safety|scam|tax/i,
+};
+
 /**
- * The skill a brief is sent to: the first one the card declares that is not
- * plumbing. Null when the card declares nothing usable, which the caller
- * treats as "cannot be asked", not as "ask anyway".
+ * The skill a brief is sent to. Of the skills that are not plumbing, the
+ * first that names the agent's category when one is given, else the first.
+ * An operator serving several agents from one card lists every work skill on
+ * it, and the first is rarely the one this agent is listed for. Null when
+ * the card declares nothing usable, which the caller treats as "cannot be
+ * asked", not as "ask anyway".
  */
-export function pickWorkSkill(skills: unknown): SkillChoice | null {
+export function pickWorkSkill(skills: unknown, category?: string): SkillChoice | null {
   if (!Array.isArray(skills)) return null;
+  const work: Array<SkillChoice & { words: string }> = [];
   for (const entry of skills) {
     const skill = object(entry);
     const id = typeof skill?.id === 'string' ? skill.id : typeof skill?.name === 'string' ? skill.name : null;
     if (!id) continue;
-    if (PLUMBING.test(id)) {
-      const words = `${typeof skill?.name === 'string' ? skill.name : ''} ${typeof skill?.description === 'string' ? skill.description : ''}`;
-      if (!(AMBIGUOUS.test(id) && DESCRIBES_WORK.test(words))) continue;
-    }
-    return { id, name: typeof skill?.name === 'string' ? skill.name : id };
+    const words = `${id} ${typeof skill?.name === 'string' ? skill.name : ''} ${typeof skill?.description === 'string' ? skill.description : ''}`;
+    if (PLUMBING.test(id) && !(AMBIGUOUS.test(id) && DESCRIBES_WORK.test(words))) continue;
+    work.push({ id, name: typeof skill?.name === 'string' ? skill.name : id, words });
   }
-  return null;
+  const pattern = category ? CATEGORY_WORDS[category] : undefined;
+  const chosen = (pattern && work.find((skill) => pattern.test(skill.words))) ?? work[0];
+  return chosen ? { id: chosen.id, name: chosen.name } : null;
 }
 
 /**
