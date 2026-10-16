@@ -11,7 +11,11 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { jobHref } from '@/lib/jobs/href';
 import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
-import { IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage, type NotificationIdentity } from '@/lib/notifications/identity';
+import {
+  IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage,
+  type IdentityPurpose, type IdentityPurposeKind, type NotificationIdentity,
+} from '@/lib/notifications/identity';
+import { subscriptionPreVerified, type JobUpdateRow } from '@/lib/notifications/job-updates';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
@@ -104,12 +108,23 @@ function db(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_agent_follows_agent ON agent_follows (chain_id, token_id);
   `);
   // Added after launch; existing rows keep the default (preview only).
+  addColumn(database, 'notification_subscriptions', 'include_answer INTEGER NOT NULL DEFAULT 0');
+  return database;
+}
+
+/**
+ * A column added after a table shipped.
+ *
+ * `CREATE TABLE IF NOT EXISTS` is a no-op against a database that already
+ * has the table, so new columns never arrive that way — an existing
+ * deployment would keep the old shape and fail on the first write.
+ */
+function addColumn(database: DatabaseSync, table: string, definition: string): void {
   try {
-    database.exec('ALTER TABLE notification_subscriptions ADD COLUMN include_answer INTEGER NOT NULL DEFAULT 0');
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
   } catch (error) {
     if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
   }
-  return database;
 }
 
 export interface BuilderNotification {
@@ -577,23 +592,41 @@ function identityDb() {
       used_at TEXT
     );
   `);
+  /*
+   * The act the signature authorises, recorded so redemption can check it.
+   * Challenges issued before this column existed are treated as claims,
+   * which is what they were.
+   */
+  addColumn(database, 'notification_identity_challenges', "purpose TEXT NOT NULL DEFAULT 'claim'");
+  addColumn(database, 'notification_identity_challenges', 'job_id TEXT');
   return database;
 }
 
-/** A challenge for a wallet to sign, single-use and short-lived. */
-export function createIdentityChallenge(input: { wallet: Address; chainId: number; email: string }) {
+/**
+ * A challenge for a wallet to sign, single-use, short-lived, and bound to
+ * one act.
+ *
+ * The purpose is stored as well as signed, so redeeming a "send my updates
+ * here" signature to stop them is refused rather than merely confusing.
+ */
+export function createIdentityChallenge(input: { wallet: Address; chainId: number; purpose: IdentityPurpose }) {
   const id = randomUUID();
   const nonce = randomBytes(24).toString('base64url');
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + IDENTITY_CHALLENGE_TTL_MS);
   const message = notificationIdentityMessage({
     challengeId: id, nonce, chainId: input.chainId, wallet: input.wallet,
-    email: input.email, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString(),
+    purpose: input.purpose, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString(),
   });
   identityDb()
     .prepare(`INSERT INTO notification_identity_challenges
-      (id,nonce_hash,message,wallet_address,chain_id,email,expires_at) VALUES (?,?,?,?,?,?,?)`)
-    .run(id, hash(nonce), message, input.wallet.toLowerCase(), input.chainId, input.email, expiresAt.toISOString());
+      (id,nonce_hash,message,wallet_address,chain_id,email,expires_at,purpose,job_id) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(
+      id, hash(nonce), message, input.wallet.toLowerCase(), input.chainId,
+      input.purpose.kind === 'claim' ? input.purpose.email : '',
+      expiresAt.toISOString(), input.purpose.kind,
+      input.purpose.kind === 'stop-job' ? input.purpose.jobId : null,
+    );
   return { challengeId: id, message, expiresAt: expiresAt.toISOString() };
 }
 
@@ -603,15 +636,27 @@ export function createIdentityChallenge(input: { wallet: Address; chainId: numbe
  * Single use and expiry-checked here rather than at the call site, so a
  * replayed signature cannot bind an inbox a second time.
  */
-export function consumeIdentityChallenge(id: string): { wallet: string; chainId: number; email: string; message: string } | null {
+export function consumeIdentityChallenge(id: string, expected: IdentityPurposeKind): {
+  wallet: string; chainId: number; email: string; jobId: string | null; message: string;
+} | null {
   const database = identityDb();
   const row = database
     .prepare('SELECT * FROM notification_identity_challenges WHERE id = ? AND used_at IS NULL')
-    .get(id) as { wallet_address: string; chain_id: number; email: string; message: string; expires_at: string } | undefined;
+    .get(id) as
+    | { wallet_address: string; chain_id: number; email: string; job_id: string | null; purpose: string; message: string; expires_at: string }
+    | undefined;
   if (!row) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
+  /*
+   * Consumed either way. A challenge offered for the wrong act is spent, so
+   * a caller cannot probe for one that happens to fit.
+   */
   database.prepare('UPDATE notification_identity_challenges SET used_at = ? WHERE id = ?').run(new Date().toISOString(), id);
-  return { wallet: row.wallet_address, chainId: row.chain_id, email: row.email, message: row.message };
+  if (row.purpose !== expected) return null;
+  return {
+    wallet: row.wallet_address, chainId: row.chain_id, email: row.email,
+    jobId: row.job_id, message: row.message,
+  };
 }
 
 export function readIdentity(wallet: string, chainId: number): NotificationIdentity | null {
@@ -663,9 +708,115 @@ export function verifyIdentity(token: string): { wallet: string; chainId: number
   return { wallet: row.wallet_address, chainId: row.chain_id };
 }
 
-/** Remove the association, at the buyer's request. */
-export function removeIdentity(wallet: string, chainId: number): void {
+/* ---------------------------------------------------------------------- *
+ * Per-job updates for a wallet that already proved an address
+ * ---------------------------------------------------------------------- */
+
+/**
+ * The subscription this wallet's proven address has for one job.
+ *
+ * Keyed through the identity rather than by wallet column, because the
+ * subscription table's unique key is `(email, chain, job)` and the email is
+ * what decides where mail goes. A wallet with no identity has nothing to
+ * look up and gets null, which `jobUpdateOffer` reads as "ask for an
+ * address".
+ */
+export function readJobUpdateRow(input: { wallet: string; chainId: number; jobId: string }): JobUpdateRow | null {
+  const identity = readIdentity(input.wallet, input.chainId);
+  if (!identity || identity.removedAt) return null;
+  const row = db()
+    .prepare(`SELECT email,verified_at,unsubscribed_at,include_answer FROM notification_subscriptions
+      WHERE email=? AND chain_id=? AND job_id=?`)
+    .get(identity.email, input.chainId, input.jobId) as
+    | { email: string; verified_at: string | null; unsubscribed_at: string | null; include_answer: number }
+    | undefined;
+  if (!row) return null;
+  return {
+    email: row.email, verifiedAt: row.verified_at,
+    unsubscribedAt: row.unsubscribed_at, includeAnswer: row.include_answer === 1,
+  };
+}
+
+/**
+ * Turn on updates for one job using the address the wallet already proved.
+ *
+ * No email is sent and no link is waited for: `subscriptionPreVerified`
+ * holds the one rule that makes that safe — the address must be the
+ * identity's own, so the confirmation this skips is one the same inbox has
+ * already given. Anything else returns `not-proven` and the caller falls
+ * back to the form.
+ *
+ * The caller is responsible for checking the wallet is the job's on-chain
+ * client. That check is what keeps this from being a way to point mail at
+ * somebody else's job — though even without it the only reachable
+ * outcome is a wallet's own inbox hearing about a wallet's own job.
+ */
+export function subscribeFromIdentity(input: {
+  wallet: string; chainId: number; jobId: string; includeAnswer?: boolean;
+}): { ok: true; email: string } | { ok: false; reason: 'not-proven' } {
+  const identity = readIdentity(input.wallet, input.chainId);
+  if (!identity || !subscriptionPreVerified(identity, identity.email)) return { ok: false, reason: 'not-proven' };
+  const now = new Date().toISOString();
+  /*
+   * `verification_hash` is a dead token here: there is no link to click, so
+   * nothing can redeem it. A random value keeps the column non-null without
+   * minting something that would verify anything.
+   */
+  db().prepare(`INSERT INTO notification_subscriptions
+    (id,email,wallet_address,chain_id,job_id,verification_hash,verified_at,created_at,include_answer)
+    VALUES (?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(email,chain_id,job_id) DO UPDATE SET
+      wallet_address=excluded.wallet_address,
+      include_answer=excluded.include_answer,
+      verified_at=COALESCE(notification_subscriptions.verified_at, excluded.verified_at),
+      unsubscribed_at=NULL`).run(
+    randomUUID(), identity.email, input.wallet.toLowerCase(), input.chainId, input.jobId,
+    hash(randomBytes(32).toString('base64url')), now, now, input.includeAnswer ? 1 : 0,
+  );
+  return { ok: true, email: identity.email };
+}
+
+/**
+ * Stop updates for one job.
+ *
+ * Unsubscribed rather than deleted, so `jobUpdateOffer` can say "on again?"
+ * instead of forgetting it ever happened, and so a second stop is a no-op.
+ * The caller proves the wallet first: see `stopNeedsWalletProof` for why
+ * this direction costs a signature when turning updates on does not.
+ */
+export function stopJobUpdates(input: { wallet: string; chainId: number; jobId: string }): boolean {
+  const identity = readIdentity(input.wallet, input.chainId);
+  if (!identity) return false;
+  const result = db()
+    .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
+      WHERE email=? AND chain_id=? AND job_id=? AND unsubscribed_at IS NULL`)
+    .run(new Date().toISOString(), identity.email, input.chainId, input.jobId);
+  return result.changes > 0;
+}
+
+/**
+ * Remove the association, at the buyer's request, and stop what it was
+ * sending.
+ *
+ * The per-job rows go with it. The wallet signs text saying so, and
+ * without this they would keep arriving from an address the buyer was just
+ * told had been removed — so the signed words would be false, which is
+ * worse than the leftover mail.
+ *
+ * Scoped to this chain's rows only, because the identity is: the same
+ * address proven on the other escrow keeps its own subscriptions.
+ */
+export function removeIdentity(wallet: string, chainId: number): { stoppedJobs: number } {
+  const now = new Date().toISOString();
+  const identity = readIdentity(wallet, chainId);
+  const stopped = identity
+    ? db()
+      .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
+        WHERE email=? AND chain_id=? AND unsubscribed_at IS NULL`)
+      .run(now, identity.email, chainId).changes
+    : 0;
   identityDb()
     .prepare('UPDATE notification_identities SET removed_at = ? WHERE wallet_address = ? AND chain_id = ?')
-    .run(new Date().toISOString(), wallet.toLowerCase(), chainId);
+    .run(now, wallet.toLowerCase(), chainId);
+  return { stoppedJobs: Number(stopped) };
 }

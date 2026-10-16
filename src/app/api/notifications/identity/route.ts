@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 254) {
       return NextResponse.json({ error: 'That does not look like an email address.' }, { status: 400 });
     }
-    return NextResponse.json({ challenge: createIdentityChallenge({ wallet, chainId, email }) });
+    return NextResponse.json({ challenge: createIdentityChallenge({ wallet, chainId, purpose: { kind: 'claim', email } }) });
   }
 
   if (body.action === 'claim') {
@@ -71,9 +71,9 @@ export async function POST(request: Request): Promise<NextResponse> {
      * Consumed on read: expired or already used, and it is gone. A replayed
      * signature must not be able to bind an inbox a second time.
      */
-    const challenge = consumeIdentityChallenge(challengeId);
+    const challenge = consumeIdentityChallenge(challengeId, 'claim');
     if (!challenge) {
-      return NextResponse.json({ error: 'That challenge expired or was already used. Ask for a new one.' }, { status: 409 });
+      return NextResponse.json({ error: 'That challenge expired, was already used, or was issued for something else. Ask for a new one.' }, { status: 409 });
     }
     if (challenge.wallet.toLowerCase() !== wallet.toLowerCase() || challenge.chainId !== chainId) {
       return NextResponse.json({ error: 'That challenge was issued for a different wallet.' }, { status: 403 });
@@ -111,21 +111,31 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   }
 
+  /*
+   * Removal is asked for separately, because the text a wallet signs has to
+   * describe what it does. A challenge issued to add an address says
+   * "Allow Pokter to send..." — redeeming that to remove one would have
+   * the buyer authorising the opposite of what happens.
+   */
+  if (body.action === 'challenge-remove') {
+    return NextResponse.json({ challenge: createIdentityChallenge({ wallet, chainId, purpose: { kind: 'stop-email' } }) });
+  }
+
   if (body.action === 'remove') {
     const challengeId = String(body.challengeId ?? '');
     const signature = String(body.signature ?? '');
     if (!challengeId || !isHex(signature)) {
       return NextResponse.json({ error: 'Removing an address needs the same wallet proof as adding one.' }, { status: 400 });
     }
-    const challenge = consumeIdentityChallenge(challengeId);
+    const challenge = consumeIdentityChallenge(challengeId, 'stop-email');
     if (!challenge || challenge.wallet.toLowerCase() !== wallet.toLowerCase()) {
       return NextResponse.json({ error: 'That challenge expired, was already used, or is for another wallet.' }, { status: 409 });
     }
     if (!(await signedByWallet(chainId, wallet, challenge.message, signature as Hex))) {
       return NextResponse.json({ error: 'That signature does not match this wallet.' }, { status: 403 });
     }
-    removeIdentity(wallet, chainId);
-    return NextResponse.json({ state: 'none' });
+    const { stoppedJobs } = removeIdentity(wallet, chainId);
+    return NextResponse.json({ state: 'none', stoppedJobs });
   }
 
   return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });

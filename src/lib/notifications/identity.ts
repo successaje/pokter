@@ -45,29 +45,75 @@ export function identityKey(wallet: string, scope: IdentityScope): string {
   return `${wallet.toLowerCase()}:${scope.chainId}`;
 }
 
+/**
+ * What a signature is being asked to authorise.
+ *
+ * The purpose is in the signed text and checked when the challenge is
+ * redeemed, because a wallet that signed "send my updates here" has not
+ * agreed to "stop sending them". Without this, one challenge would redeem
+ * for either act — both need the same key, so it is not an escalation, but
+ * the buyer would be signing words that describe the opposite of what
+ * happens.
+ */
+export type IdentityPurpose =
+  | { kind: 'claim'; email: string }
+  | { kind: 'stop-email' }
+  | { kind: 'stop-job'; jobId: string };
+
+export type IdentityPurposeKind = IdentityPurpose['kind'];
+
+function purposeLines(purpose: IdentityPurpose): string[] {
+  switch (purpose.kind) {
+    case 'claim':
+      return [
+        'Purpose: Allow Pokter to send this wallet\u2019s job updates to one email address',
+        `Email: ${purpose.email}`,
+      ];
+    case 'stop-email':
+      return [
+        'Purpose: Remove the email address this wallet uses for job updates',
+        'Email: (the address currently on file)',
+      ];
+    case 'stop-job':
+      return [
+        `Purpose: Stop email updates for job #${purpose.jobId}`,
+        `Job: #${purpose.jobId}`,
+      ];
+  }
+}
+
+function purposeClosing(purpose: IdentityPurpose): string[] {
+  const common = 'This signature does not authorize transactions or give Pokter access to funds.';
+  if (purpose.kind === 'claim') {
+    return [common, 'It does not subscribe you to anything: each job is opted into separately.'];
+  }
+  if (purpose.kind === 'stop-job') {
+    return [common, 'The job page keeps showing the delivery and the review deadline.'];
+  }
+  return [common, 'Updates already running for individual jobs are stopped with it.'];
+}
+
 export function notificationIdentityMessage(input: {
   challengeId: string;
   nonce: string;
   chainId: number;
   wallet: Address;
-  /** The address being claimed, shown so the signer can read what they are agreeing to. */
-  email: string;
+  /** What the signer is agreeing to, spelled out rather than implied. */
+  purpose: IdentityPurpose;
   issuedAt: string;
   expiresAt: string;
 }): string {
   return [
     'Pokter notification email verification',
-    'Purpose: Allow Pokter to send this wallet’s job updates to one email address',
+    ...purposeLines(input.purpose),
     `Wallet: ${input.wallet}`,
     `Network: ${input.chainId}`,
-    `Email: ${input.email}`,
     `Challenge: ${input.challengeId}`,
     `Nonce: ${input.nonce}`,
     `Issued at: ${input.issuedAt}`,
     `Expires at: ${input.expiresAt}`,
     '',
-    'This signature does not authorize transactions or give Pokter access to funds.',
-    'It does not subscribe you to anything: each job is opted into separately.',
+    ...purposeClosing(input.purpose),
   ].join('\n');
 }
 

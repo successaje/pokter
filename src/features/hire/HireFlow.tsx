@@ -23,7 +23,7 @@ import { Address, Details } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
-import { JobEmailAlert } from '@/features/workspace/JobEmailAlert';
+import { JobUpdates } from '@/features/workspace/JobUpdates';
 import { TaskEditor } from './TaskEditor';
 import { BriefSourceNotice } from './BriefSource';
 import { GuidedBrief } from './GuidedBrief';
@@ -246,7 +246,7 @@ export function HireFlow(props: HireFlowProps) {
               </div>
             )}
           </dl>
-          <JobEmailAlert jobId={job.jobId} chainId={job.chainId} />
+          <JobUpdates jobId={job.jobId} chainId={job.chainId} />
           {hire.active.mode === 'external' && !hire.revoked && (
             <Notice
               tone="neutral"
