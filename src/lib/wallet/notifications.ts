@@ -31,8 +31,8 @@ const STATUS_COPY: Record<JobStatusName, { title: string; body: (job: HiredJob) 
   FUNDED: { title: 'Escrow funded', body: (job) => `Job #${job.jobId} is funded and waiting for ${job.agentName}.` },
   SUBMITTED: { title: 'Delivery ready', body: (job) => `${job.agentName} submitted work for job #${job.jobId}.` },
   COMPLETED: { title: 'Job completed', body: (job) => `Job #${job.jobId} is complete and the provider was paid.` },
-  REJECTED: { title: 'Delivery rejected by vote', body: (job) => `Job #${job.jobId} was rejected, so the agent is not paid and the escrow returns to you. Check the job page if it has not arrived.` },
-  EXPIRED: { title: 'Job expired', body: (job) => `Job #${job.jobId} passed its deadline without the agent being paid.` },
+  REJECTED: { title: 'Delivery rejected by vote', body: (job) => `Job #${job.jobId} was rejected and settled: your escrow was refunded and the agent was not paid.` },
+  EXPIRED: { title: 'Job expired', body: (job) => `Job #${job.jobId} passed its deadline unsettled and its escrow was reclaimed.` },
 };
 
 function readArray<T>(key: string): T[] {

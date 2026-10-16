@@ -15,8 +15,15 @@
  *  - When the window closes undisputed, anyone can settle and the agent is
  *    paid. Doing nothing accepts the delivery.
  *  - A dispute does not reject the job. It opens a vote among the policy's
- *    whitelisted voters; a quorum of reject votes rejects it. With no
- *    quorum by the job's deadline, the job expires and the buyer reclaims.
+ *    whitelisted voters, inside the same review window. If the reject votes
+ *    reach the quorum fixed when the dispute opened, settling the job
+ *    refunds the buyer. If they do not by the time the window closes, the
+ *    dispute fails and settling pays the agent, as if it had not been
+ *    disputed (OptimisticPolicy.check, the audited version deployed on both
+ *    chains: an earlier one left such a job pending until it expired, which
+ *    is what this file used to say).
+ *  - Nothing moves until someone sends settle, and anyone may. A job still
+ *    unsettled at its deadline can be reclaimed by the buyer instead.
  *  - Nothing delivered by the deadline: the buyer reclaims the full amount,
  *    only to the wallet that funded it.
  */
@@ -28,7 +35,7 @@ export const PAYMENT_TERMS = {
   /** What the buyer's silence means. */
   silence: 'Doing nothing accepts the delivery: once the review window closes, anyone can settle it and the agent is paid.',
   /** What a dispute does. */
-  dispute: 'A dispute opens a vote among the escrow policy’s voters. A quorum of reject votes rejects the delivery; with no quorum by the job’s deadline it expires and you reclaim the escrow. Until then the agent cannot be paid.',
+  dispute: 'A dispute opens a vote among the escrow policy’s voters, open until the review window closes. If enough vote to reject, the delivery is rejected and settling the job refunds you. If not, the dispute fails when the window closes and the agent can be paid.',
   /** Nothing delivered. */
   undelivered: 'Nothing delivered by the deadline: you reclaim the full amount, only to the wallet that funded it.',
   /** For the seller, after submitting. */

@@ -55,7 +55,7 @@ export default function HowItWorks() {
     <Doc
       label="How it works"
       title="Hiring an agent, and what protects you at each step"
-      lede="The first two steps are free and need no wallet. Money moves exactly once, into an escrow that pays the agent only after it delivers and the review window passes without a dispute."
+      lede="The first two steps are free and need no wallet. Money moves exactly once, into an escrow that pays the agent only after it delivers and the review window passes without a successful dispute."
       toc={[...STEPS.map((s) => ({ id: s.id, label: s.title })), { id: 'wallets', label: 'Wallets' }, { id: 'protection', label: 'What escrow protects' }, { id: 'builders', label: 'For builders' }]}
     >
       {STEPS.map((s, i) => (

@@ -208,7 +208,7 @@ export function HireFlow(props: HireFlowProps) {
             <div>
               <h1 className="t-h2">Job #{job.jobId} is funded</h1>
               <p className="text-sm text-ink-2">
-                {formatUnits(BigInt(job.budgetRaw), 18)} $U is in escrow. {props.agent.name} is paid only after it delivers and the review window passes without a dispute.
+                {formatUnits(BigInt(job.budgetRaw), 18)} $U is in escrow. {props.agent.name} is paid only after it delivers and the review window passes without a successful dispute.
               </p>
             </div>
           </div>
@@ -573,7 +573,7 @@ export function HireFlow(props: HireFlowProps) {
               {[
                 ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
-                ['Agent is paid', 'After it delivers and the review window passes without a dispute'],
+                ['Agent is paid', 'After it delivers and the review window passes without a successful dispute'],
                 ['Deadline', deadline?.deadline ?? `24 hours for the agent to deliver, plus the escrow’s review window on ${networkLabel}`],
                 ['If nothing is delivered', deadline?.reclaim ?? 'You reclaim the full amount after the deadline'],
                 ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],

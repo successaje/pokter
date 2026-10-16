@@ -229,11 +229,12 @@ export async function revokeExternalWalletAllowance(
 /**
  * What a refused escrow call means, in words.
  *
- * `0x32d53d69` is the kernel's refusal and it is already in this
- * codebase, mapped for the funding path, where it meant an unregistered
- * job. It carries no reason string, so the honest translation says what
- * was refused and what is known to cause it rather than inventing a
- * single cause.
+ * The router's custom errors, by selector. `0x32d53d69` was read as "the
+ * review window has not elapsed, or the deadline has passed"; it is
+ * PolicyNotSet: the job was never registered with a dispute policy, so it
+ * can never be settled at all. Jobs 1202 and 1217 are that case, and were
+ * taken as proof that an expired job cannot pay the seller, which the
+ * contracts do not say: settle has no deadline check.
  */
 function explainSettleRevert(reason: unknown, action: 'approve' | 'dispute'): string {
   const error = reason as { message?: string; data?: unknown; cause?: { data?: unknown } };
@@ -244,7 +245,13 @@ function explainSettleRevert(reason: unknown, action: 'approve' | 'dispute'): st
   ].join(' ');
   const verb = action === 'approve' ? 'release the payment' : 'contest the delivery';
   if (text.includes('0x32d53d69')) {
-    return `The escrow refused to ${verb} (revert 0x32d53d69). That usually means the review window has not elapsed, or the job's deadline has passed. Nothing was signed and nothing was spent.`;
+    return `The escrow refused to ${verb}: this job was never registered with a dispute policy (PolicyNotSet), so it can never be settled. After its deadline the escrow can be reclaimed. Nothing was signed and nothing was spent.`;
+  }
+  if (text.includes('0x17be5b7b')) {
+    return `The escrow refused to ${verb}: the policy has not decided yet (NotDecided). The review window is still open. Nothing was signed and nothing was spent.`;
+  }
+  if (text.includes('0x8e78f0cb')) {
+    return `The escrow refused to ${verb}: the job is no longer awaiting settlement (WrongStatus). It was already settled, refunded or reclaimed. Nothing was signed and nothing was spent.`;
   }
   return `The escrow would not ${verb}, so nothing was signed. The chain gave no reason: ${text.slice(0, 160)}`;
 }
@@ -576,6 +583,7 @@ const DISPUTE_STATE_ABI = [
   { name: 'disputed', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'bool' }] },
   { name: 'rejectVotes', type: 'function', stateMutability: 'view', inputs: [{ name: 'jobId', type: 'uint256' }], outputs: [{ type: 'uint256' }] },
   { name: 'voteQuorum', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { name: 'disputeQuorumSnapshot', type: 'function', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'uint256' }] },
 ] as const;
 
 /**
@@ -591,12 +599,19 @@ export async function readDisputeState(chainId: number, jobId: bigint): Promise<
     transport: fallback(browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url))),
   });
   const policy = correctedErc8183Addresses(chainId).policy as Address;
-  const [disputed, rejectVotes, quorum] = await Promise.all([
+  /*
+   * The quorum a dispute is judged against is the one fixed when it was
+   * opened (disputeQuorumSnapshot), not the policy's current voteQuorum,
+   * which an admin can change afterwards. The current one is only a
+   * fallback for a policy without the snapshot.
+   */
+  const [disputed, rejectVotes, snapshot, current] = await Promise.all([
     read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'disputed', args: [jobId] }),
     read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'rejectVotes', args: [jobId] }).catch(() => 0n),
+    read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'disputeQuorumSnapshot', args: [jobId] }).catch(() => 0n),
     read.readContract({ address: policy, abi: DISPUTE_STATE_ABI, functionName: 'voteQuorum' }).catch(() => 0n),
   ]);
-  return { disputed, rejectVotes: Number(rejectVotes), quorum: Number(quorum) };
+  return { disputed, rejectVotes: Number(rejectVotes), quorum: Number(snapshot > 0n ? snapshot : current) };
 }
 
 export async function readReviewTiming(chainId: number, jobId: bigint): Promise<{ submittedAt: number; expiredAt: number; disputeWindowSeconds: number }> {
