@@ -100,6 +100,22 @@ function StepDefine({ d }: { d: AgentDraft }) {
       <Field label="Description" hint={<>Say what it returns, for whom, and what it will not do. <span className="t-readout">{d.draft.description.trim().length}/600</span></>}>
         {(p) => <Textarea {...p} value={d.draft.description} maxLength={600} onChange={(e) => d.update('description', e.target.value)} placeholder="Checks supported BNB Chain lending positions, explains health-factor changes, and returns a read-only risk report without moving funds." />}
       </Field>
+      {/*
+        * Said here because here is where somebody wondering it is standing.
+        *
+        * The build prompt lives on Configure, which is the right place for
+        * it — it needs the endpoint, protocol and limits set there. But a
+        * builder who has not written any code yet asks "can something
+        * write this for me?" on the first screen, and the first screen
+        * said nothing. A signpost rather than a copy of the prompt: a
+        * half-filled one, before there is a name or a category, would be
+        * worse than none.
+        */}
+      <p className="text-[13px] leading-relaxed text-ink-3">
+        Not built the agent itself yet? Fill this in, and <strong className="font-medium text-ink">Configure</strong> gives you a
+        prompt for Claude Code, Cursor or a similar tool. It spells out the agent card, the skills Pokter calls and the limits
+        you set, so what you build matches what buyers here will actually call.
+      </p>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">Category</legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -142,6 +158,17 @@ function StepDefine({ d }: { d: AgentDraft }) {
 }
 
 function StepConfigure({ d }: { d: AgentDraft }) {
+  /*
+   * Decided once, on arrival.
+   *
+   * `Details` passes this straight to the `open` attribute, so a live
+   * expression would make it controlled: typing an endpoint would snap the
+   * section shut mid-sentence, and anyone who closed it by hand would have
+   * it forced back open on their next keystroke. What matters is whether
+   * they got here without an endpoint, and that does not change while they
+   * are on the step.
+   */
+  const [openBuildHelp] = useState(() => !d.draft.endpoint.trim());
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-3">
@@ -150,7 +177,18 @@ function StepConfigure({ d }: { d: AgentDraft }) {
         <Field label="Endpoint URL" hint={d.draft.protocol === 'a2a' ? 'The base URL serving /.well-known/agent-card.json, or the card itself.' : 'Your MCP server’s https endpoint.'}>
           {(p) => <Input {...p} value={d.draft.endpoint} onChange={(e) => d.update('endpoint', e.target.value)} placeholder="https://agent.example.com" className="t-readout text-[14px]" spellCheck={false} />}
         </Field>
-        <Details summary="No endpoint yet? Build one">
+        {/*
+          * Named for what is inside it, and open when it is the thing you
+          * need.
+          *
+          * It used to read "No endpoint yet? Build one" and start shut, so
+          * the build prompt — the one artefact here that says exactly what
+          * Pokter's prober and escrow call — was two layers of discovery
+          * down, behind a label mentioning neither AI nor a prompt. A
+          * builder looking for that route did not find it and concluded it
+          * did not exist.
+          */}
+        <Details summary="No endpoint yet? Build one with an AI coding tool" defaultOpen={openBuildHelp}>
           <div className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-ink-2">
             <p>
               <strong className="font-medium text-ink">With an AI coding tool.</strong> Copy this prompt into Claude Code, Cursor or similar. It describes the agent card, the negotiate and delivery skills Pokter calls, and the limits you set below.

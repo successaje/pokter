@@ -24,8 +24,15 @@ export const metadata: Metadata = {
   }),
 };
 
+/*
+ * "No code yet" is named here because it is the question a builder brings
+ * to this screen. All three cards described what happens after you already
+ * have something running, so somebody wanting a prompt written for them
+ * read three dead ends and left — the prompt was on Configure the whole
+ * time.
+ */
 const PATHS = [
-  { href: '/studio/new', icon: <Icon.Spark size={20} />, title: 'Build a new agent', body: 'Start from an idea. Define it, connect a runtime, test it, and register its identity.' },
+  { href: '/studio/new', icon: <Icon.Spark size={20} />, title: 'Build a new agent', body: 'Start from an idea, with no code yet: describe it and get a build prompt for your AI coding tool. Then connect a runtime, test it, and register its identity.' },
   { href: '/studio/import', icon: <Icon.Plug size={20} />, title: 'Connect an existing agent', body: 'Already on ERC-8004, including via BNB Agent Studio? Check it and take ownership here.' },
   { href: '/studio/templates', icon: <Icon.Doc size={20} />, title: 'Use a template', body: 'Six advisory agents buyers already search for, ready to adapt.' },
 ];
