@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
-import { ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW, NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
