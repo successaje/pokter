@@ -3,7 +3,7 @@ import 'server-only';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getJobStore, type SellerNotice, type SellerNoticeStatus } from '@/lib/erc8183/store';
-import { statedDeliverableUrl } from '@/lib/erc8183/stated-url';
+import { readNoticeReply } from '@/lib/erc8183/notice-reply';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -70,11 +70,11 @@ async function askSeller(input: {
     if (!response.ok) throw new Error(`The seller answered HTTP ${response.status}.`);
     return agentReply(await readJson(response, { expectId: rpcId }));
   });
-  if (!reply || (reply.status !== 'accepted' && reply.status !== 'rejected')) {
+  const read = readNoticeReply(reply);
+  if (!read) {
     return { status: 'unreachable', reason: 'The seller answered without saying whether it accepted the job.', deliverableUrl: null };
   }
-  const reason = typeof reply.reason === 'string' ? reply.reason.trim().slice(0, 500) || null : null;
-  return { status: reply.status, reason, deliverableUrl: statedDeliverableUrl(reply) };
+  return read;
 }
 
 /**
