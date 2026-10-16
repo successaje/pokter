@@ -28,6 +28,7 @@ export const brinkwatch: HouseAgentDefinition = {
     description:
       'Give a BNB Chain wallet address, optionally with a target health factor. Returns the health factor, per-market collateral and debt, liquidation price drops, and the repay that restores the target, each figure with its Venus source and block.',
     examples: [
+      'Venus health factor for 0x0aEe98f6317ad64472330CA09af6c076BeE99aB7 and the repay that restores 1.5',
       'Venus health factor for 0x… and the repay that restores 1.5',
       'How close is 0x… to liquidation on Venus? Target health factor 1.3',
       'Check the Venus position of 0x…',

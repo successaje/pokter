@@ -369,6 +369,16 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
                   <span className="text-sm font-medium">{c.label}</span>
                   <span className="text-[13px] text-ink-2">{c.detail}</span>
                   {c.remedy && <span className="text-[12.5px] text-ink-3">Fix: {c.remedy}</span>}
+                  {(c.code || c.fixUrl) && (
+                    <span className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">
+                      {c.code && <span>A hire would be refused as <span className="t-readout">{c.code}</span></span>}
+                      {c.fixUrl && (
+                        <a href={c.fixUrl.replace('https://pokter.xyz', '')} className="link">
+                          How to fix it
+                        </a>
+                      )}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}

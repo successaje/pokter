@@ -69,7 +69,7 @@ export const touchstone: HouseAgentDefinition = {
     description:
       'Give a BNB Chain token address. Returns Safe, Caution or Avoid, the measured buy and sell tax, owner powers, upgradability, liquidity and how much of it is burned, each with its source and the block it was read at.',
     examples: [
-      'Check the BNB Chain token 0x… before a buy: is it safe to trade, and why.',
+      'Check the BNB Chain token 0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82 before a buy: is it safe to trade, and why.',
       'Is 0x… a honeypot? What are its taxes?',
       'Token safety check for 0x…',
     ],

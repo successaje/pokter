@@ -217,3 +217,9 @@ test('an agent that answers every probe but lets most paid jobs lapse is not rel
   // Missing fewer than it delivered keeps the verdict.
   assert.equal(verdictFor({ ...base, history: { delivered: 3, missed: 1 } } as never), 'reliable');
 });
+
+test('every category has a tag, token safety included', () => {
+  const parsed = parseQuery('tag:token-safety honeypot');
+  assert.deepEqual(parsed.qualifiers.filter((q) => q.kind === 'tag'), [{ kind: 'tag', value: 'token-safety' }]);
+  assert.equal(parsed.unknown.length, 0);
+});

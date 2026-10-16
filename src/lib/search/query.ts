@@ -56,6 +56,9 @@ const CATEGORY_ALIASES: Record<string, Category> = {
   yield: 'yield',
   health: 'health-factor',
   'health-factor': 'health-factor',
+  // The fifth category had no tag, so `tag:token-safety` came back as an unknown qualifier.
+  'token-safety': 'token-safety',
+  safety: 'token-safety',
 };
 
 export function categoryFromTag(tag: string): Category | null {
