@@ -13,6 +13,7 @@ import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { Button } from '@/ui/Button';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
+import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 
 const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   OPEN: { label: 'Not funded', tone: 'text-ink-3' },
@@ -132,7 +133,7 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
     }
   }
 
-  if (stage === 'done') return <Notice tone="ok" title="Delivered">Committed on chain. The buyer now has the review window to accept or dispute.</Notice>;
+  if (stage === 'done') return <Notice tone="ok" title="Delivered">Committed on chain. {PAYMENT_TERMS.sellerAfterSubmit}</Notice>;
   const busy = stage !== 'idle';
   return (
     <div className="flex flex-col gap-2">

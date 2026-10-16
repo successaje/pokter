@@ -5,6 +5,7 @@ import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { NetworkRow } from '@/ui/Network';
+import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import type { AgentProfile } from './profile';
 
 export function priceSummary(p: AgentProfile) {
@@ -43,7 +44,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
       <ul className="flex flex-col gap-2.5 border-t border-rule px-5 py-4 text-[13px] text-ink-2">
         <li className="flex gap-2.5">
           <Icon.Lock size={16} className="mt-px shrink-0 text-ink-3" />
-          Held in escrow on {chainLabel(profile.escrow.chainId)} until it delivers and you accept, or the review window passes.
+          On {chainLabel(profile.escrow.chainId)}. {PAYMENT_TERMS.held}
         </li>
         <li className="flex gap-2.5">
           <Icon.Refresh size={16} className="mt-px shrink-0 text-ink-3" />

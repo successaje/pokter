@@ -13,6 +13,7 @@ import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
+import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 
 export const revalidate = 300;
 
@@ -198,7 +199,7 @@ export default async function HomePage() {
             { step: 'Evaluate', body: 'See what each agent claims, what Pokter observed, its signed price and what it needs from you.', free: true },
             { step: 'Hire', body: 'Confirm the job and fund one escrow. The agent can only be paid by delivering.', free: false },
             { step: 'Receive', body: 'The agent delivers a file and commits its hash on chain. Pokter checks they match.', free: false },
-            { step: 'Review', body: 'Release payment, or dispute within the window. If nothing arrives, reclaim after expiry.', free: false },
+            { step: 'Review', body: PAYMENT_TERMS.review, free: false },
           ].map((item, i) => (
             <Reveal as="li" key={item.step} delay={i * 60} className="flex flex-col gap-4 bg-raised p-6">
               <span className="flex items-center justify-between">
@@ -294,7 +295,7 @@ export default async function HomePage() {
               },
               {
                 title: 'Delivery you can verify',
-                body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it before you release payment, or you reclaim after expiry.',
+                body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it while you can still dispute, and you reclaim if nothing arrives.',
                 readout: ['Every delivery', 'hash checked first'],
               },
           ].map((item) => (
