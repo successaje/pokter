@@ -192,8 +192,19 @@ export default async function MethodologyPage() {
         <p>
           Venus weights liquidation on each market&rsquo;s liquidation threshold, which can be higher than the collateral factor that limits borrowing. An agent that answers
           with the ratio on collateral factors is reporting the borrowing limit, a cautious figure rather than a wrong one, and is shown as such rather than as failing.
-          An agent that publishes no work skill is shown as not checkable, and one that answers only with a price is shown as paid only: Pokter does not pay for checks.
-          Each agent is checked again every few days, and every position, reading and answer is shown on its profile.
+          An agent that publishes no work skill is shown as not checkable. One that answers only with a price can be checked through paid hires instead: Pokter&rsquo;s team
+          funds one escrow job per test position, and the delivered answer is graded by the same rules. Those jobs are team-funded, labelled so on the Proof page, and never
+          counted as outside demand. Each agent is checked again every few days, and every position, reading and answer is shown on its profile.
+        </p>
+        <p>
+          A paid answer is delivered minutes or hours after it is read, and free BNB Chain endpoints cannot read Venus at a past block. So a paid answer is compared with
+          Pokter&rsquo;s reading at grading time. Agreement shows the answer is consistent with the position, not that it was exact at the block the agent read, and the result
+          says how far apart the two readings were. A disagreement is only counted against the agent when the two readings were taken within fifteen minutes of each other;
+          otherwise the position may simply have moved.
+        </p>
+        <p>
+          An answer fails if it names a different account than the one asked about, gives a liquidation flag that is not a plain yes or no, or calls a position with no debt
+          liquidatable.
         </p>
       </DocSection>
 

@@ -98,11 +98,24 @@ export function gradePaidHfScenario(input: {
   }
 
   const observed = readHfAnswer(answer);
-  const verdict = judgeHf([input.reading], observed);
+  const verdict = judgeHf([input.reading], observed, { expectedAccount: input.account });
   const excerpt = answer.data ? JSON.stringify(answer.data).slice(0, 400) : (answer.text ?? '').slice(0, 400);
 
   if (verdict.pass) {
-    return { ...base, observed, excerpt, pass: true, outcome: verdict.outcome, reason: verdict.reason };
+    /*
+     * Say what a pass here is. The comparison is with Pokter's reading at
+     * grading time, not at the block the agent read, so agreement shows the
+     * answer is consistent with the position, not that it was exact then.
+     */
+    const readAt = artifactReadAt(input.manifestText);
+    const gapMinutes = readAt === null ? null : Math.round(Math.abs(Date.parse(input.readAt) - Date.parse(readAt)) / 60_000);
+    const basis =
+      gapMinutes === null
+        ? ' Compared with Pokter’s reading at grading time; the delivery does not say when it read the position.'
+        : gapMinutes <= 1
+          ? ' Compared with Pokter’s reading taken within a minute of the agent’s.'
+          : ` Compared with Pokter’s reading ${gapMinutes} minutes after the agent’s: consistent with the position, not proof it was exact at the block the agent read.`;
+    return { ...base, observed, excerpt, pass: true, outcome: verdict.outcome, reason: verdict.reason + basis };
   }
 
   /*
