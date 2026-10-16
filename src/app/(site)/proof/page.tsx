@@ -231,7 +231,11 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         />
         <Metric value={rate} label="Terminal completion" note={`${summary.completed} settled of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
         <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note="Distinct recorded funders in this view." />
-        <Metric value={summary.agentsHired.toLocaleString('en-US')} label="Agents hired" note="Distinct registry identities commissioned." />
+        <Metric
+          value={summary.agentsHired.toLocaleString('en-US')}
+          label="Agents hired"
+          note={summary.agentRegistrationsHired > summary.agentsHired ? `Distinct agents, each counted once across chains (${summary.agentRegistrationsHired} registry identities).` : 'Distinct agents commissioned.'}
+        />
         <Metric value={summary.repeatKnownBuyers.toLocaleString('en-US')} label="Repeat buyers" note="Known wallets with at least two jobs." />
         <Metric {...valueMetric} />
       </section>
