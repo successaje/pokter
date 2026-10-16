@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { formatUnits } from 'viem';
 
 import { splitNeedsYou } from '@/lib/jobs/needs-you';
+import { FirstVisit } from './FirstVisit';
 import { useWalletState } from '@/shell/wallet/useWalletState';
 import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -27,6 +28,7 @@ export function WorkspaceOverview() {
     return (
       <>
         <PageHeader title="Workspace" description="Everything you have hired, what it is doing, and what needs you." />
+        <FirstVisit />
         <NeedsWallet what="your hires" />
       </>
     );
@@ -63,6 +65,7 @@ export function WorkspaceOverview() {
           </LinkButton>
         }
       />
+      <FirstVisit />
 
       {jobs.length === 0 ? (
         <div className="flex flex-col gap-6">
