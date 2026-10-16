@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
+import { formatUnits } from 'viem';
+
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
 import { disputeSummary, reviewWindowSummary } from '@/lib/erc8183/settle-window';
@@ -147,6 +150,24 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
   );
 }
 
+/**
+ * The same moment in the reader's own timezone.
+ *
+ * The window's close was shown in UTC only, which is the right thing to
+ * record and the wrong thing to read: a buyer deciding whether they have
+ * time to look at a delivery should not have to convert. Shown beside the
+ * UTC text rather than instead of it.
+ */
+function localMoment(epochSeconds: number): string {
+  const d = new Date(epochSeconds * 1000);
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' });
+}
+
+/** The escrowed amount, as the buyer agreed it. */
+function escrowedAmount(job: HiredJob): string {
+  return formatQuotedPrice(Number(formatUnits(BigInt(job.budgetRaw), 18)));
+}
+
 function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: boolean; connected: boolean }) {
   const a = useJobActions(initial);
   const job = a.job;
@@ -273,35 +294,92 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 <span>{review.text}</span>
               </p>
             )}
-            <ol className="flex flex-col gap-3">
-              <li className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
-                <span className="flex items-center gap-3 text-sm">
-                  <span className={cn('grid size-6 place-items-center rounded-full text-[11px]', a.receiptVerified ? 'bg-ok text-paper' : 'border border-rule-strong text-ink-3')}>{a.receiptVerified ? <Icon.Check size={13} /> : 1}</span>
-                  Check the delivered file matches the hash on chain
-                </span>
-                <Button size="s" intent={a.receiptVerified ? 'ghost' : 'secondary'} onClick={() => void a.verifyReceipt()} busy={a.busy === 'verify'} disabled={a.receiptVerified}>
-                  {a.receiptVerified ? 'Matches' : 'Verify'}
-                </Button>
-              </li>
-              <li className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
-                <span className="flex items-center gap-3 text-sm">
-                  <span className={cn('grid size-6 place-items-center rounded-full text-[11px]', a.reviewed ? 'bg-ok text-paper' : 'border border-rule-strong text-ink-3')}>{a.reviewed ? <Icon.Check size={13} /> : 2}</span>
-                  Read the delivery
+            {/*
+              The delivery leads; the checks support it.
+              This was a numbered two-step list in which opening the file
+              marked it reviewed. Three things were wrong with that: the
+              work was below its own paperwork, a click on a link became an
+              acknowledgement the buyer never made, and "verified" sat
+              beside "read" as though they were the same kind of fact.
+            */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 py-3.5">
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[14px] font-semibold">What {job.agentName} delivered</span>
+                  <span className="text-[12.5px] text-ink-3">Opening it changes nothing and commits you to nothing.</span>
                 </span>
                 {a.deliverableUrl ? (
-                  <a href={a.deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" onClick={() => a.setReviewed(true)} className="inline-flex items-center gap-1.5 text-[13px] font-medium link">
-                    Open the file <Icon.ArrowUpRight size={14} />
+                  <a
+                    href={a.deliverableUrl}
+                    target="_blank"
+                    rel="noreferrer noopener nofollow"
+                    className="inline-flex shrink-0 items-center gap-1.5 text-[13.5px] font-semibold link"
+                  >
+                    Open delivery <Icon.ArrowUpRight size={14} />
                   </a>
                 ) : (
                   <span className="text-[13px] text-ink-3">No readable link was published</span>
                 )}
-              </li>
-            </ol>
+              </div>
+
+              {/*
+                Integrity is about bytes, not quality, and the hash covers
+                the manifest. A file the manifest links to is not covered by
+                it, and saying otherwise would be the most misleading thing
+                on this page.
+              */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
+                <span className="flex min-w-0 flex-col gap-0.5 text-sm">
+                  <span className="flex items-center gap-2">
+                    {a.receiptVerified && <Icon.Check size={14} className="text-ok" aria-hidden />}
+                    {a.receiptVerified ? 'The delivered record matches the hash on chain' : 'Check the record against the hash on chain'}
+                  </span>
+                  <span className="text-[12.5px] text-ink-3">
+                    Covers the bytes of the delivered record, not any file it links to, and says nothing about whether the answer is right.
+                  </span>
+                </span>
+                <Button size="s" intent={a.receiptVerified ? 'ghost' : 'secondary'} onClick={() => void a.verifyReceipt()} busy={a.busy === 'verify'} disabled={a.receiptVerified}>
+                  {a.receiptVerified ? 'Matches' : 'Verify'}
+                </Button>
+              </div>
+
+              {/*
+                An acknowledgement the buyer makes deliberately, with no
+                financial effect of its own: it does not release, waive a
+                dispute or move a deadline.
+              */}
+              {owned && !dispute && phase === 'review' && (
+                <div className="rounded-[12px] border border-rule bg-paper px-4 py-3">
+                  <Checkbox
+                    checked={a.reviewed}
+                    onChange={(e) => a.setReviewed(e.target.checked)}
+                    label="I have reviewed this delivery"
+                  />
+                  <p className="mt-1 pl-7 text-[12.5px] text-ink-3">
+                    Only a note to yourself that you have read it. It pays nobody, gives up no dispute right and changes no deadline.
+                  </p>
+                </div>
+              )}
+            </div>
             {owned && !dispute && phase === 'review' && (
               <div className="flex flex-col gap-3 border-t border-rule pt-4 sm:flex-row sm:items-start sm:justify-between">
-                <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || !a.reviewed || review?.open === true}>
-                  {review?.open ? `Release opens ${review.closes}` : 'Release payment'}
-                </Button>
+                {/*
+                  The one button here that moves money, so it says so
+                  before the wallet is asked. It no longer waits on the
+                  review acknowledgement: that is a note to the buyer, and
+                  gating a payment on it made a private checkbox into a
+                  financial control.
+                */}
+                <span className="flex flex-col gap-1.5">
+                  <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || review?.open === true}>
+                    {review?.open ? `Release opens ${review.closes}` : `Release ${escrowedAmount(job)} to ${job.agentName}`}
+                  </Button>
+                  <span className="max-w-xs text-[12px] leading-snug text-ink-3">
+                    {review?.open
+                      ? `The escrow will not release before then. Local time: ${localMoment(review.closesAt)}.`
+                      : 'This pays the agent from escrow now. It cannot be undone, and the delivery can no longer be disputed.'}
+                  </span>
+                </span>
                 <div className="flex flex-col gap-2 sm:items-end">
                   <Checkbox checked={a.disputeConfirmed} onChange={(e) => a.setDisputeConfirmed(e.target.checked)} label="It did not deliver what I asked" />
                   <Button intent="danger" size="s" onClick={() => void a.act('dispute')} busy={a.busy === 'dispute'} disabled={!a.disputeConfirmed}>
