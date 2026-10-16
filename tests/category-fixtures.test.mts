@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { STATIC_SUITES, judgeStaticAnswer } from '../src/lib/assay/category-suites';
+import { STATIC_SUITES, judgeStaticAnswer, verdictClass } from '../src/lib/assay/category-suites';
 import { gridPlan, readGridBrief } from '../src/lib/house/agents/gridloom-math';
-import { readCrestholdBrief } from '../src/lib/house/agents/cresthold-math';
+import { crestholdAnswer, readCrestholdBrief } from '../src/lib/house/agents/cresthold-math';
+import { readTouchstoneBrief, touchstoneVerdict, type TokenFacts } from '../src/lib/house/agents/touchstone-math';
 
 /*
  * The check version 1 of these fixtures needed and did not have.
@@ -69,11 +70,62 @@ test('a yield agent can read every yield fixture with its terms intact', () => {
   }
 });
 
+test("a yield agent's own answer satisfies every yield fixture, and a changed asset fails it", () => {
+  /*
+   * Parsing the brief is not enough: the grader reads the terms back out of
+   * the delivered answer, so the answer has to carry them where it looks.
+   */
+  for (const scenario of STATIC_SUITES.yield.scenarios) {
+    const brief = readCrestholdBrief(scenario.brief.text)!;
+    const venue = { venue: `Venus ${brief.asset}`, market: '0x0', asset: brief.asset, apyPct: 4, rateMethod: 'model', swapCostUsd: 0, gasUsd: 0.05, capRoomUsd: null, withdrawableUsd: 1e9, sources: [] };
+    const answer = crestholdAnswer(brief, [venue], { block: '1', time: '2026-10-16T00:00:00Z' });
+    const verdict = judgeStaticAnswer(scenario.expected as Record<string, unknown>, { text: null, data: answer as unknown as Record<string, unknown> });
+    assert.equal(verdict.pass, true, `${scenario.id}: ${verdict.reason}`);
+
+    const swapped = crestholdAnswer({ ...brief, asset: brief.asset === 'USDT' ? 'USDC' : 'USDT' }, [venue], { block: '1', time: '2026-10-16T00:00:00Z' });
+    assert.equal(judgeStaticAnswer(scenario.expected as Record<string, unknown>, { text: null, data: swapped as unknown as Record<string, unknown> }).pass, false, `${scenario.id}: a changed asset must fail`);
+  }
+});
+
+test('a token-safety agent can read every token fixture, and its rule agrees with each', () => {
+  /*
+   * Version 1 supplied facts as JSON with no address; Touchstone refused all
+   * three. Each fixture now names an address, and the facts below are the
+   * ones that address has held for years.
+   */
+  const facts: Record<string, TokenFacts> = {
+    'not-a-contract': { isContract: false, symbol: null, probe: null, owner: { address: null, renounced: false }, powers: [], upgradable: false, liquidityUsd: null, lpBurnedShare: null, ownerShare: null, burnedShare: null },
+    'owner-can-mint': { isContract: true, symbol: 'USDT', probe: { stage: 0, buyTax: 0, sellTax: 0 }, owner: { address: '0xF68a4b64162906efF0fF6aE34E2bB1Cd42FEf62d', renounced: false, isContract: false }, powers: ['mint'], upgradable: false, liquidityUsd: 50_000_000, lpBurnedShare: 0, ownerShare: 0, burnedShare: 0 },
+    'wrapped-native': { isContract: true, symbol: 'WBNB', probe: null, owner: { address: null, renounced: false }, powers: [], upgradable: false, liquidityUsd: null, lpBurnedShare: null, ownerShare: null, burnedShare: 0, wrappedNative: true },
+    'upgradable-with-mint': { isContract: true, symbol: 'USDC', probe: { stage: 0, buyTax: 0, sellTax: 0 }, owner: { address: '0xF68a4b64162906efF0fF6aE34E2bB1Cd42FEf62d', renounced: false, isContract: false }, powers: ['mint'], upgradable: true, liquidityUsd: 300_000, lpBurnedShare: 0, ownerShare: 0, burnedShare: 0 },
+  };
+  const suite = STATIC_SUITES['token-safety'];
+  assert.equal(suite.scenarios.length, 4);
+  for (const scenario of suite.scenarios) {
+    assert.ok(readTouchstoneBrief(scenario.brief.text).token, `${scenario.id}: the fixture must name a token address`);
+    const { verdict } = touchstoneVerdict(facts[scenario.id]);
+    const judged = judgeStaticAnswer(scenario.expected as Record<string, unknown>, { text: null, data: { verdict } });
+    assert.equal(judged.pass, true, `${scenario.id}: ${judged.reason}`);
+  }
+});
+
+test('verdict words are read into a class, and a token with an active minter is not safe', () => {
+  assert.equal(verdictClass('Safe'), 'PASS');
+  assert.equal(verdictClass('high_risk'), 'FAIL');
+  assert.equal(verdictClass('Medium'), 'CAUTION');
+  // An unrecognised word is not guessed into a class.
+  assert.equal(verdictClass('probably fine'), 'PROBABLY FINE');
+  const mint = STATIC_SUITES['token-safety'].scenarios.find((s) => s.id === 'owner-can-mint')!;
+  assert.equal(judgeStaticAnswer(mint.expected as Record<string, unknown>, { text: '{"verdict":"Safe"}', data: null }).pass, false);
+  assert.equal(judgeStaticAnswer(mint.expected as Record<string, unknown>, { text: '{"verdict":"caution"}', data: null }).pass, true);
+});
+
 test('the suite ids change when the fixture changes', () => {
   // A run is stored against a suite id. Rewriting a fixture under the old id
   // would make old results read as results for the new question.
   assert.equal(STATIC_SUITES['grid-trading'].id, 'grid-plan-2');
   assert.equal(STATIC_SUITES.yield.id, 'yield-net-return-2');
+  assert.equal(STATIC_SUITES['token-safety'].id, 'token-safety-2');
   // Rebalancing has no free fixture at all now: see category-assays.
   assert.equal((STATIC_SUITES as Record<string, unknown>).rebalancing, undefined);
 });

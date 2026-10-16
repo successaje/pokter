@@ -164,16 +164,19 @@ export default async function MethodologyPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-sunken/70"><tr><th className="t-label px-4 py-2.5 font-medium">Category</th><th className="t-label px-4 py-2.5 font-medium">What is checked</th><th className="t-label px-4 py-2.5 font-medium">What is not proved</th></tr></thead>
             <tbody className="divide-y divide-rule bg-raised">
-              <tr><th className="px-4 py-3 font-medium">Rebalancing</th><td className="px-4 py-3 text-ink-2">Drift arithmetic and a stated rebalance threshold.</td><td className="px-4 py-3 text-ink-2">Execution, slippage or returns.</td></tr>
-              <tr><th className="px-4 py-3 font-medium">Grid trading</th><td className="px-4 py-3 text-ink-2">Geometric grid spacing and interval count.</td><td className="px-4 py-3 text-ink-2">Whether a range will make money.</td></tr>
-              <tr><th className="px-4 py-3 font-medium">Yield optimisation</th><td className="px-4 py-3 text-ink-2">Net return after stated gas and impermanent-loss assumptions.</td><td className="px-4 py-3 text-ink-2">Future APY or protocol safety.</td></tr>
-              <tr><th className="px-4 py-3 font-medium">Token safety</th><td className="px-4 py-3 text-ink-2">A published risk rule applied to supplied contract facts.</td><td className="px-4 py-3 text-ink-2">Independent bytecode analysis or a live sell simulation.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Rebalancing (LP range)</th><td className="px-4 py-3 text-ink-2">Whether each PancakeSwap v3 position in a real wallet is reported as earning at the current price, with none invented or left out, against Pokter&rsquo;s own reading of the pool.</td><td className="px-4 py-3 text-ink-2">Position value, fees or the re-centre plan.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Grid trading</th><td className="px-4 py-3 text-ink-2">That a plan keeps the asset, budget and range it was given, and spaces the grid correctly.</td><td className="px-4 py-3 text-ink-2">The live price quoted, or whether a range will make money.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Yield optimisation</th><td className="px-4 py-3 text-ink-2">That the answer is about the amount, stablecoin, horizon and threshold it was asked about.</td><td className="px-4 py-3 text-ink-2">The rates quoted, the venue chosen, future APY or protocol safety.</td></tr>
+              <tr><th className="px-4 py-3 font-medium">Token safety</th><td className="px-4 py-3 text-ink-2">The verdict class on real BNB Chain addresses whose deciding fact is public: an address with no code, tokens whose owner can mint, and WBNB.</td><td className="px-4 py-3 text-ink-2">Measured taxes, liquidity, or how a service handles a new token with a hidden sell block.</td></tr>
               <tr><th className="px-4 py-3 font-medium">Health factor</th><td className="px-4 py-3 text-ink-2">The agent&rsquo;s answer against live Venus positions.</td><td className="px-4 py-3 text-ink-2">Advice, timing or transaction execution.</td></tr>
             </tbody>
           </table>
         </div>
         <p>
-          The first four checks use fixed deterministic scenarios so every agent faces the same calculation. They are synthetic benchmarks and are labelled that way. Health factor is the one live-data suite: it reads Venus around the agent&rsquo;s reply, as detailed below. Agents are rechecked every few days; paid-only and unaskable agents are reported without being called wrong.
+          Grid, yield and token-safety checks use fixed scenarios, written the way a buyer writes a brief, so every agent faces the same question; only what the brief itself
+          settles is expected back. Rebalancing and health factor are live: Pokter reads the same positions on chain and compares. Every fixture is tested against a service
+          in its category before it is published, because a fixture no agent can read would record failures nobody earned. Agents are rechecked every few days; paid-only and
+          unaskable agents are reported without being called wrong, and those can be checked through team-funded paid hires as described below.
         </p>
       </DocSection>
 

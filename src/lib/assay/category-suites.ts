@@ -17,11 +17,14 @@ import type { Category } from '@/lib/agents/categories';
  * imply, the amount and horizon echoed back. Live figures in the same
  * answer are not expected values here; they are what the paid health
  * factor check grades against a reading of its own.
+ *
+ * Token safety is at version 2 for the same reason: version 1 supplied
+ * contract facts as JSON with no address, and Touchstone refused it.
  */
 export const CATEGORY_SUITE_IDS = {
   'grid-trading': 'grid-plan-2',
   yield: 'yield-net-return-2',
-  'token-safety': 'token-safety-facts-1',
+  'token-safety': 'token-safety-2',
 } as const satisfies Partial<Record<Category, string>>;
 
 export type StaticAssayCategory = keyof typeof CATEGORY_SUITE_IDS;
@@ -101,20 +104,30 @@ const yieldScenario = (id: string, amount: number, asset: string, days: number, 
   },
 });
 
-type TokenFacts = { sellable: boolean; owner_can_mint: boolean; owner_can_blacklist: boolean; upgradeable: boolean };
-
-const tokenSafety = (id: string, facts: TokenFacts): StaticScenario => {
-  const verdict = !facts.sellable ? 'FAIL' : facts.owner_can_mint || facts.owner_can_blacklist || facts.upgradeable ? 'CAUTION' : 'PASS';
-  const expected = { verdict };
-  return {
-    id,
-    expected,
-    brief: {
-      text: 'Read-only token safety check using the supplied verified contract facts. FAIL when the token is not sellable; otherwise CAUTION when the owner can mint, blacklist, or upgrade; otherwise PASS. Reply with JSON only: {"verdict": "PASS" | "CAUTION" | "FAIL"}.',
-      data: { suite: CATEGORY_SUITE_IDS['token-safety'], verified_contract_facts: facts, answer_shape: { verdict: 'PASS | CAUTION | FAIL' } },
-    },
-  };
-};
+/**
+ * A token-safety brief naming a real BNB Chain address, expecting the
+ * verdict class its long-standing facts decide.
+ *
+ * Version 1 supplied the contract facts as JSON and asked for the rule to
+ * be applied to them. A token-safety service reads a token address and
+ * finds the facts itself — which is the work being bought — so Touchstone
+ * refused all three scenarios and so would any service like it.
+ *
+ * The addresses are chosen so the deciding fact is readable by anyone and
+ * has held for years: an address with no code is not a token, and a
+ * Binance-Peg stablecoin keeps an owner wallet that can mint. Only the
+ * class of the verdict is expected. Taxes, liquidity and the reasons are
+ * live, and grading them against Pokter's own reading would be Pokter
+ * marking Touchstone's homework with Touchstone's code.
+ */
+const tokenSafety = (id: string, token: string, verdict: 'PASS' | 'CAUTION' | 'FAIL'): StaticScenario => ({
+  id,
+  expected: { verdict },
+  brief: {
+    text: `Check the BNB Chain token ${token} before a buy: is it safe to trade, and why. Reply with JSON only.`,
+    data: { suite: CATEGORY_SUITE_IDS['token-safety'], token },
+  },
+});
 
 export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
   'grid-trading': {
@@ -144,13 +157,18 @@ export const STATIC_SUITES: Record<StaticAssayCategory, StaticSuite> = {
   'token-safety': {
     id: CATEGORY_SUITE_IDS['token-safety'],
     category: 'token-safety',
-    label: 'Token risk classification',
-    provenance: 'Fixed, explicitly supplied contract facts with a published decision rule.',
-    limitation: 'Checks classification from supplied facts, not independent bytecode analysis or live sell simulation.',
+    label: 'Token verdict on clear-cut cases',
+    provenance: 'BNB Chain addresses whose deciding fact is public and long-standing: one with no contract code, two Binance-Peg stablecoins whose owner wallet keeps a mint function (one is also an upgradable proxy), and WBNB, which has no owner or admin functions.',
+    limitation: 'Checks the class of the verdict (safe, caution or avoid) on cases anyone can settle. It does not check the measured taxes, liquidity or reasons, and clear-cut cases say nothing about how a service handles a new token with a hidden sell block.',
     scenarios: [
-      tokenSafety('blocked-sale', { sellable: false, owner_can_mint: false, owner_can_blacklist: false, upgradeable: false }),
-      tokenSafety('admin-controls', { sellable: true, owner_can_mint: true, owner_can_blacklist: false, upgradeable: false }),
-      tokenSafety('no-listed-controls', { sellable: true, owner_can_mint: false, owner_can_blacklist: false, upgradeable: false }),
+      // No contract code at this address, so there is no token to buy.
+      tokenSafety('not-a-contract', '0x000000000000000000000000000000000000dEaD', 'FAIL'),
+      // Binance-Peg BSC-USD: sellable, with an active owner wallet that can mint.
+      tokenSafety('owner-can-mint', '0x55d398326f99059fF775485246999027B3197955', 'CAUTION'),
+      // Binance-Peg USDC: the same, and an upgradable proxy besides.
+      tokenSafety('upgradable-with-mint', '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 'CAUTION'),
+      // WBNB: no owner, no admin functions, not a proxy. A service that calls everything Caution fails here.
+      tokenSafety('wrapped-native', '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', 'PASS'),
     ],
   },
 };
@@ -185,6 +203,23 @@ function find(record: Record<string, unknown>, key: string, depth = 0): unknown 
   }
 }
 
+/*
+ * Services name the same three classes differently: Safe, Caution, Avoid;
+ * pass, warn, fail; low, medium, high risk. What is graded is the class,
+ * so each word is read into one before comparing. An unrecognised word is
+ * left as it is and fails, rather than being guessed into a class.
+ */
+const VERDICT_CLASSES: Record<string, 'PASS' | 'CAUTION' | 'FAIL'> = {
+  PASS: 'PASS', SAFE: 'PASS', OK: 'PASS', LOW: 'PASS', 'LOW RISK': 'PASS',
+  CAUTION: 'CAUTION', WARN: 'CAUTION', WARNING: 'CAUTION', MEDIUM: 'CAUTION', 'MEDIUM RISK': 'CAUTION', RISKY: 'CAUTION',
+  FAIL: 'FAIL', AVOID: 'FAIL', DANGER: 'FAIL', DANGEROUS: 'FAIL', UNSAFE: 'FAIL', HIGH: 'FAIL', 'HIGH RISK': 'FAIL', SCAM: 'FAIL', HONEYPOT: 'FAIL',
+};
+
+export function verdictClass(value: unknown): string {
+  const word = String(value).trim().toUpperCase().replace(/[_-]+/g, ' ');
+  return VERDICT_CLASSES[word] ?? word;
+}
+
 export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { text: string | null; data: Record<string, unknown> | null }): { pass: boolean; observed: Record<string, unknown> | null; reason: string } {
   const record = answerRecord(answer);
   if (!record) return { pass: false, observed: null, reason: 'No JSON object could be read from the answer.' };
@@ -197,7 +232,8 @@ export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { t
       const tolerance = Math.max(0.01, Math.abs(wanted) * 0.005);
       if (!Number.isFinite(numeric) || Math.abs(numeric - wanted) > tolerance) return { pass: false, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
     } else if (typeof wanted === 'string') {
-      if (String(got).trim().toUpperCase() !== wanted.toUpperCase()) return { pass: false, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
+      const answered = key === 'verdict' ? verdictClass(got) : String(got).trim().toUpperCase();
+      if (answered !== wanted.toUpperCase()) return { pass: false, observed, reason: `${key} should be ${wanted}; answered ${String(got)}.` };
     } else if (got !== wanted) {
       return { pass: false, observed, reason: `${key} should be ${String(wanted)}; answered ${String(got)}.` };
     }

@@ -23,6 +23,12 @@ export interface TokenFacts {
   lpBurnedShare: number | null;
   ownerShare: number | null;
   burnedShare: number | null;
+  /**
+   * WBNB itself. It is BNB wrapped 1:1 by its own contract, so there is no
+   * WBNB pair to buy it through and no probe to run — which read as
+   * "could not be simulated" and made the chain's own base asset a Caution.
+   */
+  wrappedNative?: boolean;
 }
 
 export type Verdict = 'Safe' | 'Caution' | 'Avoid';
@@ -47,7 +53,8 @@ export function touchstoneVerdict(facts: TokenFacts): { verdict: Verdict; reason
   }
 
   const probe = facts.probe;
-  if (!probe || probe.stage === 1) caution('No PancakeSwap v2 pair with WBNB, so a buy and sell could not be simulated. Taxes and sellability are unverified.');
+  if (facts.wrappedNative) ok('This is WBNB: BNB wrapped one-for-one by its own contract, so it is not bought through a pool and has no trade tax.');
+  else if (!probe || probe.stage === 1) caution('No PancakeSwap v2 pair with WBNB, so a buy and sell could not be simulated. Taxes and sellability are unverified.');
   else if (probe.stage === 2) caution('Buying on PancakeSwap v2 reverts: trading may be disabled, limited to some wallets, or the token trades elsewhere. Not tested further.');
   else if (probe.stage === 3) avoid('A simulated buy went through but delivered no tokens.');
   else if (probe.stage === 4) avoid('After buying, the router could not be approved to sell: tokens may be locked in the buyer’s wallet.');

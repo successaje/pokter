@@ -14,13 +14,13 @@ test('every marketplace category has a disclosed correctness suite', () => {
   assert.equal(assayForCategory('unclassified'), null);
 });
 
-test('static suites use three deterministic scenarios and stable ids', () => {
+test('static suites use at least three deterministic scenarios and stable ids', () => {
   for (const [category, id] of Object.entries(CATEGORY_SUITE_IDS)) {
     assert.equal(STATIC_SUITES[category as keyof typeof CATEGORY_SUITE_IDS].id, id);
   }
   for (const suite of Object.values(STATIC_SUITES)) {
-    assert.equal(suite.scenarios.length, 3, suite.category);
-    assert.equal(new Set(suite.scenarios.map((scenario) => scenario.id)).size, 3);
+    assert.ok(suite.scenarios.length >= 3, suite.category);
+    assert.equal(new Set(suite.scenarios.map((scenario) => scenario.id)).size, suite.scenarios.length);
   }
 });
 
@@ -59,9 +59,9 @@ test('yield suite expects the buyer\'s own terms back, not a rate it cannot veri
   });
 });
 
-test('token safety rule distinguishes blocked sales, controls and clean supplied facts', () => {
+test('token safety fixtures separate a non-token, tokens whose owner can mint, and WBNB', () => {
   assert.deepEqual(STATIC_SUITES['token-safety'].scenarios.map((scenario) => scenario.expected), [
-    { verdict: 'FAIL' }, { verdict: 'CAUTION' }, { verdict: 'PASS' },
+    { verdict: 'FAIL' }, { verdict: 'CAUTION' }, { verdict: 'CAUTION' }, { verdict: 'PASS' },
   ]);
 });
 
