@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+import { getJobStore } from '@/lib/erc8183/store';
 import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
@@ -101,6 +103,33 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json(
         { error: 'The funded job does not name the requested provider.' },
         { status: 409 },
+      );
+    }
+    /*
+     * A delivered job whose deliverable URL Pokter never kept.
+     *
+     * The URL is kept from the seller's answer to notify_funded, because the
+     * chain's copy (the submit event) stops being readable within hours on
+     * the free endpoints. Job 57016 was delivered before its answer could be
+     * read, so its URL was lost and its receipt could not be verified. A
+     * delivered job may be re-asked once for that reason only: when Pokter
+     * indexed it and holds no URL. A URL already kept is never replaced,
+     * so a seller cannot repoint a delivered receipt, and the bytes are
+     * still checked against the on-chain hash whenever it is verified.
+     */
+    if (job.statusName === 'SUBMITTED' || job.statusName === 'COMPLETED') {
+      const indexed = getJobStore().byId(`${escrowChainId}:${jobId}`);
+      if (!indexed || indexed.deliverableUrl || (await isDemoSeller(provider))) {
+        return NextResponse.json(
+          { error: `Job is ${job.statusName}, not FUNDED.` },
+          { status: 409 },
+        );
+      }
+      const notice = await noticeSeller({ agentChainId, tokenId, jobId, provider, escrowChainId });
+      const recorded = getJobStore().byId(`${escrowChainId}:${jobId}`)?.deliverableUrl ?? null;
+      return NextResponse.json(
+        { status: notice.status, jobId, backfilled: recorded !== null, deliverableUrl: recorded },
+        { status: recorded ? 200 : 502 },
       );
     }
     if (job.statusName !== 'FUNDED') {
