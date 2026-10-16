@@ -5,6 +5,7 @@ import { getProbeStore } from '@/lib/history/store';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { deriveBuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 40;
@@ -117,7 +118,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * would go and change something that was never wrong.
      */
     return NextResponse.json(
-      { error: `Pokter could not complete the diagnostic: ${(error as Error).message}` },
+      { error: `Pokter could not complete the diagnostic: ${logAndPublic('compatibility', error)}` },
       { status: 502 },
     );
   }

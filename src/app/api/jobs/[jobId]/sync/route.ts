@@ -7,6 +7,7 @@ import { jobChainParam } from '@/lib/jobs/href';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -75,6 +76,6 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
     });
     return NextResponse.json({ synced: true, status: onchain.statusName, transactionRecorded: Boolean(verifiedHash) });
   } catch (error) {
-    return NextResponse.json({ error: `The job could not be read from chain: ${(error as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `The job could not be read from chain: ${logAndPublic('jobs/sync', error)}` }, { status: 502 });
   }
 }

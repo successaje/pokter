@@ -33,6 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await createBuilderSubscription({ email, owner: builder });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message || 'Could not start email verification.' }, { status: 502 });
+    console.error('[builders/notifications/email]', error);
+    return NextResponse.json({ error: 'Could not send the verification email just now. Try again shortly.' }, { status: 502 });
   }
 }

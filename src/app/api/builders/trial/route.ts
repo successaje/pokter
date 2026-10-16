@@ -6,6 +6,7 @@ import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -144,6 +145,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       disclaimer: 'Pokter supplied no wallet, key or transaction authority. The builder controls the tested runtime and remains responsible for ensuring its preview capability has no external side effects.',
     }, { status: interpreted.valid ? 200 : 502 });
   } catch (error) {
-    return NextResponse.json({ error: `Preview failed: ${(error as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `Preview failed: ${logAndPublic('builders/trial', error)}` }, { status: 502 });
   }
 }

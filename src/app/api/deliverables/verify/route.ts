@@ -13,6 +13,7 @@ import { erc8183ManifestHash } from '@altananetwork/sdk';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { siteUrl } from '@/lib/site';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -183,7 +184,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: `Receipt verification failed: ${(error as Error).message}` },
+      { error: `Receipt verification failed: ${logAndPublic('deliverables/verify', error)}` },
       { status: 502 },
     );
   }

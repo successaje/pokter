@@ -6,6 +6,7 @@ import { matchesFeedback } from '@/lib/reviews/onchain';
 import { getReviewStore } from '@/lib/reviews/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { siteUrl } from '@/lib/site';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     store.setOnchain(chainId, jobId, hash, review.agentChainId);
     return NextResponse.json({ recorded: true, chainId: review.agentChainId, transactionHash: hash });
   } catch (error) {
-    return NextResponse.json({ error: `The transaction could not be read: ${(error as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `The transaction could not be read: ${logAndPublic('reviews/onchain', error)}` }, { status: 502 });
   }
 }

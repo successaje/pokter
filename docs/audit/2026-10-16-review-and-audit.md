@@ -158,11 +158,11 @@ instructions alone. Pokter cannot produce that itself.
 | Gap | Why it is not in this branch |
 | --- | --- |
 | Does a quorum rejection refund automatically, or must the buyer call `claimRefund`? | The commerce contract is not verified on Sourcify and no REJECTED job exists yet. The copy holds either way and keeps a reclaim button. Confirm on the first real rejection. |
-| Raw RPC and SDK error text passed through on ~12 public routes (trial, compatibility, jobs, reviews, evidence…) | Many of these are deliberate, readable reasons ("the agent answered 500"). Separating them needs a per-route pass, with an error-code scheme. |
-| `notifications/subscribe` and `follow` return every error as 400, including provider and config faults | Same error-scheme work. |
+| ~~Raw RPC and SDK error text passed through on public routes~~ | **Fixed 16 Oct** (`fix/api-errors`): 13 public routes now pass errors through `publicErrorMessage`, which keeps the reason and drops viem detail lines, query strings, private hosts, secret names and commands. The full error is logged. Operator-only routes keep full detail. |
+| ~~`notifications/subscribe` and `follow` return every error as 400~~ | **Fixed 16 Oct**: validation is `BadRequest` (400); provider and config faults are 502 with a generic message. Review report and moderate return 404 only for not-found, 500 otherwise. |
 | Inconsistent error shapes: `{status:'refused', reason}`, `{reclaimed:false, error}` | Changing shapes breaks clients. Needs versioning. |
-| Sponsorship daily limit answers 409, not 429 | Client code reads 409. Change both together. |
-| Two `IS_TESTNET` flags (server `ALTANA_NETWORK`, client `NEXT_PUBLIC_ALTANA_NETWORK`) can disagree | Deployment config. Production sets both. A build-time assertion would catch drift. |
+| ~~Sponsorship daily limit answers 409, not 429~~ | **Fixed 16 Oct**: 429 with `retry-after`. The client reads only the body, so nothing else changed. |
+| Two `IS_TESTNET` flags (server `ALTANA_NETWORK`, client `NEXT_PUBLIC_ALTANA_NETWORK`) can disagree | Deployment config. Production sets both. **16 Oct:** the server now logs a `[config]` error at boot when they disagree. |
 | Hosted assistants share `get_quote`'s 5-per-minute IP limit | Needs a per-session MCP key. Documented in the tool description for now. |
 | Passkey reclaim builds the call for `WALLET_NETWORK`, not the job's chain | Passkey wallets act on one chain only. Matters only if that changes. |
 | `MCP_ENDPOINT` hardcodes pokter.xyz | Intentional for the public docs. Staging advertises production. |

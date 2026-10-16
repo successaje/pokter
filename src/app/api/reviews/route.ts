@@ -9,6 +9,7 @@ import { reviewMessage, validReviewContent, type VerifiedReview } from '@/lib/re
 import { getReviewStore } from '@/lib/reviews/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     getReviewStore().upsert(review);
     return NextResponse.json({ review });
   } catch (error) {
-    return NextResponse.json({ error: `Review verification failed: ${(error as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `Review verification failed: ${logAndPublic('reviews', error)}` }, { status: 502 });
   }
 }
