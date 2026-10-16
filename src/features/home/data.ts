@@ -12,6 +12,8 @@ import { letsJobsLapse, type SearchableAgent } from '@/lib/search/match';
 import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
+import { isLifecycleDemo } from '@/lib/agent/credited-history';
+import { isSelfHire } from '@/lib/erc8183/production-proof';
 
 /** One line of the hero's inspection: a real check with a real result. */
 export interface SpecimenCheck {
@@ -141,7 +143,7 @@ export interface HomeData {
    * Jobs outside buyers funded; Pokter's own test hires are counted apart in
    * `teamCompleted`. `completedMainnet` is the part paid in real $U.
    */
-  activity: { completedJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
+  activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
   catalogue: { hireable: number; priced: number };
@@ -186,6 +188,16 @@ export async function loadHome(): Promise<HomeData> {
   const allJobs = getJobStore().all();
   const buyerJobs = allJobs.filter((job) => !fundedByTeam(job, team));
   const jobs = summarizeMarketplaceActivity(buyerJobs);
+  /*
+   * The headline counts answered work by outside buyers only: accepted, the
+   * agent's answer delivered, and not a self-hire. Lifecycle demos and
+   * self-hires settle like any job, and an outside review read the old
+   * figure (13) as useful customer outcomes when the strict count was 7.
+   */
+  const completedOutside = buyerJobs.filter((job) => job.status === 'COMPLETED');
+  const demos = completedOutside.filter((job) => isLifecycleDemo(job)).length;
+  const selfHires = completedOutside.filter((job) => !isLifecycleDemo(job) && isSelfHire(job)).length;
+  const answered = completedOutside.length - demos - selfHires;
   const mainnetJobs = summarizeMarketplaceActivity(buyerJobs.filter((job) => job.chainId === 56));
   const teamJobs = summarizeMarketplaceActivity(allJobs.filter((job) => fundedByTeam(job, team)));
 
@@ -195,7 +207,7 @@ export async function loadHome(): Promise<HomeData> {
     specimens: chooseSpecimens(entries, rows),
     featured,
     outcomes,
-    activity: { completedJobs: jobs.completedJobs, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
+    activity: { completedJobs: jobs.completedJobs, answeredJobs: answered, demoJobs: demos, selfHireJobs: selfHires, completedMainnet: mainnetJobs.completedJobs, teamCompleted: teamJobs.completedJobs, indexedJobs: jobs.indexedJobs, activeJobs: jobs.activeJobs },
     measured: { monitored: stats?.agentsMonitored ?? 0, answering: stats?.agentsAnswering ?? 0 },
     // The same figures Discover and the methodology census show.
     catalogue: catalogueCounts(entries),

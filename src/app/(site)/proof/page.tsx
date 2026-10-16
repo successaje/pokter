@@ -222,7 +222,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         <Metric
           value={summary.answeredDeliveries.toLocaleString('en-US')}
           label="Answered deliveries"
-          note={`Accepted by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} accepted jobs.`}
+          note={`Accepted by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} accepted jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}.`}
         />
         <Metric
           value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
