@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { withoutClaimedIds } from './claimed-ids';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -275,7 +276,15 @@ class SqliteJobStore implements JobStore {
     const rows = this.db
       .prepare('SELECT * FROM jobs ORDER BY hired_at DESC')
       .all() as unknown as JobRow[];
-    return rows.map(toJob);
+    // Rows whose escrow id a later hire for another agent holds were never jobs (see claimed-ids.ts).
+    return withoutClaimedIds(rows.map(toJob));
+  }
+
+  /** Ids of rows whose escrow id belongs to another agent's later hire. */
+  private phantomIds(): Set<string> {
+    const rows = (this.db.prepare('SELECT * FROM jobs').all() as unknown as JobRow[]).map(toJob);
+    const kept = new Set(withoutClaimedIds(rows).map((job) => job.id));
+    return new Set(rows.filter((job) => !kept.has(job.id)).map((job) => job.id));
   }
 
   readCursor(name: string): string | null {
@@ -350,7 +359,8 @@ class SqliteJobStore implements JobStore {
     const rows = this.db
       .prepare('SELECT * FROM jobs WHERE client = ? ORDER BY hired_at DESC')
       .all(client.toLowerCase()) as unknown as JobRow[];
-    return rows.map(toJob);
+    const phantoms = this.phantomIds();
+    return rows.map(toJob).filter((job) => !phantoms.has(job.id));
   }
 
   byAgent(chainId: number, tokenId: string): HiredJob[] {
@@ -362,7 +372,8 @@ class SqliteJobStore implements JobStore {
          ORDER BY hired_at DESC`,
       )
       .all(tokenId, chainId, chainId) as unknown as JobRow[];
-    return rows.map(toJob);
+    const phantoms = this.phantomIds();
+    return rows.map(toJob).filter((job) => !phantoms.has(job.id));
   }
 }
 

@@ -16,6 +16,7 @@ import { correctedErc8183Addresses } from './addresses';
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { getJobStore } from './store';
+import { isThisHire } from './hire-confirm';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -200,6 +201,22 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     result = await client.execute({ wallet, signer, calls });
   } catch (error) {
     throw new Error(explainRevert((error as Error).message));
+  }
+
+  /*
+   * Confirm the predicted id is this hire's job before recording it (see
+   * hire-confirm.ts). The read is retried briefly because the RPC can lag
+   * the transaction it just confirmed.
+   */
+  const description = input.description ?? input.task;
+  let confirmed = false;
+  for (let attempt = 0; attempt < 5 && !confirmed; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const onchain = await getErc8183Job(ALTANA_NETWORK, jobId).catch(() => null);
+    confirmed = onchain !== null && isThisHire(onchain, { client: wallet.address, provider: input.provider, description });
+  }
+  if (!confirmed) {
+    throw new Error(`The hire reported success, but job ${jobId} on chain is not this hire's job, so nothing was recorded. Check the transaction ${result.transactionHash ?? '(no hash returned)'} before retrying.`);
   }
 
   const job: HiredJob = {

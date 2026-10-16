@@ -46,11 +46,13 @@ import type { AssayRun, AssayScenarioResult } from './types';
  * One lookup for the guard and the grader, so the two cannot disagree.
  */
 export function fixtureJobsForAgent(target: { chainId: number; tokenId: string }, suiteId: string): Map<string, HiredJob> {
+  // The store already leaves out rows whose escrow id another agent's hire holds (claimed-ids.ts).
   const mine = getJobStore()
     .all()
     .filter((job) => job.agentTokenId === target.tokenId && (job.agentChainId ?? job.chainId) === target.chainId);
   return fixtureJobsBySuite(mine, suiteId);
 }
+
 
 /** A job that may still deliver: funded or submitted, deadline not passed. */
 function deliveryOpen(job: HiredJob, now = Date.now()): boolean {
