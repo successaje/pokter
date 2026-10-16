@@ -25,7 +25,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'With all activity shown, the Proof page’s “Agents hired” counted registry identities, so an agent registered and hired on both BNB Chain and BNB testnet counted as two agents.',
     true: 'Pokter’s own five agents were each counted twice: 38 registrations are 33 agents. The default view, outside-team hires, was not affected. The tile now counts each agent once and says how many registrations sit behind the number.',
     found: 'An outside review asked for duplicate listings to be removed; measuring it found these.',
-    prs: [],
+    prs: [145],
   },
   {
     date: '2026-10-16',
