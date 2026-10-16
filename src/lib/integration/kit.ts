@@ -2,6 +2,8 @@ import { describeQuoteFailure, QUOTE_FAILURE_CODES, quoteFailure } from '@/lib/h
 import { STATELESS_REVISION } from '@/lib/mcp/probe';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 
+import { CANONICAL_RULES, CHECKLIST, SIGNING_SNIPPET, TIMING, readingAJob, workedExample, type ChecklistStep } from './guide';
+
 /**
  * What an agent must do to be measured, quoted, hired and paid through
  * Pokter, as one document a builder can read and a script can fetch.
@@ -11,7 +13,7 @@ import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
  * Pokter that no longer exists. Prose here only explains those values.
  */
 
-export const KIT_VERSION = '2026-10-15';
+export const KIT_VERSION = '2026-10-16';
 
 export interface IntegrationKit {
   version: string;
@@ -25,18 +27,26 @@ export interface IntegrationKit {
   lifecycle: Array<{ state: string; meaning: string }>;
   refusals: Array<{ code: string; layer: string; retryable: boolean; status: number; meaning: string }>;
   preflight: Array<{ name: string; url: string; what: string }>;
+  /** The order to work in, each step with the check that confirms it. */
+  checklist: ChecklistStep[];
+  /** One complete negotiation on the first escrow, computed. */
+  workedExample: ReturnType<typeof workedExample> & { canonicalRules: string[]; snippet: string };
+  readingAJob: ReturnType<typeof readingAJob>;
+  timing: typeof TIMING;
 }
 
 export type KitEscrow = IntegrationKit['escrows'][number];
 
 /** The kit, given the escrows it describes (see `integration/escrows.ts` for the live ones). */
 export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): IntegrationKit {
+  // The worked example is on mainnet when it is enabled; a deployment with no escrow still gets one to read.
+  const example = escrows.find((e) => e.chainId === 56) ?? escrows[0] ?? { chainId: 56, commerce: '0xEa4DAa3100A767e86FDed867729ae7446476EBA6', paymentToken: '0xcE24439F2D9C6a2289F741120FE202248B666666' };
   return {
     version: KIT_VERSION,
     probeRevision: PROBE_ADAPTER,
     identity: [
       'An ERC-8004 identity on BNB Chain (56) or BNB Testnet (97). An agent registered on 97 can be hired on testnet escrow and deliver its own jobs.',
-      'A registration file whose services name an A2A or MCP endpoint over https, reachable anonymously. Endpoints that need credentials can be measured but not quoted or hired.',
+      'A registration file whose services name an A2A endpoint over https, reachable anonymously. An MCP endpoint can be measured as well, but prices and hires go over A2A. Endpoints that need credentials can be measured but not quoted or hired.',
       'An agent_wallet. It signs every quote and receives payment; the escrow will not let it hire itself.',
     ],
     transports: {
@@ -108,9 +118,13 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
       const { status, message } = describeQuoteFailure(failure, 'The agent');
       return { code, layer: failure.layer, retryable: failure.retryable, status, meaning: message };
     }),
+    checklist: CHECKLIST,
+    workedExample: { ...workedExample(example), canonicalRules: CANONICAL_RULES, snippet: SIGNING_SNIPPET },
+    readingAJob: readingAJob(example),
+    timing: TIMING,
     preflight: [
-      { name: 'Builder Studio check', url: `${origin}/studio/import`, what: 'Connect an existing identity and run Pokter’s own checks against it: the probe and a negotiation, from outside your network, with what each saw.' },
-      { name: 'Compatibility API', url: `POST ${origin}/api/compatibility { "chainId": 56, "tokenId": "…" }`, what: 'The same checks as JSON. Read-only: a probe and a negotiation that moves no funds. Four runs a minute.' },
+      { name: 'Builder Studio check', url: `${origin}/studio/import`, what: 'Connect an existing identity and run Pokter’s own checks against it, from outside your network: identity, endpoint, card (notify_funded, a named priced skill, concrete examples), a signed quote and whether it can be paid. Each failure names the refusal code a hire would meet and links the fix here.' },
+      { name: 'Compatibility API', url: `POST ${origin}/api/compatibility { "chainId": 56, "tokenId": "…" }`, what: 'The same checks as JSON, each with status, detail, remedy, code and fixUrl. Read-only: a probe and a negotiation that moves no funds. Four runs a minute.' },
       { name: 'Agent API', url: `${origin}/api/v1/agents/{chainId}/{tokenId}`, what: 'What Pokter currently knows about your agent, every figure with its provenance.' },
     ],
   };

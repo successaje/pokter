@@ -71,6 +71,7 @@ export const centreline: HouseAgentDefinition = {
     description:
       'Give a BNB Chain wallet address. Returns each v3 position with its range, current price, in or out of range, holdings and value, uncollected fees, and a re-centre plan, with the block it was read at.',
     examples: [
+      'PancakeSwap V3 range check and re-centre plan for the positions of 0xab7ed4d30757baa7d3d65d9e0aaba2c827a69e9c',
       'PancakeSwap V3 range check and re-centre plan for the positions of 0x…',
       'Are the LP positions of 0x… still in range?',
       'Check my PancakeSwap v3 positions: 0x…',

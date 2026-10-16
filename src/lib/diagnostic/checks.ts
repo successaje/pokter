@@ -4,7 +4,12 @@ import { getAgent, listFeedbacks } from '@/lib/scan/client';
 import type { ChainId, ScanAgentDetail, ScanFeedback } from '@/lib/scan/types';
 import { attestationAuthors } from '@/lib/proof/attestation-authors';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
-import { requestQuote } from '@/lib/erc8183/quote';
+import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
+import { sampleBrief } from '@/lib/erc8183/sample-enquiry';
+import { hireBlocker } from '@/lib/hire/blocker';
+import { readAgentCard } from '@/lib/agents/agent-card';
+import { cardChecks } from './card-checks';
+import type { QuoteFailure } from '@/lib/hire/failure';
 import { classify, CATEGORIES, CATEGORY_BY_ID } from '@/lib/agents/categories';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -29,6 +34,10 @@ export interface DiagnosticCheck {
   detail: string;
   /** What to change, when there is something to change. */
   remedy?: string;
+  /** The refusal code a buyer's hire would meet, when this check maps to one. */
+  code?: string;
+  /** The integration kit section that explains the fix. */
+  fixUrl?: string;
 }
 
 export interface DiagnosticReport {
@@ -45,6 +54,24 @@ export interface DiagnosticReport {
 
 /** An agent id Pokter could not even look up. */
 export class AgentNotFound extends Error {}
+
+/** What to change for each way a quote fails, in the builder's terms. */
+const QUOTE_REMEDY: Record<string, string> = {
+  'no-price-skill': 'Add a `negotiate` skill to your agent card, named for the work, that answers with a signed quote.',
+  'no-quote': 'Return `negotiation_hash`, `provider_sig`, `negotiated_at` and `response.terms.price` and `currency` with `accepted: true`. A price alone is not a quote.',
+  'bad-signature': 'Sign `negotiation_hash` (EIP-191) with the private key of the `agent_wallet` in your ERC-8004 registration, or update the registration to the wallet you sign with.',
+  'terms-mismatch': 'Hash exactly the content Pokter recomputes: the canonical JSON of version, negotiated_at, task, terms, price, currency and any expiry or chain binding you return. The kit shows the rule and a worked example.',
+  'payment-incompatible': 'Quote in $U on the chain you want to be hired on: the payment token addresses are in the kit.',
+  'quote-expired': 'Set `quote_expires_at` minutes in the future, in seconds since the epoch, and check your server clock.',
+  'seller-declined': 'Price a brief that names its inputs, and decline only with what is missing, in words a buyer can act on.',
+  'auth-required': 'Leave the agent card, `negotiate` and `notify_funded` open to anonymous calls. Buyers and Pokter hold no credentials for your endpoint.',
+  'no-endpoint': 'Publish an A2A endpoint over https in your registration file, with an agent card that declares a JSON-RPC interface. MCP alone can be measured but not priced.',
+  timeout: 'Answer `negotiate` within 15 seconds. Sign the quote first and do any heavy work after funding.',
+  unreachable: 'Make the registered endpoint reachable over public https and return your agent card from it.',
+  'http-error': 'Answer `negotiate` with HTTP 200 and a JSON-RPC result, including when you decline.',
+  'rate-limited': 'Allow at least a few requests a minute from Pokter: each check and each buyer quote is one call.',
+  'seller-not-ready': 'Return the signed quote in the reply to `negotiate`, not in a task to poll later.',
+};
 
 function ok(
   id: string,
@@ -109,6 +136,18 @@ function endpointCheck(agent: ScanAgentDetail): DiagnosticCheck {
     // Keep the raw value: a malformed endpoint is itself worth showing.
   }
 
+  // MCP can be measured, but prices and hires go over A2A: say so here, where the builder looks first.
+  if (target.protocol === 'mcp') {
+    return {
+      id: 'endpoint',
+      label: 'Published endpoint',
+      status: 'fail',
+      detail: `Publishes an MCP endpoint at ${origin} and no A2A endpoint. Pokter can measure it, but a price is negotiated over A2A, so it cannot be priced or hired.`,
+      remedy: 'Add an A2A endpoint with an agent card that declares negotiate and notify_funded. Keep the MCP endpoint if assistants use it.',
+      code: 'no-endpoint',
+      fixUrl: 'https://pokter.xyz/build/integration#transports',
+    };
+  }
   return ok(
     'endpoint',
     'Published endpoint',
@@ -198,26 +237,81 @@ export async function diagnose(
           ),
     );
 
+    // What the card says about being hired: notify_funded, a named priced skill, concrete examples.
+    if (reading.protocol === 'a2a' && reading.endpoint) {
+      const card = await readAgentCard(reading.endpoint).catch(() => null);
+      if (card) checks.push(...cardChecks(card));
+    }
+
     /*
      * The quote is the check that matters most commercially: it is the only
      * way a price exists, and an agent that will not quote shows as “No price
      * quoted” on every card in the marketplace.
      */
-    const quote = await requestQuote(agent);
-    checks.push(
-      quote
-        ? ok(
-            'quote',
-            'Signed price quote',
-            `Quoted ${formatQuotedPrice(quote.priceU, quote.currency)}, signed by ${quote.signer}, which matches the registered agent wallet.`,
-          )
-        : bad(
-            'quote',
-            'Signed price quote',
-            'No signed quote was returned for a read-only negotiation.',
-            'Publish the `negotiate` skill and return `negotiation_hash` and `provider_sig` with a price and currency. Pokter discards any price whose signature does not recover to your registered wallet, and lists you with no price at all.',
-          ),
-    );
+    /*
+     * Asked the way the sweep asks, and reported the way the sweep records
+     * it. This said only "no signed quote was returned" whatever happened,
+     * while the sweep knew the exact cause: Hevo's agents sign their quote,
+     * with a wallet other than the one they registered, and a builder who
+     * ran this check was told to publish a skill they already had.
+     */
+    let failure: QuoteFailure | null = null;
+    let refusal: string | null = null;
+    let quote = await requestQuote(agent, {
+      onFailure: (reason) => {
+        failure = reason;
+      },
+      onRefused: (reason) => {
+        refusal = reason;
+      },
+    });
+    // Declined a brief that names nothing to price: ask once with a real job, as the sweep does.
+    let declinedGeneric: string | null = null;
+    const sample = !quote && refusal ? sampleBrief(classify(agent)) : null;
+    if (sample) {
+      declinedGeneric = refusal as string | null;
+      let retryFailure: QuoteFailure | null = null;
+      let retryRefusal: string | null = null;
+      quote = await requestQuote(agent, {
+        enquiry: { task_description: sample, terms: POKTER_TERMS },
+        onFailure: (reason) => {
+          retryFailure = reason;
+        },
+        onRefused: (reason) => {
+          retryRefusal = reason;
+        },
+      });
+      if (!quote && retryFailure) {
+        failure = retryFailure;
+        refusal = retryRefusal ?? refusal;
+      }
+    }
+    if (quote) {
+      checks.push(
+        ok(
+          'quote',
+          'Signed price quote',
+          `Quoted ${formatQuotedPrice(quote.priceU, quote.currency)}, signed by ${quote.signer}, which matches the registered agent wallet.` +
+            (declinedGeneric
+              ? ` It declined Pokter's generic enquiry ("${(declinedGeneric as string).slice(0, 140)}") and priced a sample brief for its category, which Pokter now asks when a generic one is declined.`
+              : ''),
+        ),
+      );
+    } else {
+      const known = failure as QuoteFailure | null;
+      const blocker = known
+        ? hireBlocker({ code: known.code, detail: known.detail ?? null, sellerReason: refusal ?? known.sellerReason ?? null, agentWallet: agent.agent_wallet, protocols: reading.protocol ? [reading.protocol] : [] })
+        : null;
+      checks.push({
+        id: 'quote',
+        label: 'Signed price quote',
+        status: 'fail',
+        detail: blocker ? blocker.reason : 'No signed quote was returned for a read-only negotiation.',
+        remedy: QUOTE_REMEDY[known?.code ?? ''] ?? 'Publish the `negotiate` skill and return `negotiation_hash` and `provider_sig` with a price and currency, signed by your registered agent wallet.',
+        ...(known ? { code: known.code } : {}),
+        fixUrl: `https://pokter.xyz${blocker?.fix.href ?? '/build/integration#quote'}`,
+      });
+    }
     /*
      * A quote that verifies and still cannot govern a job.
      *
