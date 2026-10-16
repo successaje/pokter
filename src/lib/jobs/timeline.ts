@@ -56,7 +56,7 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       detail: job.disputeTxHash
         ? 'The buyer contested the delivery onchain.'
         : reached === 4
-          ? 'The review window closed without a dispute.'
+          ? 'The review window closed without a successful dispute, and the job was settled.'
           : reached >= 2
             ? 'The buyer verifies the result and can dispute it until the review window closes.'
             : 'Available after delivery.',
@@ -81,8 +81,8 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       state: 'terminal',
       source: 'onchain',
       detail: job.status === 'EXPIRED'
-        ? 'The deadline passed without the agent being paid: nothing was delivered, or a dispute did not reach its quorum in time. The contract marks a job expired once its escrow is reclaimed; expiry is not a completed job.'
-        : 'The buyer disputed the delivery and the policy’s voters rejected it, so the escrow returns to the buyer. It is not counted as successful work.',
+        ? 'The deadline passed with the job unsettled, and the buyer reclaimed the escrow: nothing was delivered, or a delivery was never settled. Expiry is not a completed job.'
+        : 'The buyer disputed the delivery, the policy’s voters rejected it, and settling refunded the buyer. It is not counted as successful work.',
       transactionHash: job.disputeTxHash ?? null,
     },
   ];

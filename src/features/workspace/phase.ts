@@ -42,11 +42,11 @@ export const PHASE: Record<JobPhase, { label: string; tone: 'ok' | 'watch' | 'in
   unfunded: { label: 'Not funded', tone: 'none', needsYou: false, next: 'This job was created but never funded. Nothing is held.' },
   working: { label: 'In progress', tone: 'info', needsYou: false, next: 'Escrow is funded. Waiting for the agent to deliver.' },
   review: { label: 'Delivered · review it', tone: 'watch', needsYou: true, next: 'The agent delivered. Check the file now: you can dispute it until the review window closes, and the payment is released after it.' },
-  reclaim: { label: 'Not delivered · reclaim', tone: 'watch', needsYou: true, next: 'The deadline passed with nothing delivered. Your escrow can be reclaimed.' },
+  reclaim: { label: 'Unsettled · reclaim', tone: 'watch', needsYou: true, next: 'The deadline passed and the job was never settled: nothing was delivered, or a delivery nobody settled in time. Your escrow can be reclaimed.' },
   settled: { label: 'Settled', tone: 'ok', needsYou: false, next: 'Payment was released to the agent.' },
-  disputed: { label: 'Disputed · vote open', tone: 'bad', needsYou: false, next: 'You disputed the delivery, so it is no longer paid by silence. The escrow policy’s voters decide: at the quorum of reject votes the job is rejected and the agent is not paid; without it by the deadline the job expires and you reclaim the escrow then.' },
-  rejected: { label: 'Rejected · refund', tone: 'bad', needsYou: false, next: 'The policy’s voters rejected the delivery, so the agent is not paid and the escrow goes back to the wallet that funded it. If it has not arrived, you can try reclaiming it.' },
+  disputed: { label: 'Disputed', tone: 'bad', needsYou: false, next: 'You disputed the delivery. The escrow policy’s voters decide before the review window closes: if enough vote to reject, settling the job refunds you; if not, the dispute fails and the agent can be paid.' },
+  rejected: { label: 'Rejected · refunded', tone: 'bad', needsYou: false, next: 'The policy’s voters rejected the delivery, and settling the job refunded the escrow to the wallet that funded it. The agent was not paid.' },
   refunded: { label: 'Refunded', tone: 'none', needsYou: false, next: 'The escrow was returned to your wallet.' },
-  expired: { label: 'Expired · likely refunded', tone: 'none', needsYou: false, next: 'The job ran past its deadline without being paid: nothing was delivered, or a dispute did not reach its quorum in time. The contract marks a job expired once its escrow is reclaimed, so the money has most likely already returned to the funding wallet.' },
+  expired: { label: 'Expired · refunded', tone: 'none', needsYou: false, next: 'The deadline passed with the job unsettled, and its escrow was reclaimed: nothing was delivered, or a delivery was never settled. The contract marks a job expired when that refund is claimed.' },
 };
 

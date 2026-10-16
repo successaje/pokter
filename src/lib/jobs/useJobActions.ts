@@ -36,18 +36,23 @@ export function safeDeliverableUrl(value: string | null): string | null {
 }
 
 /**
- * Turns an escrow failure into something a buyer can act on. Past expiry the
- * kernel refuses a dispute, which is the likeliest cause of an unexplained
- * revert, and the escrow is still reclaimable, so that is what gets said.
+ * Turns an escrow failure into something a buyer can act on, by the
+ * router's error selectors where the chain gave one.
  */
 export function settlementError(error: unknown, expired: boolean): string {
   const message = walletActionError(error, 'Escrow action');
   if (/0x17be5b7b/i.test(message)) {
-    return 'The dispute window is still open. Payment can be released after the review period ends; refresh and try again shortly.';
+    return 'The review window is still open, so the policy has not decided. Settle after it closes; refresh and try again then.';
+  }
+  if (/0x32d53d69/i.test(message)) {
+    return 'This job was never registered with a dispute policy, so it can never be settled. After its deadline the escrow can be reclaimed. Nothing moved.';
+  }
+  if (/0x8e78f0cb/i.test(message)) {
+    return 'The job is no longer awaiting settlement: it was already settled, refunded or reclaimed. Refresh to see its status. Nothing moved.';
   }
   if (/error occurred while executing calls|execution reverted/i.test(message)) {
     return expired
-      ? 'This job has passed its expiry, so the contract no longer accepts a dispute. Nothing moved and the escrow is still yours to reclaim.'
+      ? 'The contract refused this call. Disputes are only accepted inside the review window, which has closed. Nothing moved.'
       : 'The contract refused this call and reported no reason. Nothing moved. Refresh the status and try again.';
   }
   return message;
@@ -176,8 +181,9 @@ export function useJobActions(initial: HiredJob) {
       let reclaimTxHash = job.reclaimTxHash ?? null;
 
       if (action === 'approve' || action === 'dispute') {
-        if (action === 'approve' && !receiptVerified) throw new Error('Verify the receipt against its on-chain hash first.');
-        if (action === 'approve' && !reviewed) throw new Error('Review the deliverable before releasing payment.');
+        // A disputed job's settlement is decided by the vote, not by this review, so the review gates apply only to releasing payment.
+        if (action === 'approve' && !job.disputeTxHash && !receiptVerified) throw new Error('Verify the receipt against its on-chain hash first.');
+        if (action === 'approve' && !job.disputeTxHash && !reviewed) throw new Error('Review the deliverable before releasing payment.');
         if (action === 'dispute' && !disputeConfirmed) throw new Error('Confirm that you intend to contest this delivery.');
         let transactionHash: `0x${string}` | null = null;
         if (activeWallet.mode === 'external') {

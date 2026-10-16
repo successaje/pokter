@@ -32,7 +32,6 @@ export type SettleVerdict =
   | { allowed: true }
   | { allowed: false; reason: 'too-early'; opensInSeconds: number; message: string }
   | { allowed: false; reason: 'window-closed'; message: string }
-  | { allowed: false; reason: 'expired'; message: string };
 
 export interface SettleTiming {
   /** Seconds since epoch the seller submitted, or 0 when it has not. */
@@ -87,19 +86,13 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
   }
 
   /*
-   * Expiry first. A job past its deadline cannot pay the seller however
-   * long ago it was delivered, and saying "wait" to somebody whose wait
-   * is already over would be the worse error.
+   * No deadline rule. This refused any settle past the deadline, on the
+   * evidence of jobs 1202 and 1217, which in fact revert PolicyNotSet: they
+   * have no policy and could never settle. The deployed kernel's complete
+   * has no deadline check, so a delivered job still SUBMITTED after its
+   * deadline settles as the policy decided, unless the buyer has reclaimed
+   * it first.
    */
-  if (timing.now >= timing.expiredAt) {
-    return {
-      allowed: false,
-      reason: 'expired',
-      message:
-        'This job passed its deadline before it was settled, so the escrow can no longer be released to the agent. The budget is yours to reclaim.',
-    };
-  }
-
   if (timing.submittedAt > 0 && timing.now < opensAt) {
     const opensInSeconds = opensAt - timing.now;
     return {
@@ -144,19 +137,36 @@ export function reviewWindowSummary(timing: SettleTiming): { open: boolean; clos
 /**
  * What the buyer of a disputed job is told.
  *
- * A dispute leaves the job SUBMITTED while whitelisted voters decide:
- * `quorum` reject votes make it REJECTED and the escrow refundable; with
- * no quorum by the deadline it expires and the buyer reclaims it then.
- * Either way the delivery is no longer approved by silence.
+ * The audited OptimisticPolicy deployed on both chains decides a dispute
+ * inside the review window: votes are only accepted until it closes, a
+ * job whose reject votes reach the quorum fixed at dispute time settles
+ * as rejected (refunding the buyer in the settle transaction), and one
+ * that does not falls through to approved, exactly like an undisputed
+ * job. This said the opposite, that a dispute without quorum expires and
+ * refunds, which was an earlier version of the contract.
  */
-export function disputeSummary(input: { rejectVotes: number; quorum: number; expiredAt: number; now: number }): { title: string; text: string } {
+export function disputeSummary(input: { rejectVotes: number; quorum: number; windowClosesAt: number; expiredAt: number; now: number }): { title: string; text: string; outcome: 'voting' | 'rejected' | 'failed' } {
+  const closes = utcMoment(input.windowClosesAt);
   const deadline = utcMoment(input.expiredAt);
-  const votes = input.quorum > 0 ? `${input.rejectVotes} of ${input.quorum} reject votes so far` : `${input.rejectVotes} reject votes so far`;
-  const past = input.now >= input.expiredAt;
+  const votes = input.quorum > 0 ? `${input.rejectVotes} of ${input.quorum} reject votes` : `${input.rejectVotes} reject votes`;
+  const reached = input.quorum > 0 && input.rejectVotes >= input.quorum;
+  if (reached) {
+    return {
+      title: 'The voters rejected this delivery',
+      outcome: 'rejected',
+      text: `The dispute reached its quorum (${votes}). Settling the job now refunds your escrow to the wallet that funded it; anyone can send the settlement, and so can you below.`,
+    };
+  }
+  if (input.now < input.windowClosesAt) {
+    return {
+      title: 'You disputed this delivery',
+      outcome: 'voting',
+      text: `The escrow policy's voters have until the review window closes, ${closes} (in ${span(input.windowClosesAt - input.now)}): ${votes} so far. If the quorum is reached, the delivery is rejected and settling refunds you. If not, the dispute fails when the window closes and the agent can be paid.`,
+    };
+  }
   return {
-    title: 'You disputed this delivery',
-    text: past
-      ? `The vote did not reach its quorum (${votes}) before the deadline, ${deadline}, so the job has expired and the escrow can be reclaimed.`
-      : `The escrow policy's voters decide: ${votes}. At ${input.quorum || 'the quorum'} the job is rejected and you can reclaim the escrow. If the quorum is not reached by the deadline, ${deadline}, the job expires and you reclaim it then. Until one of those happens the agent cannot be paid.`,
+    title: 'The dispute did not reach its quorum',
+    outcome: 'failed',
+    text: `The review window closed ${closes} with ${votes}, short of the quorum, so the dispute failed and the delivery stands: settling the job pays the agent. If nobody settles it before the deadline, ${deadline}, the escrow can be reclaimed instead.`,
   };
 }

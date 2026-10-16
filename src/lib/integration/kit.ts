@@ -108,10 +108,10 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
     lifecycle: [
       { state: 'FUNDED', meaning: 'The buyer funded escrow against your signed quote. You are notified through notify_funded.' },
       { state: 'SUBMITTED', meaning: 'You delivered. The policy’s review window starts (read disputeWindow() on the policy: 15 minutes on testnet, 7 days on mainnet). The buyer can dispute inside it.' },
-      { state: 'COMPLETED', meaning: 'The window closed without a dispute and anyone called settle on the router. You are paid.' },
-      { state: 'Disputed', meaning: 'The job stays SUBMITTED while the policy’s whitelisted voters decide. voteQuorum() reject votes make it REJECTED.' },
-      { state: 'REJECTED', meaning: 'The dispute reached quorum. The buyer reclaims the escrow.' },
-      { state: 'EXPIRED', meaning: 'The deadline passed unsettled: undelivered, or disputed without quorum. The buyer reclaims the escrow.' },
+      { state: 'COMPLETED', meaning: 'The window closed and anyone called settle on the router: without a dispute, or with one that did not reach quorum. You are paid in that transaction. Settle your own approved jobs: one left unsettled at the deadline can be reclaimed by the buyer.' },
+      { state: 'Disputed', meaning: 'Only the buyer, only inside the review window. The job stays SUBMITTED while the policy’s whitelisted voters vote, also only inside the window, against the quorum fixed at dispute time (disputeQuorumSnapshot). Without quorum by the window’s close the dispute fails and the job settles as approved.' },
+      { state: 'REJECTED', meaning: 'The dispute reached quorum and someone called settle, which refunded the buyer in the same transaction.' },
+      { state: 'EXPIRED', meaning: 'The deadline passed with the job FUNDED or SUBMITTED and the buyer called claimRefund: undelivered, or delivered and never settled.' },
     ],
     refusals: QUOTE_FAILURE_CODES.map((code) => {
       const failure = quoteFailure(code);
