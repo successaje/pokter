@@ -99,8 +99,16 @@ class AssayStore {
   }
 
   latest(target: { chainId: number; tokenId: string }, suite: string): AssayRun | null {
+    /*
+     * A graded paid hire outranks any free call. The free check runs every
+     * few days and the paid one only when the team funds it, so taking the
+     * newest run let a free call — often an agent saying it sells this work
+     * rather than giving it away — replace the escrow-graded result that
+     * was the better evidence. Brinkwatch's page showed "matched 0 of 3"
+     * from a free preview over two graded paid answers.
+     */
     const run = this.db
-      .prepare('SELECT * FROM assay_runs WHERE chain_id = ? AND token_id = ? AND suite = ? ORDER BY ran_at DESC, id DESC LIMIT 1')
+      .prepare("SELECT * FROM assay_runs WHERE chain_id = ? AND token_id = ? AND suite = ? ORDER BY (via = 'paid-hire' AND status = 'checked') DESC, ran_at DESC, id DESC LIMIT 1")
       .get(target.chainId, target.tokenId, suite) as
       | { id: number; suite: string; status: AssayRunStatus; detail: string | null; passed: number; total: number; ran_at: string; via: AssayVia | null }
       | undefined;

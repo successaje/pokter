@@ -64,3 +64,10 @@ test('"unknown skill" listing only escrow skills means the agent works only when
   assert.equal(isPaidOnlyRefusal({ data: { health_factor: 1.4 } }), false);
   assert.equal(isPaidOnlyRefusal(null), false);
 });
+
+test('a priced preview is paid-only, not an unreadable answer', () => {
+  const preview = { preview: true, can_answer: true, price_u: 0.05, note: 'The answer itself is delivered through a funded ERC-8183 job.' };
+  assert.equal(isPaidOnlyRefusal({ data: preview }), true);
+  // A preview that names no price is just data, and is graded as given.
+  assert.equal(isPaidOnlyRefusal({ data: { preview: true, health_factor: 1.4 } }), false);
+});

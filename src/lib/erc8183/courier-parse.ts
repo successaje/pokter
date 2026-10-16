@@ -91,6 +91,19 @@ export function isQuoteReply(value: unknown): boolean {
 }
 
 /**
+ * A free preview that names a price instead of doing the work.
+ *
+ * Pokter's own agents answer a direct call with `preview: true`: whether
+ * the brief can be answered, and what it costs through escrow. Brinkwatch's
+ * health factor check graded that preview as three unreadable answers and
+ * published "matched 0 of 3", a failure the agent had not earned: it had
+ * said, correctly, that the answer is sold, not that it could not give one.
+ */
+function isPricedPreview(data: Record<string, unknown>): boolean {
+  return data.preview === true && ('price_u' in data || 'price' in data);
+}
+
+/**
  * A refusal that says the agent's only callable skills are the escrow ones.
  *
  * Some agents do their work only inside a funded job: asked directly they
@@ -100,6 +113,7 @@ export function isQuoteReply(value: unknown): boolean {
  */
 export function isPaidOnlyRefusal(answer: { data: Record<string, unknown> | null } | null): boolean {
   const data = answer?.data;
+  if (data && isPricedPreview(data)) return true;
   if (!data || typeof data.error !== 'string' || !/unknown skill|unsupported skill|no such skill/i.test(data.error)) return false;
   const skills = Array.isArray(data.skills) ? data.skills.filter((s): s is string => typeof s === 'string') : [];
   return skills.length > 0 && skills.every((s) => PLUMBING.test(s));
