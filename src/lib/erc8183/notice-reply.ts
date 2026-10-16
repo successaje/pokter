@@ -1,3 +1,5 @@
+import { readA2AReply } from '@/lib/a2a/reply';
+
 import { statedDeliverableUrl } from './stated-url';
 
 /**
@@ -25,4 +27,23 @@ export function readNoticeReply(reply: Record<string, unknown> | null): { status
     return { status: 'accepted', reason, deliverableUrl: statedDeliverableUrl(reply) };
   }
   return null;
+}
+
+/**
+ * The seller's answer out of the JSON-RPC payload.
+ *
+ * Usually the answer is an A2A message or task, with the data in its parts.
+ * Brain on BNB returns it as the bare JSON-RPC result instead: an object
+ * with job_id, a string status, already_delivered and the deliverable URL,
+ * and no parts. The A2A reader found no parts and so no data, which is why
+ * #140 still read job 57016's answer as no answer. A bare result with
+ * neither parts nor a kind is taken as the answer itself.
+ */
+export function noticeReplyData(payload: unknown): Record<string, unknown> | null {
+  const data = readA2AReply(payload).data;
+  if (data) return data;
+  const root = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+  const result = root?.result && typeof root.result === 'object' && !Array.isArray(root.result) ? (root.result as Record<string, unknown>) : null;
+  if (!result || 'parts' in result || 'kind' in result || 'artifacts' in result) return null;
+  return result;
 }

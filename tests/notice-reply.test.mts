@@ -21,3 +21,15 @@ test('an answer naming no outcome is still unreadable', () => {
   assert.equal(readNoticeReply({ job_id: 1 }), null);
   assert.equal(readNoticeReply(null), null);
 });
+
+test('a seller that answers with a bare JSON-RPC result is read, and its delivery accepted', async () => {
+  const { noticeReplyData } = await import('../src/lib/erc8183/notice-reply');
+  // Brain on BNB's actual reply to notify_funded for job 57016.
+  const payload = { jsonrpc: '2.0', id: 'x', result: { already_delivered: true, job_id: '57016', status: 'SUBMITTED', deliverable_url: 'https://agent.brainonbnb.com/job/57016/result', result: { service: 'grid_plan' } } };
+  const data = noticeReplyData(payload);
+  assert.ok(data);
+  assert.deepEqual(readNoticeReply(data), { status: 'accepted', reason: null, deliverableUrl: 'https://agent.brainonbnb.com/job/57016/result' });
+  // The usual A2A message shape still goes through the A2A reader.
+  const message = { jsonrpc: '2.0', id: 'y', result: { kind: 'message', parts: [{ kind: 'data', data: { status: 'accepted', job_id: 1 } }] } };
+  assert.equal(readNoticeReply(noticeReplyData(message))?.status, 'accepted');
+});
