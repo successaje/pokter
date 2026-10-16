@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { formatUnits } from 'viem';
 
+import { splitNeedsYou } from '@/lib/jobs/needs-you';
 import { useWalletState } from '@/shell/wallet/useWalletState';
 import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
@@ -33,6 +34,10 @@ export function WorkspaceOverview() {
 
   const phases = jobs.map((job) => ({ job, phase: jobPhase(job, now) }));
   const needsYou = phases.filter((p) => PHASE[p.phase].needsYou);
+  // Three at a time, nearest deadline first. See lib/jobs/needs-you.ts.
+  const { shown: shownNeeds, remaining: remainingNeeds } = splitNeedsYou(
+    needsYou.map((p) => ({ job: p.job, phase: p.phase, expiredAt: p.job.expiredAt })),
+  );
   const working = phases.filter((p) => p.phase === 'working');
   const recent = phases.filter((p) => p.phase === 'settled' || p.phase === 'refunded' || p.phase === 'disputed' || p.phase === 'rejected').slice(0, 4);
   // Real and test $U are never added together: mainnet escrow is money and
@@ -87,7 +92,7 @@ export function WorkspaceOverview() {
                 <Icon.Alert size={16} /> Needs you ({needsYou.length})
               </h2>
               <ul className="flex flex-col gap-2">
-                {needsYou.map(({ job, phase }) => (
+                {shownNeeds.map(({ job, phase }) => (
                   <li key={job.id}>
                     <Link href={jobHref(job)} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
                       <span className="flex items-center gap-3">
@@ -106,6 +111,11 @@ export function WorkspaceOverview() {
                   </li>
                 ))}
               </ul>
+              {remainingNeeds > 0 && (
+                <Link href="/workspace/jobs?filter=attention" className="self-start text-[13px] font-medium hover:underline">
+                  View all {needsYou.length} &mdash; {remainingNeeds} more {remainingNeeds === 1 ? 'needs' : 'need'} you <Icon.Arrow size={14} className="inline align-[-2px]" />
+                </Link>
+              )}
             </section>
           )}
 
