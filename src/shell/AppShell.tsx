@@ -12,6 +12,7 @@ import { Wordmark } from './Logo';
 import { MobileTabBar } from './MobileTabBar';
 import { ThemeToggle } from './ThemeControl';
 import { AccountButton } from './wallet/AccountButton';
+import { NotificationBell } from './NotificationBell';
 
 type NavItem = { href: string; label: string; icon: ReactNode; exact?: boolean };
 
@@ -157,6 +158,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link href="/discover" aria-label="Find an agent" className="grid size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:hidden">
               <Icon.Search size={18} />
             </Link>
+            {/* Beside the account button, where a count is seen without looking for it. */}
+            <NotificationBell />
             <AccountButton />
           </div>
         </header>
