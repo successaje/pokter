@@ -46,11 +46,11 @@ test('an answer matching Venus passes', () => {
   assert.equal(result.jobId, '77');
 });
 
-test('drift excuses a disagreement but never manufactures a pass', () => {
+test('readings far apart in time count neither way', () => {
   /*
-   * The asymmetry is the design: a correctness page must not publish a
-   * failure that belongs to the clock, and must not hand out a pass for
-   * the same reason.
+   * A correctness page must not publish a failure that belongs to the
+   * clock, and by the same reasoning must not publish a pass a stale answer
+   * earned by matching a position that did not move.
    */
   const stale = new Date(Date.parse(READ_AT) - HF_COMPARABLE_MS - 60_000).toISOString();
 
@@ -67,12 +67,20 @@ test('drift excuses a disagreement but never manufactures a pass', () => {
   });
   assert.equal(freshWrong.outcome, 'wrong', 'read at the same moment, the disagreement is the agent’s');
 
-  // Agreeing with a later reading still passes: drift cannot invent a pass.
+  // Agreeing with a reading taken long after is not a pass either.
   const staleRight = gradePaidHfScenario({
     account: ACCOUNT, jobId: '3', manifestText: artifact(1.5, stale),
     reading: { healthFactor: 1.5, borrowLimitRatio: 1.3, liquidatable: false }, readAt: READ_AT,
   });
-  assert.equal(staleRight.pass, true);
+  assert.equal(staleRight.pass, false);
+  assert.equal(staleRight.outcome, 'not-comparable');
+  assert.match(staleRight.reason, /not counted either way/);
+
+  const freshRight = gradePaidHfScenario({
+    account: ACCOUNT, jobId: '5', manifestText: artifact(1.5, READ_AT),
+    reading: { healthFactor: 1.5, borrowLimitRatio: 1.3, liquidatable: false }, readAt: READ_AT,
+  });
+  assert.equal(freshRight.pass, true);
 
   // No stated read time: the disagreement cannot be attributed either.
   const undated = gradePaidHfScenario({

@@ -46,7 +46,12 @@ test('near the boundary and under water: the number and the flag must both be ri
 
 test('a paid pass says what it was compared with', () => {
   const manifest = JSON.stringify({ response: { content: JSON.stringify({ health_factor: 1.5, liquidatable: false, as_of: { time: '2026-10-15T10:00:00Z' } }) } });
-  const result = gradePaidHfScenario({ account: ACCOUNT, jobId: '1', manifestText: manifest, reading: HEALTHY, readAt: '2026-10-15T10:40:00Z' });
+  const result = gradePaidHfScenario({ account: ACCOUNT, jobId: '1', manifestText: manifest, reading: HEALTHY, readAt: '2026-10-15T10:12:00Z' });
   assert.equal(result.pass, true);
-  assert.match(result.reason, /40 minutes after the agent’s: consistent with the position, not proof it was exact/);
+  assert.match(result.reason, /12 minutes after the agent’s: consistent with the position, not proof it was exact/);
+
+  // Forty minutes apart, a match is not a pass: it could be a stale answer.
+  const late = gradePaidHfScenario({ account: ACCOUNT, jobId: '2', manifestText: manifest, reading: HEALTHY, readAt: '2026-10-15T10:40:00Z' });
+  assert.equal(late.pass, false);
+  assert.equal(late.outcome, 'not-comparable');
 });

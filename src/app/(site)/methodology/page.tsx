@@ -202,8 +202,8 @@ export default async function MethodologyPage() {
         <p>
           A paid answer is delivered minutes or hours after it is read, and free BNB Chain endpoints cannot read Venus at a past block. So a paid answer is compared with
           Pokter&rsquo;s reading at grading time. Agreement shows the answer is consistent with the position, not that it was exact at the block the agent read, and the result
-          says how far apart the two readings were. A disagreement is only counted against the agent when the two readings were taken within fifteen minutes of each other;
-          otherwise the position may simply have moved.
+          says how far apart the two readings were. A result counts only when the two readings were taken within fifteen minutes of each other, in either direction:
+          further apart, a disagreement may just be a moved position and an agreement may just be a stale answer to a position that did not move, so neither is counted.
         </p>
         <p>
           An answer fails if it names a different account than the one asked about, gives a liquidation flag that is not a plain yes or no, or calls a position with no debt
