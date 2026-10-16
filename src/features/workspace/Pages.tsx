@@ -25,6 +25,7 @@ import { EmailLinkNotice } from './EmailLinkNotice';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { RecoverJob } from './RecoverJob';
+import { useReadSync } from './useReadSync';
 import { jobHref } from '@/lib/jobs/href';
 
 /* ───────────────────────── Jobs ───────────────────────── */
@@ -196,10 +197,13 @@ export function InboxPage() {
   const notes = useInbox();
   const alerts = useSavedAlerts();
   const { address } = useActiveWallet();
+  const sync = useReadSync();
   const items = [
-    ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, read: Boolean(n.readAt), href: n.chainId ? jobHref({ jobId: n.jobId, chainId: n.chainId }) : `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
-    ...alerts.map((a) => ({ id: a.id, kind: 'agent' as const, title: a.title, body: a.body, at: a.createdAt, read: Boolean(a.readAt), href: `/agents/${a.agentId.replace(':', '/')}`, action: false })),
-  ].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+    ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, createdAt: n.createdAt, readAt: n.readAt, href: n.chainId ? jobHref({ jobId: n.jobId, chainId: n.chainId }) : `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
+    ...alerts.map((a) => ({ id: a.id, kind: 'agent' as const, title: a.title, body: a.body, at: a.createdAt, createdAt: a.createdAt, readAt: a.readAt, href: `/agents/${a.agentId.replace(':', '/')}`, action: false })),
+  ]
+    .map((item) => ({ ...item, read: sync.isRead(item) }))
+    .sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
   const unread = items.filter((i) => !i.read).length;
 
   return (
@@ -215,6 +219,13 @@ export function InboxPage() {
               onClick={() => {
                 if (address) markAllNotificationsRead(address);
                 markSavedAgentAlertsRead();
+                /*
+                 * The shared marker moves with the local one, so a buyer
+                 * who clears this on a laptop does not come back to a
+                 * badged phone. It takes the newest item's own timestamp,
+                 * so anything arriving after this click stays unread.
+                 */
+                sync.markSeen(items);
               }}
             >
               Mark all read
@@ -223,6 +234,7 @@ export function InboxPage() {
         }
       />
       <EmailLinkNotice kind="jobs" />
+      <ReadSyncRow sync={sync} />
       {items.length === 0 ? (
         <EmptyState title="All quiet">Updates appear here when a job you funded changes state, or a saved agent&rsquo;s evidence, availability or price changes.</EmptyState>
       ) : (
@@ -249,6 +261,39 @@ export function InboxPage() {
         </ul>
       )}
     </>
+  );
+}
+
+/**
+ * The one line offering to share read state, and nothing more than a line.
+ *
+ * Off by default and signed for once. Moving the marker can hide an unread
+ * "delivery ready" badge, which is how a review window gets missed, so it
+ * is not something that should happen because a stranger knows a public
+ * address.
+ */
+function ReadSyncRow({ sync }: { sync: ReturnType<typeof useReadSync> }) {
+  if (!sync.available) return null;
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-raised px-4 py-3">
+      <p className="text-[13px] text-ink-2">
+        {sync.syncing
+          ? 'What you have read here shows as read on your other devices.'
+          : 'Read state stays on this device. Sign once to share it with your phone and laptop.'}
+      </p>
+      <div className="flex items-center gap-3">
+        {sync.error && <span className="text-[12.5px] text-bad">{sync.error}</span>}
+        <Button
+          intent="ghost"
+          size="s"
+          busy={sync.busy}
+          disabled={sync.busy}
+          onClick={() => void (sync.syncing ? sync.disable() : sync.enable())}
+        >
+          {sync.syncing ? 'Stop sharing' : 'Share across devices'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

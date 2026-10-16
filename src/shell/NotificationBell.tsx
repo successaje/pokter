@@ -6,10 +6,12 @@ import { useCallback, useState } from 'react';
 import { jobHref } from '@/lib/jobs/href';
 import { ESCROW_CHAIN } from '@/lib/wallet/config';
 import { markAllNotificationsRead, markNotificationRead } from '@/lib/wallet/notifications';
+import { markSavedAgentAlertsRead } from '@/lib/wallet/saved-agents';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { cn } from '@/lib/ui/cn';
 import { useInbox, useSavedAlerts } from '@/features/workspace/hooks';
+import { useReadSync } from '@/features/workspace/useReadSync';
 import { Icon } from '@/ui/icons';
 
 /**
@@ -31,6 +33,12 @@ export function NotificationBell() {
   const notes = useInbox();
   const alerts = useSavedAlerts();
   const { address } = useActiveWallet();
+  /*
+   * The same read state the page uses, for the same reason it reads the
+   * same two sources: a badge that disagrees with the list it points at is
+   * worse than no badge.
+   */
+  const sync = useReadSync();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const layer = useDismissibleLayer<HTMLDivElement>({ open, onDismiss: close });
@@ -41,7 +49,7 @@ export function NotificationBell() {
       title: n.title,
       body: n.body,
       at: n.createdAt,
-      read: Boolean(n.readAt),
+      read: sync.isRead(n),
       /*
        * The canonical builder, not a hand-rolled path: the same job number
        * can exist on both chains, and a link that drops the chain opens the
@@ -54,7 +62,7 @@ export function NotificationBell() {
       title: a.title,
       body: a.body,
       at: a.createdAt,
-      read: Boolean(a.readAt),
+      read: sync.isRead(a),
       href: `/agents/${a.agentId.replace(':', '/')}`,
     })),
   ].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
@@ -96,7 +104,16 @@ export function NotificationBell() {
             {unread > 0 && (
               <button
                 type="button"
-                onClick={() => address && markAllNotificationsRead(address)}
+                onClick={() => {
+                  if (address) markAllNotificationsRead(address);
+                  /*
+                   * Saved-agent alerts too. The badge beside this counts
+                   * both, so clearing only one kind left a count that
+                   * disagreed with the button that had just been pressed.
+                   */
+                  markSavedAgentAlertsRead();
+                  sync.markSeen([...notes, ...alerts]);
+                }}
                 className="text-[12.5px] font-medium text-ink-3 hover:text-ink"
               >
                 Mark all read

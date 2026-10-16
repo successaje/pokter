@@ -17,6 +17,9 @@ import {
 } from '@/lib/notifications/identity';
 import { subscriptionPreVerified, type JobUpdateRow } from '@/lib/notifications/job-updates';
 import { addressChangePlan, type AddressChangeChoice } from '@/lib/notifications/preferences';
+import {
+  mergeWatermark, READ_TOKEN_TTL_MS, readTokenUsable, type Watermark,
+} from '@/lib/notifications/read-state';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
@@ -808,6 +811,102 @@ export function verifyIdentity(token: string): { wallet: string; chainId: number
       .run(row.wallet_address, row.chain_id);
   }
   return { wallet: row.wallet_address, chainId: row.chain_id, moved, stopped };
+}
+
+/* ---------------------------------------------------------------------- *
+ * Cross-device inbox read state (§6)
+ * ---------------------------------------------------------------------- */
+
+function readStateDb() {
+  const database = db();
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS notification_read_tokens (
+      token_hash TEXT PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_read_tokens_wallet
+      ON notification_read_tokens (wallet_address, chain_id);
+    CREATE TABLE IF NOT EXISTS notification_read_marks (
+      wallet_address TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      seen_through TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (wallet_address, chain_id)
+    );
+  `);
+  return database;
+}
+
+/**
+ * A token for one device, after the wallet signed for it.
+ *
+ * Stored as a hash, like every other token here: a database that leaks
+ * should not hand out working credentials. It authorises moving this
+ * wallet's read marker on this chain and nothing else, which is what keeps
+ * a leaked one cheap.
+ */
+export function issueReadToken(input: { wallet: string; chainId: number }): { token: string; expiresAt: string } {
+  const token = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + READ_TOKEN_TTL_MS).toISOString();
+  readStateDb()
+    .prepare(`INSERT INTO notification_read_tokens (token_hash,wallet_address,chain_id,expires_at,created_at)
+      VALUES (?,?,?,?,?)`)
+    .run(hash(token), input.wallet.toLowerCase(), input.chainId, expiresAt, new Date().toISOString());
+  return { token, expiresAt };
+}
+
+/** Who a token speaks for, or null when it is unknown or expired. */
+export function walletForReadToken(token: string): { wallet: string; chainId: number } | null {
+  if (!token) return null;
+  const row = readStateDb()
+    .prepare('SELECT wallet_address, chain_id, expires_at FROM notification_read_tokens WHERE token_hash = ?')
+    .get(hash(token)) as { wallet_address: string; chain_id: number; expires_at: string } | undefined;
+  if (!row || !readTokenUsable({ expiresAt: row.expires_at })) return null;
+  return { wallet: row.wallet_address, chainId: row.chain_id };
+}
+
+/** Drop every token for a wallet, when it asks to stop syncing. */
+export function revokeReadTokens(wallet: string, chainId: number): number {
+  return Number(
+    readStateDb()
+      .prepare('DELETE FROM notification_read_tokens WHERE wallet_address=? AND chain_id=?')
+      .run(wallet.toLowerCase(), chainId).changes,
+  );
+}
+
+export function readWatermark(wallet: string, chainId: number): Watermark | null {
+  const row = readStateDb()
+    .prepare('SELECT seen_through FROM notification_read_marks WHERE wallet_address=? AND chain_id=?')
+    .get(wallet.toLowerCase(), chainId) as { seen_through: string } | undefined;
+  return row ? { seenThrough: row.seen_through } : null;
+}
+
+/**
+ * Move the marker forward, never back.
+ *
+ * The comparison happens here in JS rather than in SQL so the rule that
+ * runs is the one under test: a device that was offline holds a stale
+ * value, and letting it win would mark settled work unread again on every
+ * sync.
+ */
+export function advanceWatermark(input: { wallet: string; chainId: number; seenThrough: string }): Watermark | null {
+  const at = Date.parse(input.seenThrough);
+  if (!Number.isFinite(at)) return readWatermark(input.wallet, input.chainId);
+  const merged = mergeWatermark(
+    readWatermark(input.wallet, input.chainId),
+    { seenThrough: new Date(at).toISOString() },
+  );
+  if (!merged) return null;
+  readStateDb()
+    .prepare(`INSERT INTO notification_read_marks (wallet_address,chain_id,seen_through,updated_at)
+      VALUES (?,?,?,?)
+      ON CONFLICT(wallet_address,chain_id) DO UPDATE SET
+        seen_through=excluded.seen_through, updated_at=excluded.updated_at`)
+    .run(input.wallet.toLowerCase(), input.chainId, merged.seenThrough, new Date().toISOString());
+  return merged;
 }
 
 /* ---------------------------------------------------------------------- *

@@ -58,7 +58,9 @@ export function identityKey(wallet: string, scope: IdentityScope): string {
 export type IdentityPurpose =
   | { kind: 'claim'; email: string }
   | { kind: 'stop-email' }
-  | { kind: 'stop-job'; jobId: string };
+  | { kind: 'stop-job'; jobId: string }
+  /** Let one device move this wallet's inbox read marker, and nothing else. */
+  | { kind: 'read-sync' };
 
 export type IdentityPurposeKind = IdentityPurpose['kind'];
 
@@ -79,6 +81,10 @@ function purposeLines(purpose: IdentityPurpose): string[] {
         `Purpose: Stop email updates for job #${purpose.jobId}`,
         `Job: #${purpose.jobId}`,
       ];
+    case 'read-sync':
+      return [
+        'Purpose: Let this device mark your Pokter inbox as read on your other devices',
+      ];
   }
 }
 
@@ -89,6 +95,17 @@ function purposeClosing(purpose: IdentityPurpose): string[] {
   }
   if (purpose.kind === 'stop-job') {
     return [common, 'The job page keeps showing the delivery and the review deadline.'];
+  }
+  if (purpose.kind === 'read-sync') {
+    /*
+     * Said plainly because it is the whole safety argument: the thing this
+     * signature hands out can move a read marker and do nothing else, so a
+     * leaked one costs a wrong badge.
+     */
+    return [
+      common,
+      'It permits one thing: marking inbox items read. It cannot send email, change your address, or read your jobs.',
+    ];
   }
   return [common, 'Updates already running for individual jobs are stopped with it.'];
 }
