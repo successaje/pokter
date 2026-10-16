@@ -176,7 +176,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
                   {agent.growth.rankingEligible ? 'Eligible' : `${agent.growth.rankingGaps.length} threshold${agent.growth.rankingGaps.length === 1 ? '' : 's'} left`}
                 </span>
               </div>
-              <Progress label="Accepted outside-team jobs" value={agent.growth.outcomes.completed} target={MIN_OUTCOME_COMPLETIONS} met={agent.growth.outcomes.completed >= MIN_OUTCOME_COMPLETIONS} />
+              <Progress label="Settled outside-team jobs" value={agent.growth.outcomes.completed} target={MIN_OUTCOME_COMPLETIONS} met={agent.growth.outcomes.completed >= MIN_OUTCOME_COMPLETIONS} />
               <Progress label="Terminal outside-team jobs" value={agent.growth.outcomes.terminal} target={MIN_OUTCOME_TERMINAL} met={agent.growth.outcomes.terminal >= MIN_OUTCOME_TERMINAL} />
               <Progress label="Known outside-team buyers" value={agent.growth.outcomes.uniqueBuyers} target={MIN_OUTCOME_BUYERS} met={agent.growth.outcomes.uniqueBuyers >= MIN_OUTCOME_BUYERS} />
               <p className="text-[11.5px] leading-relaxed text-ink-3">Outside-team means the funding wallet is not declared as Pokter&rsquo;s. It is not an independence claim.</p>

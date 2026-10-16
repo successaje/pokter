@@ -35,7 +35,7 @@ export default async function HomePage() {
     { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
     {
       label: 'Paid jobs answered',
-      note: `Accepted through Pokter escrow with the agent’s answer, from wallets outside Pokter’s declared team${
+      note: `Settled through Pokter escrow with the agent’s answer, from wallets outside Pokter’s declared team${
         home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
       }.${(() => {
         const left = [

@@ -70,8 +70,8 @@ export function buildGrowthSnapshot({
 export function evidenceShareText(name: string, growth: BuilderGrowthSnapshot): string {
   const facts = growth.outcomes;
   const evidence = facts.completed > 0
-    ? `${facts.completed} accepted outside-team job${facts.completed === 1 ? '' : 's'} from ${facts.uniqueBuyers} known buyer wallet${facts.uniqueBuyers === 1 ? '' : 's'}`
-    : 'a public evidence record with no accepted outside-team jobs yet';
+    ? `${facts.completed} settled outside-team job${facts.completed === 1 ? '' : 's'} from ${facts.uniqueBuyers} known buyer wallet${facts.uniqueBuyers === 1 ? '' : 's'}`
+    : 'a public evidence record with no settled outside-team jobs yet';
   const check = growth.check?.status === 'passed' ? ` Its ${growth.check.label.toLowerCase()} passed.` : '';
   return `${name} has ${evidence} on Pokter.${check}`;
 }

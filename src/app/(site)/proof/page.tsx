@@ -33,7 +33,7 @@ const STATUS_COPY: Record<JobStatusName, string> = {
   OPEN: 'Created',
   FUNDED: 'Funded',
   SUBMITTED: 'Delivered',
-  COMPLETED: 'Accepted',
+  COMPLETED: 'Settled',
   REJECTED: 'Rejected',
   EXPIRED: 'Expired',
 };
@@ -160,10 +160,10 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
   const mainnetValue = formatUnits(BigInt(mainnetSummary.completedValueRaw), 18);
   const testnetValue = formatUnits(BigInt(testnetSummary.completedValueRaw), 18);
   const valueMetric = filters.network === 'testnet'
-    ? { value: testnetValue, label: 'Accepted test value', note: 'Test $U has no real value.' }
+    ? { value: testnetValue, label: 'Settled test value', note: 'Test $U has no real value.' }
     : filters.network === 'mainnet'
-      ? { value: mainnetValue, label: 'Accepted value ($U)', note: 'Real $U settled on BNB Chain.' }
-      : { value: mainnetValue, label: 'Mainnet accepted ($U)', note: `${testnetValue} test $U shown separately.` };
+      ? { value: mainnetValue, label: 'Settled value ($U)', note: 'Real $U settled on BNB Chain.' }
+      : { value: mainnetValue, label: 'Mainnet settled ($U)', note: `${testnetValue} test $U shown separately.` };
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-16">
@@ -222,14 +222,14 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
         <Metric
           value={summary.answeredDeliveries.toLocaleString('en-US')}
           label="Answered deliveries"
-          note={`Accepted by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} accepted jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}.`}
+          note={`Settled by escrow with the agent’s answer. ${summary.answeredDeliveries} of ${summary.completed} settled jobs${summary.completedSelfHires > 0 ? `; ${summary.completedSelfHires} self-hire${summary.completedSelfHires === 1 ? '' : 's'} (buyer was the seller) not counted` : ''}.`}
         />
         <Metric
           value={summary.lifecycleDemoJobs.toLocaleString('en-US')}
           label="Lifecycle demos"
-          note={summary.lifecycleDemoJobs > 0 ? 'Pokter testing the escrow path end to end: accepted, but carrying no answer. Not counted as delivered work.' : 'None in this view.'}
+          note={summary.lifecycleDemoJobs > 0 ? 'Pokter testing the escrow path end to end: settled, but carrying no answer. Not counted as delivered work.' : 'None in this view.'}
         />
-        <Metric value={rate} label="Terminal completion" note={`${summary.completed} accepted of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
+        <Metric value={rate} label="Terminal completion" note={`${summary.completed} settled of ${summary.terminal} terminal outcomes. An escrow measure, not a useful-work rate.`} />
         <Metric value={summary.uniqueKnownBuyers.toLocaleString('en-US')} label="Known buyer wallets" note="Distinct recorded funders in this view." />
         <Metric value={summary.agentsHired.toLocaleString('en-US')} label="Agents hired" note="Distinct registry identities commissioned." />
         <Metric value={summary.repeatKnownBuyers.toLocaleString('en-US')} label="Repeat buyers" note="Known wallets with at least two jobs." />

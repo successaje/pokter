@@ -46,7 +46,7 @@ export const MIN_CATEGORY_CONTENDERS = 3;
 
 export function outcomeGaps(facts: OutcomeFacts): string[] {
   return [
-    facts.completed < MIN_OUTCOME_COMPLETIONS ? `${facts.completed}/${MIN_OUTCOME_COMPLETIONS} accepted jobs` : null,
+    facts.completed < MIN_OUTCOME_COMPLETIONS ? `${facts.completed}/${MIN_OUTCOME_COMPLETIONS} settled jobs` : null,
     facts.terminal < MIN_OUTCOME_TERMINAL ? `${facts.terminal}/${MIN_OUTCOME_TERMINAL} terminal jobs` : null,
     facts.uniqueBuyers < MIN_OUTCOME_BUYERS ? `${facts.uniqueBuyers}/${MIN_OUTCOME_BUYERS} known buyer wallets` : null,
   ].filter((gap): gap is string => gap !== null);
@@ -73,7 +73,7 @@ function toEntry(candidate: OutcomeCandidate, scope: OutcomeScope): OutcomeEntry
     facts,
     eligible: gaps.length === 0,
     gaps,
-    explanation: `${facts.completed} accepted · ${facts.uniqueBuyers} known buyer wallet${facts.uniqueBuyers === 1 ? '' : 's'} · ${rate}${candidate.tested ? ' · category suite passed' : ' · no full category-suite pass on record'}`,
+    explanation: `${facts.completed} settled · ${facts.uniqueBuyers} known buyer wallet${facts.uniqueBuyers === 1 ? '' : 's'} · ${rate}${candidate.tested ? ' · category suite passed' : ' · no full category-suite pass on record'}`,
   };
 }
 
