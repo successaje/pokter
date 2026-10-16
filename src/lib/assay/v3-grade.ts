@@ -20,6 +20,57 @@ import type { AssayScenarioResult } from './types';
 
 export type RangeStatus = 'in-range' | 'out-of-range' | 'closed';
 
+/**
+ * How far apart the delivery and Pokter's reading may be and still be
+ * compared, in blocks.
+ *
+ * Two thousand blocks is about fifteen minutes: BSC blocks were measured
+ * at 0.450 seconds apiece over a ten-thousand-block span on 16 October.
+ * Blocks rather than wall-clock because both sides report the block they
+ * read, and that is the state they actually saw.
+ *
+ * Stricter than the health factor rule in one way that matters. There, a
+ * stale answer that still matches Venus to within 2% passes, because
+ * hitting a specific decimal by chance is unlikely. Here the answer is one
+ * of three words, and most positions are in range, so a stale agreement is
+ * weak evidence — it could as easily be the price having moved back. So a
+ * delivery too old to compare is set aside whether it agrees or not: not a
+ * pass it has not earned, and not a failure either.
+ *
+ * The case that prompted this was real. Job 1484 was graded 38,475 blocks
+ * — 4.8 hours — after Centreline read the pool. It agreed, and the tick
+ * width matched the price range it reported, so the answer was sound; but
+ * nothing in the grading established that, and a position sitting near a
+ * bound could have crossed it in between.
+ */
+export const V3_COMPARABLE_BLOCKS = 2_000;
+
+/** The block the answer says it read, from its own `as_of`. */
+export function answerReadBlock(manifestText: string): number | null {
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(manifestText);
+  } catch {
+    return null;
+  }
+  const response = typeof manifest === 'object' && manifest !== null ? (manifest as Record<string, unknown>).response : null;
+  const raw = typeof response === 'object' && response !== null ? (response as Record<string, unknown>).content : null;
+  let report: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      report = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof report !== 'object' || report === null) return null;
+  const asOf = (report as Record<string, unknown>).as_of;
+  if (typeof asOf !== 'object' || asOf === null) return null;
+  const block = (asOf as Record<string, unknown>).block;
+  const n = typeof block === 'number' ? block : typeof block === 'string' ? Number(block) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Pokter's own verdict on one position. */
 export function statusOf(position: Pick<V3Position, 'open' | 'inRange'>): RangeStatus {
   if (!position.open) return 'closed';
@@ -110,6 +161,30 @@ export function gradePaidV3Scenarios(input: {
 
   const said = readV3Answer(answer);
   const truncated = answerTruncated(answer);
+
+  /*
+   * Too far apart to compare: every row is set aside, agreement included.
+   * An answer with no stated block cannot be placed in time at all, so it
+   * is treated the same way rather than given the benefit of the doubt.
+   */
+  const answerBlock = answerReadBlock(input.manifestText);
+  const gap = answerBlock === null ? null : Math.abs(Number(input.reading.block) - answerBlock);
+  if (gap === null || gap > V3_COMPARABLE_BLOCKS) {
+    const why = gap === null
+      ? 'The delivery does not say which block it read, so it cannot be placed against Pokter’s reading.'
+      : `The delivery read block ${answerBlock} and Pokter read ${input.reading.block}, ${gap.toLocaleString('en-US')} blocks apart; a price can cross a bound in between.`;
+    const rows = input.reading.positions.length > 0 ? input.reading.positions : [null];
+    return rows.map((position) => ({
+      ...base,
+      scenario: position ? `#${position.id}` : 'reading',
+      expected: position ? { status: statusOf(position) } : null,
+      observed: position ? { status: said.get(position.id) ?? null } : { positions: said.size },
+      excerpt: null,
+      pass: false,
+      outcome: 'not-comparable',
+      reason: why,
+    }));
+  }
 
   /*
    * A wallet with no positions is still a check: the agent must say so

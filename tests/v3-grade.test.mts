@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { gradePaidV3Scenarios, readV3Answer, statusOf } from '../src/lib/assay/v3-grade';
+import { V3_COMPARABLE_BLOCKS, answerReadBlock, gradePaidV3Scenarios, readV3Answer, statusOf } from '../src/lib/assay/v3-grade';
 import type { V3Reading } from '../src/lib/assay/pancakeswap-v3';
 
 const pos = (id: string, tick: number, lower: number, upper: number, open = true) =>
@@ -15,8 +15,9 @@ const reading = (...positions: ReturnType<typeof pos>[]): V3Reading => ({
   inRangeCount: positions.filter((p) => p.inRange).length,
 });
 
-const manifest = (positions: Array<{ position: string; status: string }>) =>
-  JSON.stringify({ response: { content: JSON.stringify({ account: '0x3aF6…', positions }) } });
+/** Read at the same block as the reading below, unless a test says otherwise. */
+const manifest = (positions: Array<{ position: string; status: string }>, block = 127841246) =>
+  JSON.stringify({ response: { content: JSON.stringify({ account: '0x3aF6…', positions, as_of: { block: String(block), time: '2026-10-16T04:12:41.000Z' } }) } });
 
 test('a withdrawn position is closed, not out of range', () => {
   // There is nothing in it, so "out of range" would imply money sitting idle.
@@ -105,9 +106,50 @@ test('a truncated answer is not failed for the positions it declared it skipped'
   const truncated = JSON.stringify({ response: { content: JSON.stringify({
     positions: [{ position: '#1 A/B 0.05%', status: 'in-range' }],
     note: 'Only the first 20 positions were read.',
+    as_of: { block: '127841246', time: '2026-10-16T04:12:41.000Z' },
   }) } });
   const rows = gradePaidV3Scenarios({ jobId: '9', readAt: 'x', reading: r, manifestText: truncated });
   assert.equal(rows[0].pass, true);
   assert.equal(rows[1].outcome, 'not-comparable', 'declared limit, not an oversight');
   assert.notEqual(rows[1].outcome, 'unanswered');
+});
+
+test('a delivery too far from Pokter\'s reading is set aside, agreement included', () => {
+  /*
+   * Stricter than the health factor rule on purpose. There a stale answer
+   * that still matches to within 2% passes, because hitting a decimal by
+   * chance is unlikely. Here the answer is one of three words and most
+   * positions are in range, so a stale agreement could as easily be the
+   * price having moved back.
+   *
+   * Job 1484 was graded 38,475 blocks — 4.8 hours — after Centreline read
+   * the pool, and agreed. Sound, but nothing in the grading established it.
+   */
+  const r = reading(pos('1', 25, 0, 50));
+  const agrees = [{ position: '#1 A/B 0.05%', status: 'in-range' }];
+
+  const fresh = gradePaidV3Scenarios({ jobId: '9', readAt: 'x', reading: r, manifestText: manifest(agrees, 127841246) });
+  assert.equal(fresh[0].pass, true, 'same block: compared and passed');
+
+  const stale = gradePaidV3Scenarios({ jobId: '9', readAt: 'x', reading: r, manifestText: manifest(agrees, 127841246 - V3_COMPARABLE_BLOCKS - 1) });
+  assert.equal(stale[0].pass, false);
+  assert.equal(stale[0].outcome, 'not-comparable', 'agreement does not rescue a stale delivery');
+  assert.match(stale[0].reason, /blocks apart/);
+
+  const edge = gradePaidV3Scenarios({ jobId: '9', readAt: 'x', reading: r, manifestText: manifest(agrees, 127841246 - V3_COMPARABLE_BLOCKS) });
+  assert.equal(edge[0].pass, true, 'exactly at the window is still comparable');
+});
+
+test('an answer that states no block cannot be placed in time', () => {
+  const r = reading(pos('1', 25, 0, 50));
+  const noBlock = JSON.stringify({ response: { content: JSON.stringify({ positions: [{ position: '#1 A/B', status: 'in-range' }] }) } });
+  assert.equal(answerReadBlock(noBlock), null);
+  const rows = gradePaidV3Scenarios({ jobId: '9', readAt: 'x', reading: r, manifestText: noBlock });
+  assert.equal(rows[0].outcome, 'not-comparable');
+  assert.match(rows[0].reason, /does not say which block/);
+});
+
+test('the block an answer read is recovered from its as_of', () => {
+  assert.equal(answerReadBlock(manifest([], 127912411)), 127912411);
+  assert.equal(answerReadBlock('not json'), null);
 });
