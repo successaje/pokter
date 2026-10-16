@@ -11,6 +11,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableKey, readDeliverable, writeDeliverable } from '@/lib/erc8183/deliverables';
 import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
 import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { indexIfMissing } from '@/lib/erc8183/job-identity';
 import { siteOrigin } from '@/lib/evidence/origin';
 
 import { houseAccount } from './keys';
@@ -110,5 +111,29 @@ export async function deliverHouseJob(definition: HouseAgentDefinition, chainId:
     return { status: 'refused', jobId, reason: 'The submission transaction reverted; nothing was delivered.' };
   }
   writeDeliverable({ jobId: key, manifestText, submitTxHash: transactionHash, createdAt });
+
+  /*
+   * Record the job Pokter just delivered for.
+   *
+   * A house agent is told to deliver by job id and reads the escrow from
+   * chain, so it can answer a job the index has never seen — every
+   * correctness fixture funded from outside this deployment was one. The
+   * grader reads the index, so an unindexed delivery is invisible to it.
+   * Written here, where the on-chain job is already in hand, and never
+   * allowed to fail the delivery it follows.
+   */
+  await indexIfMissing({
+    chainId,
+    jobId,
+    onchain: {
+      client: job.client,
+      provider: job.provider,
+      description: job.description,
+      budget: job.budget,
+      expiredAt: job.expiredAt,
+      statusName: 'SUBMITTED',
+    },
+  }).catch(() => false);
+
   return { status: 'delivered', jobId, transactionHash, deliverableUrl: deliveryUrl(chainId, jobId, hash) };
 }

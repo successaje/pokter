@@ -412,3 +412,53 @@ export async function gradeDuePaidV3Checks(): Promise<{ graded: number; incomple
   }
   return { graded, incomplete, passedAll };
 }
+
+/**
+ * Grade a fixture the moment its answer is delivered.
+ *
+ * The sweep grades every two hours, and a position-range check compares
+ * the answer with a reading of the pool taken at grading time: anything
+ * more than about fifteen minutes old is set aside, because a price can
+ * cross a bound in between (see `V3_COMPARABLE_BLOCKS`). Two hours is not
+ * fifteen minutes, so for that category the sweep could essentially never
+ * score a delivery — Centreline answered thirteen positions correctly and
+ * the result was still going to be discarded as stale.
+ *
+ * So the grading happens where the delivery does. Called after a house
+ * agent submits, it is seconds behind the answer rather than hours, and
+ * the comparison is against the pool the agent actually read.
+ *
+ * Returns null when the job is not a fixture, which is almost every job:
+ * an ordinary buyer's hire has no marker and nothing to grade against.
+ * Never throws — a delivery must not fail because grading did.
+ */
+export async function gradeDeliveredFixture(
+  chainId: number,
+  jobId: string,
+): Promise<{ suite: string; passed: number; total: number } | null> {
+  try {
+    const job = getJobStore()
+      .all()
+      .find((row) => row.chainId === chainId && row.jobId === jobId);
+    if (!job) return null;
+
+    const marker = readCheckMarker(job.task);
+    if (!marker) return null;
+
+    const target = { chainId: job.agentChainId ?? job.chainId, tokenId: job.agentTokenId };
+    const outcome =
+      marker.suite === V3_SUITE_ID
+        ? await gradePaidV3Check(target)
+        : marker.suite === HF_SUITE_ID
+          ? await gradePaidHealthFactorCheck(target)
+          : (() => {
+              const category = categoryOfSuite(marker.suite);
+              return category ? gradePaidCategoryCheck(target, category) : { state: 'no-suite' as const };
+            })();
+
+    if (outcome.state !== 'recorded') return null;
+    return { suite: marker.suite, passed: outcome.run.passed, total: outcome.run.total };
+  } catch {
+    return null;
+  }
+}

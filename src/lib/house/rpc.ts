@@ -5,6 +5,7 @@ import { getAddress } from 'viem';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { quoteChainFor } from '@/lib/evidence/refs';
 
+import { gradeDeliveredFixture } from '@/lib/assay/paid-run';
 import { deliverHouseJob } from './deliver';
 import { isPriceEnquiry } from './rpc-enquiry';
 import { houseAccount } from './keys';
@@ -93,6 +94,15 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
     try {
       const outcome = await deliverHouseJob(definition, chainId, jobId);
       if (outcome.status === 'refused') return message(id, { status: 'rejected', accepted: false, job_id: jobId, reason: outcome.reason });
+      /*
+       * A correctness fixture is graded here, seconds after the answer,
+       * rather than on a sweep hours later. A position-range check
+       * compares the answer with a reading of the pool taken at grading
+       * time and sets aside anything much older than fifteen minutes, so
+       * on the sweep's two-hour cadence it could essentially never score
+       * one. Null for every ordinary hire, which carries no fixture.
+       */
+      const graded = await gradeDeliveredFixture(chainId, jobId);
       return message(id, {
         status: 'accepted',
         accepted: true,
@@ -100,6 +110,7 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
         deliverable_url: outcome.deliverableUrl,
         transaction_hash: outcome.status === 'delivered' ? outcome.transactionHash : null,
         already_delivered: outcome.status === 'already-delivered',
+        ...(graded ? { correctness_check: graded } : {}),
       });
     } catch (error) {
       return rpcError(id, -32603, `Delivery did not complete: ${(error as Error).message}`, 503);

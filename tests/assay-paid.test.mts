@@ -163,3 +163,25 @@ test('a resolved run is not re-graded, but a changed one is', () => {
   assert.notEqual(resolved.outcome, 'pending', 'a closed window is resolved and need not be re-read');
   assert.equal(pending.outcome, 'pending', 'an open window leaves work for the next sweep');
 });
+
+test('only a fixture is gradeable at delivery; an ordinary hire is not', () => {
+  /*
+   * `gradeDeliveredFixture` runs on every house delivery, so the gate that
+   * matters is the marker. A buyer's own brief must never be graded against
+   * an expected value it was never asked for — and almost every delivery is
+   * a buyer's own brief.
+   *
+   * The dispatch itself is keyed on the suite in that marker, which is what
+   * this pins: a fixture is recognised, a real hire is not.
+   */
+  const fixture = checkBrief('yield', STATIC_SUITES.yield.scenarios[0].id)!;
+  assert.deepEqual(readCheckMarker(fixture.task), { suite: 'yield-net-return-2', scenario: STATIC_SUITES.yield.scenarios[0].id });
+
+  for (const ordinary of [
+    JSON.stringify({ task: 'Where should I put 5000 USDT for a month?' }),
+    JSON.stringify({ task: 'Check my Venus position', requested_by: 'a buyer' }),
+    'Plan a grid for BNB with 1000 USDT',
+  ]) {
+    assert.equal(readCheckMarker(ordinary), null, ordinary.slice(0, 40));
+  }
+});
