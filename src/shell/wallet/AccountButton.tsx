@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/network/presentation';
+import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
@@ -92,10 +92,51 @@ export function AccountButton({ compact }: { compact?: boolean }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-y border-rule bg-sunken px-4 py-2 text-[12px] text-ink-3">
-            <span className="size-1.5 rounded-full bg-signal" aria-hidden />
-            {NETWORK_LABEL}
-            {IS_TESTNET && <span>· test tokens, no value</span>}
+          {/*
+            The network these figures were actually read on, not the one the
+            site is configured for. A balance from another chain under this
+            label is the error worth preventing here: a buyer decides what
+            they can afford by reading it.
+          */}
+          <div className="flex flex-col gap-2 border-y border-rule bg-sunken px-4 py-2.5 text-[12px] text-ink-3">
+            <div className="flex items-center gap-2">
+              <span className={cn('size-1.5 rounded-full', w.balances.unreadable ? 'bg-watch' : 'bg-signal')} aria-hidden />
+              {w.balances.unreadable === 'off-escrow-chain' ? (
+                <span className="text-watch">
+                  {w.connectorName ?? 'Your wallet'} is on {w.externalChainName ?? 'another network'}. No balance is shown: it would be read on a different chain from the one you are on.
+                </span>
+              ) : (
+                <>
+                  {w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}
+                  {w.balances.chainId === 97 && <span>· test tokens, no value</span>}
+                </>
+              )}
+            </div>
+            {w.escrowChains.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0">Use</span>
+                {w.escrowChains.map((id) => {
+                  const active = w.balances.chainId === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => w.switchToChain(id)}
+                      disabled={w.switching || active}
+                      aria-current={active ? 'true' : undefined}
+                      className={cn(
+                        'rounded-[6px] border px-1.5 py-0.5 text-[11.5px] font-medium transition-colors',
+                        active ? 'border-rule-strong bg-raised text-ink' : 'border-rule text-ink-3 hover:border-rule-strong hover:text-ink',
+                        w.switching && 'opacity-60',
+                      )}
+                    >
+                      {chainLabel(id)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {w.switchError && <span className="text-watch">The wallet did not switch: {w.switchError.slice(0, 120)}</span>}
           </div>
 
           {IS_TESTNET && FAUCETS && (w.balances.payment === 0 || lowGas) && (
