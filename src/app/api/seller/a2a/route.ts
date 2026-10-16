@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { submitDemoDeliverable } from '@/lib/erc8183/demo-seller';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
@@ -87,7 +88,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             data: {
               status: 'rejected',
               jobId,
-              reason: (error as Error).message,
+              reason: logAndPublic('seller/a2a', error),
             },
           },
         ],

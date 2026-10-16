@@ -14,6 +14,18 @@ export async function register(): Promise<void> {
   // Only the Node server runtime has the fetch cache this is warming.
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  /*
+   * The server signs and indexes on ALTANA_NETWORK; the pages label the
+   * network from NEXT_PUBLIC_ALTANA_NETWORK, baked in at build. Set one and
+   * not the other and the site describes one chain while acting on the
+   * other, with nothing failing. Said loudly at boot rather than found later.
+   */
+  if ((process.env.ALTANA_NETWORK === 'bnb') !== (process.env.NEXT_PUBLIC_ALTANA_NETWORK === 'bnb')) {
+    console.error(
+      `[config] ALTANA_NETWORK=${process.env.ALTANA_NETWORK ?? '(unset)'} but NEXT_PUBLIC_ALTANA_NETWORK=${process.env.NEXT_PUBLIC_ALTANA_NETWORK ?? '(unset)'}: the server acts on one network while the pages name the other. Set both the same.`,
+    );
+  }
+
   const { listMarketplace, getEcosystemStats } = await import('@/lib/marketplace');
 
   // Sweeps on the server's own clock; off unless fly.toml turns it on.

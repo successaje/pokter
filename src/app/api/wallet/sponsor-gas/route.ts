@@ -36,5 +36,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const outcome = await sponsorGas(body.address, clientKey);
   const serialisable = JSON.parse(JSON.stringify(outcome, (_, value) => (typeof value === 'bigint' ? value.toString() : value))) as Record<string, unknown>;
+  // The daily limit is a rate limit and says when to come back; other refusals are the request's terms.
+  if (outcome.status === 'refused' && outcome.retryAfterSeconds !== undefined) {
+    return NextResponse.json(serialisable, { status: 429, headers: { 'retry-after': String(outcome.retryAfterSeconds) } });
+  }
   return NextResponse.json(serialisable, { status: outcome.status === 'refused' ? 409 : 200 });
 }

@@ -26,6 +26,7 @@ import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { siteUrl } from '@/lib/site';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,6 +143,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     return NextResponse.json({ error: 'Unknown delivery action.' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: `Delivery verification failed: ${(error as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `Delivery verification failed: ${logAndPublic('builders/deliveries', error)}` }, { status: 502 });
   }
 }

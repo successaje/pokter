@@ -22,6 +22,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     await createAgentFollow({ email, chainId, tokenId, agentName: agent?.name?.slice(0, 120) || `Agent #${tokenId}` });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message || 'Could not start email confirmation.' }, { status: 400 });
+    // Input was checked above; anything here is the server's (mail provider, configuration).
+    console.error('[notifications/follow]', error);
+    return NextResponse.json({ error: 'Could not send the confirmation email just now. Try again shortly.' }, { status: 502 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { reclaimJob } from '@/lib/erc8183/hire';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -39,6 +40,6 @@ export async function POST(request: Request): Promise<NextResponse> {
      * and "nothing left to reclaim" are all true answers about the job,
      * not failures of this endpoint.
      */
-    return NextResponse.json({ reclaimed: false, error: (error as Error).message }, { status: 409 });
+    return NextResponse.json({ reclaimed: false, error: logAndPublic('jobs/reclaim', error) }, { status: 409 });
   }
 }

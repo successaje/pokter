@@ -9,6 +9,7 @@ import {
 } from '@/lib/security/rate-limit';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
@@ -123,7 +124,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: `Trial failed: ${(error as Error).message}` },
+      { error: `Trial failed: ${logAndPublic('trial', error)}` },
       { status: 502 },
     );
   }

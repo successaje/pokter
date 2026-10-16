@@ -8,6 +8,7 @@ import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
 import { EVIDENCE_CHAINS, evidenceChain, quoteChainFor } from '@/lib/evidence/refs';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { ChainId } from '@/lib/scan/types';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
@@ -143,7 +144,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       return rpcError(
         id,
         -32603,
-        `Cannot sign a quote right now: ${(error as Error).message}`,
+        `Cannot sign a quote right now: ${logAndPublic('evidence/a2a', error)}`,
         503,
       );
     }
@@ -194,7 +195,7 @@ export async function POST(request: Request): Promise<NextResponse> {
        * A failure here may have spent gas, so it is reported as a
        * failure to deliver rather than a refusal to try.
        */
-      return rpcError(id, -32603, `Delivery did not complete: ${(error as Error).message}`, 503);
+      return rpcError(id, -32603, `Delivery did not complete: ${logAndPublic('evidence/a2a', error)}`, 503);
     }
   }
 

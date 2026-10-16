@@ -9,6 +9,7 @@ import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { getJobStore } from '@/lib/erc8183/store';
 import { estimatedFundedAt } from '@/lib/erc8183/dispute-window';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -199,7 +200,7 @@ export async function GET(
     return NextResponse.json({ job, client: onchain.client });
   } catch (error) {
     return NextResponse.json(
-      { error: `That job could not be read: ${(error as Error).message}` },
+      { error: `That job could not be read: ${logAndPublic('jobs/read', error)}` },
       { status: 502 },
     );
   }

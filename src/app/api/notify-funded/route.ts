@@ -8,6 +8,7 @@ import { noticeSeller } from '@/lib/erc8183/seller-notice';
 import { indexIfMissing } from '@/lib/erc8183/job-identity';
 import { BSC_MAINNET, type ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 // Room for a seller that works before it answers (see SELLER_ANSWER_TIMEOUT_MS).
@@ -145,7 +146,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: `Seller notification failed: ${(error as Error).message}` },
+      { error: `Seller notification failed: ${logAndPublic('notify-funded', error)}` },
       { status: 502 },
     );
   }
