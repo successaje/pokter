@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   canSettle, canSettleAs, disputeSummary, reviewWindowSummary,
-  settleCallerAllowed, settleOpensAt,
+  sellerReleaseSummary, settleCallerAllowed, settleOpensAt,
 } from '../src/lib/erc8183/settle-window';
 
 /* Job 1440 on BNB testnet, the one that produced the gas error. */
@@ -147,4 +147,44 @@ test('an allowed caller still has to wait for the window', () => {
   const early = canSettleAs('approve', 'anyone-else', timing(SUBMITTED + 60));
   assert.equal(early.allowed === false && early.reason, 'too-early');
   assert.equal(canSettleAs('approve', 'anyone-else', timing(SUBMITTED + WINDOW + 1)).allowed, true);
+});
+
+test('the seller sees the same window from the other side', () => {
+  /*
+   * A seller used to see only "Buyer reviewing" — while that was true, and
+   * for ever afterwards. So work nobody was reviewing any more, which they
+   * could have collected themselves, looked exactly like work still under
+   * review.
+   */
+  const waiting = sellerReleaseSummary(timing(SUBMITTED + 60));
+  assert.equal(waiting.state, 'waiting');
+  assert.equal(waiting.label, 'Buyer reviewing');
+  assert.match(waiting.text, /can dispute this delivery until/);
+  assert.match(waiting.text, /After that you can release the payment to yourself/);
+
+  const ready = sellerReleaseSummary(timing(SUBMITTED + WINDOW + 1));
+  assert.equal(ready.state, 'ready');
+  assert.equal(ready.label, 'Ready to collect');
+  assert.match(ready.text, /you pay the gas, the escrow pays you/);
+});
+
+test('a seller is not offered a release that expired out from under them', () => {
+  const gone = sellerReleaseSummary(timing(EXPIRES + 1));
+  assert.equal(gone.state, 'expired');
+  assert.match(gone.text, /budget returns to the buyer/);
+});
+
+test('an expiry refusal is addressed to whoever asked', () => {
+  /*
+   * canSettle speaks to the buyer, so its expiry message offers the budget
+   * back. To a seller that reads as their own money being returned to
+   * them, which is the opposite of what happened.
+   */
+  const late = timing(EXPIRES + 1);
+  const toBuyer = canSettleAs('approve', 'buyer', late);
+  const toSeller = canSettleAs('approve', 'seller', late);
+  assert.equal(toBuyer.allowed === false && toBuyer.reason, 'expired');
+  assert.equal(toSeller.allowed === false && toSeller.reason, 'expired');
+  assert.match(toBuyer.allowed === false ? toBuyer.message : '', /budget is yours to reclaim/);
+  assert.match(toSeller.allowed === false ? toSeller.message : '', /budget returns to the buyer/);
 });

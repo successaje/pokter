@@ -12,7 +12,7 @@ import {
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobLifetimeSeconds } from '@/lib/erc8183/deadline';
-import { canSettle } from '@/lib/erc8183/settle-window';
+import { canSettleAs, settleCallerAllowed, type SettleCaller } from '@/lib/erc8183/settle-window';
 import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
@@ -298,7 +298,18 @@ export async function transactionExists(chainId: number, hash: Hex): Promise<boo
   }
 }
 
-/** Release or contest escrow from the exact browser wallet that funded it. */
+/**
+ * Release or contest escrow from a browser wallet.
+ *
+ * Both parties can release; only the buyer can contest. That asymmetry is
+ * the contract's, not Pokter's, and it is measured rather than assumed:
+ * see `settleCallerAllowed`, and testnet job #1502, which a wallet that
+ * was neither party settled after its window closed.
+ *
+ * Pokter offers it to the two parties with a reason to care. A third
+ * address is refused here for want of a surface, not want of permission —
+ * so the message says that rather than claiming it cannot be done.
+ */
 export async function settleFromExternalWallet(input: {
   account: Address;
   jobId: bigint;
@@ -310,8 +321,18 @@ export async function settleFromExternalWallet(input: {
   await ensureChain(chainId);
   await assertAccount(input.account);
   const before = await getErc8183Job(network, input.jobId);
-  if (getAddress(before.client) !== getAddress(input.account)) {
-    throw new Error('The connected wallet did not fund this job.');
+  const account = getAddress(input.account);
+  const caller: SettleCaller =
+    getAddress(before.client) === account
+      ? 'buyer'
+      : getAddress(before.provider as Address) === account
+        ? 'seller'
+        : 'anyone-else';
+  if (caller === 'anyone-else') {
+    throw new Error('This wallet neither funded this job nor delivered it. Connect the buyer\u2019s wallet to review it, or the provider\u2019s to collect it.');
+  }
+  if (!settleCallerAllowed(input.action, caller)) {
+    throw new Error('Only the wallet that funded this job can contest a delivery.');
   }
   /*
    * Said as what happened, not as a refusal. After the review window anyone
@@ -320,7 +341,14 @@ export async function settleFromExternalWallet(input: {
    * simply been paid twenty-five minutes earlier by someone else's call.
    */
   if (before.statusName === 'COMPLETED') {
-    throw new Error('ALREADY_COMPLETED: The agent has already been paid. After the review window anyone can release the escrow, and someone did. Nothing is left to do.');
+    /*
+     * Read by whoever asked. To the seller "the agent has already been
+     * paid" is a sentence about themselves, and the money is in their
+     * wallet — which is the one fact they want.
+     */
+    throw new Error(caller === 'seller'
+      ? 'ALREADY_COMPLETED: This escrow has already been released and the payment is in your wallet. Anyone can release it after the review window, and someone did.'
+      : 'ALREADY_COMPLETED: The agent has already been paid. After the review window anyone can release the escrow, and someone did. Nothing is left to do.');
   }
   if (before.statusName === 'REJECTED') {
     throw new Error('ALREADY_REJECTED: This job was already disputed and resolved, so there is nothing to release.');
@@ -350,7 +378,7 @@ export async function settleFromExternalWallet(input: {
     .then(Number)
     .catch(() => 0);
 
-  const verdict = canSettle(input.action, {
+  const verdict = canSettleAs(input.action, caller, {
     submittedAt: Number(before.submittedAt),
     expiredAt: Number(before.expiredAt),
     disputeWindowSeconds,

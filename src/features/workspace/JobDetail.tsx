@@ -26,7 +26,8 @@ import { Address, Details, TxLink } from '@/ui/Data';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
-import { jobPhase, PHASE, STATUS_NAME, useMyJobs, useNow } from './hooks';
+import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
+import { useClockThrough } from '@/lib/ui/use-moment';
 import { budgetOf, PhaseLabel } from './parts';
 import { ReviewForm } from './ReviewForm';
 import { JobUpdates } from './JobUpdates';
@@ -186,7 +187,18 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
     enabled: delivered,
     staleTime: 60_000,
   });
-  const now = useNow();
+  /*
+   * Frozen, except that it jumps once as the review window closes. `useNow`
+   * alone never moves, and nothing on chain changes at that moment either
+   * — so "Release opens in 40 seconds" stayed on the page forty minutes
+   * later, and the derived `release-available` note below fired only on the
+   * buyer's next visit rather than when it happened.
+   */
+  const now = useClockThrough(
+    reviewTiming.data && reviewTiming.data.submittedAt > 0
+      ? reviewTiming.data.submittedAt + reviewTiming.data.disputeWindowSeconds
+      : null,
+  );
   const review = reviewTiming.data && reviewTiming.data.submittedAt > 0 ? reviewWindowSummary({ ...reviewTiming.data, now: Math.floor(now / 1000) }) : null;
   // A dispute leaves the job SUBMITTED; the policy records it and its vote.
   const disputeState = useQuery({

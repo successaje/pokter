@@ -220,5 +220,63 @@ export function canSettleAs(
         'Only the wallet that funded this job can contest a delivery. Releasing the payment, once the review window has closed, is open to anyone.',
     };
   }
-  return canSettle(action, timing);
+  const verdict = canSettle(action, timing);
+  /*
+   * The same refusal, addressed to the right person. `canSettle` speaks to
+   * the buyer, so its expiry message offers the budget back — which to a
+   * seller reads as their own money being returned to them.
+   */
+  if (caller === 'seller' && verdict.allowed === false && verdict.reason === 'expired') {
+    return {
+      ...verdict,
+      message:
+        'This job passed its deadline before anyone released it, so the escrow can no longer be paid out. The budget returns to the buyer.',
+    };
+  }
+  return verdict;
+}
+
+/**
+ * What the seller of a delivered job is told, and whether they can act.
+ *
+ * The mirror of `reviewWindowSummary`, which tells the buyer the same
+ * window from the other side. A seller used to see only "Buyer reviewing",
+ * for as long as that was true and for ever afterwards — so work that
+ * nobody was reviewing any more, and that the seller could have collected
+ * themselves, looked identical to work still under review.
+ */
+export function sellerReleaseSummary(timing: SettleTiming): {
+  state: 'waiting' | 'ready' | 'expired';
+  opensAt: number;
+  opens: string;
+  label: string;
+  text: string;
+} {
+  const opensAt = settleOpensAt(timing);
+  const opens = utcMoment(opensAt);
+  if (timing.now >= timing.expiredAt) {
+    return {
+      state: 'expired',
+      opensAt,
+      opens,
+      label: 'Expired unpaid',
+      text: 'This job passed its deadline before anyone released it, so it can no longer be paid out. The budget returns to the buyer.',
+    };
+  }
+  if (timing.now < opensAt) {
+    return {
+      state: 'waiting',
+      opensAt,
+      opens,
+      label: 'Buyer reviewing',
+      text: `The buyer can dispute this delivery until ${opens} (${span(opensAt - timing.now)} away). After that you can release the payment to yourself, and it can no longer be disputed.`,
+    };
+  }
+  return {
+    state: 'ready',
+    opensAt,
+    opens,
+    label: 'Ready to collect',
+    text: `The review window closed ${opens}, so this delivery can no longer be disputed. You can release the payment to yourself — you pay the gas, the escrow pays you.`,
+  };
 }

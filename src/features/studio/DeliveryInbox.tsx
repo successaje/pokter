@@ -1,16 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { formatUnits, getAddress } from 'viem';
 import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { chainLabel } from '@/lib/network/presentation';
-import { submitExternalDeliverable, transactionExists } from '@/lib/wallet/external';
+import { readDisputeState, readReviewTiming, settleFromExternalWallet, submitExternalDeliverable, transactionExists } from '@/lib/wallet/external';
+import { sellerReleaseSummary } from '@/lib/erc8183/settle-window';
+import { useClockThrough } from '@/lib/ui/use-moment';
 import { shortAddress } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { Button } from '@/ui/Button';
+import { TxLink } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
@@ -18,7 +22,15 @@ import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   OPEN: { label: 'Not funded', tone: 'text-ink-3' },
   FUNDED: { label: 'To deliver', tone: 'text-watch' },
-  SUBMITTED: { label: 'Buyer reviewing', tone: 'text-info' },
+  /*
+   * "Delivered", not "Buyer reviewing". Whether anyone is still reviewing
+   * depends on the policy's window and the submission time, neither of
+   * which a static label can know — so it kept saying "Buyer reviewing"
+   * long after the window had closed and the payment was there to collect.
+   * `sellerReleaseSummary` says the precise thing, underneath, where the
+   * numbers have been read.
+   */
+  SUBMITTED: { label: 'Delivered', tone: 'text-info' },
   COMPLETED: { label: 'Paid', tone: 'text-ok' },
   REJECTED: { label: 'Rejected by vote', tone: 'text-bad' },
   EXPIRED: { label: 'Expired unpaid', tone: 'text-ink-3' },
@@ -152,6 +164,137 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   );
 }
 
+/**
+ * Collect your own payment.
+ *
+ * Nothing in Pokter let a seller do this. A delivered job said "Buyer
+ * reviewing" and kept saying it, so work that had cleared its review
+ * window — which can no longer be disputed, and which the escrow will
+ * pay out to anyone who asks — looked exactly like work still under
+ * review. Sellers waited on buyers who had no reason to come back, or on
+ * somebody else's keeper.
+ *
+ * That the escrow pays anybody is measured, not assumed: testnet job #1502
+ * was released by a wallet that was neither party, and `settle` has no
+ * caller gate while `dispute` does. See `settleCallerAllowed`.
+ *
+ * The seller pays their own gas and the money goes to their own wallet, so
+ * there is no custody here and nothing for Pokter to hold.
+ */
+function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<`0x${string}` | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const timing = useQuery({
+    queryKey: ['review-timing', job.chainId, job.jobId],
+    queryFn: () => readReviewTiming(job.chainId, BigInt(job.jobId)),
+    staleTime: 60_000,
+  });
+  /*
+   * A dispute leaves the job SUBMITTED while the policy's voters decide, so
+   * status alone cannot tell a contested delivery from an uncontested one.
+   * Without this the seller would be shown "Ready to collect" on work the
+   * buyer had just challenged — the simulation would refuse the
+   * transaction, but only after they had been invited to send it.
+   */
+  const dispute = useQuery({
+    queryKey: ['dispute-state', job.chainId, job.jobId],
+    queryFn: () => readDisputeState(job.chainId, BigInt(job.jobId)),
+    staleTime: 60_000,
+  });
+
+  /*
+   * Read from chain, not from the job row: the row has no submission time,
+   * and the window is the policy's own and differs per chain.
+   */
+  const timed = timing.data && timing.data.submittedAt > 0 ? timing.data : null;
+  /*
+   * Re-renders once, when the window closes. Nothing on chain changes at
+   * that moment, so without this the button would appear only on the next
+   * reload — a seller watching the page would sit there while the payment
+   * became collectable and the page kept counting down.
+   */
+  const nowMs = useClockThrough(timed ? timed.submittedAt + timed.disputeWindowSeconds : null);
+  const summary = timed
+    ? sellerReleaseSummary({ ...timed, now: Math.floor(nowMs / 1000) })
+    : null;
+
+  if (done) {
+    return (
+      <Notice tone="ok" title="Paid">
+        The escrow released {amountOf(job)} $U to {shortAddress(account)}.{' '}
+        <TxLink chainId={job.chainId} hash={done} label="View the transaction" />
+      </Notice>
+    );
+  }
+  /*
+   * A failed read is said, not swallowed. Rendering nothing would leave a
+   * seller with a collectable payment looking at a job that offers them
+   * nothing, with no way to tell that from a job still under review.
+   */
+  if (timing.isError) {
+    return (
+      <p className="text-[13px] text-ink-3">
+        The review window could not be read from {chainLabel(job.chainId)} just now, so this cannot say whether the payment is collectable yet. Reload to try again.
+      </p>
+    );
+  }
+  if (!summary) return null;
+
+  if (dispute.data?.disputed) {
+    return (
+      <p className="text-[13px] text-ink-2">
+        The buyer disputed this delivery, so it is the escrow policy&rsquo;s voters who decide it now and the payment cannot be
+        released. If they do not reach a quorum by the deadline, the job expires and the budget returns to the buyer.
+      </p>
+    );
+  }
+
+  const collect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const transactionHash = await settleFromExternalWallet({ account, jobId: BigInt(job.jobId), action: 'approve', chainId: job.chainId });
+      setDone(transactionHash);
+      /*
+       * Bring the public index up now rather than at the next sweep, the
+       * same way the buyer's release does. Without it the agent's own
+       * profile keeps showing this job unfinished — and a settled job is
+       * precisely the evidence a seller wants on it. The route re-reads
+       * the chain and trusts nothing sent here.
+       */
+      void fetch(`/api/jobs/${job.jobId}/sync`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', transactionHash, chainId: job.chainId }),
+      }).catch(() => {});
+    } catch (caught) {
+      const message = (caught as Error).message ?? 'The payment was not released.';
+      setError(/reject|denied|cancel/i.test(message)
+        ? 'Cancelled in the wallet. Nothing was sent and the payment is still there to collect.'
+        : message.replace(/^ALREADY_[A-Z]+: /, ''));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[13px] text-ink-2">{summary.text}</p>
+      {summary.state === 'ready' && (
+        <Button size="s" busy={busy} disabled={busy} onClick={() => void collect()} className="self-start">
+          Release {amountOf(job)} $U to yourself
+        </Button>
+      )}
+      {error && <Notice tone="watch">{error}</Notice>}
+    </div>
+  );
+}
+
+function amountOf(job: HiredJob): string {
+  return Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 });
+}
+
 export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
   const { address, isConnected, chain } = useAccount();
   const { openConnect } = useConnect();
@@ -186,6 +329,12 @@ export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
                 <span className="t-readout text-[12.5px] text-ink-3">{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 })} $U</span>
               </div>
             </div>
+            {job.status === 'SUBMITTED' && isProvider && !wrongChain && <Collect job={job} account={connected!} />}
+            {job.status === 'SUBMITTED' && isProvider && wrongChain && (
+              <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
+                Switch to {chainLabel(job.chainId)} to collect
+              </Button>
+            )}
             {job.status === 'FUNDED' &&
               (open === job.id ? (
                 isProvider && !wrongChain ? (

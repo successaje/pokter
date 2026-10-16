@@ -16,11 +16,13 @@ const FIELD = { approve: 'settleTxHash', dispute: 'disputeTxHash', reclaim: 'rec
 type Action = keyof typeof FIELD;
 
 /**
- * Re-read one indexed job from chain, right after its buyer acted on it.
+ * Re-read one indexed job from chain, right after someone acted on it.
  *
  * The index otherwise waits for the next sweep, so a job settled a minute
  * ago still read as unfinished on the agent's public profile and in Builder
- * Studio. Nothing the caller says is trusted: the status comes from the
+ * Studio. Either party may be the one who acted: a buyer releasing or
+ * disputing, or a seller collecting their own payment after the review
+ * window. Nothing the caller says is trusted: the status comes from the
  * contract, and a transaction hash is kept only if its receipt succeeded and
  * carries an escrow-contract event for this job. Jobs Pokter never indexed
  * are left alone; adding them is /api/jobs/index's job.

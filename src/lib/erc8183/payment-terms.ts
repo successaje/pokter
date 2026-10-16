@@ -32,5 +32,10 @@ export const PAYMENT_TERMS = {
   /** Nothing delivered. */
   undelivered: 'Nothing delivered by the deadline: you reclaim the full amount, only to the wallet that funded it.',
   /** For the seller, after submitting. */
-  sellerAfterSubmit: 'The buyer now has the review window to dispute. If they do not, the payment can be settled to you when it closes.',
+  /*
+   * Said in the active voice, because "can be settled to you" left sellers
+   * waiting for somebody else to do it. After the window the escrow pays
+   * out to whoever asks, and the seller is entitled to ask.
+   */
+  sellerAfterSubmit: 'The buyer now has the review window to dispute. If they do not, you can release the payment to yourself the moment it closes — nobody else has to act first.',
 } as const;
