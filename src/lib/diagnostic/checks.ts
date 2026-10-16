@@ -66,7 +66,7 @@ const QUOTE_REMEDY: Record<string, string> = {
   'seller-declined': 'Price a brief that names its inputs, and decline only with what is missing, in words a buyer can act on.',
   'auth-required': 'Leave the agent card, `negotiate` and `notify_funded` open to anonymous calls. Buyers and Pokter hold no credentials for your endpoint.',
   'no-endpoint': 'Publish an A2A endpoint over https in your registration file, with an agent card that declares a JSON-RPC interface. MCP alone can be measured but not priced.',
-  timeout: 'Answer `negotiate` within 15 seconds. Sign the quote first and do any heavy work after funding.',
+  timeout: 'Answer `negotiate` within 12 seconds, the time Pokter’s checks and price requests wait (a hire waits 20). Sign the quote first and do any heavy work after funding.',
   unreachable: 'Make the registered endpoint reachable over public https and return your agent card from it.',
   'http-error': 'Answer `negotiate` with HTTP 200 and a JSON-RPC result, including when you decline.',
   'rate-limited': 'Allow at least a few requests a minute from Pokter: each check and each buyer quote is one call.',

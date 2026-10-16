@@ -157,7 +157,7 @@ instructions alone. Pokter cannot produce that itself.
 
 | Gap | Why it is not in this branch |
 | --- | --- |
-| Does a quorum rejection refund automatically, or must the buyer call `claimRefund`? | The commerce contract is not verified on Sourcify and no REJECTED job exists yet. The copy holds either way and keeps a reclaim button. Confirm on the first real rejection. |
+| ~~Does a quorum rejection refund automatically, or must the buyer call `claimRefund`?~~ | **Answered 16 Oct** (`fix/dispute-outcome`): the deployed policy is the audited `OptimisticPolicy` (bnb-chain/apex-contracts `ff79f86`; both chains expose `disputeQuorumSnapshot`). A dispute that reaches quorum inside the review window settles as REJECTED, and `reject` refunds the buyer in that settle transaction. A dispute without quorum falls through to APPROVE when the window closes. Pokter had said such a job expires and refunds; that was an earlier contract version. |
 | ~~Raw RPC and SDK error text passed through on public routes~~ | **Fixed 16 Oct** (`fix/api-errors`): 13 public routes now pass errors through `publicErrorMessage`, which keeps the reason and drops viem detail lines, query strings, private hosts, secret names and commands. The full error is logged. Operator-only routes keep full detail. |
 | ~~`notifications/subscribe` and `follow` return every error as 400~~ | **Fixed 16 Oct**: validation is `BadRequest` (400); provider and config faults are 502 with a generic message. Review report and moderate return 404 only for not-found, 500 otherwise. |
 | Inconsistent error shapes: `{status:'refused', reason}`, `{reclaimed:false, error}` | Changing shapes breaks clients. Needs versioning. |

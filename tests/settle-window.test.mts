@@ -40,21 +40,15 @@ test('confirming once the window has elapsed is allowed', () => {
   assert.deepEqual(canSettle('approve', timing(SUBMITTED + WINDOW + 1)), { allowed: true });
 });
 
-test('a job past its deadline points at reclaim, not at waiting', () => {
-  const verdict = canSettle('approve', timing(EXPIRES + 1));
-  assert.equal(verdict.allowed, false);
-  if (verdict.allowed === false) {
-    assert.equal(verdict.reason, 'expired');
-    assert.match(verdict.message, /reclaim/i);
-    assert.ok(!/try again/i.test(verdict.message), 'never tells them to wait');
-  }
-});
-
-test('expiry outranks the window', () => {
-  /* Both conditions true at once: delivered seconds ago, deadline gone.
-     Telling somebody to wait when their wait is over is the worse error. */
-  const verdict = canSettle('approve', timing(EXPIRES + 1, { submittedAt: EXPIRES - 10 }));
-  assert.equal(verdict.allowed === false && verdict.reason, 'expired');
+test('a delivered job can still be settled after its deadline', () => {
+  /*
+   * There used to be a deadline rule here, on the evidence of jobs 1202
+   * and 1217. Those revert PolicyNotSet: they were never registered with a
+   * policy. The deployed kernel's complete has no deadline check, so a job
+   * still SUBMITTED past its deadline settles as the policy decided, unless
+   * the buyer reclaims it first.
+   */
+  assert.deepEqual(canSettle('approve', timing(EXPIRES + 1)), { allowed: true });
 });
 
 test('disputing is the inverse: inside the window only', () => {
@@ -93,15 +87,30 @@ test('a delivered job says when its review window closes, and what each side of 
   assert.match(closed.text, /closed 22 Oct, 14:14 UTC/);
 });
 
-test('a disputed job says how the vote stands and both ways it ends', () => {
-  // Job #56997: disputed 15 Oct, deadline 22 Oct 18:28 UTC, quorum 3, no votes yet.
+test('a disputed job is decided inside the review window, as the deployed policy decides it', () => {
+  /*
+   * Job #56997: delivered 15 Oct, review window to 22 Oct 14:14 UTC,
+   * quorum 3. The audited OptimisticPolicy accepts votes only inside the
+   * window; reaching quorum settles as rejected (refund), and missing it
+   * falls through to approved. Pokter said a dispute without quorum
+   * expires and refunds, which was an earlier contract.
+   */
+  const windowClosesAt = Date.parse('2026-10-22T14:14:00Z') / 1000;
   const expiredAt = Date.parse('2026-10-22T18:28:00Z') / 1000;
-  const open = disputeSummary({ rejectVotes: 0, quorum: 3, expiredAt, now: expiredAt - 86_400 });
-  assert.match(open.text, /0 of 3 reject votes so far/);
-  assert.match(open.text, /At 3 the job is rejected/);
-  assert.match(open.text, /deadline, 22 Oct, 18:28 UTC, the job expires and you reclaim it then/);
-  const over = disputeSummary({ rejectVotes: 1, quorum: 3, expiredAt, now: expiredAt + 60 });
-  assert.match(over.text, /did not reach its quorum \(1 of 3/);
+  const voting = disputeSummary({ rejectVotes: 0, quorum: 3, windowClosesAt, expiredAt, now: windowClosesAt - 86_400 });
+  assert.equal(voting.outcome, 'voting');
+  assert.match(voting.text, /until the review window closes, 22 Oct, 14:14 UTC/);
+  assert.match(voting.text, /0 of 3 reject votes so far/);
+  assert.match(voting.text, /the dispute fails when the window closes and the agent can be paid/);
+
+  const failed = disputeSummary({ rejectVotes: 1, quorum: 3, windowClosesAt, expiredAt, now: windowClosesAt + 60 });
+  assert.equal(failed.outcome, 'failed');
+  assert.match(failed.text, /settling the job pays the agent/);
+
+  // Quorum reached: rejected, whenever it is read, and settling refunds.
+  const rejected = disputeSummary({ rejectVotes: 3, quorum: 3, windowClosesAt, expiredAt, now: windowClosesAt + 60 });
+  assert.equal(rejected.outcome, 'rejected');
+  assert.match(rejected.text, /Settling the job now refunds your escrow/);
 });
 
 test('anybody may release an escrow once the review window has closed', () => {
@@ -168,23 +177,19 @@ test('the seller sees the same window from the other side', () => {
   assert.match(ready.text, /you pay the gas, the escrow pays you/);
 });
 
-test('a seller is not offered a release that expired out from under them', () => {
-  const gone = sellerReleaseSummary(timing(EXPIRES + 1));
-  assert.equal(gone.state, 'expired');
-  assert.match(gone.text, /budget returns to the buyer/);
-});
-
-test('an expiry refusal is addressed to whoever asked', () => {
+test('past the deadline a seller is told to collect, not that it is gone', () => {
   /*
-   * canSettle speaks to the buyer, so its expiry message offers the budget
-   * back. To a seller that reads as their own money being returned to
-   * them, which is the opposite of what happened.
+   * The kernel's `complete` has no deadline check, so a delivered job still
+   * SUBMITTED settles as the policy decided however late it is — unless the
+   * buyer reclaims first. It is a race, not an expiry, and a seller told
+   * their money was gone would leave money they could still have taken.
    */
-  const late = timing(EXPIRES + 1);
-  const toBuyer = canSettleAs('approve', 'buyer', late);
-  const toSeller = canSettleAs('approve', 'seller', late);
-  assert.equal(toBuyer.allowed === false && toBuyer.reason, 'expired');
-  assert.equal(toSeller.allowed === false && toSeller.reason, 'expired');
-  assert.match(toBuyer.allowed === false ? toBuyer.message : '', /budget is yours to reclaim/);
-  assert.match(toSeller.allowed === false ? toSeller.message : '', /budget returns to the buyer/);
+  const late = sellerReleaseSummary(timing(EXPIRES + 1));
+  assert.equal(late.state, 'racing');
+  assert.equal(late.label, 'Collect now');
+  assert.match(late.text, /buyer can reclaim the budget at any moment/);
+  assert.match(late.text, /will still pay you until they do/);
+
+  // And the escrow agrees it is allowed, so the button is not a lie.
+  assert.equal(canSettleAs('approve', 'seller', timing(EXPIRES + 1)).allowed, true);
 });

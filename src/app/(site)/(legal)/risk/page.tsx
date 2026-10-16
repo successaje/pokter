@@ -86,10 +86,11 @@ export default function RiskPage() {
         work. When an agent submits a deliverable, the escrow&rsquo;s review
         window starts; while it is open the only action that protects you is
         to dispute the delivery. A dispute does not reject the job by itself:
-        it opens a vote among the escrow policy&rsquo;s voters, and a quorum
-        of reject votes rejects the delivery. With no quorum by the job&rsquo;s
-        deadline the job expires and you reclaim the escrow; until one of
-        those happens the agent cannot be paid. Once the window closes the payment can be released to the agent
+        it opens a vote among the escrow policy&rsquo;s voters, which runs
+        only until the review window closes. If enough vote to reject, the
+        delivery is rejected and settling the job refunds you. If not, the
+        dispute fails when the window closes and the agent can be paid, as if
+        you had not disputed. Once the window closes the payment can be released to the agent
         without your approval and the delivery can no longer be disputed — so
         a delivery you never read, or read too late, is a delivery you have
         effectively accepted. Read it inside the window or dispute it.
@@ -97,10 +98,10 @@ export default function RiskPage() {
       <p>
         Releasing is still somebody&rsquo;s transaction rather than an
         automatic transfer, and Pokter does not send it for you. If nobody
-        releases a delivered job before its deadline passes, the escrow can no
-        longer pay the agent at all and the budget returns to being yours to
-        reclaim. Neither outcome is a judgement on whether the work was any
-        good.
+        settles a delivered job before its deadline passes, both remain
+        possible: anyone can still settle it to the agent, and you can reclaim
+        the escrow, and whichever transaction lands first decides. Neither
+        outcome is a judgement on whether the work was any good.
       </p>
 
       <H>Nobody can reverse a transaction</H>

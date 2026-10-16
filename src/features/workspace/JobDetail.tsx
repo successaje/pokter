@@ -10,7 +10,7 @@ import { formatUnits } from 'viem';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
-import { disputeSummary, reviewWindowSummary } from '@/lib/erc8183/settle-window';
+import { disputeSummary, reviewWindowSummary, settleOpensAt } from '@/lib/erc8183/settle-window';
 import { readDisputeState, readReviewTiming } from '@/lib/wallet/external';
 import { releaseAvailable } from '@/lib/wallet/job-events';
 import { recordDerivedJobEvent } from '@/lib/wallet/notifications';
@@ -209,7 +209,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   });
   const dispute =
     disputeState.data?.disputed && reviewTiming.data
-      ? disputeSummary({ ...disputeState.data, expiredAt: reviewTiming.data.expiredAt, now: Math.floor(now / 1000) })
+      ? disputeSummary({ ...disputeState.data, windowClosesAt: settleOpensAt(reviewTiming.data), expiredAt: reviewTiming.data.expiredAt, now: Math.floor(now / 1000) })
       : null;
   /*
    * The window opening is the one moment a buyer can act on, and the status
@@ -234,7 +234,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const meta = refused
     ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' }
     : dispute
-      ? { ...PHASE[phase], needsYou: false, next: 'You disputed the delivery. The escrow policy’s voters decide whether it is rejected.' }
+      ? { ...PHASE[phase], needsYou: dispute.outcome === 'rejected', next: dispute.text }
       : PHASE[phase];
   const timeline = jobTimeline(job);
 
@@ -299,6 +299,12 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
               <Notice tone="watch" title={dispute.title}>
                 {dispute.text}
               </Notice>
+            )}
+            {dispute?.outcome === 'rejected' && owned && (
+              // Settling a rejected job is what returns the escrow: the contract refunds in the same transaction.
+              <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} className="self-start">
+                Settle and refund me
+              </Button>
             )}
             {review && !dispute && (
               <p className="flex items-start gap-2 rounded-[12px] border border-rule bg-paper px-4 py-3 text-[13px] text-ink-2">
@@ -405,15 +411,6 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 Under the escrow&rsquo;s optimistic policy, doing nothing accepts the delivery: once the review window closes, the payment can be released to the agent. A dispute can only be opened while the window is open, and is decided by the policy&rsquo;s voters.
               </p>
             )}
-          </div>
-        )}
-
-        {phase === 'rejected' && owned && (
-          <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-paper p-4 text-[13px] text-ink-2">
-            <p>The vote rejected the delivery, so the {budgetOf(job)} belongs to the wallet that funded it. If it has not arrived there, reclaim it. If it already has, the attempt reverts and costs only the network fee.</p>
-            <Button intent="secondary" size="s" onClick={() => void a.act('reclaim')} busy={a.busy === 'reclaim'} className="self-start">
-              Reclaim {budgetOf(job)}
-            </Button>
           </div>
         )}
 

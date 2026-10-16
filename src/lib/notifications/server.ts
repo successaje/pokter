@@ -152,9 +152,9 @@ function builderJobEvents(input: {
   const events: BuilderJobEvent[] = [];
   if (status === 'FUNDED') events.push({ event: 'FUNDED', title: 'New funded job', body: `${input.agentName} has funded work ready for delivery.` });
   if (status === 'SUBMITTED') events.push({ event: 'SUBMITTED', title: 'Delivery awaiting review', body: `Job #${input.jobId} was submitted and is waiting for the buyer.` });
-  if (status === 'REJECTED') events.push({ event: 'REJECTED', title: 'Delivery rejected', body: `The buyer disputed job #${input.jobId} and the escrow policy’s voters rejected the delivery, so it is not paid. Review the job evidence.` });
+  if (status === 'REJECTED') events.push({ event: 'REJECTED', title: 'Delivery rejected', body: `The buyer disputed job #${input.jobId}, the escrow policy’s voters rejected the delivery, and the buyer was refunded. Review the job evidence.` });
   if (status === 'COMPLETED') events.push({ event: 'COMPLETED', title: 'Escrow released', body: `Job #${input.jobId} completed and its escrow was released.` });
-  if (status === 'EXPIRED') events.push({ event: 'EXPIRED', title: 'Job expired unpaid', body: `Job #${input.jobId} passed its deadline without being paid: no delivery, or a dispute that missed its quorum.` });
+  if (status === 'EXPIRED') events.push({ event: 'EXPIRED', title: 'Job expired unpaid', body: `Job #${input.jobId} passed its deadline unsettled and the buyer reclaimed it: no delivery, or a delivery nobody settled. Settle approved jobs promptly; anyone can.` });
   const secondsLeft = input.expiredAt ? Number(input.expiredAt - BigInt(Math.floor(Date.now() / 1000))) : null;
   if (status === 'FUNDED' && secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 86_400) {
     events.push({ event: 'DEADLINE_24H', title: 'Delivery due within 24 hours', body: `Job #${input.jobId} is still funded and approaching its deadline.` });
@@ -432,8 +432,8 @@ export async function notifyJobEvent(input: {
     FUNDED: { subject: `Job #${input.jobId} is funded`, title: 'Your job is funded', body: `${agent} has been asked to do the work. You will hear when it delivers.` },
     SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. Payment is released after the review window unless you dispute it.' },
     COMPLETED: { subject: `Job #${input.jobId} is complete`, title: 'Job complete', body: 'The escrow was released to the agent.' },
-    REJECTED: { subject: `Job #${input.jobId} was rejected`, title: 'Delivery rejected', body: 'The escrow policy’s voters rejected the delivery, so the agent is not paid and the escrow returns to you. If it has not arrived, reclaim it from the job page.' },
-    EXPIRED: { subject: `Job #${input.jobId} expired`, title: 'Deadline passed', body: 'The deadline passed without the agent being paid. The job page shows whether your escrow has already returned, and lets you reclaim it if not.' },
+    REJECTED: { subject: `Job #${input.jobId} was rejected`, title: 'Delivery rejected', body: 'The escrow policy’s voters rejected the delivery and the job was settled, which refunded your escrow to the wallet that funded it. The agent was not paid.' },
+    EXPIRED: { subject: `Job #${input.jobId} expired`, title: 'Escrow reclaimed', body: 'The deadline passed with the job unsettled, and the escrow was reclaimed to the wallet that funded it.' },
   };
   const text = copy[event] ?? { subject: `Job #${input.jobId} is now ${event.toLowerCase()}`, title: `Job ${event.toLowerCase()}`, body: 'A verified on-chain status change is available for your job.' };
   let sent = 0;

@@ -18,8 +18,15 @@ test('the event fires only once the window the escrow enforces has closed', () =
 });
 
 test('it never fires where the escrow would refuse the release', () => {
-  // Past expiry the escrow cannot pay the agent at all — the buyer reclaims.
-  assert.equal(releaseAvailable({ ...base, now: base.expiredAt + 1 }), false, 'expired');
+  /*
+   * Not past the deadline, though. This asserted the opposite, on the old
+   * belief that the escrow refuses a late settle — the evidence for which
+   * was jobs 1202 and 1217 reverting `0x32d53d69`, which is the router's
+   * PolicyNotSet and not an expiry at all. The deployed kernel's `complete`
+   * has no deadline check, so a delivered job still SUBMITTED can be
+   * settled however late, until the buyer reclaims it.
+   */
+  assert.equal(releaseAvailable({ ...base, now: base.expiredAt + 1 }), true, 'still releasable past the deadline');
   // A dispute is its own path, with its own actors and deadlines.
   assert.equal(releaseAvailable({ ...base, now: base.submittedAt + WINDOW + 60, disputed: true }), false);
   // Nothing delivered yet, so nothing to release.

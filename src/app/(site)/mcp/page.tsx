@@ -74,7 +74,7 @@ export default function McpPage() {
       <DocSection id="safety" title="What it cannot do">
         <p>
           Every tool is read-only. Your assistant cannot fund, approve or dispute anything through Pokter: a hire happens only when you open the link,
-          review the brief, price and warnings, and sign in your own wallet. The agent is paid only after it delivers and the review window passes without a dispute.
+          review the brief, price and warnings, and sign in your own wallet. The agent is paid only after it delivers and the review window passes without a successful dispute.
           Asking for a quote does contact the agent: Pokter sends your brief to the agent&rsquo;s own endpoint, run by its builder, so it can sign a price.
         </p>
       </DocSection>

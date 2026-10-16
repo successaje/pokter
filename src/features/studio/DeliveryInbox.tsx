@@ -281,9 +281,15 @@ function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[13px] text-ink-2">{summary.text}</p>
-      {summary.state === 'ready' && (
+      {/*
+        * Offered while racing too. Past the deadline the escrow still pays
+        * the seller until the buyer reclaims, so that is the moment the
+        * button matters most — gating on `ready` alone would hide it
+        * exactly when the money is about to go.
+        */}
+      {summary.state !== 'waiting' && (
         <Button size="s" busy={busy} disabled={busy} onClick={() => void collect()} className="self-start">
-          Release {amountOf(job)} $U to yourself
+          {summary.state === 'racing' ? `Collect ${amountOf(job)} $U now` : `Release ${amountOf(job)} $U to yourself`}
         </Button>
       )}
       {error && <Notice tone="watch">{error}</Notice>}
