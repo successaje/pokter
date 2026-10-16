@@ -23,6 +23,7 @@ import {
 } from '@/lib/pancakeswap/swap';
 import { browserRpcUrls, RECEIPT_POLL_MS } from '@/lib/wallet/browser-rpc';
 import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
+import { describeFundingOutcome, fundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hire/funding-outcome';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 
@@ -192,6 +193,24 @@ async function waitForCalls(callsId: string): Promise<Hex | null> {
     await new Promise((resolve) => setTimeout(resolve, 1_500));
   }
   throw new Error('BATCH_CONFIRMATION_TIMEOUT');
+}
+
+/**
+ * The chain's answer about one funding attempt.
+ *
+ * Read after a confirmation timeout only. A missing job is a job that was
+ * never funded; a job that is ours and past CREATED was funded even if the
+ * wallet never said so. See `hire/funding-outcome.ts` for why the id being
+ * taken by somebody else is "unknown" rather than "failed".
+ */
+async function readFundingOutcome(input: {
+  chainId: number; jobId: bigint; account: Address; provider: Address; budget: bigint; description: string;
+}): Promise<FundingOutcome> {
+  const job = await getErc8183Job(walletNetworkFor(input.chainId), input.jobId).catch(() => null);
+  return fundingOutcome(
+    job && { client: job.client, provider: job.provider, budget: job.budget, description: job.description, statusName: job.statusName },
+    { account: input.account, provider: input.provider, budget: input.budget, description: input.description },
+  );
 }
 
 async function verifyFundedJob(input: {
@@ -695,7 +714,29 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
         value: call.value ? `0x${call.value.toString(16)}` : '0x0' })),
     }] })) as string;
     report({ step: 'confirming', jobId: predictedJobId });
-    const transactionHash = await waitForCalls(callsId);
+    let transactionHash: Hex | null;
+    try {
+      transactionHash = await waitForCalls(callsId);
+    } catch (error) {
+      /*
+       * The wallet stopped reporting. That says we stopped watching, not
+       * that the money stayed put, and the retry beside a generic error is
+       * how a buyer pays twice. Ask the chain what happened.
+       */
+      if (!(error instanceof Error) || error.message !== 'BATCH_CONFIRMATION_TIMEOUT') throw error;
+      const outcome = await readFundingOutcome({ chainId, jobId: predictedJobId, account, provider: input.provider, budget, description });
+      if (outcome !== 'funded') {
+        const unresolved = new Error(describeFundingOutcome(outcome));
+        unresolved.name = retrySafe(outcome) ? 'FUNDING_NOT_SENT' : 'FUNDING_UNRESOLVED';
+        throw unresolved;
+      }
+      /*
+       * It landed. Carry on without a hash we never saw, through the same
+       * verification as any other hire — the job still has to match what
+       * was agreed before this is called a success.
+       */
+      transactionHash = null;
+    }
     await verifyFundedJob({ chainId, jobId: predictedJobId, account,
       provider: input.provider, budget, description });
     report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
