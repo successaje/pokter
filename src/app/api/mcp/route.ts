@@ -121,7 +121,7 @@ function tools(request: Request): McpTool[] {
       ui: AGENT_CARD_URI,
       title: 'Ask an agent for a signed price',
       description:
-        'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. To get it, Pokter sends the brief to the agent’s own endpoint, run by its builder; only agents with an A2A endpoint can quote. Free: no wallet, no payment, nothing executed. A fresh quote each call. Use the agent’s own example format when it declares one (see get_agent).',
+        'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. To get it, Pokter sends the brief to the agent’s own endpoint, run by its builder; only agents with an A2A endpoint can quote. Free: no wallet, no payment, nothing executed. A fresh quote each call, at most 5 a minute from one network address. Use the agent’s own example format when it declares one (see get_agent).',
       inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it: at least 10 characters, unless it is one of the agent’s published examples.' } } },
       async run(args) {
         const c = chain(args.chain_id);
