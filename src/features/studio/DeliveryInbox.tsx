@@ -20,8 +20,8 @@ const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   FUNDED: { label: 'To deliver', tone: 'text-watch' },
   SUBMITTED: { label: 'Buyer reviewing', tone: 'text-info' },
   COMPLETED: { label: 'Paid', tone: 'text-ok' },
-  REJECTED: { label: 'Disputed', tone: 'text-bad' },
-  EXPIRED: { label: 'Expired undelivered', tone: 'text-ink-3' },
+  REJECTED: { label: 'Rejected by vote', tone: 'text-bad' },
+  EXPIRED: { label: 'Expired unpaid', tone: 'text-ink-3' },
 };
 
 const STAGES = { authorizing: 'Sign to authorise this delivery', storing: 'Storing the exact file', submitting: 'Approve the on-chain submission', confirming: 'Confirming on chain' } as const;

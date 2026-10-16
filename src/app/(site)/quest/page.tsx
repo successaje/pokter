@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   FUNDED: 'Funded',
   SUBMITTED: 'Delivered',
   COMPLETED: 'Completed',
-  REJECTED: 'Disputed',
+  REJECTED: 'Rejected',
   EXPIRED: 'Expired',
 };
 

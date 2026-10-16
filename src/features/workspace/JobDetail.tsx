@@ -149,6 +149,8 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const a = useJobActions(initial);
   const job = a.job;
   const phase = jobPhase(job);
+  // The delivery is still on the table while a dispute's vote is open.
+  const delivered = phase === 'review' || (phase === 'disputed' && job.status === 'SUBMITTED');
   const answer = useSellerAnswer(job, phase === 'working');
   /*
    * When the review window closes, read from the escrow: the policy's
@@ -158,7 +160,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const reviewTiming = useQuery({
     queryKey: ['review-timing', job.chainId, job.jobId],
     queryFn: () => readReviewTiming(job.chainId, BigInt(job.jobId)),
-    enabled: phase === 'review',
+    enabled: delivered,
     staleTime: 60_000,
   });
   const now = useNow();
@@ -167,7 +169,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const disputeState = useQuery({
     queryKey: ['dispute-state', job.chainId, job.jobId, a.job.disputeTxHash ?? null],
     queryFn: () => readDisputeState(job.chainId, BigInt(job.jobId)),
-    enabled: phase === 'review',
+    enabled: delivered,
     staleTime: 60_000,
   });
   const dispute =
@@ -237,7 +239,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           </div>
         )}
 
-        {phase === 'review' && (
+        {delivered && (
           <div className="flex flex-col gap-4">
             {dispute && (
               <Notice tone="watch" title={dispute.title}>
@@ -274,7 +276,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 )}
               </li>
             </ol>
-            {owned && !dispute && (
+            {owned && !dispute && phase === 'review' && (
               <div className="flex flex-col gap-3 border-t border-rule pt-4 sm:flex-row sm:items-start sm:justify-between">
                 <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || !a.reviewed || review?.open === true}>
                   {review?.open ? `Release opens ${review.closes}` : 'Release payment'}
@@ -287,9 +289,20 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 </div>
               </div>
             )}
-            <p className="text-[12.5px] text-ink-3">
-              Under the escrow&rsquo;s optimistic policy, doing nothing accepts the delivery: once the review window closes, the payment can be released to the agent. A dispute can only be opened while the window is open, and is decided by the policy&rsquo;s voters.
-            </p>
+            {!dispute && phase === 'review' && (
+              <p className="text-[12.5px] text-ink-3">
+                Under the escrow&rsquo;s optimistic policy, doing nothing accepts the delivery: once the review window closes, the payment can be released to the agent. A dispute can only be opened while the window is open, and is decided by the policy&rsquo;s voters.
+              </p>
+            )}
+          </div>
+        )}
+
+        {phase === 'rejected' && owned && (
+          <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-paper p-4 text-[13px] text-ink-2">
+            <p>The vote rejected the delivery, so the {budgetOf(job)} belongs to the wallet that funded it. If it has not arrived there, reclaim it. If it already has, the attempt reverts and costs only the network fee.</p>
+            <Button intent="secondary" size="s" onClick={() => void a.act('reclaim')} busy={a.busy === 'reclaim'} className="self-start">
+              Reclaim {budgetOf(job)}
+            </Button>
           </div>
         )}
 
@@ -311,7 +324,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           </div>
         )}
 
-        {(phase === 'settled' || phase === 'refunded' || phase === 'disputed') && job.deliverableUrl && a.deliverableUrl && (
+        {(phase === 'settled' || phase === 'refunded' || phase === 'rejected') && job.deliverableUrl && a.deliverableUrl && (
           <a href={a.deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium link">
             Open the delivered file <Icon.ArrowUpRight size={14} />
           </a>

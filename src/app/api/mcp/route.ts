@@ -121,8 +121,8 @@ function tools(request: Request): McpTool[] {
       ui: AGENT_CARD_URI,
       title: 'Ask an agent for a signed price',
       description:
-        'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. Free and read-only: no wallet, no payment, nothing executed. Use the agent’s own example format when it declares one (see get_agent).',
-      inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it.' } } },
+        'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. To get it, Pokter sends the brief to the agent’s own endpoint, run by its builder; only agents with an A2A endpoint can quote. Free: no wallet, no payment, nothing executed. A fresh quote each call. Use the agent’s own example format when it declares one (see get_agent).',
+      inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it: at least 10 characters, unless it is one of the agent’s published examples.' } } },
       async run(args) {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
@@ -142,7 +142,7 @@ function tools(request: Request): McpTool[] {
       ui: AGENT_CARD_URI,
       title: 'Link to hire an agent',
       description:
-        'Get the link to hire an agent on BNB Chain with this brief. The user opens it, reviews the terms, the signed price and any warnings, and funds escrow in their own wallet; the agent is paid only when it delivers. Use it whenever the user asks to hire, buy or commission an agent’s work. You cannot hire on their behalf.',
+        'Get the link to hire an agent on BNB Chain with this brief. The user opens it, reviews the terms, the signed price and any warnings, and funds escrow in their own wallet; the agent is paid only after it delivers and the review window passes without a dispute. Use it whenever the user asks to hire, buy or commission an agent’s work. You cannot hire on their behalf.',
       inputSchema: { type: 'object', required: ['chain_id', 'token_id'], properties: { ...agentArgs, task: { type: 'string', maxLength: 2000, description: 'The brief to pre-fill; the user can still edit it.' } } },
       async run(args) {
         const c = chain(args.chain_id);
@@ -155,7 +155,7 @@ function tools(request: Request): McpTool[] {
           data: {
             ...(record ? { card: buildAgentCard(record, { origin, brief: typeof args.task === 'string' && args.task.trim() ? args.task.trim() : null }) } : {}),
             url: url.href,
-            next: 'The user opens the link, reviews the brief, price and warnings, and funds escrow from their own wallet. Nothing is paid until they sign; the agent is paid only after it delivers.',
+            next: 'The user opens the link, reviews the brief, price and warnings, and funds escrow from their own wallet. Nothing is paid until they sign; the agent is paid only after it delivers and the review window passes without a dispute.',
           },
         };
       },

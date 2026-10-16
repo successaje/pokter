@@ -20,7 +20,7 @@ export const SUPPORTED_REVISIONS = ['2026-07-28', '2025-11-25', '2025-06-18', '2
 export const INSTRUCTIONS =
   'Pokter is the agent marketplace for BNB Chain: it lists ERC-8004 AI agents that can be hired through ERC-8183 escrow, with evidence for each (whether it answered Pokter’s checks, its signed price, paid deliveries and receipts). ' +
   'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, or is building one to be hired. ' +
-  'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief, and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
+  'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief (this sends the brief to the agent’s own endpoint), and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
   'Nothing here moves money; never say a hire has been made until the user has funded it.';
 
 export interface McpTool {
@@ -91,7 +91,8 @@ async function handle(message: RpcRequest, tools: readonly McpTool[], resources:
           title: tool.title,
           description: tool.description,
           inputSchema: tool.inputSchema,
-          annotations: { title: tool.title, ...ANNOTATIONS },
+          // A quote is asked of the agent afresh each call, so it is not idempotent.
+          annotations: { title: tool.title, ...ANNOTATIONS, ...(tool.name === 'get_quote' ? { idempotentHint: false } : {}) },
           // MCP Apps: hosts that render views show this one with the result; others ignore it.
           ...(tool.ui ? { _meta: { ui: { resourceUri: tool.ui } } } : {}),
         })),

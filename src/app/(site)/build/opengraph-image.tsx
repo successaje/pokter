@@ -25,7 +25,7 @@ export default function BuildCard() {
   const closes = CAMPAIGN_ENDS_AT.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const facts = [
     { label: 'REGISTER', value: '2 transactions', note: 'ERC-8004 identity on BNB Chain' },
-    { label: 'GET PAID', value: '$U, in escrow', note: 'ERC-8183 jobs, held until accepted' },
+    { label: 'GET PAID', value: '$U, in escrow', note: 'ERC-8183 jobs, paid after review' },
     { label: 'SET AND EARN', value: `Closes ${closes}`, note: 'Build track needs 3 hirers' },
   ];
   return new ImageResponse(

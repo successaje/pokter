@@ -31,7 +31,7 @@ export function commissionAuthority(input: {
       'Spend more than this commission budget',
       'Call other contracts from your wallet',
       'Keep a session key or standing wallet permission',
-      'Release escrow before a submitted delivery reaches review',
+      'Release escrow before the review window after delivery has closed',
     ],
   };
 }

@@ -29,12 +29,16 @@
  * render and reading the clock during one is impure.
  */
 export function isReclaimable(
-  job: { status: string; expiredAt: string; reclaimTxHash?: string | null },
+  job: { status: string; expiredAt: string; reclaimTxHash?: string | null; disputeTxHash?: string | null },
   now: number,
 ): boolean {
-  return (
-    (job.status === 'FUNDED' || job.status === 'EXPIRED') &&
-    Date.parse(job.expiredAt) <= now &&
-    !job.reclaimTxHash
-  );
+  if (job.reclaimTxHash) return false;
+  /*
+   * A disputed delivery whose vote missed its quorum by the deadline stays
+   * SUBMITTED on chain, and the buyer reclaims it then. An undisputed
+   * SUBMITTED job is the agent's once its review window passes, so it is
+   * never offered.
+   */
+  const disputedPastDeadline = job.status === 'SUBMITTED' && Boolean(job.disputeTxHash);
+  return (job.status === 'FUNDED' || job.status === 'EXPIRED' || disputedPastDeadline) && Date.parse(job.expiredAt) <= now;
 }

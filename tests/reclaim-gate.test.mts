@@ -36,3 +36,12 @@ test('an escrow already reclaimed is not offered again', () => {
     false,
   );
 });
+
+test('a disputed delivery is reclaimable once its deadline passes without a quorum', () => {
+  const disputed = { status: 'SUBMITTED', expiredAt: past, disputeTxHash: '0xd15' };
+  assert.equal(isReclaimable(disputed, now), true);
+  // Before the deadline the vote is still open.
+  assert.equal(isReclaimable({ ...disputed, expiredAt: new Date(now + 60_000).toISOString() }, now), false);
+  // An undisputed delivery is the agent's once its window passes, never the buyer's.
+  assert.equal(isReclaimable({ status: 'SUBMITTED', expiredAt: past }, now), false);
+});

@@ -304,7 +304,7 @@ export async function settleFromExternalWallet(input: {
     throw new Error('ALREADY_COMPLETED: The agent has already been paid. After the review window anyone can release the escrow, and someone did. Nothing is left to do.');
   }
   if (before.statusName === 'REJECTED') {
-    throw new Error('ALREADY_REJECTED: This job was already disputed and resolved, so there is nothing to approve.');
+    throw new Error('ALREADY_REJECTED: This job was already disputed and resolved, so there is nothing to release.');
   }
   if (before.statusName !== 'SUBMITTED') {
     throw new Error(`This job is ${before.statusName.toLowerCase()} and cannot be settled.`);
