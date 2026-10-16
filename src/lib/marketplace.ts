@@ -348,7 +348,40 @@ export async function listMarketplaceWithStatus(
     return { category: id, listings: perChain.flat() };
   });
 
+  await addEnrolledMisses(sections, chains);
+
   return { sections, unreachable: attempts > 0 && failures === attempts, incomplete };
+}
+
+/**
+ * Agents Pokter enrolled for checks that the registry's search did not
+ * surface, placed in the category Pokter's classifier gives them.
+ *
+ * Each category is discovered by asking the registry for its terms and
+ * keeping the top matches, so an agent can be one Pokter registered,
+ * probes, prices and has graded, and still not be listed: mainnet
+ * Cresthold was in no listing and no search, including a search for its
+ * own name, because the name fallback only runs when nothing matches and
+ * its testnet registration always did. Enrolment is Pokter's own record
+ * of the agents it measures (house agents and Studio registrations), so
+ * nothing on it should be unfindable. A registry read that fails leaves
+ * the agent out, as before.
+ */
+async function addEnrolledMisses(sections: { category: Category; listings: Listing[] }[], chains: readonly ChainId[]): Promise<void> {
+  const listed = new Set(sections.flatMap(({ listings }) => listings.map((l) => `${l.agent.chain_id}:${l.agent.token_id}`)));
+  const missing = getProbeStore()
+    .enrolledAgents()
+    .filter((a) => (chains as readonly number[]).includes(a.chainId) && !listed.has(`${a.chainId}:${a.tokenId}`));
+  if (missing.length === 0) return;
+  const found = await mapWithConcurrency(missing, 4, (a) => getAgent(a.chainId as ChainId, a.tokenId).catch(() => null));
+  for (const agent of found) {
+    if (!agent) continue;
+    const category = classify(agent);
+    const section = sections.find((s) => s.category === category);
+    if (!section) continue;
+    const [best] = scoreCategories(agent);
+    section.listings.push({ agent, category, confidence: best?.confidence ?? 0, attestationCount: agent.total_feedbacks });
+  }
 }
 
 /** Everything the detail page needs to justify or warn against a hire. */

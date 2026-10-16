@@ -8,7 +8,9 @@ import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
-import { requestQuote } from '@/lib/erc8183/quote';
+import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
+import { sampleBrief } from '@/lib/erc8183/sample-enquiry';
+import { classify } from '@/lib/agents/categories';
 import {
   getProbeStore,
   type ProbeRecord,
@@ -253,7 +255,7 @@ export async function runSweep({
     // Why it would not quote, kept: the agent's page says so to its owner.
     let failure: QuoteFailure | null = null;
     let refusal: string | null = null;
-    const quote = await requestQuote(agent, {
+    let quote = await requestQuote(agent, {
       onFailure: (reason) => {
         failure = reason;
       },
@@ -261,6 +263,36 @@ export async function runSweep({
         refusal = reason;
       },
     });
+    /*
+     * Declined the generic enquiry: ask once more with a concrete job in its
+     * category. An agent that will not price unseen work is right not to,
+     * and recording that as "it declines" blamed it for Pokter's question.
+     * Only after a stated refusal, so an agent that is down or unsigned is
+     * not asked twice.
+     */
+    const sample = !quote && refusal ? sampleBrief(classify(agent)) : null;
+    if (sample) {
+      let retryFailure: QuoteFailure | null = null;
+      let retryRefusal: string | null = null;
+      const retried = await requestQuote(agent, {
+        enquiry: { task_description: sample, terms: POKTER_TERMS },
+        onFailure: (reason) => {
+          retryFailure = reason;
+        },
+        onRefused: (reason) => {
+          retryRefusal = reason;
+        },
+      });
+      if (retried) {
+        quote = retried;
+        failure = null;
+        refusal = null;
+      } else if (retryFailure) {
+        // What it said to a real brief is the more useful finding.
+        failure = retryFailure;
+        refusal = retryRefusal ?? refusal;
+      }
+    }
     if (!quote && failure) {
       const known = failure as QuoteFailure;
       quoteFailures.push({ chainId: agent.chain_id, tokenId: agent.token_id, code: known.code, detail: known.detail ?? null, sellerReason: refusal ?? known.sellerReason ?? null, observedAt: new Date().toISOString() });
