@@ -227,6 +227,8 @@ export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { t
   for (const [key, wanted] of Object.entries(expected)) {
     const got = find(record, key);
     observed[key] = got;
+    // Not stated is not the same as stated wrongly, and "answered undefined" told a builder nothing.
+    if (got === undefined || got === null) return { pass: false, observed, reason: `The answer does not state ${key.replaceAll('_', ' ')}; the scenario expects ${String(wanted)}.` };
     if (typeof wanted === 'number') {
       const numeric = typeof got === 'number' ? got : typeof got === 'string' ? Number(got) : Number.NaN;
       const tolerance = Math.max(0.01, Math.abs(wanted) * 0.005);
