@@ -12,10 +12,11 @@ import { jobHref } from '@/lib/jobs/href';
 import { chainLabel } from '@/lib/network/presentation';
 import { withPublicEndpoint } from '@/lib/proof/prober';
 import {
-  IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage,
+  IDENTITY_CHALLENGE_TTL_MS, notificationIdentityMessage, sendingAddress,
   type IdentityPurpose, type IdentityPurposeKind, type NotificationIdentity,
 } from '@/lib/notifications/identity';
 import { subscriptionPreVerified, type JobUpdateRow } from '@/lib/notifications/job-updates';
+import { addressChangePlan, type AddressChangeChoice } from '@/lib/notifications/preferences';
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
@@ -599,6 +600,14 @@ function identityDb() {
    */
   addColumn(database, 'notification_identity_challenges', "purpose TEXT NOT NULL DEFAULT 'claim'");
   addColumn(database, 'notification_identity_challenges', 'job_id TEXT');
+  /*
+   * A pending change remembers the address it is replacing and what the
+   * buyer chose for work already running. Both are needed at verification
+   * and not before: until the new inbox confirms, moving anything there
+   * would send mail to an address nobody has proven.
+   */
+  addColumn(database, 'notification_identities', 'previous_email TEXT');
+  addColumn(database, 'notification_identities', "on_verify TEXT NOT NULL DEFAULT 'move'");
   return database;
 }
 
@@ -663,13 +672,37 @@ export function readIdentity(wallet: string, chainId: number): NotificationIdent
   const row = identityDb()
     .prepare('SELECT * FROM notification_identities WHERE wallet_address = ? AND chain_id = ?')
     .get(wallet.toLowerCase(), chainId) as
-    | { wallet_address: string; chain_id: number; email: string; proven_at: string | null; verified_at: string | null; removed_at: string | null }
+    | {
+      wallet_address: string; chain_id: number; email: string; proven_at: string | null;
+      verified_at: string | null; removed_at: string | null; previous_email: string | null;
+    }
     | undefined;
   if (!row) return null;
   return {
     wallet: row.wallet_address, chainId: row.chain_id, email: row.email,
     provenAt: row.proven_at, verifiedAt: row.verified_at, removedAt: row.removed_at,
+    previousEmail: row.previous_email,
   };
+}
+
+/**
+ * The jobs this wallet's address is currently sending updates about.
+ *
+ * Read from the address rather than the wallet column, because the address
+ * is what decides where mail goes — including rows created before this
+ * wallet ever proved anything, by typing the same address into a job page.
+ * Settings has to show those too, or it would offer to stop mail it claims
+ * does not exist.
+ */
+export function runningJobUpdates(wallet: string, chainId: number): { jobId: string; includeAnswer: boolean }[] {
+  const email = sendingAddress(readIdentity(wallet, chainId));
+  if (!email) return [];
+  return (db()
+    .prepare(`SELECT job_id,include_answer FROM notification_subscriptions
+      WHERE email=? AND chain_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL
+      ORDER BY CAST(job_id AS INTEGER) DESC`)
+    .all(email, chainId) as { job_id: string; include_answer: number }[])
+    .map((row) => ({ jobId: row.job_id, includeAnswer: row.include_answer === 1 }));
 }
 
 /**
@@ -681,31 +714,100 @@ export function readIdentity(wallet: string, chainId: number): NotificationIdent
  * verified row keeps its verification until a new address is confirmed —
  * so changing an email never silently stops updates mid-job.
  */
-export function recordIdentityProof(input: { wallet: string; chainId: number; email: string; token: string }): void {
+export function recordIdentityProof(input: {
+  wallet: string; chainId: number; email: string; token: string;
+  /** What to do with running jobs once the new inbox confirms. */
+  onVerify?: AddressChangeChoice;
+}): void {
   const now = new Date().toISOString();
   const existing = readIdentity(input.wallet, input.chainId);
   const keepVerified = existing && existing.email === input.email && existing.verifiedAt && !existing.removedAt;
+  /*
+   * The address being replaced, kept only while a replacement is pending.
+   * A re-confirmation of the same address replaces nothing, so it records
+   * nothing to move.
+   */
+  const previous = existing && existing.verifiedAt && !existing.removedAt && existing.email !== input.email
+    ? existing.email
+    : null;
   identityDb()
     .prepare(`INSERT INTO notification_identities
-      (wallet_address,chain_id,email,verification_hash,proven_at,verified_at,removed_at,created_at)
-      VALUES (?,?,?,?,?,?,NULL,?)
+      (wallet_address,chain_id,email,verification_hash,proven_at,verified_at,removed_at,created_at,previous_email,on_verify)
+      VALUES (?,?,?,?,?,?,NULL,?,?,?)
       ON CONFLICT(wallet_address,chain_id) DO UPDATE SET
         email=excluded.email, verification_hash=excluded.verification_hash,
-        proven_at=excluded.proven_at, verified_at=excluded.verified_at, removed_at=NULL`)
-    .run(input.wallet.toLowerCase(), input.chainId, input.email, hash(input.token), now, keepVerified ? existing!.verifiedAt : null, now);
+        proven_at=excluded.proven_at, verified_at=excluded.verified_at, removed_at=NULL,
+        previous_email=excluded.previous_email, on_verify=excluded.on_verify`)
+    .run(
+      input.wallet.toLowerCase(), input.chainId, input.email, hash(input.token), now,
+      keepVerified ? existing!.verifiedAt : null, now, previous, input.onVerify ?? 'move',
+    );
 }
 
-/** Confirm the inbox, from the emailed link. */
-export function verifyIdentity(token: string): { wallet: string; chainId: number } | null {
+/**
+ * Confirm the inbox, from the emailed link, and settle what the buyer chose
+ * for work already running.
+ *
+ * The choice is applied here and nowhere earlier. Moving a live escrow's
+ * updates to an address at claim time would send them somewhere nobody had
+ * proven; this is the first moment the new inbox has said anything.
+ */
+export function verifyIdentity(token: string): { wallet: string; chainId: number; moved: number; stopped: number } | null {
   const database = identityDb();
   const row = database
-    .prepare('SELECT wallet_address, chain_id FROM notification_identities WHERE verification_hash = ? AND removed_at IS NULL')
-    .get(hash(token)) as { wallet_address: string; chain_id: number } | undefined;
+    .prepare(`SELECT wallet_address, chain_id, email, previous_email, on_verify
+      FROM notification_identities WHERE verification_hash = ? AND removed_at IS NULL`)
+    .get(hash(token)) as
+    | { wallet_address: string; chain_id: number; email: string; previous_email: string | null; on_verify: string }
+    | undefined;
   if (!row) return null;
+  const now = new Date().toISOString();
   database
     .prepare('UPDATE notification_identities SET verified_at = COALESCE(verified_at, ?) WHERE wallet_address = ? AND chain_id = ?')
-    .run(new Date().toISOString(), row.wallet_address, row.chain_id);
-  return { wallet: row.wallet_address, chainId: row.chain_id };
+    .run(now, row.wallet_address, row.chain_id);
+
+  let moved = 0;
+  let stopped = 0;
+  if (row.previous_email && row.previous_email !== row.email) {
+    const running = db()
+      .prepare(`SELECT job_id,include_answer FROM notification_subscriptions
+        WHERE email=? AND chain_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`)
+      .all(row.previous_email, row.chain_id) as { job_id: string; include_answer: number }[];
+    const plan = addressChangePlan({
+      running: running.map((job) => ({ chainId: row.chain_id, jobId: job.job_id })),
+      choice: row.on_verify === 'stop' ? 'stop' : 'move',
+    });
+    for (const job of plan.move) {
+      const previous = running.find((candidate) => candidate.job_id === job.jobId);
+      /*
+       * The new row is confirmed on creation: the inbox proved itself a
+       * moment ago, by the link being clicked. The old row is retired
+       * rather than edited, so the move leaves a record of where the mail
+       * used to go.
+       */
+      db().prepare(`INSERT INTO notification_subscriptions
+        (id,email,wallet_address,chain_id,job_id,verification_hash,verified_at,created_at,include_answer)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(email,chain_id,job_id) DO UPDATE SET
+          verified_at=COALESCE(notification_subscriptions.verified_at, excluded.verified_at),
+          include_answer=excluded.include_answer, unsubscribed_at=NULL`).run(
+        randomUUID(), row.email, row.wallet_address, row.chain_id, job.jobId,
+        hash(randomBytes(32).toString('base64url')), now, now, previous?.include_answer ?? 0,
+      );
+      moved += 1;
+    }
+    stopped = plan.stop.length;
+    /*
+     * The old rows are retired either way. A moved job already has its new
+     * row above, so leaving the old one live would send both.
+     */
+    db().prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
+      WHERE email=? AND chain_id=? AND unsubscribed_at IS NULL`).run(now, row.previous_email, row.chain_id);
+    database
+      .prepare('UPDATE notification_identities SET previous_email=NULL WHERE wallet_address=? AND chain_id=?')
+      .run(row.wallet_address, row.chain_id);
+  }
+  return { wallet: row.wallet_address, chainId: row.chain_id, moved, stopped };
 }
 
 /* ---------------------------------------------------------------------- *
@@ -722,12 +824,12 @@ export function verifyIdentity(token: string): { wallet: string; chainId: number
  * address".
  */
 export function readJobUpdateRow(input: { wallet: string; chainId: number; jobId: string }): JobUpdateRow | null {
-  const identity = readIdentity(input.wallet, input.chainId);
-  if (!identity || identity.removedAt) return null;
+  const email = sendingAddress(readIdentity(input.wallet, input.chainId));
+  if (!email) return null;
   const row = db()
     .prepare(`SELECT email,verified_at,unsubscribed_at,include_answer FROM notification_subscriptions
       WHERE email=? AND chain_id=? AND job_id=?`)
-    .get(identity.email, input.chainId, input.jobId) as
+    .get(email, input.chainId, input.jobId) as
     | { email: string; verified_at: string | null; unsubscribed_at: string | null; include_answer: number }
     | undefined;
   if (!row) return null;
@@ -785,12 +887,12 @@ export function subscribeFromIdentity(input: {
  * this direction costs a signature when turning updates on does not.
  */
 export function stopJobUpdates(input: { wallet: string; chainId: number; jobId: string }): boolean {
-  const identity = readIdentity(input.wallet, input.chainId);
-  if (!identity) return false;
+  const email = sendingAddress(readIdentity(input.wallet, input.chainId));
+  if (!email) return false;
   const result = db()
     .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
       WHERE email=? AND chain_id=? AND job_id=? AND unsubscribed_at IS NULL`)
-    .run(new Date().toISOString(), identity.email, input.chainId, input.jobId);
+    .run(new Date().toISOString(), email, input.chainId, input.jobId);
   return result.changes > 0;
 }
 
@@ -808,12 +910,12 @@ export function stopJobUpdates(input: { wallet: string; chainId: number; jobId: 
  */
 export function removeIdentity(wallet: string, chainId: number): { stoppedJobs: number } {
   const now = new Date().toISOString();
-  const identity = readIdentity(wallet, chainId);
-  const stopped = identity
+  const email = sendingAddress(readIdentity(wallet, chainId));
+  const stopped = email
     ? db()
       .prepare(`UPDATE notification_subscriptions SET unsubscribed_at=?
         WHERE email=? AND chain_id=? AND unsubscribed_at IS NULL`)
-      .run(now, identity.email, chainId).changes
+      .run(now, email, chainId).changes
     : 0;
   identityDb()
     .prepare('UPDATE notification_identities SET removed_at = ? WHERE wallet_address = ? AND chain_id = ?')

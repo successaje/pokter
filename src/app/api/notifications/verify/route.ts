@@ -25,7 +25,16 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!target) {
     const identity = verifyIdentity(token);
     if (identity) {
-      return NextResponse.redirect(new URL('/workspace/inbox?email=verified', siteUrl()), 303);
+      /*
+       * The counts travel with the redirect, because confirming an address
+       * is not subscribing to anything and the job copy would say it was.
+       * See `describeAddressConfirmed`.
+       */
+      const query = new URLSearchParams({
+        email: 'verified', address: '1',
+        moved: String(identity.moved), stopped: String(identity.stopped),
+      });
+      return NextResponse.redirect(new URL(`/workspace/inbox?${query}`, siteUrl()), 303);
     }
   }
   // The public origin, not request.url: behind the proxy that is the

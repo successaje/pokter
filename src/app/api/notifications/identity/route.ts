@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { identityState, maskEmail } from '@/lib/notifications/identity';
+import { identityState, maskEmail, sendingAddress } from '@/lib/notifications/identity';
+import { describeAddressChange, type AddressChangeChoice } from '@/lib/notifications/preferences';
 import {
   consumeIdentityChallenge, createIdentityChallenge, readIdentity,
-  recordIdentityProof, removeIdentity,
+  recordIdentityProof, removeIdentity, runningJobUpdates,
 } from '@/lib/notifications/server';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -57,7 +58,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 254) {
       return NextResponse.json({ error: 'That does not look like an email address.' }, { status: 400 });
     }
-    return NextResponse.json({ challenge: createIdentityChallenge({ wallet, chainId, purpose: { kind: 'claim', email } }) });
+    return NextResponse.json({
+      challenge: createIdentityChallenge({ wallet, chainId, purpose: { kind: 'claim', email } }),
+      /*
+       * What a change would do to work already running, so the buyer reads
+       * it before signing rather than after.
+       */
+      running: runningJobUpdates(wallet, chainId).length,
+    });
   }
 
   if (body.action === 'claim') {
@@ -94,8 +102,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      * are required before anything is called enabled — see
      * `identityState`.
      */
+    /*
+     * What happens to running jobs if this is a change. Defaults to
+     * carrying them over: a buyer replacing an address has not asked to
+     * stop hearing about work they already paid for.
+     */
+    const onVerify: AddressChangeChoice = body.runningJobs === 'stop' ? 'stop' : 'move';
     const token = crypto.randomUUID();
-    recordIdentityProof({ wallet, chainId, email: challenge.email, token });
+    recordIdentityProof({ wallet, chainId, email: challenge.email, token, onVerify });
     const row = readIdentity(wallet, chainId);
 
     return NextResponse.json({
@@ -107,7 +121,7 @@ export async function POST(request: Request): Promise<NextResponse> {
        * it would make every test run a real send.
        */
       verification: { token },
-      next: 'Confirm the link sent to that address. Until it is confirmed, nothing is sent there.',
+      next: describeAddressChange(onVerify, runningJobUpdates(wallet, chainId).length),
     });
   }
 
@@ -154,9 +168,18 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!isAddress(walletRaw) || !isEscrowChain(chainId)) {
     return NextResponse.json({ error: 'A wallet address and a supported chain are required.' }, { status: 400 });
   }
-  const row = readIdentity(getAddress(walletRaw), chainId);
+  const wallet = getAddress(walletRaw);
+  const row = readIdentity(wallet, chainId);
+  const state = identityState(row);
   return NextResponse.json({
-    state: identityState(row),
+    state,
     email: row ? maskEmail(row.email) : null,
+    /*
+     * Where mail is going right now, which during a change is the old
+     * address. Reporting only the new one would have Settings claim an
+     * inbox that has confirmed nothing is already receiving.
+     */
+    sendingTo: sendingAddress(row) ? maskEmail(sendingAddress(row)!) : null,
+    jobs: runningJobUpdates(wallet, chainId),
   });
 }

@@ -128,6 +128,12 @@ export interface NotificationIdentity {
   /** When the inbox confirmed the link. */
   verifiedAt: string | null;
   removedAt: string | null;
+  /**
+   * The confirmed address this one is replacing, while the replacement is
+   * still unconfirmed. Null once it confirms, and null when nothing is
+   * being replaced.
+   */
+  previousEmail?: string | null;
 }
 
 /**
@@ -137,11 +143,16 @@ export interface NotificationIdentity {
  * Showing "Enabled" after only one of them is how somebody ends up
  * believing they will be told about a delivery that they will not.
  */
-export function identityState(row: NotificationIdentity | null, replacement?: NotificationIdentity | null): IdentityState {
-  if (replacement && !replacement.verifiedAt && row?.verifiedAt) return 'replacing';
+export function identityState(row: NotificationIdentity | null): IdentityState {
   if (!row || row.removedAt) return 'none';
   if (!row.provenAt) return 'pending-signature';
-  if (!row.verifiedAt) return 'pending-email';
+  /*
+   * A change in flight is its own state, not just "unconfirmed". The jobs
+   * already running keep sending to the address on file, so telling the
+   * buyer their email is merely pending would understate what is still
+   * happening in their inbox.
+   */
+  if (!row.verifiedAt) return row.previousEmail ? 'replacing' : 'pending-email';
   return 'ready';
 }
 
@@ -159,6 +170,20 @@ export function identityUsable(row: NotificationIdentity | null): boolean {
  */
 export function canSubscribeSilently(row: NotificationIdentity | null): boolean {
   return identityUsable(row);
+}
+
+/**
+ * The address mail is actually going to right now.
+ *
+ * During a change that is the old, confirmed address — not the new one.
+ * The new one has proven nothing yet, and the jobs already running are
+ * still sending to the address on file. Anything that reads, stops or
+ * lists live subscriptions has to use this, or it will miss them and tell
+ * the buyer nothing is sending while their inbox fills up.
+ */
+export function sendingAddress(row: NotificationIdentity | null): string | null {
+  if (!row || row.removedAt) return null;
+  return row.previousEmail ?? row.email;
 }
 
 /**

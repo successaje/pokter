@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   canSubscribeSilently, identityKey, identityState, identityUsable,
-  maskEmail, notificationIdentityMessage,
+  maskEmail, notificationIdentityMessage, sendingAddress,
   type IdentityPurpose, type NotificationIdentity,
 } from '../src/lib/notifications/identity';
 
@@ -44,11 +44,18 @@ test('a proven identity is still not consent to subscribe to every job', () => {
   assert.equal(canSubscribeSilently(null), false);
 });
 
-test('the old address stays live while a replacement is unverified', () => {
-  // Otherwise changing an email would silently stop updates mid-job.
-  const current = row();
-  const incoming = row({ email: 'new@example.com', verifiedAt: null });
-  assert.equal(identityState(current, incoming), 'replacing');
+test('a change in flight is its own state, not just "unconfirmed"', () => {
+  /*
+   * The jobs already running keep sending to the address on file until the
+   * new one confirms, so calling this merely pending would understate what
+   * is still arriving in the buyer's inbox.
+   */
+  const changing = row({ email: 'new@example.com', verifiedAt: null, previousEmail: 'buyer@example.com' });
+  assert.equal(identityState(changing), 'replacing');
+  assert.equal(identityUsable(changing), false, 'the new address cannot be reused until it confirms');
+
+  // A first address, with nothing to replace, is simply pending.
+  assert.equal(identityState(row({ verifiedAt: null, previousEmail: null })), 'pending-email');
 });
 
 test('a proof is scoped to one chain, so testnet cannot speak for mainnet', () => {
@@ -109,4 +116,17 @@ test('a displayed address never carries the whole inbox', () => {
   assert.equal(maskEmail('buyer@example.com'), 'b•••r@example.com');
   assert.equal(maskEmail('ab@example.com'), 'a•@example.com');
   assert.equal(maskEmail('not-an-email'), '•••');
+});
+
+test('during a change, mail is still going to the old address', () => {
+  /*
+   * Anything that reads, stops or lists live subscriptions has to use this.
+   * Reading the new address instead would find no rows and tell the buyer
+   * nothing is sending, while their old inbox keeps filling up.
+   */
+  const changing = row({ email: 'new@example.com', verifiedAt: null, previousEmail: 'buyer@example.com' });
+  assert.equal(sendingAddress(changing), 'buyer@example.com');
+  assert.equal(sendingAddress(row()), 'buyer@example.com', 'with nothing in flight it is simply the address');
+  assert.equal(sendingAddress(row({ removedAt: '2026-10-16T13:00:00Z' })), null, 'a removed address sends nothing');
+  assert.equal(sendingAddress(null), null);
 });

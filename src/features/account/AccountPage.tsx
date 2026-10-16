@@ -6,18 +6,17 @@ import { useState, useSyncExternalStore } from 'react';
 
 import { NETWORK_LABEL } from '@/lib/network/presentation';
 import { notificationSettings, saveNotificationSettings, subscribeToNotifications } from '@/lib/wallet/notifications';
+import { NotificationEmail } from './NotificationEmail';
 import { revokeExternalWalletAllowance } from '@/lib/wallet/external';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
 import { useWalletState } from '@/shell/wallet/useWalletState';
 import { usePwaInstall } from '@/shell/PwaProvider';
 import { ThemeSegmented } from '@/shell/ThemeControl';
-import { jobPhase, useMyJobs } from '@/features/workspace/hooks';
 import { PageHeader } from '@/features/workspace/parts';
 import { Button, LinkButton } from '@/ui/Button';
 import { Address } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
-import { Field, Input, Select } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: React.ReactNode }) {
@@ -41,13 +40,6 @@ function Notifications({ address }: { address: string }) {
     () => '{}',
   );
   const s = JSON.parse(settings) as ReturnType<typeof notificationSettings>;
-  const { jobs } = useMyJobs();
-  const active = jobs.filter((j) => ['working', 'review'].includes(jobPhase(j)));
-  const [email, setEmail] = useState('');
-  const [chosenJob, setJobId] = useState('');
-  // Always one of the jobs actually listed, even as the list changes.
-  const jobId = active.some((j) => j.jobId === chosenJob) ? chosenJob : (active[0]?.jobId ?? '');
-  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
 
   const toggleBrowser = async (on: boolean) => {
@@ -79,56 +71,7 @@ function Notifications({ address }: { address: string }) {
           <input type="checkbox" className="size-5 accent-[var(--ink)]" checked={Boolean(s.browser)} onChange={(e) => void toggleBrowser(e.target.checked)} />
         </label>
       </div>
-      <div className="flex flex-col gap-3 rounded-[12px] border border-rule p-4">
-        <p className="text-sm font-medium">Email me about a job</p>
-        <p className="text-[12.5px] text-ink-3">Emails are per job and need confirming. Pokter checks on chain that this wallet funded it.</p>
-        {active.length === 0 ? (
-          <p className="text-[13px] text-ink-3">No job in progress to follow.</p>
-        ) : (
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setState('busy');
-              setMessage(null);
-              try {
-                const r = await fetch('/api/notifications/subscribe', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ email, walletAddress: address, jobId }),
-                });
-                const body = (await r.json().catch(() => ({}))) as { error?: string };
-                if (!r.ok) throw new Error(body.error ?? 'The subscription was not accepted.');
-                setState('sent');
-              } catch (err) {
-                setMessage((err as Error).message);
-                setState('error');
-              }
-            }}
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Job">
-                {(p) => (
-                  <Select {...p} value={jobId} onChange={(e) => setJobId(e.target.value)}>
-                    {active.map((j) => (
-                      <option key={j.jobId} value={j.jobId}>
-                        #{j.jobId} · {j.agentName}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <Field label="Email">
-                {(p) => <Input {...p} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}
-              </Field>
-            </div>
-            <Button type="submit" intent="secondary" busy={state === 'busy'} className="self-start">
-              Send confirmation
-            </Button>
-            {state === 'sent' && <Notice tone="ok">Check your inbox for a confirmation link.</Notice>}
-          </form>
-        )}
-      </div>
+      <NotificationEmail address={address} />
       {message && <Notice tone="watch">{message}</Notice>}
     </div>
   );
