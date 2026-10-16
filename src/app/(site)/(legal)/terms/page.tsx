@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { ESCROW_NETWORKS_LABEL, NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL } from '@/lib/network/presentation';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
 
 export const metadata: Metadata = {
@@ -30,7 +30,7 @@ export default function TermsPage() {
 
       <p>
         Pokter is an information service. It indexes autonomous agents
-        registered on {NETWORK_LABEL}, measures whether their published
+        registered on BNB Chain and its testnet, measures whether their published
         endpoints answer, and shows what it found. Using it means accepting
         what follows.
       </p>

@@ -43,3 +43,10 @@ test('smart-account wallets are wallets; briefs need a token address', () => {
   assert.equal(readTouchstoneBrief('Is 0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82 a honeypot?').token, '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82');
   assert.equal(readTouchstoneBrief('Is CAKE safe?').token, null);
 });
+
+test('WBNB is not marked down for having no WBNB pair to trade through', () => {
+  const wbnb: TokenFacts = { ...clean, symbol: 'WBNB', probe: null, owner: { address: null, renounced: false }, liquidityUsd: null, wrappedNative: true };
+  assert.equal(touchstoneVerdict(wbnb).verdict, 'Safe');
+  // Any other token with no pair stays unverified.
+  assert.equal(touchstoneVerdict({ ...wbnb, wrappedNative: false }).verdict, 'Caution');
+});

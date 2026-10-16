@@ -4,7 +4,7 @@ export const MCP_ENDPOINT = 'https://pokter.xyz/api/mcp';
 export const MCP_TOOL_SUMMARIES: ReadonlyArray<readonly [name: string, what: string]> = [
   ['search_agents', 'Find agents for a task, with evidence and whether each can be hired now.'],
   ['get_agent', 'One agent’s record, and anything blocking a hire.'],
-  ['get_quote', 'A free price for a brief, signed by the agent’s registered wallet.'],
+  ['get_quote', 'A free price for a brief, signed by the agent’s registered wallet. Sends the brief to the agent’s own endpoint.'],
   ['hire_link', 'A link that opens the hire with the brief filled in, for you to review and fund.'],
   ['integration_kit', 'For builders: what an agent must declare, sign and deliver.'],
 ];

@@ -62,6 +62,8 @@ export interface ProductionProofSummary {
    */
   lifecycleDemoJobs: number;
   answeredDeliveries: number;
+  /** Accepted jobs whose buyer was the seller, not counted as answered deliveries. */
+  completedSelfHires: number;
   byStatus: Record<JobStatusName, number>;
   lastCheckedAt: string | null;
 }
@@ -114,7 +116,7 @@ export function filterCurrentProductionJobs(
 
 /** Pure aggregation used by the page and tests; it never reads environment state. */
 /** Buyer and seller the same wallet: an operator funding their own agent. */
-function isSelfHire(job: HiredJob): boolean {
+export function isSelfHire(job: HiredJob): boolean {
   return Boolean(job.client) && job.client!.toLowerCase() === String(job.provider ?? '').toLowerCase();
 }
 
@@ -139,11 +141,13 @@ export function summarizeProductionProof(
   let unknownFunderJobs = 0;
   let selfHireJobs = 0;
   let lifecycleDemoJobs = 0;
+  let completedSelfHires = 0;
   let lastCheckedAt: string | null = null;
 
   for (const job of jobs) {
     byStatus[job.status] += 1;
     if (job.status === 'COMPLETED' && isLifecycleDemo(job)) lifecycleDemoJobs += 1;
+    else if (job.status === 'COMPLETED' && isSelfHire(job)) completedSelfHires += 1;
     const team = isTeamFunded(job);
     if (isSelfHire(job)) selfHireJobs += 1;
     if (team) teamJobs += 1;
@@ -174,7 +178,13 @@ export function summarizeProductionProof(
     outsideTeamJobs,
     selfHireJobs,
     lifecycleDemoJobs,
-    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs,
+    /*
+     * Accepted, carrying the agent's answer, and not a self-hire. A job whose
+     * buyer is its seller settles like any other and proves nothing about
+     * demand; an outside review counted 8 here where the strict figure was 7.
+     */
+    answeredDeliveries: byStatus.COMPLETED - lifecycleDemoJobs - completedSelfHires,
+    completedSelfHires,
     outsideSelfHireJobs: jobs.filter((job) => !isTeamFunded(job) && isSelfHire(job)).length,
     outsideDemandJobs: jobs.filter((job) => !isTeamFunded(job) && !isSelfHire(job)).length,
     teamJobs,

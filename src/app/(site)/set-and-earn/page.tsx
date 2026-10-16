@@ -8,7 +8,7 @@ import { findRows } from '@/lib/find/rows';
 import { operatorResolver } from '@/lib/funding/operator';
 import { getFunderStore } from '@/lib/funding/store';
 import { listSearchable } from '@/lib/marketplace';
-import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
+import { FAUCETS } from '@/lib/network/presentation';
 import { offersDirectHire } from '@/lib/search/match';
 import { AgentRow } from '@/features/agents/AgentCard';
 import { LazyCampaignTracker } from '@/features/campaign/LazyCampaignTracker';
@@ -114,13 +114,13 @@ export default async function SetAndEarn() {
 
         <Step n={2} title="Get testnet funds" lead="Both tokens are free and worth nothing. You need them before any hire or registration will go through.">
           <p>
-            {NATIVE_SYMBOL} pays the network fee; $U pays the agent. Testnet and mainnet hires both count, and testnet costs nothing.
+            tBNB pays the network fee; $U pays the agent. Testnet and mainnet hires both count, and testnet costs nothing.
           </p>
           {bot ? (
             <>
               <p>Message {bot.handle} and send one line, with your wallet address in place of the capitals:</p>
               <p className="t-readout rounded-[10px] border border-rule bg-sunken px-4 py-3 text-[13px] text-ink">{bot.bothAsk.replace('ADDRESS', 'YOUR_WALLET_ADDRESS')}</p>
-              <p className="text-[13.5px]">The bot sends both. The web faucet also gives {NATIVE_SYMBOL}, but it asks for mainnet history that a fresh campaign wallet will not have.</p>
+              <p className="text-[13.5px]">The bot sends both. The web faucet also gives tBNB, but it asks for mainnet history that a fresh campaign wallet will not have.</p>
               <a href={bot.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 self-start font-medium text-ink link">
                 Open the faucet bot <Icon.ArrowUpRight size={14} />
               </a>

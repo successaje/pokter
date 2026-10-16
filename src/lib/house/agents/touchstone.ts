@@ -129,6 +129,7 @@ export const touchstone: HouseAgentDefinition = {
     }
     const facts: TokenFacts = {
       isContract: true,
+      wrappedNative: token.toLowerCase() === WBNB.toLowerCase(),
       symbol,
       probe,
       owner: { address: owner, renounced, isContract: ownerIsContract },

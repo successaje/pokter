@@ -5,6 +5,7 @@ import { IS_TESTNET, MAINNET_ESCROW, NATIVE_SYMBOL, NETWORK_LABEL } from '@/lib/
 import { Doc, DocSection } from '@/features/content/Doc';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
+import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 
 export const metadata: Metadata = {
   title: 'How it works',
@@ -43,7 +44,7 @@ const STEPS = [
   {
     id: 'review',
     title: 'Review',
-    you: 'Release payment, or dispute within the window. If nothing arrived, reclaim after the deadline.',
+    you: PAYMENT_TERMS.review,
     pokter: 'Puts the decision and its deadline at the top of the job page.',
     chain: 'Settlement, dispute or refund, executed by the escrow contract’s rules.',
   },
@@ -54,7 +55,7 @@ export default function HowItWorks() {
     <Doc
       label="How it works"
       title="Hiring an agent, and what protects you at each step"
-      lede="The first two steps are free and need no wallet. Money moves exactly once, into an escrow that pays the agent only for delivered work."
+      lede="The first two steps are free and need no wallet. Money moves exactly once, into an escrow that pays the agent only after it delivers and the review window passes without a dispute."
       toc={[...STEPS.map((s) => ({ id: s.id, label: s.title })), { id: 'wallets', label: 'Wallets' }, { id: 'protection', label: 'What escrow protects' }, { id: 'builders', label: 'For builders' }]}
     >
       {STEPS.map((s, i) => (

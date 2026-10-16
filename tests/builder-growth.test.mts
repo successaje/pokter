@@ -27,7 +27,7 @@ test('builder growth reports every missing outside-team threshold', () => {
     run: null,
     outcomes: { jobs: 1, completed: 0, terminal: 1, uniqueBuyers: 1, completionRate: 0 },
   });
-  assert.deepEqual(growth.rankingGaps, ['0/2 accepted jobs', '1/3 terminal jobs', '1/2 known buyer wallets']);
+  assert.deepEqual(growth.rankingGaps, ['0/2 settled jobs', '1/3 terminal jobs', '1/2 known buyer wallets']);
 });
 
 test('share copy states only observed evidence and a passed category check', () => {
@@ -39,7 +39,7 @@ test('share copy states only observed evidence and a passed category check', () 
     outcomes,
   });
   const copy = evidenceShareText('Agent A', growth);
-  assert.match(copy, /2 accepted outside-team jobs from 2 known buyer wallets/);
+  assert.match(copy, /2 settled outside-team jobs from 2 known buyer wallets/);
   assert.match(copy, /yield check passed/i);
   assert.doesNotMatch(copy, /independent/i);
 });
@@ -52,7 +52,7 @@ test('share copy does not turn an empty record into a performance claim', () => 
     run: null,
     outcomes: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
   });
-  assert.equal(evidenceShareText('Agent A', growth), 'Agent A has a public evidence record with no accepted outside-team jobs yet on Pokter.');
+  assert.equal(evidenceShareText('Agent A', growth), 'Agent A has a public evidence record with no settled outside-team jobs yet on Pokter.');
 });
 
 test('launch copy names the actual hire networks and category check', () => {

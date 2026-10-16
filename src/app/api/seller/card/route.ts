@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
+import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<NextResponse> {
   const origin = new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311',
+    siteUrl(),
   );
   return NextResponse.json({
     name: 'Pokter Delivery Agent',

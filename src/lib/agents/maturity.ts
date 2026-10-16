@@ -81,7 +81,7 @@ export const LADDER_MEANING: Record<MaturityId, string> = {
   priced: 'A buyer can get current terms, signed by the agent’s wallet, that an escrow can pay.',
   delivered: 'At least one paid job delivered from the agent’s own wallet. Lifecycle demonstrations and deliveries Pokter’s wallets submitted do not count.',
   checked: 'Passed the latest correctness check for its category, judged against chain data.',
-  'proven-in-use': `Accepted work from at least ${MARKET_PROVEN_BUYERS} buyer wallets outside Pokter’s team, ${MARKET_PROVEN_COMPLETIONS} or more jobs.`,
+  'proven-in-use': `Settled work from at least ${MARKET_PROVEN_BUYERS} buyer wallets outside Pokter’s team, ${MARKET_PROVEN_COMPLETIONS} or more jobs.`,
 };
 
 /** The ladder's steps, in order, for pages that describe it. */
@@ -134,7 +134,7 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
       label: LABEL['proven-in-use'],
       earned: earned['proven-in-use'],
       detail:
-        `${facts.outsideTeam.completed}/${MARKET_PROVEN_COMPLETIONS} accepted outside-team jobs from ${facts.outsideTeam.uniqueBuyers}/${MARKET_PROVEN_BUYERS} buyer wallets.` +
+        `${facts.outsideTeam.completed}/${MARKET_PROVEN_COMPLETIONS} settled outside-team jobs from ${facts.outsideTeam.uniqueBuyers}/${MARKET_PROVEN_BUYERS} buyer wallets.` +
         (reliable ? ` Sustained: ${Math.floor(facts.observedDays)} observed days at ${Math.round((facts.outsideTeam.completionRate ?? 0) * 100)}% completion.` : ''),
     },
   ];

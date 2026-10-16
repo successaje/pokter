@@ -46,7 +46,7 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       id: 'delivered', label: 'Work delivered',
       state: reached > 2 ? 'complete' : reached === 2 ? 'current' : 'upcoming',
       source: reached >= 2 ? 'receipt' : 'pending',
-      detail: reached >= 2 ? 'A deliverable commitment is recorded; verify the served receipt before approval.' : 'No deliverable is recorded yet.',
+      detail: reached >= 2 ? 'A deliverable commitment is recorded; verify the served receipt during the review window.' : 'No deliverable is recorded yet.',
       transactionHash: null,
     },
     {
@@ -56,9 +56,9 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
       detail: job.disputeTxHash
         ? 'The buyer contested the delivery onchain.'
         : reached === 4
-          ? 'Accepted by the buyer, or the review window closed without a dispute.'
+          ? 'The review window closed without a dispute.'
           : reached >= 2
-            ? 'The buyer must verify and accept or contest the result.'
+            ? 'The buyer verifies the result and can dispute it until the review window closes.'
             : 'Available after delivery.',
       transactionHash: job.disputeTxHash ?? null,
     },
@@ -77,12 +77,12 @@ export function jobTimeline(job: HiredJob): JobTimelineStep[] {
     ...normal.filter((step) => step.state === 'complete'),
     {
       id: 'terminal',
-      label: job.status === 'EXPIRED' ? 'Expired' : 'Contested',
+      label: job.status === 'EXPIRED' ? 'Expired' : 'Rejected by vote',
       state: 'terminal',
       source: 'onchain',
       detail: job.status === 'EXPIRED'
-        ? 'The delivery window closed without a delivery. The contract marks a job expired once its escrow is reclaimed; expiry is not a completed job.'
-        : 'The delivery was contested. It is not counted as successful work.',
+        ? 'The deadline passed without the agent being paid: nothing was delivered, or a dispute did not reach its quorum in time. The contract marks a job expired once its escrow is reclaimed; expiry is not a completed job.'
+        : 'The buyer disputed the delivery and the policy’s voters rejected it, so the escrow returns to the buyer. It is not counted as successful work.',
       transactionHash: job.disputeTxHash ?? null,
     },
   ];

@@ -51,7 +51,9 @@ export async function DELETE(request: Request): Promise<NextResponse> {
     return NextResponse.json({ session: await revokeSession(id) });
   } catch (error) {
     if (error instanceof AltanaNotConfiguredError) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
+      // The message names secrets; it belongs in the log, not the reply.
+      console.error(error.message);
+      return NextResponse.json({ error: 'Escrow is not configured on this server.' }, { status: 503 });
     }
     return NextResponse.json(
       { error: `Revoke failed: ${(error as Error).message}` },

@@ -96,7 +96,7 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
       allowed: false,
       reason: 'expired',
       message:
-        'This job passed its deadline before it was confirmed, so the escrow can no longer be released to the agent. The budget is yours to reclaim.',
+        'This job passed its deadline before it was settled, so the escrow can no longer be released to the agent. The budget is yours to reclaim.',
     };
   }
 
@@ -106,7 +106,7 @@ export function canSettle(action: SettleAction, timing: SettleTiming): SettleVer
       allowed: false,
       reason: 'too-early',
       opensInSeconds,
-      message: `Payment can’t be released yet: the escrow keeps a review window of ${span(timing.disputeWindowSeconds)} after delivery, even when you approve. It opens ${utcMoment(opensAt)} (in ${span(opensInSeconds)}). Until then you can dispute the delivery; nothing is lost by waiting.`,
+      message: `Payment can’t be released yet: the escrow keeps a review window of ${span(timing.disputeWindowSeconds)} after delivery. It opens ${utcMoment(opensAt)} (in ${span(opensInSeconds)}). Until then you can dispute the delivery; nothing is lost by waiting.`,
     };
   }
 

@@ -73,7 +73,7 @@ export async function runHealthFactorSuite(target: { chainId: number; tokenId: s
         }
       }
       const after = await readVenusPosition(client, account);
-      const verdict = judgeHf([expectedOf(before), expectedOf(after)], observed);
+      const verdict = judgeHf([expectedOf(before), expectedOf(after)], observed, { expectedAccount: account });
       results.push({
         scenario: account,
         expected: { before: expectedOf(before), after: expectedOf(after) },

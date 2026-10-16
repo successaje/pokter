@@ -53,6 +53,10 @@ export interface HfObserved {
   /** True when the agent said there is no health factor (no debt): null, Infinity or a huge value. */
   unbounded: boolean;
   liquidatable: boolean | null;
+  /** The liquidation field as given, when it was present but not a readable boolean. */
+  liquidatableRaw?: string;
+  /** An account the answer says it read, when it names one. */
+  account?: string;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -61,6 +65,7 @@ function object(value: unknown): Record<string, unknown> | null {
 
 const HF_KEYS = ['health_factor', 'healthFactor', 'healthfactor', 'hf'];
 const LIQ_KEYS = ['liquidatable', 'is_liquidatable', 'isLiquidatable', 'can_be_liquidated'];
+const ACCOUNT_KEYS = ['account', 'address', 'wallet', 'user', 'borrower'];
 
 function findKey(record: Record<string, unknown>, keys: string[], depth = 0): unknown {
   for (const key of keys) if (key in record) return record[key];
@@ -115,7 +120,16 @@ export function readHfAnswer(answer: { text: string | null; data: Record<string,
     if (hfValue === undefined) continue;
     const hf = readHf(hfValue);
     if (!hf) continue;
-    return { ...hf, liquidatable: readBool(findKey(record, LIQ_KEYS)) };
+    const liqValue = findKey(record, LIQ_KEYS);
+    const liquidatable = readBool(liqValue);
+    const accountValue = findKey(record, ACCOUNT_KEYS);
+    return {
+      ...hf,
+      liquidatable,
+      // Present but not a boolean ("maybe", 1, an object) is not the same as not stated.
+      ...(liqValue !== undefined && liqValue !== null && liquidatable === null ? { liquidatableRaw: String(JSON.stringify(liqValue)).slice(0, 40) } : {}),
+      ...(typeof accountValue === 'string' && /^0x[0-9a-fA-F]{40}$/.test(accountValue) ? { account: accountValue } : {}),
+    };
   }
   if (answer.text) {
     const prose = answer.text.match(/health[\s_-]*factor[^0-9∞]{0,40}(∞|infinity|[0-9]+(?:\.[0-9]+)?)/i);
@@ -151,13 +165,30 @@ function relativeError(observed: number, expected: number): number {
  * Judge an answer against Pokter's readings around it (usually two: before
  * and after). It passes when it is within tolerance of any of them.
  */
-export function judgeHf(readings: HfExpected[], observed: HfObserved | null): HfVerdict {
+export function judgeHf(readings: HfExpected[], observed: HfObserved | null, { expectedAccount }: { expectedAccount?: string } = {}): HfVerdict {
   if (!observed) return { pass: false, outcome: 'unreadable', reason: 'No health factor could be read from the answer.' };
+  /*
+   * Before any number: an answer about another account, or with a
+   * liquidation flag that is present but unreadable, is not a correct
+   * answer to this question however close its health factor is.
+   */
+  if (expectedAccount && observed.account && observed.account.toLowerCase() !== expectedAccount.toLowerCase()) {
+    return { pass: false, outcome: 'wrong', reason: `Answered about ${observed.account}, not the account asked about (${expectedAccount}).` };
+  }
+  if (observed.liquidatableRaw !== undefined) {
+    return { pass: false, outcome: 'wrong', reason: `The liquidation flag is not a yes or no: ${observed.liquidatableRaw}.` };
+  }
   const noDebt = readings.every((r) => r.healthFactor === null);
   if (noDebt) {
-    return observed.unbounded
-      ? { pass: true, outcome: 'correct', reason: 'Correct: no debt.' }
-      : { pass: false, outcome: 'wrong', reason: `Expected no health factor (no debt), answered ${fmt(observed.healthFactor ?? 0)}.` };
+    /*
+     * No debt cannot be liquidatable. This branch returned "correct" as
+     * soon as the health factor was unbounded, before looking at the flag,
+     * so "no debt, liquidatable: true" passed (found by an outside review,
+     * reproduced in tests/health-factor-judge.test.mts).
+     */
+    if (!observed.unbounded) return { pass: false, outcome: 'wrong', reason: `Expected no health factor (no debt), answered ${fmt(observed.healthFactor ?? 0)}.` };
+    if (observed.liquidatable === true) return { pass: false, outcome: 'wrong', reason: 'No debt, but the answer says the position is liquidatable.' };
+    return { pass: true, outcome: 'correct', reason: observed.liquidatable === null ? 'Correct: no debt; liquidation not stated.' : 'Correct: no debt.' };
   }
   const values = readings.map((r) => r.healthFactor).filter((v): v is number => v !== null);
   const distinct = [...new Set(values.map((v) => v.toFixed(3)))];

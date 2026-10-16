@@ -68,7 +68,7 @@ export function LaunchKit({
                 </span>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-3 border-t border-rule pt-4 text-center">
-                <div><strong className="t-readout block text-lg">{growth.outcomes.completed}</strong><span className="text-[11px] text-ink-3">Accepted</span></div>
+                <div><strong className="t-readout block text-lg">{growth.outcomes.completed}</strong><span className="text-[11px] text-ink-3">Settled</span></div>
                 <div><strong className="t-readout block text-lg">{growth.outcomes.uniqueBuyers}</strong><span className="text-[11px] text-ink-3">Buyer wallets</span></div>
                 <div><strong className="t-readout block text-lg">{growth.rankingEligible ? 'Yes' : 'Not yet'}</strong><span className="text-[11px] text-ink-3">Ranking eligible</span></div>
               </div>

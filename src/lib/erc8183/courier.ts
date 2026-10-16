@@ -112,7 +112,13 @@ export async function sendPreparedBrief(
     if (isQuoteReply(object(object(payload.payload)?.result))) throw new PaidOnlyError('The agent answered with a price: it does this work only when paid through escrow.');
     throw new Error('The agent answered, but with no text and no data.');
   }
-  if (isPaidOnlyRefusal(answer)) throw new PaidOnlyError('Asked directly, the agent offers only its escrow skills: it does this work only when paid through escrow.');
+  if (isPaidOnlyRefusal(answer)) {
+    throw new PaidOnlyError(
+      answer.data?.preview === true
+        ? 'Asked directly, the agent gives a priced preview: it does this work only when paid through escrow.'
+        : 'Asked directly, the agent offers only its escrow skills: it does this work only when paid through escrow.',
+    );
+  }
   return {
     answer,
     answeredBy: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name, endpoint: payload.origin, skill: agent.skill.id },

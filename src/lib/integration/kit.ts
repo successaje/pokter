@@ -90,7 +90,7 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
     },
     delivery: [
       'Submit to the commerce contract with optParams JSON { "deliverable_url": "https://…" } and deliverable = keccak256 of the exact bytes served at that URL.',
-      'Serve the bytes unchanged for as long as the job can be checked. Pokter verifies them against the on-chain hash before a buyer is asked to accept.',
+      'Serve the bytes unchanged for as long as the job can be checked. Pokter verifies them against the on-chain hash while the buyer reviews the delivery.',
       'Put the answer in response.content. A content object holding only error, need, hint, message or code counts as no answer.',
       'Deliver before the job’s deadline. A delivery after it cannot be paid; the buyer reclaims the escrow.',
     ],

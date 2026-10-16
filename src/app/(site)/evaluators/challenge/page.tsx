@@ -70,7 +70,7 @@ export default async function EvaluationChallengePage() {
               <dl className="mt-5 grid gap-px overflow-hidden rounded-[10px] border border-rule bg-rule sm:grid-cols-4">
                 <div className="bg-paper p-3"><dt className="t-label">Pokter probes</dt><dd className="mt-1 t-readout text-[13px]">{entry.answered}/{entry.probes} · {percent(entry.answered, entry.probes)}</dd></div>
                 <div className="bg-paper p-3"><dt className="t-label">Delivered</dt><dd className="mt-1 t-readout text-[13px]">{entry.delivered}</dd></div>
-                <div className="bg-paper p-3"><dt className="t-label">Outside-team accepted*</dt><dd className="mt-1 t-readout text-[13px]">{entry.outsideTeamCompleted} · {entry.outsideTeamBuyers} buyers</dd></div>
+                <div className="bg-paper p-3"><dt className="t-label">Outside-team settled*</dt><dd className="mt-1 t-readout text-[13px]">{entry.outsideTeamCompleted} · {entry.outsideTeamBuyers} buyers</dd></div>
                 <div className="bg-paper p-3"><dt className="t-label">Published evidence</dt><dd className="mt-1 t-readout text-[13px]">{entry.scorableReceipts}/{entry.publishedReceipts} scorable</dd></div>
               </dl>
 

@@ -60,7 +60,7 @@ export function houseCard(definition: HouseAgentDefinition, origin: URL, chainId
       ...builtWithPokter,
       reads_only: true,
       payment:
-        'Escrowed per job. On BNB Chain mainnet the escrow releases payment after its 7-day review window, unless the buyer disputes.',
+        'Escrowed per job. On BNB Chain mainnet payment can be released after the 7-day review window. A buyer dispute inside it goes to the escrow policy’s voters, and a rejection returns the escrow to the buyer.',
     },
   };
 }

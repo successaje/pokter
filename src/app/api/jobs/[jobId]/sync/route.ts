@@ -40,7 +40,7 @@ export async function POST(request: Request, context: { params: Promise<{ jobId:
   const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
   const network = altanaNetworkFor(chainId);
   const existing = store.byId(`${chainId}:${jobId}`);
-  if (!existing) return NextResponse.json({ synced: false, reason: 'not-indexed' });
+  if (!existing) return NextResponse.json({ synced: false, reason: 'not-indexed', error: 'Pokter has not indexed this job yet.' }, { status: 404 });
 
   try {
     const id = BigInt(jobId);

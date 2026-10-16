@@ -18,7 +18,13 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
   const { address } = await params;
-  return { title: isAddress(address) ? `Operator ${address.slice(0, 6)}…${address.slice(-4)}` : 'Operator' };
+  const short = isAddress(address) ? `${address.slice(0, 6)}…${address.slice(-4)}` : null;
+  return {
+    title: short ? `Operator ${short}` : 'Operator',
+    description: short
+      ? `Every agent ${short} owns on BNB Chain, with what Pokter observed of each: probes, signed prices, paid deliveries and checks.`
+      : 'An agent operator on BNB Chain and the agents it owns.',
+  };
 }
 
 /**

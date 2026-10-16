@@ -34,7 +34,7 @@ export function WorkspaceOverview() {
   const phases = jobs.map((job) => ({ job, phase: jobPhase(job, now) }));
   const needsYou = phases.filter((p) => PHASE[p.phase].needsYou);
   const working = phases.filter((p) => p.phase === 'working');
-  const recent = phases.filter((p) => p.phase === 'settled' || p.phase === 'refunded' || p.phase === 'disputed').slice(0, 4);
+  const recent = phases.filter((p) => p.phase === 'settled' || p.phase === 'refunded' || p.phase === 'disputed' || p.phase === 'rejected').slice(0, 4);
   // Real and test $U are never added together: mainnet escrow is money and
   // testnet escrow is not. Real money leads when there is any.
   const heldOn = (chainId: number) =>

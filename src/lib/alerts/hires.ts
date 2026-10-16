@@ -2,6 +2,7 @@ import 'server-only';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, http, type Address } from 'viem';
+import { explorerBaseFor } from '@/lib/network/presentation';
 
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -186,7 +187,7 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
         (s) =>
           `#${s.jobId} · ${s.status}${s.agentName ? ` · hired ${s.agentName}` : ''}\n` +
           `client ${s.client}\n` +
-          `https://testnet.bscscan.com/address/${s.client}`,
+          `${explorerBaseFor(ALTANA_NETWORK.chainId)}/address/${s.client}`,
       )
       .join('\n\n');
     const delivery = await sendOperatorAlert({

@@ -3,6 +3,7 @@ import { getErc8183Job } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
+import { getJobStore } from '@/lib/erc8183/store';
 import { notifyJobEvent } from '@/lib/notifications/server';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -22,10 +23,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       chainId,
       jobId,
       status: job.statusName,
-      agentName: typeof body.agentName === 'string' ? body.agentName.slice(0, 100) : undefined,
+      /*
+       * From Pokter's own record of the job, never the request: anyone can
+       * call this route, and a name taken from the body would put a
+       * stranger's words into subscribers' email.
+       */
+      agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message || 'Could not process the job update.' }, { status: 400 });
+    const message = (error as Error).message;
+    if (message === 'A numeric job ID is required.') return NextResponse.json({ error: message }, { status: 400 });
+    console.error(`[notifications/event] ${message}`);
+    return NextResponse.json({ error: 'Could not process the job update.' }, { status: 502 });
   }
 }

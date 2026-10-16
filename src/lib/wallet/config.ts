@@ -78,4 +78,9 @@ declare module 'wagmi' {
   }
 }
 
-export const ESCROW_CHAIN = bscTestnet;
+/*
+ * The chain the wallet is connected and switched to. It follows the same
+ * variable as WALLET_NETWORK and NETWORK_LABEL, so the "Switch to …" button
+ * cannot name one chain and move the wallet to the other.
+ */
+export const ESCROW_CHAIN = process.env.NEXT_PUBLIC_ALTANA_NETWORK === 'bnb' ? bsc : bscTestnet;

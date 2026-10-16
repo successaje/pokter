@@ -34,7 +34,7 @@ const FILTERS: Array<{ id: string; label: string; phases: JobPhase[] | null }> =
   { id: 'active', label: 'In progress', phases: ['working'] },
   { id: 'attention', label: 'Needs you', phases: ['review', 'reclaim'] },
   { id: 'done', label: 'Settled', phases: ['settled'] },
-  { id: 'failed', label: 'Disputed or refunded', phases: ['disputed', 'refunded', 'expired', 'unfunded'] },
+  { id: 'failed', label: 'Disputed, refunded or unfunded', phases: ['disputed', 'rejected', 'refunded', 'expired', 'unfunded'] },
 ];
 
 export function JobsPage() {
@@ -331,8 +331,13 @@ export function WalletPage() {
     );
   }
   const phases = jobs.map((j) => ({ j, p: jobPhase(j, now) }));
-  const sum = (filter: JobPhase[]) => phases.filter(({ p }) => filter.includes(p)).reduce((s, { j }) => s + Number(formatUnits(BigInt(j.budgetRaw), 18)), 0);
+  // Real and test $U are never added together, as on the overview.
+  const sumOn = (filter: JobPhase[], chainId: number) =>
+    phases.filter(({ p, j }) => filter.includes(p) && j.chainId === chainId).reduce((s, { j }) => s + Number(formatUnits(BigInt(j.budgetRaw), 18)), 0);
+  const sum = (filter: JobPhase[]) => ({ real: sumOn(filter, 56), test: sumOn(filter, 97) });
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  const amounts = ({ real, test }: { real: number; test: number }) =>
+    real > 0 && test > 0 ? `${fmt(real)} $U · ${fmt(test)} test $U` : test > 0 ? `${fmt(test)} test $U` : `${fmt(real)} $U`;
 
   return (
     <>
@@ -394,15 +399,15 @@ export function WalletPage() {
           Job payments
         </h2>
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
+          {([
             ['In escrow', sum(['working', 'review', 'reclaim'])],
             ['Released to agents', sum(['settled'])],
-            ['Returned to you', sum(['refunded', 'expired'])],
+            ['Returned to you', sum(['refunded', 'expired', 'rejected'])],
             ['In dispute', sum(['disputed'])],
-          ].map(([label, value]) => (
-            <div key={label as string} className="rounded-[12px] border border-rule px-4 py-3">
+          ] as const).map(([label, value]) => (
+            <div key={label} className="rounded-[12px] border border-rule px-4 py-3">
               <span className="t-label">{label}</span>
-              <p className="t-readout mt-1 text-lg">{fmt(value as number)} $U</p>
+              <p className="t-readout mt-1 text-lg">{amounts(value)}</p>
             </div>
           ))}
         </div>

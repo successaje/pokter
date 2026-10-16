@@ -98,11 +98,41 @@ export function gradePaidHfScenario(input: {
   }
 
   const observed = readHfAnswer(answer);
-  const verdict = judgeHf([input.reading], observed);
+  const verdict = judgeHf([input.reading], observed, { expectedAccount: input.account });
   const excerpt = answer.data ? JSON.stringify(answer.data).slice(0, 400) : (answer.text ?? '').slice(0, 400);
 
+  const readAt = artifactReadAt(input.manifestText);
+  const gap = readAt === null ? null : Math.abs(Date.parse(input.readAt) - Date.parse(readAt));
+
   if (verdict.pass) {
-    return { ...base, observed, excerpt, pass: true, outcome: verdict.outcome, reason: verdict.reason };
+    /*
+     * A match counts on the same terms as a mismatch. A disagreement more
+     * than fifteen minutes apart is not held against the agent because the
+     * position may have moved; by the same reasoning an agreement that far
+     * apart may be a stale answer that happens to match a position that did
+     * not move, and a check that counted those and excused the others would
+     * lean towards passing. So outside the window it counts neither way.
+     */
+    if (gap === null || gap > HF_COMPARABLE_MS) {
+      return {
+        ...base,
+        observed,
+        excerpt,
+        pass: false,
+        outcome: 'not-comparable',
+        reason:
+          gap === null
+            ? `${verdict.reason} The delivery does not say when it read the position, so a match cannot be told from a stale answer; it is not counted either way.`
+            : `${verdict.reason} It read the position ${Math.round(gap / 60_000)} minutes from Pokter's reading, too far apart to tell a match from a stale answer; it is not counted either way.`,
+      };
+    }
+    // Say what a pass here is: agreement with a reading close in time, not proof of the exact block.
+    const gapMinutes = Math.round(gap / 60_000);
+    const basis =
+      gapMinutes <= 1
+        ? ' Compared with Pokter’s reading taken within a minute of the agent’s.'
+        : ` Compared with Pokter’s reading ${gapMinutes} minutes after the agent’s: consistent with the position, not proof it was exact at the block the agent read.`;
+    return { ...base, observed, excerpt, pass: true, outcome: verdict.outcome, reason: verdict.reason + basis };
   }
 
   /*
@@ -111,8 +141,6 @@ export function gradePaidHfScenario(input: {
    * of the liquidation-threshold one is a definitional error that staleness
    * cannot explain, and it is the single most useful thing this check finds.
    */
-  const readAtMs = artifactReadAt(input.manifestText);
-  const gap = readAtMs === null ? null : Math.abs(Date.parse(input.readAt) - Date.parse(readAtMs));
   const comparable = verdict.outcome === 'borrow-limit' || (gap !== null && gap <= HF_COMPARABLE_MS);
 
   if (comparable) {

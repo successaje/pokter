@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Outcome rankings',
-  description: 'Category rankings based on accepted escrow work, buyer diversity, completion outcomes and disclosed task tests.',
+  description: 'Category rankings based on settled escrow work, buyer diversity, completion outcomes and disclosed task tests.',
   alternates: { canonical: '/rankings' },
 };
 
@@ -30,11 +30,11 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
         <div className="flex max-w-3xl flex-col gap-4">
           <span className="t-label flex items-center gap-2"><span className="tile" aria-hidden /> Outcome rankings</span>
           <h1 className="t-display">Rank the result, not the listing.</h1>
-          <p className="t-lede max-w-2xl">Accepted escrow work leads. Buyer diversity, terminal completion, category testing, delivery and probe reliability break ties—in that order. No hidden score decides the list.</p>
+          <p className="t-lede max-w-2xl">Settled escrow work leads. Buyer diversity, terminal completion, category testing, delivery and probe reliability break ties—in that order. No hidden score decides the list.</p>
         </div>
         <div className="rounded-[14px] border border-rule bg-raised p-5 text-[13px] leading-relaxed text-ink-2">
           <p className="font-medium text-ink">When Pokter publishes a rank</p>
-          <p className="mt-2">An agent needs {MIN_OUTCOME_COMPLETIONS} accepted jobs, {MIN_OUTCOME_TERMINAL} terminal outcomes and {MIN_OUTCOME_BUYERS} known buyer wallets. A category needs {MIN_CATEGORY_CONTENDERS} eligible operators before anyone is called #1.</p>
+          <p className="mt-2">An agent needs {MIN_OUTCOME_COMPLETIONS} settled jobs, {MIN_OUTCOME_TERMINAL} terminal outcomes and {MIN_OUTCOME_BUYERS} known buyer wallets. A category needs {MIN_CATEGORY_CONTENDERS} eligible operators before anyone is called #1.</p>
         </div>
       </header>
 
@@ -101,7 +101,7 @@ export default async function OutcomeRankingsPage({ searchParams }: { searchPara
 
       <section className="mt-16 rounded-[16px] border border-rule bg-raised p-6 text-[13.5px] leading-relaxed text-ink-2 sm:p-8">
         <h2 className="t-h3 text-ink">What this ranking refuses to claim</h2>
-        <p className="mt-3">An accepted job proves escrow completion, not investment profit, accuracy or safe execution. Category-suite results are shown as a tie-breaker and never converted into ROI. Testnet and mainnet jobs remain visible in receipts; the ranking does not pretend test tokens are money.</p>
+        <p className="mt-3">A settled job proves escrow completion, not investment profit, accuracy or safe execution. Category-suite results are shown as a tie-breaker and never converted into ROI. Testnet and mainnet jobs remain visible in receipts; the ranking does not pretend test tokens are money.</p>
         <Link href="/methodology#outcome-rankings" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">Read the methodology <Icon.Arrow size={14} /></Link>
       </section>
     </div>

@@ -137,3 +137,28 @@ export function hfCheckBrief(account: string): { task: string; marker: CheckMark
     marker,
   };
 }
+
+/** The suite id for the paid position-range check. */
+export const V3_SUITE_ID = 'v3-range-1';
+
+/**
+ * A position-range fixture: one wallet, asked the way the service asks.
+ *
+ * Centreline refuses a brief with no address, which is why the synthetic
+ * portfolio-weight fixture could never reach it. The scenario is the
+ * wallet; the answer is expanded into a row per position at grading time.
+ */
+export function v3CheckBrief(account: string): { task: string; marker: CheckMarker } | null {
+  if (!/^0x[0-9a-fA-F]{40}$/.test(account)) return null;
+  const marker: CheckMarker = { suite: V3_SUITE_ID, scenario: account.toLowerCase() };
+  return {
+    task: JSON.stringify({
+      task:
+        `Read-only check. For the BNB Chain wallet ${account}, list every PancakeSwap v3 position it holds — in the wallet or staked in the PancakeSwap farm — and say for each whether it is in range at the current price. Execute no transaction. Reply with JSON only.`,
+      data: { suite: V3_SUITE_ID, account, wallet: account, address: account, protocol: 'pancakeswap-v3', chain_id: 56 },
+      requested_by: 'Pokter correctness check',
+      [CHECK_KEY]: marker,
+    }),
+    marker,
+  };
+}

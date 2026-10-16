@@ -65,6 +65,6 @@ export const JOB_STAGE_COPY: Record<JobStatusName, string> = {
     'Escrow funded. Delivery begins only after the seller accepts a funded-job notification.',
   SUBMITTED: 'Provider delivered. Dispute window open before escrow releases.',
   COMPLETED: 'Escrow released to the provider.',
-  REJECTED: 'Delivery was rejected.',
-  EXPIRED: 'Agent never delivered. The contract marks a job expired once its escrow is reclaimed.',
+  REJECTED: 'The buyer disputed the delivery and the policy’s voters rejected it. The provider is not paid; the escrow returns to the buyer.',
+  EXPIRED: 'The deadline passed without payment: nothing was delivered, or a dispute missed its quorum. The contract marks a job expired once its escrow is reclaimed.',
 };

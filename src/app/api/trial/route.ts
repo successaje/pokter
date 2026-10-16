@@ -17,9 +17,9 @@ export const maxDuration = 20;
  * Read-only A2A negotiation trial.
  *
  * The caller identifies a registry agent, never an arbitrary URL. Pokter then
- * checks that the agent explicitly publishes the `negotiate` skill and sends a
- * fixed non-transactional message. No wallet, signature or on-chain write is
- * involved.
+ * checks that the agent explicitly publishes the `negotiate` skill and sends
+ * it the caller's brief, to its own endpoint, asking for a signed price. No
+ * wallet, signature or on-chain write is involved on Pokter's side.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const client = requestClientKey(request);

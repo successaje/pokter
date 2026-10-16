@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import { STATIC_SUITES, type StaticAssayCategory } from '@/lib/assay/category-suites';
-import { checkBrief, hfCheckBrief } from '@/lib/assay/paid-brief';
-import { fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck } from '@/lib/assay/paid-run';
+import { checkBrief, hfCheckBrief, v3CheckBrief, V3_SUITE_ID } from '@/lib/assay/paid-brief';
+import { currentV3Sample, fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck, gradePaidV3Check } from '@/lib/assay/paid-run';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { currentSample } from '@/lib/assay/run';
 import { hireAgent } from '@/lib/erc8183/hire';
@@ -49,12 +49,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   };
 
   const agentKey = typeof body.agent === 'string' ? body.agent : '';
-  const category = body.category as StaticAssayCategory | 'health-factor';
+  const category = body.category as StaticAssayCategory | 'health-factor' | 'rebalancing';
   if (!/^\d{1,10}:\d{1,12}$/.test(agentKey)) {
     return NextResponse.json({ error: 'agent must be "<chainId>:<tokenId>".' }, { status: 400 });
   }
-  if (typeof category !== 'string' || !(category === 'health-factor' || category in STATIC_SUITES)) {
-    return NextResponse.json({ error: `category must be health-factor or one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
+  if (typeof category !== 'string' || !(category === 'health-factor' || category === 'rebalancing' || category in STATIC_SUITES)) {
+    return NextResponse.json({ error: `category must be health-factor, rebalancing, or one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
   }
   const budgetU = typeof body.budgetU === 'number' && body.budgetU > 0 && body.budgetU <= 5 ? body.budgetU : 0.1;
   const apply = body.apply === true;
@@ -83,6 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const [chainText, tokenId] = agentKey.split(':');
   const chainId = Number(chainText);
   const live = category === 'health-factor';
+  const ranges = category === 'rebalancing';
   /*
    * A health-factor fixture is a real Venus borrower, drawn from the same
    * weekly sample the free check uses so both ask about the same positions.
@@ -90,10 +91,14 @@ export async function POST(request: Request): Promise<NextResponse> {
    */
   const scenarios = live
     ? (await currentSample().catch(() => [])).map((account) => ({ id: account.toLowerCase(), task: hfCheckBrief(account)?.task ?? null }))
-    : STATIC_SUITES[category].scenarios.map((scenario) => ({ id: scenario.id, task: checkBrief(category as StaticAssayCategory, scenario.id)?.task ?? null }));
+    : ranges
+      ? (await currentV3Sample().catch(() => [])).map((account) => ({ id: account.toLowerCase(), task: v3CheckBrief(account)?.task ?? null }))
+      : STATIC_SUITES[category as StaticAssayCategory].scenarios.map((scenario) => ({ id: scenario.id, task: checkBrief(category as StaticAssayCategory, scenario.id)?.task ?? null }));
   const suite = live
     ? { id: HF_SUITE_ID, label: 'Health factor check', scenarios: scenarios.length }
-    : { id: STATIC_SUITES[category].id, label: STATIC_SUITES[category].label, scenarios: scenarios.length };
+    : ranges
+      ? { id: V3_SUITE_ID, label: 'Position range check', scenarios: scenarios.length }
+      : { id: STATIC_SUITES[category as StaticAssayCategory].id, label: STATIC_SUITES[category as StaticAssayCategory].label, scenarios: scenarios.length };
 
   if (scenarios.length === 0) {
     return NextResponse.json({ error: 'No fixtures to hire: Venus borrowers could not be sampled.' }, { status: 503 });
@@ -145,7 +150,9 @@ export async function POST(request: Request): Promise<NextResponse> {
    */
   const outcome = live
     ? await gradePaidHealthFactorCheck({ chainId, tokenId })
-    : gradePaidCategoryCheck({ chainId, tokenId }, category as StaticAssayCategory);
+    : ranges
+      ? await gradePaidV3Check({ chainId, tokenId })
+      : gradePaidCategoryCheck({ chainId, tokenId }, category as StaticAssayCategory);
 
   return NextResponse.json({
     agent: agentKey,

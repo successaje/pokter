@@ -223,7 +223,7 @@ test('accepted deliveries separate the lifecycle demos from the answers', () => 
   assert.equal(summary.lifecycleDemoJobs, 1);
   assert.equal(summary.answeredDeliveries, 2, 'only the accepted jobs that carried an answer');
   assert.equal(
-    summary.answeredDeliveries + summary.lifecycleDemoJobs,
+    summary.answeredDeliveries + summary.lifecycleDemoJobs + summary.completedSelfHires,
     summary.completed,
     'a reader must be able to check the two figures against the accepted count',
   );
@@ -239,4 +239,17 @@ test('an unwired caller reports every accepted delivery as answered', () => {
 
   assert.equal(summary.lifecycleDemoJobs, 0);
   assert.equal(summary.answeredDeliveries, summary.completed);
+});
+
+test('a self-hire settles like any job but is not counted as an answered delivery', () => {
+  // Job 1444 on testnet: the buyer funded its own agent. Outside the team set, accepted, and still not demand.
+  const SELLER = '0x9999999999999999999999999999999999999999';
+  const jobs = [
+    job('1', 'COMPLETED', { client: BUYER_A }),
+    job('1444', 'COMPLETED', { client: SELLER, provider: SELLER }),
+  ];
+  const summary = summarizeProductionProof(jobs, () => false);
+  assert.equal(summary.completed, 2);
+  assert.equal(summary.completedSelfHires, 1);
+  assert.equal(summary.answeredDeliveries, 1);
 });

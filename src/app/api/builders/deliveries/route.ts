@@ -25,11 +25,12 @@ import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
+import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
 function deliveryUrl(chainId: number, jobId: string, deliverable: Hex) {
-  const url = new URL(`/api/seller/deliverables/${jobId}`, process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4311');
+  const url = new URL(`/api/seller/deliverables/${jobId}`, siteUrl());
   // Testnet URLs have never named a chain; any other escrow's must.
   if (chainId !== 97) url.searchParams.set('chain', String(chainId));
   url.searchParams.set('hash', deliverable);

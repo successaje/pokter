@@ -14,11 +14,13 @@ test('every marketplace category has a disclosed correctness suite', () => {
   assert.equal(assayForCategory('unclassified'), null);
 });
 
-test('static suites use three deterministic scenarios and stable ids', () => {
-  assert.equal(STATIC_SUITES.rebalancing.id, CATEGORY_SUITE_IDS.rebalancing);
+test('static suites use at least three deterministic scenarios and stable ids', () => {
+  for (const [category, id] of Object.entries(CATEGORY_SUITE_IDS)) {
+    assert.equal(STATIC_SUITES[category as keyof typeof CATEGORY_SUITE_IDS].id, id);
+  }
   for (const suite of Object.values(STATIC_SUITES)) {
-    assert.equal(suite.scenarios.length, 3, suite.category);
-    assert.equal(new Set(suite.scenarios.map((scenario) => scenario.id)).size, 3);
+    assert.ok(suite.scenarios.length >= 3, suite.category);
+    assert.equal(new Set(suite.scenarios.map((scenario) => scenario.id)).size, suite.scenarios.length);
   }
 });
 
@@ -31,17 +33,35 @@ test('briefs disclose output types without leaking the expected answer', () => {
   }
 });
 
-test('rebalancing expected values include threshold boundary', () => {
-  assert.deepEqual(STATIC_SUITES.rebalancing.scenarios[1].expected, { max_drift_pct: 5, rebalance_needed: true });
+test('rebalancing has no free fixture, because no listed service answers one', () => {
+  /*
+   * There was a portfolio-weight drift suite here. The service Pokter
+   * lists under rebalancing reviews a concentrated-liquidity position
+   * range for a named wallet and refuses a brief with no address, so the
+   * fixture could only ever record failures it had not earned. The
+   * category is measured by the paid position-range check instead.
+   */
+  assert.equal(assayForCategory('rebalancing')?.id, 'v3-range-1');
+  assert.equal(staticSuiteFor('rebalancing'), null);
 });
 
-test('yield suite deducts gas and impermanent loss rather than ranking headline APY', () => {
-  assert.deepEqual(STATIC_SUITES.yield.scenarios[0].expected, { best_route: 'efficient', net_annual_usd: 85 });
+test('yield suite expects the buyer\'s own terms back, not a rate it cannot verify', () => {
+  /*
+   * This asserted { best_route: 'efficient', net_annual_usd: 85 } — the
+   * answer to arithmetic over a route table supplied as JSON, which no
+   * yield agent accepts as a brief. The fixture now asks in the buyer's
+   * idiom and expects what the brief itself fixes; rates and the chosen
+   * venue are live and rest on the agent's own cost model, so pinning
+   * them here would be Pokter marking its own homework.
+   */
+  assert.deepEqual(STATIC_SUITES.yield.scenarios[0].expected, {
+    amount: 1_000, asset: 'USDT', holding_days: 30, current_apr_pct: 0, threshold_pp: 0.5,
+  });
 });
 
-test('token safety rule distinguishes blocked sales, controls and clean supplied facts', () => {
+test('token safety fixtures separate a non-token, tokens whose owner can mint, and WBNB', () => {
   assert.deepEqual(STATIC_SUITES['token-safety'].scenarios.map((scenario) => scenario.expected), [
-    { verdict: 'FAIL' }, { verdict: 'CAUTION' }, { verdict: 'PASS' },
+    { verdict: 'FAIL' }, { verdict: 'CAUTION' }, { verdict: 'CAUTION' }, { verdict: 'PASS' },
   ]);
 });
 
