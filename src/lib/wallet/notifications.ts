@@ -1,6 +1,7 @@
 'use client';
 
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
+import { DERIVED_EVENT_COPY, type DerivedJobEvent } from '@/lib/wallet/job-events';
 
 const SETTINGS_KEY = 'pokter.notifications.settings.v1';
 const INBOX_KEY = 'pokter.notifications.inbox.v1';
@@ -140,4 +141,46 @@ export function subscribeToNotifications(listener: () => void): () => void {
     window.removeEventListener(EVENT_NAME, listener);
     window.removeEventListener('storage', listener);
   };
+}
+
+/**
+ * Record an event that is not a change of status.
+ *
+ * Keyed by the event rather than the job's status, because the status does
+ * not change when a review window opens — see `job-events.ts`. Existing
+ * notes are keyed by status name, so the two cannot collide and nothing
+ * stored needs migrating.
+ */
+export function recordDerivedJobEvent(
+  walletAddress: string,
+  job: Pick<HiredJob, 'jobId' | 'chainId' | 'agentName' | 'status'>,
+  event: DerivedJobEvent,
+): void {
+  if (typeof window === 'undefined') return;
+  const settings = notificationSettings(walletAddress);
+  if (!settings.inApp && !settings.browser) return;
+  if (settings.jobIds.length > 0 && !settings.jobIds.includes(job.jobId)) return;
+
+  const id = `${walletAddress.toLowerCase()}:${job.chainId}:${job.jobId}:${event}`;
+  const existing = readArray<ActivityNotification>(INBOX_KEY);
+  if (existing.some((entry) => entry.id === id)) return;
+
+  const copy = DERIVED_EVENT_COPY[event];
+  const item: ActivityNotification = {
+    id,
+    walletAddress,
+    jobId: job.jobId,
+    chainId: job.chainId,
+    title: copy.title,
+    body: copy.body(job.jobId, job.agentName),
+    createdAt: new Date().toISOString(),
+    readAt: null,
+    status: job.status,
+  };
+  window.localStorage.setItem(INBOX_KEY, JSON.stringify([item, ...existing].slice(0, 100)));
+  emit();
+
+  if (settings.browser && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification(item.title, { body: item.body, tag: id });
+  }
 }

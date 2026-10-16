@@ -9,6 +9,8 @@ import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
 import { disputeSummary, reviewWindowSummary } from '@/lib/erc8183/settle-window';
 import { readDisputeState, readReviewTiming } from '@/lib/wallet/external';
+import { releaseAvailable } from '@/lib/wallet/job-events';
+import { recordDerivedJobEvent } from '@/lib/wallet/notifications';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { supportMailto } from '@/lib/support/contact';
 import { cn } from '@/lib/ui/cn';
@@ -176,6 +178,25 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
     disputeState.data?.disputed && reviewTiming.data
       ? disputeSummary({ ...disputeState.data, expiredAt: reviewTiming.data.expiredAt, now: Math.floor(now / 1000) })
       : null;
+  /*
+   * The window opening is the one moment a buyer can act on, and the status
+   * does not change when it arrives — so nothing recorded it. Derived here,
+   * where the submission time and the policy's window are already read, and
+   * written once: `recordDerivedJobEvent` is keyed by the event and ignores
+   * a repeat. A sweep could not do this; the testnet window is 15 minutes
+   * and the sweep runs every two hours.
+   */
+  useEffect(() => {
+    if (!a.walletAddress || !reviewTiming.data) return;
+    const open = releaseAvailable({
+      ...reviewTiming.data,
+      now: Math.floor(now / 1000),
+      status: job.status,
+      disputed: disputeState.data?.disputed,
+    });
+    if (open) recordDerivedJobEvent(a.walletAddress, job, 'release-available');
+  }, [a.walletAddress, reviewTiming.data, now, job, disputeState.data?.disputed]);
+
   const refused = phase === 'working' && answer?.status === 'rejected';
   const meta = refused
     ? { ...PHASE[phase], next: 'The agent refused this job. Your escrow is safe.' }
