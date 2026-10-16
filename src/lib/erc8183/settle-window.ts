@@ -160,3 +160,50 @@ export function disputeSummary(input: { rejectVotes: number; quorum: number; exp
       : `The escrow policy's voters decide: ${votes}. At ${input.quorum || 'the quorum'} the job is rejected and you can reclaim the escrow. If the quorum is not reached by the deadline, ${deadline}, the job expires and you reclaim it then. Until one of those happens the agent cannot be paid.`,
   };
 }
+
+/**
+ * Who may release an escrow, as distinct from when.
+ *
+ * `canSettle` above answers the timing. This answers the caller, and the
+ * two are not the same question: Pokter's release button is gated on being
+ * the buyer, which is a Pokter rule and not necessarily the contract's.
+ *
+ * Measured by simulation on BNB testnet (eth_call, nothing sent) against
+ * job 1460, from the buyer and from an address with no relationship to the
+ * job:
+ *
+ *   settle   buyer 0x17be5b7b · stranger 0x17be5b7b   identical
+ *   dispute  buyer 0x58ae8479 · stranger 0x20dbc874   different
+ *
+ * So the contracts do distinguish callers where they mean to — `dispute`
+ * turns a stranger away with its own error, matching the SDK's
+ * "client-only" — and `settle` does not appear to. That is evidence rather
+ * than proof: a caller check placed after the state check would look the
+ * same on a job that is not settleable yet, and no job was in the
+ * delivered-and-past-window state to test against.
+ *
+ * Which is why nothing here asserts it. The answer is `'ask-the-chain'`,
+ * and any surface that wants to offer a non-buyer a release must simulate
+ * that exact call first and report what the chain said. An assumption in
+ * either direction is a button that reverts, or a payment nobody collects.
+ */
+export type SettleCaller = 'buyer' | 'seller' | 'anyone-else';
+
+export function settleCallerRule(action: SettleAction): 'client-only' | 'ask-the-chain' {
+  /*
+   * `dispute` is the SDK's documented client-only call, and the differing
+   * revert above is the contract agreeing. `settle` is the open question.
+   */
+  return action === 'dispute' ? 'client-only' : 'ask-the-chain';
+}
+
+/**
+ * Whether Pokter may offer this caller a release without asking the chain.
+ *
+ * Only the buyer, and only because that is the path with on-chain
+ * precedent: every completed job settled that way. Everyone else needs a
+ * simulation, including the seller — whose own payment it is.
+ */
+export function mayOfferSettleUnchecked(caller: SettleCaller): boolean {
+  return caller === 'buyer';
+}

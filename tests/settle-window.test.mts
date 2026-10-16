@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canSettle, disputeSummary, reviewWindowSummary, settleOpensAt } from '../src/lib/erc8183/settle-window';
+import {
+  canSettle, disputeSummary, mayOfferSettleUnchecked, reviewWindowSummary,
+  settleCallerRule, settleOpensAt,
+} from '../src/lib/erc8183/settle-window';
 
 /* Job 1440 on BNB testnet, the one that produced the gas error. */
 const SUBMITTED = 1791795365;          // 2026-10-12T08:56:05Z
@@ -99,4 +102,31 @@ test('a disputed job says how the vote stands and both ways it ends', () => {
   assert.match(open.text, /deadline, 22 Oct, 18:28 UTC, the job expires and you reclaim it then/);
   const over = disputeSummary({ rejectVotes: 1, quorum: 3, expiredAt, now: expiredAt + 60 });
   assert.match(over.text, /did not reach its quorum \(1 of 3/);
+});
+
+test('who may settle is a separate question from when, and an open one', () => {
+  /*
+   * Pokter's release button is gated on being the buyer, which is Pokter's
+   * rule rather than demonstrably the contract's. Simulated on BNB testnet
+   * against job 1460: `settle` reverted identically for the buyer and for
+   * an unrelated address (0x17be5b7b), while `dispute` reverted differently
+   * (0x58ae8479 vs 0x20dbc874) — the contracts distinguish callers where
+   * they mean to, and `settle` does not appear to.
+   *
+   * Evidence, not proof: a caller check after the state check would look
+   * the same on a job that is not settleable yet. So nothing asserts it.
+   */
+  assert.equal(settleCallerRule('dispute'), 'client-only');
+  assert.equal(settleCallerRule('approve'), 'ask-the-chain');
+});
+
+test('only the buyer is offered a release without asking the chain first', () => {
+  /*
+   * Every completed job settled that way, so that path has precedent.
+   * Anyone else — the seller included, whose own payment it is — gets a
+   * simulation, or Pokter is promising something that may revert.
+   */
+  assert.equal(mayOfferSettleUnchecked('buyer'), true);
+  assert.equal(mayOfferSettleUnchecked('seller'), false);
+  assert.equal(mayOfferSettleUnchecked('anyone-else'), false);
 });
