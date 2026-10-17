@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
 import { shareMetadata } from '@/lib/og/share';
+import { CodeBlock } from '@/ui/Data';
 
 export const metadata: Metadata = {
   title: 'Pokter for your AI assistant',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 function Code({ children }: { children: string }) {
-  return <pre className="overflow-x-auto rounded-[10px] border border-rule bg-sunken p-4 text-[12.5px] leading-relaxed text-ink">{children}</pre>;
+  return <CodeBlock>{children}</CodeBlock>;
 }
 
 export default function McpPage() {

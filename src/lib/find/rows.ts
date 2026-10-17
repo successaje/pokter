@@ -120,7 +120,7 @@ export function toFindRow(
     hireChainId: paidHireChain({ quoteCurrency: quote?.currency, payable: listing.quotePayable }),
     priceState: priceU !== null ? 'signed' : record.totalAnswered > 0 ? 'unverified' : 'none',
     priceU,
-    priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'You set the budget',
+    priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'No signed price yet',
     suggested: priceU !== null ? null : suggested,
     priceFresh,
     hirable,
