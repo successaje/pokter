@@ -532,7 +532,19 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <Readout
                   label="Missed deadline"
                   value={p.history.missed}
-                  note={[p.history.missed ? 'Funded, nothing delivered in time' : 'None missed', p.history.refused ? `${p.history.refused} refused when funded, not counted` : null].filter(Boolean).join(' · ')}
+                  note={[
+                    p.history.missed ? 'Funded, nothing delivered in time' : 'None missed',
+                    p.history.refused ? `${p.history.refused} refused when funded, not counted` : null,
+                    /*
+                     * Said, not hidden. A trial Pokter's own wallet owed and
+                     * failed to deliver is Pokter's miss; leaving it out of
+                     * the agent's count without saying so would replace one
+                     * silent misattribution with another.
+                     */
+                    p.history.operatorMissed
+                      ? `${p.history.operatorMissed} Pokter delivered on its behalf and missed, not counted`
+                      : null,
+                  ].filter(Boolean).join(' · ')}
                   muted={!p.history.missed}
                   className={p.history.missed ? '[&>span:nth-child(2)]:text-watch' : undefined}
                 />

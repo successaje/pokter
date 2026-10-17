@@ -21,6 +21,14 @@ export interface Correction {
 export const CORRECTIONS: Correction[] = [
   {
     date: '2026-10-17',
+    title: 'Agents were marked down for deliveries Pokter owed',
+    said: 'Three agents outside Pokter\u2019s team carried a missed paid job on their public record, and Hevo Rebalance was called intermittent rather than reliable because of it: \u201cit has missed 1 of 1 paid jobs through Pokter escrow\u201d.',
+    true: 'Those jobs named a Pokter wallet as the provider, not the agent. They were free testnet trials, where Pokter\u2019s own delivery agent does the work \u2014 the agent was never named in the escrow and could not have delivered. 9 of 24 expired jobs were this shape. Pokter already declined to credit an agent for a trial it delivered; it had not stopped blaming one for a trial it failed to deliver. The same provider test now governs both, and a miss Pokter owed is shown on the agent\u2019s page as Pokter\u2019s.',
+    found: 'Checking why one builder\u2019s agent was marked as having missed a job, after they asked why their agents could not be hired.',
+    prs: [],
+  },
+  {
+    date: '2026-10-17',
     title: 'Most BNB Chain agents were labelled as testnet',
     said: 'A catalogue card showed one network for a hire, and when Pokter had no price it could read, that line said \u201cTest tokens \u00b7 BNB Testnet\u201d. 58 of the 77 agents registered on BNB Chain read that way.',
     true: 'Those agents are registered on BNB Chain, and a missing or unverifiable price says nothing about which network they belong to \u2014 several had signed a price in mainnet $U that Pokter could not verify. The card was reporting a default as a fact. It now keeps three things apart: the network an agent is registered on, the network a paid hire settles on \u2014 shown only when Pokter has verified a payable quote \u2014 and the free testnet trial, named as a trial and saying that Pokter\u2019s own delivery agent carries the work. A trial has never counted as a delivery by the agent, and still does not.',

@@ -36,8 +36,19 @@ export interface AgentEconomicHistory {
    * deadline. The contract only marks a job EXPIRED once its escrow is
    * reclaimed, so a missed job nobody reclaimed still reads FUNDED, and
    * counting EXPIRED alone would understate misses.
+   *
+   * Excludes jobs a Pokter wallet was the provider for, for the same
+   * reason `selfDelivered` does: those are Pokter's own deliveries. The
+   * credit side was fixed and this side was not, so Pokter withheld
+   * credit for a trial it delivered and assigned blame for one it failed
+   * to deliver. On 17 October 2026, 9 of 24 expired jobs had a Pokter
+   * wallet as provider, and four agents carried a miss for a delivery
+   * they were never named in — Hevo Rebalance's whole "missed 1 of 1"
+   * was job 97/1446, whose provider is the operator key.
    */
   missed: number;
+  /** Misses on jobs a declared Pokter wallet owed. Kept, and labelled. */
+  operatorMissed: number;
   /** Funded and still inside the delivery window: not yet a pass or a miss. */
   pending: number;
   unresolved: number;
@@ -128,7 +139,12 @@ export function summariseEconomicHistory(
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
-    missed: funded.filter((job) => (job.status === 'EXPIRED' && !refused(job)) || lapsed(job)).length,
+    /*
+     * Split by who owed the delivery, not just by what happened. Neither
+     * number is hidden: one is the agent's record, the other is Pokter's.
+     */
+    missed: funded.filter((job) => !byOperator(job) && ((job.status === 'EXPIRED' && !refused(job)) || lapsed(job))).length,
+    operatorMissed: funded.filter((job) => byOperator(job) && ((job.status === 'EXPIRED' && !refused(job)) || lapsed(job))).length,
     pending: funded.filter((job) => job.status === 'FUNDED' && !lapsed(job) && !refused(job)).length,
     refused: funded.filter(refused).length,
     unresolved: funded.filter((job) =>

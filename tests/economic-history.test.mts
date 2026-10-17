@@ -88,3 +88,54 @@ test('a refused job the seller delivered after all counts as delivered', () => {
   assert.equal(history.refused, 0);
   assert.equal(history.delivered, 1);
 });
+
+/* The operator key that was the provider on job 97/1446. */
+const POKTER = '0x93847647d7eb72a69E162117df6a8697dF53EDda';
+const AGENT = '0x06F757064043e57dBbCCD6D95Ee1113D9796c715';
+const owed = (status: HiredJob['status'], provider: string): HiredJob => ({ ...job(status), provider: provider as HiredJob['provider'] });
+
+test('a job Pokter owed and missed is not the agent’s miss', () => {
+  /*
+   * Job 97/1446 was a testnet trial of Hevo Rebalance: Pokter funded it
+   * and Pokter's own operator key was the provider, so the agent was never
+   * named in it and could not have delivered. Pokter still reported
+   * "missed 1 of 1 paid jobs… so it is not called reliable".
+   */
+  const history = summariseEconomicHistory([owed('EXPIRED', POKTER)]);
+  assert.equal(history.missed, 0, 'the agent is not blamed for a delivery it never owed');
+  assert.equal(history.operatorMissed, 1, 'and the miss is still counted, against Pokter');
+});
+
+test('the agent’s own missed job still counts against it', () => {
+  // The fix must not launder real misses: only the provider decides.
+  const history = summariseEconomicHistory([owed('EXPIRED', AGENT)]);
+  assert.equal(history.missed, 1);
+  assert.equal(history.operatorMissed, 0);
+});
+
+test('credit and blame are withheld by the same rule', () => {
+  /*
+   * `selfDelivered` already excluded Pokter-submitted deliveries, and
+   * `missed` did not — so Pokter gave no credit for a trial it delivered
+   * and assigned blame for one it failed to deliver. One provider test
+   * now governs both.
+   */
+  const delivered = summariseEconomicHistory([owed('COMPLETED', POKTER)]);
+  assert.equal(delivered.selfDelivered, 0, 'no credit for Pokter’s delivery');
+  assert.equal(delivered.operatorDelivered, 1);
+
+  const lapsed = summariseEconomicHistory([owed('EXPIRED', POKTER)]);
+  assert.equal(lapsed.missed, 0, 'and no blame for Pokter’s miss');
+  assert.equal(lapsed.operatorMissed, 1);
+});
+
+test('a mix is split by who owed each job, and nothing is dropped', () => {
+  const history = summariseEconomicHistory([
+    owed('EXPIRED', AGENT), owed('EXPIRED', AGENT),
+    owed('EXPIRED', POKTER),
+    owed('COMPLETED', AGENT),
+  ]);
+  assert.equal(history.missed, 2);
+  assert.equal(history.operatorMissed, 1);
+  assert.equal(history.missed + history.operatorMissed, history.expired, 'every expired job lands in exactly one of the two');
+});
