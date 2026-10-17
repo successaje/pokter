@@ -33,27 +33,44 @@ export function Readout({
   );
 }
 
-/** Copies a value and confirms in place, without a toast. */
+/**
+ * Copies a value and confirms in place, without a toast. A denied clipboard
+ * says so (it used to do nothing), and the state is announced to screen
+ * readers as well as shown.
+ */
 export function CopyButton({ value, label = 'Copy', className }: { value: string; label?: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const said = state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed: select the text instead' : label;
   return (
     <button
       type="button"
       onClick={async () => {
+        let ok = true;
         try {
           await navigator.clipboard.writeText(value);
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1400);
         } catch {
-          /* Clipboard denied: the value is still visible to select. */
+          ok = false;
         }
+        setState(ok ? 'copied' : 'failed');
+        window.setTimeout(() => setState('idle'), ok ? 1400 : 2400);
       }}
-      className={cn('inline-grid size-7 place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-sunken hover:text-ink', className)}
-      aria-label={copied ? 'Copied' : label}
-      title={copied ? 'Copied' : label}
+      className={cn('inline-grid size-7 place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-sunken hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink', state === 'failed' && 'text-watch', className)}
+      aria-label={said}
+      title={said}
     >
-      {copied ? <Icon.Check size={15} /> : <Icon.Copy size={15} />}
+      {state === 'copied' ? <Icon.Check size={15} /> : state === 'failed' ? <Icon.Alert size={15} /> : <Icon.Copy size={15} />}
+      <span className="sr-only" aria-live="polite">{state === 'idle' ? '' : said}</span>
     </button>
+  );
+}
+
+/** A code sample with a copy control. Copies exactly the text shown. */
+export function CodeBlock({ children, wrap = false, label = 'Copy code' }: { children: string; wrap?: boolean; label?: string }) {
+  return (
+    <div className="relative">
+      <pre className={cn(wrap ? 'whitespace-pre-wrap break-all' : 'overflow-x-auto', 'rounded-[10px] border border-rule bg-sunken p-4 pr-12 text-[12.5px] leading-relaxed text-ink')}>{children}</pre>
+      <CopyButton value={children} label={label} className="absolute right-2 top-2 bg-sunken" />
+    </div>
   );
 }
 

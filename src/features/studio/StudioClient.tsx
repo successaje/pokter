@@ -22,6 +22,8 @@ import { Segmented } from '@/ui/Controls';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Field, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { diagnosticPacket } from '@/lib/diagnostic/packet';
+import { CopyButton } from '@/ui/Data';
 
 /* ───────── Builder alerts (session) ───────── */
 
@@ -400,6 +402,10 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
               {next && <p className="text-[13px] text-ink-2">Next: {next.action}</p>}
             </div>
           )}
+          <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
+            <CopyButton value={diagnosticPacket(report, window.location.origin)} label="Copy this check as text" />
+            <span>Copy this check as text, to share with whoever runs the agent. Keys and query strings are removed; nothing is sent.</span>
+          </div>
           {report.enrolled && <Notice tone="ok">Its endpoint passed, so Pokter has added it to the probe schedule.</Notice>}
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
             <p className="text-sm font-medium">Manage it in Studio</p>

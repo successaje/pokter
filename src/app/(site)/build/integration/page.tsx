@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { Doc, DocSection } from '@/features/content/Doc';
 import { integrationKit } from '@/lib/integration/live';
+import { CodeBlock } from '@/ui/Data';
 
 export const metadata: Metadata = {
   title: 'Integration kit',
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 function Code({ children, wrap = false }: { children: string; wrap?: boolean }) {
-  return <pre className={`${wrap ? 'whitespace-pre-wrap break-all' : 'overflow-x-auto'} rounded-[10px] border border-rule bg-sunken p-4 text-[12.5px] leading-relaxed text-ink`}>{children}</pre>;
+  return <CodeBlock wrap={wrap}>{children}</CodeBlock>;
 }
 
 function Bullets({ items }: { items: string[] }) {
