@@ -7,6 +7,8 @@ import { formatUnits } from 'viem';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { shortAddress } from '@/lib/ui/format';
 import { loadFleet, studioOwner } from '@/features/studio/data';
+import { earnedByNetwork } from '@/lib/builder/earnings';
+import { chainLabel } from '@/lib/network/presentation';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/features/studio/StudioClient';
 import { PageHeader, Stat } from '@/features/workspace/parts';
@@ -93,9 +95,11 @@ export default async function StudioHome() {
     );
   }
 
-  const { agents, jobs } = await loadFleet(owner);
+  const { agents, jobs, unavailable } = await loadFleet(owner);
   const toDeliver = jobs.filter((j) => j.status === 'FUNDED').length;
-  const earned = jobs.filter((j) => j.status === 'COMPLETED').reduce((s, j) => s + BigInt(j.budgetRaw), 0n);
+  const earned = earnedByNetwork(jobs);
+  const amount = (raw: bigint) => Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const missing = unavailable.map(chainLabel).join(' and ');
 
   return (
     <>
@@ -120,10 +124,14 @@ export default async function StudioHome() {
         <EmailLinkNotice kind="builder" />
       </Suspense>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Agents" value={agents.length} />
+        <Stat label="Agents" value={unavailable.length === 2 ? '—' : agents.length} note={unavailable.length > 0 ? `${missing} could not be read` : undefined} />
         <Stat label="Answering now" value={agents.filter((a) => a.online).length} note={`${agents.filter((a) => a.online === false).length} not answering`} />
         <Stat label="To deliver" value={toDeliver} tone={toDeliver ? 'watch' : undefined} />
-        <Stat label="Earned" value={Number(formatUnits(earned, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} note="$U released to you" />
+        <Stat
+          label="Earned"
+          value={amount(earned.real)}
+          note={earned.test > 0n ? `$U released on ${chainLabel(56)}; ${amount(earned.test)} in test tokens on ${chainLabel(97)}, not counted` : `$U released to you on ${chainLabel(56)}`}
+        />
       </section>
 
       <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -131,8 +139,13 @@ export default async function StudioHome() {
           <h2 id="fleet-title" className="t-label">
             Operational health
           </h2>
+          {unavailable.length > 0 && (
+            <p className="text-sm text-watch">
+              Pokter could not read this wallet&rsquo;s agents on {missing} just now, so {agents.length > 0 ? 'some may be missing below' : 'this list may be incomplete'}. Reload to try again.
+            </p>
+          )}
           {agents.length === 0 ? (
-            <p className="text-sm text-ink-3">This wallet owns no agents yet.</p>
+            unavailable.length === 0 && <p className="text-sm text-ink-3">This wallet owns no agents yet.</p>
           ) : (
             <ul className="ruled border-y border-rule">
               {agents.map((a) => (

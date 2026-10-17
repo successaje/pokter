@@ -15,6 +15,14 @@ export function NewAgent() {
   const hydrated = useHydrated();
   const drafts = useSyncExternalStore(subscribeToDrafts, draftsSnapshot, draftsServerSnapshot);
   const [startedAt] = useState(() => Date.now());
+  /*
+   * The form's own draft id, once autosave has put it in the address. The
+   * form is keyed by draft, and without this the id appearing in the URL
+   * would remount it as a "different" draft, throwing away its checks.
+   * Opening another draft from the list still remounts, as it should.
+   */
+  const [bound, setBound] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState<string | null>(null);
   if (!hydrated) return <Skeleton className="h-96 w-full" />;
   const draftId = sp.get('draft');
   const template = TEMPLATES.find((t) => t.id === sp.get('template'));
@@ -23,5 +31,7 @@ export function NewAgent() {
     : template
       ? { id: `draft-${startedAt}`, draft: { ...template.draft }, mode: 'new', step: 0, updatedAt: new Date(startedAt).toISOString() }
       : null;
-  return <CreateAgent key={initial?.id ?? 'blank'} initial={initial} />;
+  const key = formKey === null || (draftId !== null && draftId !== bound && draftId !== formKey) ? (initial?.id ?? 'blank') : formKey;
+  if (key !== formKey) setFormKey(key);
+  return <CreateAgent key={key} initial={initial} onBound={setBound} />;
 }

@@ -23,7 +23,7 @@ const STEPS = [
   {
     id: 'evaluate',
     title: 'Evaluate',
-    you: 'Read what the agent claims next to what Pokter observed. Ask it for a free signed answer.',
+    you: 'Read what the agent claims next to what Pokter observed. Ask it, free, whether it takes your task and at what price.',
     pokter: 'Probes its endpoint live as the page loads, and checks any quote’s signature against the agent’s registered wallet.',
     chain: 'Nothing.',
   },

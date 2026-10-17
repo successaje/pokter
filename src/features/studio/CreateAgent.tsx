@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
-import type { StoredDraft } from '@/lib/builder/drafts';
+import type { DraftSaveStatus, StoredDraft } from '@/lib/builder/drafts';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { cn } from '@/lib/ui/cn';
@@ -303,7 +303,7 @@ function StepTest({ d }: { d: AgentDraft }) {
               </div>
               <div>
                 <dt className="t-label">Signed quotes</dt>
-                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Supports negotiate' : 'No negotiate skill: buyers set the budget blind'}</dd>
+                <dd className={cn('mt-1', p.quoteCapability ? 'text-ok' : 'text-watch')}>{p.quoteCapability ? 'Supports negotiate' : 'No negotiate skill: Pokter cannot get a signed price, so buyers cannot hire it yet'}</dd>
               </div>
               <div>
                 <dt className="t-label">HTTP status</dt>
@@ -539,8 +539,20 @@ function StepPublish({ d }: { d: AgentDraft }) {
   );
 }
 
-export function CreateAgent({ initial }: { initial?: StoredDraft | null }) {
-  const d = useAgentDraft(initial);
+/** What storage actually holds, not a promise made in advance. */
+function DraftSaveNote({ status }: { status: DraftSaveStatus }) {
+  if (status === 'failed') {
+    return <p role="status" className="text-[12px] text-watch">Could not save on this device (storage is full or blocked). Keep this tab open, or copy your text somewhere safe.</p>;
+  }
+  return (
+    <p role="status" className="text-[12px] text-ink-3">
+      {status === 'saved' ? 'Saved on this device. Drafts stay in this browser and do not appear on your other devices.' : status === 'saving' ? 'Saving…' : 'Drafts save to this browser as you type.'}
+    </p>
+  );
+}
+
+export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null; onBound?: (draftId: string) => void }) {
+  const d = useAgentDraft(initial, onBound);
   const step = Math.min(d.step, 3);
   const canNext = step === 0 ? d.checks[0].done && d.checks[1].done && d.checks[2].done : step === 1 ? /^https:\/\//i.test(d.draft.endpoint.trim()) && !d.repositoryProblem : step === 2 ? d.endpointChecked : false;
   const go = (n: number) => {
@@ -575,7 +587,7 @@ export function CreateAgent({ initial }: { initial?: StoredDraft | null }) {
           <p className="t-readout mt-1 text-xl">
             {d.checks.filter((c) => c.done).length}/{d.checks.length}
           </p>
-          <p className="text-[12px] text-ink-3">Saved on this device as you go.</p>
+          <DraftSaveNote status={d.saveStatus} />
         </div>
       </aside>
 

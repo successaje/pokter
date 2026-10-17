@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 import { useAccount } from 'wagmi';
 
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
-import { DRAFTS_KEY, announceDraftsChanged, isDraftEmpty, upsertDraft, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
+import { DRAFTS_KEY, announceDraftsChanged, draftSaveStatus, draftsServerSnapshot, draftsSnapshot, failedSavesServerSnapshot, failedSavesSnapshot, isDraftEmpty, recordDraftSave, subscribeToDrafts, upsertDraft, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { registerIdentityFromWallet, type RegistrationProgress, type RegistrationRecovery, type RegistryChainId } from '@/lib/registry/register';
@@ -138,7 +138,7 @@ function download(name: string, payload: unknown) {
  * endpoint preflight and trial, and ERC-8004 registration with recovery.
  * The network checks are the same ones a buyer's hire relies on.
  */
-export function useAgentDraft(initial?: StoredDraft | null) {
+export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: string) => void) {
   /*
    * A new draft adopts a registration already in flight, rather than
    * minting a fresh id and losing it.
@@ -204,13 +204,36 @@ export function useAgentDraft(initial?: StoredDraft | null) {
     if (isDraftEmpty(draft) || published) return;
     try {
       const stored = window.localStorage.getItem(DRAFTS_KEY);
-      const record = stored ? (JSON.parse(stored) as DraftRecord) : {};
+      let record: DraftRecord = {};
+      try {
+        record = stored ? (JSON.parse(stored) as DraftRecord) : {};
+      } catch {
+        /* Unreadable old data: keep this draft rather than fail every save. */
+      }
       window.localStorage.setItem(DRAFTS_KEY, JSON.stringify(upsertDraft(record, { id: draftId, draft, mode: 'new', step, updatedAt: new Date().toISOString() })));
+      recordDraftSave(draftId, true);
       announceDraftsChanged();
+      /*
+       * Put the draft's id in the address, so a refresh, Back or a shared
+       * tab returns to this draft and step instead of an empty form. Only
+       * the id: nothing from the draft itself goes into the URL.
+       */
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('draft') !== draftId) {
+        url.searchParams.delete('template');
+        url.searchParams.set('draft', draftId);
+        window.history.replaceState(window.history.state, '', url);
+        onBound?.(draftId);
+      }
     } catch {
-      /* Storage full or blocked: the draft lives for this session only. */
+      /* Storage full or blocked: say so, rather than claim it was saved. */
+      recordDraftSave(draftId, false);
     }
-  }, [draft, draftId, step, published]);
+  }, [draft, draftId, step, published, onBound]);
+
+  const storedDrafts = useSyncExternalStore(subscribeToDrafts, draftsSnapshot, draftsServerSnapshot);
+  const failedSaves = useSyncExternalStore(subscribeToDrafts, failedSavesSnapshot, failedSavesServerSnapshot);
+  const saveStatus = published ? 'empty' : draftSaveStatus(storedDrafts, draftId, draft, failedSaves.split('\n').includes(draftId));
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     if (key === 'endpoint' || key === 'protocol') {
@@ -459,6 +482,7 @@ export function useAgentDraft(initial?: StoredDraft | null) {
 
   return {
     draftId,
+    saveStatus,
     draft,
     update,
     replace,

@@ -222,7 +222,7 @@ export function DraftsList() {
 
 /* ───────── Connect an existing agent: diagnose, then verify ownership ───────── */
 
-type Report = DiagnosticReport & { enrolled?: boolean; lifecycle?: BuilderLifecycle };
+type Report = DiagnosticReport & { enrolled?: boolean; enrollmentFailed?: boolean; lifecycle?: BuilderLifecycle };
 
 export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tokenId: string } }) {
   const router = useRouter();
@@ -401,6 +401,11 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
             </div>
           )}
           {report.enrolled && <Notice tone="ok">Its endpoint passed, so Pokter has added it to the probe schedule.</Notice>}
+          {report.enrollmentFailed && (
+            <Notice tone="watch" action={<Button size="s" intent="secondary" onClick={() => void diagnose()} busy={busy}>Try again</Button>}>
+              Its endpoint passed, but Pokter could not save it to the probe schedule. The check above stands; running it again retries the save.
+            </Notice>
+          )}
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
             <p className="text-sm font-medium">Manage it in Studio</p>
             <p className="text-[13px] text-ink-2">Prove you own it by signing a message with the owner wallet. A signature, not a transaction: no fee, nothing moves.</p>

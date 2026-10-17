@@ -400,8 +400,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               <div id="try" className="scroll-mt-32 flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
                 <div className="flex flex-col gap-1">
                   <span className="t-label">Try before you hire</span>
-                  <h3 className="t-h3">Ask it for a signed answer, free</h3>
-                  <p className="text-[13.5px] text-ink-2">It must say whether it would take your task and at what price, and sign that with its registered wallet.</p>
+                  <h3 className="t-h3">Check task and price, free</h3>
+                  <p className="text-[13.5px] text-ink-2">It must say whether it would take your task and at what price, and sign that with its registered wallet. This is a price, not the work itself: the work comes once a job is funded.</p>
                 </div>
                 <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
               </div>

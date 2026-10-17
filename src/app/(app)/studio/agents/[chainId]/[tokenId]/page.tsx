@@ -59,8 +59,19 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
     );
   }
 
-  const { agents, jobs } = await loadFleet(owner);
+  const { agents, jobs, unavailable } = await loadFleet(owner);
   const agent = agents.find((a) => a.chainId === chainId && a.tokenId === tokenId);
+  // A failed registry read is not a change of owner: say which it is.
+  if (!agent && unavailable.includes(chainId)) {
+    return (
+      <>
+        {crumbs}
+        <Notice tone="watch" title="Pokter could not read the registry just now" action={<LinkButton href={`/studio/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Try again</LinkButton>}>
+          The lookup of agents owned by {owner.slice(0, 6)}…{owner.slice(-4)} failed, so Studio cannot confirm this agent yet. Nothing about the agent has changed.
+        </Notice>
+      </>
+    );
+  }
   if (!agent) {
     return (
       <>

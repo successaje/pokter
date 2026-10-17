@@ -156,3 +156,44 @@ export function announceDraftsChanged(): void {
     /* Nothing to announce to outside a browser. */
   }
 }
+
+/*
+ * Whether the draft on screen is actually saved.
+ *
+ * The page said "Saved on this device as you go" whatever happened, and a
+ * failed write (storage full, blocked, private mode) was swallowed. The
+ * status is now derived from what storage holds: saved only when the stored
+ * copy matches the form, failed when the last write threw.
+ */
+export type DraftSaveStatus = 'empty' | 'saving' | 'saved' | 'failed';
+
+const FIELDS: ReadonlyArray<keyof DraftFields> = ['name', 'description', 'category', 'protocol', 'endpoint', 'image', 'repository'];
+
+export function draftSaveStatus(stored: readonly StoredDraft[], id: string, draft: DraftFields, failed: boolean): DraftSaveStatus {
+  if (isDraftEmpty(draft)) return 'empty';
+  if (failed) return 'failed';
+  const copy = stored.find((entry) => entry.id === id);
+  return copy && FIELDS.every((field) => copy.draft[field] === draft[field]) ? 'saved' : 'saving';
+}
+
+/* Failed writes, as their own small store: a failed write leaves storage
+   unchanged, so the drafts snapshot alone would never re-render. */
+let failedSaves = '';
+
+export function recordDraftSave(id: string, ok: boolean): void {
+  const ids = new Set(failedSaves ? failedSaves.split('\n') : []);
+  if (ok) ids.delete(id);
+  else ids.add(id);
+  const next = [...ids].sort().join('\n');
+  if (next === failedSaves) return;
+  failedSaves = next;
+  announceDraftsChanged();
+}
+
+export function failedSavesSnapshot(): string {
+  return failedSaves;
+}
+
+export function failedSavesServerSnapshot(): string {
+  return '';
+}
