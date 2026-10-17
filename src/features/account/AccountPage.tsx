@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useSyncExternalStore } from 'react';
 
-import { NETWORK_LABEL } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, MAINNET_ESCROW, NETWORK_LABEL } from '@/lib/network/presentation';
 import { notificationSettings, saveNotificationSettings, subscribeToNotifications } from '@/lib/wallet/notifications';
 import { NotificationEmail } from './NotificationEmail';
 import { revokeExternalWalletAllowance } from '@/lib/wallet/external';
@@ -106,7 +106,7 @@ export function AccountPage() {
         ))}
       </nav>
 
-      <Section id="wallets" title="Wallets" description={`Which wallet signs on ${NETWORK_LABEL}. A connected browser wallet takes precedence over a passkey wallet on this device.`}>
+      <Section id="wallets" title="Wallets" description={`Which wallet signs. A connected browser wallet takes precedence over a passkey wallet on this device.${MAINNET_ESCROW ? ` Hires are funded on ${ESCROW_NETWORKS_LABEL}; a passkey wallet acts on ${NETWORK_LABEL} only, so a hire on another network needs a browser wallet.` : ` Everything is signed on ${NETWORK_LABEL}.`}`}>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-raised p-4">
             <div className="flex items-center gap-3">
