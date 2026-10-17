@@ -118,20 +118,6 @@ export default async function HomePage() {
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
             <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>
-              {/*
-                Its own button, because the free trial is the one way to see
-                an agent work before any wallet opens — and it was reachable
-                only by starting a hire and noticing the second option.
-                Points at the catalogue rather than a network filter: that
-                filter is "registered on", which is a different fact, and
-                conflating the two is what made every mainnet agent read as
-                testnet.
-              */}
-              {MAINNET_ESCROW && (
-                <LinkButton href="/discover" size="s" intent="secondary" trailing={<Icon.Arrow size={14} />}>
-                  Try free on testnet
-                </LinkButton>
-              )}
               <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
                 Build an agent <Icon.Arrow size={15} />
               </Link>
