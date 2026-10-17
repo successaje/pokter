@@ -33,13 +33,11 @@ import { readinessRows, type ReadinessRow } from '@/lib/agents/readiness';
 import { chainLabel } from '@/lib/network/presentation';
 import type { HireBlocker } from '@/lib/hire/blocker';
 import { currentHireBlocker } from '@/lib/hire/blocker-live';
+import { clipAtWord } from '@/lib/ui/clip';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
-  return (text ?? '')
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
-    .slice(0, max)
-    .trim();
+  return clipAtWord((text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim(), max);
 }
 
 function firstSentence(text: string) {
@@ -236,7 +234,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     skills: skills.slice(0, 12).map((s) => ({
       name: clean(s.name, 80),
       kind: s.kind,
-      description: s.description ? clean(s.description, 300) : null,
+      description: s.description ? clean(s.description, 900) : null,
       /* Carried through: the hire page builds its task suggestions from
          these, so an agent that documents how to ask it gets asked that
          way. See `templatesFromSkills`. */

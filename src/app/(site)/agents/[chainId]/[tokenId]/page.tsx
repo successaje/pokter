@@ -7,6 +7,7 @@ import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
+import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
 import { loadProfile, type AgentProfile } from '@/features/agent/profile';
@@ -332,7 +333,19 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="t-readout text-[13px] font-medium">{s.name}</span>
                         {s.kind !== 'capability' && <span className="t-label text-ink-3">{s.kind === 'paid' ? 'Paid job' : 'Free preview'}</span>}
                       </p>
-                      {s.description && <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-ink-3">{s.description}</p>}
+                      {s.description && (s.description.length <= 220 ? (
+                        <p className="mt-1 text-[13px] leading-snug text-ink-3">{s.description}</p>
+                      ) : (
+                        /* Long operator text opens in place rather than stopping mid-sentence. */
+                        <details className="group mt-1 text-[13px] leading-snug text-ink-3">
+                          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                            <span className="group-open:hidden">{clipAtWord(s.description, 200)} </span>
+                            <span className="font-medium text-ink-2 underline-offset-2 hover:underline group-open:hidden">Show all</span>
+                            <span className="hidden font-medium text-ink-2 group-open:inline">Show less</span>
+                          </summary>
+                          <p className="mt-1 whitespace-pre-line">{s.description}</p>
+                        </details>
+                      ))}
                     </li>
                   ))}
                 </ul>
