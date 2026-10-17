@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import type { FindRow } from '@/lib/find/rows';
-import { escrowMoney } from '@/lib/network/presentation';
+import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
@@ -64,7 +64,53 @@ export function PriceText({ row, className }: { row: FindRow; className?: string
       </span>
     );
   }
-  return <span className={cn('text-[13px] text-ink-3', className)}>No signed price</span>;
+  /*
+   * Two different facts, said differently. "No signed price" covered both
+   * an agent nothing has reached and one that answers every check but
+   * whose price Pokter cannot accept — and the second is the owner's bug,
+   * not the agent's silence. The exact refusal is named on the agent's own
+   * page, which is the only surface that reads the sweep's failure code.
+   */
+  return (
+    <span className={cn('text-[13px] text-ink-3', className)}>
+      {row.priceState === 'unverified' ? 'No price Pokter could verify' : 'No price available'}
+    </span>
+  );
+}
+
+/**
+ * Where the identity lives, which is not where a hire settles.
+ *
+ * The card showed only the hiring network, and when there was no verified
+ * price that was filled in with a testnet default — so a mainnet agent
+ * read as a testnet one and the registration was nowhere on the card to
+ * contradict it. Both facts now appear, and neither stands in for the
+ * other.
+ */
+export function RegisteredNetwork({ chainId, className }: { chainId: number; className?: string }) {
+  return (
+    <span className={cn('text-[11.5px] text-ink-3', className)}>
+      Registered on {chainLabel(chainId)}
+    </span>
+  );
+}
+
+/**
+ * The free testnet trial, named as a trial.
+ *
+ * Offered for an agent with no payable price, and it is not the agent
+ * taking the job: Pokter's own delivery agent carries the task and returns
+ * the answer. Saying so matters more than the label — a trial is not
+ * evidence the listed provider accepted or delivered anything, and the
+ * evidence ladder already refuses to count it (`maturity.ts`, and the
+ * delivery paths refuse any job that does not name them as provider).
+ */
+export function TrialNote({ className }: { className?: string }) {
+  return (
+    <span className={cn('text-[11.5px] text-watch', className)} title="Pokter’s delivery agent carries the task to the agent and returns its answer. It does not count as a delivery by the agent.">
+      Free testnet trial · carried by Pokter’s delivery agent
+    </span>
+  );
 }
 
 /**
@@ -110,7 +156,18 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
         <span className="flex min-w-0 flex-col gap-0.5">
           <PriceText row={row} className="text-[13px]" />
-          <HireNetwork chainId={row.hireChainId} />
+          {/*
+            Three separate facts, none standing in for another: what a paid
+            hire settles in, whether the free trial is the only thing on
+            offer, and where the identity is registered. The trial line is
+            gated on the hire actually being offered — an agent with no
+            reachable endpoint gets no trial, and claiming one would repeat
+            the error this replaced.
+          */}
+          {row.hireChainId !== null
+            ? <HireNetwork chainId={row.hireChainId} />
+            : row.hirable ? <TrialNote /> : null}
+          <RegisteredNetwork chainId={row.chainId} />
         </span>
         <NextStep row={row} />
       </div>
