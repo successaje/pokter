@@ -17,10 +17,18 @@ import { describeSeconds } from './deadline';
  * with a 900-second window — job 1440 was submitted at 08:56:05, refused
  * before 09:11:05, and completed afterwards.
  *
- * Expiry is the other edge and it is not symmetrical: past `expiredAt`
- * the escrow can no longer be released to the seller, only reclaimed by
- * the buyer. Two jobs sat delivered-but-unconfirmed past their deadline
- * while Pokter kept offering a button that could not work.
+ * Expiry is the other edge, and it is not a deadline on payment. The
+ * deployed kernel's `complete` carries no deadline check, so a delivered
+ * job still SUBMITTED past `expiredAt` settles as the policy decided —
+ * until the buyer reclaims it, from which moment the two are racing. That
+ * is the `racing` state `sellerReleaseSummary` reports, rather than
+ * telling a seller their money is gone.
+ *
+ * This file used to refuse any settle past the deadline, on the evidence
+ * of jobs 1202 and 1217. They revert `PolicyNotSet`: created without a
+ * dispute policy, they could never settle at any time, and that error was
+ * misread as expiry. Published as a correction on 16 Oct 2026; the rule
+ * does not exist, so do not reintroduce it.
  *
  * Pure, because this decides what a buyer is told about their own money
  * and that deserves tests rather than a reading of the call site.
