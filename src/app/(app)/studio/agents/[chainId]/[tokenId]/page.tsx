@@ -198,6 +198,8 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               <Readout label="Hire flow opened" value={agent.conversion.hireOpened} muted={!agent.conversion.hireOpened} />
               <Readout label="Wallet reached" value={agent.conversion.walletConnected} muted={!agent.conversion.walletConnected} />
               <Readout label="Jobs funded" value={agent.conversion.funded} muted={!agent.conversion.funded} />
+              <Readout label="Agent refused" value={agent.conversion.hireRefused} muted={!agent.conversion.hireRefused} />
+              <Readout label="Stopped on a quote or network error" value={agent.conversion.hireFailed} muted={!agent.conversion.hireFailed} />
             </div>
             <p className="text-[11.5px] leading-relaxed text-ink-3">Pokter stores daily aggregate counts only—no visitor identifier, wallet, IP address or task text. A buyer returning in another tab can count again, so these are directional product signals rather than an attribution claim.</p>
           </section>

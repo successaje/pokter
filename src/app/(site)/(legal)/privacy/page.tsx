@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <div>
         <h1 className="t-h1">Privacy</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 13 October 2026.
+          Last updated 17 October 2026.
         </p>
       </div>
 
@@ -68,9 +68,10 @@ export default function PrivacyPage() {
       </p>
       <p>
         To find friction between viewing an agent and funding a job, Pokter
-        keeps daily aggregate counts for four events: agent listing viewed,
-        hire flow opened, wallet connection reached and job funded. These
-        funnel records contain the agent id and, where relevant, the escrow
+        keeps daily aggregate counts for six events: agent listing viewed,
+        hire flow opened, wallet connection reached, job funded, a hire the
+        agent refused, and a hire stopped by a quote, network or payment
+        error. These funnel records contain the agent id and, where relevant, the escrow
         network. They do not contain a visitor identifier, wallet address, IP
         address, task text or exact timestamp, and are deleted after 90 days.
         A device limits each event to once per tab session using session

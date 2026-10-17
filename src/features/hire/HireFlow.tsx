@@ -32,6 +32,7 @@ import { taskProblems } from '@/lib/hire/task-fields';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
 import type { AnsweredTask } from '@/lib/agent/answered-tasks';
+import { stoppedHireEvent } from '@/lib/conversion/funnel';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -194,6 +195,11 @@ export function HireFlow(props: HireFlowProps) {
   useEffect(() => {
     if (done) recordConversionOnce('funded', props.agent.chainId, props.agent.tokenId, escrowChainId);
   }, [done, props.agent.chainId, props.agent.tokenId, escrowChainId]);
+
+  const stopped = hire.state === 'error' ? stoppedHireEvent(hire.errorLayer) : null;
+  useEffect(() => {
+    if (stopped) recordConversionOnce(stopped, props.agent.chainId, props.agent.tokenId, escrowChainId);
+  }, [stopped, props.agent.chainId, props.agent.tokenId, escrowChainId]);
 
   // ── Done ──────────────────────────────────────────────
   if (done && hire.job) {
