@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { shareMetadata } from '@/lib/og/share';
 import Link from 'next/link';
+import { Suspense } from 'react';
+
+import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import { cn } from '@/lib/ui/cn';
@@ -158,6 +161,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
+      <Suspense>
+        <RememberDiscoverResults />
+      </Suspense>
       <header className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -28,6 +28,7 @@ import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { ConversionBeacon } from '@/features/conversion/ConversionBeacon';
 import { isHouseAgent } from '@/lib/house/wallets';
+import { BackToResults } from '@/features/discover/ReturnToResults';
 
 export const dynamic = 'force-dynamic';
 
@@ -171,13 +172,16 @@ export default async function AgentPage({ params, searchParams }: { params: Para
       {/* Identity band */}
       <div className="border-b border-rule bg-raised/50">
         <div className="frame pb-8 pt-6">
-          <Breadcrumbs
-            items={[
-              { href: '/discover', label: 'Discover' },
-              ...(p.category ? [{ href: `/discover?category=${p.category.id}`, label: p.category.label }] : []),
-              { label: p.name },
-            ]}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Breadcrumbs
+              items={[
+                { href: '/discover', label: 'Discover' },
+                ...(p.category ? [{ href: `/discover?category=${p.category.id}`, label: p.category.label }] : []),
+                { label: p.name },
+              ]}
+            />
+            <BackToResults />
+          </div>
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-5">
               <AgentAvatar name={p.name} imageUrl={p.imageUrl} seed={p.key} size={76} className="rounded-[16px]" eager />
