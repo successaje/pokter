@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { MAINNET_ESCROW, NETWORK_LABEL, IS_TESTNET } from '@/lib/network/presentation';
 import { Button } from '@/ui/Button';
@@ -37,17 +37,43 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     setOpen(true);
   }, []);
   const value = useMemo(() => ({ openConnect }), [openConnect]);
+  const close = useCallback(() => setOpen(false), []);
+  const reopen = useCallback(() => setOpen(true), []);
   return (
     <ConnectContext.Provider value={value}>
       {children}
-      <ConnectSheet key={session} open={open} reason={reason} onClose={() => setOpen(false)} />
+      <ConnectSheet key={session} open={open} reason={reason} onClose={close} onReopen={reopen} />
     </ConnectContext.Provider>
   );
 }
 
-function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string | null; onClose: () => void }) {
+function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reason: string | null; onClose: () => void; onReopen: () => void }) {
   const w = useWalletState();
   const [view, setView] = useState<'choose' | 'passkey'>('choose');
+
+  /*
+   * WalletConnect draws its own QR and wallet-list modal as an ordinary page
+   * element, and this sheet is a native <dialog> in the browser's top layer,
+   * which nothing on the page can cover. So the WalletConnect modal opened
+   * behind the sheet, most visibly on phones. The sheet now steps aside for
+   * it, and comes back with the error if the connection fails or is closed.
+   */
+  const handedOff = useRef(false);
+  const connectWalletConnect = () => {
+    handedOff.current = true;
+    onClose();
+    w.connectWalletConnect();
+  };
+  useEffect(() => {
+    if (!handedOff.current || open) return;
+    // Back with the error, or to switch a wallet that connected on another network.
+    if (w.connectError || (w.address && w.wrongChain)) {
+      handedOff.current = false;
+      onReopen();
+    } else if (w.address) {
+      handedOff.current = false;
+    }
+  }, [open, w.connectError, w.address, w.wrongChain, onReopen]);
 
   // Close once something can sign. A browser wallet on the wrong network is
   // not "connected" for our purposes; the sheet stays open to switch it.
@@ -97,12 +123,12 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
                   ? 'Scan a code with Trust Wallet, MetaMask mobile or any WalletConnect wallet. The same address works on every marketplace.'
                   : 'No wallet was found in this browser. Use a passkey wallet, or open Pokter in a browser that has one.'
             }
-            onClick={() => (w.injectedAvailable ? w.connectInjected() : w.connectWalletConnect())}
+            onClick={() => (w.injectedAvailable ? w.connectInjected() : connectWalletConnect())}
             busy={w.connecting}
             disabled={!w.injectedAvailable && !w.walletConnectAvailable}
           />
           {w.injectedAvailable && w.walletConnectAvailable && (
-            <button type="button" onClick={() => w.connectWalletConnect()} className="self-start text-[13px] font-medium text-ink-2 link">
+            <button type="button" onClick={connectWalletConnect} className="self-start text-[13px] font-medium text-ink-2 link">
               Use a phone wallet instead (WalletConnect)
             </button>
           )}
