@@ -32,6 +32,7 @@ primary_region = 'iad'
   QUEST_DB_PATH = '/data/quest.db'
   CONVERSION_DB_PATH = '/data/conversion.db'
   SEAL_DB_PATH = '/data/seals.db'
+  WALLET_ACTIVITY_DB_PATH = '/data/wallet-activity.db'
   # The server schedules its own probe sweeps (src/lib/history/scheduler.ts);
   # GitHub's cron is the backup. Set only here, so no other host sweeps.
   SWEEP_SCHEDULER = 'on'

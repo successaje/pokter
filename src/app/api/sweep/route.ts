@@ -22,6 +22,8 @@ import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
+import { getQuestStore } from '@/lib/quest/store';
+import { refreshWalletActivity } from '@/lib/activity/store';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { getProbeStore } from '@/lib/history/store';
@@ -328,6 +330,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     const agentWallets = listings
       ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
       : null;
+    /*
+     * What listed agents' wallets have done on chain: transactions sent, and
+     * whether each is a contract wallet. Read once a day per wallet and
+     * bounded per pass; after the wallets themselves, which it reads from.
+     */
+    const listed = new Set((listings ?? []).map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
+    const walletActivity = listings
+      ? await refreshWalletActivity(
+          getQuestStore()
+            .allAgentWallets()
+            .filter((w) => listed.has(`${w.chainId}:${w.tokenId}`))
+            .map((w) => ({ chainId: w.chainId, agentWallet: w.wallet })),
+        ).catch(() => null)
+      : null;
 
     /*
      * Followed agents: what each looks like now, compared with what its
@@ -373,6 +389,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       paidHfChecks,
       paidV3Checks,
       capturedDeliverables,
+      walletActivity,
       questIndex,
       answeredTasks,
       reconciled,

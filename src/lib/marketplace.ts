@@ -39,6 +39,8 @@ import { getReviewStore } from '@/lib/reviews/store';
 import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 import { getAssayStore } from '@/lib/assay/store';
+import { getWalletActivityStore } from '@/lib/activity/store';
+import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
 import type { SearchableAgent } from '@/lib/search/match';
 export { preferDistinctOwners };
@@ -593,6 +595,8 @@ export interface Comparison {
   check: { passed: number; total: number; status: string; ranAt: string; via: string } | null;
   /** The owner the registry reports now, which can differ from the indexer's copy. */
   currentOwner: string | null;
+  /** What its agent wallet has done, from the daily read: on BNB Chain, and on BNB Testnet for agents registered there. */
+  walletActivity: { mainnet: WalletActivity | null; testnet: WalletActivity | null };
 }
 
 export async function getComparison(
@@ -648,6 +652,10 @@ export async function getComparison(
       return run ? { passed: run.passed, total: run.total, status: run.status, ranAt: run.ranAt, via: run.via } : null;
     })(),
     currentOwner,
+    walletActivity: {
+      mainnet: agent.agent_wallet ? getWalletActivityStore().get(56, agent.agent_wallet) : null,
+      testnet: agent.agent_wallet && chainId === 97 ? getWalletActivityStore().get(97, agent.agent_wallet) : null,
+    },
     reviewCount: reviews.length,
     reviewAverage: reviews.length
       ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
