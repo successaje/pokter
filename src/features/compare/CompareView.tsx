@@ -76,8 +76,8 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                     <span className="sr-only">Measure</span>
                   </th>
                   {items.map((c, i) => (
-                    <th key={`${c.agent.chain_id}:${c.agent.token_id}`} scope="col" className="border-l border-rule p-4 align-top font-normal">
-                      <Link href={`/agents/${c.agent.chain_id}/${c.agent.token_id}`} className="flex flex-col gap-2 hover:underline">
+                    <th key={`${c.agent.chain_id}:${c.agent.token_id}`} scope="col" className="border-l border-rule p-4 text-center align-top font-normal">
+                      <Link href={`/agents/${c.agent.chain_id}/${c.agent.token_id}`} className="flex flex-col items-center gap-2 hover:underline">
                         <AgentAvatar name={c.agent.name} imageUrl={images[i]} seed={`${c.agent.chain_id}:${c.agent.token_id}`} size={40} />
                         <span className="font-semibold">{c.agent.name}</span>
                       </Link>
@@ -91,7 +91,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                   const best = bestOf(row, items);
                   return (
                     <tr key={row.label} className="border-t border-rule">
-                      <th scope="row" className="bg-raised/60 p-4 align-top font-medium">
+                      <th scope="row" className="bg-raised/60 p-4 align-middle font-medium">
                         <span className="flex items-center gap-2">
                           {row.label}
                           {differs && <span className="size-1.5 rounded-full bg-signal" title="Differs between agents" />}
@@ -99,7 +99,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                         {row.hint && <span className="block text-[12px] font-normal text-ink-3">{row.hint}</span>}
                       </th>
                       {items.map((c, i) => (
-                        <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('border-l border-rule p-4 align-top text-ink-2', best.has(i) && 'bg-ok-wash/70 text-ink')}>
+                        <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('border-l border-rule p-4 text-center align-middle text-ink-2', best.has(i) && 'bg-ok-wash/70 text-ink')}>
                           {row.value(c)}
                           {best.has(i) && <BestMark />}
                         </td>
@@ -110,7 +110,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                 <tr className="border-t border-rule">
                   <th scope="row" className="bg-raised/60 p-4" />
                   {items.map((c) => (
-                    <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className="border-l border-rule p-4">
+                    <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className="border-l border-rule p-4 text-center">
                       <LinkButton href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s">
                         Hire
                       </LinkButton>
