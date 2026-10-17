@@ -235,7 +235,10 @@ export function InboxPage() {
       />
       <EmailLinkNotice kind="jobs" />
       <ReadSyncRow sync={sync} />
-      {items.length === 0 ? (
+      {items.length === 0 && !address ? (
+        /* "All quiet" is only true after a load: with no wallet, job updates were never read. */
+        <NeedsWallet what="your job updates" />
+      ) : items.length === 0 ? (
         <EmptyState title="All quiet">Updates appear here when a job you funded changes state, or a saved agent&rsquo;s evidence, availability or price changes.</EmptyState>
       ) : (
         <ul className="ruled border-y border-rule">

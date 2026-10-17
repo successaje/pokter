@@ -72,19 +72,26 @@ export async function POST(request: Request): Promise<NextResponse> {
      * schedules. The gate is an endpoint we could actually reach: an agent
      * that publishes no service record has nothing for a sweep to call.
      */
-    const enrolled = report.checks.some(
+    const eligible = report.checks.some(
       (check) => check.id === 'endpoint' && check.status === 'pass',
     );
     const store = getProbeStore();
-    if (enrolled) {
+    /*
+     * `enrolled` is true only once the roster write has succeeded. It was
+     * set from eligibility alone, so a store that would not write still
+     * told the operator they were on the schedule. A failed write does not
+     * fail the diagnostic, which is what they asked for, but it is reported
+     * as `enrollmentFailed` so the page can offer a retry. Enrolling is
+     * idempotent, so a retry cannot add the agent twice.
+     */
+    let enrolled = false;
+    let enrollmentFailed = false;
+    if (eligible) {
       try {
         store.enroll([{ chainId, tokenId }]);
+        enrolled = true;
       } catch {
-        /*
-         * Never fail the diagnostic over this. The report is what the operator
-         * asked for; enrolment is something we do off the back of it, and a
-         * store that will not write is our problem to notice, not theirs.
-         */
+        enrollmentFailed = true;
       }
     }
 
@@ -102,7 +109,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       probeCount,
     });
 
-    return NextResponse.json({ ...report, enrolled, lifecycle });
+    return NextResponse.json({ ...report, enrolled, enrollmentFailed, lifecycle });
   } catch (error) {
     if (error instanceof AgentNotFound) {
       return NextResponse.json(

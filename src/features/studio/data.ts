@@ -73,11 +73,23 @@ function gapsFor(agent: ScanAgent, online: boolean | null, imageUrl: string | nu
   ].filter((g): g is string => Boolean(g));
 }
 
-export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; jobs: HiredJob[] }> {
-  const pages = await Promise.all([
-    listAgents({ chainId: 56, ownerAddress: owner, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
-    listAgents({ chainId: 97, ownerAddress: owner, limit: 100 }).catch(() => ({ items: [] as ScanAgent[] })),
-  ]);
+/**
+ * The owner's agents on both registries, and which lookups failed.
+ *
+ * A failed lookup used to become an empty list, so an indexer outage read
+ * as "This wallet owns no agents yet". `unavailable` names the chains that
+ * could not be read, so the page can say so instead of showing zero.
+ */
+export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; jobs: HiredJob[]; unavailable: number[] }> {
+  const unavailable: number[] = [];
+  const pages = await Promise.all(
+    ([56, 97] as const).map((chainId) =>
+      listAgents({ chainId, ownerAddress: owner, limit: 100 }).catch(() => {
+        unavailable.push(chainId);
+        return { items: [] as ScanAgent[] };
+      }),
+    ),
+  );
   const agents = pages.flatMap((p) => p.items);
   const keys = new Set(agents.map((a) => `${a.chain_id}:${a.token_id}`));
   const jobs = getJobStore()
@@ -98,6 +110,7 @@ export async function loadFleet(owner: string): Promise<{ agents: FleetAgent[]; 
 
   return {
     jobs,
+    unavailable: unavailable.sort(),
     agents: agents.map((agent, i) => {
       const record = buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since));
       const day = record.windows.find((w) => w.label === '24h');

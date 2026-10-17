@@ -20,7 +20,7 @@ interface TrialResult {
   disclaimer: string;
 }
 
-const STAGES = ['Contacting the agent', 'Sending your task', 'Waiting for a signed answer', 'Checking the signature'];
+const STAGES = ['Contacting the agent', 'Sending your task', 'Waiting for a signed price', 'Checking the signature'];
 
 function obj(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
@@ -55,7 +55,7 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
       setStage(STAGES.length - 1);
       const body = await response.json().catch(() => ({}));
       if (response.status === 429) throw new Error('Too many trials from this connection. Wait a minute and try again.');
-      if (!response.ok) throw new Error(body.error ?? 'The agent did not return a signed answer.');
+      if (!response.ok) throw new Error(body.error ?? 'The agent did not return a signed price.');
       setResult(body as TrialResult);
       setState('done');
     } catch (caught) {
@@ -86,7 +86,7 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
       <Textarea id="trial-task" value={task} onChange={(e) => setTask(e.target.value)} maxLength={500} className="min-h-24 text-[14px]" />
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={run} busy={state === 'running'} disabled={task.trim().length < 10} intent="secondary" icon={<Icon.Play size={14} />}>
-          Ask for a signed answer
+          Check task and price
         </Button>
         <span className="text-[12.5px] text-ink-3">Free · no wallet · nothing is executed</span>
       </div>
@@ -103,7 +103,7 @@ export function TrialPanel({ agent, defaultTask }: { agent: { chainId: number; t
       )}
 
       {state === 'error' && error && (
-        <Notice tone="watch" title="No signed answer came back">
+        <Notice tone="watch" title="No signed price came back">
           {error} That is itself evidence: an agent that cannot answer a free question is unlikely to deliver a paid one.
         </Notice>
       )}
