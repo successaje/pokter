@@ -10,10 +10,10 @@ import { jobChainParam } from '@/lib/jobs/href';
 import { getJobStore } from '@/lib/erc8183/store';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { erc8183ManifestHash } from '@altananetwork/sdk';
-import { withPublicEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { siteUrl } from '@/lib/site';
 import { logAndPublic } from '@/lib/api/public-error';
+import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -22,7 +22,6 @@ export const dynamic = 'force-dynamic';
  */
 export const maxDuration = 60;
 
-const MAX_MANIFEST_BYTES = 256 * 1024;
 
 export async function GET(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(
@@ -147,34 +146,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       );
     }
     const candidate = new URL(value);
-    const ownOrigin = new URL(
-      siteUrl(),
-    ).origin;
-    // Our own origin needs no SSRF check; anything else is validated and then
-    // pinned to the address that was checked (POK-008).
-    const init: RequestInit = {
-      headers: { accept: 'application/json, text/plain;q=0.9' },
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(8_000),
-    };
-    const readManifest = async (response: Response): Promise<string> => {
-      if (!response.ok)
-        throw new Error(`Deliverable answered ${response.status}`);
-      const declaredLength = Number(response.headers.get('content-length') ?? 0);
-      if (declaredLength > MAX_MANIFEST_BYTES)
-        throw new Error('Deliverable exceeds the 256 KB verification limit');
-      const text = await response.text();
-      if (new TextEncoder().encode(text).byteLength > MAX_MANIFEST_BYTES)
-        throw new Error('Deliverable exceeds the 256 KB verification limit');
-      return text;
-    };
-    const manifestText =
-      candidate.origin === ownOrigin
-        ? await readManifest(await fetch(candidate, init))
-        : await withPublicEndpoint(candidate.href, async (pinned) =>
-            readManifest(await pinned.fetch(init)),
-          );
+    const manifestText = await fetchDeliverableText(candidate.href);
 
     return NextResponse.json({
       verified: verifyErc8183ManifestText(manifestText, job.deliverable),

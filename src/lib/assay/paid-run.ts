@@ -20,6 +20,7 @@ import { readVenusPosition, venusClient } from './venus';
 import { gradePaidScenario } from './paid-grade';
 import { getAssayStore } from './store';
 import type { AssayRun, AssayScenarioResult } from './types';
+import { awaitingCapture, awaitingRow } from './awaiting-capture';
 
 /**
  * A correctness check assembled from the agent's own paid deliveries.
@@ -128,6 +129,7 @@ export function gradePaidCategoryCheck(
      * by the wrong chain would find nothing and grade it undelivered.
      */
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    if (awaitingCapture(job, stored)) return awaitingRow(scenario.id, job);
     return gradePaidScenario({
       scenario,
       jobId: job.jobId,
@@ -185,6 +187,10 @@ export async function gradePaidHealthFactorCheck(
   for (const [account, job] of fixtures) {
     const reading = await readVenusPosition(client, account as Address).catch(() => null);
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    if (awaitingCapture(job, stored)) {
+      graded.push(awaitingRow(account, job));
+      continue;
+    }
     graded.push(
       gradePaidHfScenario({
         account,
@@ -347,6 +353,10 @@ export async function gradePaidV3Check(
   for (const [account, job] of fixtures) {
     const reading = await readV3Positions(client, account as Address).catch(() => null);
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    if (awaitingCapture(job, stored)) {
+      graded.push(awaitingRow(`delivery (job ${job.jobId})`, job));
+      continue;
+    }
     graded.push(
       ...gradePaidV3Scenarios({
         jobId: job.jobId,
