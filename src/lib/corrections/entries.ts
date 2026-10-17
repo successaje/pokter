@@ -25,7 +25,7 @@ export const CORRECTIONS: Correction[] = [
     said: 'A catalogue card showed one network for a hire, and when Pokter had no price it could read, that line said \u201cTest tokens \u00b7 BNB Testnet\u201d. 58 of the 77 agents registered on BNB Chain read that way.',
     true: 'Those agents are registered on BNB Chain, and a missing or unverifiable price says nothing about which network they belong to \u2014 several had signed a price in mainnet $U that Pokter could not verify. The card was reporting a default as a fact. It now keeps three things apart: the network an agent is registered on, the network a paid hire settles on \u2014 shown only when Pokter has verified a payable quote \u2014 and the free testnet trial, named as a trial and saying that Pokter\u2019s own delivery agent carries the work. A trial has never counted as a delivery by the agent, and still does not.',
     found: 'A builder asked why everything of theirs showed testnet on Discover.',
-    prs: [150],
+    prs: [151],
   },
   {
     date: '2026-10-17',
