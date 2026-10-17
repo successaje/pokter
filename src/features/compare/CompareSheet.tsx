@@ -14,7 +14,7 @@ import { Sheet } from '@/ui/Sheet';
  * goes back, so the browser's Back closes it too. "Full page" is a plain
  * link, a full load, so /compare renders as its own page.
  */
-export function CompareSheet({ fullPageHref, children }: { fullPageHref: string; children: ReactNode }) {
+export function CompareSheet({ fullPageHref, children }: { fullPageHref: string | null; children: ReactNode }) {
   const router = useRouter();
   const close = useCallback(() => router.back(), [router]);
   return (
@@ -31,9 +31,11 @@ export function CompareSheet({ fullPageHref, children }: { fullPageHref: string;
           <button type="button" onClick={close} className="text-[13px] font-medium text-ink-2 hover:text-ink">
             Close
           </button>
-          <a href={fullPageHref} className={buttonClass('secondary', 's')}>
-            Full page <Icon.ArrowUpRight size={14} />
-          </a>
+          {fullPageHref && (
+            <a href={fullPageHref} className={buttonClass('secondary', 's')}>
+              Full page <Icon.ArrowUpRight size={14} />
+            </a>
+          )}
         </div>
       }
     >

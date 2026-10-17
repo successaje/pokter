@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { leaders } from '@/lib/compare/best';
+import { ago, checkReading, custodyOf, declaredProtocols, endpointReading } from '@/lib/compare/rows';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { Comparison } from '@/lib/marketplace';
 import { chainLabel } from '@/lib/network/presentation';
@@ -39,8 +40,11 @@ function rate(c: Comparison) {
 const ROWS: Row[] = [
   { label: 'Does', value: (c) => (c.category === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(c.category as Category)?.label ?? c.category)), raw: (c) => String(c.category) },
   { label: 'Evidence', value: (c) => <VerdictLabel verdict={c.proof.verdict} />, raw: (c) => VERDICT_LABEL[c.proof.verdict] },
+  { label: 'Correctness checks', hint: 'Its answers against what Pokter reads on chain', value: (c) => checkReading(c.check).text, raw: (c) => checkReading(c.check).text, rank: { of: (c) => checkReading(c.check).score, better: 'higher' } },
   // A rate over a handful of probes is noise: five at least before it can lead.
   { label: 'Answered probes', hint: 'All time, by Pokter', value: (c) => (c.record.totalProbes ? `${Math.round(rate(c)! * 100)}% of ${c.record.totalProbes}` : 'Not probed'), raw: (c) => String(rate(c)), rank: { of: (c) => (c.record.totalProbes >= 5 ? rate(c) : null), better: 'higher' } },
+  { label: 'Last checked', hint: 'Pokter’s latest probe', value: (c) => ago(c.latestProbe?.probedAt ?? null), raw: (c) => ago(c.latestProbe?.probedAt ?? null) },
+  { label: 'Endpoint', hint: 'What that probe saw', value: (c) => endpointReading(c.latestProbe), raw: (c) => String(c.latestProbe?.ok ?? '') },
   { label: 'Typical reply', value: (c) => formatMs(medianMs(c)), raw: (c) => String(medianMs(c)), rank: { of: medianMs, better: 'lower' } },
   { label: 'Published attestations', value: (c) => (c.proof.totalCount ? `${c.proof.totalCount} (${c.proof.usableCount} scorable)` : 'None'), raw: (c) => String(c.proof.totalCount), rank: { of: (c) => c.proof.usableCount, better: 'higher' } },
   // Prices compare only when current and in the same currency for every agent.
@@ -48,8 +52,10 @@ const ROWS: Row[] = [
   { label: 'Paid jobs', hint: 'Through Pokter escrow', value: (c) => `${c.economicHistory.completed} completed of ${c.economicHistory.jobs}`, raw: (c) => `${c.economicHistory.completed}/${c.economicHistory.jobs}`, rank: { of: (c) => c.economicHistory.completed, better: 'higher' } },
   // One review is an anecdote: an average leads only over two or more.
   { label: 'Signed reviews', value: (c) => (c.reviewCount ? `${c.reviewCount} · avg ${c.reviewAverage?.toFixed(1)}/5` : 'None'), raw: (c) => String(c.reviewCount), rank: { of: (c) => (c.reviewCount >= 2 ? c.reviewAverage : null), better: 'higher' } },
-  { label: 'Wallet access needed', value: () => 'None. One escrow payment', raw: () => 'none' },
-  { label: 'Registered on', value: (c) => chainLabel(c.agent.chain_id), raw: (c) => String(c.agent.chain_id) },
+  { label: 'Custody', hint: 'Agent wallet against owner', value: (c) => custodyOf(c.agent.agent_wallet, c.currentOwner ?? c.agent.owner_address).text, raw: (c) => String(custodyOf(c.agent.agent_wallet, c.currentOwner ?? c.agent.owner_address).separate) },
+  { label: 'Protocols', hint: 'As declared, not verified', value: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(' · ') || 'None declared', raw: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(',') },
+  { label: 'How you pay', value: () => 'Escrowed job, one payment, no wallet access', raw: () => 'escrow' },
+  { label: 'Identity', value: (c) => `ERC-8004 #${c.agent.token_id} · ${chainLabel(c.agent.chain_id)}`, raw: (c) => String(c.agent.chain_id) },
 ];
 
 function bestOf(row: Row, items: readonly Comparison[]): Set<number> {
