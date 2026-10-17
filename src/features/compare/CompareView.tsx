@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { leaders } from '@/lib/compare/best';
 import { activityRow } from '@/lib/activity/reading';
+import { coordinationText } from '@/lib/proof/coordination';
 import { ago, checkReading, custodyOf, declaredProtocols, endpointReading } from '@/lib/compare/rows';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import type { Comparison } from '@/lib/marketplace';
@@ -54,6 +55,7 @@ const ROWS: Row[] = [
   // One review is an anecdote: an average leads only over two or more.
   { label: 'Signed reviews', value: (c) => (c.reviewCount ? `${c.reviewCount} · avg ${c.reviewAverage?.toFixed(1)}/5` : 'None'), raw: (c) => String(c.reviewCount), rank: { of: (c) => (c.reviewCount >= 2 ? c.reviewAverage : null), better: 'higher' } },
   { label: 'Custody', hint: 'Agent wallet against owner', value: (c) => custodyOf(c.agent.agent_wallet, c.currentOwner ?? c.agent.owner_address).text, raw: (c) => String(custodyOf(c.agent.agent_wallet, c.currentOwner ?? c.agent.owner_address).separate) },
+  { label: 'Review pattern', hint: 'Who wrote its on-chain reviews, and when', value: (c) => coordinationText(c.reviewPattern), raw: (c) => c.reviewPattern.level },
   { label: 'Wallet activity', hint: 'Its agent wallet, read daily', value: (c) => activityRow(c.walletActivity, c.agent.agent_wallet, c.agent.chain_id), raw: (c) => activityRow(c.walletActivity, c.agent.agent_wallet, c.agent.chain_id) },
   { label: 'Protocols', hint: 'As declared, not verified', value: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(' · ') || 'None declared', raw: (c) => declaredProtocols(c.agent.services, c.agent.supported_protocols).join(',') },
   { label: 'How you pay', value: () => 'Escrowed job, one payment, no wallet access', raw: () => 'escrow' },

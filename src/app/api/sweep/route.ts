@@ -15,6 +15,7 @@ import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { refreshFunders } from '@/lib/funding/store';
+import { refreshReviewerFunders } from '@/lib/proof/reviewer-funders';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
 import { gradeDuePaidChecks, gradeDuePaidHfChecks, gradeDuePaidV3Checks } from '@/lib/assay/paid-run';
@@ -246,6 +247,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const funders = listings
       ? await refreshFunders(listings.filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address)).catch(() => null)
       : null;
+    // The same lookup for the wallets that reviewed listed agents, for the review-pattern check.
+    const reviewerFunders = listings ? await refreshReviewerFunders(listings.map((l) => l.agent)).catch(() => null) : null;
 
     /*
      * Health factor checks: a few listed health-factor agents per run, each
@@ -390,6 +393,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       paidV3Checks,
       capturedDeliverables,
       walletActivity,
+      reviewerFunders,
       questIndex,
       answeredTasks,
       reconciled,
