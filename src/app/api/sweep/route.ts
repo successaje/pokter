@@ -18,6 +18,7 @@ import { refreshFunders } from '@/lib/funding/store';
 import { runDueHealthFactorChecks } from '@/lib/assay/run';
 import { runDueStaticCategoryChecks } from '@/lib/assay/static-run';
 import { gradeDuePaidChecks, gradeDuePaidHfChecks, gradeDuePaidV3Checks } from '@/lib/assay/paid-run';
+import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
@@ -276,6 +277,9 @@ export async function POST(request: Request): Promise<NextResponse> {
      * network — so it runs every pass and a check finishes itself once the
      * last delivery lands.
      */
+    // Outside agents' deliveries live at their own URLs: fetched and checked
+    // against the on-chain hash first, so the graders below can read them.
+    const capturedDeliverables = await captureFixtureDeliverables().catch(() => null);
     const paidChecks = (() => {
       try {
         return gradeDuePaidChecks();
@@ -368,6 +372,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       paidChecks,
       paidHfChecks,
       paidV3Checks,
+      capturedDeliverables,
       questIndex,
       answeredTasks,
       reconciled,

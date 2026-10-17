@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { STATIC_SUITES, type StaticAssayCategory } from '@/lib/assay/category-suites';
 import { checkBrief, hfCheckBrief, v3CheckBrief, V3_SUITE_ID } from '@/lib/assay/paid-brief';
 import { currentV3Sample, fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck, gradePaidV3Check } from '@/lib/assay/paid-run';
+import { captureDeliverables } from '@/lib/assay/capture';
 import { HF_SUITE_ID } from '@/lib/assay/health-factor';
 import { currentSample } from '@/lib/assay/run';
 import { hireAgent } from '@/lib/erc8183/hire';
@@ -174,6 +175,7 @@ export async function POST(request: Request): Promise<NextResponse> {
    * delivered this request's. Anything still outstanding is graded by the
    * sweep when it arrives.
    */
+  await captureDeliverables([...fixtureJobsForAgent({ chainId, tokenId }, suite.id).values()]).catch(() => null);
   const outcome = live
     ? await gradePaidHealthFactorCheck({ chainId, tokenId })
     : ranges
