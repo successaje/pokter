@@ -133,11 +133,19 @@ export function gradePaidV3Scenarios(input: {
   readAt: string;
 }): AssayScenarioResult[] {
   const base = { jobId: input.jobId, latencyMs: null };
+  /*
+   * A row about the whole wallet rather than one position, keyed by its job.
+   * These were keyed by the word alone ("delivery", "reading"), so two
+   * sampled wallets that both ended there gave one run two rows with the
+   * same scenario, the store's unique key refused the write, and the paid
+   * check route failed with an empty 500 for every later request.
+   */
+  const walletRow = (name: string) => `${name} (job ${input.jobId})`;
 
   if (input.manifestText === null) {
     const row: AssayScenarioResult = {
       ...base,
-      scenario: 'delivery',
+      scenario: walletRow('delivery'),
       expected: null,
       observed: null,
       excerpt: null,
@@ -151,12 +159,12 @@ export function gradePaidV3Scenarios(input: {
   }
 
   if (!input.reading) {
-    return [{ ...base, scenario: 'reading', expected: null, observed: null, excerpt: null, pass: false, outcome: 'not-comparable', reason: 'Pokter could not read this wallet’s positions, so the answer has nothing to be compared with.' }];
+    return [{ ...base, scenario: walletRow('reading'), expected: null, observed: null, excerpt: null, pass: false, outcome: 'not-comparable', reason: 'Pokter could not read this wallet’s positions, so the answer has nothing to be compared with.' }];
   }
 
   const answer = answerFromManifest(input.manifestText);
   if (!answer) {
-    return [{ ...base, scenario: 'answer', expected: null, observed: null, excerpt: null, pass: false, outcome: 'unreadable', reason: 'The delivered manifest carried no readable answer.' }];
+    return [{ ...base, scenario: walletRow('answer'), expected: null, observed: null, excerpt: null, pass: false, outcome: 'unreadable', reason: 'The delivered manifest carried no readable answer.' }];
   }
 
   const said = readV3Answer(answer);
@@ -176,7 +184,7 @@ export function gradePaidV3Scenarios(input: {
     const rows = input.reading.positions.length > 0 ? input.reading.positions : [null];
     return rows.map((position) => ({
       ...base,
-      scenario: position ? `#${position.id}` : 'reading',
+      scenario: position ? `#${position.id}` : walletRow('reading'),
       expected: position ? { status: statusOf(position) } : null,
       observed: position ? { status: said.get(position.id) ?? null } : { positions: said.size },
       excerpt: null,
@@ -195,7 +203,7 @@ export function gradePaidV3Scenarios(input: {
     const invented = said.size > 0;
     return [{
       ...base,
-      scenario: 'no-positions',
+      scenario: walletRow('no-positions'),
       expected: { positions: 0 },
       observed: { positions: said.size },
       excerpt: null,

@@ -80,7 +80,7 @@ test('disagreeing about range fails, and says both figures', () => {
 test('an empty wallet is still a check: inventing a position fails', () => {
   const honest = gradePaidV3Scenarios({ jobId: '9', readAt: '2026-10-15T19:00:00Z', reading: reading(), manifestText: manifest([]) });
   assert.equal(honest[0].pass, true);
-  assert.equal(honest[0].scenario, 'no-positions');
+  assert.match(honest[0].scenario, /^no-positions \(job /);
 
   const invented = gradePaidV3Scenarios({ jobId: '9', readAt: '2026-10-15T19:00:00Z', reading: reading(), manifestText: manifest([{ position: '#404 A/B', status: 'in-range' }]) });
   assert.equal(invented[0].pass, false);
@@ -152,4 +152,11 @@ test('an answer that states no block cannot be placed in time', () => {
 test('the block an answer read is recovered from its as_of', () => {
   assert.equal(answerReadBlock(manifest([], 127912411)), 127912411);
   assert.equal(answerReadBlock('not json'), null);
+});
+
+test('two wallets that end the same way still give distinct rows', () => {
+  // Two undelivered wallets in one run were both keyed "delivery", and the store refused the duplicate.
+  const a = gradePaidV3Scenarios({ jobId: '1520', manifestText: null, reading: null, readAt: '2026-10-17T00:00:00Z' });
+  const b = gradePaidV3Scenarios({ jobId: '1521', manifestText: null, reading: null, readAt: '2026-10-17T00:00:00Z' });
+  assert.notEqual(a[0].scenario, b[0].scenario);
 });
