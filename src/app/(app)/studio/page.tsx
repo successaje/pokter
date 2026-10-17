@@ -9,6 +9,7 @@ import { shortAddress } from '@/lib/ui/format';
 import { loadFleet, studioOwner } from '@/features/studio/data';
 import { earnedByNetwork } from '@/lib/builder/earnings';
 import { chainLabel } from '@/lib/network/presentation';
+import { BuildWithStudio } from '@/features/studio/BuildWithStudio';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/features/studio/StudioClient';
 import { PageHeader, Stat } from '@/features/workspace/parts';
@@ -70,6 +71,9 @@ export default async function StudioHome() {
           <EmailLinkNotice kind="builder" />
         </Suspense>
         <Paths />
+        <div className="mt-10">
+          <BuildWithStudio />
+        </div>
         <div className="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-2">
           <section aria-labelledby="owned-title" className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
