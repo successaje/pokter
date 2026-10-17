@@ -96,6 +96,27 @@ export function RegisteredNetwork({ chainId, className }: { chainId: number; cla
 }
 
 /**
+ * The money lines under a price: what a paid hire settles in, or the free
+ * trial when that is all there is, and the network the identity is
+ * registered on.
+ *
+ * One component because there are three card layouts, and the first
+ * version of this change updated one of them — so two kept calling
+ * `HireNetwork` straight and lost both the trial line and the
+ * registration. Written once, they cannot disagree.
+ */
+export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
+  return (
+    <>
+      {row.hireChainId !== null
+        ? <HireNetwork chainId={row.hireChainId} />
+        : row.hirable ? <TrialNote /> : null}
+      <RegisteredNetwork chainId={row.chainId} className={align === 'end' ? 'text-right' : undefined} />
+    </>
+  );
+}
+
+/**
  * The free testnet trial, named as a trial.
  *
  * Offered for an agent with no payable price, and it is not the agent
@@ -156,18 +177,7 @@ export function AgentCard({ row, className, action }: { row: FindRow; className?
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
         <span className="flex min-w-0 flex-col gap-0.5">
           <PriceText row={row} className="text-[13px]" />
-          {/*
-            Three separate facts, none standing in for another: what a paid
-            hire settles in, whether the free trial is the only thing on
-            offer, and where the identity is registered. The trial line is
-            gated on the hire actually being offered — an agent with no
-            reachable endpoint gets no trial, and claiming one would repeat
-            the error this replaced.
-          */}
-          {row.hireChainId !== null
-            ? <HireNetwork chainId={row.hireChainId} />
-            : row.hirable ? <TrialNote /> : null}
-          <RegisteredNetwork chainId={row.chainId} />
+          <HiringLines row={row} />
         </span>
         <NextStep row={row} />
       </div>
@@ -226,7 +236,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
       <span className="col-start-2 flex items-center justify-between gap-2 sm:col-start-auto sm:justify-end">
         <span className="flex flex-col sm:items-end">
           <PriceText row={row} className="text-[13px]" />
-          <HireNetwork chainId={row.hireChainId} />
+          <HiringLines row={row} align="end" />
           {row.hirable && (
             <Link href={`/hire/${row.chainId}/${row.tokenId}`} className="relative z-10 mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline">
               Hire <Icon.Arrow size={12} />
@@ -269,7 +279,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           <dt className="t-label">Price</dt>
           <dd className="flex flex-col gap-0.5">
             <PriceText row={row} />
-            <HireNetwork chainId={row.hireChainId} />
+            <HiringLines row={row} />
           </dd>
         </div>
         <div className="flex flex-col gap-0.5">
