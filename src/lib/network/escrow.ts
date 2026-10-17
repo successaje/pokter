@@ -77,6 +77,33 @@ export function escrowChainForHire(
 }
 
 /**
+ * The escrow a **paid** hire of this agent would settle on, or null.
+ *
+ * Distinct from `escrowChainForHire`, which answers "where could a buyer
+ * hire this at all" and falls back to testnet because the free trial is
+ * always available there. That fallback is right for offering an option
+ * and wrong for labelling an agent: fed to a card it printed
+ * "Test tokens · BNB Testnet" about 58 of 77 mainnet-registered agents,
+ * none of which had priced in testnet currency — they simply had no price
+ * Pokter could read. A missing or unverifiable price does not establish
+ * that an agent is testnet-only.
+ *
+ * So this answers only the question a buyer is actually asking of a price:
+ * which money pays it. Null when there is no verified, payable quote, and
+ * null is meant to hide the hiring network — never the registered one,
+ * which is a separate fact and stays on the card.
+ */
+export function paidHireChain(input: {
+  /** The quote's currency, when Pokter recorded and verified one. */
+  quoteCurrency: string | null | undefined;
+  /** Whether an enabled escrow can actually pay that currency. */
+  payable: boolean | null | undefined;
+}, enabled: EscrowChainId[] = enabledEscrowChains()): EscrowChainId | null {
+  if (!input.quoteCurrency || input.payable !== true) return null;
+  return escrowChainForCurrency(input.quoteCurrency, enabled);
+}
+
+/**
  * Every escrow a buyer may hire this agent on, the preferred one first.
  *
  * The escrow that can pay the signed price comes first. Testnet is always

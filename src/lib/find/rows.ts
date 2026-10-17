@@ -2,7 +2,7 @@ import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
-import { escrowChainForHire } from '@/lib/network/escrow';
+import { paidHireChain } from '@/lib/network/escrow';
 import type { Verdict } from '@/lib/proof/engine';
 import { offersDirectHire, verdictFor, type SearchableAgent } from '@/lib/search/match';
 import { catalogueSuggestion, suggestionsByCategory, type Suggestion } from '@/lib/find/suggested';
@@ -32,20 +32,30 @@ export interface FindRow {
   sinceAnswer: number | null;
   answeringToday: boolean;
   /**
-   * Where a hire of this agent would actually be funded.
+   * Where a **paid** hire of this agent would be funded.
    *
    * Not `chainId`, which is the registry the identity lives in. A buyer
    * filtering the catalogue by "Registered on: BNB Chain" and reading a
-   * price has no way to tell that most of those agents settle in testnet
-   * $U, because their signed price names the testnet token — the two
-   * chains differ for most of the catalogue, and the card said nothing.
+   * price has no way to tell that an agent settles in testnet $U, because
+   * its signed price names the testnet token — the two chains differ for
+   * much of the catalogue, and the card said nothing.
    *
-   * Null when the agent has signed a price in a token no enabled escrow
-   * settles. Defaulting to the first escrow would have the card claim
-   * "test tokens" about an agent that cannot be hired here at all,
-   * which is a worse answer than saying nothing.
+   * Null unless Pokter has a verified, payable quote. It used to fall back
+   * to testnet, which printed "Test tokens · BNB Testnet" on 58 of 77
+   * mainnet-registered agents — none of which had priced in testnet
+   * currency. They had no price Pokter could read, which is not the same
+   * fact and not this field's to guess. See `paidHireChain`.
    */
   hireChainId: number | null;
+  /**
+   * Why there is no signed price, as far as the catalogue can honestly
+   * tell: `none` when nothing has answered, `unverified` when the agent
+   * does answer Pokter's checks but no price it returned could be
+   * accepted. The specific refusal — no negotiate skill, wrong signer,
+   * terms not covered — is named on the agent's own page, which is the
+   * only place that reads the sweep's failure code.
+   */
+  priceState: 'signed' | 'unverified' | 'none';
   /** The last price the agent signed, in $U, or null when it never has. */
   priceU: number | null;
   priceLabel: string;
@@ -107,7 +117,8 @@ export function toFindRow(
     medianMs: month?.medianMs ?? null,
     sinceAnswer: daysSinceLastAnswer(record, now),
     answeringToday: Boolean(today && today.probes > 0 && (today.ratio ?? 0) > 0),
-    hireChainId: escrowChainForHire(quote?.currency),
+    hireChainId: paidHireChain({ quoteCurrency: quote?.currency, payable: listing.quotePayable }),
+    priceState: priceU !== null ? 'signed' : record.totalAnswered > 0 ? 'unverified' : 'none',
     priceU,
     priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'You set the budget',
     suggested: priceU !== null ? null : suggested,
