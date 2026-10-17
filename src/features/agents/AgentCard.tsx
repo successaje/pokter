@@ -135,59 +135,120 @@ export function TrialNote({ className }: { className?: string }) {
 }
 
 /**
- * The standard marketplace card. Hierarchy, top to bottom: who, what it
- * does, whether it is answering, what the evidence says, what it costs,
- * what to do. No ratings, no popularity, no badges that measure nothing.
+ * The standard marketplace card. Hierarchy, top to bottom: who and where it
+ * is registered, what it does, the evidence (does it answer, has it
+ * delivered), what it costs and in which money, then one clear action.
+ * No ratings, no popularity, no badges that measure nothing.
  */
-export function AgentCard({ row, className, action }: { row: FindRow; className?: string; action?: React.ReactNode }) {
+export function AgentCard({ row, className, note, compare }: { row: FindRow; className?: string; note?: string | null; compare?: React.ReactNode }) {
   const status = availabilityText(row);
+  const testnetIdentity = row.chainId === 97;
   return (
-    <article className={cn('group relative flex h-full flex-col rounded-[14px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
-      <div className="flex items-start gap-3">
-        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={44} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h3 className="truncate text-[15.5px] font-semibold tracking-[-0.01em]">
-            <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[14px] focus-visible:outline-none">
+    <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
+      <div className="flex items-start gap-3.5">
+        <span className="shrink-0 rounded-full p-[3px] ring-1 ring-rule-strong">
+          <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} />
+        </span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
+            <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
               {row.name}
             </Link>
           </h3>
-          <span className="text-[12.5px] text-ink-3">
-            {row.categoryLabel} · #{row.tokenId}{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
+          <span className="truncate text-[12.5px] text-ink-3">
+            {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
+          </span>
+          <span
+            className={cn(
+              'mt-0.5 self-start rounded-[6px] border px-2 py-0.5 text-[11.5px] font-medium',
+              testnetIdentity ? 'border-watch/35 bg-watch-wash text-watch' : 'border-rule-strong text-ink-2',
+            )}
+          >
+            Registered: {chainLabel(row.chainId)}
           </span>
         </div>
       </div>
-      <p className="mt-3 line-clamp-2 min-h-[2.8em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : undefined}>
-          <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
-          <span className="truncate">{status.text}</span>
-        </span>
-        {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 shrink-0 [&>span]:w-[3px]" />}
-      </div>
-      <MissedNote row={row} className="mt-1.5" />
-      <div className="mt-3"><MaturityLabel maturity={row.maturity} /></div>
+      <p className="mt-3.5 line-clamp-2 min-h-[2.9em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
 
-      {/*
-        Price and the next step, where a buyer looks to decide. The card had
-        no action of its own beyond Compare, and repeated the availability
-        line above as a verdict word; the status line and the evidence step
-        already say both.
-      */}
-      <div className="mt-4 flex items-end justify-between gap-3 border-t border-rule pt-3.5">
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <PriceText row={row} className="text-[13px]" />
+      {/* The evidence, as two facts a buyer can check: does it answer, and has it delivered paid work. */}
+      <dl className="mt-4 flex flex-col rounded-[12px] border border-rule bg-sunken/40 text-[12.5px]">
+        <div className="flex flex-col gap-1 px-3.5 py-2.5">
+          <div className="flex items-center gap-3">
+            <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
+            <dt className="min-w-0 flex-1 whitespace-nowrap text-ink-2">Probe replies</dt>
+            <dd className="flex shrink-0 items-center gap-2.5" title={row.probes ? `${row.probes} probes in total` : undefined}>
+              <span className="t-readout text-ink">{row.rate === null ? '—' : `${Math.round(row.rate * 100)}%`}</span>
+              {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 [&>span]:w-[3px]" />}
+            </dd>
+          </div>
+          {/* Not answering right now is said in words, not left to the colour of a dot. */}
+          {status.tone !== 'ok' && <p className="pl-[18px] text-[11.5px] text-ink-3">{status.text}</p>}
+        </div>
+        <div className="flex items-center gap-3 border-t border-rule px-3.5 py-2.5">
+          <span className={cn('size-1.5 shrink-0 rounded-full', row.paid.missed ? DOT.watch : row.paid.delivered ? DOT.ok : DOT.none)} aria-hidden />
+          <dt className="min-w-0 flex-1 whitespace-nowrap text-ink-2">Delivery evidence</dt>
+          <dd className="shrink-0">
+            {row.paid.missed ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-watch/35 bg-watch-wash px-2.5 py-1 text-[12px] font-medium text-watch" title="Funded through Pokter escrow, nothing delivered before the deadline">
+                <span className="size-1.5 rounded-full bg-watch" aria-hidden />
+                {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'} missed
+              </span>
+            ) : (
+              <MaturityLabel maturity={row.maturity} />
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      {note && (
+        <p className="mt-3 flex items-center gap-2 rounded-[10px] border border-rule px-3 py-2 text-[12px] text-ink-3" title={note}>
+          <Icon.Info size={13} className="shrink-0" />
+          <span className="truncate">{note}</span>
+        </p>
+      )}
+
+      <div className="mt-auto flex flex-col gap-0.5 pt-5">
+        {row.priceU !== null ? <PriceText row={row} className="text-[1.6rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
+        <span className="mt-1 flex flex-col gap-0.5">
           <HiringLines row={row} />
         </span>
-        <NextStep row={row} />
       </div>
-      {action && <div className="relative z-10 mt-3">{action}</div>}
+
+      <div className="relative z-10 mt-4">
+        <NextStep row={row} wide />
+      </div>
+
+      <div className="relative z-10 mt-3 flex items-center justify-between gap-3 border-t border-rule pt-3">
+        <Link href={`${agentHref(row)}#evidence`} className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
+          View evidence <Icon.ArrowUpRight size={13} />
+        </Link>
+        {compare}
+      </div>
     </article>
   );
 }
 
+/** Which network the main action hires on, said on the button. */
+function hireLabel(row: FindRow): string {
+  if (row.hireChainId === 56) return 'Hire on BNB Chain';
+  if (row.hireChainId === 97) return 'Hire on testnet';
+  return 'Try free on testnet';
+}
+
 /** Hire when the agent can be hired here; otherwise a way to read why not. */
-function NextStep({ row, size = 's' }: { row: FindRow; size?: 's' }) {
+function NextStep({ row, size = 's', wide = false }: { row: FindRow; size?: 's'; wide?: boolean }) {
+  if (wide) {
+    return row.hirable ? (
+      <LinkButton href={`/hire/${row.chainId}/${row.tokenId}`} className="w-full" trailing={<Icon.Arrow size={15} />}>
+        {hireLabel(row)}
+      </LinkButton>
+    ) : (
+      <LinkButton href={agentHref(row)} intent="secondary" className="w-full">
+        Why it cannot be hired yet
+      </LinkButton>
+    );
+  }
   if (row.hirable) {
     return (
       <LinkButton href={`/hire/${row.chainId}/${row.tokenId}`} size={size} className="relative z-10 shrink-0" trailing={<Icon.Arrow size={14} />}>

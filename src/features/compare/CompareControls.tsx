@@ -7,10 +7,28 @@ import { buttonClass } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { COMPARE_MAX, useCompare } from './store';
 
-export function CompareToggle({ agentKey, className }: { agentKey: string; className?: string }) {
+export function CompareToggle({ agentKey, className, variant = 'button' }: { agentKey: string; className?: string; variant?: 'button' | 'checkbox' }) {
   const compare = useCompare();
   const selected = compare.has(agentKey);
   const disabled = !selected && compare.full;
+  if (variant === 'checkbox') {
+    return (
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={selected}
+        onClick={() => compare.toggle(agentKey)}
+        disabled={disabled}
+        title={disabled ? `Compare holds up to ${COMPARE_MAX} agents` : undefined}
+        className={cn('inline-flex items-center gap-2 text-[13px] font-medium text-ink-2 hover:text-ink disabled:opacity-40', className)}
+      >
+        <span className={cn('grid size-4 place-items-center rounded-[4px] border transition-colors', selected ? 'border-ink bg-ink text-paper' : 'border-rule-strong')} aria-hidden>
+          {selected && <Icon.Check size={11} />}
+        </span>
+        Compare
+      </button>
+    );
+  }
   return (
     <button
       type="button"
