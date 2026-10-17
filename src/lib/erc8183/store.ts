@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { DUPLICATE_LOSERS_SQL, JOB_CONFLICTS_DDL, JOB_IDENTITY_INDEX } from './job-dedupe';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -204,6 +205,10 @@ function toJob(row: JobRow): HiredJob {
 }
 
 class SqliteJobStore implements JobStore {
+  get handle(): DatabaseSync {
+    return this.db;
+  }
+
   private readonly db: DatabaseSync;
 
   constructor(path: string) {
@@ -231,6 +236,46 @@ class SqliteJobStore implements JobStore {
     }
     // After the migration, so an older database already has the column.
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs (client)');
+    this.dedupeJobs();
+  }
+
+  /**
+   * One row per job, enforced by the database.
+   *
+   * The table was keyed on `id` alone, and its two writers mint different
+   * ones: `hireAgent` a random UUID at funding time, the chain indexer
+   * `"<chainId>:<jobId>"`. So the same job could be recorded twice, and
+   * was — 14 of 124 jobs had a second row, and job 97/1522 had two naming
+   * *different agents*, which credited a delivery to an agent that never
+   * made it. The public receipts endpoint counted 138 rows for 124 jobs,
+   * overstating every figure it publishes by about 11%.
+   *
+   * A unique index fixes it going forward for free: `record` already does
+   * INSERT OR REPLACE, and SQLite drops rows violating any unique
+   * constraint — so the later write wins, which is the chain-derived one.
+   *
+   * The losers are moved aside rather than deleted. One of each pair is
+   * wrong about something, and which one cannot be decided here without
+   * reading the chain; `scripts/dedupe-jobs.mts` adjudicates them against
+   * the escrow afterwards, and it needs the rows to still exist.
+   */
+  private dedupeJobs(): void {
+    this.db.exec(JOB_CONFLICTS_DDL);
+    const losers = this.db.prepare(DUPLICATE_LOSERS_SQL).all() as { id: string; chain_id: number; job_id: string }[];
+
+    const now = new Date().toISOString();
+    for (const loser of losers) {
+      const row = this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(loser.id);
+      this.db
+        .prepare(`INSERT OR REPLACE INTO job_row_conflicts (id, chain_id, job_id, row_json, set_aside_at)
+          VALUES (?,?,?,?,?)`)
+        .run(loser.id, loser.chain_id, loser.job_id, JSON.stringify(row), now);
+      this.db.prepare('DELETE FROM jobs WHERE id = ?').run(loser.id);
+    }
+    if (losers.length > 0) {
+      console.warn(`[job-store] set aside ${losers.length} duplicate job row(s); run scripts/dedupe-jobs.mts to adjudicate them against the chain`);
+    }
+    this.db.exec(JOB_IDENTITY_INDEX);
   }
 
   record(job: HiredJob): void {
@@ -379,4 +424,14 @@ export function getJobStore(): JobStore {
   if (cached) return cached;
   cached = new SqliteJobStore(DB_PATH);
   return cached;
+}
+
+/**
+ * The raw handle, for the one caller that has to work on rows the
+ * `JobStore` interface deliberately does not expose: the quarantined
+ * duplicates. Goes through `getJobStore` first so the migration has run.
+ */
+export function conflictDatabase(): DatabaseSync {
+  getJobStore();
+  return (cached as SqliteJobStore).handle;
 }

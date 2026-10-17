@@ -97,11 +97,22 @@ export function GET(request: Request) {
     },
     teamWallets: teamWalletList(),
     howToVerify: [
-      'Call getJob(jobId) on the escrow contract for that chain. The status, provider and budget come back from the contract, not from Pokter.',
+      /*
+       * Said as "check it" rather than "it came from there".
+       *
+       * This claimed the status, provider and budget came back from the
+       * contract rather than from Pokter. They are served from Pokter's
+       * index, which is re-read from chain but can lag or be wrong — and
+       * was: job 97/1522 was published with another agent's wallet for 54
+       * minutes on 16 October 2026. The sentence invited readers to skip
+       * the one check that would have caught it.
+       */
+      'Call getJob(jobId) on the escrow contract for that chain and compare. These rows are Pokter\'s own index, re-read from chain but capable of lagging it, so the contract is the authority and this is not.',
       'Download /api/v1/receipts/verifier to check every row and recompute the totals without installing dependencies.',
       'Every job Pokter brokers carries {"protocol":"pokter-job"} in its on-chain description, so the full set can be found by reading the escrow without using this endpoint at all.',
       'Jobs funded by the wallets in teamWallets are Pokter\'s own tests. They are marked here and excluded from the buyer figures in /api/v1/activity.',
       'A job marked selfHire has the same wallet on both sides, so it is an operator funding their own agent rather than demand. Three such jobs were counted as outside demand until 14 October 2026; getJob returns both parties, so this is checkable rather than a promise.',
+      'One row per job, now enforced by the index itself. Until 17 October 2026 a job could be recorded twice — two writers minted two different row ids — and 14 of 124 jobs were, so these counts were about 11% high and one delivery was credited to an agent that did not make it.',
     ],
     scope: 'Jobs commissioned through Pokter and verified against ERC-8183 before indexing. No buyer address, task text or deliverable is returned; the job id makes the buyer findable on chain for anyone who wants it, which is the chain\'s doing.',
   });
