@@ -160,3 +160,18 @@ test('two wallets that end the same way still give distinct rows', () => {
   const b = gradePaidV3Scenarios({ jobId: '1521', manifestText: null, reading: null, readAt: '2026-10-17T00:00:00Z' });
   assert.notEqual(a[0].scenario, b[0].scenario);
 });
+
+test('an answer about something else is unanswered, even with no block', () => {
+  /*
+   * Venus Rate Router's jobs 1520 and 1521 returned its own Venus status
+   * report instead of the wallet's positions, with no block, and were set
+   * aside as not comparable. Naming no position is a miss at any time.
+   */
+  const r = reading(pos('7675114', 25, 0, 50));
+  const offTopic = JSON.stringify({ response: { content: JSON.stringify({ answer: 'Routing 0.04 BNB across Venus BNB markets. Next: hold.' }) } });
+  const rows = gradePaidV3Scenarios({ jobId: '1521', readAt: 'x', reading: r, manifestText: offTopic });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].outcome, 'unanswered');
+  assert.equal(rows[0].pass, false);
+  assert.match(rows[0].reason, /names none of this wallet's positions/);
+});

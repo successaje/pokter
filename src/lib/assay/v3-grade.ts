@@ -171,6 +171,30 @@ export function gradePaidV3Scenarios(input: {
   const truncated = answerTruncated(answer);
 
   /*
+   * An answer that names none of the wallet's positions did not do the
+   * task, whenever it was written. Timing only matters when the answer and
+   * Pokter can disagree about a position's range; with nothing named there
+   * is nothing to place in time. Venus Rate Router's jobs 1520 and 1521
+   * returned its own Venus status report for both wallets, stated no block,
+   * and so were set aside rather than counted as unanswered.
+   */
+  if (said.size === 0 && !truncated && input.reading.positions.length > 0) {
+    return input.reading.positions.map((position) => {
+      const expected = statusOf(position);
+      return {
+        ...base,
+        scenario: `#${position.id}`,
+        expected: { status: expected },
+        observed: null,
+        excerpt: null,
+        pass: false,
+        outcome: 'unanswered' as const,
+        reason: `The answer names none of this wallet's positions. Pokter read this one as ${expected} at block ${input.reading!.block}.`,
+      };
+    });
+  }
+
+  /*
    * Too far apart to compare: every row is set aside, agreement included.
    * An answer with no stated block cannot be placed in time at all, so it
    * is treated the same way rather than given the benefit of the doubt.
