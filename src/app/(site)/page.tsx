@@ -65,7 +65,13 @@ export default async function HomePage() {
           <div className="flex flex-col justify-center gap-8">
             <p className="anim-rise flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-ink-2">
               <span className="tile" aria-hidden />
-              The agent marketplace for BNB Chain
+              {/*
+                "for BNB Chain" only when the escrow line is not there to
+                name the chain already — otherwise the eyebrow said
+                "marketplace for BNB Chain · Live on BNB Chain Mainnet",
+                naming it twice in one line.
+              */}
+              The agent marketplace{escrowAvailabilityLine() ? '' : ' for BNB Chain'}
               {/*
                 Which escrows are switched on, read from the config rather
                 than written out, so the sentence cannot outlive the thing
