@@ -20,6 +20,7 @@ export function Sheet({
   variant = 'dialog',
   className,
   labelledBy,
+  floating = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -30,6 +31,8 @@ export function Sheet({
   variant?: 'dialog' | 'drawer';
   className?: string;
   labelledBy?: string;
+  /** A drawer held off the screen's edges, with rounded corners, rather than flush to them. */
+  floating?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -64,6 +67,7 @@ export function Sheet({
         className={cn(
           'pointer-events-none flex h-full w-full items-end',
           variant === 'dialog' ? 'sm:items-center sm:justify-center sm:p-6' : 'sm:items-stretch sm:justify-end',
+          variant === 'drawer' && floating && 'sm:p-4',
         )}
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
@@ -73,6 +77,7 @@ export function Sheet({
           className={cn(
             'sheet-panel pointer-events-auto flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[18px] border border-rule bg-raised shadow-float',
             variant === 'dialog' ? 'sm:max-w-lg sm:rounded-[16px]' : 'sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-y-0 sm:border-r-0',
+            variant === 'drawer' && floating && 'sm:rounded-[20px] sm:border sm:border-rule-strong',
             className,
           )}
         >

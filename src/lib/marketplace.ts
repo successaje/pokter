@@ -24,7 +24,7 @@ import {
   type Suggestion,
 } from '@/lib/find/suggested';
 
-import { getProbeStore, type QuoteRecord } from '@/lib/history/store';
+import { getProbeStore, type ProbeRecord, type QuoteRecord } from '@/lib/history/store';
 import { requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { buildTrackRecord, type TrackRecord } from '@/lib/history/record';
@@ -587,27 +587,37 @@ export interface Comparison {
   economicHistory: AgentEconomicHistory;
   reviewCount: number;
   reviewAverage: number | null;
+  /** Pokter's most recent probe of it, answered or not. */
+  latestProbe: ProbeRecord | null;
+  /** The latest correctness check for its category, when it has one. */
+  check: { passed: number; total: number; status: string; ranAt: string; via: string } | null;
+  /** The owner the registry reports now, which can differ from the indexer's copy. */
+  currentOwner: string | null;
 }
 
 export async function getComparison(
   chainId: ChainId,
   tokenId: string,
 ): Promise<Comparison> {
+  // The owner read needs only the id, so it runs alongside the indexer
+  // lookups rather than after them: a compare waited on each in turn.
+  const ownerRead = registryOwner(chainId, tokenId).catch(() => null);
   const agent = await getAgent(chainId, tokenId);
 
-  const feedbackPage = await listFeedbacks({
-    chainId,
-    agentId: agent.id,
-    limit: 50,
-  }).catch(() => ({ items: [], total: 0, limit: 0, offset: 0 }));
-
-  const currentOwner = await registryOwner(chainId, tokenId).catch(() => null);
+  const [feedbackPage, currentOwner] = await Promise.all([
+    listFeedbacks({
+      chainId,
+      agentId: agent.id,
+      limit: 50,
+    }).catch(() => ({ items: [], total: 0, limit: 0, offset: 0 })),
+    ownerRead,
+  ]);
   const authors = await resolveAttestationAuthors(chainId, currentOwner ?? agent.owner_address, feedbackPage.items);
   const attestations = feedbackPage.items.map((row) => toAttestation(row, authors.get(row.id)));
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
-  const record = buildTrackRecord(
-    getProbeStore().historyFor(chainId, tokenId, since),
-  );
+  const history = getProbeStore().historyFor(chainId, tokenId, since);
+  const record = buildTrackRecord(history);
+  const latestProbe = history.reduce<ProbeRecord | null>((latest, probe) => (!latest || probe.probedAt > latest.probedAt ? probe : latest), null);
 
   const sweep = toSweepAttestation(record, { agentId: agent.id, chainId });
   const proof = summariseProof(sweep ? [...attestations, sweep] : attestations);
@@ -631,6 +641,13 @@ export async function getComparison(
       quote && (!quote.expiresAt || Date.parse(quote.expiresAt) > Date.now()),
     ),
     economicHistory,
+    latestProbe,
+    check: (() => {
+      const definition = assayForCategory(category);
+      const run = definition ? getAssayStore().latest({ chainId, tokenId }, definition.id) : null;
+      return run ? { passed: run.passed, total: run.total, status: run.status, ranAt: run.ranAt, via: run.via } : null;
+    })(),
+    currentOwner,
     reviewCount: reviews.length,
     reviewAverage: reviews.length
       ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
@@ -646,7 +663,8 @@ export async function getComparisons(keys: string[]): Promise<Comparison[]> {
     .map(([chainId, tokenId]) => ({ chainId: Number(chainId) as ChainId, tokenId }))
     .filter((entry) => entry.chainId === 56 || entry.chainId === 97);
 
-  const results = await mapWithConcurrency(parsed, 3, (entry) =>
+  // Compare holds at most four, so all four load at once.
+  const results = await mapWithConcurrency(parsed, 4, (entry) =>
     getComparison(entry.chainId, entry.tokenId).catch(() => null),
   );
 
