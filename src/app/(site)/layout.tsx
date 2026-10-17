@@ -3,7 +3,7 @@ import { SiteFooter } from '@/shell/SiteFooter';
 import { SiteHeader } from '@/shell/SiteHeader';
 import { MobileTabBar } from '@/shell/MobileTabBar';
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+export default function SiteLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   return (
     <>
       <CampaignBar />
@@ -13,6 +13,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       </main>
       <SiteFooter />
       <MobileTabBar />
+      {modal}
     </>
   );
 }
