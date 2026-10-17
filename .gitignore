@@ -85,3 +85,6 @@ evaluator-attestation-*.json
 # real key. `git add -A` has swept a stray file into a commit once today,
 # and this one signs transactions.
 scripts/venus-testnet-position.mts
+
+# Personal permission rules; not shared — see .claude/settings.local.json
+.claude/settings.local.json

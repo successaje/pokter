@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { CATEGORIES } from '@/lib/agents/categories';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
-import { ESCROW_NETWORKS_LABEL, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
+import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -63,9 +63,21 @@ export default async function HomePage() {
         <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,var(--rule)_1px,transparent_1px)] [background-size:calc((100%-2rem)/12)_100%] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="frame relative grid grid-cols-1 gap-12 pb-16 pt-10 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:pb-24 lg:pt-20">
           <div className="flex flex-col justify-center gap-8">
-            <p className="anim-rise flex items-center gap-2 text-[13px] font-medium text-ink-2">
+            <p className="anim-rise flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-ink-2">
               <span className="tile" aria-hidden />
               The agent marketplace for BNB Chain
+              {/*
+                Which escrows are switched on, read from the config rather
+                than written out, so the sentence cannot outlive the thing
+                it describes. It says what is available, not what has been
+                proven — the funnel below counts what actually settled.
+              */}
+              {escrowAvailabilityLine() && (
+                <span className="text-ink-3">
+                  <span aria-hidden>· </span>
+                  {escrowAvailabilityLine()}
+                </span>
+              )}
             </p>
             {/*
               The finding, not the promise.
@@ -106,6 +118,20 @@ export default async function HomePage() {
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
             <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>
+              {/*
+                Its own button, because the free trial is the one way to see
+                an agent work before any wallet opens — and it was reachable
+                only by starting a hire and noticing the second option.
+                Points at the catalogue rather than a network filter: that
+                filter is "registered on", which is a different fact, and
+                conflating the two is what made every mainnet agent read as
+                testnet.
+              */}
+              {MAINNET_ESCROW && (
+                <LinkButton href="/discover" size="s" intent="secondary" trailing={<Icon.Arrow size={14} />}>
+                  Try free on testnet
+                </LinkButton>
+              )}
               <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
                 Build an agent <Icon.Arrow size={15} />
               </Link>

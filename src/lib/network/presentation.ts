@@ -86,6 +86,24 @@ export const ESCROW_NETWORKS_LABEL = enabledEscrowChains().map((chainId) => chai
  * a host. It will be wrong, but it will be a well-formed link to a real
  * explorer rather than a broken URL, and no third chain is in use.
  */
+/**
+ * Which escrows a buyer can actually be paid through, for the landing page.
+ *
+ * Derived from the enabled escrows rather than written out, because a
+ * hardcoded "Live on BNB Chain Mainnet" outlives the thing it describes:
+ * turn mainnet escrow off and the sentence keeps asserting it from the
+ * front page. It says what is switched on, and nothing about track record
+ * — the funnel below it counts what has actually settled.
+ */
+export function escrowAvailabilityLine(enabled: readonly number[] = enabledEscrowChains()): string | null {
+  const mainnet = enabled.includes(56);
+  const testnet = enabled.includes(97);
+  if (mainnet && testnet) return 'Live on BNB Chain Mainnet \u00b7 Testnet available';
+  if (mainnet) return 'Live on BNB Chain Mainnet';
+  if (testnet) return 'On BNB Testnet, in test tokens';
+  return null;
+}
+
 export function explorerBaseFor(chainId: number): string {
   if (chainId === 56) return 'https://bscscan.com';
   if (chainId === 97) return 'https://testnet.bscscan.com';

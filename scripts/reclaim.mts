@@ -1,8 +1,12 @@
 /**
  * Pull named expired escrows back to the wallet that funded them.
  *
- *   JOBS=1500,1501 npx tsx --env-file=.env.local scripts/reclaim.mts
+ *   npx tsx --env-file=.env.local scripts/reclaim.mts 1500 1501
  *   DRY=1 …                           simulate only, send nothing
+ *
+ * Ids come as arguments rather than `JOBS=`, so the command begins with
+ * `npx` and a permission rule can be anchored on this one script instead
+ * of on npx or tsx in general. `JOBS=` still works, for older callers.
  *
  * Why a script and not `/api/jobs/reclaim`: that route needs a running
  * server and SWEEP_SECRET, and its guards live behind `server-only`, which
@@ -21,8 +25,11 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 const chainId = Number(process.env.CHAIN ?? 97);
 if (chainId !== 56 && chainId !== 97) throw new Error('CHAIN must be 56 or 97.');
-const jobs = (process.env.JOBS ?? '').split(',').map((id) => id.trim()).filter(Boolean);
-if (jobs.length === 0) throw new Error('Name the jobs: JOBS=1500,1501');
+const named = process.argv.slice(2).flatMap((arg) => arg.split(','));
+const jobs = (named.length > 0 ? named : (process.env.JOBS ?? '').split(','))
+  .map((id) => id.trim())
+  .filter(Boolean);
+if (jobs.length === 0) throw new Error('Name the jobs, e.g. scripts/reclaim.mts 1500 1501');
 if (!jobs.every((id) => /^\d{1,12}$/.test(id))) throw new Error('Job ids must be numeric.');
 const dry = process.env.DRY === '1';
 
