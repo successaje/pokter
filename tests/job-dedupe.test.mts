@@ -41,29 +41,31 @@ test('a job recorded once is never set aside', () => {
   assert.deepEqual(losers(d), []);
 });
 
-test('the chain indexer’s row wins over the hire-time one', () => {
+test('the later hire wins, which is the rule claimed-ids.ts reasons with', () => {
   /*
-   * Only the indexer mints "<chainId>:<jobId>", and it built that row by
-   * reading the escrow — so it is the one with a claim to be right.
+   * The shape that actually happened: a fixture hire for Venus Rate Router
+   * created nothing but recorded itself as job 1522, and the next hire, for
+   * Venus Yield Keeper, created 1522 for real. A hire predicts its id before
+   * sending, so the row that claimed the id before anything existed there is
+   * the phantom; the real one recorded itself afterwards.
+   *
+   * The two mechanisms must not disagree about which row is real, or this
+   * would set aside the row `withoutClaimedIds` keeps.
    */
   const d = db([
-    { id: 'uuid-hire', job_id: '1522', chain_id: 97, agent_token_id: '2556', provider: '0xwrong', hired_at: 'T2', status_checked_at: 'T9' },
-    { id: '97:1522', job_id: '1522', chain_id: 97, agent_token_id: '2554', provider: '0xright', hired_at: 'T1', status_checked_at: 'T1' },
+    { id: 'uuid-phantom', job_id: '1522', chain_id: 97, agent_token_id: '2556', provider: '0xa4', hired_at: '22:57:17', status_checked_at: '23:59' },
+    { id: 'uuid-real', job_id: '1522', chain_id: 97, agent_token_id: '2554', provider: '0x6d', hired_at: '22:57:23', status_checked_at: '23:51' },
   ]);
-  assert.deepEqual(losers(d), ['uuid-hire'], 'the UUID row is set aside even though it was checked more recently');
+  assert.deepEqual(losers(d), ['uuid-phantom'], 'the earlier hire loses even though it was chain-checked more recently');
 });
 
-test('between two hire-time rows, the most recently chain-checked wins', () => {
-  /*
-   * The shape that actually happened: two hires seconds apart, for two
-   * different agents, both claiming job 1522. Neither id names the chain,
-   * so freshness decides.
-   */
+test('the chain indexer\u2019s row breaks a tie between equal hires', () => {
+  // Only the indexer mints "<chainId>:<jobId>", by reading the escrow.
   const d = db([
-    { id: 'uuid-older', job_id: '1522', chain_id: 97, agent_token_id: '2556', provider: '0xa4', hired_at: '22:57:17', status_checked_at: '23:30' },
-    { id: 'uuid-newer', job_id: '1522', chain_id: 97, agent_token_id: '2554', provider: '0x6d', hired_at: '22:57:23', status_checked_at: '23:51' },
+    { id: 'uuid-hire', job_id: '9', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T9' },
+    { id: '97:9', job_id: '9', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
   ]);
-  assert.deepEqual(losers(d), ['uuid-older']);
+  assert.deepEqual(losers(d), ['uuid-hire']);
 });
 
 test('the same job id on two chains is two jobs, not a duplicate', () => {
@@ -81,7 +83,7 @@ test('three rows for one job leave exactly one standing', () => {
     { id: 'uuid-2', job_id: '7', chain_id: 97, agent_token_id: '2', provider: '0xb', hired_at: 'T2', status_checked_at: 'T2' },
     { id: '97:7', job_id: '7', chain_id: 97, agent_token_id: '3', provider: '0xc', hired_at: 'T0', status_checked_at: 'T0' },
   ]);
-  assert.deepEqual(losers(d).sort(), ['uuid-1', 'uuid-2']);
+  assert.deepEqual(losers(d).sort(), ['97:7', 'uuid-1'], 'the latest hire survives, chain-form id or not');
 });
 
 test('the rule is deterministic when everything else ties', () => {
