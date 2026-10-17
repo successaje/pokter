@@ -20,6 +20,14 @@ export interface Correction {
 
 export const CORRECTIONS: Correction[] = [
   {
+    date: '2026-10-17',
+    title: 'The receipts endpoint counted 137 jobs where there were 124',
+    said: 'Pokter\u2019s public receipts listed 138 commissioned jobs, and said the status, provider and budget in each row came back from the escrow contract rather than from Pokter.',
+    true: 'Jobs could be recorded twice, and 14 were. One copy named a different agent, which credited job 97/1522\u2019s delivery to an agent that never made it \u2014 the escrow always named the right one. The other 13 were the same job written by both of Pokter\u2019s writers under different row ids, so every count built on them \u2014 team-funded, outside demand, arms-length \u2014 was about 10% high. The rows are Pokter\u2019s own index, re-read from chain but able to lag it, and the endpoint now says so rather than claiming the contract\u2019s authority. One row per job is now counted, filtered on the way out so the stored rows stay a record of what Pokter did.',
+    found: 'Pokter\u2019s receipt audit flagged a single provider mismatch on job 97/1522, which had already corrected itself. Chasing where the wrong address came from found the duplicate rows behind it.',
+    prs: [147, 149],
+  },
+  {
     date: '2026-10-16',
     title: 'Agents hired counted Pokter’s own agents twice',
     said: 'With all activity shown, the Proof page’s “Agents hired” counted registry identities, so an agent registered and hired on both BNB Chain and BNB testnet counted as two agents.',
