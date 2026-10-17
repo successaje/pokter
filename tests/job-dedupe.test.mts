@@ -1,120 +1,102 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DatabaseSync } from 'node:sqlite';
 
-import { DUPLICATE_LOSERS_SQL, JOB_CONFLICTS_DDL, JOB_IDENTITY_INDEX } from '../src/lib/erc8183/job-dedupe';
+import { withoutClaimedIds } from '../src/lib/erc8183/claimed-ids';
+import { oneRowPerJob } from '../src/lib/erc8183/job-dedupe';
+import type { HiredJob } from '../src/lib/erc8183/types';
 
-/* Only the columns the rule reads; the real table has twenty-one. */
-const TABLE = `
-  CREATE TABLE jobs (
-    id TEXT PRIMARY KEY,
-    job_id TEXT NOT NULL,
-    chain_id INTEGER NOT NULL,
-    agent_token_id TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    hired_at TEXT NOT NULL,
-    status_checked_at TEXT NOT NULL
-  );
-`;
+const job = (over: Partial<HiredJob> & { id: string; jobId: string }): HiredJob => ({
+  chainId: 97,
+  isTestnet: true,
+  agentChainId: 97,
+  agentTokenId: '2554',
+  agentName: 'seeded',
+  provider: '0x6D3BD48b653beEeeEf6BBFd2DfCCf32B28049Cc5',
+  task: 'task',
+  budgetRaw: '100000000000000000',
+  expiredAt: '2026-10-17T23:12:20.000Z',
+  hiredAt: '2026-10-16T22:57:23.370Z',
+  hireTxHash: null,
+  status: 'COMPLETED',
+  statusCheckedAt: '2026-10-16T23:51:08.691Z',
+  deliverableUrl: null,
+  settleTxHash: null,
+  ...over,
+} as HiredJob);
 
-function db(rows: Array<Record<string, string | number>>): DatabaseSync {
-  const database = new DatabaseSync(':memory:');
-  database.exec(TABLE);
-  database.exec(JOB_CONFLICTS_DDL);
-  for (const row of rows) {
-    database
-      .prepare('INSERT INTO jobs (id,job_id,chain_id,agent_token_id,provider,hired_at,status_checked_at) VALUES (?,?,?,?,?,?,?)')
-      .run(row.id, row.job_id, row.chain_id, row.agent_token_id, row.provider, row.hired_at, row.status_checked_at);
-  }
-  return database;
-}
+const ids = (rows: readonly HiredJob[]) => oneRowPerJob(rows).map((r) => r.id);
 
-const losers = (database: DatabaseSync) =>
-  (database.prepare(DUPLICATE_LOSERS_SQL).all() as { id: string }[]).map((r) => r.id);
-
-test('a job recorded once is never set aside', () => {
-  // A bug here should quarantine nothing, not everything.
-  const d = db([
-    { id: 'uuid-a', job_id: '1', chain_id: 97, agent_token_id: '10', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
-    { id: '97:2', job_id: '2', chain_id: 97, agent_token_id: '11', provider: '0xb', hired_at: 'T1', status_checked_at: 'T1' },
-  ]);
-  assert.deepEqual(losers(d), []);
+test('a job written once is returned once', () => {
+  // A bug here should drop nothing, not everything.
+  const rows = [job({ id: 'uuid-a', jobId: '1' }), job({ id: '97:2', jobId: '2' })];
+  assert.deepEqual(ids(rows), ['uuid-a', '97:2']);
 });
 
-test('the later hire wins, which is the rule claimed-ids.ts reasons with', () => {
+test('one job written by both writers is returned once', () => {
   /*
-   * The shape that actually happened: a fixture hire for Venus Rate Router
-   * created nothing but recorded itself as job 1522, and the next hire, for
-   * Venus Yield Keeper, created 1522 for real. A hire predicts its id before
-   * sending, so the row that claimed the id before anything existed there is
-   * the phantom; the real one recorded itself afterwards.
-   *
-   * The two mechanisms must not disagree about which row is real, or this
-   * would set aside the row `withoutClaimedIds` keeps.
+   * The 13 rows this exists for: `hireAgent` recorded a UUID row at
+   * funding, the chain indexer recorded "<chainId>:<jobId>" later. Neither
+   * is a phantom — it is one job, counted twice.
    */
-  const d = db([
-    { id: 'uuid-phantom', job_id: '1522', chain_id: 97, agent_token_id: '2556', provider: '0xa4', hired_at: '22:57:17', status_checked_at: '23:59' },
-    { id: 'uuid-real', job_id: '1522', chain_id: 97, agent_token_id: '2554', provider: '0x6d', hired_at: '22:57:23', status_checked_at: '23:51' },
-  ]);
-  assert.deepEqual(losers(d), ['uuid-phantom'], 'the earlier hire loses even though it was chain-checked more recently');
-});
-
-test('the chain indexer\u2019s row breaks a tie between equal hires', () => {
-  // Only the indexer mints "<chainId>:<jobId>", by reading the escrow.
-  const d = db([
-    { id: 'uuid-hire', job_id: '9', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T9' },
-    { id: '97:9', job_id: '9', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
-  ]);
-  assert.deepEqual(losers(d), ['uuid-hire']);
-});
-
-test('the same job id on two chains is two jobs, not a duplicate', () => {
-  // 97/1522 and 56/1522 are unrelated, and the partition has to say so.
-  const d = db([
-    { id: 'a', job_id: '1522', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
-    { id: 'b', job_id: '1522', chain_id: 56, agent_token_id: '2', provider: '0xb', hired_at: 'T1', status_checked_at: 'T1' },
-  ]);
-  assert.deepEqual(losers(d), []);
-});
-
-test('three rows for one job leave exactly one standing', () => {
-  const d = db([
-    { id: 'uuid-1', job_id: '7', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
-    { id: 'uuid-2', job_id: '7', chain_id: 97, agent_token_id: '2', provider: '0xb', hired_at: 'T2', status_checked_at: 'T2' },
-    { id: '97:7', job_id: '7', chain_id: 97, agent_token_id: '3', provider: '0xc', hired_at: 'T0', status_checked_at: 'T0' },
-  ]);
-  assert.deepEqual(losers(d).sort(), ['97:7', 'uuid-1'], 'the latest hire survives, chain-form id or not');
-});
-
-test('the rule is deterministic when everything else ties', () => {
-  // Two runs of the migration must not disagree about which row to keep.
   const rows = [
-    { id: 'bbb', job_id: '9', chain_id: 97, agent_token_id: '1', provider: '0xa', hired_at: 'T1', status_checked_at: 'T1' },
-    { id: 'aaa', job_id: '9', chain_id: 97, agent_token_id: '2', provider: '0xb', hired_at: 'T1', status_checked_at: 'T1' },
+    job({ id: 'uuid-hire', jobId: '1483' }),
+    job({ id: '97:1483', jobId: '1483' }),
   ];
-  assert.deepEqual(losers(db(rows)), ['bbb']);
-  assert.deepEqual(losers(db([...rows].reverse())), ['bbb'], 'insertion order does not change the answer');
+  assert.deepEqual(ids(rows), ['97:1483'], 'the chain indexer’s row is the one kept');
 });
 
-test('once deduped, the unique index refuses a second row for the same job', () => {
+test('the later hire wins, the rule claimed-ids.ts reasons with', () => {
   /*
-   * The actual fix. `record` does INSERT OR REPLACE, and SQLite drops rows
-   * violating any unique constraint — so a later write replaces the earlier
-   * one instead of sitting beside it.
+   * Two rules disagreeing about which row is real would be worse than
+   * either. A hire predicts its id before sending, so the row that claimed
+   * it first is the phantom and the real one recorded itself afterwards.
    */
-  const d = db([{ id: '97:1522', job_id: '1522', chain_id: 97, agent_token_id: '2554', provider: '0xright', hired_at: 'T1', status_checked_at: 'T1' }]);
-  d.exec(JOB_IDENTITY_INDEX);
+  const rows = [
+    job({ id: 'uuid-earlier', jobId: '1522', hiredAt: '2026-10-16T22:57:17.606Z' }),
+    job({ id: 'uuid-later', jobId: '1522', hiredAt: '2026-10-16T22:57:23.370Z' }),
+  ];
+  assert.deepEqual(ids(rows), ['uuid-later']);
+  assert.deepEqual(ids([...rows].reverse()), ['uuid-later'], 'input order does not decide it');
+});
 
-  assert.throws(
-    () => d.prepare('INSERT INTO jobs (id,job_id,chain_id,agent_token_id,provider,hired_at,status_checked_at) VALUES (?,?,?,?,?,?,?)')
-      .run('uuid-other', '1522', 97, '2556', '0xwrong', 'T2', 'T2'),
-    /UNIQUE/i,
-    'a plain insert of a second row for the same job is refused',
-  );
+test('the same job id on two chains is two jobs', () => {
+  const rows = [
+    job({ id: 'a', jobId: '1522', chainId: 97 }),
+    job({ id: 'b', jobId: '1522', chainId: 56, isTestnet: false }),
+  ];
+  assert.deepEqual(ids(rows).sort(), ['a', 'b']);
+});
 
-  d.prepare('INSERT OR REPLACE INTO jobs (id,job_id,chain_id,agent_token_id,provider,hired_at,status_checked_at) VALUES (?,?,?,?,?,?,?)')
-    .run('uuid-other', '1522', 97, '2556', '0xlater', 'T2', 'T2');
-  const left = d.prepare('SELECT id, provider FROM jobs WHERE chain_id=97 AND job_id=?').all('1522') as { id: string; provider: string }[];
-  assert.equal(left.length, 1, 'still one row');
-  assert.equal(left[0].provider, '0xlater', 'and it is the later write');
+test('it composes with the phantom filter rather than fighting it', () => {
+  /*
+   * The real 1522: a hire for one agent claimed the id and created nothing,
+   * then a hire for another created it. `withoutClaimedIds` drops the
+   * phantom; this must then leave the survivor alone rather than pick
+   * between two rows one of which was never a job.
+   */
+  const rows = [
+    job({ id: 'uuid-phantom', jobId: '1522', agentTokenId: '2556', hiredAt: '2026-10-16T22:57:17.606Z' }),
+    job({ id: 'uuid-real', jobId: '1522', agentTokenId: '2554', hiredAt: '2026-10-16T22:57:23.370Z' }),
+  ];
+  const filtered = withoutClaimedIds(rows);
+  assert.deepEqual(filtered.map((r) => r.id), ['uuid-real'], 'the phantom goes first');
+  assert.deepEqual(ids(filtered), ['uuid-real'], 'and nothing further is dropped');
+});
+
+test('three copies of one job still return one', () => {
+  const rows = [
+    job({ id: 'uuid-1', jobId: '7', hiredAt: '2026-10-16T10:00:00.000Z' }),
+    job({ id: 'uuid-2', jobId: '7', hiredAt: '2026-10-16T11:00:00.000Z' }),
+    job({ id: '97:7', jobId: '7', hiredAt: '2026-10-16T09:00:00.000Z' }),
+  ];
+  assert.deepEqual(ids(rows), ['uuid-2']);
+});
+
+test('order is preserved, so an upstream sort still holds', () => {
+  const rows = [
+    job({ id: 'c', jobId: '3' }),
+    job({ id: 'a', jobId: '1' }),
+    job({ id: 'b', jobId: '2' }),
+  ];
+  assert.deepEqual(ids(rows), ['c', 'a', 'b']);
 });
