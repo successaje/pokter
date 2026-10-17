@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatUnits, getAddress } from 'viem';
@@ -7,6 +8,7 @@ import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { chainLabel } from '@/lib/network/presentation';
+import { jobHref } from '@/lib/jobs/href';
 import { readDisputeState, readReviewTiming, settleFromExternalWallet, submitExternalDeliverable, transactionExists } from '@/lib/wallet/external';
 import { sellerReleaseSummary } from '@/lib/erc8183/settle-window';
 import { useClockThrough } from '@/lib/ui/use-moment';
@@ -45,7 +47,28 @@ const STAGES = { authorizing: 'Sign to authorise this delivery', storing: 'Stori
  * checks the transaction. Nothing is marked delivered on a promise.
  */
 function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
-  const [content, setContent] = useState('');
+  /*
+   * An unfinished delivery survives a reload or a wallet prompt, kept for
+   * this tab only and per provider, chain and job, so it never reappears
+   * under another wallet. Cleared once the delivery is on chain.
+   */
+  const draftKey = `pokter.delivery-draft.${account.toLowerCase()}.${job.chainId}:${job.jobId}`;
+  const [content, setContentState] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(draftKey) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const setContent = (value: string) => {
+    setContentState(value);
+    try {
+      if (value.trim()) window.sessionStorage.setItem(draftKey, value);
+      else window.sessionStorage.removeItem(draftKey);
+    } catch {
+      /* Storage blocked: the text stays in the form while the tab is open. */
+    }
+  };
   const [stage, setStage] = useState<keyof typeof STAGES | 'idle' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   // Once the submission is on chain it must never be sent again; only the
@@ -136,6 +159,12 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       setStage('submitting');
       const transactionHash = await submitExternalDeliverable({ account, chainId: job.chainId, jobId: BigInt(job.jobId), deliverable: prepared.deliverable, deliverableUrl: prepared.deliverableUrl });
       setSubmittedTx(transactionHash);
+      // On chain now: the saved draft is done with, though the text stays on screen.
+      try {
+        window.sessionStorage.removeItem(draftKey);
+      } catch {
+        /* Nothing to clear. */
+      }
       await confirm(transactionHash);
       return;
     } catch (cause) {
@@ -329,6 +358,12 @@ export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
                   {job.agentName} <span className="t-readout font-normal text-ink-3">#{job.jobId}</span>
                 </p>
                 <p className="line-clamp-2 text-[13px] text-ink-2">{job.task}</p>
+                {/* Which network, real or test money, the deadline, and the job itself: a row is no longer just a number. */}
+                <p className="mt-1 flex flex-wrap gap-x-2 text-[12px] text-ink-3">
+                  <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>{chainLabel(job.chainId)} · {job.chainId === 56 ? 'real $U' : 'test $U'}</span>
+                  {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <span>· deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</span>}
+                  <Link href={jobHref(job)} className="font-medium text-ink-2 hover:text-ink hover:underline">· View job</Link>
+                </p>
               </div>
               <div className="flex flex-col items-end gap-0.5">
                 <span className={cn('text-[13px] font-medium', s.tone)}>{s.label}</span>
