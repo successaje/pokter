@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { awaitingCapture, awaitingRow } from '../src/lib/assay/awaiting-capture';
+import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered } from '../src/lib/assay/awaiting-capture';
 
 test('a delivered job with nothing stored waits for capture instead of failing', () => {
   assert.equal(awaitingCapture({ status: 'COMPLETED' }, null), true);
@@ -20,4 +20,11 @@ test('the waiting row is pending, never undelivered, and names the job state', (
   assert.equal(row.pass, false);
   assert.match(row.reason ?? '', /COMPLETED on chain/);
   assert.doesNotMatch(row.reason ?? '', /undelivered|no deliverable/i);
+});
+
+test('a run that called a since-delivered job undelivered is graded again', () => {
+  const rows = [{ jobId: '1508', outcome: 'undelivered' }, { jobId: '1509', outcome: 'correct' }];
+  assert.equal(gradedAsUndeliveredSinceDelivered(rows, [{ jobId: '1508', status: 'COMPLETED' }]), true);
+  assert.equal(gradedAsUndeliveredSinceDelivered(rows, [{ jobId: '1508', status: 'EXPIRED' }]), false, 'still undelivered: the result stands');
+  assert.equal(gradedAsUndeliveredSinceDelivered([{ jobId: '1508', outcome: 'wrong' }], [{ jobId: '1508', status: 'COMPLETED' }]), false);
 });
