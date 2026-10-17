@@ -25,3 +25,18 @@ export function awaitingRow(scenario: string, job: Pick<HiredJob, 'jobId' | 'sta
     latencyMs: null,
   };
 }
+
+/**
+ * Whether a recorded run called a job undelivered that the chain now says
+ * was delivered. Such a run is stale, not final: the outside agents graded
+ * before Pokter could fetch their deliveries were recorded 0/3 and, because
+ * the same jobs had been graded, were never looked at again.
+ */
+export function gradedAsUndeliveredSinceDelivered(
+  results: ReadonlyArray<{ jobId?: string | null; outcome?: string }>,
+  jobs: Iterable<Pick<HiredJob, 'jobId' | 'status'>>,
+): boolean {
+  const delivered = new Set<string>();
+  for (const job of jobs) if (job.status === 'SUBMITTED' || job.status === 'COMPLETED') delivered.add(job.jobId);
+  return results.some((result) => result.outcome === 'undelivered' && result.jobId != null && delivered.has(result.jobId));
+}

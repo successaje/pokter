@@ -20,7 +20,7 @@ import { readVenusPosition, venusClient } from './venus';
 import { gradePaidScenario } from './paid-grade';
 import { getAssayStore } from './store';
 import type { AssayRun, AssayScenarioResult } from './types';
-import { awaitingCapture, awaitingRow } from './awaiting-capture';
+import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered } from './awaiting-capture';
 
 /**
  * A correctness check assembled from the agent's own paid deliveries.
@@ -97,6 +97,8 @@ function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: st
   if (!run || run.via !== 'paid-hire') return false;
   // A pending row means the agent may still deliver: keep looking.
   if (run.results.some((result) => result.outcome === 'pending')) return false;
+  // An "undelivered" row for a job delivered since is stale: grade it again.
+  if (gradedAsUndeliveredSinceDelivered(run.results, fixtures.values())) return false;
   const graded = new Set(run.results.map((result) => `${result.scenario}:${result.jobId ?? ''}`));
   if (graded.size !== fixtures.size) return false;
   for (const [scenario, job] of fixtures) {
