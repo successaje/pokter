@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { NETWORK_LABEL, IS_TESTNET } from '@/lib/network/presentation';
+import { MAINNET_ESCROW, NETWORK_LABEL, IS_TESTNET } from '@/lib/network/presentation';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -71,8 +71,8 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
       {w.wrongChain && w.externalConnected ? (
         <div className="flex flex-col gap-4">
           <Notice tone="watch" title={`${w.connectorName ?? 'Your wallet'} is on ${w.externalChainName ?? 'another network'}`}>
-            Pokter&rsquo;s escrow runs on {NETWORK_LABEL}. Switching only changes the network your wallet points at; it
-            moves no funds.
+            Pokter&rsquo;s default network is {NETWORK_LABEL}. A hire funded on another network asks you to switch when you
+            fund it. Switching only changes the network your wallet points at; it moves no funds.
           </Notice>
           {w.switchError && <Notice tone="bad" title="The switch was not completed">{w.switchError}</Notice>}
           <div className="flex flex-wrap gap-2">
@@ -122,7 +122,7 @@ function ConnectSheet({ open, reason, onClose }: { open: boolean; reason: string
           <p className="pt-2 text-[12.5px] leading-relaxed text-ink-3">
             Connecting shares your address with Pokter. It grants no permission to move funds: every payment is a
             separate transaction you approve, into one escrow for one job.
-            {IS_TESTNET && ' Pokter runs on BNB testnet; balances are test tokens with no value.'}
+            {IS_TESTNET && (MAINNET_ESCROW ? ' Balances shown on BNB Testnet are test tokens with no value; hires on BNB Chain use real funds.' : ' Pokter runs on BNB testnet; balances are test tokens with no value.')}
           </p>
         </div>
       ) : (

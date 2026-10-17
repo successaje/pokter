@@ -7,6 +7,7 @@ import { Icon } from '@/ui/icons';
 import { NetworkRow } from '@/ui/Network';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import type { AgentProfile } from './profile';
+import { mainnetHireBlocked } from '@/lib/hire/mainnet-blocked';
 
 export function priceSummary(p: AgentProfile) {
   if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Signed by the agent' : 'Last signed price expired · a fresh quote is signed when you hire', signed: true };
@@ -30,6 +31,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
   const hireHref = `/hire/${profile.chainId}/${profile.tokenId}`;
   // The escrow this agent is hired on, chosen from its signed price.
   const testnet = profile.escrow.chainId === 97;
+  const blocked = mainnetHireBlocked(profile);
   return (
     <aside aria-label="Hire this agent" className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
       <div className="flex flex-col gap-1 px-5 pb-4 pt-5">
@@ -82,7 +84,10 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         </div>
       )}
       <div className="flex flex-col gap-2 border-t border-rule p-5">
-        {profile.hireable ? (
+        {profile.hireable && blocked ? (
+          /* A known reason the hire cannot complete: no purchase button that leads to it. */
+          <p className="text-[13px] text-ink-2">A paid job on {chainLabel(56)} cannot complete until the reason above is fixed, because the escrow needs the agent&rsquo;s signed price.</p>
+        ) : profile.hireable ? (
           <LinkButton href={hireHref} intent="primary" size="l" className="w-full" trailing={<Icon.Arrow size={16} />}>
             Hire {profile.name.length > 22 ? 'this agent' : profile.name}
           </LinkButton>
@@ -90,9 +95,15 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           <p className="text-[13px] text-ink-2">Pokter cannot route a paid job to this agent: no reachable provider wallet was found.</p>
         )}
         {profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
-          <a href={`${hireHref}?escrow=97`} className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
-            Or hire free on testnet
-          </a>
+          blocked ? (
+            <LinkButton href={`${hireHref}?escrow=97`} intent="secondary" className="w-full">
+              Try free on testnet instead
+            </LinkButton>
+          ) : (
+            <a href={`${hireHref}?escrow=97`} className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
+              Or hire free on testnet
+            </a>
+          )
         )}
         {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
         {profile.trialAvailable && (
@@ -112,7 +123,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
 export function MobileHireBar({ profile }: { profile: AgentProfile }) {
   const price = priceSummary(profile);
   const money = escrowMoney(profile.escrow.chainId);
-  if (!profile.hireable) return null;
+  if (!profile.hireable || mainnetHireBlocked(profile)) return null;
   return (
     <div data-hire-bar className={cn('fixed inset-x-0 bottom-[calc(56px+max(12px,env(safe-area-inset-bottom)))] z-30 border-t border-rule bg-[color-mix(in_oklab,var(--raised)_94%,transparent)] px-4 py-3 backdrop-blur-md lg:hidden')}>
       <div className="flex items-center justify-between gap-4">

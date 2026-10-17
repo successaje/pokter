@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { formatUnits, parseUnits, type Address } from 'viem';
 
-import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, PAYMENT_VALUE_NOTE } from '@/lib/network/presentation';
+import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, PAYMENT_VALUE_NOTE, chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { markAllNotificationsRead, markNotificationRead } from '@/lib/wallet/notifications';
 import { markSavedAgentAlertsRead, toggleSavedAgent } from '@/lib/wallet/saved-agents';
@@ -389,7 +389,7 @@ export function WalletPage() {
 
   return (
     <>
-      <PageHeader title="Wallet and payments" description={`What this wallet holds on ${NETWORK_LABEL}, and where your job payments went.`} />
+      <PageHeader title="Wallet and payments" description={`What this wallet holds on ${w.balances.chainId === null ? NETWORK_LABEL : chainLabel(w.balances.chainId)}, the network it is on now, and where your job payments went on each network.`} />
       {IS_TESTNET && <Notice tone="neutral" className="mb-6">{PAYMENT_VALUE_NOTE}</Notice>}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">

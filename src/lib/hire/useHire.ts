@@ -11,6 +11,7 @@ import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
+import { forgetBrief, recallBrief, rememberBrief } from './brief-memory';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -248,23 +249,25 @@ export function useHire({
       providers[0]?.address ??
       '',
   );
+  // A brief typed before switching network comes back; a linked one wins.
+  const [recalled] = useState(() => (initialTask || typeof window === 'undefined' ? null : recallBrief(agent)));
   const [selectedTemplate, setSelectedTemplate] = useState<CommissionTaskTemplate['id'] | null>(
-    initialTask ? null : taskTemplates[0].id,
+    initialTask ? null : recalled ? (recalled.template as CommissionTaskTemplate['id'] | null) : taskTemplates[0].id,
   );
   /*
    * A template in a guided format starts empty: its example's figures are
    * the operator's, shown as placeholders, never funded as the buyer's.
    */
   const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : template.task);
-  const [task, setTaskState] = useState(initialTask ?? startingTask(taskTemplates[0]));
+  const [task, setTaskState] = useState(initialTask ?? recalled?.task ?? startingTask(taskTemplates[0]));
   /** The guided format in use; kept while the brief is edited, like the schema. */
-  const [recipeId, setRecipeId] = useState(initialTask ? null : (taskTemplates[0].recipe ?? null));
+  const [recipeId, setRecipeId] = useState(initialTask ? null : recalled ? recalled.recipe : (taskTemplates[0].recipe ?? null));
   /*
    * The template the buyer started from: its fields and their types stay
    * fixed while values are edited (see `fieldsWithValues`). Editing the
    * task never changes it; choosing another template does.
    */
-  const [schemaSource, setSchemaSource] = useState(taskTemplates[0].task);
+  const [schemaSource, setSchemaSource] = useState(recalled?.schema ?? taskTemplates[0].task);
   const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
   const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
@@ -392,10 +395,14 @@ export function useHire({
   const setTask = (value: string) => {
     setSelectedTemplate(null);
     setTaskState(value);
+    rememberBrief(agent, { task: value, template: null, recipe: recipeId, schema: schemaSource });
   };
 
   /* A guided field changed: the template's format stays selected. */
-  const setTaskKeepingFormat = (value: string) => setTaskState(value);
+  const setTaskKeepingFormat = (value: string) => {
+    setTaskState(value);
+    rememberBrief(agent, { task: value, template: selectedTemplate, recipe: recipeId, schema: schemaSource });
+  };
 
   const chooseTemplate = (id: CommissionTaskTemplate['id']) => {
     const template = taskTemplates.find((t) => t.id === id);
@@ -404,6 +411,7 @@ export function useHire({
     setTaskState(startingTask(template));
     setSchemaSource(template.task);
     setRecipeId(template.recipe ?? null);
+    rememberBrief(agent, { task: startingTask(template), template: template.id, recipe: template.recipe ?? null, schema: template.task });
   };
 
   const indexFundedJob = async (hired: HiredJob) => {
@@ -607,6 +615,7 @@ export function useHire({
         // Not awaited: its retries must not hold up the seller's notice, which indexes too.
         void indexFundedJob(externalJob);
         setJob(externalJob);
+        forgetBrief(agent);
         setState('hired');
         await notifySeller(externalJob);
         return;
@@ -737,6 +746,7 @@ export function useHire({
       // Not awaited: its retries must not hold up the seller's notice, which indexes too.
       void indexFundedJob(hired);
       setJob(hired);
+      forgetBrief(agent);
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
