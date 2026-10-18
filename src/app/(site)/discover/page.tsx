@@ -5,14 +5,12 @@ import { Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
-import { CATEGORIES } from '@/lib/agents/categories';
 import { cn } from '@/lib/ui/cn';
 import { AgentCard, AgentRow } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
-import { OUTCOMES } from '@/features/home/outcomes';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -281,17 +279,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </ul>
         </nav>
         <DiscoverSearch params={base} />
-        {!p.q && (
-          <ul className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Start from an outcome">
-            {CATEGORIES.map((c) => (
-              <li key={c.id} className="shrink-0">
-                <Link href={discoverHref({ q: OUTCOMES[c.id].query }, p)} className="inline-flex h-8 items-center rounded-full border border-rule bg-paper px-3 text-[13px] text-ink-2 hover:border-ink hover:text-ink">
-                  {OUTCOMES[c.id].verb}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
       </header>
 
 
