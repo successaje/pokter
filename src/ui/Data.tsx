@@ -38,7 +38,23 @@ export function Readout({
  * says so (it used to do nothing), and the state is announced to screen
  * readers as well as shown.
  */
-export function CopyButton({ value, label = 'Copy', className }: { value: string; label?: string; className?: string }) {
+export function CopyButton({
+  value,
+  label = 'Copy',
+  className,
+  children,
+}: {
+  value: string;
+  label?: string;
+  className?: string;
+  /**
+   * Visible text beside the icon. Without it the button stays the square
+   * icon every table row and code block uses, where a word would be five
+   * more of them down a column; with it the button can carry its own
+   * label where it is the step's only action and has room to say so.
+   */
+  children?: ReactNode;
+}) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const said = state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed: select the text instead' : label;
   return (
@@ -54,11 +70,17 @@ export function CopyButton({ value, label = 'Copy', className }: { value: string
         setState(ok ? 'copied' : 'failed');
         window.setTimeout(() => setState('idle'), ok ? 1400 : 2400);
       }}
-      className={cn('inline-grid size-7 place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-sunken hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink', state === 'failed' && 'text-watch', className)}
-      aria-label={said}
+      className={cn(
+        'rounded-[6px] text-ink-3 transition-colors hover:bg-sunken hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink',
+        children ? 'inline-flex items-center gap-2' : 'inline-grid size-7 place-items-center',
+        state === 'failed' && 'text-watch',
+        className,
+      )}
+      aria-label={children ? undefined : said}
       title={said}
     >
       {state === 'copied' ? <Icon.Check size={15} /> : state === 'failed' ? <Icon.Alert size={15} /> : <Icon.Copy size={15} />}
+      {children && <span>{state === 'copied' ? 'Copied' : children}</span>}
       <span className="sr-only" aria-live="polite">{state === 'idle' ? '' : said}</span>
     </button>
   );

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
+import { BuildWithAI } from '@/features/build/BuildWithAI';
 
 export const metadata: Metadata = {
   title: 'Build an agent',
@@ -70,6 +71,12 @@ export default async function BuildPage({ searchParams }: { searchParams: Promis
             </Reveal>
           ))}
         </ol>
+      </section>
+
+      <section className="frame mt-16" aria-labelledby="build-with-ai-title">
+        <Reveal>
+          <BuildWithAI />
+        </Reveal>
       </section>
 
       <section className="frame mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
