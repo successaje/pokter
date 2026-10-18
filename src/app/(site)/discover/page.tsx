@@ -89,16 +89,19 @@ function NetworkSwitch({ p }: { p: DiscoverParams }) {
    * is not where a filter explains itself.
    */
   return (
-    <div className="flex items-center gap-2">
+    /* Wraps rather than crushes: at 375px the label and three options
+       shared one row, so each option's text wrapped inside its own pill
+       and the pills ran into each other. */
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <span className="t-label shrink-0 text-ink-3">Registered on</span>
-      <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Registered on" title="Where the agent’s identity lives. Each agent’s card says which money a hire of it settles in, which is often the other network.">
+      <div className="flex shrink-0 rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Registered on" title="Where the agent’s identity lives. Each agent’s card says which money a hire of it settles in, which is often the other network.">
       {options.map((o) => (
         <Link
           key={o.chain}
           href={discoverHref({ chain: o.chain }, p)}
           scroll={false}
           aria-current={p.chain === o.chain ? 'true' : undefined}
-          className={cn('inline-flex h-7 items-center rounded-[6px] px-2.5 text-[12.5px] font-medium', p.chain === o.chain ? 'bg-ink text-paper' : 'text-ink-2 hover:text-ink')}
+          className={cn('inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-[6px] px-2.5 text-[12.5px] font-medium', p.chain === o.chain ? 'bg-ink text-paper' : 'text-ink-2 hover:text-ink')}
         >
           {o.label}
         </Link>
