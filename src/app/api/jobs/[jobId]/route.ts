@@ -3,7 +3,7 @@ import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { getAddress } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
-import { jobChainParam } from '@/lib/jobs/href';
+import { jobChainParam, missingJobMessage, otherJobChain } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope, decodeReferenceJobDescription } from '@/lib/erc8183/job-envelope';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -70,7 +70,11 @@ export async function GET(
 
   // The escrow the job is on (`?chain=`). Read-only, so any chain Pokter has
   // funded on is accepted, enabled for new hires or not.
-  const chainId = jobChainParam(new URL(request.url).searchParams.get('chain')) ?? ALTANA_NETWORK.chainId;
+  const chainId =
+    jobChainParam(new URL(request.url).searchParams.get('chain')) ??
+    // The site's own network, which is always one of the two Pokter funds on.
+    jobChainParam(String(ALTANA_NETWORK.chainId)) ??
+    97;
   const network = altanaNetworkFor(chainId);
 
   try {
@@ -87,8 +91,17 @@ export async function GET(
     const exists =
       onchain.client !== '0x0000000000000000000000000000000000000000';
     if (!exists) {
+      /*
+       * Before blaming the number, look on the other escrow. `?chain=`
+       * defaults to the site's network, so a mainnet id asked for without
+       * one lands here with nothing wrong but the chain.
+       */
+      const other = otherJobChain(chainId);
+      const foundElsewhere = await getErc8183Job(altanaNetworkFor(other), BigInt(jobId))
+        .then((j) => j.client !== '0x0000000000000000000000000000000000000000')
+        .catch(() => false);
       return NextResponse.json(
-        { error: `No job ${jobId} exists on this contract. Check the number.` },
+        { error: missingJobMessage(jobId, chainId, foundElsewhere ? other : null) },
         { status: 404 },
       );
     }
