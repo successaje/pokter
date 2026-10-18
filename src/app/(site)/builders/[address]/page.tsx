@@ -88,7 +88,7 @@ export default async function OperatorPage({ params }: { params: Promise<{ addre
         ))}
       </dl>
       <p className="mb-10 max-w-3xl text-[12px] text-ink-3">
-        Amounts are the budgets of jobs that completed through Pokter escrow, which pays the budget to the agent (the escrow's platform fee is currently zero). They are not net income: the operator&rsquo;s own costs are not known here.
+        Amounts are the budgets of jobs that completed through Pokter escrow, which pays the budget to the agent (the escrow&rsquo;s platform fee is currently zero). They are not net income: the operator&rsquo;s own costs are not known here.
       </p>
       <ul className="ruled border-y border-rule">
         {agents.map((a, i) => {
