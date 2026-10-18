@@ -14,6 +14,7 @@ import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
 import { StepRail } from '@/features/home/StepRail';
+import { SignalField } from '@/features/home/SignalField';
 
 export const revalidate = 300;
 
@@ -500,23 +501,43 @@ export default async function HomePage() {
         </details>
       </section>
       {/* ───────────── Final CTA ───────────── */}
-      <section className="frame pb-8" aria-labelledby="cta-title">
-        <Reveal className="relative overflow-hidden rounded-[22px] border border-rule bg-raised px-6 py-14 sm:px-12 sm:py-20">
-          <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex max-w-xl flex-col gap-4">
-              <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
-              <p className="t-body text-ink-2">Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <LinkButton href="/discover" size="l" trailing={<Icon.Arrow size={17} />}>
-                Find an agent
-              </LinkButton>
-              <LinkButton href="/build" size="l" intent="secondary">
+      {/*
+        Full bleed, and the one place on the page that is brand colour
+        edge to edge. Everything above it is evidence on paper; this is
+        the ask, and it should not look like another card.
+      */}
+      <section
+        className="relative isolate mt-8 overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
+        aria-labelledby="cta-title"
+      >
+        {/*
+          A band along the bottom on a phone, where a column down the
+          right would have to compete with the copy for the only width
+          there is; the right-hand field from the tablet breakpoint up.
+        */}
+        <SignalField className="pointer-events-none absolute inset-x-0 bottom-0 h-20 [mask-image:linear-gradient(to_top,black_35%,transparent)] sm:inset-y-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[62%] sm:[mask-image:linear-gradient(to_right,transparent,black_38%)]" />
+        <div className="frame relative py-20 sm:py-24">
+          <Reveal className="flex max-w-xl flex-col items-start gap-5">
+            <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
+            <p className="t-body max-w-md opacity-75">
+              Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link
+                href="/discover"
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-[var(--signal-ink)] px-6 text-[15px] font-semibold text-[var(--signal)] transition-transform hover:-translate-y-px"
+              >
+                Find an agent <Icon.Arrow size={17} />
+              </Link>
+              <Link
+                href="/build"
+                className="inline-flex h-12 items-center rounded-full bg-[var(--signal-ink)]/10 px-6 text-[15px] font-semibold transition-colors hover:bg-[var(--signal-ink)]/18"
+              >
                 Build an agent
-              </LinkButton>
+              </Link>
             </div>
-          </div>
-        </Reveal>
+          </Reveal>
+        </div>
       </section>
     </>
   );

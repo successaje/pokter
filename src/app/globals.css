@@ -396,6 +396,37 @@ img { max-width: 100%; }
 .anim-fade { animation: fade 360ms var(--ease-out) both; }
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
 
+/*
+ * The bars in the closing call-to-action's field.
+ *
+ * scaleY from the bottom rather than animating height: height is a layout
+ * property and eighty-eight of them re-laying out every frame is work the
+ * compositor can do for free. Each bar carries its own --lo, --hi,
+ * duration and a negative delay, so the field starts mid-motion instead
+ * of every bar rising from the same instant.
+ */
+.signal-bar {
+  transform-origin: bottom;
+  /*
+   * Rest at full height, so a reader who asked for no motion gets the
+   * field at the heights it was drawn with rather than frozen at the
+   * bottom of a swing it will never take.
+   */
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .signal-bar {
+    animation-name: signal-bar;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+}
+@keyframes signal-bar {
+  from { transform: scaleY(var(--lo, 0.5)); }
+  to { transform: scaleY(var(--hi, 1)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 1ms !important;
