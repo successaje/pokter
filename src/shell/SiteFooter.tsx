@@ -107,8 +107,9 @@ export function SiteFooter() {
         </div>
       </div>
       <FooterWordmark />
-      <div className="border-t border-rule">
-        <div className="frame flex flex-col gap-2 py-5 text-[12.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* No rule: the wordmark's own baseline is the division already. */}
+      <div>
+        <div className="frame flex flex-col gap-2 pb-7 pt-6 text-[12.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
           <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
         </div>
