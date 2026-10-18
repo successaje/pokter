@@ -142,6 +142,7 @@ export function explainFailure(message: string, layer: FailureLayer | null = nul
   if (layer === 'network') return { title: 'The agent could not be reached', body: message };
   if (layer === 'protocol') return { title: 'The agent’s quote stopped this hire', body: message };
   if (layer === 'payment') return { title: 'The agent’s price cannot be paid here', body: message };
+  if (layer === 'terms') return { title: 'The agent’s price changed', body: message };
   if (/insufficient|balance|needs at least|You need/i.test(message)) return { title: 'Not enough in the wallet', body: message };
   if (/signed a price|signed quote|quote/i.test(message)) return { title: 'The agent’s quote stopped this hire', body: message };
   if (/network|chain|switch/i.test(message)) return { title: 'Wrong network', body: message };

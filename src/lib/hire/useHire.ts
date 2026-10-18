@@ -272,6 +272,16 @@ export function useHire({
   const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [screen, setScreen] = useState<HireScreen>('describe');
+  /*
+   * The signed quote taken when the buyer moves from Describe to Review,
+   * so Review can show what this agent accepted for this exact brief, and
+   * a refusal arrives while the brief is still being written, not at the
+   * wallet. Kept with what it was signed for: a changed brief, provider or
+   * network does not reuse it.
+   */
+  const [preQuote, setPreQuote] = useState<{ quote: Awaited<ReturnType<typeof negotiateForHire>>; task: string; provider: string; escrowChainId: number } | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteFailure, setQuoteFailure] = useState<{ message: string; layer: FailureLayer | null } | null>(null);
 
   const [stage, setStage] = useState<'sponsoring' | 'swapping' | 'hiring'>('hiring');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -395,12 +405,14 @@ export function useHire({
   const setTask = (value: string) => {
     setSelectedTemplate(null);
     setTaskState(value);
+    setQuoteFailure(null);
     rememberBrief(agent, { task: value, template: null, recipe: recipeId, schema: schemaSource });
   };
 
   /* A guided field changed: the template's format stays selected. */
   const setTaskKeepingFormat = (value: string) => {
     setTaskState(value);
+    setQuoteFailure(null);
     rememberBrief(agent, { task: value, template: selectedTemplate, recipe: recipeId, schema: schemaSource });
   };
 
@@ -524,6 +536,36 @@ export function useHire({
     }
   };
 
+  /** Whether the agent itself signs a price for this hire (not Pokter's delivery agent). */
+  const needsQuote = provider?.relationship === 'registry-agent';
+
+  /**
+   * Ask the agent to sign a quote for the brief as written. True when the
+   * buyer can go on to Review: either the agent accepted, or no quote is
+   * needed. False with `quoteFailure` set, and the brief left as it was.
+   */
+  const prepareQuote = async (): Promise<boolean> => {
+    setQuoteFailure(null);
+    if (!needsQuote) return true;
+    setQuoting(true);
+    try {
+      const quote = await negotiateForHire(agent.chainId, agent.tokenId, task);
+      setPreQuote({ quote, task, provider: providerAddress, escrowChainId });
+      return true;
+    } catch (caught) {
+      setPreQuote(null);
+      const failure = caught instanceof HireFailure ? caught : null;
+      setQuoteFailure({ message: (caught as Error).message || 'The agent did not return a signed quote for this brief.', layer: failure?.layer ?? null });
+      return false;
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  /** The early quote, while it still covers this hire: same brief, provider and network, and at least a minute left. */
+  const reviewQuote = preQuote && preQuote.task === task && preQuote.provider === providerAddress && preQuote.escrowChainId === escrowChainId ? preQuote.quote : null;
+  const quoteLive = (quote: Awaited<ReturnType<typeof negotiateForHire>> | null) => Boolean(quote && (!quote.expiresAt || quote.expiresAt * 1000 > Date.now() + 60_000));
+
   const commission = async () => {
     setState('hiring');
     setStage('hiring');
@@ -551,7 +593,16 @@ export function useHire({
        */
       let signedQuote: Awaited<ReturnType<typeof negotiateForHire>> | null = null;
       if (provider?.relationship === 'registry-agent') {
-        signedQuote = await negotiateForHire(agent.chainId, agent.tokenId, task);
+        // The quote shown on Review, if it still covers this hire; otherwise a fresh one.
+        signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, task);
+        if (reviewQuote && signedQuote !== reviewQuote && signedQuote.priceRaw !== reviewQuote.priceRaw) {
+          setPreQuote({ quote: signedQuote, task, provider: providerAddress, escrowChainId });
+          throw new HireFailure(
+            `${agent.name}'s quote expired and its new price is ${signedQuote.priceU} $U, not the ${reviewQuote.priceU} $U you reviewed. Check the terms again before paying.`,
+            'terms',
+            'price-changed',
+          );
+        }
         if (Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {
           throw new Error(
             `${agent.name} signed a price of ${signedQuote.priceU} $U for this brief and the budget is ${budget} $U. Raise the budget to at least the signed price.`,
@@ -800,6 +851,11 @@ export function useHire({
   return {
     agent,
     providers,
+    needsQuote,
+    prepareQuote,
+    quoting,
+    quoteFailure,
+    reviewQuote,
     riskWarnings,
     taskTemplates,
     taskReady,
