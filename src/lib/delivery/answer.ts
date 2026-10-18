@@ -56,7 +56,19 @@ export function briefText(value: unknown): string | null {
   }
 }
 
-function asOfFrom(value: unknown, generatedAt: string | null): DeliveredAnswer['asOf'] {
+/**
+ * When the agent read the data, and only that.
+ *
+ * This fell back to `generated_at`, which is when the report was written.
+ * The page prints the result as "Data read <time>", so a report composed
+ * now from an hour-old reading claimed the reading was now — Pokter
+ * stating a freshness nobody measured, on the one figure that decides
+ * whether an answer is still true.
+ *
+ * An agent that does not say stays unknown. `generated_at` is still
+ * carried, as `generatedAt`, and shown under its own name.
+ */
+function asOfFrom(value: unknown): DeliveredAnswer['asOf'] {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const o = value as Record<string, unknown>;
     const time = text(o.time) ?? text(o.timestamp) ?? null;
@@ -64,7 +76,7 @@ function asOfFrom(value: unknown, generatedAt: string | null): DeliveredAnswer['
     if (time || block) return { time, block };
   }
   if (typeof value === 'string' && value.trim()) return { time: value.trim(), block: null };
-  return generatedAt ? { time: generatedAt, block: null } : null;
+  return null;
 }
 
 export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
@@ -85,7 +97,7 @@ export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
       const parsed = JSON.parse(content) as unknown;
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) object = parsed as Record<string, unknown>;
     } catch {
-      return { ...empty, producer, generatedAt, raw: content, asOf: generatedAt ? { time: generatedAt, block: null } : null };
+      return { ...empty, producer, generatedAt, raw: content };
     }
   } else if (content && typeof content === 'object' && !Array.isArray(content)) {
     object = content as Record<string, unknown>;
@@ -103,7 +115,7 @@ export function readDeliveredAnswer(manifestText: string): DeliveredAnswer {
     asked: askedKey ? briefText(object[askedKey]) : null,
     title: text(object.title),
     result: resultKey ? text(object[resultKey]) : null,
-    asOf: asOfFrom(object.as_of ?? object.asOf, generatedAt),
+    asOf: asOfFrom(object.as_of ?? object.asOf),
     sources: sourceKey ? lines(object[sourceKey]) : [],
     limitations: limitKeys.flatMap((key) => lines(object![key])),
     fields: Object.entries(object)
