@@ -122,7 +122,7 @@ test('deliveries funded only by Pokter’s team say so', () => {
    * it there would quietly lose the distinction for machines.
    */
   assert.equal(teamOnly.badge, 'Delivered', 'the chip drops the qualifier');
-  assert.equal(teamOnly.teamOnly, true, 'and the card is told to say it separately');
+  assert.notEqual(teamOnly.label, teamOnly.badge, 'label differs from badge exactly when the qualifier applies');
   assert.match(teamOnly.steps.find((s) => s.id === 'delivered')!.detail, /funded by Pokter’s team/);
 
   const outside = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true, outsideTeam: { jobs: 1, completed: 1, terminal: 1, uniqueBuyers: 1, completionRate: 1 } }));

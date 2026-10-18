@@ -58,15 +58,20 @@ export interface AgentMaturity {
    * qualifier stays here even where a chip cannot carry it.
    */
   label: string;
-  /** The same step, unqualified, for a chip with no room. See `teamOnly`. */
-  badge: string;
   /**
-   * Every delivery it has was funded by Pokter's own team. The ladder's
-   * next rung is about outside buyers, so "Delivered" alone would let a
-   * reader hear one — which is the substitution the homepage count was
-   * corrected for on 16 Oct.
+   * The same step, unqualified, for a chip with no room for more.
+   *
+   * It differs from `label` only when every delivery was team-funded, so
+   * `label !== badge` is that fact where anything needs it. The catalogue
+   * card carried it as a line of its own for a day and it was noise: no
+   * agent has reached the rung above — "Proven in use" appeared zero
+   * times across the whole catalogue — so the line fired on every
+   * delivered card and distinguished none of them from each other. The
+   * place that comparison belongs is the ladder on the agent's page,
+   * which says it in full, and the funnel on the home page, which counts
+   * team hires out.
    */
-  teamOnly: boolean;
+  badge: string;
   summary: string;
   steps: MaturityStep[];
   /** Proven in use, and kept up: 30+ observed days with a high completion and answer rate. */
@@ -164,12 +169,11 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
 
   const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
   const badge = current ? LABEL[current] : 'Not answering yet';
-  const teamOnly = current === 'delivered' && teamOnlyDeliveries;
-  const label = teamOnly ? 'Delivered (team hires)' : badge;
+  const label = current === 'delivered' && teamOnlyDeliveries ? 'Delivered (team hires)' : badge;
   const summary = current
     ? LADDER_MEANING[current]
     : facts.probeRate === null
       ? 'Listed in the registry; Pokter has not checked it yet.'
       : 'Listed in the registry; it has not answered Pokter’s checks.';
-  return { current, label, badge, teamOnly, summary, steps, sustained: reliable };
+  return { current, label, badge, summary, steps, sustained: reliable };
 }
