@@ -441,6 +441,27 @@ export function HireFlow(props: HireFlowProps) {
               were funded this way and can never be completed by anyone.
             */}
             {/*
+              An example's wallet is someone else's account. Said before the
+              quote, with the two honest ways on: swap in the buyer's own
+              wallet, or confirm this is the wallet they mean.
+            */}
+            {hire.exampleCheck.exampleWallets.map((example) => (
+              <Notice key={example} tone="watch" title="This brief checks the example wallet from the agent’s card" className="w-full">
+                <span className="t-readout">{shortAddress(example)}</span> came with the example, so the report would be about that wallet, not yours.
+                <span className="mt-3 flex flex-wrap gap-2">
+                  {hire.active.address && hire.active.address.toLowerCase() !== example && (
+                    <Button size="s" onClick={() => hire.adoptOwnWallet(example)}>
+                      Use my wallet {shortAddress(hire.active.address)}
+                    </Button>
+                  )}
+                  <Button size="s" intent="secondary" onClick={() => hire.confirmExampleWallet(example)}>
+                    I mean this wallet
+                  </Button>
+                </span>
+                {!hire.active.address && <span className="mt-2 block text-[12.5px] text-ink-3">Or replace it in the brief above with the wallet you want checked.</span>}
+              </Notice>
+            ))}
+            {/*
               The agent's answer to this exact brief, before any wallet. The
               brief stays as written; nothing is changed or resent for the
               buyer. Fix it, or pick another agent, and ask again.
@@ -459,8 +480,10 @@ export function HireFlow(props: HireFlowProps) {
                 {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
               </Notice>
             )}
-            {taskIssues.length > 0 && (
-              <p className="mr-auto self-center text-[12.5px] text-ink-3">To continue: {taskIssues.join('; ')}.</p>
+            {(taskIssues.length > 0 || hire.exampleCheck.placeholder) && (
+              <p className="mr-auto self-center text-[12.5px] text-ink-3">
+                To continue: {[...taskIssues, ...(hire.exampleCheck.placeholder ? ['replace “0x…” with the wallet to check'] : [])].join('; ')}.
+              </p>
             )}
             <Button
               size="l"
@@ -468,7 +491,7 @@ export function HireFlow(props: HireFlowProps) {
                 if (await hire.prepareQuote()) setStep('review');
               }}
               busy={hire.quoting}
-              disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire}
+              disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire || hire.exampleCheck.exampleWallets.length > 0 || hire.exampleCheck.placeholder}
               trailing={<Icon.Arrow size={16} />}
             >
               {hire.quoting ? 'Asking the agent for a signed price' : 'Review terms'}

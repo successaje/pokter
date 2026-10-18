@@ -12,6 +12,7 @@ import { ensureGas, SponsorshipRefused } from '@/lib/wallet/sponsor-client';
 import { FAUCETS, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { browserRpcUrls } from '@/lib/wallet/browser-rpc';
 import { forgetBrief, recallBrief, rememberBrief } from './brief-memory';
+import { checkExampleWallets, replaceWallet } from './example-wallet';
 import { buildSwapCalls, quoteBnbForPaymentToken, type SwapQuote } from '@/lib/pancakeswap/swap';
 
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -536,6 +537,17 @@ export function useHire({
     }
   };
 
+  /*
+   * An agent's example wallet stays the example's until the buyer replaces
+   * it or says they mean it; a "0x…" left to fill blocks the quote.
+   */
+  const [confirmedWallets, setConfirmedWallets] = useState<ReadonlySet<string>>(new Set());
+  const exampleCheck = checkExampleWallets(task, taskTemplates.map((t) => t.task), confirmedWallets);
+  const confirmExampleWallet = (address: string) => setConfirmedWallets((prior) => new Set([...prior, address.toLowerCase()]));
+  const adoptOwnWallet = (example: string) => {
+    if (active.address) setTaskKeepingFormat(replaceWallet(task, example, active.address));
+  };
+
   /** Whether the agent itself signs a price for this hire (not Pokter's delivery agent). */
   const needsQuote = provider?.relationship === 'registry-agent';
 
@@ -851,6 +863,9 @@ export function useHire({
   return {
     agent,
     providers,
+    exampleCheck,
+    confirmExampleWallet,
+    adoptOwnWallet,
     needsQuote,
     prepareQuote,
     quoting,
