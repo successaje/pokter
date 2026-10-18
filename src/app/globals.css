@@ -489,34 +489,48 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
- * The bars in the closing call-to-action's field.
+ * The tiles that assemble into the mark behind the closing call to action.
  *
- * scaleY from the bottom rather than animating height: height is a layout
- * property and eighty-eight of them re-laying out every frame is work the
- * compositor can do for free. Each bar carries its own --lo, --hi,
- * duration and a negative delay, so the field starts mid-motion instead
- * of every bar rising from the same instant.
+ * One timeline for every tile, and 0% identical to 100%, so the loop has
+ * no seam to hide. `transform` only: 142 tiles moving by layout would be
+ * 142 reflows a frame, and this is decoration — it should cost the
+ * compositor and nothing else.
+ *
+ * The animation is declared only inside `prefers-reduced-motion:
+ * no-preference`. Without it the tiles never leave their assembled
+ * positions, which is the mark, standing still — the right thing to send
+ * a reader who asked for stillness, rather than a frozen scatter.
  */
-.signal-bar {
-  transform-origin: bottom;
-  /*
-   * Rest at full height, so a reader who asked for no motion gets the
-   * field at the heights it was drawn with rather than frozen at the
-   * bottom of a swing it will never take.
-   */
-  transform: scaleY(1);
+.logo-tile {
+  background: var(--signal-ink);
+  border-radius: 2px;
+  transform: translate(var(--dx), var(--dy)) rotate(var(--r));
+  will-change: transform;
 }
+
 @media (prefers-reduced-motion: no-preference) {
-  .signal-bar {
-    animation-name: signal-bar;
-    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  .logo-tile.is-running {
+    animation-name: logo-assemble;
+    animation-duration: 11s;
     animation-iteration-count: infinite;
-    animation-direction: alternate;
+  }
+  /* Assembled while paused, so an off-screen section is never caught mid-scatter. */
+  .logo-tile:not(.is-running) {
+    transform: none;
   }
 }
-@keyframes signal-bar {
-  from { transform: scaleY(var(--lo, 0.5)); }
-  to { transform: scaleY(var(--hi, 1)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-tile {
+    transform: none;
+  }
+}
+
+@keyframes logo-assemble {
+  0% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
+  26% { transform: none; }
+  62% { transform: none; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

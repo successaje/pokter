@@ -14,7 +14,8 @@ import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
 import { StepRail } from '@/features/home/StepRail';
-import { SignalField } from '@/features/home/SignalField';
+import { LogoAssembly } from '@/features/home/LogoAssembly';
+import { Mark } from '@/shell/Logo';
 
 export const revalidate = 300;
 
@@ -563,11 +564,11 @@ export default async function HomePage() {
         aria-labelledby="cta-title"
       >
         {/*
-          A band along the bottom on a phone, where a column down the
-          right would have to compete with the copy for the only width
-          there is; the right-hand field from the tablet breakpoint up.
+          The right half only, and never behind the copy: the artwork has
+          to be ignorable, and a reader should not be deciding which of
+          two things to look at while reading a sentence.
         */}
-        <SignalField className="pointer-events-none absolute inset-x-0 bottom-0 h-20 [mask-image:linear-gradient(to_top,black_35%,transparent)] sm:inset-y-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[62%] sm:[mask-image:linear-gradient(to_right,transparent,black_38%)]" />
+        <LogoAssembly className="pointer-events-none absolute inset-y-10 right-[4%] hidden w-[34%] max-w-[330px] sm:block" />
         <div className="frame relative py-20 sm:py-24">
           <Reveal className="flex max-w-xl flex-col items-start gap-5">
             <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
@@ -588,6 +589,11 @@ export default async function HomePage() {
                 Build an agent
               </Link>
             </div>
+            {/*
+              On a phone the artwork would be behind the copy or nowhere,
+              so it is neither: the mark itself, still, under the buttons.
+            */}
+            <Mark size={76} className="mt-10 text-[var(--signal-ink)]/80 sm:hidden" />
           </Reveal>
         </div>
       </section>
