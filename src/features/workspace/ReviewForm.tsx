@@ -7,6 +7,8 @@ import { useSignMessage } from 'wagmi';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
 import { useActiveWallet } from '@/lib/wallet/active';
+import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
+import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
 import { Segmented } from '@/ui/Controls';
@@ -22,6 +24,7 @@ import { PublishRating } from './PublishRating';
 export function ReviewForm({ job }: { job: HiredJob }) {
   const active = useActiveWallet();
   const { signMessageAsync } = useSignMessage();
+  const passkey = usePasskeyWallet();
   const [rating, setRating] = useState(5);
   const [promised, setPromised] = useState<'yes' | 'no'>('yes');
   const [speed, setSpeed] = useState<ReviewSpeed>('on-time');
@@ -71,8 +74,17 @@ export function ReviewForm({ job }: { job: HiredJob }) {
   }
 
   const submit = async () => {
-    if (active.mode !== 'external' || !active.address) {
-      setError('Reviews are signed by a browser wallet. Passkey wallets cannot sign arbitrary messages yet, so connect the browser wallet that funded this job.');
+    /*
+     * A passkey counts. This refused one and said "passkey wallets
+     * cannot sign messages yet", which was never true of the wallet —
+     * only of the shape that was being asked for, as
+     * `signPasskeyMessage` records. It rejected after the form was
+     * filled in, and sent somebody to connect a different browser
+     * wallet, which could not own this job anyway.
+     */
+    const signer = active.address && (active.mode === 'external' || (active.mode === 'passkey' && passkey.wallet));
+    if (!signer) {
+      setError('Connect the wallet that funded this job \u2014 it signs the review.');
       return;
     }
     setState('signing');
@@ -81,7 +93,17 @@ export function ReviewForm({ job }: { job: HiredJob }) {
       const content: ReviewContent = { rating, deliveredAsPromised: promised === 'yes', speed, wouldHireAgain: again === 'yes', comment: comment.trim() };
       const agentChainId = job.agentChainId ?? 56;
       const message = reviewMessage({ chainId: job.chainId, jobId: job.jobId, agentChainId, agentTokenId: job.agentTokenId, content });
-      const signature = await signMessageAsync({ message });
+      /*
+       * A passkey signs through its own account, not an injected
+       * provider: wagmi has no connector for it, so this form could be
+       * filled in and never submitted. `signPasskeyMessage` exists
+       * because "a passkey cannot sign" turned out to be a misreading of
+       * the shape being asked for, and the studio already splits this way.
+       */
+      const signature =
+        active.mode === 'passkey' && passkey.wallet
+          ? await signPasskeyMessage(passkey.wallet, message)
+          : await signMessageAsync({ message });
       const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

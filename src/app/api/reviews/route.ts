@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getErc8183Job } from '@altananetwork/sdk';
-import { getAddress, isAddress, isHex, verifyMessage, type Hex } from 'viem';
+import { getAddress, isAddress, isHex, type Hex } from 'viem';
 
+import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
 import { decodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
@@ -69,7 +70,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'The job does not identify this agent.' }, { status: 409 });
     }
     const message = reviewMessage({ chainId, jobId, agentChainId, agentTokenId, content });
-    if (!(await verifyMessage({ address: buyer, message, signature: signature as Hex }))) {
+    /*
+     * A passkey wallet is a smart account, so its signature is ERC-1271
+     * and nothing recovers from it. viem's bare `verifyMessage` says so
+     * itself — "Only supports Externally Owned Accounts" — which is why
+     * a passkey buyer could fill this in and be told their own signature
+     * was invalid. `signedByWallet` asks the account, the way the
+     * notification and publisher routes already do.
+     */
+    if (!(await walletCanBeChecked(chainId, getAddress(buyer), signature as Hex))) {
+      return NextResponse.json(
+        { error: 'This wallet has no code on chain yet, so it cannot prove a signature. Fund or use it once, then try again.' },
+        { status: 409 },
+      );
+    }
+    if (!(await signedByWallet(chainId, getAddress(buyer), message, signature as Hex))) {
       return NextResponse.json({ error: 'The buyer signature is invalid.' }, { status: 403 });
     }
     const review: VerifiedReview = {
