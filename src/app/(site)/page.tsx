@@ -30,22 +30,60 @@ function count(value: number | null | undefined) {
 export default async function HomePage() {
   const home = await loadHome();
   const hireableCount = home.featured.length;
-  const funnel = [
-    { label: 'Registered on BNB Chain', note: 'ERC-8004 identities on mainnet, per 8004scan', value: home.stats?.registered ?? null },
-    { label: 'Ever answered a probe', note: 'At least one reply, on any day', value: home.measured.answering },
-    /*
-     * More agents are hireable than have signed a price: one that never names
-     * a price can still be hired on testnet at a budget the buyer sets. The
-     * note said "payable through escrow" beside a smaller "signed a price"
-     * count, which read as a contradiction.
-     */
-    { label: 'Hireable now', note: 'Answering and fundable through escrow: at a signed price, or on testnet at a budget you set', value: home.catalogue.hireable },
-    { label: 'Signed a price', note: 'A quote signed by the agent’s own wallet', value: home.catalogue.priced },
+  /*
+   * Four counts, not one funnel.
+   *
+   * These were five bars on a shared log scale, which says each is a
+   * subset of the one above it. They are not. They span three units —
+   * identities, agents, jobs — four scopes and two counting methods, and
+   * the largest is a third party's count of a population Pokter has never
+   * measured. "233 ever answered" against a 170-agent catalogue is the
+   * giveaway: it counts agents Pokter has probed on BNB Chain including
+   * ones no longer listed, while "hireable now" counts listed agents once
+   * each across both chains.
+   *
+   * So each group now carries what it counts, over what, measured by whom.
+   * The contrast that made the chart worth having survives it — the two
+   * ends are still on the page, and now a reader can see why they are not
+   * two ends of one line.
+   */
+  const record: Array<{
+    scope: string;
+    unit: string;
+    rows: Array<{ label: string; value: number | null }>;
+    note: string;
+  }> = [
     {
-      label: 'Paid jobs answered',
-      note: `Settled through Pokter escrow with the agent’s answer, from wallets outside Pokter’s declared team${
+      scope: 'The registry',
+      unit: 'identities · counted by 8004scan',
+      rows: [{ label: 'Registered on BNB Chain', value: home.stats?.registered ?? null }],
+      note: 'Every ERC-8004 identity on mainnet. A third party\u2019s count, not one of Pokter\u2019s measurements.',
+    },
+    {
+      scope: 'Agents Pokter has called',
+      unit: 'agents · Pokter\u2019s own probes, BNB Chain',
+      rows: [
+        { label: 'Monitored', value: home.measured.monitored },
+        { label: 'Ever answered', value: home.measured.answering },
+      ],
+      note: 'At least one reply, on any day. Counted over every agent Pokter has probed on BNB Chain, including ones no longer listed \u2014 so this is not a share of the registry above.',
+    },
+    {
+      scope: 'In the catalogue now',
+      unit: 'agents · counted once each, both chains',
+      rows: [
+        { label: 'Hireable now', value: home.catalogue.hireable },
+        { label: 'Signed a price', value: home.catalogue.priced },
+      ],
+      note: 'Hireable means answering and fundable through escrow: at a signed price, or on testnet at a budget you set. An agent registered on both chains is counted once.',
+    },
+    {
+      scope: 'Paid work',
+      unit: 'jobs · settled through Pokter escrow',
+      rows: [{ label: 'Paid jobs answered', value: home.activity.answeredJobs }],
+      note: `Settled with the agent\u2019s answer, from wallets outside Pokter\u2019s declared team${
         home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
-      }.${(() => {
+      }. Jobs, not agents.${(() => {
         const left = [
           home.activity.demoJobs > 0 ? `${home.activity.demoJobs} lifecycle demo${home.activity.demoJobs === 1 ? '' : 's'}` : null,
           home.activity.selfHireJobs > 0 ? `${home.activity.selfHireJobs} self-hire${home.activity.selfHireJobs === 1 ? '' : 's'}` : null,
@@ -53,10 +91,9 @@ export default async function HomePage() {
         ].filter(Boolean);
         return left.length ? ` Not counted: ${left.join(', ')}.` : '';
       })()}`,
-      value: home.activity.answeredJobs,
     },
   ];
-  const max = Math.max(...funnel.map((stage) => stage.value ?? 0), 1);
+
 
   return (
     <>
@@ -290,27 +327,29 @@ export default async function HomePage() {
           </Reveal>
           <Reveal delay={100}>
             <figure className="rounded-[18px] border border-rule bg-raised p-6 sm:p-8">
-              <figcaption className="mb-6 flex items-baseline justify-between gap-4">
+              <figcaption className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="t-label">From registered to proven useful</span>
-                <span className="text-[11px] text-ink-3">Log scale · each stage names its own scope</span>
+                <span className="text-[11px] text-ink-3">Four counts, four scopes, not one funnel</span>
               </figcaption>
-              <ol className="flex flex-col gap-5">
-                {funnel.map((stage) => {
-                  const v = stage.value ?? 0;
-                  const width = v <= 0 ? 0 : Math.max(1.5, (Math.log10(v + 1) / Math.log10(max + 1)) * 100);
-                  return (
-                    <li key={stage.label} className="flex flex-col gap-2">
-                      <div className="flex items-baseline justify-between gap-4">
-                        <span className="text-sm font-medium">{stage.label}</span>
-                        <span className="t-readout text-sm">{count(stage.value)}</span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-sunken">
-                        <div className="h-full rounded-full bg-ink transition-[width] duration-1000 ease-out" style={{ width: `${width}%` }} />
-                      </div>
-                      <span className="text-[12px] text-ink-3">{stage.note}</span>
-                    </li>
-                  );
-                })}
+              <ol className="ruled flex flex-col">
+                {record.map((group) => (
+                  <li key={group.scope} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+                      <span className="text-[13px] font-semibold">{group.scope}</span>
+                      {/* What it counts, and who counted it, beside every number it applies to. */}
+                      <span className="t-label text-ink-3">{group.unit}</span>
+                    </div>
+                    <dl className="flex flex-wrap gap-x-8 gap-y-1">
+                      {group.rows.map((row) => (
+                        <div key={row.label} className="flex items-baseline gap-2">
+                          <dd className="t-readout text-[19px] font-medium tracking-[-0.02em] text-ink">{count(row.value)}</dd>
+                          <dt className="text-[13px] text-ink-2">{row.label}</dt>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="text-[12px] leading-relaxed text-ink-3">{group.note}</p>
+                  </li>
+                ))}
               </ol>
             </figure>
           </Reveal>
