@@ -24,6 +24,8 @@ import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
+import { getJobStore } from '@/lib/erc8183/store';
+import { teamAddressSet } from '@/lib/team/wallets';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
@@ -99,6 +101,25 @@ export interface AgentProfile {
   /** Every escrow this agent can be hired on, preferred first; `escrow` is one of them. */
   escrowOptions: number[];
   history: AgentEconomicHistory;
+  /**
+   * The funded jobs behind the counts above, newest first.
+   *
+   * The tab reported five totals and showed none of the work they came
+   * from, so "2 of 3 delivered" could not be checked against anything
+   * without leaving the page. Each row carries the job id the escrow
+   * knows it by, so a reader can verify any of them on chain.
+   */
+  jobHistory: Array<{
+    chainId: number;
+    jobId: string;
+    status: string;
+    budgetU: number;
+    hiredAt: string;
+    delivered: boolean;
+    /** A Pokter wallet was the provider: the work is Pokter's, not the agent's. */
+    byOperator: boolean;
+    settleTxHash: string | null;
+  }>;
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
   reviews: VerifiedReview[];
@@ -309,6 +330,26 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     escrow: { chainId: escrowChain, paymentToken: addresses.paymentToken, commerce: addresses.commerce },
     escrowOptions,
     history,
+    /* Same source as the counts beside them: the store, read once. */
+    jobHistory: (() => {
+      const team = teamAddressSet();
+      return getJobStore()
+        .byAgent(agent.chain_id, agent.token_id)
+        .filter((job) => job.status !== 'OPEN')
+        .slice()
+        .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt))
+        .slice(0, 12)
+        .map((job) => ({
+          chainId: job.chainId,
+          jobId: job.jobId,
+          status: job.status,
+          budgetU: Number(job.budgetRaw) / 1e18,
+          hiredAt: job.hiredAt,
+          delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
+          byOperator: Boolean(job.provider) && team.has(String(job.provider).toLowerCase()),
+          settleTxHash: job.settleTxHash ?? null,
+        }));
+    })(),
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
