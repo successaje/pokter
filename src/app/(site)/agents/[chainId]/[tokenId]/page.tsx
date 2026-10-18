@@ -133,6 +133,72 @@ function Section({ id, label, title, children, aside }: { id: string; label: str
   );
 }
 
+/**
+ * The four numbers worth having before anything else on the dossier.
+ *
+ * Each carries its own scope underneath, because these are not comparable
+ * to each other and the scopes are genuinely different: one is lifetime
+ * escrow, one is every check ever made, one is a 30-day median, one is a
+ * sample of deliveries. A strip of bare figures invites the reader to treat
+ * them as one measurement of one thing.
+ *
+ * There is no score here, and there will not be. The pattern this follows
+ * ends with a composite reputation out of 100; Pokter does not publish one,
+ * for the reason `ui/Rating.tsx` gives about aggregates - a number that
+ * looks measured and is not is worse than no number, and it is the specific
+ * claim this whole product exists to refuse.
+ */
+function HeadlineStats({ p }: { p: AgentProfile }) {
+  const month = p.record.windows.find((w) => w.label === '30d');
+  const replies = p.record.totalProbes > 0 ? p.record.totalAnswered / p.record.totalProbes : null;
+  const stats: Array<{ label: string; value: string; note: string; muted?: boolean }> = [
+    {
+      label: 'Paid jobs',
+      value: String(p.history.jobs),
+      note: p.history.jobs ? `${p.history.delivered} delivered` : 'None funded yet',
+      muted: !p.history.jobs,
+    },
+    {
+      label: 'Replies',
+      value: replies === null ? '\u2014' : pct(replies),
+      note: p.record.totalProbes ? `${p.record.totalProbes} checks, lifetime` : 'Never called',
+      muted: replies === null,
+    },
+    {
+      label: 'Response',
+      value: month?.medianMs ? formatMs(month.medianMs) : '\u2014',
+      note: month?.probes ? 'median, last 30 days' : 'nothing answered in 30 days',
+      muted: !month?.medianMs,
+    },
+    {
+      label: 'Delivers',
+      value: p.delivery.medianMs ? formatDelivery(p.delivery.medianMs) : '\u2014',
+      note: p.delivery.samples ? `${p.delivery.samples} timed on chain` : 'No deliveries timed',
+      muted: !p.delivery.medianMs,
+    },
+  ];
+  return (
+    <dl className="grid grid-cols-2 overflow-hidden rounded-[14px] border border-rule bg-raised sm:grid-cols-4">
+      {stats.map((stat, i) => (
+        <div
+          key={stat.label}
+          className={cn(
+            'flex min-w-0 flex-col gap-1 p-4 sm:p-5',
+            /* Rules between, never around: the container already has one. */
+            i % 2 === 1 && 'border-l border-rule',
+            i >= 2 && 'border-t border-rule sm:border-t-0',
+            i >= 1 && 'sm:border-l sm:border-rule',
+          )}
+        >
+          <dt className="t-label">{stat.label}</dt>
+          <dd className={cn('t-readout text-[1.5rem] leading-none tracking-[-0.02em]', stat.muted ? 'text-ink-3' : 'text-ink')}>{stat.value}</dd>
+          <dd className="text-[12px] leading-snug text-ink-3">{stat.note}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function ClaimVsObserved({ p }: { p: AgentProfile }) {
   const month = p.record.windows.find((w) => w.label === '30d');
   const week = p.record.windows.find((w) => w.label === '7d');
@@ -368,9 +434,16 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           {/* Overview */}
           <AgentTabPanel id="overview">
           <section aria-labelledby="overview-title" className="flex flex-col gap-8">
-            <h2 id="overview-title" className="sr-only">
-              Overview
-            </h2>
+            {/* Every other tab names what it is showing; this one labelled
+                itself only for screen readers, so the first tab was the one
+                with no heading on it. */}
+            <div className="flex flex-col gap-1.5">
+              <span className="t-label">Overview</span>
+              <h2 id="overview-title" className="t-h2">
+                What this agent is, and how it has behaved
+              </h2>
+            </div>
+            <HeadlineStats p={p} />
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/*
