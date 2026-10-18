@@ -10,9 +10,14 @@ import { Icon } from '@/ui/icons';
  *
  * They were five equal cells of a bordered grid, which gave a buyer no
  * reason to read past the first: the one sentence that matters on this
- * section — you can leave at any of the first three — was carried by a
- * small green word in a corner, identical in weight on the three cards it
- * applied to and the two it did not.
+ * section — you can stop before you fund — was carried by a small green
+ * word in a corner, identical in weight on the cards it applied to and
+ * the ones it did not.
+ *
+ * That sentence used to read "you can leave at any of the first three",
+ * which this file contradicted three lines down: `Hire` is `free: false`
+ * because it is where the escrow is funded. The heading offered a way out
+ * at the step its own badge marks as the commitment.
  *
  * So each step is its own card now, and the rail scrolls. The last card
  * deliberately sits half off the right edge at most widths, because a row
@@ -99,7 +104,7 @@ export function StepRail() {
         <div className="flex max-w-2xl flex-col gap-4">
           <span className="t-label">How hiring works</span>
           <h2 id="how-title" className="t-h1">
-            Five steps, and you can leave at any of the first three.
+            Five steps, and you can stop before you fund.
           </h2>
         </div>
         {/*
