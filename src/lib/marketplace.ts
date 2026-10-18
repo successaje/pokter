@@ -41,6 +41,8 @@ import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 import { getAssayStore } from '@/lib/assay/store';
 import { getWalletActivityStore } from '@/lib/activity/store';
 import { getFunderStore } from '@/lib/funding/store';
+import { getCapabilityStore } from '@/lib/capability/store';
+import { declaredAction, type CapabilityRead, type Declared } from '@/lib/capability/match';
 import { reviewCoordination, type Coordination } from '@/lib/proof/coordination';
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
@@ -597,6 +599,8 @@ export interface Comparison {
   check: { passed: number; total: number; status: string; ranAt: string; via: string } | null;
   /** The owner the registry reports now, which can differ from the indexer's copy. */
   currentOwner: string | null;
+  /** What it says about acting on chain, and what its agent wallet was seen doing. */
+  capability: { declared: Declared; reads: CapabilityRead[] };
   /** Whether its on-chain reviews look coordinated, from patterns in who wrote them and when. */
   reviewPattern: Coordination;
   /** What its agent wallet has done, from the daily read: on BNB Chain, and on BNB Testnet for agents registered there. */
@@ -656,6 +660,10 @@ export async function getComparison(
       return run ? { passed: run.passed, total: run.total, status: run.status, ranAt: run.ranAt, via: run.via } : null;
     })(),
     currentOwner,
+    capability: {
+      declared: declaredAction(agent.description),
+      reads: agent.agent_wallet ? getCapabilityStore().reads(agent.agent_wallet) : [],
+    },
     reviewPattern: reviewCoordination(attestations, {
       funders: getFunderStore().funders(attestations.flatMap((a) => (a.authorAddress ? [a.authorAddress] : []))),
       owner: currentOwner ?? agent.owner_address,

@@ -25,6 +25,9 @@ import { publishSeal } from '@/lib/seals/run';
 import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { getQuestStore } from '@/lib/quest/store';
 import { refreshWalletActivity } from '@/lib/activity/store';
+import { refreshCapability } from '@/lib/capability/store';
+import { JOB_ACTIONS } from '@/lib/capability/match';
+import { classify } from '@/lib/agents/categories';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { getProbeStore } from '@/lib/history/store';
@@ -349,6 +352,23 @@ export async function POST(request: Request): Promise<NextResponse> {
       : null;
 
     /*
+     * Whether listed agents were seen doing their job on chain: Venus
+     * lending calls and PancakeSwap swaps from their agent wallet, for the
+     * categories whose job can happen on chain. Their own descriptions only
+     * shape the wording; the wallet is the evidence. Daily per wallet,
+     * bounded per pass, and off without NODEREAL_API_KEY.
+     */
+    const onChainJobs = new Set((listings ?? []).filter((l) => JOB_ACTIONS[classify(l.agent)]).map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
+    const capability = onChainJobs.size
+      ? await refreshCapability(
+          getQuestStore()
+            .allAgentWallets()
+            .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
+            .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
+        ).catch(() => null)
+      : null;
+
+    /*
      * Followed agents: what each looks like now, compared with what its
      * followers last heard. Only read when someone follows something.
      */
@@ -394,6 +414,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       capturedDeliverables,
       walletActivity,
       reviewerFunders,
+      capability,
       questIndex,
       answeredTasks,
       reconciled,
