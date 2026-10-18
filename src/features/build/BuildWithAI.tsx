@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 
-import { MCP_ENDPOINT, MCP_SETUP } from '@/lib/mcp/catalogue';
+import { MCP_CONNECT, MCP_ENDPOINT, MCP_SETUP } from '@/lib/mcp/catalogue';
 import { CodeBlock, CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
 
@@ -23,28 +23,32 @@ import { Icon } from '@/ui/icons';
  */
 const TOOLS = [
   {
-    id: 'claude-code',
-    label: 'Claude Code',
-    note: 'Run this in your project.',
-    blocks: [{ code: MCP_SETUP.claudeCode }],
+    id: 'claude',
+    label: 'Claude',
+    note: 'Works in Claude.ai on web, iOS and Android, and in Claude Desktop.',
+    connect: { href: MCP_CONNECT.claude, label: 'Connect Claude', external: true },
+    blocks: [],
   },
   {
-    id: 'claude-desktop',
-    label: 'Claude Desktop',
-    note: 'Settings → Developer → Edit config, then restart.',
-    blocks: [{ code: MCP_SETUP.json }],
+    id: 'claude-code',
+    label: 'Claude Code',
+    note: 'A terminal cannot be linked into, so this one is a command. Run it in your project.',
+    connect: null,
+    blocks: [MCP_SETUP.claudeCode],
   },
   {
     id: 'cursor',
     label: 'Cursor',
-    note: 'Settings → MCP → Add new server, or ~/.cursor/mcp.json.',
-    blocks: [{ code: MCP_SETUP.json }],
+    note: 'Opens Cursor and offers to install. If it does not open, add this to ~/.cursor/mcp.json instead.',
+    connect: { href: MCP_CONNECT.cursor, label: 'Connect Cursor', external: false },
+    blocks: [MCP_SETUP.json],
   },
   {
     id: 'codex',
     label: 'Codex',
-    note: 'Either the command, or the second form in ~/.codex/config.toml.',
-    blocks: [{ code: MCP_SETUP.codex }, { code: MCP_SETUP.codexToml }],
+    note: 'Also a terminal. Either the command, or the second form in ~/.codex/config.toml.',
+    connect: null,
+    blocks: [MCP_SETUP.codex, MCP_SETUP.codexToml],
   },
 ] as const;
 
@@ -94,7 +98,7 @@ function Step({ n, title, note, children }: { n: number; title: string; note?: s
 }
 
 export function BuildWithAI() {
-  const [toolId, setToolId] = useState<(typeof TOOLS)[number]['id']>('claude-code');
+  const [toolId, setToolId] = useState<(typeof TOOLS)[number]['id']>('claude');
   const tool = TOOLS.find((t) => t.id === toolId)!;
   const group = useId();
 
@@ -112,7 +116,7 @@ export function BuildWithAI() {
       </div>
 
       <ol className="mt-10 flex flex-col gap-9">
-        <Step n={1} title="Pick your tool" note="We give you the exact command for it.">
+        <Step n={1} title="Pick your tool" note="One click where the tool allows it, the exact command where it does not.">
           <div role="radiogroup" aria-label="Your AI tool" className="mt-3 flex flex-wrap gap-2">
             {TOOLS.map((t) => {
               const on = t.id === toolId;
@@ -136,10 +140,20 @@ export function BuildWithAI() {
         </Step>
 
         <Step n={2} title="Add Pokter" note={tool.note}>
-          <div className="mt-3 flex flex-col gap-2">
-            {tool.blocks.map((b) => (
-              <CodeBlock key={b.code} wrap>
-                {b.code}
+          <div className="mt-3 flex flex-col gap-3">
+            {tool.connect && (
+              <a
+                href={tool.connect.href}
+                {...(tool.connect.external ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
+                className="inline-flex h-11 w-fit items-center gap-2 rounded-full bg-ink px-5 text-[14.5px] font-semibold text-paper transition-transform hover:-translate-y-px"
+              >
+                {tool.connect.label}
+                <Icon.ArrowUpRight size={15} />
+              </a>
+            )}
+            {tool.blocks.map((code) => (
+              <CodeBlock key={code} wrap>
+                {code}
               </CodeBlock>
             ))}
             <p className="text-[12.5px] text-ink-3">
@@ -169,14 +183,17 @@ export function BuildWithAI() {
         </Step>
 
         <Step n={4} title="Then ask it anything" note="Pokter answers from the same record the site shows.">
-          <ul className="mt-3 ruled overflow-hidden rounded-[12px] border border-rule">
+          {/*
+            Written out rather than made copyable. These are examples of
+            the kind of question that now works, not payloads that have
+            to arrive intact — a copy button on each would be five more
+            controls for text a reader will paraphrase anyway.
+          */}
+          <ul className="mt-3 flex flex-col gap-2.5">
             {ASKS.map(([topic, ask]) => (
-              <li key={ask} className="flex items-center justify-between gap-4 px-4 py-3">
-                <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
-                  <span className="t-readout shrink-0 text-[12px] text-ink-3 sm:w-28">{topic}</span>
-                  <span className="truncate text-[13.5px] text-ink-2">{ask}</span>
-                </span>
-                <CopyButton value={ask} label="" className="shrink-0 text-ink-3 hover:text-ink" />
+              <li key={ask} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
+                <span className="t-readout shrink-0 text-[12px] text-ink-3 sm:w-28">{topic}</span>
+                <span className="text-[14px] leading-relaxed text-ink-2">&ldquo;{ask}&rdquo;</span>
               </li>
             ))}
           </ul>
