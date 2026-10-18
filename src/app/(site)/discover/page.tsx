@@ -85,43 +85,12 @@ function withNetworks(row: { reason: string | null; alsoOn: number[] }): string 
   return [row.reason, also].filter(Boolean).join(' \u00b7 ') || null;
 }
 
-function NetworkSwitch({ p }: { p: DiscoverParams }) {
-  const options: Array<{ chain: DiscoverParams['chain']; label: string }> = [
-    { chain: 'any', label: 'All networks' },
-    { chain: '56', label: 'BNB Chain' },
-    { chain: '97', label: 'Testnet' },
-  ];
-  /*
-   * Labelled, because the word alone is ambiguous and the ambiguity reads
-   * as a broken filter. Selecting "BNB Chain" lists agents registered on
-   * chain 56, and most of those signed a price in testnet $U — so their
-   * cards correctly say "Test tokens · BNB Testnet", and a buyer sees a
-   * BNB Chain filter returning testnet agents. Both facts are true; only
-   * the heading was missing. The tooltip said this already, and a tooltip
-   * is not where a filter explains itself.
-   */
-  return (
-    /* Wraps rather than crushes: at 375px the label and three options
-       shared one row, so each option's text wrapped inside its own pill
-       and the pills ran into each other. */
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <span className="t-label shrink-0 text-ink-3">Registered on</span>
-      <div className="flex shrink-0 rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Registered on" title="Where the agent’s identity lives. Each agent’s card says which money a hire of it settles in, which is often the other network.">
-      {options.map((o) => (
-        <Link
-          key={o.chain}
-          href={discoverHref({ chain: o.chain }, p)}
-          scroll={false}
-          aria-current={p.chain === o.chain ? 'true' : undefined}
-          className={cn('inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-[6px] px-2.5 text-[12.5px] font-medium', p.chain === o.chain ? 'bg-ink text-paper' : 'text-ink-2 hover:text-ink')}
-        >
-          {o.label}
-        </Link>
-      ))}
-      </div>
-    </div>
-  );
-}
+/*
+ * The network switch was here. It is gone for now, but the `chain`
+ * parameter it drove is untouched: /discover?chain=56 still filters, so
+ * a saved link keeps working and putting the control back is a matter of
+ * rendering it again.
+ */
 
 function Pill({ href, on, children }: { href: string; on: boolean; children: React.ReactNode }) {
   return (
@@ -174,6 +143,28 @@ function FilterBar({
 }) {
   return (
     <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
+          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
+          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
+          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price <Tally n={collections.priced} on={p.priced} /></Pill>
+        </div>
+        <span aria-hidden className="h-5 w-px bg-rule" />
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
+          {/* Short enough that sort fits on this line rather than wrapping
+              under it. "Attested by others" is what the collection tab
+              called this before it became a pill, so it is the shorter
+              label and the one already in the product's vocabulary. */}
+          <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any</Pill>
+          <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
+          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Attested by others <Tally n={collections.corroborated} on={p.evidence === 'corroborated'} /></Pill>
+        </div>
+        {/* The tasks moved to the line below and left this one's right end
+            empty, which is where sort belongs: it governs the results, not
+            the filters, and it was wedged against a network switch and a
+            layout toggle that are both gone. */}
+        <SortSelect params={p} className="ml-auto" />
+      </div>
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Task">
         <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
           All tasks <span className={cn('t-readout text-[11.5px]', p.category ? 'text-ink-3' : 'text-paper/70')}>{allTasks}</span>
@@ -183,19 +174,6 @@ function FilterBar({
             {c.label} <span className={cn('t-readout text-[11.5px]', p.category === c.id ? 'text-paper/70' : 'text-ink-3')}>{c.count}</span>
           </Pill>
         ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
-          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
-          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
-          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price <Tally n={collections.priced} on={p.priced} /></Pill>
-        </div>
-        <span aria-hidden className="h-5 w-px bg-rule" />
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
-          <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any evidence</Pill>
-          <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
-          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Has published attestations <Tally n={collections.corroborated} on={p.evidence === 'corroborated'} /></Pill>
-        </div>
       </div>
     </div>
   );
@@ -349,18 +327,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 </Link>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <NetworkSwitch p={base} />
-              <SortSelect params={base} />
-              <div className="flex rounded-[8px] border border-rule-strong p-0.5" role="group" aria-label="Layout">
-                <Link href={discoverHref({ view: 'grid' }, p)} scroll={false} aria-label="Grid view" aria-current={p.view === 'grid' ? 'true' : undefined} className={cn('grid size-7 place-items-center rounded-[6px]', p.view === 'grid' ? 'bg-sunken text-ink' : 'text-ink-3')}>
-                  <Icon.Grid size={15} />
-                </Link>
-                <Link href={discoverHref({ view: 'list' }, p)} scroll={false} aria-label="List view" aria-current={p.view === 'list' ? 'true' : undefined} className={cn('grid size-7 place-items-center rounded-[6px]', p.view === 'list' ? 'bg-sunken text-ink' : 'text-ink-3')}>
-                  <Icon.List size={15} />
-                </Link>
-              </div>
-            </div>
+            {/* Below `lg` the pill bar is not rendered, so sort has to live
+                here instead; above it, it sits with the filters. */}
+            <SortSelect params={base} className="lg:hidden" />
           </div>
 
           {result.total === 0 ? (
@@ -407,21 +376,16 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       <p className="text-[12.5px] text-ink-3">Their names share words with your task, but Pokter has not seen them do it. Listed for completeness, after the agents that match.</p>
                     </div>
                   )}
-                  {p.view === 'list' ? (
-                    <div className="ruled">
-                      {group.map((row) => (
-                        <AgentRow key={row.key} row={row} reason={withNetworks(row) ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
-                      ))}
-                    </div>
-                  ) : (
-                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                      {group.map((row) => (
-                        <li key={row.key} className="flex min-w-0 flex-col">
-                          <AgentCard row={row} note={withNetworks(row)} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {/* Grid only, for now. `p.view` is deliberately not read:
+                      with the toggle gone, honouring a saved ?view=list would
+                      put somebody in a layout with no way back out of it. */}
+                  <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {group.map((row) => (
+                      <li key={row.key} className="flex min-w-0 flex-col">
+                        <AgentCard row={row} note={withNetworks(row)} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ),
             )
