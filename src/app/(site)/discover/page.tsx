@@ -338,20 +338,34 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 </section>
               )}
             </div>
-          ) : p.view === 'list' ? (
-            <div className="ruled">
-              {shown.map((row) => (
-                <AgentRow key={row.key} row={row} reason={withNetworks(row) ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
-              ))}
-            </div>
           ) : (
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {shown.map((row) => (
-                <li key={row.key} className="flex min-w-0 flex-col">
-                  <AgentCard row={row} note={withNetworks(row)} compare={<CompareToggle agentKey={row.key} variant="checkbox" />} />
-                </li>
-              ))}
-            </ul>
+            [shown.filter((row) => !row.nameOnly), shown.filter((row) => row.nameOnly)].map((group, g) =>
+              group.length === 0 ? null : (
+                <div key={g} className={g === 1 ? 'mt-10' : undefined}>
+                  {g === 1 && (
+                    <div className="mb-4 flex flex-col gap-0.5 border-t border-rule pt-5">
+                      <h2 className="text-[14px] font-semibold">Also matched by name</h2>
+                      <p className="text-[12.5px] text-ink-3">Their names share words with your task, but Pokter has not seen them do it. Listed for completeness, after the agents that match.</p>
+                    </div>
+                  )}
+                  {p.view === 'list' ? (
+                    <div className="ruled">
+                      {group.map((row) => (
+                        <AgentRow key={row.key} row={row} reason={withNetworks(row) ?? undefined} trailing={<CompareToggle agentKey={row.key} className="relative z-10 hidden sm:inline-flex" />} />
+                      ))}
+                    </div>
+                  ) : (
+                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {group.map((row) => (
+                        <li key={row.key} className="flex min-w-0 flex-col">
+                          <AgentCard row={row} note={withNetworks(row)} compare={<CompareToggle agentKey={row.key} variant="checkbox" />} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ),
+            )
           )}
           {shown.length < result.total && (
             <div className="mt-8 flex flex-col items-center gap-2">

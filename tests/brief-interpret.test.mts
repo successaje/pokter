@@ -8,6 +8,7 @@ test('the home page’s own example searches read as what they ask for', () => {
   const read = (q: string) => interpretBrief(q).category;
   assert.deepEqual(TASK_SUGGESTIONS.map(read), ['health-factor', 'yield', 'token-safety', 'rebalancing']);
   assert.equal(read('Monitor the liquidation risk of my lending position'), 'health-factor');
+  assert.equal(read('Check the liquidation risk of my lending position'), 'health-factor');
   assert.equal(read('Check how far my portfolio has drifted from target'), 'rebalancing');
   assert.equal(read('Review whether my grid trading range still fits the market'), 'grid-trading');
 });

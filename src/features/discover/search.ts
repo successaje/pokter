@@ -21,7 +21,8 @@ const STOP = new Set([
 ]);
 
 export interface DiscoverResult {
-  rows: Array<FindRow & { reason: string | null; alsoOn: number[] }>;
+  /** `nameOnly`: found by name in the registry, not as a match for the task described. Shown after the matches, under its own heading. */
+  rows: Array<FindRow & { reason: string | null; alsoOn: number[]; nameOnly: boolean }>;
   total: number;
   /** Agents under every filter but the task: the "All tasks" count. */
   allTasksCount: number;
@@ -68,6 +69,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   let advanced: DiscoverResult['advanced'] = null;
   let pool: SearchableAgent[] = promotable;
   const reasons = new Map<SearchableAgent, string>();
+  const nameOnly = new Set<SearchableAgent>();
 
   if (q && usesGrammar) {
     const parsed = parseQuery(q);
@@ -118,8 +120,22 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
       const byName = (await searchByName(q)).filter(
         (entry) => isPromotableAgent(entry.listing.agent) && !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
       );
-      for (const entry of byName) reasons.set(entry, 'Found by name · not in a category listing');
-      pool = [...orderMarketplace(byName, params.sort), ...pool];
+      /*
+       * A task Pokter recognises ("Monitor my lending risk") is answered by
+       * agents in that category first. The registry's name search returned
+       * loose matches for those words, a never-answering health guard and
+       * unrelated yield agents, and they were put above every real
+       * health-factor agent. Now they follow the matches, labelled. A query
+       * that is not a recognised task is still most likely a name, so there
+       * the name results lead.
+       */
+      for (const entry of byName) reasons.set(entry, brief.category ? 'Matched by name only · not shown doing this task' : 'Found by name · not in a category listing');
+      if (brief.category) {
+        for (const entry of byName) nameOnly.add(entry);
+        pool = [...pool, ...orderMarketplace(byName, params.sort)];
+      } else {
+        pool = [...orderMarketplace(byName, params.sort), ...pool];
+      }
     }
   }
 
@@ -166,7 +182,7 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   }
 
   return {
-    rows: rows.map((row, i) => ({ ...row, reason: reasons.get(shown[i]) ?? null, alsoOn: alsoOn.get(shown[i]) ?? [] })),
+    rows: rows.map((row, i) => ({ ...row, reason: reasons.get(shown[i]) ?? null, alsoOn: alsoOn.get(shown[i]) ?? [], nameOnly: nameOnly.has(shown[i]) })),
     total: rows.length,
     allTasksCount: forTasks.length,
     reading,
