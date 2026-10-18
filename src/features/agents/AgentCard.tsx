@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { FindRow } from '@/lib/find/rows';
 import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
+import { formatDelivery } from '@/lib/ui/format';
 import { AgentAvatar, answerState } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
@@ -71,9 +72,17 @@ export function PriceText({ row, className }: { row: FindRow; className?: string
    * not the agent's silence. The exact refusal is named on the agent's own
    * page, which is the only surface that reads the sweep's failure code.
    */
+  /* A dash, in the same readout the price would be in, so every card's
+     money line sits on the same baseline at the same height. The sentence
+     it replaces is still here, on hover: two sentences of small grey text
+     in the loudest position on the card was the price's own slot being
+     spent on the absence of one. */
   return (
-    <span className={cn('text-[13px] text-ink-3', className)}>
-      {row.priceState === 'unverified' ? 'No price Pokter could verify' : 'No price available'}
+    <span
+      className={cn('t-readout text-ink-3', className)}
+      title={row.priceState === 'unverified' ? 'This agent answers Pokter\u2019s checks, but no price it returned could be verified. Its page names the exact refusal.' : 'Nothing has reached this agent, so it has never named a price.'}
+    >
+      {'\u2014'}
     </span>
   );
 }
@@ -128,8 +137,12 @@ export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
  */
 export function TrialNote({ className }: { className?: string }) {
   return (
-    <span className={cn('text-[11.5px] text-watch', className)} title="Pokter’s delivery agent carries the task to the agent and returns its answer. It does not count as a delivery by the agent.">
-      Free testnet trial · carried by Pokter’s delivery agent
+    /* Short enough not to wrap. At 11.5px on a 376px card the full
+       sentence took two lines and pushed the button out of line with the
+       card beside it; it is the title now, which is where the detail was
+       already duplicated. */
+    <span className={cn('whitespace-nowrap text-[11.5px] text-watch', className)} title="Pokter’s delivery agent carries the task to the agent and returns its answer. It does not count as a delivery by the agent.">
+      Free testnet trial
     </span>
   );
 }
@@ -140,7 +153,25 @@ export function TrialNote({ className }: { className?: string }) {
  * delivered), what it costs and in which money, then one clear action.
  * No ratings, no popularity, no badges that measure nothing.
  */
-export function AgentCard({ row, className, note, compare }: { row: FindRow; className?: string; note?: string | null; compare?: React.ReactNode }) {
+export function AgentCard({
+  row,
+  className,
+  note,
+  compare,
+  deliveryMs,
+}: {
+  row: FindRow;
+  className?: string;
+  note?: string | null;
+  compare?: React.ReactNode;
+  /**
+   * Median time from funding to submission, when the caller has read it.
+   * Optional because reading it costs a chain call per job: a surface that
+   * has not paid for it says how many deliveries there were and stops,
+   * rather than printing a time it has not measured.
+   */
+  deliveryMs?: number | null;
+}) {
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
@@ -209,8 +240,29 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <dt className="t-label">Evidence</dt>
-          <dd className="truncate"><MaturityLabel maturity={row.maturity} concise /></dd>
+          {/* How long it takes, not which rung of the ladder it is on. The
+              rung was a chip with a dot in it and it is on the agent's own
+              page; a buyer choosing between three cards is asking how long
+              this takes, and that question had no answer here at all. */}
+          <dt className="t-label">Delivers</dt>
+          <dd
+            className="t-readout truncate"
+            title={
+              deliveryMs != null
+                ? 'Median time from the buyer funding the job to the agent submitting it'
+                : row.paid.delivered > 0
+                  ? 'Delivered, but none of its submissions could be timed on chain'
+                  : 'No paid job delivered from this agent\u2019s own wallet yet'
+            }
+          >
+            {deliveryMs != null ? (
+              formatDelivery(deliveryMs)
+            ) : row.paid.delivered > 0 ? (
+              '\u2014'
+            ) : (
+              <span className="text-ink-3">Not yet</span>
+            )}
+          </dd>
         </div>
       </dl>
 
@@ -226,7 +278,7 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
           on the same line as the button they lead to. */}
       <div className="relative z-10 mt-auto flex items-end justify-between gap-3 border-t border-rule pt-4">
         <div className="flex min-w-0 flex-col">
-          {row.priceU !== null ? <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
+          <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
           <span className="mt-1.5 flex flex-col gap-0.5">
             <HiringLines row={row} />
           </span>

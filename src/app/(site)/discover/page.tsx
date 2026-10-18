@@ -11,6 +11,7 @@ import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
+import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -236,6 +237,23 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   // Changing anything but the page count starts from the first page again.
   const base = { ...p, pages: 1 };
   const shown = result.rows.slice(0, p.pages * PAGE_SIZE);
+  /*
+   * How long each agent's deliveries took, for the cards on this page only.
+   *
+   * `deliveryTimes` reads `submittedAt` from the chain, up to eight jobs an
+   * agent, so it is asked only about agents that have actually delivered
+   * one. Across this catalogue that is 21 agents out of 157; for the rest
+   * the store returns nothing and the function makes no call at all. Each
+   * answer is cached for ten minutes, so paging does not pay twice, and a
+   * read that fails leaves the card saying how many deliveries there were
+   * rather than inventing a time for them.
+   */
+  const timed = await Promise.all(
+    shown
+      .filter((row) => row.paid.delivered > 0)
+      .map(async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const),
+  );
+  const deliveryByKey = new Map(timed);
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -386,7 +404,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {group.map((row) => (
                         <li key={row.key} className="flex min-w-0 flex-col">
-                          <AgentCard row={row} note={withNetworks(row)} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
+                          <AgentCard row={row} note={withNetworks(row)} deliveryMs={deliveryByKey.get(row.key) ?? null} compare={<CompareToggle agentKey={row.key} variant="checkbox" compact />} />
                         </li>
                       ))}
                     </ul>
