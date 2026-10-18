@@ -19,7 +19,7 @@ import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { MoreActions, menuRow } from '@/features/agent/MoreActions';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
+import { AgentAvatar, ProbeStrip, answerState } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
@@ -272,7 +272,25 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           </div>
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-5">
-              <AgentAvatar name={p.name} imageUrl={p.imageUrl} seed={p.key} size={76} className="rounded-[16px]" eager />
+              {/* Two readings, answering different questions: the ring is
+                  this page load, the dot is the record behind it. An agent
+                  can answer right now and have answered nothing for a
+                  month, and that is worth seeing without scrolling. */}
+              <AgentAvatar
+                name={p.name}
+                imageUrl={p.imageUrl}
+                seed={p.key}
+                size={76}
+                className="rounded-[16px]"
+                eager
+                status={answerState({ sinceAnswer: p.sinceAnswer })}
+                live={{
+                  answered: p.live.answered,
+                  label: p.live.answered
+                    ? `Answering now${p.live.medianMs ? ` \u00b7 ${formatMs(p.live.medianMs)}` : ''}`
+                    : 'No answer just now',
+                }}
+              />
               <div className="flex min-w-0 flex-col gap-2">
                 <h1 className="t-h1 break-words">{p.name}</h1>
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3">
@@ -300,14 +318,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     </span>
                   )}
                   {/*
-                    The live check is part of availability, so it is read as
-                    its tail rather than as another chip; the category was a
-                    chip too, and the breadcrumb above already names it.
+                    The live check is the ring around the picture now, which
+                    is read before any of these chips and leaves the row to
+                    the facts that do not change between page loads. The
+                    sentence it replaced is that ring's title, and is still
+                    in the accessibility tree.
                   */}
-                  <span className={`inline-flex items-center gap-1.5 text-[12.5px] ${p.live.answered ? 'text-ok' : 'text-ink-3'}`}>
-                    <span className={`size-1.5 rounded-full ${p.live.answered ? 'bg-ok pulse' : 'bg-rule-strong'}`} aria-hidden />
-                    {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
-                  </span>
                   {/*
                     Where a hire is funded, beside the chips a reader
                     already looks at.

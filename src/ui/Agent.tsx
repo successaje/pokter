@@ -62,6 +62,7 @@ export function AgentAvatar({
   className,
   eager,
   status,
+  live,
 }: {
   name: string;
   imageUrl?: string | null;
@@ -72,11 +73,20 @@ export function AgentAvatar({
   eager?: boolean;
   /** Draws the answer dot. Omitted where the state is not known. */
   status?: AnswerState | null;
+  /**
+   * Result of the check Pokter ran on this page load, drawn as a ring.
+   *
+   * The dossier said "Answered just now · 2.7s" in a line of chips. A
+   * colour around the picture is read before any of them, and the sentence
+   * survives as the title and for screen readers — a ring that only a
+   * mouse can interrogate would be the fact disappearing, not moving.
+   */
+  live?: { answered: boolean; label: string } | null;
 }) {
   const safe = imageUrl && /^https:\/\//i.test(imageUrl) ? imageUrl : null;
   const image = <AvatarImage src={safe} fallback={avatarUrl(seed)} name={name} size={size} className={className} eager={eager} />;
-  if (!status) return image;
-  const dot = ANSWER_DOT[status];
+  if (!status && !live) return image;
+  const dot = status ? ANSWER_DOT[status] : null;
   /* The ring is the page behind it, so the dot reads as sitting on the
      picture rather than inside it, and stays legible on a dark avatar.
      Hung a little past the corner because the avatar is a rounded square:
@@ -87,15 +97,27 @@ export function AgentAvatar({
      and carries the descender gap with it, which made the ring one card
      variant draws around the avatar 54x61 — a visible oval. */
   return (
-    <span className="relative flex shrink-0" style={{ width: size, height: size }}>
+    <span
+      className={cn(
+        'relative flex shrink-0',
+        /* 18px: the dossier avatar's own 16px radius plus the ring's gap. */
+        live && 'rounded-[18px] ring-2 ring-offset-2 ring-offset-paper',
+        live?.answered ? 'ring-ok' : live ? 'ring-rule-strong' : undefined,
+      )}
+      style={{ width: size, height: size }}
+      title={live?.label}
+    >
       {image}
-      <span
-        role="img"
-        aria-label={dot.label}
-        title={dot.label}
-        className={cn('absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-paper', dot.className)}
-        style={{ width: diameter, height: diameter }}
-      />
+      {live && <span className="sr-only">{live.label}</span>}
+      {dot && (
+        <span
+          role="img"
+          aria-label={dot.label}
+          title={dot.label}
+          className={cn('absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-paper', dot.className)}
+          style={{ width: diameter, height: diameter }}
+        />
+      )}
     </span>
   );
 }

@@ -15,7 +15,7 @@ import type { AssayDefinition } from '@/lib/assay/catalog';
 import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
-import { stripCells, type StripCell } from '@/lib/history/strip';
+import { daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDossier } from '@/lib/marketplace';
@@ -80,6 +80,15 @@ export interface AgentProfile {
   verdict: { id: Verdict; label: string; meaning: string; rationale: string; recommended: boolean };
   maturity: AgentMaturity;
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
+  /**
+   * Days since the last answered check, or null if one never has.
+   *
+   * The same measurement the catalogue cards draw their answer dot from,
+   * through the same function, so the dot here cannot say something
+   * different from the dot on the card that led to this page.
+   * `record.lastSeen` is the last day Pokter called, which is not it.
+   */
+  sinceAnswer: number | null;
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
   /**
@@ -256,6 +265,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
     maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
+    sinceAnswer: daysSinceLastAnswer(record),
     record: {
       windows: record.windows,
       totalProbes: record.totalProbes,
