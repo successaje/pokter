@@ -129,6 +129,12 @@ class QuestStore {
     }
   }
 
+  /** Every registered agent wallet Pokter has read, with the registry it belongs to. */
+  allAgentWallets(): Array<{ wallet: string; chainId: number; tokenId: string }> {
+    const rows = this.db.prepare('SELECT wallet, chain_id, token_id FROM agent_wallets').all() as Array<{ wallet: string; chain_id: number; token_id: string }>;
+    return rows.map((r) => ({ wallet: r.wallet, chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
   /** Registered agents whose wallet has been paid through escrow at least once. */
   hiredAgents(): Array<{ chainId: number; tokenId: string }> {
     const rows = this.db
