@@ -6,12 +6,14 @@ import { Suspense } from 'react';
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { cn } from '@/lib/ui/cn';
-import { AgentCard, AgentRow } from '@/features/agents/AgentCard';
+import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
+import { outsideActivity } from '@/lib/erc8183/outside-activity';
+import { escrowAvailabilityLine } from '@/lib/network/presentation';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -245,6 +247,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       .map(async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const),
   );
   const deliveryByKey = new Map(timed);
+  const activity = outsideActivity();
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -253,17 +256,59 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         <RememberDiscoverResults />
       </Suspense>
       <header className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="t-h1">Discover agents</h1>
-            <div className="flex flex-wrap items-center gap-4">
-              <a href="/api/v1/agents/verifier" download className="inline-flex items-center gap-1 text-sm font-medium hover:underline">Verify catalogue <Icon.Arrow size={14} /></a>
-              <Link href="/rankings" className="inline-flex items-center gap-1 text-sm font-medium hover:underline">Outcome rankings <Icon.Arrow size={14} /></Link>
-            </div>
-          </div>
+        <div className="flex flex-col gap-3">
+          {/* What is switched on, and how much of the catalogue can be hired
+              through it, before the name of the page. Both read from the
+              same sources the results below do. */}
+          <p className="flex flex-wrap items-center gap-2 text-[13px] font-medium">
+            <span className="inline-flex h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 text-ok">
+              <span aria-hidden className="size-1.5 rounded-full bg-ok" />
+              {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
+            </span>
+            {result.collections.hireable > 0 && (
+              <Link
+                href={discoverHref({ hireable: true }, base)}
+                scroll={false}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2 transition-colors hover:border-ink hover:text-ink"
+              >
+                <span className="t-readout">{result.collections.hireable}</span> hireable right now
+                <Icon.Arrow size={13} />
+              </Link>
+            )}
+          </p>
+          <h1 className="t-h1">Discover agents</h1>
           <p className="t-body max-w-2xl text-ink-2">
             Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
           </p>
+          {/*
+            What outside buyers have actually done through the escrow, above
+            the box where somebody is about to ask for the same thing.
+
+            No registry total among them. That figure is 8004scan's count of
+            a population Pokter has never called and is three orders of
+            magnitude larger than anything here; a row like this reads as one
+            funnel whether or not it is one, and the home page's record is
+            where the scopes get named. "Hireable now" is not repeated here
+            either — it is in the mark above and on a pill below, and three
+            times on one page is twice too many.
+
+            Hidden until an escrow has seen a job: three zeroes above a search
+            box is not a track record.
+          */}
+          {activity.funded > 0 && (
+            <ul className="flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
+              {[
+                { value: activity.funded, label: 'jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
+                { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
+                { value: activity.answered, label: 'delivered', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+              ].map((stat) => (
+                <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
+                  <span className="t-readout font-medium text-ink">{stat.value}</span>
+                  <span className="text-ink-3">{stat.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <DiscoverSearch params={base} />
       </header>
@@ -326,6 +371,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   Clear filters
                 </Link>
               )}
+            </div>
+            {/* Under sort, where the network switch and the layout toggle
+                used to be. They are about the whole catalogue rather than
+                this page's title, so they sit with the results. */}
+            <div className="flex flex-wrap items-center gap-4">
+              <a href="/api/v1/agents/verifier" download className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">Verify catalogue <Icon.Arrow size={13} /></a>
+              <Link href="/rankings" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">Outcome rankings <Icon.Arrow size={13} /></Link>
             </div>
             {/* Below `lg` the pill bar is not rendered, so sort has to live
                 here instead; above it, it sits with the filters. */}
@@ -401,6 +453,22 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </div>
           )}
         </section>
+
+        {/* The newest listings, under the results rather than inside them:
+            these are not matches for anything that was asked, so they sit
+            below the count that closes the search. */}
+        {result.recent.length > 0 && (
+          <section aria-labelledby="recent-title" className="mt-6 border-t border-rule pt-8">
+            <h2 id="recent-title" className="t-label mb-4">Recently listed</h2>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {result.recent.map((row) => (
+                <li key={row.key} className="flex min-w-0">
+                  <MiniAgentCard row={row} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
       <CompareTray />
     </div>

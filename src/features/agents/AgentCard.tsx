@@ -148,6 +148,34 @@ export function TrialNote({ className }: { className?: string }) {
 }
 
 /**
+ * The small card: a picture, a name, what it does and what it costs.
+ *
+ * The same shape the agent page uses for "also measured in", with the price
+ * added, because a list somebody is browsing rather than comparing still has
+ * to answer "how much" — it is the one fact that decides whether to read
+ * the rest, and leaving it off made those lists decorative.
+ *
+ * Deliberately not a shrunken `AgentCard`: no replies, no paid jobs, no
+ * delivery time. Those are for choosing between agents, and this is for
+ * noticing one.
+ */
+export function MiniAgentCard({ row }: { row: FindRow }) {
+  return (
+    <Link
+      href={agentHref(row)}
+      className="group flex h-full items-start gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong"
+    >
+      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} status={answerState(row)} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[13.5px] font-medium">{row.name}</span>
+        <span className="line-clamp-1 text-[12.5px] text-ink-3">{row.description || 'No description published.'}</span>
+      </span>
+      <PriceText row={row} className="shrink-0 text-[13px]" />
+    </Link>
+  );
+}
+
+/**
  * The standard marketplace card. Hierarchy, top to bottom: who and where it
  * is registered, what it does, the evidence (does it answer, has it
  * delivered), what it costs and in which money, then one clear action.
