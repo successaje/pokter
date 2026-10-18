@@ -30,6 +30,7 @@ import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
 import { useClockThrough } from '@/lib/ui/use-moment';
 import { budgetOf, PhaseLabel } from './parts';
 import { ReviewForm } from './ReviewForm';
+import { UsefulnessQuestion } from './UsefulnessQuestion';
 import { JobUpdates } from './JobUpdates';
 import { localMoment } from '@/lib/time/local-moment';
 
@@ -509,6 +510,16 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           )}
         </aside>
       </div>
+
+      {(job.status === 'SUBMITTED' || job.status === 'COMPLETED') && owned && (
+        <section aria-labelledby="useful-title" className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5 sm:p-6">
+          <div>
+            <h2 id="useful-title" className="t-h3">Did this answer the question you hired it for?</h2>
+            <p className="text-[13.5px] text-ink-2">Private to Pokter, so we can see where agents help and where they fall short. Optional, and nothing waits on it.</p>
+          </div>
+          <UsefulnessQuestion job={job} />
+        </section>
+      )}
 
       {job.status === 'COMPLETED' && owned && (
         <section aria-labelledby="review-title" className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5 sm:p-6">
