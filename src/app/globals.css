@@ -397,6 +397,23 @@ img { max-width: 100%; }
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
 
 /*
+ * A full-bleed section that ends a page meets the footer directly.
+ *
+ * The footer carries `mt-24` because almost every page ends on a card
+ * floating on paper, and that gap is what keeps it from crowding one.
+ * A band that runs edge to edge is the opposite case: the gap reads as a
+ * strip of the wrong colour between two things that should touch.
+ *
+ * Scoped with :has() rather than by dropping the footer's margin, so the
+ * default still holds for every page that wants it, and so the opt-in
+ * sits on the section asking for it. Where :has() is unsupported this
+ * does nothing and the gap stays, which is the old behaviour.
+ */
+main:has(> [data-flush-footer]:last-child) + footer {
+  margin-top: 0;
+}
+
+/*
  * The bars in the closing call-to-action's field.
  *
  * scaleY from the bottom rather than animating height: height is a layout

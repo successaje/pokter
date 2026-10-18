@@ -507,6 +507,7 @@ export default async function HomePage() {
         the ask, and it should not look like another card.
       */}
       <section
+        data-flush-footer
         className="relative isolate mt-8 overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
         aria-labelledby="cta-title"
       >
