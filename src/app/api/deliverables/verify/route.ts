@@ -14,6 +14,9 @@ import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { siteUrl } from '@/lib/site';
 import { logAndPublic } from '@/lib/api/public-error';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
+import { questClient } from '@/lib/quest/indexer';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -135,6 +138,8 @@ export async function GET(request: Request): Promise<NextResponse> {
        * archives. Every verification of a mainnet receipt failed on it.
        * maxWindows doubles so the reach is unchanged.
        */
+      // Near the submit block first: a few dozen reads, and it does not age out.
+      (await findDeliverableUrl(questClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, id, job.submittedAt).catch(() => undefined)) ??
       (await getErc8183DeliverableUrl(network, id, {
         scanWindow: 2_500n,
         maxWindows: 600,
