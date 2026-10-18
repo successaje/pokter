@@ -177,6 +177,42 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
           </p>
         </div>
+        {/*
+          The collections as tabs: one choice of scope, always visible, the
+          active one underlined. Each keeps the search, task, network and
+          sort, and replaces the other three shortcuts rather than stacking.
+        */}
+        <nav aria-label="Collections" className="no-scrollbar -mx-4 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
+          <ul className="flex gap-1">
+            {[
+              { key: 'all', title: 'All agents', note: 'Everything Pokter lists', set: {}, count: null as number | null },
+              { key: 'hireable', title: 'Hireable now', note: 'Answering and payable through escrow', set: { hireable: true }, count: result.collections.hireable },
+              { key: 'priced', title: 'Signed a price', note: 'Price signed by the agent’s wallet', set: { priced: true }, count: result.collections.priced },
+              { key: 'answering', title: 'Answered this week', note: 'Replied to a Pokter probe in 7 days', set: { answering: true }, count: result.collections.answering },
+              { key: 'corroborated', title: 'Attested by others', note: 'Has published on-chain attestations', set: { evidence: 'corroborated' as const }, count: result.collections.corroborated },
+            ].map((tab) => {
+              const scope = { hireable: p.hireable, priced: p.priced, answering: p.answering, corroborated: p.evidence === 'corroborated' };
+              const on = tab.key === 'all' ? !Object.values(scope).some(Boolean) : scope[tab.key as keyof typeof scope] && Object.values(scope).filter(Boolean).length === 1;
+              return (
+                <li key={tab.key} className="shrink-0">
+                  <Link
+                    href={discoverHref({ hireable: false, priced: false, answering: false, evidence: 'any', ...tab.set }, base)}
+                    title={tab.note}
+                    aria-current={on ? 'page' : undefined}
+                    scroll={false}
+                    className={cn(
+                      '-mb-px inline-flex h-11 items-center gap-2 border-b-2 px-3 text-[14px] font-medium transition-colors',
+                      on ? 'border-ink text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+                    )}
+                  >
+                    {tab.title}
+                    {tab.count !== null && <span className={cn('t-readout text-[12px]', on ? 'text-ok' : 'text-ink-3')}>{tab.count}</span>}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
         <DiscoverSearch params={base} />
         {!p.q && (
           <ul className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Start from an outcome">
@@ -191,31 +227,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         )}
       </header>
 
-      {!p.q && activeFilters === 0 && (
-        <section aria-labelledby="collections-title" className="mt-8">
-          <h2 id="collections-title" className="t-label mb-3">
-            Collections
-          </h2>
-          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              { href: discoverHref({ hireable: true }, base), title: 'Hireable now', note: 'Answering and payable through escrow', count: result.collections.hireable },
-              { href: discoverHref({ priced: true }, base), title: 'Signed a price', note: 'Price signed by the agent’s wallet', count: result.collections.priced },
-              { href: discoverHref({ answering: true }, base), title: 'Answered this week', note: 'Replied to a Pokter probe in 7 days', count: result.collections.answering },
-              { href: discoverHref({ evidence: 'corroborated' }, base), title: 'Attested by others', note: 'Has published on-chain attestations', count: result.collections.corroborated },
-            ].map((c) => (
-              <li key={c.title}>
-                <Link href={c.href} className="group flex h-full flex-col gap-1 rounded-[12px] border border-rule bg-raised p-4 transition-colors hover:border-rule-strong">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="text-[14px] font-semibold">{c.title}</span>
-                    <span className="t-readout text-[13px] text-ink-3">{c.count}</span>
-                  </span>
-                  <span className="text-[12.5px] leading-snug text-ink-3">{c.note}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {/* With no results, the not-found message below says it better. */}
       {result.reading && result.total > 0 && (
@@ -345,7 +356,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {shown.length < result.total && (
             <div className="mt-8 flex flex-col items-center gap-2">
               <LinkButton href={discoverHref({ pages: p.pages + 1 }, p)} intent="secondary" scroll={false}>
-                Show {Math.min(PAGE_SIZE, result.total - shown.length)} more
+                Show more
               </LinkButton>
               <span className="text-[12.5px] text-ink-3">
                 Showing {shown.length} of {result.total}
