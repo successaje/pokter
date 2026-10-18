@@ -206,15 +206,6 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
               <MaturityLabel maturity={row.maturity} concise />
             )}
           </dd>
-          {/*
-            The qualifier, on its own line rather than inside the chip —
-            the same shape the probe row uses for "not answering". Dropping
-            it would let "Delivered" stand for an outside buyer paying,
-            which is the next rung up and not what happened.
-          */}
-          {!row.paid.missed && row.maturity.teamOnly && (
-            <p className="w-full pl-[18px] text-[11.5px] text-ink-3">Every one funded by Pokter&rsquo;s team, not an outside buyer.</p>
-          )}
         </div>
       </dl>
 
