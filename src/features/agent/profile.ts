@@ -25,6 +25,8 @@ import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
 import { getJobStore } from '@/lib/erc8183/store';
+import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
+import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamAddressSet } from '@/lib/team/wallets';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
@@ -118,7 +120,8 @@ export interface AgentProfile {
     delivered: boolean;
     /** A Pokter wallet was the provider: the work is Pokter's, not the agent's. */
     byOperator: boolean;
-    settleTxHash: string | null;
+    /** Where this row can be checked on chain, and whether that is a transaction. */
+    receipt: { href: string; hash: string | null };
   }>;
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
@@ -347,7 +350,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           hiredAt: job.hiredAt,
           delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
           byOperator: Boolean(job.provider) && team.has(String(job.provider).toLowerCase()),
-          settleTxHash: job.settleTxHash ?? null,
+          receipt: jobReceipt(job, escrowCommerceAddress),
         }));
     })(),
     delivery,

@@ -46,6 +46,12 @@ export const dynamic = 'force-dynamic';
 /* The three answers a buyer signs, written out. "on-time" is a stored value,
    not a sentence, and a mark that says the delivery was late has to say it in
    the same voice as the two beside it. */
+/* The explorer a job's own chain resolves to, named rather than assumed:
+   a testnet job says testnet.bscscan.com because that is where its link goes. */
+function explorerHost(chainId: number): string {
+  return explorerBaseFor(chainId).replace('https://', '');
+}
+
 const REVIEW_SPEED: Record<string, string> = {
   early: 'Delivered early',
   'on-time': 'Delivered on time',
@@ -679,7 +685,21 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                             {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {chainLabel(job.chainId)}
                           </span>
                         </span>
-                        <span className="t-readout shrink-0 text-right text-[13px]">{formatQuotedPrice(job.budgetU)}</span>
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="t-readout text-[13px]">{formatQuotedPrice(job.budgetU)}</span>
+                          {/* Named for what it opens. A transaction is a receipt;
+                              the escrow's read page is not, and calling it one
+                              would be the claim this list exists to avoid. */}
+                          <a
+                            href={job.receipt.href}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink"
+                            title={job.receipt.hash ? `Open this transaction on ${explorerHost(job.chainId)}` : `This job settled outside Pokter, so no transaction was recorded here. Read job #${job.jobId} from the escrow on ${explorerHost(job.chainId)}.`}
+                          >
+                            {job.receipt.hash ? `${job.receipt.hash.slice(0, 8)}\u2026` : 'Read in escrow'}
+                          </a>
+                        </span>
                       </li>
                     ))}
                   </ol>

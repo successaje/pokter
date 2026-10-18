@@ -10,12 +10,13 @@ import {
   type ProofNetwork,
   type ProofWindow,
 } from '@/lib/erc8183/production-proof';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { chainLabel, escrowMoney, explorerBaseFor } from '@/lib/network/presentation';
+import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
+import { jobReceipt } from '@/lib/jobs/receipt-link';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
 import { fundedByTeam } from '@/lib/team/wallets';
 import { cn } from '@/lib/ui/cn';
@@ -116,8 +117,7 @@ function Metric({ value, label, note }: { value: string; label: string; note: st
 }
 
 function receiptLink(job: HiredJob): string {
-  if (job.hireTxHash) return `${explorerBaseFor(job.chainId)}/tx/${job.hireTxHash}`;
-  return `${explorerBaseFor(job.chainId)}/address/${correctedErc8183Addresses(job.chainId).commerce}#readContract`;
+  return jobReceipt(job, escrowCommerceAddress).href;
 }
 
 export default async function ProductionProofPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
