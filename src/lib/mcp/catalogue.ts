@@ -15,3 +15,22 @@ export const MCP_SETUP = {
   codex: `codex mcp add pokter --url ${MCP_ENDPOINT}`,
   codexToml: `[mcp_servers.pokter]\nurl = "${MCP_ENDPOINT}"`,
 };
+
+/*
+ * One-click install, where the client supports it.
+ *
+ * Built from MCP_ENDPOINT rather than written out, so a change of
+ * endpoint cannot leave a deep link pointing at the old one — the
+ * failure would be silent, since the link still opens and only the
+ * server it installs is wrong.
+ *
+ * Only two clients can do this. A terminal cannot be deep-linked into,
+ * so Claude Code and Codex get the command instead; that is a property
+ * of a CLI, not a gap to be filled later.
+ */
+export const MCP_CONNECT = {
+  /** Claude.ai web, iOS, Android and Claude Desktop: opens the add-connector dialog. */
+  claude: `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Pokter&connectorUrl=${encodeURIComponent(MCP_ENDPOINT)}`,
+  /** Cursor on macOS, Windows and Linux. Needs Cursor installed to resolve. */
+  cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=pokter&config=${btoa(JSON.stringify({ url: MCP_ENDPOINT }))}`,
+};
