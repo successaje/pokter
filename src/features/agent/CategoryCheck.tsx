@@ -50,9 +50,9 @@ export function CategoryCheck({ definition, run, agentKey }: { definition: Assay
       ) : (
         <>
           <p className="flex items-start gap-2 text-[13.5px] text-ink-2">
-            <span className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', passedAll ? 'bg-ok' : 'bg-bad')} aria-hidden />
+            <span className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', passedAll ? 'bg-ok' : run.total === 0 ? 'bg-rule-strong' : 'bg-bad')} aria-hidden />
             <span>
-              Matched {run.passed} of {run.total} published scenarios.{' '}
+              {run.total === 0 ? `${run.detail ?? 'Delivered, but none of it could be scored.'} ` : `Matched ${run.passed} of ${run.total} published scenarios. `}
               <span className="text-ink-3">
                 {paid ? 'Graded from the work funded jobs delivered' : 'Asked directly, outside escrow'}, {new Date(run.ranAt).toUTCString().slice(5, 22)} UTC.
               </span>

@@ -28,3 +28,12 @@ test('a run that called a since-delivered job undelivered is graded again', () =
   assert.equal(gradedAsUndeliveredSinceDelivered(rows, [{ jobId: '1508', status: 'EXPIRED' }]), false, 'still undelivered: the result stands');
   assert.equal(gradedAsUndeliveredSinceDelivered([{ jobId: '1508', outcome: 'wrong' }], [{ jobId: '1508', status: 'COMPLETED' }]), false);
 });
+
+test('a delivery that does not match its on-chain hash is graded as unverifiable, never as undelivered', async () => {
+  const { mismatchRow } = await import('../src/lib/assay/awaiting-capture');
+  const row = mismatchRow('cake-wide-range', { jobId: '1511' }, { servedHash: '0x1f23b7538aa4c99d8a92', chainHash: '0x9628c7a07faf3b526234' });
+  assert.equal(row.outcome, 'unreadable');
+  assert.equal(row.pass, false);
+  assert.match(row.reason ?? '', /does not match the hash the job committed on chain/);
+  assert.doesNotMatch(row.reason ?? '', /undelivered|no deliverable/i);
+});

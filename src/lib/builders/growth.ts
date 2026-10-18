@@ -41,7 +41,7 @@ export function buildGrowthSnapshot({
     const passed = run?.status === 'checked' && run.total > 0 && run.passed === run.total;
     const status = !run
       ? 'not-run'
-      : run.status !== 'checked'
+      : run.status !== 'checked' || run.total === 0
         ? 'unavailable'
         : passed
           ? 'passed'
@@ -49,7 +49,7 @@ export function buildGrowthSnapshot({
     const summary = !run
       ? 'No completed check yet'
       : run.status === 'checked'
-        ? `${run.passed}/${run.total} scenarios passed`
+        ? run.total === 0 ? 'Delivered, but none of it could be scored' : `${run.passed}/${run.total} scenarios passed`
         : run.status === 'paid-only'
           ? 'The endpoint could only be checked after payment'
           : 'The endpoint could not be asked this check';

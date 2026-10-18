@@ -3,7 +3,8 @@ import 'server-only';
 import { getErc8183DeliverableUrl, getErc8183Job, verifyErc8183ManifestText } from '@altananetwork/sdk';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { deliverableKey, readDeliverable, writeDeliverable } from '@/lib/erc8183/deliverables';
+import { clearDeliverableMismatch, deliverableKey, readDeliverable, readDeliverableMismatch, recordDeliverableMismatch, writeDeliverable } from '@/lib/erc8183/deliverables';
+import { keccak256, stringToBytes } from 'viem';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -38,8 +39,13 @@ export async function captureDeliverables(jobs: readonly HiredJob[]): Promise<{ 
       const url = job.deliverableUrl ?? (await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined));
       if (!url) throw new Error('no deliverable URL');
       const text = await fetchDeliverableText(url);
-      if (!verifyErc8183ManifestText(text, onchain.deliverable)) throw new Error('bytes do not match the on-chain hash');
+      if (!verifyErc8183ManifestText(text, onchain.deliverable)) {
+        // Read, but not what was committed: remembered, so the check can say so.
+        recordDeliverableMismatch({ jobId: key, servedHash: keccak256(stringToBytes(text)), chainHash: onchain.deliverable, checkedAt: new Date().toISOString() });
+        throw new Error('bytes do not match the on-chain hash');
+      }
       writeDeliverable({ jobId: key, manifestText: text, submitTxHash: null, createdAt: new Date().toISOString() });
+      clearDeliverableMismatch(key);
       if (!job.deliverableUrl) getJobStore().record({ ...job, deliverableUrl: url });
       captured += 1;
     } catch {
@@ -48,6 +54,11 @@ export async function captureDeliverables(jobs: readonly HiredJob[]): Promise<{ 
   }
   return { captured, unreadable };
 }
+
+const recentMismatch = (key: string) => {
+  const m = readDeliverableMismatch(key);
+  return Boolean(m && Date.now() - Date.parse(m.checkedAt) < 24 * 60 * 60_000);
+};
 
 /** Fixtures fetched per sweep pass, so a slow agent host cannot stall the sweep. */
 const CAPTURE_PER_PASS = 12;
@@ -63,7 +74,9 @@ export async function captureFixtureDeliverables(): Promise<{ captured: number; 
       (job) =>
         readCheckMarker(job.task) !== null &&
         (job.status === 'SUBMITTED' || job.status === 'COMPLETED') &&
-        !readDeliverable(deliverableKey(job.chainId, job.jobId)),
+        !readDeliverable(deliverableKey(job.chainId, job.jobId)) &&
+        // A mismatch found in the last day is not refetched every pass; after that, in case it was fixed.
+        !recentMismatch(deliverableKey(job.chainId, job.jobId)),
     )
     .slice(0, CAPTURE_PER_PASS);
   return captureDeliverables(due);
