@@ -2,7 +2,7 @@ import 'server-only';
 
 import { CATEGORY_BY_ID, categorySignalSource } from '@/lib/agents/categories';
 import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
-import type { DeclaredSkill } from '@/lib/agents/capabilities';
+import { mcpCapabilities, type DeclaredSkill } from '@/lib/agents/capabilities';
 import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
 import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
@@ -78,6 +78,13 @@ export interface AgentProfile {
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
+  /**
+   * Where `skills` came from: an A2A agent card, or the tool list the
+   * prober read from an MCP endpoint. Null when there are none. The page
+   * words the section from this, because "declared on its card" is false
+   * for an agent that has no card.
+   */
+  skillSource: 'card' | 'mcp' | null;
   /** Reply times of answered probes, oldest first, last 30 days. */
   latency: Array<{ at: string; ms: number }>;
   evidence: PublishedEvidenceSummary & { measurers: string[]; windowDays: number | null };
@@ -164,6 +171,16 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   /* The alternatives carry images too, and were reading the indexer
      alone — three more rows on a page that already reads the registry for
      the agent it is about. */
+  /*
+   * An MCP-only agent has no `services.a2a.endpoint`, so the card fetch
+   * above returns nothing and its page claimed nothing — while the prober
+   * had already listed its tools and the API was publishing them under
+   * `measured.capabilities`. The reading is already loaded; it was simply
+   * never asked.
+   */
+  const declared = skills.length > 0 ? skills : live.protocol === 'mcp' ? mcpCapabilities(live.tools) : [];
+  const skillSource: 'card' | 'mcp' | null = declared.length === 0 ? null : skills.length > 0 ? 'card' : 'mcp';
+
   const alternativeImages = await resolveAgentImages(alternatives.map((alt) => alt.listing.agent));
 
   const answeredNow = live.ratio !== null && live.ratio > 0;
@@ -231,7 +248,8 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
       .slice(0, 40)
       .reverse()
       .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number })),
-    skills: skills.slice(0, 12).map((s) => ({
+    skillSource,
+    skills: declared.slice(0, 12).map((s) => ({
       name: clean(s.name, 80),
       kind: s.kind,
       description: s.description ? clean(s.description, 900) : null,

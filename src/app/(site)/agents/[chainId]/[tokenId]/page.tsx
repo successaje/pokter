@@ -93,7 +93,16 @@ function ClaimVsObserved({ p }: { p: AgentProfile }) {
         <p className="text-[13.5px] leading-relaxed text-ink-2">Declared by the operator. Not checked by anyone.</p>
         <ul className="flex flex-col gap-1.5 text-[13px]">
           <li>{p.category ? `${p.category.label} agent` : 'No category Pokter recognises'}</li>
-          <li>{p.skills.length > 0 ? `${p.skills.length} declared skill${p.skills.length === 1 ? '' : 's'}` : 'No skills declared on its card'}</li>
+          {/* "on its card" is false for an agent that publishes only MCP. */}
+          <li>
+            {p.skillSource === 'mcp'
+              ? `${p.skills.length} tool${p.skills.length === 1 ? '' : 's'} on its MCP endpoint`
+              : p.skills.length > 0
+                ? `${p.skills.length} declared skill${p.skills.length === 1 ? '' : 's'}`
+                : p.services.some((s) => s.name.toLowerCase() === 'mcp')
+                  ? 'No tools on its MCP endpoint'
+                  : 'No skills declared on its card'}
+          </li>
           <li>{p.services.length > 0 ? `Endpoints: ${p.services.map((s) => s.name.toUpperCase()).join(', ')}` : 'No endpoints published'}</li>
         </ul>
       </div>
@@ -354,7 +363,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
 
             {p.skills.length > 0 && (
               <div className="flex flex-col gap-3">
-                <span className="t-label">Declared skills</span>
+                <span className="t-label">{p.skillSource === 'mcp' ? 'Tools it serves' : 'Declared skills'}</span>
                 <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {p.skills.map((s) => (
                     <li key={s.name} className="rounded-[10px] border border-rule bg-raised px-4 py-3">
