@@ -176,8 +176,9 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
         <div className="flex flex-col gap-1 px-3.5 py-2.5">
           <div className="flex items-center gap-3">
             <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
-            <dt className="min-w-0 flex-1 whitespace-nowrap text-ink-2">Probe replies</dt>
-            <dd className="flex shrink-0 items-center gap-2.5" title={row.probes ? `${row.probes} probes in total` : undefined}>
+            {/* Same shape as the row below: shrink-0 label, value pushed right. */}
+            <dt className="shrink-0 text-ink-2">Probe replies</dt>
+            <dd className="ml-auto flex min-w-0 shrink-0 items-center gap-2.5" title={row.probes ? `${row.probes} probes in total` : undefined}>
               <span className="t-readout text-ink">{row.rate === null ? '—' : `${Math.round(row.rate * 100)}%`}</span>
               {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 [&>span]:w-[3px]" />}
             </dd>
@@ -185,19 +186,35 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
           {/* Not answering right now is said in words, not left to the colour of a dot. */}
           {status.tone !== 'ok' && <p className="pl-[18px] text-[11.5px] text-ink-3">{status.text}</p>}
         </div>
-        <div className="flex items-center gap-3 border-t border-rule px-3.5 py-2.5">
+        {/*
+          Wrapping, not nowrap. The label was `min-w-0 flex-1
+          whitespace-nowrap`, so it shrank below its own text and ran
+          straight over the chip beside it: "Delivery evidenNot answering
+          yet". A chip's width is the agent's, not ours, so the row has to
+          survive a long one rather than assume a short one.
+        */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-rule px-3.5 py-2.5">
           <span className={cn('size-1.5 shrink-0 rounded-full', row.paid.missed ? DOT.watch : row.paid.delivered ? DOT.ok : DOT.none)} aria-hidden />
-          <dt className="min-w-0 flex-1 whitespace-nowrap text-ink-2">Delivery evidence</dt>
-          <dd className="shrink-0">
+          <dt className="shrink-0 text-ink-2">Delivery evidence</dt>
+          <dd className="ml-auto min-w-0">
             {row.paid.missed ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-watch/35 bg-watch-wash px-2.5 py-1 text-[12px] font-medium text-watch" title="Funded through Pokter escrow, nothing delivered before the deadline">
                 <span className="size-1.5 rounded-full bg-watch" aria-hidden />
                 {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'} missed
               </span>
             ) : (
-              <MaturityLabel maturity={row.maturity} />
+              <MaturityLabel maturity={row.maturity} concise />
             )}
           </dd>
+          {/*
+            The qualifier, on its own line rather than inside the chip —
+            the same shape the probe row uses for "not answering". Dropping
+            it would let "Delivered" stand for an outside buyer paying,
+            which is the next rung up and not what happened.
+          */}
+          {!row.paid.missed && row.maturity.teamOnly && (
+            <p className="w-full pl-[18px] text-[11.5px] text-ink-3">Every one funded by Pokter&rsquo;s team, not an outside buyer.</p>
+          )}
         </div>
       </dl>
 
@@ -277,7 +294,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable</span>}
         </h3>
         <p className="truncate text-[13px] text-ink-2">{row.description || 'No description published.'}</p>
-        <span className="mt-1"><MaturityLabel maturity={row.maturity} /></span>
+        <span className="mt-1"><MaturityLabel maturity={row.maturity} concise /></span>
         {reason && (
           <p className="text-[12px] text-ink-3">
             <span className="text-ink-2">Why it matches:</span> {reason}
@@ -326,7 +343,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
           </Link>
         </h3>
         <p className="line-clamp-3 text-sm leading-relaxed text-ink-2">{row.description}</p>
-        <span className="pt-1"><MaturityLabel maturity={row.maturity} /></span>
+        <span className="pt-1"><MaturityLabel maturity={row.maturity} concise /></span>
       </div>
       <dl className="mt-auto grid grid-cols-2 gap-3 border-t border-rule pt-4 text-[12.5px]">
         <div className="flex flex-col gap-0.5">

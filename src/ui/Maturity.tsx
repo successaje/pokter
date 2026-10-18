@@ -7,7 +7,12 @@ import { cn } from '@/lib/ui/cn';
  */
 const DID_WORK = new Set(['delivered', 'checked', 'proven-in-use']);
 
-export function MaturityLabel({ maturity, className }: { maturity: AgentMaturity; className?: string }) {
+/**
+ * `concise` drops the qualifier from the chip, for places with no room
+ * for it — the catalogue card, which says it on its own line underneath
+ * instead. Everywhere with room keeps the full label.
+ */
+export function MaturityLabel({ maturity, className, concise = false }: { maturity: AgentMaturity; className?: string; concise?: boolean }) {
   const advanced = maturity.current !== null && DID_WORK.has(maturity.current);
   return (
     <span
@@ -19,7 +24,7 @@ export function MaturityLabel({ maturity, className }: { maturity: AgentMaturity
       title={`Evidence: ${maturity.summary}`}
     >
       <span className={cn('size-1.5 rounded-full', advanced ? 'bg-ok' : 'bg-ink-3')} aria-hidden />
-      {maturity.label}
+      {concise ? maturity.badge : maturity.label}
       {maturity.sustained && <span className="font-normal text-ink-3">· sustained</span>}
     </span>
   );
