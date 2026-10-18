@@ -111,6 +111,70 @@ function NetworkSwitch({ p }: { p: DiscoverParams }) {
   );
 }
 
+function Pill({ href, on, children }: { href: string; on: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={on ? 'true' : undefined}
+      className={cn(
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
+        on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * The same filters as the rail, laid along the top.
+ *
+ * The rail cost a fixed 232px of every wide screen and the results paid for
+ * it: three cards where four fit, each one narrower than its own contents, so
+ * names and prices truncated while a column of mostly-inactive filters sat
+ * beside them. Along the top the filters take two lines and give the width
+ * back.
+ *
+ * Counts come with the task pills and nowhere else. On a toggle the number
+ * that matters is how many results remain, which the header already says; on
+ * a task it is how many exist under it, which is the thing being chosen
+ * between.
+ *
+ * Below `lg` this is not rendered at all and `MobileFilters` keeps the rail
+ * in a sheet, because sixteen task pills wrap to half a phone screen before
+ * a single result is visible.
+ */
+function FilterBar({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
+  return (
+    <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Task">
+        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
+          All tasks <span className={cn('t-readout text-[11.5px]', p.category ? 'text-ink-3' : 'text-paper/70')}>{allTasks}</span>
+        </Pill>
+        {counts.map((c) => (
+          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id}>
+            {c.label} <span className={cn('t-readout text-[11.5px]', p.category === c.id ? 'text-paper/70' : 'text-ink-3')}>{c.count}</span>
+          </Pill>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
+          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now</Pill>
+          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week</Pill>
+          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price</Pill>
+        </div>
+        <span aria-hidden className="h-5 w-px bg-rule" />
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
+          <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any evidence</Pill>
+          <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
+          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Has published attestations</Pill>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
   // Counted under the same filters as the results; the sum of the tasks
   // left out agents in no task, so it never matched the list.
@@ -271,12 +335,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </Notice>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[232px_minmax(0,1fr)]">
-        <aside className="hidden lg:block" aria-label="Filters">
-          <div className="sticky top-20">
-            <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-          </div>
-        </aside>
+      <div className="mt-8 flex flex-col gap-6">
+        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
 
         <section aria-label="Results" className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
@@ -358,7 +418,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       ))}
                     </div>
                   ) : (
-                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {group.map((row) => (
                         <li key={row.key} className="flex min-w-0 flex-col">
                           <AgentCard row={row} note={withNetworks(row)} compare={<CompareToggle agentKey={row.key} variant="checkbox" />} />
