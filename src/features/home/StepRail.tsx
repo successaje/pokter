@@ -107,7 +107,7 @@ export function StepRail() {
           focusable, arrow-key-scrollable list, so these duplicate a
           control a keyboard already has rather than adding one.
         */}
-        <div className="hidden shrink-0 items-center gap-2 sm:flex" aria-hidden>
+        <div className="hidden shrink-0 items-center gap-2 sm:flex lg:hidden" aria-hidden>
           {([-1, 1] as const).map((d) => {
             const done = d === -1 ? at.start : at.end;
             return (
@@ -131,13 +131,20 @@ export function StepRail() {
         onScroll={measure}
         tabIndex={0}
         aria-label="The five steps of a hire"
-        className="-mr-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink sm:-mr-7 lg:-mr-10 [&::-webkit-scrollbar]:hidden"
+        /*
+         * A rail only while it has to be one. At `lg` every step fits, so
+         * it becomes a plain five-column grid: the bleed was meant to say
+         * "there is more", and at 1440px it said it by hiding Review
+         * completely and half of Receive — the two steps that explain what
+         * happens to a buyer's money after they pay.
+         */
+        className="-mr-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink sm:-mr-7 lg:mr-0 lg:grid lg:grid-cols-5 lg:overflow-x-visible lg:pb-0 [&::-webkit-scrollbar]:hidden"
       >
         {STEPS.map((item, i) => (
           <li
             key={item.step}
             style={{ ['--fill' as string]: `var(--step-${i + 1})`, ['--on-fill' as string]: `var(--step-${i + 1}-ink)` }}
-            className="flex min-h-[340px] w-[78vw] max-w-[380px] shrink-0 snap-start flex-col rounded-[18px] bg-[var(--fill)] p-7 text-[var(--on-fill)] sm:w-[46vw] lg:w-[300px] xl:w-[330px]"
+            className="flex min-h-[340px] w-[78vw] max-w-[380px] shrink-0 snap-start flex-col rounded-[18px] bg-[var(--fill)] p-6 text-[var(--on-fill)] sm:w-[46vw] sm:p-7 lg:min-h-[320px] lg:w-auto lg:max-w-none lg:p-5 xl:p-6"
           >
             <div className="flex items-start justify-between gap-3">
               <span className="grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/10">
