@@ -1,5 +1,6 @@
 import { CampaignBar } from '@/features/campaign/CampaignBar';
-import { SiteFooter } from '@/shell/SiteFooter';
+import { CompactFooter, SiteFooter } from '@/shell/SiteFooter';
+import { FooterForRoute } from '@/shell/FooterForRoute';
 import { SiteHeader } from '@/shell/SiteHeader';
 import { MobileTabBar } from '@/shell/MobileTabBar';
 
@@ -11,7 +12,7 @@ export default function SiteLayout({ children, modal }: { children: React.ReactN
       <main id="main" className="min-h-[70vh]">
         {children}
       </main>
-      <SiteFooter />
+      <FooterForRoute full={<SiteFooter />} compact={<CompactFooter />} />
       <MobileTabBar />
       {modal}
     </>

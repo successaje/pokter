@@ -117,3 +117,51 @@ export function SiteFooter() {
     </footer>
   );
 }
+
+/**
+ * One line: who this is, the few links a reader is actually looking for at
+ * the bottom of a working page, and the standing disclosure.
+ *
+ * The five-column version is a destination in itself and belongs under the
+ * landing page, where somebody is deciding whether to use Pokter at all.
+ * Under a catalogue, a dossier or a job it was a second page of navigation
+ * plus a screen-high wordmark, below content the reader came for.
+ *
+ * The BNB Chain sentence stays in both. It is a statement about who
+ * operates this and who does not, and it does not get shorter because the
+ * page did.
+ */
+export function CompactFooter() {
+  const links = [
+    { href: '/how-it-works', label: 'How it works' },
+    { href: '/methodology', label: 'Methodology' },
+    { href: '/proof', label: 'Production proof' },
+    { href: '/developers', label: 'Developers' },
+    { href: '/support', label: 'Support' },
+    { href: '/terms', label: 'Terms' },
+    { href: '/privacy', label: 'Privacy' },
+  ];
+  return (
+    <footer className="mt-20 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
+      <div className="frame flex flex-col gap-5 py-8">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <Link href="/" className="inline-flex items-center gap-2 text-ink">
+            <Mark size={18} />
+            <span className="text-[15px] font-[640] tracking-[-0.03em]">Pokter</span>
+          </Link>
+          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+            {links.map((link) => (
+              <Link key={link.href} href={link.href} className="text-ink-2 hover:text-ink">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="flex flex-col gap-2 text-[12px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
+          <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
