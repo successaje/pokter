@@ -414,6 +414,28 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
+ * The scanline texture on a solid card.
+ *
+ * A flat fill at this size reads as a placeholder; the lines give it a
+ * surface without putting an image on the page. Drawn from the card's own
+ * ink so a colour change carries it, and masked away behind the text,
+ * where contrast is doing real work.
+ */
+.card-scan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--on-fill) 12%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+  -webkit-mask-image: linear-gradient(200deg, transparent 38%, black 100%);
+  mask-image: linear-gradient(200deg, transparent 38%, black 100%);
+}
+
+/*
  * The bars in the closing call-to-action's field.
  *
  * scaleY from the bottom rather than animating height: height is a layout

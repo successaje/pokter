@@ -414,26 +414,45 @@ export default async function HomePage() {
       )}
 
       {/* ───────────── Trust ───────────── */}
-      <section className="frame py-16 sm:py-20" aria-labelledby="trust-title">
-        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
-          <div className="flex flex-col gap-3 bg-paper p-6 md:col-span-1">
-            <span className="t-label">Check our work</span>
-            <h2 id="trust-title" className="text-xl font-semibold tracking-[-0.02em]">Everything Pokter says can be traced.</h2>
-          </div>
-          {[
-            { href: '/methodology', title: 'Methodology', body: 'How verdicts are computed, and the thresholds, imported from the code.' },
-            { href: '/risk', title: 'Risks and limits', body: 'What escrow protects, what it does not, and what is still testnet.' },
-            { href: '/proof', title: 'Production proof', body: 'Every escrow job, including the misses, with a verifier you can run yourself.' },
-          ].map((item) => (
-            <Link key={item.href} href={item.href} className="group flex flex-col gap-2 bg-raised p-6 transition-colors hover:bg-paper">
-              <span className="flex items-center justify-between font-medium">
-                {item.title}
-                <Icon.Arrow size={16} className="text-ink-3 transition-transform group-hover:translate-x-0.5" />
-              </span>
-              <span className="text-[13.5px] leading-relaxed text-ink-2">{item.body}</span>
-            </Link>
-          ))}
+      <section className="frame py-16 sm:py-24" aria-labelledby="trust-title">
+        <Reveal className="mb-10 flex max-w-2xl flex-col gap-3">
+          <span className="t-label">Check our work</span>
+          <h2 id="trust-title" className="t-h1">Everything Pokter says can be traced.</h2>
         </Reveal>
+        {/*
+          Three cards rather than three cells of a table. This is the one
+          section asking a reader to go and check a claim, and a row of
+          ruled rows is what people skim past — the colour is the whole
+          point of it. Fills are the rail's own tokens, so the page has one
+          palette used twice rather than two that nearly match.
+        */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[
+            { href: '/methodology', fill: 3, icon: Icon.Flask, title: 'Methodology', body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.', cta: 'Read the method' },
+            { href: '/risk', fill: 4, icon: Icon.Shield, title: 'Risks and limits', body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.', cta: 'See the limits' },
+            { href: '/proof', fill: 5, icon: Icon.Doc, title: 'Production proof', body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.', cta: 'Check the record' },
+          ].map((card, i) => (
+            <Reveal key={card.href} delay={i * 70}>
+              {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
+              <div
+                className="card-scan relative isolate flex h-full min-h-[310px] flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-7 text-[var(--on-fill)]"
+                style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
+              >
+              <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
+                <card.icon size={19} />
+              </span>
+              <h3 className="relative mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{card.title}</h3>
+              <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
+              <Link
+                href={card.href}
+                className="relative mt-auto inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px"
+              >
+                {card.cta} <Icon.ArrowUpRight size={15} />
+                </Link>
+              </div>
+            </Reveal>
+          ))}
+        </div>
         <details className="group mt-6">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
             <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
