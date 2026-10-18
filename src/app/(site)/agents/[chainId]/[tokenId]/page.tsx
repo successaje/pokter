@@ -391,22 +391,17 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     in the accessibility tree.
                   */}
                   {/*
-                    Where a hire is funded, beside the chips a reader
-                    already looks at.
-                    
-                    "Hired on", not "on": the line above says which
-                    registry the identity lives in, and the two are
-                    different chains for most of the catalogue — an agent
-                    registered on BNB Chain is hired on testnet whenever
-                    its price is in testnet $U. Repeating the bare chain
-                    name would read as the same fact twice and quietly
-                    mislead on the agents where it is not.
+                    "Hired on BNB Testnet · test tokens" was here. The hire
+                    panel says it four times over — the network row, "On
+                    BNB Testnet", "Test tokens only" and "escrowed on" —
+                    and it renders at every width, in the sidebar on wide
+                    screens and under the content on narrow ones. This chip
+                    was the fifth, in the row a reader scans first.
+
+                    It is still said somewhere a buyer cannot miss it: the
+                    panel they fund from. That was the condition for
+                    removing it, not that it was repetitive.
                   */}
-                  <span className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-medium ${p.escrow.chainId === 97 ? 'border-watch/40 bg-watch-wash text-watch' : 'border-rule-strong text-ink-2'}`}>
-                    <Icon.Lock size={13} aria-hidden />
-                    Hired on {chainLabel(p.escrow.chainId)}
-                    {p.escrow.chainId === 97 && ' · test tokens'}
-                  </span>
                 </div>
               </div>
             </div>
