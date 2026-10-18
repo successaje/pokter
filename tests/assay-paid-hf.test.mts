@@ -120,3 +120,17 @@ test('a funded health-factor fixture inside its window is pending', () => {
   const closed = gradePaidHfScenario({ account: ACCOUNT, jobId: '1460', manifestText: null, reading, readAt: READ_AT, deliveryOpen: false });
   assert.equal(closed.outcome, 'undelivered');
 });
+
+test('an answer about another wallet is wrong, even with no health factor and no time', () => {
+  // Mandate Guard-1, job 1517: it reported on its own provider wallet.
+  const manifest = JSON.stringify({ response: { content: JSON.stringify({ subject: '0x81762d5214fCB6fB3b102beF9D69d13A56c1a2d0', answer: { wallet: '0x81762d5214fCB6fB3b102beF9D69d13A56c1a2d0', venus: false, detail: 'no Venus position on this address' } }) } });
+  const r = gradePaidHfScenario({ account: ACCOUNT, jobId: '1517', manifestText: manifest, reading: { healthFactor: 1.8, borrowLimitRatio: 0.55, liquidatable: false }, readAt: READ_AT });
+  assert.equal(r.outcome, 'wrong');
+  assert.match(r.reason ?? '', /Answered about 0x81762d5214fCB6fB3b102beF9D69d13A56c1a2d0, not the account asked about/);
+});
+
+test('an answer for the right wallet with no health factor is unanswered, not set aside', () => {
+  const manifest = JSON.stringify({ response: { content: JSON.stringify({ account: ACCOUNT, note: 'position looks fine' }) } });
+  const r = gradePaidHfScenario({ account: ACCOUNT, jobId: '9', manifestText: manifest, reading: { healthFactor: 1.8, borrowLimitRatio: 0.55, liquidatable: false }, readAt: READ_AT });
+  assert.equal(r.outcome, 'unanswered');
+});

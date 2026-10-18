@@ -1,4 +1,4 @@
-import { judgeHf, readHfAnswer, type HfExpected } from './health-factor';
+import { answerAccount, judgeHf, readHfAnswer, type HfExpected } from './health-factor';
 import { answerFromManifest } from './paid-grade';
 import type { AssayScenarioResult } from './types';
 
@@ -97,7 +97,22 @@ export function gradePaidHfScenario(input: {
     return { ...base, observed: null, excerpt: null, pass: false, outcome: 'unreadable', reason: 'The delivered manifest carried no readable answer.' };
   }
 
+  const excerptOf = () => (answer.data ? JSON.stringify(answer.data).slice(0, 400) : (answer.text ?? '').slice(0, 400));
+  /*
+   * About another wallet, or with no health factor at all: neither is
+   * explained by when the position was read, so neither is excused by the
+   * timing rule below. Mandate Guard-1 answered all three fixtures about
+   * its own provider wallet ("no Venus position on this address") and was
+   * set aside as not comparable, because it gave no time and no number.
+   */
+  const about = answerAccount(answer);
+  if (about && about.toLowerCase() !== input.account.toLowerCase()) {
+    return { ...base, observed: { account: about }, excerpt: excerptOf(), pass: false, outcome: 'wrong', reason: `Answered about ${about}, not the account asked about (${input.account}).` };
+  }
   const observed = readHfAnswer(answer);
+  if (!observed) {
+    return { ...base, observed: null, excerpt: excerptOf(), pass: false, outcome: 'unanswered', reason: 'The answer gives no health factor for the account asked about.' };
+  }
   const verdict = judgeHf([input.reading], observed, { expectedAccount: input.account });
   const excerpt = answer.data ? JSON.stringify(answer.data).slice(0, 400) : (answer.text ?? '').slice(0, 400);
 
