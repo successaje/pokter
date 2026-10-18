@@ -1,18 +1,15 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 
-import type { ChainId } from '@/lib/scan/types';
-import { loadProfile } from '@/features/agent/profile';
-import { isCampaignLive } from '@/lib/campaign/window';
-import { HireFlow } from '@/features/hire/HireFlow';
-import { jobChainParam } from '@/lib/jobs/href';
-import { LinkButton } from '@/ui/Button';
-import { EmptyState } from '@/ui/Feedback';
-import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
+import { briefFromLink, HireContents } from '@/features/hire/HireContents';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Hire' };
 
+/**
+ * The hire flow as its own page: what a shared link, a refresh or "Open as
+ * a page" loads. Opened from inside the site it is intercepted and shown
+ * over the catalogue instead; both render `HireContents`.
+ */
 export default async function HirePage({
   params,
   searchParams,
@@ -20,51 +17,10 @@ export default async function HirePage({
   params: Promise<{ chainId: string; tokenId: string }>;
   searchParams: Promise<{ escrow?: string; task?: string }>;
 }) {
-  const [{ chainId: rawChain, tokenId }, { escrow, task: linkedTask }] = await Promise.all([params, searchParams]);
-  // A brief from the link, e.g. one an assistant composed through Pokter's MCP server. Prose only, and capped.
-  const initialTask = typeof linkedTask === 'string' && linkedTask.trim() ? linkedTask.trim().slice(0, 2000) : null;
-  const chainId = Number(rawChain);
-  if ((chainId !== 56 && chainId !== 97) || !/^\d{1,12}$/.test(tokenId)) notFound();
-
-  const result = await loadProfile(chainId as ChainId, tokenId, { escrow: jobChainParam(escrow) });
-  if (result.state === 'missing') notFound();
-  if (result.state === 'unreachable') {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-20">
-        <EmptyState tone="bad" title="This agent cannot be checked right now" action={<LinkButton href={`/hire/${chainId}/${tokenId}`} size="s">Try again</LinkButton>}>
-          The registry did not answer, so Pokter cannot confirm who would be paid. No hire is offered without that.
-        </EmptyState>
-      </div>
-    );
-  }
-  const p = result.profile;
-  if (!p.hireable) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-20">
-        <EmptyState title={`${p.name} cannot be hired through Pokter`} action={<><LinkButton href={`/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Back to the agent</LinkButton><LinkButton href={`/discover${p.category ? `?category=${p.category.id}&hireable=1` : '?hireable=1'}`} size="s">Hireable alternatives</LinkButton></>}>
-          No provider wallet that can receive an escrowed job was found for it. Pokter does not take payment for a job nobody can deliver.
-        </EmptyState>
-      </div>
-    );
-  }
-
+  const [{ chainId, tokenId }, { escrow, task }] = await Promise.all([params, searchParams]);
   return (
-    // Keyed on the escrow, so switching between hiring options starts the
-    // form again rather than carrying a provider chosen for the other chain.
-    <HireFlow
-      key={p.escrow.chainId}
-      agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
-      providers={p.providers}
-      signedQuoteU={p.quote && p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
-      lastSignedU={p.quote && !p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
-      suggestedU={p.suggestion?.u ?? null}
-      warnings={p.warnings}
-      escrow={p.escrow}
-      escrowOptions={p.escrowOptions}
-      declaredSkills={p.skills}
-      answeredTasks={answeredTasksFor(p.agentWallet)}
-      campaignLive={isCampaignLive()}
-      initialTask={initialTask}
-    />
+    <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-16">
+      <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} />
+    </div>
   );
 }

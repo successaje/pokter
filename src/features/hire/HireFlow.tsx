@@ -42,6 +42,8 @@ const STEPS: Array<{ id: Step; label: string }> = [
 ];
 
 export interface HireFlowProps {
+  /** Rendered inside the sheet over the catalogue: the page chrome is the sheet's. */
+  embedded?: boolean;
   agent: HireAgent & { imageUrl: string | null; key: string };
   providers: ProviderChoice[];
   signedQuoteU: number | null;
@@ -206,7 +208,7 @@ export function HireFlow(props: HireFlowProps) {
   if (done && hire.job) {
     const job = hire.job;
     return (
-      <Shell agent={props.agent} step={null} testnet={testnet}>
+      <Shell agent={props.agent} step={null} testnet={testnet} embedded={props.embedded}>
         <div className="anim-rise flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-full bg-ok-wash text-ok">
@@ -283,7 +285,7 @@ export function HireFlow(props: HireFlowProps) {
   // ── In progress ───────────────────────────────────────
   if (busy) {
     return (
-      <Shell agent={props.agent} step="pay" testnet={testnet}>
+      <Shell agent={props.agent} step="pay" testnet={testnet} embedded={props.embedded}>
         <div className="flex flex-col gap-6">
           <div>
             <h1 className="t-h2">Funding the job</h1>
@@ -303,7 +305,7 @@ export function HireFlow(props: HireFlowProps) {
   }
 
   return (
-    <Shell agent={props.agent} step={step} testnet={testnet}>
+    <Shell agent={props.agent} step={step} testnet={testnet} embedded={props.embedded}>
       <ConversionBeacon event="hire_opened" chainId={props.agent.chainId} tokenId={props.agent.tokenId} escrowChainId={escrowChainId} />
       {failure && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
@@ -805,28 +807,47 @@ function Balance({ label, value, ok, known, note }: { label: string; value: stri
   );
 }
 
-function Shell({ agent, step, testnet, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; children: React.ReactNode }) {
+/**
+ * `embedded` is the flow inside the sheet that opens over the catalogue.
+ *
+ * The page chrome goes, because the sheet is already providing all of it:
+ * a brand bar under the sheet's own title is two headers, and an "Exit"
+ * beside the sheet's close button is two ways to do one thing, one of
+ * which leaves the site. What stays is the progress bar, which the sheet
+ * has no equivalent for and which is the only thing on that header saying
+ * how far along this is.
+ */
+function Shell({ agent, step, testnet, embedded = false, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; embedded?: boolean; children: React.ReactNode }) {
   const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
+  const progress = (
+    <div className="h-0.5 bg-rule">
+      <div className="h-full bg-signal transition-[width] duration-500 ease-out" style={{ width: `${((index + (step ? 0.5 : 0)) / STEPS.length) * 100}%` }} />
+    </div>
+  );
   return (
-    <div className="min-h-dvh">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
-        Skip to content
-      </a>
-      <header className="sticky top-0 z-30 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <span className="flex items-center gap-2.5">
-            <Mark size={20} />
-            <span className="text-[15px] font-semibold">Hire</span>
-          </span>
-          <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
-            <Icon.Close size={15} /> Exit
-          </Link>
-        </div>
-        <div className="h-0.5 bg-rule">
-          <div className="h-full bg-signal transition-[width] duration-500 ease-out" style={{ width: `${((index + (step ? 0.5 : 0)) / STEPS.length) * 100}%` }} />
-        </div>
-      </header>
-      <div className="mx-auto grid grid-cols-1 max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12">
+    <div className={embedded ? undefined : 'min-h-dvh'}>
+      {!embedded && (
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
+          Skip to content
+        </a>
+      )}
+      {embedded ? (
+        <div className="sticky top-0 z-10">{progress}</div>
+      ) : (
+        <header className="sticky top-0 z-30 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
+          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+            <span className="flex items-center gap-2.5">
+              <Mark size={20} />
+              <span className="text-[15px] font-semibold">Hire</span>
+            </span>
+            <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
+              <Icon.Close size={15} /> Exit
+            </Link>
+          </div>
+          {progress}
+        </header>
+      )}
+      <div className={cn('grid grid-cols-1', embedded ? 'gap-6 pt-5' : 'mx-auto max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12')}>
         <aside className="flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={40} />
@@ -847,7 +868,7 @@ function Shell({ agent, step, testnet, children }: { agent: HireFlowProps['agent
           </ol>
           {testnet && <p className="hidden text-[12px] leading-relaxed text-ink-3 md:block">BNB testnet. $U here is a test token with no value.</p>}
         </aside>
-        <main id="main" className="min-w-0 max-w-2xl">
+        <main id={embedded ? undefined : 'main'} className="min-w-0 max-w-2xl">
           {children}
         </main>
       </div>
