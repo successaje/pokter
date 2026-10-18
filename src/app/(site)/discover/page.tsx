@@ -206,7 +206,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     )}
                   >
                     {tab.title}
-                    {tab.count !== null && <span className={cn('t-readout text-[12px]', on ? 'text-signal' : 'text-ink-3')}>{tab.count}</span>}
+                    {tab.count !== null && <span className={cn('t-readout text-[12px]', on ? 'text-ok' : 'text-ink-3')}>{tab.count}</span>}
                   </Link>
                 </li>
               );
