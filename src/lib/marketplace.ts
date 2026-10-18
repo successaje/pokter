@@ -40,6 +40,8 @@ import { isPromotableAgent } from '@/lib/agents/eligibility';
 import { capPerOwner, preferDistinctOwners } from '@/lib/agents/diversity';
 import { getAssayStore } from '@/lib/assay/store';
 import { getWalletActivityStore } from '@/lib/activity/store';
+import { getFunderStore } from '@/lib/funding/store';
+import { reviewCoordination, type Coordination } from '@/lib/proof/coordination';
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
 import type { SearchableAgent } from '@/lib/search/match';
@@ -595,6 +597,8 @@ export interface Comparison {
   check: { passed: number; total: number; status: string; ranAt: string; via: string } | null;
   /** The owner the registry reports now, which can differ from the indexer's copy. */
   currentOwner: string | null;
+  /** Whether its on-chain reviews look coordinated, from patterns in who wrote them and when. */
+  reviewPattern: Coordination;
   /** What its agent wallet has done, from the daily read: on BNB Chain, and on BNB Testnet for agents registered there. */
   walletActivity: { mainnet: WalletActivity | null; testnet: WalletActivity | null };
 }
@@ -652,6 +656,11 @@ export async function getComparison(
       return run ? { passed: run.passed, total: run.total, status: run.status, ranAt: run.ranAt, via: run.via } : null;
     })(),
     currentOwner,
+    reviewPattern: reviewCoordination(attestations, {
+      funders: getFunderStore().funders(attestations.flatMap((a) => (a.authorAddress ? [a.authorAddress] : []))),
+      owner: currentOwner ?? agent.owner_address,
+      agentWallet: agent.agent_wallet,
+    }),
     walletActivity: {
       mainnet: agent.agent_wallet ? getWalletActivityStore().get(56, agent.agent_wallet) : null,
       testnet: agent.agent_wallet && chainId === 97 ? getWalletActivityStore().get(97, agent.agent_wallet) : null,
