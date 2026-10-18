@@ -34,6 +34,7 @@ primary_region = 'iad'
   SEAL_DB_PATH = '/data/seals.db'
   WALLET_ACTIVITY_DB_PATH = '/data/wallet-activity.db'
   CAPABILITY_DB_PATH = '/data/capability.db'
+  FEEDBACK_DB_PATH = '/data/feedback.db'
   # The server schedules its own probe sweeps (src/lib/history/scheduler.ts);
   # GitHub's cron is the backup. Set only here, so no other host sweeps.
   SWEEP_SCHEDULER = 'on'

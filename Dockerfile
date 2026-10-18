@@ -65,6 +65,7 @@ ENV CONVERSION_DB_PATH=/data/conversion.db
 ENV SEAL_DB_PATH=/data/seals.db
 ENV WALLET_ACTIVITY_DB_PATH=/data/wallet-activity.db
 ENV CAPABILITY_DB_PATH=/data/capability.db
+ENV FEEDBACK_DB_PATH=/data/feedback.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs

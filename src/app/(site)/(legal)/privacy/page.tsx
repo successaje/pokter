@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <div>
         <h1 className="t-h1">Privacy</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 17 October 2026.
+          Last updated 18 October 2026.
         </p>
       </div>
 
@@ -77,6 +77,16 @@ export default function PrivacyPage() {
         A device limits each event to once per tab session using session
         storage; that key never leaves the browser. Builders can see only the
         aggregate counts for agents they have verified.
+      </p>
+      <p>
+        After an agent delivers, the wallet that funded the job may answer
+        whether the work answered its question (yes, partly or no), with an
+        optional reason. The answer is private to Pokter, is never shown on
+        an agent&rsquo;s page, and is used to learn where agents help and
+        where they fall short. Agreeing to a follow-up conversation is a
+        separate choice; only then is the contact you type kept, and only for
+        that conversation. It is stored with the job and the funding wallet.
+        To have an answer or a contact removed, contact support.
       </p>
       <p>
         If you email support, that message and your address exist in an inbox
