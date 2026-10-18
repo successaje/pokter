@@ -142,7 +142,6 @@ export function TrialNote({ className }: { className?: string }) {
  */
 export function AgentCard({ row, className, note, compare }: { row: FindRow; className?: string; note?: string | null; compare?: React.ReactNode }) {
   const status = availabilityText(row);
-  const testnetIdentity = row.chainId === 97;
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
@@ -155,16 +154,16 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
               {row.name}
             </Link>
           </h3>
+          {/*
+            The registration is said once, in the money block below, where
+            it sits beside the network a hire actually settles on — which
+            is the comparison it exists to make. A bordered chip up here
+            said the same thing a second time on every card in the
+            catalogue, in the loudest treatment on it, competing with the
+            name for a fact that is not why anyone is reading.
+          */}
           <span className="truncate text-[12.5px] text-ink-3">
             {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
-          </span>
-          <span
-            className={cn(
-              'mt-0.5 self-start rounded-[6px] border px-2 py-0.5 text-[11.5px] font-medium',
-              testnetIdentity ? 'border-watch/35 bg-watch-wash text-watch' : 'border-rule-strong text-ink-2',
-            )}
-          >
-            Registered: {chainLabel(row.chainId)}
           </span>
         </div>
       </div>
@@ -216,9 +215,11 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
         </p>
       )}
 
-      <div className="mt-auto flex flex-col gap-0.5 pt-5">
+      {/* Price, then where it settles, then where the identity lives: the
+          three facts in the order a buyer needs them. */}
+      <div className="mt-auto flex flex-col pt-5">
         {row.priceU !== null ? <PriceText row={row} className="text-[1.6rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
-        <span className="mt-1 flex flex-col gap-0.5">
+        <span className="mt-1.5 flex flex-col gap-0.5">
           <HiringLines row={row} />
         </span>
       </div>
