@@ -67,9 +67,22 @@ function Toggle({ href, on, label, hint }: { href: string; on: boolean; label: s
  * the result count and sort, on every screen size.
  */
 /** The match reason, and the other network an agent shown once is also on. */
+/**
+ * Why this agent matched, and a second registration worth knowing about.
+ *
+ * "Also on testnet" has gone. A duplicate testnet listing is not a fact a
+ * buyer acts on: it cannot be paid in anything real, the card already says
+ * which chain this listing is registered on, and where a testnet run is
+ * actually on offer the money line says "Free testnet trial" in its own
+ * words. It was on 11 cards doing none of that work.
+ *
+ * "Also on BNB Chain" stays, and the asymmetry is the point. A testnet
+ * listing that also exists on mainnet means this agent can be paid real
+ * money somewhere, which is the one direction a reader needs told.
+ */
 function withNetworks(row: { reason: string | null; alsoOn: number[] }): string | null {
-  const also = row.alsoOn.includes(97) ? 'Also on testnet' : row.alsoOn.includes(56) ? 'Also on BNB Chain' : null;
-  return [row.reason, also].filter(Boolean).join(' · ') || null;
+  const also = row.alsoOn.includes(56) ? 'Also on BNB Chain' : null;
+  return [row.reason, also].filter(Boolean).join(' \u00b7 ') || null;
 }
 
 function NetworkSwitch({ p }: { p: DiscoverParams }) {
