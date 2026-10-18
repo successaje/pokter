@@ -414,6 +414,59 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
+ * The footer wordmark, and the highlight that crosses it.
+ *
+ * `background-clip: text` rather than a colour transition, so the light
+ * travels across the letters instead of the whole word brightening at
+ * once — a word that brightens reads as a hover state, a word something
+ * passes over reads as lit. The gradient is wider than the element and
+ * moves by `background-position`, which the compositor handles.
+ *
+ * At rest the fill is a shade off the page, not ink: see FooterWordmark.
+ */
+.t-display-mark {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+}
+
+.wordmark-sweep {
+  display: inline-flex;
+  align-items: flex-end;
+  background-image: linear-gradient(
+    100deg,
+    var(--rule-strong) 0%,
+    var(--rule-strong) 38%,
+    color-mix(in oklab, var(--ink) 55%, var(--rule-strong)) 50%,
+    var(--rule-strong) 62%,
+    var(--rule-strong) 100%
+  );
+  background-size: 300% 100%;
+  background-position: 120% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wordmark-sweep.is-lit {
+    transition: background-position 1.5s cubic-bezier(0.33, 0, 0.2, 1);
+    background-position: -20% 0;
+  }
+}
+
+/* The brand's own square, which keeps its colour at rest. */
+.wordmark-dot {
+  display: inline-block;
+  width: 0.17em;
+  height: 0.17em;
+  margin-left: 0.055em;
+  margin-bottom: 0.1em;
+  border-radius: 0.035em;
+  background: var(--signal);
+}
+
+/*
  * The scanline texture on a solid card.
  *
  * A flat fill at this size reads as a placeholder; the lines give it a

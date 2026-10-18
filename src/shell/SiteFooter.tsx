@@ -1,4 +1,5 @@
 import { FooterStatus } from './FooterStatus';
+import { FooterWordmark } from './FooterWordmark';
 import Link from 'next/link';
 
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
@@ -113,6 +114,7 @@ export function SiteFooter() {
           <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
         </div>
       </div>
+      <FooterWordmark />
     </footer>
   );
 }

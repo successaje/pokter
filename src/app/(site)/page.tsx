@@ -291,37 +291,52 @@ export default async function HomePage() {
           were a dark section of their own, the one place the page changed
           palette, which made them read as a separate product.
         */}
-        <ul className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
               {
+                icon: Icon.Eye,
                 title: 'Observed beats claimed',
                 body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
                 readout: ['Every figure', 'tagged with its source'],
               },
               {
+                icon: Icon.Key,
                 title: 'Prices are signed, not listed',
-                body: 'An agent’s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
+                body: 'An agent\u2019s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
                 readout: ['Every price', 'signature checked'],
               },
               {
+                icon: Icon.Lock,
                 title: 'One escrow, no standing access',
                 body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
-                readout: ['Standing wallet permissions', 'none, by design'],
+                readout: ['Standing permissions', 'none, by design'],
               },
               {
+                icon: Icon.Shield,
                 title: 'Delivery you can verify',
                 body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it while you can still dispute, and you reclaim if nothing arrives.',
                 readout: ['Every delivery', 'hash checked first'],
               },
-          ].map((item) => (
-            <li key={item.title} className="flex flex-col gap-3 bg-raised p-5">
-              <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{item.title}</h3>
-              <p className="text-[13px] leading-relaxed text-ink-2">{item.body}</p>
-              <p className="mt-auto flex items-center gap-1.5 text-[12px] text-ink-3">
-                <span className="tile" aria-hidden />
-                {item.readout[0]}: <span className="text-ink">{item.readout[1]}</span>
-              </p>
-            </li>
+          ].map((item, i) => (
+            <Reveal as="li" key={item.title} delay={i * 70} className="group flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+              {/*
+                The rule on top, the thing it guarantees at the bottom, and
+                the guarantee set in the readout face — it is the part a
+                sceptical reader checks, and it was the smallest line here.
+              */}
+              <span className="grid size-9 place-items-center rounded-[10px] bg-sunken text-ink-2 transition-colors group-hover:text-ink">
+                <item.icon size={17} />
+              </span>
+              <h3 className="mt-4 text-[15.5px] font-semibold tracking-[-0.015em]">{item.title}</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.body}</p>
+              <span className="mt-5 flex flex-col gap-1 border-t border-rule pt-3.5">
+                <span className="t-label text-ink-3">{item.readout[0]}</span>
+                <span className="t-readout flex items-center gap-1.5 text-[13px] text-ink">
+                  <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-hidden />
+                  {item.readout[1]}
+                </span>
+              </span>
+            </Reveal>
           ))}
         </ul>
       </section>
@@ -344,28 +359,45 @@ export default async function HomePage() {
             </div>
           </Reveal>
           <Reveal delay={100}>
-            <div className="overflow-hidden rounded-[18px] border border-rule bg-paper">
-              <div className="flex items-center justify-between border-b border-rule px-5 py-3">
+            <div className="overflow-hidden rounded-[18px] border border-rule bg-paper shadow-lift">
+              <div className="flex items-center justify-between border-b border-rule bg-sunken/50 px-5 py-3.5">
                 <span className="t-label">Publishing checklist</span>
-                <span className="text-[11px] text-ink-3">What Studio checks</span>
+                <span className="t-readout text-[11px] text-ink-3">5 checks</span>
               </div>
-              <ol className="ruled px-5">
+              {/*
+                A rail rather than five ruled rows. These are stages of one
+                thing — an agent is not hireable until the last — and rows
+                of equal weight said five unrelated requirements.
+              */}
+              <ol className="relative flex flex-col gap-0 px-5 py-4">
+                <span className="absolute left-[calc(1.25rem+13px)] top-9 bottom-9 w-px bg-rule" aria-hidden />
                 {[
-                  ['ERC-8004 identity', 'Registered, and owned by your wallet'],
-                  ['Agent card', 'Resolvable, with a category and skills'],
-                  ['Endpoint', 'Answers an A2A or MCP handshake'],
-                  ['Signed quote', 'Price signed by the agent’s wallet'],
-                  ['Delivery', 'Commits a hash for each funded job'],
-                ].map(([title, detail], i) => (
-                  <li key={title} className="flex items-center gap-4 py-3.5">
-                    <span className="t-readout grid size-7 shrink-0 place-items-center rounded-full border border-rule-strong text-[11px] text-ink-3">{i + 1}</span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="text-sm font-medium">{title}</span>
-                      <span className="text-[12.5px] text-ink-3">{detail}</span>
-                    </span>
-                  </li>
-                ))}
+                  [Icon.Key, 'ERC-8004 identity', 'Registered, and owned by your wallet'],
+                  [Icon.Doc, 'Agent card', 'Resolvable, with a category and skills'],
+                  [Icon.Plug, 'Endpoint', 'Answers an A2A or MCP handshake'],
+                  [Icon.Spark, 'Signed quote', 'Price signed by the agent\u2019s wallet'],
+                  [Icon.Send, 'Delivery', 'Commits a hash for each funded job'],
+                ].map(([Glyph, title, detail], i) => {
+                  const Node = Glyph as typeof Icon.Key;
+                  return (
+                    <li key={title as string} className="group relative flex items-start gap-4 py-3">
+                      <span className="relative z-10 grid size-[27px] shrink-0 place-items-center rounded-full border border-rule-strong bg-paper text-ink-3 transition-colors group-hover:border-ink group-hover:text-ink">
+                        <Node size={13} />
+                      </span>
+                      <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+                        <span className="flex items-baseline gap-2 text-sm font-medium">
+                          {title as string}
+                          <span className="t-readout text-[10.5px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                        </span>
+                        <span className="text-[12.5px] leading-snug text-ink-3">{detail as string}</span>
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
+              <p className="border-t border-rule px-5 py-3 text-[12px] leading-relaxed text-ink-3">
+                Studio runs all five against your endpoint before you register, and again on every sweep after.
+              </p>
             </div>
           </Reveal>
         </div>
