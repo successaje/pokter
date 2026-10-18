@@ -2,6 +2,7 @@ import 'server-only';
 
 import { CATEGORIES, type Category } from '@/lib/agents/categories';
 import { isFeaturableAgent } from '@/lib/agents/eligibility';
+import { mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { getJobStore } from '@/lib/erc8183/store';
 import { findRows, type FindRow } from '@/lib/find/rows';
@@ -171,8 +172,25 @@ export async function loadHome(): Promise<HomeData> {
     // guess, and leading with it made the strip look like a list of maybes.
     // Then delivered work, then probe rate.
     .sort((a, b) => Number(b.priceU !== null) - Number(a.priceU !== null) || b.paid.completed - a.paid.completed || (b.rate ?? 0) - (a.rate ?? 0));
+  /*
+   * One row per agent, its mainnet registration, the rule Discover already
+   * uses. Sorting first and grouping after is what keeps both halves of it:
+   * an agent is ranked by its best registration — the testnet twin, which
+   * holds all the delivery history — and shown as its mainnet one.
+   *
+   * Without this the strip read "Test tokens · BNB Testnet" on all four
+   * cards under a hero saying "Live on BNB Chain Mainnet", because every
+   * mainnet listing starts with no completed jobs and lost the sort to its
+   * own twin. `distinct.ts` names this failure; only Discover was fixed.
+   */
+  const { items: oneEach } = mainnetFirstPerAgent(hireable, (row) => ({
+    owner_address: row.owner,
+    name: row.name,
+    chain_id: row.chainId,
+    token_id: row.tokenId,
+  }));
   const owners = new Set<string>();
-  const featured = hireable.filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true))).slice(0, 4);
+  const featured = oneEach.filter((row) => (owners.has(row.owner) ? false : (owners.add(row.owner), true))).slice(0, 4);
 
   const outcomes = CATEGORIES.map((category) => {
     const top = outcomeShortlist(entries, category.id, 3).map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!);
