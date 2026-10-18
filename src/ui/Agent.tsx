@@ -78,16 +78,22 @@ export function AgentAvatar({
   if (!status) return image;
   const dot = ANSWER_DOT[status];
   /* The ring is the page behind it, so the dot reads as sitting on the
-     picture rather than inside it, and stays legible on a dark avatar. */
+     picture rather than inside it, and stays legible on a dark avatar.
+     Hung a little past the corner because the avatar is a rounded square:
+     flush against it, the corner radius cuts the dot and it reads as
+     damage rather than as a badge. */
   const diameter = Math.max(8, Math.round(size * 0.24));
+  /* `flex`, not `inline-flex`: an inline wrapper sits on the text baseline
+     and carries the descender gap with it, which made the ring one card
+     variant draws around the avatar 54x61 — a visible oval. */
   return (
-    <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
+    <span className="relative flex shrink-0" style={{ width: size, height: size }}>
       {image}
       <span
         role="img"
         aria-label={dot.label}
         title={dot.label}
-        className={cn('absolute bottom-0 right-0 rounded-full ring-2 ring-paper', dot.className)}
+        className={cn('absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-paper', dot.className)}
         style={{ width: diameter, height: diameter }}
       />
     </span>

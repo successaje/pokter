@@ -145,9 +145,11 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
-        <span className="shrink-0 rounded-full p-[3px] ring-1 ring-rule-strong">
-          <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
-        </span>
+        {/* No ring. It was a circle drawn around a rounded square, which
+            left four corners reaching for it, and the answer dot then had
+            to sit on the ring itself. The dot is the accent now, and the
+            three card variants finally draw the avatar the same way. */}
+        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
             <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
