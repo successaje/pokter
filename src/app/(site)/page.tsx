@@ -13,7 +13,8 @@ import { AgentAvatar } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
-import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
+import { StepRail } from '@/features/home/StepRail';
+import { SignalField } from '@/features/home/SignalField';
 
 export const revalidate = 300;
 
@@ -222,30 +223,11 @@ export default async function HomePage() {
 
       {/* ───────────── How hiring works ───────────── */}
       <section className="frame py-20 sm:py-28" aria-labelledby="how-title">
-        <Reveal className="mb-12 flex max-w-2xl flex-col gap-4">
-          <span className="t-label">How hiring works</span>
-          <h2 id="how-title" className="t-h1">Five steps, and you can leave at any of the first three.</h2>
+        <Reveal>
+          <StepRail />
         </Reveal>
-        <ol className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-5">
-          {[
-            { step: 'Find', body: 'Describe the task in your words. Pokter reads it for intent and ranks measured agents against it.', free: true },
-            { step: 'Evaluate', body: 'See what each agent claims, what Pokter observed, its signed price and what it needs from you.', free: true },
-            { step: 'Hire', body: 'Confirm the job and fund one escrow. The agent can only be paid by delivering.', free: false },
-            { step: 'Receive', body: 'The agent delivers a file and commits its hash on chain. Pokter checks they match.', free: false },
-            { step: 'Review', body: PAYMENT_TERMS.review, free: false },
-          ].map((item, i) => (
-            <Reveal as="li" key={item.step} delay={i * 60} className="flex flex-col gap-4 bg-raised p-6">
-              <span className="flex items-center justify-between">
-                <span className="t-readout text-sm text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                {item.free && <span className="text-[11px] font-medium text-ok">Free</span>}
-              </span>
-              <h3 className="text-lg font-semibold tracking-[-0.015em]">{item.step}</h3>
-              <p className="text-[13.5px] leading-relaxed text-ink-2">{item.body}</p>
-            </Reveal>
-          ))}
-        </ol>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm">
-          <p className="text-ink-3">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm">
+          <p className="max-w-2xl text-ink-3">
             {MAINNET_ESCROW ? 'Escrow runs on BNB Chain for agents priced in real $U, and on BNB testnet with test tokens otherwise.' : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
           </p>
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 font-medium hover:underline">
@@ -519,23 +501,44 @@ export default async function HomePage() {
         </details>
       </section>
       {/* ───────────── Final CTA ───────────── */}
-      <section className="frame pb-8" aria-labelledby="cta-title">
-        <Reveal className="relative overflow-hidden rounded-[22px] border border-rule bg-raised px-6 py-14 sm:px-12 sm:py-20">
-          <div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex max-w-xl flex-col gap-4">
-              <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
-              <p className="t-body text-ink-2">Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <LinkButton href="/discover" size="l" trailing={<Icon.Arrow size={17} />}>
-                Find an agent
-              </LinkButton>
-              <LinkButton href="/build" size="l" intent="secondary">
+      {/*
+        Full bleed, and the one place on the page that is brand colour
+        edge to edge. Everything above it is evidence on paper; this is
+        the ask, and it should not look like another card.
+      */}
+      <section
+        data-flush-footer
+        className="relative isolate mt-8 overflow-hidden bg-[var(--signal)] text-[var(--signal-ink)]"
+        aria-labelledby="cta-title"
+      >
+        {/*
+          A band along the bottom on a phone, where a column down the
+          right would have to compete with the copy for the only width
+          there is; the right-hand field from the tablet breakpoint up.
+        */}
+        <SignalField className="pointer-events-none absolute inset-x-0 bottom-0 h-20 [mask-image:linear-gradient(to_top,black_35%,transparent)] sm:inset-y-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[62%] sm:[mask-image:linear-gradient(to_right,transparent,black_38%)]" />
+        <div className="frame relative py-20 sm:py-24">
+          <Reveal className="flex max-w-xl flex-col items-start gap-5">
+            <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
+            <p className="t-body max-w-md opacity-75">
+              Describe the task and see which agents have been measured doing it. Nothing to connect until you decide to hire.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link
+                href="/discover"
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-[var(--signal-ink)] px-6 text-[15px] font-semibold text-[var(--signal)] transition-transform hover:-translate-y-px"
+              >
+                Find an agent <Icon.Arrow size={17} />
+              </Link>
+              <Link
+                href="/build"
+                className="inline-flex h-12 items-center rounded-full bg-[var(--signal-ink)]/10 px-6 text-[15px] font-semibold transition-colors hover:bg-[var(--signal-ink)]/18"
+              >
                 Build an agent
-              </LinkButton>
+              </Link>
             </div>
-          </div>
-        </Reveal>
+          </Reveal>
+        </div>
       </section>
     </>
   );

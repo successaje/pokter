@@ -47,6 +47,27 @@
   --none: #63625b;
   --none-wash: #e6e3db;
 
+  /*
+   * The five hiring steps, each its own card.
+   *
+   * Not semantic colours — the "Free" badge carries that. These exist so
+   * the five steps read as five distinct things at a glance rather than as
+   * one striped table, which is what the equal-width grid made of them.
+   * Every fill ships with the ink that belongs on it, because a card whose
+   * text colour is chosen somewhere else is a contrast bug waiting for the
+   * next palette change.
+   */
+  --step-1: #f0b90b;
+  --step-1-ink: #16171a;
+  --step-2: #cdd7e0;
+  --step-2-ink: #16171a;
+  --step-3: #176b63;
+  --step-3-ink: #f1f6f5;
+  --step-4: #8a4a1c;
+  --step-4-ink: #f8efe6;
+  --step-5: #2f4075;
+  --step-5-ink: #eef1f8;
+
   --shadow-lift: 0 1px 0 rgb(22 23 26 / 0.04), 0 12px 32px -12px rgb(22 23 26 / 0.18);
   --shadow-float: 0 1px 0 rgb(22 23 26 / 0.05), 0 24px 64px -20px rgb(22 23 26 / 0.32);
 
@@ -82,6 +103,16 @@
   --bad-wash: #331c19;
   --none: #95938b;
   --none-wash: #232427;
+  --step-1: #f0b90b;
+  --step-1-ink: #16171a;
+  --step-2: #d8dde3;
+  --step-2-ink: #16171a;
+  --step-3: #1f7d74;
+  --step-3-ink: #f1f6f5;
+  --step-4: #9d5724;
+  --step-4-ink: #f8efe6;
+  --step-5: #3c5293;
+  --step-5-ink: #eef1f8;
   --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
   --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
   color-scheme: dark;
@@ -109,6 +140,16 @@
     --bad-wash: #331c19;
     --none: #95938b;
     --none-wash: #232427;
+    --step-1: #f0b90b;
+    --step-1-ink: #16171a;
+    --step-2: #d8dde3;
+    --step-2-ink: #16171a;
+    --step-3: #1f7d74;
+    --step-3-ink: #f1f6f5;
+    --step-4: #9d5724;
+    --step-4-ink: #f8efe6;
+    --step-5: #3c5293;
+    --step-5-ink: #eef1f8;
     --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
     --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
     color-scheme: dark;
@@ -354,6 +395,54 @@ img { max-width: 100%; }
 .anim-rise { animation: rise 520ms var(--ease-out) both; }
 .anim-fade { animation: fade 360ms var(--ease-out) both; }
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+/*
+ * A full-bleed section that ends a page meets the footer directly.
+ *
+ * The footer carries `mt-24` because almost every page ends on a card
+ * floating on paper, and that gap is what keeps it from crowding one.
+ * A band that runs edge to edge is the opposite case: the gap reads as a
+ * strip of the wrong colour between two things that should touch.
+ *
+ * Scoped with :has() rather than by dropping the footer's margin, so the
+ * default still holds for every page that wants it, and so the opt-in
+ * sits on the section asking for it. Where :has() is unsupported this
+ * does nothing and the gap stays, which is the old behaviour.
+ */
+main:has(> [data-flush-footer]:last-child) + footer {
+  margin-top: 0;
+}
+
+/*
+ * The bars in the closing call-to-action's field.
+ *
+ * scaleY from the bottom rather than animating height: height is a layout
+ * property and eighty-eight of them re-laying out every frame is work the
+ * compositor can do for free. Each bar carries its own --lo, --hi,
+ * duration and a negative delay, so the field starts mid-motion instead
+ * of every bar rising from the same instant.
+ */
+.signal-bar {
+  transform-origin: bottom;
+  /*
+   * Rest at full height, so a reader who asked for no motion gets the
+   * field at the heights it was drawn with rather than frozen at the
+   * bottom of a swing it will never take.
+   */
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .signal-bar {
+    animation-name: signal-bar;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+}
+@keyframes signal-bar {
+  from { transform: scaleY(var(--lo, 0.5)); }
+  to { transform: scaleY(var(--hi, 1)); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
