@@ -40,3 +40,22 @@ export function gradedAsUndeliveredSinceDelivered(
   for (const job of jobs) if (job.status === 'SUBMITTED' || job.status === 'COMPLETED') delivered.add(job.jobId);
   return results.some((result) => result.outcome === 'undelivered' && result.jobId != null && delivered.has(result.jobId));
 }
+
+/**
+ * A delivery Pokter fetched that does not hash to what the job committed
+ * on chain. Graded as unreadable, and counted: a buyer cannot verify what
+ * they were given. Worded as the fact it is, not as a judgement of intent.
+ */
+export function mismatchRow(scenario: string, job: Pick<HiredJob, 'jobId'>, mismatch: { servedHash: string; chainHash: string }): AssayScenarioResult {
+  return {
+    scenario,
+    jobId: job.jobId,
+    expected: { deliverable: mismatch.chainHash },
+    observed: { served: mismatch.servedHash },
+    excerpt: null,
+    pass: false,
+    outcome: 'unreadable',
+    reason: `Delivered, but the file at its link does not match the hash the job committed on chain (served ${mismatch.servedHash.slice(0, 10)}…, committed ${mismatch.chainHash.slice(0, 10)}…), so it cannot be verified or graded.`,
+    latencyMs: null,
+  };
+}

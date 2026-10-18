@@ -45,6 +45,12 @@ function db(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_delivery_challenges_job
       ON delivery_challenges (job_id, expires_at DESC);
+    CREATE TABLE IF NOT EXISTS deliverable_mismatches (
+      job_id      TEXT PRIMARY KEY,
+      served_hash TEXT NOT NULL,
+      chain_hash  TEXT NOT NULL,
+      checked_at  TEXT NOT NULL
+    );
   `);
   return database;
 }
@@ -128,4 +134,34 @@ export function consumeDeliveryChallenge(id: string): boolean {
     WHERE id=? AND consumed_at IS NULL AND expires_at>?`).run(
     new Date().toISOString(), id, new Date().toISOString(),
   ).changes === 1;
+}
+
+/*
+ * A delivery Pokter fetched whose bytes did not hash to what the job
+ * committed on chain. Kept so the grader can say exactly that, rather
+ * than waiting for a delivery it will never be able to accept. Cleared
+ * when a matching copy is stored later (the agent fixed what it serves).
+ */
+export interface DeliverableMismatch {
+  jobId: string;
+  servedHash: string;
+  chainHash: string;
+  checkedAt: string;
+}
+
+export function recordDeliverableMismatch(m: DeliverableMismatch): void {
+  db()
+    .prepare('INSERT OR REPLACE INTO deliverable_mismatches (job_id, served_hash, chain_hash, checked_at) VALUES (?, ?, ?, ?)')
+    .run(m.jobId, m.servedHash, m.chainHash, m.checkedAt);
+}
+
+export function readDeliverableMismatch(jobId: string): DeliverableMismatch | null {
+  const row = db().prepare('SELECT job_id, served_hash, chain_hash, checked_at FROM deliverable_mismatches WHERE job_id = ?').get(jobId) as
+    | { job_id: string; served_hash: string; chain_hash: string; checked_at: string }
+    | undefined;
+  return row ? { jobId: row.job_id, servedHash: row.served_hash, chainHash: row.chain_hash, checkedAt: row.checked_at } : null;
+}
+
+export function clearDeliverableMismatch(jobId: string): void {
+  db().prepare('DELETE FROM deliverable_mismatches WHERE job_id = ?').run(jobId);
 }

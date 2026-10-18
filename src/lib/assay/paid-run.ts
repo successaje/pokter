@@ -7,7 +7,7 @@ const V3_SAMPLE_SIZE = 3;
 
 import type { HiredJob } from '@/lib/erc8183/types';
 
-import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
+import { deliverableKey, readDeliverable, readDeliverableMismatch } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 
 import { STATIC_SUITES, type StaticAssayCategory } from './category-suites';
@@ -20,7 +20,7 @@ import { readVenusPosition, venusClient } from './venus';
 import { gradePaidScenario } from './paid-grade';
 import { getAssayStore } from './store';
 import type { AssayRun, AssayScenarioResult } from './types';
-import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered } from './awaiting-capture';
+import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered, mismatchRow } from './awaiting-capture';
 
 /**
  * A correctness check assembled from the agent's own paid deliveries.
@@ -131,6 +131,8 @@ export function gradePaidCategoryCheck(
      * by the wrong chain would find nothing and grade it undelivered.
      */
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    const mismatch = stored ? null : readDeliverableMismatch(deliverableKey(job.chainId, job.jobId));
+    if (mismatch) return mismatchRow(scenario.id, job, mismatch);
     if (awaitingCapture(job, stored)) return awaitingRow(scenario.id, job);
     return gradePaidScenario({
       scenario,
@@ -189,6 +191,11 @@ export async function gradePaidHealthFactorCheck(
   for (const [account, job] of fixtures) {
     const reading = await readVenusPosition(client, account as Address).catch(() => null);
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    const mismatch = stored ? null : readDeliverableMismatch(deliverableKey(job.chainId, job.jobId));
+    if (mismatch) {
+      graded.push(mismatchRow(account, job, mismatch));
+      continue;
+    }
     if (awaitingCapture(job, stored)) {
       graded.push(awaitingRow(account, job));
       continue;
@@ -214,7 +221,15 @@ export async function gradePaidHealthFactorCheck(
   const pending = graded.filter((result) => result.outcome === 'pending').length;
   const moved = graded.filter((result) => result.outcome === 'not-comparable').length;
   const comparable = graded.filter((result) => result.outcome !== 'not-comparable' && result.outcome !== 'pending');
-  if (comparable.length === 0) {
+  /*
+   * Nothing to score yet is only a reason to wait while a delivery may
+   * still arrive. Once every fixture is in and none can be scored (each
+   * delivered against a position that has since moved), that is the
+   * result and it is recorded, rows and reasons included. Waiting instead
+   * left the previous run current, and that run said "undelivered" about
+   * work that had been delivered.
+   */
+  if (comparable.length === 0 && pending > 0) {
     return { state: 'incomplete', hired: fixtures.size, total: fixtures.size, missing: graded.map((result) => result.scenario) };
   }
 
@@ -355,6 +370,11 @@ export async function gradePaidV3Check(
   for (const [account, job] of fixtures) {
     const reading = await readV3Positions(client, account as Address).catch(() => null);
     const stored = readDeliverable(deliverableKey(job.chainId, job.jobId));
+    const mismatch = stored ? null : readDeliverableMismatch(deliverableKey(job.chainId, job.jobId));
+    if (mismatch) {
+      graded.push(mismatchRow(`delivery (job ${job.jobId})`, job, mismatch));
+      continue;
+    }
     if (awaitingCapture(job, stored)) {
       graded.push(awaitingRow(`delivery (job ${job.jobId})`, job));
       continue;
@@ -373,7 +393,8 @@ export async function gradePaidV3Check(
   const pending = graded.filter((r) => r.outcome === 'pending').length;
   const aside = graded.filter((r) => r.outcome === 'not-comparable').length;
   const scored = graded.filter((r) => r.outcome !== 'pending' && r.outcome !== 'not-comparable');
-  if (scored.length === 0) {
+  // As for health factor: wait only while a delivery may still arrive (see above).
+  if (scored.length === 0 && pending > 0) {
     return { state: 'incomplete', hired: fixtures.size, total: fixtures.size, missing: graded.map((r) => r.scenario) };
   }
 

@@ -58,6 +58,8 @@ function answerOf(observed: unknown): string {
 function summary(run: AssayRun): { text: string; tone: 'ok' | 'watch' | 'bad' | 'none' } {
   if (run.status === 'not-askable') return { text: `Could not be checked. ${run.detail ?? ''}`.trim(), tone: 'none' };
   if (run.status === 'paid-only') return { text: 'Not checked by a direct call: this agent answers one with a price and does the work once paid. Pokter checks these by hiring the published positions and grading what is delivered; that has not been done for this agent yet.', tone: 'none' };
+  // Every position delivered against had moved too far to compare: a result, but not a score either way.
+  if (run.total === 0) return { text: `${run.detail ?? 'Delivered, but none of it could be scored.'}`, tone: 'none' };
   const borrowLimit = run.results.filter((r) => r.outcome === 'borrow-limit').length;
   const text = `Matched Venus on ${run.passed} of ${run.total} live position${run.total === 1 ? '' : 's'}${borrowLimit ? `; ${borrowLimit} answered with the borrowing-limit ratio instead` : ''}.`;
   return { text, tone: run.passed === run.total ? 'ok' : run.results.some((r) => r.outcome === 'wrong') ? 'bad' : 'watch' };
