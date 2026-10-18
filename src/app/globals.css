@@ -47,6 +47,27 @@
   --none: #63625b;
   --none-wash: #e6e3db;
 
+  /*
+   * The five hiring steps, each its own card.
+   *
+   * Not semantic colours — the "Free" badge carries that. These exist so
+   * the five steps read as five distinct things at a glance rather than as
+   * one striped table, which is what the equal-width grid made of them.
+   * Every fill ships with the ink that belongs on it, because a card whose
+   * text colour is chosen somewhere else is a contrast bug waiting for the
+   * next palette change.
+   */
+  --step-1: #f0b90b;
+  --step-1-ink: #16171a;
+  --step-2: #cdd7e0;
+  --step-2-ink: #16171a;
+  --step-3: #176b63;
+  --step-3-ink: #f1f6f5;
+  --step-4: #8a4a1c;
+  --step-4-ink: #f8efe6;
+  --step-5: #2f4075;
+  --step-5-ink: #eef1f8;
+
   --shadow-lift: 0 1px 0 rgb(22 23 26 / 0.04), 0 12px 32px -12px rgb(22 23 26 / 0.18);
   --shadow-float: 0 1px 0 rgb(22 23 26 / 0.05), 0 24px 64px -20px rgb(22 23 26 / 0.32);
 
@@ -82,6 +103,16 @@
   --bad-wash: #331c19;
   --none: #95938b;
   --none-wash: #232427;
+  --step-1: #f0b90b;
+  --step-1-ink: #16171a;
+  --step-2: #d8dde3;
+  --step-2-ink: #16171a;
+  --step-3: #1f7d74;
+  --step-3-ink: #f1f6f5;
+  --step-4: #9d5724;
+  --step-4-ink: #f8efe6;
+  --step-5: #3c5293;
+  --step-5-ink: #eef1f8;
   --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
   --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
   color-scheme: dark;
@@ -109,6 +140,16 @@
     --bad-wash: #331c19;
     --none: #95938b;
     --none-wash: #232427;
+    --step-1: #f0b90b;
+    --step-1-ink: #16171a;
+    --step-2: #d8dde3;
+    --step-2-ink: #16171a;
+    --step-3: #1f7d74;
+    --step-3-ink: #f1f6f5;
+    --step-4: #9d5724;
+    --step-4-ink: #f8efe6;
+    --step-5: #3c5293;
+    --step-5-ink: #eef1f8;
     --shadow-lift: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.6);
     --shadow-float: 0 1px 0 rgb(0 0 0 / 0.4), 0 24px 64px -20px rgb(0 0 0 / 0.8);
     color-scheme: dark;
