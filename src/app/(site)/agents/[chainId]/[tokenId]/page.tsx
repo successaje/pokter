@@ -30,6 +30,8 @@ import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { ConversionBeacon } from '@/features/conversion/ConversionBeacon';
 import { isHouseAgent } from '@/lib/house/wallets';
 import { BackToResults } from '@/features/discover/ReturnToResults';
+import { agentJsonLd } from '@/lib/seo/agent-jsonld';
+import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,8 +169,31 @@ export default async function AgentPage({ params, searchParams }: { params: Para
   const templates = declaredTemplates.length > 0 ? declaredTemplates : commissionTaskTemplates(p.category?.id ?? 'unclassified');
   const explorer = explorerBaseFor(p.chainId);
 
+  /*
+   * The only page that says what a particular agent is, and until now the
+   * only one a machine could not read as anything but prose. See
+   * `agentJsonLd` for what is deliberately left out of it.
+   */
+  const jsonLd = agentJsonLd(siteUrl(), {
+    name: p.name,
+    summary: p.summary,
+    chainId: p.chainId,
+    tokenId: p.tokenId,
+    owner: p.owner,
+    imageUrl: p.imageUrl,
+    categoryLabel: p.category?.label ?? null,
+    record: { totalProbes: p.record.totalProbes, totalAnswered: p.record.totalAnswered },
+    quote: p.quote
+      ? { priceU: p.quote.priceU, currency: p.quote.currency, expiresAt: p.quote.expiresAt, payable: p.quote.payable }
+      : null,
+  });
+
   return (
     <div className="pb-32 lg:pb-0">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+      />
       <ConversionBeacon event="listing_viewed" chainId={p.chainId} tokenId={p.tokenId} />
       {/* Identity band */}
       <div className="border-b border-rule bg-raised/50">
