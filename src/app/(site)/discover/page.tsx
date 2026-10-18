@@ -10,6 +10,7 @@ import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
+import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { FilterBar, Filters } from '@/features/discover/FilterBar';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -311,6 +312,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             </ul>
           </section>
         )}
+
+        <CatalogueTools />
       </div>
       <CompareTray />
     </div>

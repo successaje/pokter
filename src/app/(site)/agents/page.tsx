@@ -7,6 +7,7 @@ import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/D
 import { FilterBar, Filters } from '@/features/discover/FilterBar';
 import { discoverHref, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
+import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { shareMetadata } from '@/lib/og/share';
 import { EmptyState } from '@/ui/Feedback';
@@ -109,6 +110,8 @@ export default async function AllAgentsPage({ searchParams }: { searchParams: Pr
             </ul>
           </section>
         )}
+
+        <CatalogueTools />
       </div>
       <CompareTray />
     </div>
