@@ -192,24 +192,22 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       </header>
 
       {!p.q && activeFilters === 0 && (
-        <section aria-labelledby="collections-title" className="mt-8">
-          <h2 id="collections-title" className="t-label mb-3">
+        <section aria-labelledby="collections-title" className="mt-6 flex items-center gap-3">
+          <h2 id="collections-title" className="t-label shrink-0">
             Collections
           </h2>
-          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* One row to pick from, scrolling sideways on a phone; the note is the tooltip. */}
+          <ul className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
             {[
               { href: discoverHref({ hireable: true }, base), title: 'Hireable now', note: 'Answering and payable through escrow', count: result.collections.hireable },
               { href: discoverHref({ priced: true }, base), title: 'Signed a price', note: 'Price signed by the agent’s wallet', count: result.collections.priced },
               { href: discoverHref({ answering: true }, base), title: 'Answered this week', note: 'Replied to a Pokter probe in 7 days', count: result.collections.answering },
               { href: discoverHref({ evidence: 'corroborated' }, base), title: 'Attested by others', note: 'Has published on-chain attestations', count: result.collections.corroborated },
             ].map((c) => (
-              <li key={c.title}>
-                <Link href={c.href} className="group flex h-full flex-col gap-1 rounded-[12px] border border-rule bg-raised p-4 transition-colors hover:border-rule-strong">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="text-[14px] font-semibold">{c.title}</span>
-                    <span className="t-readout text-[13px] text-ink-3">{c.count}</span>
-                  </span>
-                  <span className="text-[12.5px] leading-snug text-ink-3">{c.note}</span>
+              <li key={c.title} className="shrink-0">
+                <Link href={c.href} title={c.note} className="inline-flex h-9 items-center gap-2 rounded-full border border-rule bg-raised px-3.5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink">
+                  {c.title}
+                  <span className="t-readout rounded-full bg-sunken px-1.5 py-px text-[11.5px] font-normal text-ink-3">{c.count}</span>
                 </Link>
               </li>
             ))}
@@ -345,7 +343,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {shown.length < result.total && (
             <div className="mt-8 flex flex-col items-center gap-2">
               <LinkButton href={discoverHref({ pages: p.pages + 1 }, p)} intent="secondary" scroll={false}>
-                Show {Math.min(PAGE_SIZE, result.total - shown.length)} more
+                Show more
               </LinkButton>
               <span className="text-[12.5px] text-ink-3">
                 Showing {shown.length} of {result.total}
