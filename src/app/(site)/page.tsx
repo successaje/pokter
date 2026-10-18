@@ -14,7 +14,8 @@ import { LinkButton } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Reveal } from '@/ui/Reveal';
 import { StepRail } from '@/features/home/StepRail';
-import { SignalField } from '@/features/home/SignalField';
+import { LogoAssembly } from '@/features/home/LogoAssembly';
+import { Mark } from '@/shell/Logo';
 
 export const revalidate = 300;
 
@@ -291,37 +292,52 @@ export default async function HomePage() {
           were a dark section of their own, the one place the page changed
           palette, which made them read as a separate product.
         */}
-        <ul className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
               {
+                icon: Icon.Eye,
                 title: 'Observed beats claimed',
                 body: 'Every figure carries its source: measured by Pokter, attested on chain, or declared by the operator. Missing data never counts as a pass.',
                 readout: ['Every figure', 'tagged with its source'],
               },
               {
+                icon: Icon.Key,
                 title: 'Prices are signed, not listed',
-                body: 'An agent’s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
+                body: 'An agent\u2019s price exists only in a quote it signs. Pokter checks the signature against its registered wallet and discards anything else.',
                 readout: ['Every price', 'signature checked'],
               },
               {
+                icon: Icon.Lock,
                 title: 'One escrow, no standing access',
                 body: 'A hire funds one job in an ERC-8183 escrow. Nothing is granted over your wallet, so there is nothing to revoke afterwards.',
-                readout: ['Standing wallet permissions', 'none, by design'],
+                readout: ['Standing permissions', 'none, by design'],
               },
               {
+                icon: Icon.Shield,
                 title: 'Delivery you can verify',
                 body: 'The agent commits a hash of its deliverable on chain. Pokter checks the file against it while you can still dispute, and you reclaim if nothing arrives.',
                 readout: ['Every delivery', 'hash checked first'],
               },
-          ].map((item) => (
-            <li key={item.title} className="flex flex-col gap-3 bg-raised p-5">
-              <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{item.title}</h3>
-              <p className="text-[13px] leading-relaxed text-ink-2">{item.body}</p>
-              <p className="mt-auto flex items-center gap-1.5 text-[12px] text-ink-3">
-                <span className="tile" aria-hidden />
-                {item.readout[0]}: <span className="text-ink">{item.readout[1]}</span>
-              </p>
-            </li>
+          ].map((item, i) => (
+            <Reveal as="li" key={item.title} delay={i * 70} className="group flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+              {/*
+                The rule on top, the thing it guarantees at the bottom, and
+                the guarantee set in the readout face — it is the part a
+                sceptical reader checks, and it was the smallest line here.
+              */}
+              <span className="grid size-9 place-items-center rounded-[10px] bg-sunken text-ink-2 transition-colors group-hover:text-ink">
+                <item.icon size={17} />
+              </span>
+              <h3 className="mt-4 text-[15.5px] font-semibold tracking-[-0.015em]">{item.title}</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.body}</p>
+              <span className="mt-5 flex flex-col gap-1 border-t border-rule pt-3.5">
+                <span className="t-label text-ink-3">{item.readout[0]}</span>
+                <span className="t-readout flex items-center gap-1.5 text-[13px] text-ink">
+                  <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-hidden />
+                  {item.readout[1]}
+                </span>
+              </span>
+            </Reveal>
           ))}
         </ul>
       </section>
@@ -344,28 +360,45 @@ export default async function HomePage() {
             </div>
           </Reveal>
           <Reveal delay={100}>
-            <div className="overflow-hidden rounded-[18px] border border-rule bg-paper">
-              <div className="flex items-center justify-between border-b border-rule px-5 py-3">
+            <div className="overflow-hidden rounded-[18px] border border-rule bg-paper shadow-lift">
+              <div className="flex items-center justify-between border-b border-rule bg-sunken/50 px-5 py-3.5">
                 <span className="t-label">Publishing checklist</span>
-                <span className="text-[11px] text-ink-3">What Studio checks</span>
+                <span className="t-readout text-[11px] text-ink-3">5 checks</span>
               </div>
-              <ol className="ruled px-5">
+              {/*
+                A rail rather than five ruled rows. These are stages of one
+                thing — an agent is not hireable until the last — and rows
+                of equal weight said five unrelated requirements.
+              */}
+              <ol className="relative flex flex-col gap-0 px-5 py-4">
+                <span className="absolute left-[calc(1.25rem+13px)] top-9 bottom-9 w-px bg-rule" aria-hidden />
                 {[
-                  ['ERC-8004 identity', 'Registered, and owned by your wallet'],
-                  ['Agent card', 'Resolvable, with a category and skills'],
-                  ['Endpoint', 'Answers an A2A or MCP handshake'],
-                  ['Signed quote', 'Price signed by the agent’s wallet'],
-                  ['Delivery', 'Commits a hash for each funded job'],
-                ].map(([title, detail], i) => (
-                  <li key={title} className="flex items-center gap-4 py-3.5">
-                    <span className="t-readout grid size-7 shrink-0 place-items-center rounded-full border border-rule-strong text-[11px] text-ink-3">{i + 1}</span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="text-sm font-medium">{title}</span>
-                      <span className="text-[12.5px] text-ink-3">{detail}</span>
-                    </span>
-                  </li>
-                ))}
+                  [Icon.Key, 'ERC-8004 identity', 'Registered, and owned by your wallet'],
+                  [Icon.Doc, 'Agent card', 'Resolvable, with a category and skills'],
+                  [Icon.Plug, 'Endpoint', 'Answers an A2A or MCP handshake'],
+                  [Icon.Spark, 'Signed quote', 'Price signed by the agent\u2019s wallet'],
+                  [Icon.Send, 'Delivery', 'Commits a hash for each funded job'],
+                ].map(([Glyph, title, detail], i) => {
+                  const Node = Glyph as typeof Icon.Key;
+                  return (
+                    <li key={title as string} className="group relative flex items-start gap-4 py-3">
+                      <span className="relative z-10 grid size-[27px] shrink-0 place-items-center rounded-full border border-rule-strong bg-paper text-ink-3 transition-colors group-hover:border-ink group-hover:text-ink">
+                        <Node size={13} />
+                      </span>
+                      <span className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+                        <span className="flex items-baseline gap-2 text-sm font-medium">
+                          {title as string}
+                          <span className="t-readout text-[10.5px] text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                        </span>
+                        <span className="text-[12.5px] leading-snug text-ink-3">{detail as string}</span>
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
+              <p className="border-t border-rule px-5 py-3 text-[12px] leading-relaxed text-ink-3">
+                Studio runs all five against your endpoint before you register, and again on every sweep after.
+              </p>
             </div>
           </Reveal>
         </div>
@@ -414,26 +447,45 @@ export default async function HomePage() {
       )}
 
       {/* ───────────── Trust ───────────── */}
-      <section className="frame py-16 sm:py-20" aria-labelledby="trust-title">
-        <Reveal className="grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-rule bg-rule md:grid-cols-4">
-          <div className="flex flex-col gap-3 bg-paper p-6 md:col-span-1">
-            <span className="t-label">Check our work</span>
-            <h2 id="trust-title" className="text-xl font-semibold tracking-[-0.02em]">Everything Pokter says can be traced.</h2>
-          </div>
-          {[
-            { href: '/methodology', title: 'Methodology', body: 'How verdicts are computed, and the thresholds, imported from the code.' },
-            { href: '/risk', title: 'Risks and limits', body: 'What escrow protects, what it does not, and what is still testnet.' },
-            { href: '/proof', title: 'Production proof', body: 'Every escrow job, including the misses, with a verifier you can run yourself.' },
-          ].map((item) => (
-            <Link key={item.href} href={item.href} className="group flex flex-col gap-2 bg-raised p-6 transition-colors hover:bg-paper">
-              <span className="flex items-center justify-between font-medium">
-                {item.title}
-                <Icon.Arrow size={16} className="text-ink-3 transition-transform group-hover:translate-x-0.5" />
-              </span>
-              <span className="text-[13.5px] leading-relaxed text-ink-2">{item.body}</span>
-            </Link>
-          ))}
+      <section className="frame py-16 sm:py-24" aria-labelledby="trust-title">
+        <Reveal className="mb-10 flex max-w-2xl flex-col gap-3">
+          <span className="t-label">Check our work</span>
+          <h2 id="trust-title" className="t-h1">Everything Pokter says can be traced.</h2>
         </Reveal>
+        {/*
+          Three cards rather than three cells of a table. This is the one
+          section asking a reader to go and check a claim, and a row of
+          ruled rows is what people skim past — the colour is the whole
+          point of it. Fills are the rail's own tokens, so the page has one
+          palette used twice rather than two that nearly match.
+        */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[
+            { href: '/methodology', fill: 3, icon: Icon.Flask, title: 'Methodology', body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.', cta: 'Read the method' },
+            { href: '/risk', fill: 4, icon: Icon.Shield, title: 'Risks and limits', body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.', cta: 'See the limits' },
+            { href: '/proof', fill: 5, icon: Icon.Doc, title: 'Production proof', body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.', cta: 'Check the record' },
+          ].map((card, i) => (
+            <Reveal key={card.href} delay={i * 70}>
+              {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
+              <div
+                className="card-scan relative isolate flex h-full min-h-[310px] flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-7 text-[var(--on-fill)]"
+                style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
+              >
+              <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
+                <card.icon size={19} />
+              </span>
+              <h3 className="relative mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{card.title}</h3>
+              <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
+              <Link
+                href={card.href}
+                className="relative mt-auto inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px"
+              >
+                {card.cta} <Icon.ArrowUpRight size={15} />
+                </Link>
+              </div>
+            </Reveal>
+          ))}
+        </div>
         <details className="group mt-6">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
             <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
@@ -512,11 +564,11 @@ export default async function HomePage() {
         aria-labelledby="cta-title"
       >
         {/*
-          A band along the bottom on a phone, where a column down the
-          right would have to compete with the copy for the only width
-          there is; the right-hand field from the tablet breakpoint up.
+          The right half only, and never behind the copy: the artwork has
+          to be ignorable, and a reader should not be deciding which of
+          two things to look at while reading a sentence.
         */}
-        <SignalField className="pointer-events-none absolute inset-x-0 bottom-0 h-20 [mask-image:linear-gradient(to_top,black_35%,transparent)] sm:inset-y-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[62%] sm:[mask-image:linear-gradient(to_right,transparent,black_38%)]" />
+        <LogoAssembly className="pointer-events-none absolute inset-y-10 right-[4%] hidden w-[34%] max-w-[330px] sm:block" />
         <div className="frame relative py-20 sm:py-24">
           <Reveal className="flex max-w-xl flex-col items-start gap-5">
             <h2 id="cta-title" className="t-h1">Tell Pokter what you need done.</h2>
@@ -537,6 +589,11 @@ export default async function HomePage() {
                 Build an agent
               </Link>
             </div>
+            {/*
+              On a phone the artwork would be behind the copy or nowhere,
+              so it is neither: the mark itself, still, under the buttons.
+            */}
+            <Mark size={76} className="mt-10 text-[var(--signal-ink)]/80 sm:hidden" />
           </Reveal>
         </div>
       </section>

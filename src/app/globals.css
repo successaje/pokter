@@ -414,34 +414,123 @@ main:has(> [data-flush-footer]:last-child) + footer {
 }
 
 /*
- * The bars in the closing call-to-action's field.
+ * The footer wordmark, and the highlight that crosses it.
  *
- * scaleY from the bottom rather than animating height: height is a layout
- * property and eighty-eight of them re-laying out every frame is work the
- * compositor can do for free. Each bar carries its own --lo, --hi,
- * duration and a negative delay, so the field starts mid-motion instead
- * of every bar rising from the same instant.
+ * `background-clip: text` rather than a colour transition, so the light
+ * travels across the letters instead of the whole word brightening at
+ * once — a word that brightens reads as a hover state, a word something
+ * passes over reads as lit. The gradient is wider than the element and
+ * moves by `background-position`, which the compositor handles.
+ *
+ * At rest the fill is a shade off the page, not ink: see FooterWordmark.
  */
-.signal-bar {
-  transform-origin: bottom;
-  /*
-   * Rest at full height, so a reader who asked for no motion gets the
-   * field at the heights it was drawn with rather than frozen at the
-   * bottom of a swing it will never take.
-   */
-  transform: scaleY(1);
+.t-display-mark {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: -0.055em;
 }
+
+.wordmark-sweep {
+  display: inline-flex;
+  align-items: flex-end;
+  background-image: linear-gradient(
+    100deg,
+    var(--rule-strong) 0%,
+    var(--rule-strong) 38%,
+    color-mix(in oklab, var(--ink) 55%, var(--rule-strong)) 50%,
+    var(--rule-strong) 62%,
+    var(--rule-strong) 100%
+  );
+  background-size: 300% 100%;
+  background-position: 120% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .signal-bar {
-    animation-name: signal-bar;
-    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
-    animation-iteration-count: infinite;
-    animation-direction: alternate;
+  .wordmark-sweep.is-lit {
+    transition: background-position 1.5s cubic-bezier(0.33, 0, 0.2, 1);
+    background-position: -20% 0;
   }
 }
-@keyframes signal-bar {
-  from { transform: scaleY(var(--lo, 0.5)); }
-  to { transform: scaleY(var(--hi, 1)); }
+
+/* The brand's own square, which keeps its colour at rest. */
+.wordmark-dot {
+  display: inline-block;
+  width: 0.17em;
+  height: 0.17em;
+  margin-left: 0.055em;
+  margin-bottom: 0.1em;
+  border-radius: 0.035em;
+  background: var(--signal);
+}
+
+/*
+ * The scanline texture on a solid card.
+ *
+ * A flat fill at this size reads as a placeholder; the lines give it a
+ * surface without putting an image on the page. Drawn from the card's own
+ * ink so a colour change carries it, and masked away behind the text,
+ * where contrast is doing real work.
+ */
+.card-scan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--on-fill) 12%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+  -webkit-mask-image: linear-gradient(200deg, transparent 38%, black 100%);
+  mask-image: linear-gradient(200deg, transparent 38%, black 100%);
+}
+
+/*
+ * The tiles that assemble into the mark behind the closing call to action.
+ *
+ * One timeline for every tile, and 0% identical to 100%, so the loop has
+ * no seam to hide. `transform` only: 142 tiles moving by layout would be
+ * 142 reflows a frame, and this is decoration — it should cost the
+ * compositor and nothing else.
+ *
+ * The animation is declared only inside `prefers-reduced-motion:
+ * no-preference`. Without it the tiles never leave their assembled
+ * positions, which is the mark, standing still — the right thing to send
+ * a reader who asked for stillness, rather than a frozen scatter.
+ */
+.logo-tile {
+  background: var(--signal-ink);
+  border-radius: 2px;
+  transform: translate(var(--dx), var(--dy)) rotate(var(--r));
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .logo-tile.is-running {
+    animation-name: logo-assemble;
+    animation-duration: 11s;
+    animation-iteration-count: infinite;
+  }
+  /* Assembled while paused, so an off-screen section is never caught mid-scatter. */
+  .logo-tile:not(.is-running) {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-tile {
+    transform: none;
+  }
+}
+
+@keyframes logo-assemble {
+  0% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
+  26% { transform: none; }
+  62% { transform: none; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
