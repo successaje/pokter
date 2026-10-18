@@ -160,7 +160,8 @@ export function HireFlow(props: HireFlowProps) {
   const setConfirmed = (on: boolean) => setConfirmedFor(on ? terms : null);
 
   // The agent's signed price only binds when the agent itself delivers.
-  const priceFloor = hire.provider?.relationship === 'registry-agent' ? props.signedQuoteU : null;
+  // The quote signed for this brief on the way to Review wins over the listing's older one.
+  const priceFloor = hire.provider?.relationship === 'registry-agent' ? (hire.reviewQuote?.priceU ?? props.signedQuoteU) : null;
   const minBudget = Math.max(BUDGET_MIN, priceFloor ?? 0);
   const budgetError =
     priceFloor !== null && priceFloor > BUDGET_MAX
@@ -439,6 +440,16 @@ export function HireFlow(props: HireFlowProps) {
               Pokter knew both addresses the whole time. Two mainnet jobs
               were funded this way and can never be completed by anyone.
             */}
+            {/*
+              The agent's answer to this exact brief, before any wallet. The
+              brief stays as written; nothing is changed or resent for the
+              buyer. Fix it, or pick another agent, and ask again.
+            */}
+            {hire.quoteFailure && (
+              <Notice tone={hire.quoteFailure.layer === 'network' ? 'watch' : 'bad'} title={explainFailure(hire.quoteFailure.message, hire.quoteFailure.layer).title} className="w-full">
+                {hire.quoteFailure.message} Your brief is kept as you wrote it.
+              </Notice>
+            )}
             {hire.selfHire && (
               <Notice tone="bad" title="This wallet is the agent's own provider">
                 You would be paying yourself, and the escrow will not accept a delivery
@@ -451,8 +462,16 @@ export function HireFlow(props: HireFlowProps) {
             {taskIssues.length > 0 && (
               <p className="mr-auto self-center text-[12.5px] text-ink-3">To continue: {taskIssues.join('; ')}.</p>
             )}
-            <Button size="l" onClick={() => setStep('review')} disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire} trailing={<Icon.Arrow size={16} />}>
-              Review terms
+            <Button
+              size="l"
+              onClick={async () => {
+                if (await hire.prepareQuote()) setStep('review');
+              }}
+              busy={hire.quoting}
+              disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire}
+              trailing={<Icon.Arrow size={16} />}
+            >
+              {hire.quoting ? 'Asking the agent for a signed price' : 'Review terms'}
             </Button>
           </div>
         </div>
@@ -570,13 +589,21 @@ export function HireFlow(props: HireFlowProps) {
               </span>
             </div>
             <p className="text-[12.5px] text-ink-3">
-              The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.
+              {hire.reviewQuote
+                ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task. A budget below that is refused before any payment.`
+                : 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'}
             </p>
           </div>
 
           <div className="overflow-hidden rounded-[14px] border border-rule">
             <dl className="ruled bg-raised text-sm">
               {[
+                ...(hire.reviewQuote
+                  ? [[
+                      'Agent accepted',
+                      `This exact brief, for ${hire.reviewQuote.priceU} $U${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
+                    ]]
+                  : []),
                 ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and the review window passes without a successful dispute'],
