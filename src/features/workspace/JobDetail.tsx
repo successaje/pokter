@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
@@ -29,6 +29,7 @@ import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
 import { useClockThrough } from '@/lib/ui/use-moment';
 import { budgetOf, PhaseLabel } from './parts';
+import { JobAnswer } from './JobAnswer';
 import { ReviewForm } from './ReviewForm';
 import { UsefulnessQuestion } from './UsefulnessQuestion';
 import { JobUpdates } from './JobUpdates';
@@ -166,6 +167,17 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
   const delivered = phase === 'review' || (phase === 'disputed' && job.status === 'SUBMITTED');
   const answer = useSellerAnswer(job, phase === 'working');
   /*
+   * Release waits on the delivered record matching its hash on chain. With
+   * the proof now one level below the answer, the check runs by itself
+   * once a delivery is under review, and its result is the line under it.
+   */
+  const autoVerified = useRef(false);
+  useEffect(() => {
+    if (!owned || phase !== 'review' || a.receiptVerified || autoVerified.current) return;
+    autoVerified.current = true;
+    void a.verifyReceipt();
+  }, [owned, phase, a]);
+  /*
    * When the review window closes, read from the escrow: the policy's
    * window after the seller's submission. 15 minutes on testnet, 7 days on
    * mainnet, and the one date a buyer of a delivered job needs.
@@ -255,6 +267,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
         </Notice>
       )}
 
+      {/* The answer first: it is what the buyer hired the agent for. */}
+      {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && (
+        <section aria-labelledby="answer-title" className="flex flex-col gap-4 rounded-[16px] border border-rule-strong bg-raised p-5 sm:p-6">
+          <h2 id="answer-title" className="t-h3">The answer</h2>
+          <JobAnswer job={job} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
+        </section>
+      )}
+
       {/* The one thing that matters now */}
       <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -301,55 +321,7 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                 <span>{review.text}</span>
               </p>
             )}
-            {/*
-              The delivery leads; the checks support it.
-              This was a numbered two-step list in which opening the file
-              marked it reviewed. Three things were wrong with that: the
-              work was below its own paperwork, a click on a link became an
-              acknowledgement the buyer never made, and "verified" sat
-              beside "read" as though they were the same kind of fact.
-            */}
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 py-3.5">
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[14px] font-semibold">What {job.agentName} delivered</span>
-                  <span className="text-[12.5px] text-ink-3">Opening it changes nothing and commits you to nothing.</span>
-                </span>
-                {a.deliverableUrl ? (
-                  <a
-                    href={a.deliverableUrl}
-                    target="_blank"
-                    rel="noreferrer noopener nofollow"
-                    className="inline-flex shrink-0 items-center gap-1.5 text-[13.5px] font-semibold link"
-                  >
-                    Open delivery <Icon.ArrowUpRight size={14} />
-                  </a>
-                ) : (
-                  <span className="text-[13px] text-ink-3">No readable link was published</span>
-                )}
-              </div>
-
-              {/*
-                Integrity is about bytes, not quality, and the hash covers
-                the manifest. A file the manifest links to is not covered by
-                it, and saying otherwise would be the most misleading thing
-                on this page.
-              */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-rule bg-paper px-4 py-3">
-                <span className="flex min-w-0 flex-col gap-0.5 text-sm">
-                  <span className="flex items-center gap-2">
-                    {a.receiptVerified && <Icon.Check size={14} className="text-ok" aria-hidden />}
-                    {a.receiptVerified ? 'The delivered record matches the hash on chain' : 'Check the record against the hash on chain'}
-                  </span>
-                  <span className="text-[12.5px] text-ink-3">
-                    Covers the bytes of the delivered record, not any file it links to, and says nothing about whether the answer is right.
-                  </span>
-                </span>
-                <Button size="s" intent={a.receiptVerified ? 'ghost' : 'secondary'} onClick={() => void a.verifyReceipt()} busy={a.busy === 'verify'} disabled={a.receiptVerified}>
-                  {a.receiptVerified ? 'Matches' : 'Verify'}
-                </Button>
-              </div>
-
               {/*
                 An acknowledgement the buyer makes deliberately, with no
                 financial effect of its own: it does not release, waive a
@@ -421,11 +393,6 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           </div>
         )}
 
-        {(phase === 'settled' || phase === 'refunded' || phase === 'rejected') && job.deliverableUrl && a.deliverableUrl && (
-          <a href={a.deliverableUrl} target="_blank" rel="noreferrer noopener nofollow" className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium link">
-            Open the delivered file <Icon.ArrowUpRight size={14} />
-          </a>
-        )}
 
         {a.error && <Notice tone="bad">{a.error}</Notice>}
       </section>
