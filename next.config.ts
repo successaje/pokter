@@ -123,8 +123,14 @@ const nextConfig: NextConfig = {
      * does that job. Query strings are carried across by Next, so
      * `?email=verified` and `?q=` survive the move.
      */
+    /*
+     * `/agents` is no longer among them. It redirected to /discover from the
+     * previous frontend and now has a page of its own that lists the whole
+     * catalogue — which is what a link to /agents was asking for. The
+     * redirect would have shadowed it silently: the route exists, builds and
+     * renders, and every request to it is answered with a 307 somewhere else.
+     */
     const moved: Array<[string, string]> = [
-      ['/agents', '/discover'],
       ['/categories/:category', '/discover?category=:category'],
       ['/leaderboard', '/discover?sort=evidence'],
       ['/census', '/methodology'],

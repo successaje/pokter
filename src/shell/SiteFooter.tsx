@@ -132,14 +132,25 @@ export function SiteFooter() {
  * page did.
  */
 export function CompactFooter() {
+  /*
+   * Short, but not so short that something becomes unreachable. The header
+   * carries Discover, Proof, Build, How it works and Developers; everything
+   * else only ever had the footer, so cutting to a line meant deciding what
+   * a reader can still get to from a page deep in the catalogue.
+   *
+   * Rankings and the risk disclosures are here for that reason and not for
+   * balance. Neither is in the header, and a page where somebody funds an
+   * escrow is the last place to make the risk disclosures hard to find.
+   */
   const links = [
+    { href: '/agents', label: 'All agents' },
     { href: '/how-it-works', label: 'How it works' },
     { href: '/methodology', label: 'Methodology' },
-    { href: '/proof', label: 'Production proof' },
-    { href: '/developers', label: 'Developers' },
+    { href: '/rankings', label: 'Outcome rankings' },
     { href: '/support', label: 'Support' },
     { href: '/terms', label: 'Terms' },
     { href: '/privacy', label: 'Privacy' },
+    { href: '/risk', label: 'Risk' },
   ];
   return (
     <footer className="mt-20 border-t border-rule bg-sunken/60 pb-16 md:pb-0">

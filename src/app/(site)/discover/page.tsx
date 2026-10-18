@@ -5,12 +5,12 @@ import { Suspense } from 'react';
 
 import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
-import { cn } from '@/lib/ui/cn';
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
-import { discoverHref, PAGE_SIZE, parseDiscoverParams, type DiscoverParams } from '@/features/discover/params';
+import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
+import { FilterBar, Filters } from '@/features/discover/FilterBar';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
 import { escrowAvailabilityLine } from '@/lib/network/presentation';
@@ -29,36 +29,6 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-function FilterLink({ href, on, children, count }: { href: string; on: boolean; children: React.ReactNode; count?: number }) {
-  return (
-    <Link
-      href={href}
-      scroll={false}
-      aria-current={on ? 'true' : undefined}
-      className={cn(
-        'flex h-9 items-center justify-between gap-3 rounded-[8px] px-2.5 text-[13.5px] transition-colors',
-        on ? 'bg-ink font-medium text-paper' : 'text-ink-2 hover:bg-sunken hover:text-ink',
-      )}
-    >
-      <span className="flex items-center gap-2">{children}</span>
-      {count !== undefined && <span className={cn('t-readout text-[11.5px]', on ? 'text-paper/70' : 'text-ink-3')}>{count}</span>}
-    </Link>
-  );
-}
-
-function Toggle({ href, on, label, hint }: { href: string; on: boolean; label: string; hint: string }) {
-  return (
-    <Link href={href} scroll={false} role="switch" aria-checked={on} className="group flex items-start gap-3 rounded-[8px] px-2.5 py-2 hover:bg-sunken">
-      <span className={cn('relative mt-0.5 h-[18px] w-8 shrink-0 rounded-full transition-colors', on ? 'bg-ink' : 'bg-rule-strong')}>
-        <span className={cn('absolute top-[2px] size-[14px] rounded-full bg-raised transition-[left] duration-200', on ? 'left-[16px]' : 'left-[2px]')} />
-      </span>
-      <span className="flex flex-col">
-        <span className="text-[13.5px] font-medium text-ink">{label}</span>
-        <span className="text-[12px] leading-snug text-ink-3">{hint}</span>
-      </span>
-    </Link>
-  );
-}
 
 /**
  * Which network's registrations to show, where the results are read.
@@ -94,135 +64,6 @@ function withNetworks(row: { reason: string | null; alsoOn: number[] }): string 
  * rendering it again.
  */
 
-function Pill({ href, on, children }: { href: string; on: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      scroll={false}
-      aria-current={on ? 'true' : undefined}
-      className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
-        on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink hover:text-ink',
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
-/**
- * The same filters as the rail, laid along the top.
- *
- * The rail cost a fixed 232px of every wide screen and the results paid for
- * it: three cards where four fit, each one narrower than its own contents, so
- * names and prices truncated while a column of mostly-inactive filters sat
- * beside them. Along the top the filters take two lines and give the width
- * back.
- *
- * Counts come with the task pills and nowhere else. On a toggle the number
- * that matters is how many results remain, which the header already says; on
- * a task it is how many exist under it, which is the thing being chosen
- * between.
- *
- * Below `lg` this is not rendered at all and `MobileFilters` keeps the rail
- * in a sheet, because sixteen task pills wrap to half a phone screen before
- * a single result is visible.
- */
-function Tally({ n, on }: { n: number; on: boolean }) {
-  return <span className={cn('t-readout text-[11.5px]', on ? 'text-paper/70' : 'text-ink-3')}>{n}</span>;
-}
-
-function FilterBar({
-  p,
-  counts,
-  allTasks,
-  collections,
-}: {
-  p: DiscoverParams;
-  counts: Array<{ id: string; label: string; count: number }>;
-  allTasks: number;
-  collections: { hireable: number; priced: number; answering: number; corroborated: number };
-}) {
-  return (
-    <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
-          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
-          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
-          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price <Tally n={collections.priced} on={p.priced} /></Pill>
-        </div>
-        <span aria-hidden className="h-5 w-px bg-rule" />
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
-          {/* Short enough that sort fits on this line rather than wrapping
-              under it. "Attested by others" is what the collection tab
-              called this before it became a pill, so it is the shorter
-              label and the one already in the product's vocabulary. */}
-          <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any</Pill>
-          <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
-          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Attested by others <Tally n={collections.corroborated} on={p.evidence === 'corroborated'} /></Pill>
-        </div>
-        {/* The tasks moved to the line below and left this one's right end
-            empty, which is where sort belongs: it governs the results, not
-            the filters, and it was wedged against a network switch and a
-            layout toggle that are both gone. */}
-        <SortSelect params={p} className="ml-auto" />
-      </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Task">
-        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>
-          All tasks <span className={cn('t-readout text-[11.5px]', p.category ? 'text-ink-3' : 'text-paper/70')}>{allTasks}</span>
-        </Pill>
-        {counts.map((c) => (
-          <Pill key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id}>
-            {c.label} <span className={cn('t-readout text-[11.5px]', p.category === c.id ? 'text-paper/70' : 'text-ink-3')}>{c.count}</span>
-          </Pill>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
-  // Counted under the same filters as the results; the sum of the tasks
-  // left out agents in no task, so it never matched the list.
-  const total = allTasks;
-  return (
-    <div className="flex flex-col gap-7">
-      <section className="flex flex-col gap-1" aria-label="Task">
-        <h2 className="t-label mb-1.5 px-2.5">Task</h2>
-        <FilterLink href={discoverHref({}, p, ['category'])} on={!p.category} count={total}>
-          All tasks
-        </FilterLink>
-        {counts.map((c) => (
-          <FilterLink key={c.id} href={discoverHref({ category: c.id as DiscoverParams['category'] }, p)} on={p.category === c.id} count={c.count}>
-            {c.label}
-          </FilterLink>
-        ))}
-      </section>
-      <section className="flex flex-col gap-1" aria-label="Availability">
-        <h2 className="t-label mb-1.5 px-2.5">Availability</h2>
-        <Toggle href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable} label="Hireable now" hint="Answering, and payable through escrow" />
-        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" hint="Replied to a Pokter probe in 7 days" />
-        <Toggle href={discoverHref({ priced: !p.priced }, p)} on={p.priced} label="Has a signed price" hint="Named a price, signed by its wallet" />
-      </section>
-      <section className="flex flex-col gap-1" aria-label="Evidence">
-        <h2 className="t-label mb-1.5 px-2.5">Evidence</h2>
-        <FilterLink href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>
-          Any
-        </FilterLink>
-        <FilterLink href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>
-          Measured by Pokter
-        </FilterLink>
-        <FilterLink href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>
-          Has published attestations
-        </FilterLink>
-      </section>
-      <p className="px-2.5 text-[12px] leading-relaxed text-ink-3">
-        Power search: <span className="t-readout">is:reliable</span>, <span className="t-readout">has:price</span>,{' '}
-        <span className="t-readout">has:probes&gt;10</span>. <Link href="/developers#query" className="link">Syntax</Link>
-      </p>
-    </div>
-  );
-}
 
 export default async function DiscoverPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const p = parseDiscoverParams(await searchParams);
@@ -372,13 +213,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 </Link>
               )}
             </div>
-            {/* Under sort, where the network switch and the layout toggle
-                used to be. They are about the whole catalogue rather than
-                this page's title, so they sit with the results. */}
-            <div className="flex flex-wrap items-center gap-4">
-              <a href="/api/v1/agents/verifier" download className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">Verify catalogue <Icon.Arrow size={13} /></a>
-              <Link href="/rankings" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">Outcome rankings <Icon.Arrow size={13} /></Link>
-            </div>
+            {/* One way out of a page that reads a query and pages its
+                results: the whole catalogue, unpaged. "Verify catalogue"
+                and "Outcome rankings" were here and are errands rather
+                than a next step — both are still in the footer and on
+                their own pages. */}
+            <Link href="/agents" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
+              View all agents <Icon.Arrow size={13} />
+            </Link>
             {/* Below `lg` the pill bar is not rendered, so sort has to live
                 here instead; above it, it sits with the filters. */}
             <SortSelect params={base} className="lg:hidden" />
