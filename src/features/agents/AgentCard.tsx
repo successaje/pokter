@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { FindRow } from '@/lib/find/rows';
 import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
-import { AgentAvatar, ProbeStrip, answerState } from '@/ui/Agent';
+import { AgentAvatar, answerState } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
@@ -141,7 +141,6 @@ export function TrialNote({ className }: { className?: string }) {
  * No ratings, no popularity, no badges that measure nothing.
  */
 export function AgentCard({ row, className, note, compare }: { row: FindRow; className?: string; note?: string | null; compare?: React.ReactNode }) {
-  const status = availabilityText(row);
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
@@ -150,7 +149,7 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
             to sit on the ring itself. The dot is the accent now, and the
             three card variants finally draw the avatar the same way. */}
         <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
             <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
               {row.name}
@@ -168,45 +167,50 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
             {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
           </span>
         </div>
+        {/* The footer that used to hold this went with "View evidence";
+            the card itself has always linked to the agent page. */}
+        {compare && <span className="relative z-10 shrink-0">{compare}</span>}
       </div>
 
       <p className="mt-3.5 line-clamp-2 min-h-[2.9em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
 
-      {/* The evidence, as two facts a buyer can check: does it answer, and has it delivered paid work. */}
-      <dl className="mt-4 flex flex-col rounded-[12px] border border-rule bg-sunken/40 text-[12.5px]">
-        <div className="flex flex-col gap-1 px-3.5 py-2.5">
-          <div className="flex items-center gap-3">
-            <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
-            {/* Same shape as the row below: shrink-0 label, value pushed right. */}
-            <dt className="shrink-0 text-ink-2">Probe replies</dt>
-            <dd className="ml-auto flex min-w-0 shrink-0 items-center gap-2.5" title={row.probes ? `${row.probes} probes in total` : undefined}>
-              <span className="t-readout text-ink">{row.rate === null ? '—' : `${Math.round(row.rate * 100)}%`}</span>
-              {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 [&>span]:w-[3px]" />}
-            </dd>
-          </div>
-          {/* Not answering right now is said in words, not left to the colour of a dot. */}
-          {status.tone !== 'ok' && <p className="pl-[18px] text-[11.5px] text-ink-3">{status.text}</p>}
-        </div>
-        {/*
-          Wrapping, not nowrap. The label was `min-w-0 flex-1
-          whitespace-nowrap`, so it shrank below its own text and ran
-          straight over the chip beside it: "Delivery evidenNot answering
-          yet". A chip's width is the agent's, not ours, so the row has to
-          survive a long one rather than assume a short one.
-        */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-rule px-3.5 py-2.5">
-          <span className={cn('size-1.5 shrink-0 rounded-full', row.paid.missed ? DOT.watch : row.paid.delivered ? DOT.ok : DOT.none)} aria-hidden />
-          <dt className="shrink-0 text-ink-2">Delivery evidence</dt>
-          <dd className="ml-auto min-w-0">
-            {row.paid.missed ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-watch/35 bg-watch-wash px-2.5 py-1 text-[12px] font-medium text-watch" title="Funded through Pokter escrow, nothing delivered before the deadline">
-                <span className="size-1.5 rounded-full bg-watch" aria-hidden />
-                {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'} missed
-              </span>
-            ) : (
-              <MaturityLabel maturity={row.maturity} concise />
-            )}
+      {/*
+        The evidence as three readings, not a panel.
+
+        It was a bordered, filled box holding a status dot, a percentage, a
+        14-day sparkline, a second dot, a label and a chip — six treatments
+        for three facts, and by some way the heaviest thing on the card.
+        The facts have not changed; they are just read off now.
+
+        Recency left with the box and needed no replacement. "Last answered
+        5d ago" was the only reason the first dot was there, and the answer
+        dot on the avatar now carries it on every card, in one glyph.
+      */}
+      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          {/* "Replies", not "Answers": one of the maturity badges in the
+              third column is the word "Answers", and a column headed
+              Answers showing Answers two columns over reads as an error. */}
+          <dt className="t-label">Replies</dt>
+          <dd className="t-readout truncate" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
+            {row.rate === null ? '\u2014' : `${Math.round(row.rate * 100)}%`}
           </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Paid jobs</dt>
+          {/* A missed deadline is not a smaller success, so it is not
+              averaged into one: the denominator shows up only when there
+              is one, and it is the whole reason this reads in `watch`. */}
+          <dd
+            className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}
+            title={row.paid.missed ? `${row.paid.missed} of ${row.paid.delivered + row.paid.missed} funded jobs missed their deadline` : undefined}
+          >
+            {row.paid.missed ? `${row.paid.delivered}/${row.paid.delivered + row.paid.missed}` : row.paid.delivered}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Evidence</dt>
+          <dd className="truncate"><MaturityLabel maturity={row.maturity} concise /></dd>
         </div>
       </dl>
 
@@ -217,24 +221,17 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
         </p>
       )}
 
-      {/* Price, then where it settles, then where the identity lives: the
-          three facts in the order a buyer needs them. */}
-      <div className="mt-auto flex flex-col pt-5">
-        {row.priceU !== null ? <PriceText row={row} className="text-[1.6rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
-        <span className="mt-1.5 flex flex-col gap-0.5">
-          <HiringLines row={row} />
-        </span>
-      </div>
-
-      <div className="relative z-10 mt-4">
-        <NextStep row={row} wide />
-      </div>
-
-      <div className="relative z-10 mt-3 flex items-center justify-between gap-3 border-t border-rule pt-3">
-        <Link href={`${agentHref(row)}#evidence`} className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
-          View evidence <Icon.ArrowUpRight size={13} />
-        </Link>
-        {compare}
+      {/* Price, where it settles and where the identity lives, against the
+          one action: the facts a buyer needs in the order they need them,
+          on the same line as the button they lead to. */}
+      <div className="relative z-10 mt-auto flex items-end justify-between gap-3 border-t border-rule pt-4">
+        <div className="flex min-w-0 flex-col">
+          {row.priceU !== null ? <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
+          <span className="mt-1.5 flex flex-col gap-0.5">
+            <HiringLines row={row} />
+          </span>
+        </div>
+        <NextStep row={row} />
       </div>
     </article>
   );
