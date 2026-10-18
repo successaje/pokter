@@ -1,0 +1,56 @@
+name: Verify pull request
+
+# The same checks the release runs before deploying (deploy.yml, "Verify
+# release"), on every pull request into main. A PR that would fail the
+# deploy now fails here first, before it is merged: five merged PRs once
+# sat undeployed behind one lint error that nothing caught in review.
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Run protocol safety checks
+        run: npm run audit:protocol
+
+      - name: Run rate-limit checks
+        run: npm run audit:rate-limit
+
+      - name: Run notification consent checks
+        run: npm run audit:notifications
+
+      - name: Build production application
+        run: npm run build -- --webpack
