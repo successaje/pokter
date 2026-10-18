@@ -8,9 +8,9 @@ import type { Category } from '@/lib/agents/categories';
  */
 export const OUTCOMES: Record<Category, { verb: string; detail: string; query: string }> = {
   'health-factor': {
-    verb: 'Watch a loan’s liquidation risk',
+    verb: 'Check a loan’s liquidation risk',
     detail: 'How close a lending position sits to liquidation, and from whose numbers.',
-    query: 'Monitor the liquidation risk of my lending position',
+    query: 'Check the liquidation risk of my lending position',
   },
   yield: {
     verb: 'Compare yield, net of costs',

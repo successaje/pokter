@@ -6,6 +6,7 @@ import { formatUnits, getAddress, isAddress } from 'viem';
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
 import { resolveAgentImages } from '@/lib/registry/image';
 import { verifiedPublisherByOwner } from '@/lib/builders/store';
+import { earnedByNetwork } from '@/lib/builder/earnings';
 import { getJobStore } from '@/lib/erc8183/store';
 import { chainLabel } from '@/lib/network/presentation';
 import { listAgents } from '@/lib/scan/client';
@@ -52,7 +53,10 @@ export default async function OperatorPage({ params }: { params: Promise<{ addre
     .all()
     .filter((j) => keys.has(`${j.agentChainId ?? 56}:${j.agentTokenId}`) && j.status !== 'OPEN');
   const completed = jobs.filter((j) => j.status === 'COMPLETED');
-  const earned = completed.reduce((s, j) => s + BigInt(j.budgetRaw), 0n);
+  // Kept apart by network: test tokens have no cash value and were added in.
+  const paid = earnedByNetwork(completed);
+  const amount = (raw: bigint) => `${Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`;
+  const completedOn = (chainId: number) => completed.filter((j) => j.chainId === chainId).length;
   const verifiedKeys = new Set(verified.map((v) => `${v.chainId}:${v.tokenId}`));
 
   return (
@@ -69,18 +73,23 @@ export default async function OperatorPage({ params }: { params: Promise<{ addre
             : 'Has not proved ownership of any agent to Pokter. The agents below are owned by this address according to the ERC-8004 registry.'}
         </p>
       </header>
-      <dl className="mb-10 grid grid-cols-3 gap-3 sm:max-w-xl">
+      <dl className="mb-3 grid grid-cols-1 gap-3 sm:max-w-3xl sm:grid-cols-4">
         {[
-          ['Agents', agents.length],
-          ['Paid jobs done', completed.length],
-          ['Earned via Pokter', `${Number(formatUnits(earned, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`],
-        ].map(([k, v]) => (
-          <div key={k as string} className="rounded-[12px] border border-rule bg-raised px-4 py-3">
+          { k: 'Agents', v: String(agents.length), note: null },
+          { k: 'Paid jobs completed', v: String(completed.length), note: `${completedOn(56)} on ${chainLabel(56)} · ${completedOn(97)} on ${chainLabel(97)}` },
+          { k: `Paid out on ${chainLabel(56)}`, v: amount(paid.real), note: 'Real $U, budgets of completed jobs' },
+          { k: `Test tokens on ${chainLabel(97)}`, v: amount(paid.test), note: 'No cash value' },
+        ].map(({ k, v, note }) => (
+          <div key={k} className="rounded-[12px] border border-rule bg-raised px-4 py-3">
             <dt className="t-label">{k}</dt>
             <dd className="t-readout mt-1 text-lg">{v}</dd>
+            {note && <dd className="mt-0.5 text-[11.5px] text-ink-3">{note}</dd>}
           </div>
         ))}
       </dl>
+      <p className="mb-10 max-w-3xl text-[12px] text-ink-3">
+        Amounts are the budgets of jobs that completed through Pokter escrow, which pays the budget to the agent (the escrow's platform fee is currently zero). They are not net income: the operator&rsquo;s own costs are not known here.
+      </p>
       <ul className="ruled border-y border-rule">
         {agents.map((a, i) => {
           const key = `${a.chain_id}:${a.token_id}`;

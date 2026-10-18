@@ -9,7 +9,7 @@ import { Spinner } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 
 export const TASK_SUGGESTIONS = [
-  'Monitor my lending risk',
+  'Check my lending risk',
   'Compare DeFi yield opportunities',
   'Check if a token is safe to buy',
   'Review a liquidity position',
