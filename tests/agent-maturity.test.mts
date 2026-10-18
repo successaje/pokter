@@ -114,6 +114,15 @@ test('a live answer counts only while no scheduled check exists, and the wording
 test('deliveries funded only by Pokter’s team say so', () => {
   const teamOnly = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true }));
   assert.equal(teamOnly.label, 'Delivered (team hires)');
+  /*
+   * The chip on a catalogue card has no room for the qualifier, so it
+   * carries `badge` and says the rest on its own line. The published
+   * `label` keeps it: the agent page title, the v1 API's
+   * `evidence.label` and the MCP server all read that one, and dropping
+   * it there would quietly lose the distinction for machines.
+   */
+  assert.equal(teamOnly.badge, 'Delivered', 'the chip drops the qualifier');
+  assert.equal(teamOnly.teamOnly, true, 'and the card is told to say it separately');
   assert.match(teamOnly.steps.find((s) => s.id === 'delivered')!.detail, /funded by Pokter’s team/);
 
   const outside = deriveMaturity(facts({ reachable: true, compatible: true, hired: true, delivered: true, outsideTeam: { jobs: 1, completed: 1, terminal: 1, uniqueBuyers: 1, completionRate: 1 } }));

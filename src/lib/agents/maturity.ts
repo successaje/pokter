@@ -52,7 +52,21 @@ export interface MaturityStep {
 export interface AgentMaturity {
   /** The most advanced step earned, or null when none has been. */
   current: MaturityId | null;
+  /**
+   * The full statement, qualified. Published: the agent page's title, the
+   * v1 API's `evidence.label` and the MCP server all read this, so the
+   * qualifier stays here even where a chip cannot carry it.
+   */
   label: string;
+  /** The same step, unqualified, for a chip with no room. See `teamOnly`. */
+  badge: string;
+  /**
+   * Every delivery it has was funded by Pokter's own team. The ladder's
+   * next rung is about outside buyers, so "Delivered" alone would let a
+   * reader hear one — which is the substitution the homepage count was
+   * corrected for on 16 Oct.
+   */
+  teamOnly: boolean;
   summary: string;
   steps: MaturityStep[];
   /** Proven in use, and kept up: 30+ observed days with a high completion and answer rate. */
@@ -149,11 +163,13 @@ export function deriveMaturity(facts: MaturityFacts): AgentMaturity {
   ];
 
   const current = [...ORDER].reverse().find((id) => earned[id]) ?? null;
-  const label = current === 'delivered' && teamOnlyDeliveries ? 'Delivered (team hires)' : current ? LABEL[current] : 'Not answering yet';
+  const badge = current ? LABEL[current] : 'Not answering yet';
+  const teamOnly = current === 'delivered' && teamOnlyDeliveries;
+  const label = teamOnly ? 'Delivered (team hires)' : badge;
   const summary = current
     ? LADDER_MEANING[current]
     : facts.probeRate === null
       ? 'Listed in the registry; Pokter has not checked it yet.'
       : 'Listed in the registry; it has not answered Pokter’s checks.';
-  return { current, label, summary, steps, sustained: reliable };
+  return { current, label, badge, teamOnly, summary, steps, sustained: reliable };
 }
