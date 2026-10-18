@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { FindRow } from '@/lib/find/rows';
 import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
-import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
+import { AgentAvatar, ProbeStrip, answerState } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
@@ -146,7 +146,7 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
         <span className="shrink-0 rounded-full p-[3px] ring-1 ring-rule-strong">
-          <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} />
+          <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
         </span>
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
@@ -277,7 +277,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
   const status = availabilityText(row);
   return (
     <article className="group relative grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 gap-y-2 py-4 sm:grid-cols-[44px_minmax(0,1fr)_150px_120px_110px] sm:items-center">
-      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={44} />
+      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={44} status={answerState(row)} />
       <div className="flex min-w-0 flex-col gap-0.5">
         <h3 className="flex items-center gap-2 text-[15px] font-semibold">
           <Link href={agentHref(row)} className="truncate after:absolute after:inset-0 hover:underline focus-visible:outline-none">
@@ -325,7 +325,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
   return (
     <article className="group relative flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6 transition-[border-color,box-shadow] duration-200 hover:border-rule-strong hover:shadow-lift">
       <div className="flex items-center justify-between gap-3">
-        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} />
+        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
         <span className="t-label">{row.categoryLabel}</span>
       </div>
       <div className="flex flex-col gap-1.5">

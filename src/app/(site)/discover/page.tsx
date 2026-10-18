@@ -143,7 +143,21 @@ function Pill({ href, on, children }: { href: string; on: boolean; children: Rea
  * in a sheet, because sixteen task pills wrap to half a phone screen before
  * a single result is visible.
  */
-function FilterBar({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
+function Tally({ n, on }: { n: number; on: boolean }) {
+  return <span className={cn('t-readout text-[11.5px]', on ? 'text-paper/70' : 'text-ink-3')}>{n}</span>;
+}
+
+function FilterBar({
+  p,
+  counts,
+  allTasks,
+  collections,
+}: {
+  p: DiscoverParams;
+  counts: Array<{ id: string; label: string; count: number }>;
+  allTasks: number;
+  collections: { hireable: number; priced: number; answering: number; corroborated: number };
+}) {
   return (
     <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Task">
@@ -158,15 +172,15 @@ function FilterBar({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
-          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now</Pill>
-          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week</Pill>
-          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price</Pill>
+          <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
+          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
+          <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price <Tally n={collections.priced} on={p.priced} /></Pill>
         </div>
         <span aria-hidden className="h-5 w-px bg-rule" />
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
           <Pill href={discoverHref({ evidence: 'any' }, p)} on={p.evidence === 'any'}>Any evidence</Pill>
           <Pill href={discoverHref({ evidence: 'measured' }, p)} on={p.evidence === 'measured'}>Measured by Pokter</Pill>
-          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Has published attestations</Pill>
+          <Pill href={discoverHref({ evidence: 'corroborated' }, p)} on={p.evidence === 'corroborated'}>Has published attestations <Tally n={collections.corroborated} on={p.evidence === 'corroborated'} /></Pill>
         </div>
       </div>
     </div>
@@ -242,42 +256,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
           </p>
         </div>
-        {/*
-          The collections as tabs: one choice of scope, always visible, the
-          active one underlined. Each keeps the search, task, network and
-          sort, and replaces the other three shortcuts rather than stacking.
-        */}
-        <nav aria-label="Collections" className="no-scrollbar -mx-4 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
-          <ul className="flex gap-1">
-            {[
-              { key: 'all', title: 'All agents', note: 'Everything Pokter lists', set: {}, count: null as number | null },
-              { key: 'hireable', title: 'Hireable now', note: 'Answering and payable through escrow', set: { hireable: true }, count: result.collections.hireable },
-              { key: 'priced', title: 'Signed a price', note: 'Price signed by the agent’s wallet', set: { priced: true }, count: result.collections.priced },
-              { key: 'answering', title: 'Answered this week', note: 'Replied to a Pokter probe in 7 days', set: { answering: true }, count: result.collections.answering },
-              { key: 'corroborated', title: 'Attested by others', note: 'Has published on-chain attestations', set: { evidence: 'corroborated' as const }, count: result.collections.corroborated },
-            ].map((tab) => {
-              const scope = { hireable: p.hireable, priced: p.priced, answering: p.answering, corroborated: p.evidence === 'corroborated' };
-              const on = tab.key === 'all' ? !Object.values(scope).some(Boolean) : scope[tab.key as keyof typeof scope] && Object.values(scope).filter(Boolean).length === 1;
-              return (
-                <li key={tab.key} className="shrink-0">
-                  <Link
-                    href={discoverHref({ hireable: false, priced: false, answering: false, evidence: 'any', ...tab.set }, base)}
-                    title={tab.note}
-                    aria-current={on ? 'page' : undefined}
-                    scroll={false}
-                    className={cn(
-                      '-mb-px inline-flex h-11 items-center gap-2 border-b-2 px-3 text-[14px] font-medium transition-colors',
-                      on ? 'border-ink text-ink' : 'border-transparent text-ink-3 hover:text-ink',
-                    )}
-                  >
-                    {tab.title}
-                    {tab.count !== null && <span className={cn('t-readout text-[12px]', on ? 'text-ok' : 'text-ink-3')}>{tab.count}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
         <DiscoverSearch params={base} />
       </header>
 
@@ -323,7 +301,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       )}
 
       <div className="mt-8 flex flex-col gap-6">
-        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
+        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
 
         <section aria-label="Results" className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
