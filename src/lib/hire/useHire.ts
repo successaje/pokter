@@ -26,6 +26,7 @@ import {
 } from '@/lib/erc8183/job-envelope';
 import { DELIVERY_WINDOW_SECONDS } from '@/lib/erc8183/deadline';
 import { walletActionError } from '@/lib/wallet/errors';
+import { materialQuoteChange } from './quote-change';
 import { HireFailure, isWalletRejection, type FailureLayer } from '@/lib/hire/failure';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useQuery } from '@tanstack/react-query';
@@ -607,12 +608,18 @@ export function useHire({
       if (provider?.relationship === 'registry-agent') {
         // The quote shown on Review, if it still covers this hire; otherwise a fresh one.
         signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, task);
-        if (reviewQuote && signedQuote !== reviewQuote && signedQuote.priceRaw !== reviewQuote.priceRaw) {
+        /*
+         * Price was the only thing compared, and it is not the only thing
+         * signed: a replacement can hold the number and change what the
+         * work is. See `materialQuoteChange`.
+         */
+        const changed = reviewQuote && signedQuote !== reviewQuote ? materialQuoteChange(reviewQuote, signedQuote) : null;
+        if (reviewQuote && changed) {
           setPreQuote({ quote: signedQuote, task, provider: providerAddress, escrowChainId });
           throw new HireFailure(
-            `${agent.name}'s quote expired and its new price is ${signedQuote.priceU} $U, not the ${reviewQuote.priceU} $U you reviewed. Check the terms again before paying.`,
+            `${agent.name}'s quote expired and ${changed.what}. Check the terms again before paying.`,
             'terms',
-            'price-changed',
+            changed.kind === 'price' ? 'price-changed' : 'terms-changed',
           );
         }
         if (Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {

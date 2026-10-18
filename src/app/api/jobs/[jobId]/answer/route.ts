@@ -44,13 +44,33 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
     if (!manifestText) {
       const indexed = getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId);
       // The index, else the submit event found near its own block, within a bound: a slow chain read must not hang the page.
-      const url =
-        indexed?.deliverableUrl ??
-        (await Promise.race([
-          findDeliverableUrl(questClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt).catch(() => undefined),
-          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 12_000)),
-        ]));
-      if (!url) return NextResponse.json({ delivered: true, readable: false, reason: 'The agent published no readable link for its delivery.' });
+      /*
+       * Three outcomes, not two. A chain read that errors and one that
+       * runs out of time both used to arrive here as "no url" and were
+       * reported as the agent having published nothing — Pokter's own
+       * failure, stated as a fact about somebody else's agent, on the
+       * page their buyer reads.
+       */
+      type Lookup = { url: string } | { url: null; whose: 'ours' | 'theirs' };
+      const lookup: Lookup = indexed?.deliverableUrl
+        ? { url: indexed.deliverableUrl }
+        : await Promise.race([
+            findDeliverableUrl(questClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
+              .then((found): Lookup => (found ? { url: found } : { url: null, whose: 'theirs' }))
+              .catch((): Lookup => ({ url: null, whose: 'ours' })),
+            new Promise<Lookup>((resolve) => setTimeout(() => resolve({ url: null, whose: 'ours' }), 12_000)),
+          ]);
+      const url = lookup.url;
+      if (!url) {
+        return NextResponse.json({
+          delivered: true,
+          readable: false,
+          reason:
+            'whose' in lookup && lookup.whose === 'ours'
+              ? 'We could not retrieve the delivery link just now. The agent may well have published one; this check timed out or the chain read failed.'
+              : 'The agent published no readable link for its delivery.',
+        });
+      }
       manifestText = await fetchDeliverableText(url).catch(() => null);
       if (!manifestText) return NextResponse.json({ delivered: true, readable: false, reason: 'The delivery link could not be read just now.' });
     }

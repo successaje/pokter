@@ -36,6 +36,12 @@ function Value({ value }: { value: unknown }) {
  * read, where it came from and what it does not cover. The file and the
  * hash that prove it are one level down, always there.
  */
+/** A timestamp as written when it is not a date we can parse. */
+function localMoment(value: string): string {
+  const parsed = new Date(value);
+  return parsed.toString() === 'Invalid Date' ? value : parsed.toLocaleString();
+}
+
 export function JobAnswer({
   job,
   deliverableUrl,
@@ -95,8 +101,14 @@ export function JobAnswer({
               <p className="text-[13.5px] text-ink-3">The agent gave no summary; its fields are below.</p>
             )}
             <p className="text-[12px] text-ink-3">
-              {answer!.asOf?.time ? `Data read ${new Date(answer!.asOf.time).toString() === 'Invalid Date' ? answer!.asOf.time : new Date(answer!.asOf.time).toLocaleString()}` : 'The agent did not say when it read the data'}
+              {/*
+                Two facts, never one. When the report was written is not
+                when its data was read, and printing the first under the
+                second claimed a freshness nobody measured.
+              */}
+              {answer!.asOf?.time ? `Data read ${localMoment(answer!.asOf.time)}` : 'The agent did not say when it read the data'}
               {answer!.asOf?.block ? ` · block ${answer!.asOf.block}` : ''}
+              {answer!.generatedAt ? ` · report generated ${localMoment(answer!.generatedAt)}` : ''}
               {` · paid on ${chainLabel(job.chainId)}`}
               {answer!.producer ? ` · produced by ${answer!.producer}` : ''}
             </p>
