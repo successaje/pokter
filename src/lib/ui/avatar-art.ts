@@ -18,7 +18,7 @@
  * keeps resolving — it just renders whatever the current style is, which has
  * always been true of them.
  */
-export const AVATAR_ART_VERSION = 2;
+export const AVATAR_ART_VERSION = 3;
 
 export function avatarUrl(seed: string): string {
   return `/api/avatars/${encodeURIComponent(seed)}?v=${AVATAR_ART_VERSION}`;

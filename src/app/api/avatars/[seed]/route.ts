@@ -43,16 +43,27 @@ export async function GET(
     size: 112,
     radius: 26,
     /*
-     * No backgroundColor override. Bottts took one — three dark tiles, to
-     * sit against a near-black surface — and the option was carried over
-     * here without checking, where this style ignores it and paints its own
-     * ground. The config did nothing and the comment beside it claimed
-     * otherwise, which is worse than either on its own.
+     * A ground, because this style does not paint one.
      *
-     * Rings choosing its own palette is the point: the full hue circle is
-     * what lets eight agents in a grid be told apart at 40px, and the tile
-     * sits inside a bordered frame that already separates it from the card.
+     * The note that stood here said rings ignores `backgroundColor` and
+     * paints its own, so the option was dropped. It does neither: without
+     * it the SVG is arcs on transparency, and `AvatarImage`'s `bg-sunken`
+     * showed through everywhere the arcs are not — a grey rounded square
+     * around a floating circle, which at 76px on the agent page read as a
+     * broken image rather than an avatar. Checked by diffing the two
+     * outputs: passing the option inserts
+     * `<rect fill="…" width="100" height="100">` inside the mask.
+     *
+     * Mid-tone on purpose. One file is served to both themes — the URL is
+     * immutable and cached for a year, and some agents registered it as
+     * their on-chain image — so the ground has to sit on cream and on
+     * near-black at once. These read on both, and against the style's own
+     * pastel arcs.
+     *
+     * Still one per seed, so eight agents in a grid are still told apart
+     * by hue. That part of the old note was right.
      */
+    backgroundColor: ['3f4a52', '4a4036', '38474a', '4a3a44', '424a38', '343c4a'],
   }).toString();
 
   return new Response(svg, {
