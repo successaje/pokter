@@ -125,6 +125,34 @@ export default async function HomePage() {
               not the pitch.
             </p>
             <TaskSearch className="anim-rise max-w-[36rem]" />
+            {/*
+              The rule, once, where somebody is about to start.
+              
+              It was already on the page three times in three
+              vocabularies — "Try free on testnet" in the header, "Live on
+              BNB Chain Mainnet · Testnet available" in the eyebrow above,
+              and "Test tokens · BNB Testnet" against "Real funds · BNB
+              Chain" on the cards. Each is true; none of them is the rule,
+              and a buyer had to assemble it from all three.
+
+              The trial half names who does the work. A free run is
+              carried by Pokter's own delivery agent, so it is not
+              evidence about the listed one — the distinction the
+              catalogue keeps everywhere else, and the one a buyer is
+              most likely to get wrong here.
+            */}
+            <p className="anim-rise max-w-[34rem] text-[13.5px] leading-relaxed text-ink-3" style={{ animationDelay: '180ms' }}>
+              {MAINNET_ESCROW ? (
+                <>
+                  <span className="font-medium text-ink-2">Free</span> on BNB testnet, in test tokens, with Pokter&rsquo;s own agent doing the work.{' '}
+                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real $U, where an agent has signed a price Pokter could verify.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-ink-2">Free</span> while escrow runs on BNB testnet: test tokens only, with Pokter&rsquo;s own agent doing the work.
+                </>
+              )}
+            </p>
             <div className="anim-rise flex flex-wrap items-center gap-x-6 gap-y-3 text-sm" style={{ animationDelay: '220ms' }}>
               <Link href="/build" className="inline-flex items-center gap-1.5 font-medium text-ink hover:underline">
                 Build an agent <Icon.Arrow size={15} />
@@ -340,6 +368,116 @@ export default async function HomePage() {
             </Reveal>
           ))}
         </ul>
+        {/*
+          The second half of one argument, not a section of its own. This
+          said "here is why the numbers can be trusted" a few screens after
+          the funnel above had said it, with two unrelated sections in
+          between — the same case made twice in different clothes. Made
+          once now: the record, then where to go and check it.
+        */}
+        <Reveal className="mb-10 mt-20 flex max-w-2xl flex-col gap-3 sm:mt-24">
+          <span className="t-label">Check our work</span>
+          <h3 id="trust-title" className="t-h2">Everything Pokter says can be traced.</h3>
+        </Reveal>
+        {/*
+          Three cards rather than three cells of a table. This is the one
+          section asking a reader to go and check a claim, and a row of
+          ruled rows is what people skim past — the colour is the whole
+          point of it. Fills are the rail's own tokens, so the page has one
+          palette used twice rather than two that nearly match.
+        */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[
+            { href: '/methodology', fill: 3, icon: Icon.Flask, title: 'Methodology', body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.', cta: 'Read the method' },
+            { href: '/risk', fill: 4, icon: Icon.Shield, title: 'Risks and limits', body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.', cta: 'See the limits' },
+            { href: '/proof', fill: 5, icon: Icon.Doc, title: 'Production proof', body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.', cta: 'Check the record' },
+          ].map((card, i) => (
+            <Reveal key={card.href} delay={i * 70}>
+              {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
+              <div
+                className="card-scan relative isolate flex h-full min-h-[310px] flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-7 text-[var(--on-fill)]"
+                style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
+              >
+              <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
+                <card.icon size={19} />
+              </span>
+              <h3 className="relative mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{card.title}</h3>
+              <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
+              <Link
+                href={card.href}
+                className="relative mt-auto inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px"
+              >
+                {card.cta} <Icon.ArrowUpRight size={15} />
+                </Link>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <details className="group mt-6">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+            <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
+            What Pokter supports today, and what it does not yet
+          </summary>
+          <div className="pt-4">
+          <div className="overflow-hidden rounded-[16px] border border-rule">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-sunken/70">
+                <tr>
+                  <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
+                  <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
+                  <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule bg-raised">
+                {[
+                  ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
+                  ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
+                  ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
+                  ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
+                  ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
+                  /*
+                    Says what was found, not only what is built.
+                    "Planned · Not integrated" described Pokter's roadmap and
+                    left the reader to assume the standard works and Pokter
+                    has not caught up. Measuring it says otherwise: the
+                    registration schema carries `x402Support` as a boolean
+                    with no field for where to pay, and of 47 declaring
+                    agents whose endpoints Pokter called, none answered the
+                    402 the protocol requires.
+
+                    That finding is about Pokter's own probe, which calls an
+                    agent card and not a paid route, and it was being read as
+                    "nobody is paid over x402". Other marketplaces do pay
+                    agents in this index that way, so the row says what
+                    Pokter does and does not do instead.
+                  */
+                  ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
+                  ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
+                ].map(([name, use, status, note]) => (
+                  <tr key={name}>
+                    <th scope="row" className="px-5 py-4 font-medium">
+                      {name}
+                      <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
+                    </th>
+                    <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
+                    <td className="px-5 py-4">
+                      <span className="flex flex-col gap-0.5">
+                        <span
+                          className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
+                        >
+                          <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
+                          {status}
+                        </span>
+                        {note && <span className="text-[12px] text-ink-3">{note}</span>}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          </div>
+        </details>
       </section>
       {/* ───────────── For builders ───────────── */}
       <section className="border-y border-rule bg-raised/50 py-20 sm:py-28" aria-labelledby="builders-title">
@@ -446,112 +584,6 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ───────────── Trust ───────────── */}
-      <section className="frame py-16 sm:py-24" aria-labelledby="trust-title">
-        <Reveal className="mb-10 flex max-w-2xl flex-col gap-3">
-          <span className="t-label">Check our work</span>
-          <h2 id="trust-title" className="t-h1">Everything Pokter says can be traced.</h2>
-        </Reveal>
-        {/*
-          Three cards rather than three cells of a table. This is the one
-          section asking a reader to go and check a claim, and a row of
-          ruled rows is what people skim past — the colour is the whole
-          point of it. Fills are the rail's own tokens, so the page has one
-          palette used twice rather than two that nearly match.
-        */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[
-            { href: '/methodology', fill: 3, icon: Icon.Flask, title: 'Methodology', body: 'How every verdict is computed, and the thresholds behind it, imported from the code that applies them.', cta: 'Read the method' },
-            { href: '/risk', fill: 4, icon: Icon.Shield, title: 'Risks and limits', body: 'What the escrow protects, what it does not, and which parts are still testnet. Written to be uncomfortable.', cta: 'See the limits' },
-            { href: '/proof', fill: 5, icon: Icon.Doc, title: 'Production proof', body: 'Every escrow job, the misses included, with a verifier you can run against the chain yourself.', cta: 'Check the record' },
-          ].map((card, i) => (
-            <Reveal key={card.href} delay={i * 70}>
-              {/* The fill lives on the card, not the Reveal, which owns its own style for the delay offset. */}
-              <div
-                className="card-scan relative isolate flex h-full min-h-[310px] flex-col overflow-hidden rounded-[20px] bg-[var(--fill)] p-7 text-[var(--on-fill)]"
-                style={{ ['--fill' as string]: `var(--step-${card.fill})`, ['--on-fill' as string]: `var(--step-${card.fill}-ink)` }}
-              >
-              <span className="relative grid size-10 place-items-center rounded-[11px] bg-[var(--on-fill)]/12">
-                <card.icon size={19} />
-              </span>
-              <h3 className="relative mt-5 text-[21px] font-semibold leading-tight tracking-[-0.02em]">{card.title}</h3>
-              <p className="relative mt-2.5 text-[14px] leading-relaxed opacity-80">{card.body}</p>
-              <Link
-                href={card.href}
-                className="relative mt-auto inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[var(--on-fill)] px-5 text-[14.5px] font-semibold text-[var(--fill)] transition-transform hover:-translate-y-px"
-              >
-                {card.cta} <Icon.ArrowUpRight size={15} />
-                </Link>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-        <details className="group mt-6">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-            <Icon.ChevronRight size={15} className="transition-transform duration-200 group-open:rotate-90" />
-            What Pokter supports today, and what it does not yet
-          </summary>
-          <div className="pt-4">
-          <div className="overflow-hidden rounded-[16px] border border-rule">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-sunken/70">
-                <tr>
-                  <th scope="col" className="t-label px-5 py-3 font-medium">Standard</th>
-                  <th scope="col" className="t-label hidden px-5 py-3 font-medium sm:table-cell">Used for</th>
-                  <th scope="col" className="t-label px-5 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rule bg-raised">
-                {[
-                  ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
-                  ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
-                  ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
-                  ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
-                  ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
-                  /*
-                    Says what was found, not only what is built.
-                    "Planned · Not integrated" described Pokter's roadmap and
-                    left the reader to assume the standard works and Pokter
-                    has not caught up. Measuring it says otherwise: the
-                    registration schema carries `x402Support` as a boolean
-                    with no field for where to pay, and of 47 declaring
-                    agents whose endpoints Pokter called, none answered the
-                    402 the protocol requires.
-
-                    That finding is about Pokter's own probe, which calls an
-                    agent card and not a paid route, and it was being read as
-                    "nobody is paid over x402". Other marketplaces do pay
-                    agents in this index that way, so the row says what
-                    Pokter does and does not do instead.
-                  */
-                  ['x402 / B402', 'Per-call payments', 'Not used here', 'Pokter hires through ERC-8183 escrow and does not pay or read x402 payments; some agents in the index are paid that way elsewhere'],
-                  ['ERC-8004 validation registry', 'Third-party validation', 'Unavailable', 'Not deployed on BSC'],
-                ].map(([name, use, status, note]) => (
-                  <tr key={name}>
-                    <th scope="row" className="px-5 py-4 font-medium">
-                      {name}
-                      <span className="mt-0.5 block text-[12.5px] font-normal text-ink-3 sm:hidden">{use}</span>
-                    </th>
-                    <td className="hidden px-5 py-4 text-ink-2 sm:table-cell">{use}</td>
-                    <td className="px-5 py-4">
-                      <span className="flex flex-col gap-0.5">
-                        <span
-                          className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-medium ${status === 'Live' ? 'text-ok' : status === 'Partial' ? 'text-watch' : 'text-ink-3'}`}
-                        >
-                          <span className={`size-1.5 rounded-full ${status === 'Live' ? 'bg-ok' : status === 'Partial' ? 'bg-watch' : 'bg-rule-strong'}`} aria-hidden />
-                          {status}
-                        </span>
-                        {note && <span className="text-[12px] text-ink-3">{note}</span>}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          </div>
-        </details>
-      </section>
       {/* ───────────── Final CTA ───────────── */}
       {/*
         Full bleed, and the one place on the page that is brand colour
