@@ -175,3 +175,56 @@ export function previewSkillId(skills: unknown): string | null {
   }
   return null;
 }
+
+/**
+ * What an MCP agent serves, as skills.
+ *
+ * An agent that publishes only an MCP endpoint showed "No skills declared
+ * on its card" on its own page while Pokter's prober had already read its
+ * tool list and the API was publishing it under `measured.capabilities`.
+ * 4LPHA's Grid agent serves nine tools and its listing named none of them,
+ * so the one column on the page headed "It claims" claimed nothing.
+ *
+ * The same plumbing rule as the card path, deliberately: a tool called
+ * `notify_funded` is job plumbing over either transport, and inventing a
+ * second rule here would make the two listings disagree about what counts
+ * as a capability.
+ *
+ * Everything is `capability`. The paid and preview kinds come from an A2A
+ * card's `id` and `tags` taxonomy, which MCP has no equivalent of, and
+ * guessing a tool is the paid job from its name would put a claim on the
+ * page that nothing checked. `examples` is empty for the same reason: a
+ * JSON Schema says what arguments are accepted, not how the operator says
+ * to ask — see `templatesFromSkills`, which builds briefs from examples
+ * and so is correctly left with nothing to offer here.
+ */
+export function mcpCapabilities(tools: unknown, limit = 4): DeclaredSkill[] {
+  if (!Array.isArray(tools)) return [];
+
+  const seen = new Set<string>();
+  const kept: DeclaredSkill[] = [];
+
+  for (const entry of tools) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const tool = entry as Record<string, unknown>;
+    const name = text(tool.name);
+    if (!name) continue;
+
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    // A tool name is the whole identifier here: there is no separate id.
+    if (PLUMBING_IDS.has(key) || PLUMBING_NAME.test(name)) continue;
+    seen.add(key);
+
+    const description = text(tool.description);
+    kept.push({
+      name,
+      kind: 'capability',
+      description: description ? readableDescription(description) : null,
+      examples: [],
+    });
+    if (kept.length >= limit) break;
+  }
+
+  return kept;
+}
