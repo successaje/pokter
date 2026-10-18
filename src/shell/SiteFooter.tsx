@@ -1,4 +1,3 @@
-import { FooterStatus } from './FooterStatus';
 import { FooterWordmark } from './FooterWordmark';
 import Link from 'next/link';
 
@@ -67,7 +66,6 @@ export function SiteFooter() {
     <footer className="mt-24 border-t border-rule bg-sunken/60 pb-16 md:pb-0">
       <div className="frame grid grid-cols-1 gap-12 py-14 lg:grid-cols-[1.1fr_3fr]">
         <div className="flex max-w-xs flex-col gap-4">
-          <FooterStatus />
           <span className="inline-flex items-center gap-2.5 text-ink">
             <Mark size={22} />
             <span className="text-[17px] font-[640] tracking-[-0.03em]">Pokter</span>
@@ -108,13 +106,13 @@ export function SiteFooter() {
           ))}
         </div>
       </div>
+      <FooterWordmark />
       <div className="border-t border-rule">
         <div className="frame flex flex-col gap-2 py-5 text-[12.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>An independent agent marketplace built on BNB Chain. Not operated or endorsed by BNB Chain.</p>
           <p className="t-readout">ERC-8004 · ERC-8183 · A2A · MCP</p>
         </div>
       </div>
-      <FooterWordmark />
     </footer>
   );
 }
