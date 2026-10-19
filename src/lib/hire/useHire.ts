@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { budgetDefault } from '@/lib/hire/budget-default';
 import { createPublicClient, fallback, http } from 'viem';
@@ -268,6 +268,20 @@ export function useHire({
    */
   const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : withWalletPlaceholder(template.task));
   const [task, setTaskState] = useState(initialTask ?? recalled?.task ?? '');
+  /*
+   * A brief from the link is remembered like a typed one, once, when the
+   * form opens. Switching network rebuilds the form without the link
+   * (`HireNetworks`), so it recalls this — or the buyer's edit of it, or
+   * nothing if they cleared it. Before, the link was passed again on every
+   * switch and won, so an edited or cleared link brief came back as the
+   * link wrote it.
+   */
+  const linkRemembered = useRef(false);
+  useEffect(() => {
+    if (linkRemembered.current || !initialTask) return;
+    linkRemembered.current = true;
+    rememberBrief(agent, { task: initialTask, template: null, recipe: null, schema: '' });
+  }, [agent, initialTask]);
   /** The guided format in use; kept while the brief is edited, like the schema. */
   const [recipeId, setRecipeId] = useState(initialTask ? null : (recalled?.recipe ?? null));
   /*
