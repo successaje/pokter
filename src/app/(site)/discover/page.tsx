@@ -7,11 +7,11 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
+import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
-import { FilterBar, Filters, MobileCategoryBar } from '@/features/discover/FilterBar';
+import { FilterBar, Filters, MobileFilterBlock } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -97,6 +97,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   );
   const deliveryByKey = new Map(timed);
   const activity = outsideActivity();
+  // The ones under "More filters" on a phone: the block above it shows the rest.
+  const moreFilters = [p.answering, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
@@ -164,22 +166,27 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             Hidden until an escrow has seen a job: three zeroes above a search
             box is not a track record.
           */}
-          {activity.funded > 0 && (
-            <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
-              {[
-                { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
-                { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
-                { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
-              ].map((stat) => (
-                <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
-                  <span className="t-readout font-medium text-ink">{stat.value}</span>
-                  <span className="text-ink-3">{stat.label}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-        <DiscoverSearch params={base} />
+        {/* Below the stats on wider screens, where they read as the record
+            behind the box; above them on a phone, where the box is what a
+            buyer came for and the stats would push it under the fold. */}
+        <div className="sm:order-2">
+          <DiscoverSearch params={base} />
+        </div>
+        {activity.funded > 0 && (
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+            {[
+              { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
+              { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
+              { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+            ].map((stat) => (
+              <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
+                <span className="t-readout font-medium text-ink">{stat.value}</span>
+                <span className="text-ink-3 max-sm:font-[family-name:var(--font-readout)] max-sm:text-[12.5px]">{stat.label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </header>
 
 
@@ -225,39 +232,46 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
-        <MobileCategoryBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
+        <MobileFilterBlock
+          p={base}
+          counts={result.categoryCounts}
+          allTasks={result.allTasksCount}
+          collections={result.collections}
+          more={
+            <MobileFilters count={moreFilters} label="More filters" pill>
+              <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
+            </MobileFilters>
+          }
+        />
 
         <section aria-label="Results" className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <h2 className="text-[19px] font-medium tracking-[-0.02em]">
-                {p.q ? 'Best matches' : 'Recommended agents'}
-              </h2>
-              <div className="flex items-center gap-3">
-              <MobileFilters count={activeFilters}>
-                <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-              </MobileFilters>
-              <p className="text-sm text-ink-2" aria-live="polite">
-                <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
-              </p>
-              {activeFilters > 0 && (
-                <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
-                  Clear filters
-                </Link>
-              )}
+          {/*
+            The heading and the way out on one line, on every width; the
+            count and "Clear filters" under it. On a phone the filters are
+            the block above, so nothing else needs a place here.
+          */}
+          <div className="mb-4 flex flex-col gap-2 border-b border-rule pb-4 max-lg:border-b-0 max-lg:pb-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 className="text-[19px] font-medium tracking-[-0.02em]">{p.q ? 'Best matches' : 'Recommended agents'}</h2>
+                <p className="text-sm text-ink-2" aria-live="polite">
+                  <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
+                </p>
+                {activeFilters > 0 && (
+                  <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
+                    Clear filters
+                  </Link>
+                )}
               </div>
+              {/* One way out of a page that reads a query and pages its
+                  results: the whole catalogue, unpaged. "Verify catalogue"
+                  and "Outcome rankings" were here and are errands rather
+                  than a next step — both are still in the footer and on
+                  their own pages. */}
+              <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
+                View all <Icon.Arrow size={13} />
+              </Link>
             </div>
-            {/* One way out of a page that reads a query and pages its
-                results: the whole catalogue, unpaged. "Verify catalogue"
-                and "Outcome rankings" were here and are errands rather
-                than a next step — both are still in the footer and on
-                their own pages. */}
-            <Link href="/agents" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
-              View all agents <Icon.Arrow size={13} />
-            </Link>
-            {/* Below `lg` the pill bar is not rendered, so sort has to live
-                here instead; above it, it sits with the filters. */}
-            <SortSelect params={base} className="lg:hidden" />
           </div>
 
           {result.total === 0 ? (

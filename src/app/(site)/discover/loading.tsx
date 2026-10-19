@@ -25,8 +25,9 @@ export default function DiscoverLoading() {
             <Skeleton className="h-5 w-4/5 max-w-xl" />
           </div>
           <div className="mt-1 flex flex-wrap gap-x-7 gap-y-2">
-            {['w-24', 'w-20', 'w-20'].map((w) => (
-              <Skeleton key={w} className={`h-4 ${w}`} />
+            {/* Keyed by position: two of the widths are the same. */}
+            {['w-24', 'w-20', 'w-20'].map((w, i) => (
+              <Skeleton key={i} className={`h-4 ${w}`} />
             ))}
           </div>
         </div>

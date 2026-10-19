@@ -135,27 +135,48 @@ export function FilterBar({
   );
 }
 
-export function MobileCategoryBar({
+/**
+ * The phone's filters, laid out in the page rather than behind a button.
+ *
+ * Everything sat in a sheet behind "Filters" and the tasks scrolled sideways
+ * in one row, so a buyer on a phone saw neither what they could narrow by
+ * nor most of the tasks. There are five tasks, which wrap to two short rows,
+ * and the four buyer signals are the filters that decide a hire, so both
+ * are shown. The rest — answered this week, evidence, network — stay one
+ * tap away under "More filters". Sort closes the block, since it governs
+ * the results below it.
+ */
+export function MobileFilterBlock({
   p,
   counts,
   allTasks,
+  collections,
+  more,
 }: {
   p: DiscoverParams;
   counts: Array<{ id: string; label: string; count: number }>;
   allTasks: number;
+  collections: { hireable: number; priced: number; outsideDelivery: number; checked: number };
+  more: React.ReactNode;
 }) {
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden" role="group" aria-label="Task">
-      <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>All <Tally n={allTasks} on={!p.category} /></Pill>
-      {counts.map((category) => (
-        <Pill
-          key={category.id}
-          href={discoverHref({ category: category.id as DiscoverParams['category'] }, p)}
-          on={p.category === category.id}
-        >
-          {category.label} <Tally n={category.count} on={p.category === category.id} />
-        </Pill>
-      ))}
+    <div className="-mx-4 flex flex-col gap-4 border-y border-rule px-4 py-5 lg:hidden" aria-label="Filters">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Task">
+        <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>All <Tally n={allTasks} on={!p.category} /></Pill>
+        {counts.map((category) => (
+          <Pill key={category.id} href={discoverHref({ category: category.id as DiscoverParams['category'] }, p)} on={p.category === category.id}>
+            {category.label} <Tally n={category.count} on={p.category === category.id} />
+          </Pill>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Buyer signals">
+        <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
+        <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Signed price <Tally n={collections.priced} on={p.priced} /></Pill>
+        <Pill href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery}>{p.outsideDelivery && <Icon.Check size={13} />}Outside buyer delivered <Tally n={collections.outsideDelivery} on={p.outsideDelivery} /></Pill>
+        <Pill href={discoverHref({ checked: !p.checked }, p)} on={p.checked}>{p.checked && <Icon.Check size={13} />}Checked <Tally n={collections.checked} on={p.checked} /></Pill>
+        {more}
+        <SortSelect params={p} variant="inline" className="ml-auto" />
+      </div>
     </div>
   );
 }

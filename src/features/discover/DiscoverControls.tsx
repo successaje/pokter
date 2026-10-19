@@ -65,16 +65,21 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
   );
 }
 
-export function SortSelect({ params, className }: { params: DiscoverParams; className?: string }) {
+export function SortSelect({ params, className, variant = 'boxed' }: { params: DiscoverParams; className?: string; variant?: 'boxed' | 'inline' }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const inline = variant === 'inline';
   return (
-    <label className={cn('flex items-center gap-2 text-[13px] text-ink-3', className)}>
-      {pending ? <Spinner size={13} /> : 'Sort'}
+    <label className={cn('flex items-center gap-2 text-[13px] text-ink-3', inline && 't-readout shrink-0', className)}>
+      {pending ? <Spinner size={13} /> : inline ? 'sort:' : 'Sort'}
       <select
         value={params.sort}
         onChange={(e) => start(() => router.push(discoverHref({ sort: e.target.value as MarketplaceOrder }, params), { scroll: false }))}
-        className="h-8 rounded-[7px] border border-rule-strong bg-raised px-2 text-[13px] text-ink focus:border-ink focus:outline-none"
+        className={
+          inline
+            ? 't-readout h-8 cursor-pointer appearance-none bg-transparent pr-4 text-[13px] text-ink [field-sizing:content] focus:outline-none'
+            : 'h-8 rounded-[7px] border border-rule-strong bg-raised px-2 text-[13px] text-ink focus:border-ink focus:outline-none'
+        }
       >
         {MARKETPLACE_ORDERS.map((o) => (
           <option key={o.value} value={o.value}>
@@ -82,21 +87,28 @@ export function SortSelect({ params, className }: { params: DiscoverParams; clas
           </option>
         ))}
       </select>
+      {/* Drawn, because the native arrow goes with `appearance-none`, which lets the box shrink to the chosen option. */}
+      {inline && <Icon.ChevronDown size={13} className="pointer-events-none -ml-4 text-ink-2" />}
     </label>
   );
 }
 
 /** On phones the filter column becomes a sheet behind one button. */
-export function MobileFilters({ count, children }: { count: number; children: ReactNode }) {
+export function MobileFilters({ count, children, label = 'Filters', pill = false }: { count: number; children: ReactNode; label?: string; pill?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('inline-flex h-9 items-center gap-2 rounded-[8px] border border-rule-strong bg-raised px-3 text-[13px] font-medium lg:hidden')}
+        className={cn(
+          pill
+            ? 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-rule-strong px-3 text-[13px] font-medium text-ink-2 hover:border-ink hover:text-ink'
+            : 'inline-flex h-9 items-center gap-2 rounded-[8px] border border-rule-strong bg-raised px-3 text-[13px] font-medium',
+          'lg:hidden',
+        )}
       >
-        <Icon.Filter size={15} /> Filters
+        <Icon.Filter size={pill ? 13 : 15} /> {label}
         {count > 0 && <span className="t-readout grid size-5 place-items-center rounded-full bg-ink text-[11px] text-paper">{count}</span>}
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Filters">
