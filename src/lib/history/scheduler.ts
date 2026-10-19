@@ -4,9 +4,14 @@ import { Agent } from 'undici';
 
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getProbeStore } from '@/lib/history/store';
-import { SWEEP_INTERVAL_MS, staleAlertDue, sweepDue } from '@/lib/history/schedule';
+import {
+  SWEEP_FIRST_TICK_MS,
+  SWEEP_INTERVAL_MS,
+  SWEEP_TICK_MS,
+  staleAlertDue,
+  sweepDue,
+} from '@/lib/history/schedule';
 
-const TICK_MS = 10 * 60 * 1000;
 /**
  * How long to wait for the route, now that a sweep is bounded.
  *
@@ -136,10 +141,18 @@ export function startSweepScheduler(): void {
     }
   };
 
-  // First check a minute after boot, once the server is taking requests.
-  setTimeout(() => void tick(), 60_000).unref();
-  setInterval(() => void tick(), TICK_MS).unref();
+  /*
+   * First check a minute after boot, once the server is taking requests.
+   *
+   * `setInterval` is anchored here, not to that first timer, so the gap
+   * between tick one and tick two is a minute short of the rest. That gap is
+   * the tightest in the schedule and `SWEEP_INTERVAL_MS` has to clear it,
+   * which is asserted in the schedule's tests rather than left to arithmetic
+   * done once in a comment.
+   */
+  setTimeout(() => void tick(), SWEEP_FIRST_TICK_MS).unref();
+  setInterval(() => void tick(), SWEEP_TICK_MS).unref();
   console.log(
-    `[sweep-scheduler] on: checks every ${TICK_MS / 60_000} minutes, sweeps at most every ${SWEEP_INTERVAL_MS / 60_000} minutes`,
+    `[sweep-scheduler] on: sweeps every ${SWEEP_TICK_MS / 60_000} minutes, and never twice inside ${SWEEP_INTERVAL_MS / 60_000}`,
   );
 }

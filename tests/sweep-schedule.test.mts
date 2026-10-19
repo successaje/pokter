@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  RECENT_SWEEP_MS,
   SWEEP_BUDGET_MS,
+  SWEEP_FIRST_TICK_MS,
   SWEEP_INTERVAL_MS,
   SWEEP_RUN_BUDGET_MS,
+  SWEEP_TICK_MS,
   registryPageOffset,
   staleAlertDue,
   sweepBatch,
@@ -15,49 +18,54 @@ import {
 const NOW = Date.parse('2026-10-15T13:00:00Z');
 const minsAgo = (m: number) => new Date(NOW - m * 60_000).toISOString();
 
-test('a sweep is due ten minutes after the last one started, or when none ever has', () => {
-  assert.equal(sweepDue(minsAgo(9), NOW), false);
-  assert.equal(sweepDue(minsAgo(10), NOW), true);
-  assert.equal(sweepDue(null, NOW), true);
+test('a sweep is due once the floor has passed since the last one started', () => {
+  const floor = SWEEP_INTERVAL_MS / 60_000;
+  assert.equal(sweepDue(minsAgo(floor - 1), NOW), false);
+  assert.equal(sweepDue(minsAgo(floor), NOW), true);
+  assert.equal(sweepDue(null, NOW), true, 'a process that has never swept sweeps now');
 });
 
-test('pacing from a run start holds the cadence; pacing from its finish does not', () => {
+test('a threshold equal to the gap it is tested against halves the rate', () => {
   /*
-   * The bug this encodes, measured in production: runs at 12:40:07 and
-   * 12:58:25, eighteen minutes apart on a ten-minute schedule.
+   * Both halves of the cadence bug, stated with local numbers so it keeps
+   * documenting the reasoning whatever the shipped constants become.
    *
-   * The scheduler checks on a fixed tick. Fed the last *finish*, the age it
-   * sees at the next tick is the interval minus however long the run took —
-   * always just short of due, so the sweep slips to the tick after, and the
-   * cadence doubles. Fed the last *start*, the age is exactly the interval.
+   * Measured in production twice: runs eighteen minutes apart on a
+   * ten-minute schedule, first because the age was taken from a run's finish
+   * rather than its start, and then because the floor was equal to the gap
+   * between ticks. Either way a tick lands a hair short of due, the sweep
+   * slips to the one after, and the rate halves without anything failing.
    */
-  const TICK = 10 * 60_000;
-  const RUN = 150_000; // a real run: mainnet at ~12:39:28, testnet at ~12:40:07
-
-  const started = NOW;
-  const finished = started + RUN;
-  const nextTick = started + TICK;
-
+  const tick = 10 * 60_000;
+  const run = 150_000; // a real one: mainnet at ~12:39:28, testnet at ~12:40:07
   const iso = (t: number) => new Date(t).toISOString();
+  const due = (lastAt: number, now: number, floor: number) => now - lastAt >= floor;
 
-  assert.equal(
-    sweepDue(iso(finished), nextTick),
-    false,
-    'from the finish the tick is short by the run, so nothing sweeps',
-  );
-  assert.equal(sweepDue(iso(started), nextTick), true, 'from the start it is exactly due');
+  // Taken from the finish, with the floor equal to the tick: never due.
+  assert.equal(due(NOW + run, NOW + tick, tick), false, 'short by the length of the run');
+  // Taken from the start, floor still equal to the tick: due only if the
+  // tick is not a millisecond early, which is a coin flip, not a schedule.
+  assert.equal(due(NOW, NOW + tick, tick), true);
+  assert.equal(due(NOW, NOW + tick - 1, tick), false, 'a hair early and the tick is wasted');
+  // Taken from the start with a floor below the gap: due with room to spare.
+  assert.equal(due(NOW, NOW + tick - 1, tick - 60_000), true);
 
-  // And the tick after that is where a finish-paced schedule actually lands,
-  // which is the doubling.
-  assert.equal(sweepDue(iso(finished), started + 2 * TICK), true);
+  // Which is what the shipped configuration does, via the real function.
+  assert.equal(sweepDue(iso(NOW), NOW + SWEEP_TICK_MS - SWEEP_FIRST_TICK_MS), true);
 });
 
-test('a backup trigger stands down just inside the sweep interval', () => {
-  assert.equal(sweepRecent(minsAgo(7), NOW), true);
-  assert.equal(sweepRecent(minsAgo(9), NOW), false);
-  assert.equal(sweepRecent(null, NOW), false);
-  // Below the interval, so standing down never suppresses a due sweep.
-  assert.ok(sweepRecent(minsAgo(9.9), NOW) === false && sweepDue(minsAgo(9.9), NOW) === false);
+test('a backup trigger stands down only inside its own window', () => {
+  const window = RECENT_SWEEP_MS / 60_000;
+  assert.equal(sweepRecent(minsAgo(window - 1), NOW), true);
+  assert.equal(sweepRecent(minsAgo(window + 1), NOW), false);
+  assert.equal(sweepRecent(null, NOW), false, 'never swept is not recently swept');
+
+  // The relationship that matters: the route checks this, and the scheduler
+  // goes through the route, so a sweep the scheduler calls due must never be
+  // one the route calls recent.
+  const atFloor = minsAgo(SWEEP_INTERVAL_MS / 60_000);
+  assert.equal(sweepDue(atFloor, NOW), true);
+  assert.equal(sweepRecent(atFloor, NOW), false, 'the route must not veto a due sweep');
 });
 
 test('six hours without a sweep alerts once per outage', () => {
@@ -122,20 +130,20 @@ test('a run that measured nothing leaves the queue where it was', () => {
   assert.deepEqual(sweepBatch(roster, lastProbed, 2).map((e) => e.tokenId), first);
 });
 
-test('the registry page advances with the schedule and wraps', () => {
+test('the registry page advances once per run and wraps', () => {
   const depth = 150;
-  const t = (ticks: number) => registryPageOffset(ticks * 10 * 60 * 1000, depth);
+  const t = (ticks: number) => registryPageOffset(ticks * SWEEP_TICK_MS, depth);
 
   assert.deepEqual([t(0), t(1), t(2), t(3), t(4)], [0, 50, 100, 0, 50], 'three pages, then round again');
-  // Within one interval the page is stable, so a retry in the same window
-  // reads the same page rather than skipping one.
-  assert.equal(registryPageOffset(1 * 10 * 60 * 1000 + 59_000, depth), 50);
+  // Within one tick the page is stable, so a retry in the same window reads
+  // the same page rather than skipping one.
+  assert.equal(registryPageOffset(SWEEP_TICK_MS + 59_000, depth), 50);
 });
 
 test('a registry depth of one page or less never rotates', () => {
   // The testnet pass reads 50, so its offset must stay at 0 — a rotation
   // there would read past the depth it was given and find nothing.
-  const t = (ticks: number) => registryPageOffset(ticks * 10 * 60 * 1000, 50);
+  const t = (ticks: number) => registryPageOffset(ticks * SWEEP_TICK_MS, 50);
   assert.deepEqual([t(0), t(1), t(7)], [0, 0, 0]);
   assert.equal(registryPageOffset(0, 0), 0, 'and a depth of none does not divide by zero');
 });
@@ -150,13 +158,68 @@ test('the run budget stays inside the platform ceiling and the tick', () => {
     SWEEP_RUN_BUDGET_MS < MAX_DURATION_MS,
     'a run must finish early enough to report what it did',
   );
-  // Runs now start on the interval rather than a run-length after the last
-  // one finished, so the budget has to fit inside the interval — and by more
-  // than a hair, since the machine also has a site to serve.
+  // Runs start on the tick, so the budget has to fit inside the tick — and by
+  // more than a hair, since the machine also has a site to serve.
   assert.ok(
-    SWEEP_RUN_BUDGET_MS * 2 <= SWEEP_INTERVAL_MS,
+    SWEEP_RUN_BUDGET_MS * 2 <= SWEEP_TICK_MS,
     'a run must finish well inside the gap before the next one starts',
   );
   // And the probing share must leave the follow-on steps something to use.
   assert.ok(SWEEP_BUDGET_MS * 2 < SWEEP_RUN_BUDGET_MS, 'probing cannot claim the whole run');
+});
+
+test('the due floor clears the tightest gap between ticks', () => {
+  /*
+   * The half of the cadence bug that pacing from run starts did not fix.
+   *
+   * The scheduler wakes on a fixed tick and sweeps when a sweep is due, so
+   * the cadence is the tick and this interval is only a floor against double
+   * sweeping. Set equal to the gap it is tested against, every tick lands a
+   * hair short of due and the sweep slips to the next one — a ten-minute
+   * schedule running at eighteen, decided by timer drift, failing silently
+   * towards half the intended rate.
+   *
+   * The tightest gap is the first one, because `setInterval` is anchored to
+   * boot rather than to the first timer: tick one is at `SWEEP_FIRST_TICK_MS`
+   * and tick two at `SWEEP_TICK_MS`, so they are a minute closer together
+   * than every pair after them.
+   */
+  const tightestGap = SWEEP_TICK_MS - SWEEP_FIRST_TICK_MS;
+
+  assert.ok(
+    SWEEP_INTERVAL_MS < tightestGap,
+    `the floor (${SWEEP_INTERVAL_MS / 60_000}m) must clear the first gap (${tightestGap / 60_000}m), or that tick never sweeps`,
+  );
+  // Not merely under it: a threshold a few seconds below a gap is still
+  // decided by drift. A minute of slack is what stops this being arithmetic
+  // that happens to work today.
+  assert.ok(
+    tightestGap - SWEEP_INTERVAL_MS >= 60_000,
+    'the floor needs real slack under the tightest gap, not a hair',
+  );
+
+  // And the backup trigger's stand-down window must not outlast the floor,
+  // or GitHub's cron would refuse sweeps the scheduler considers due.
+  assert.ok(RECENT_SWEEP_MS <= SWEEP_INTERVAL_MS, 'the backup must not veto a due sweep');
+});
+
+test('every tick sweeps, once the floor clears the gaps', () => {
+  // Walking the real timer grid: boot, first tick a minute later, then
+  // `setInterval` from boot. Every tick after the first must find a sweep
+  // due, or the cadence is not the tick.
+  const boot = 0;
+  const ticks = [boot + SWEEP_FIRST_TICK_MS, boot + SWEEP_TICK_MS, boot + 2 * SWEEP_TICK_MS, boot + 3 * SWEEP_TICK_MS];
+
+  let lastRunStartedAt: string | null = null;
+  const swept: number[] = [];
+  for (const tick of ticks) {
+    if (!sweepDue(lastRunStartedAt, tick)) continue;
+    swept.push(tick);
+    lastRunStartedAt = new Date(tick).toISOString();
+  }
+
+  assert.deepEqual(swept, ticks, 'no tick is skipped');
+  // Which makes the spacing the tick period, apart from the boot offset.
+  assert.equal(swept[2] - swept[1], SWEEP_TICK_MS);
+  assert.equal(swept[3] - swept[2], SWEEP_TICK_MS);
 });
