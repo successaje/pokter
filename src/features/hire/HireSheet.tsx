@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
@@ -34,10 +34,27 @@ export function HireSheet({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const close = useCallback(() => router.back(), [router]);
+  /*
+   * Dismiss first, navigate after.
+   *
+   * Closing used to be `router.back()` alone, which meant the sheet stayed
+   * on screen until the route behind it was ready to render. Warm that is
+   * 70ms and invisible; cold - a router cache that has expired, a slow
+   * connection, a dev rebuild - it is however long that page takes, and the
+   * one thing a person wants after pressing an X is for the thing to go.
+   *
+   * The two are independent: this hides the dialog immediately, and the
+   * history pop that follows is what actually unmounts it and restores the
+   * address.
+   */
+  const [open, setOpen] = useState(true);
+  const close = useCallback(() => {
+    setOpen(false);
+    router.back();
+  }, [router]);
   return (
     <Sheet
-      open
+      open={open}
       onClose={close}
       floating
       icon={<AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.seed} size={36} />}
