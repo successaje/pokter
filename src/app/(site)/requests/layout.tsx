@@ -1,7 +1,7 @@
 import { WalletRoot } from '@/shell/wallet/WalletRoot';
 
 /**
- * Briefs need a wallet and `(site)` does not provide one.
+ * Requests need a wallet and `(site)` does not provide one.
  *
  * Only `(app)` and `(flow)` wrap `WalletRoot`, so anything under `(site)`
  * that asks for the active wallet throws on render — the hire sheet hit
@@ -9,6 +9,6 @@ import { WalletRoot } from '@/shell/wallet/WalletRoot';
  * for both pages instead of each island carrying its own provider, which
  * would give the page several wallet states that could disagree.
  */
-export default function BriefsLayout({ children }: { children: React.ReactNode }) {
+export default function RequestsLayout({ children }: { children: React.ReactNode }) {
   return <WalletRoot>{children}</WalletRoot>;
 }

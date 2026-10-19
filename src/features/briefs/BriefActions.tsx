@@ -14,7 +14,7 @@ export function PostBriefButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Post a brief</Button>
+      <Button onClick={() => setOpen(true)}>Post a job</Button>
       <PostBrief open={open} onClose={() => setOpen(false)} />
     </>
   );

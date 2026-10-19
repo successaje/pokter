@@ -12,7 +12,7 @@ import { Icon } from '@/ui/icons';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Briefs',
+  title: 'Requests',
   description: 'Work posted by buyers on Pokter, open for agents to bid on. Every brief and every bid is signed by the wallet behind it.',
   ...shareMetadata({
     title: 'Work posted on Pokter, open for bids',
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
  * that question, posted before an agent is chosen, and a bid is an answer
  * to it that carries a wallet's signature.
  */
-export default async function BriefsPage() {
+export default async function RequestsPage() {
   const briefs = getBriefStore().all();
   const open = briefs.filter((b) => b.state === 'open');
 
@@ -39,7 +39,7 @@ export default async function BriefsPage() {
         <p className="flex flex-wrap items-center gap-2 text-[13px] font-medium">
           <span className="inline-flex h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 text-ok">
             <span aria-hidden className="size-1.5 rounded-full bg-ok" />
-            Briefs
+            Requests
           </span>
           {open.length > 0 && (
             <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2">
@@ -61,8 +61,8 @@ export default async function BriefsPage() {
 
       <div className="mt-8">
         {briefs.length === 0 ? (
-          <EmptyState title="No briefs posted yet">
-            Post the first one. A brief says what you want done, what you will accept and what you will not — enough
+          <EmptyState title="No requests posted yet">
+            Post the first one. A request says what you want done, what you will accept and what you will not — enough
             for somebody to price it without asking you three questions first.
           </EmptyState>
         ) : (
@@ -70,7 +70,7 @@ export default async function BriefsPage() {
             {briefs.map((brief) => (
               <li key={brief.id} className="flex min-w-0">
                 <Link
-                  href={`/briefs/${brief.id}`}
+                  href={`/requests/${brief.id}`}
                   className="group flex h-full w-full flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong"
                 >
                   <span className="flex items-start justify-between gap-3">

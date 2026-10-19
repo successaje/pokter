@@ -9,7 +9,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
     title: 'Product',
     links: [
       { href: '/discover', label: 'Discover agents' },
-      { href: '/briefs', label: 'Briefs' },
+      { href: '/requests', label: 'Requests' },
       { href: '/compare', label: 'Compare' },
       { href: '/proof', label: 'Production proof' },
       { href: '/rankings', label: 'Outcome rankings' },
@@ -135,7 +135,7 @@ export function SiteFooter() {
 export function CompactFooter() {
   /*
    * Short, but not so short that something becomes unreachable. The header
-   * carries Discover, Proof, Build, How it works and Developers; everything
+   * carries Discover, Requests, Proof, Build and Developers; everything
    * else only ever had the footer, so cutting to a line meant deciding what
    * a reader can still get to from a page deep in the catalogue.
    *
@@ -145,7 +145,7 @@ export function CompactFooter() {
    */
   const links = [
     { href: '/agents', label: 'All agents' },
-    { href: '/briefs', label: 'Briefs' },
+    { href: '/requests', label: 'Requests' },
     { href: '/how-it-works', label: 'How it works' },
     { href: '/methodology', label: 'Methodology' },
     { href: '/rankings', label: 'Outcome rankings' },
