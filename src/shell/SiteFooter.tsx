@@ -9,6 +9,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
     title: 'Product',
     links: [
       { href: '/discover', label: 'Discover agents' },
+      { href: '/briefs', label: 'Briefs' },
       { href: '/compare', label: 'Compare' },
       { href: '/proof', label: 'Production proof' },
       { href: '/rankings', label: 'Outcome rankings' },
@@ -144,6 +145,7 @@ export function CompactFooter() {
    */
   const links = [
     { href: '/agents', label: 'All agents' },
+    { href: '/briefs', label: 'Briefs' },
     { href: '/how-it-works', label: 'How it works' },
     { href: '/methodology', label: 'Methodology' },
     { href: '/rankings', label: 'Outcome rankings' },
