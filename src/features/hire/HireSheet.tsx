@@ -3,9 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, type ReactNode } from 'react';
 
-import { buttonClass } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
+import { AgentAvatar } from '@/ui/Agent';
 
 /**
  * The hire flow over the page it was opened from.
@@ -24,7 +24,15 @@ import { Sheet } from '@/ui/Sheet';
  * asked to sign, that lives in the wallet; closing the sheet only stops
  * watching, exactly as navigating away from the page would.
  */
-export function HireSheet({ fullPageHref, children }: { fullPageHref: string; children: ReactNode }) {
+export function HireSheet({
+  fullPageHref,
+  agent,
+  children,
+}: {
+  fullPageHref: string;
+  agent: { name: string; imageUrl: string | null; seed: string; subline: string };
+  children: ReactNode;
+}) {
   const router = useRouter();
   const close = useCallback(() => router.back(), [router]);
   return (
@@ -32,18 +40,24 @@ export function HireSheet({ fullPageHref, children }: { fullPageHref: string; ch
       open
       onClose={close}
       floating
-      title="Hire this agent"
-      description="Pokter holds the money in escrow and releases it when you accept the work. One job, one escrow; no standing access to your wallet."
+      icon={<AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.seed} size={36} />}
+      title={`Hire ${agent.name}`}
+      /* What it costs and where it settles, not a paragraph about escrow:
+         the flow says all of that where it applies, and a sheet header is
+         read once on the way past. */
+      description={agent.subline}
       className="sm:max-w-[min(680px,94vw)]"
-      footer={
-        <div className="flex items-center justify-between gap-3 pb-3">
-          <button type="button" onClick={close} className="text-[13px] font-medium text-ink-2 hover:text-ink">
-            Close
-          </button>
-          <a href={fullPageHref} className={buttonClass('secondary', 's')}>
-            Open as a page <Icon.ArrowUpRight size={14} />
-          </a>
-        </div>
+      /*
+       * No footer. The bottom edge belongs to the step's own action - Review
+       * terms, then Continue to payment, then Fund escrow - which is the
+       * thing a reader is reaching for and which used to sit at the end of a
+       * scroll. "Open as a page" is a way out, not a next step, so it moves
+       * up beside Close where the other ways out are.
+       */
+      headerAction={
+        <a href={fullPageHref} className="grid size-9 place-items-center rounded-[8px] text-ink-3 hover:bg-sunken hover:text-ink" title="Open as a page" aria-label="Open as a page">
+          <Icon.ArrowUpRight size={16} />
+        </a>
       }
     >
       {children}

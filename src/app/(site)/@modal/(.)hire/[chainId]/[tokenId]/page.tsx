@@ -1,4 +1,4 @@
-import { briefFromLink, HireContents } from '@/features/hire/HireContents';
+import { briefFromLink, HireContents, hireSheetAgent } from '@/features/hire/HireContents';
 import { HireSheet } from '@/features/hire/HireSheet';
 import { WalletRoot } from '@/shell/wallet/WalletRoot';
 
@@ -24,8 +24,9 @@ export default async function HireInSheet({
   if (escrow) query.set('escrow', escrow);
   if (task) query.set('task', task);
   const suffix = query.toString();
+  const agent = await hireSheetAgent(Number(chainId), tokenId, escrow);
   return (
-    <HireSheet fullPageHref={`/hire/${chainId}/${tokenId}${suffix ? `?${suffix}` : ''}`}>
+    <HireSheet agent={agent} fullPageHref={`/hire/${chainId}/${tokenId}${suffix ? `?${suffix}` : ''}`}>
       <WalletRoot>
         <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} embedded />
       </WalletRoot>

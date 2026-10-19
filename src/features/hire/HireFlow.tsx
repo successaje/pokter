@@ -122,6 +122,14 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
 }
 
 export function HireFlow(props: HireFlowProps) {
+  /*
+   * In the sheet, the step's actions are pinned to the bottom edge, where
+   * the sheet's own footer used to be. The thing a reader is reaching for
+   * should not be at the end of a scroll, and the flow already knows which
+   * action belongs to the step they are on — a footer outside it would have
+   * to be told.
+   */
+  const actionRow = props.embedded ? 'sticky bottom-0 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
@@ -434,7 +442,7 @@ export function HireFlow(props: HireFlowProps) {
           {props.providers.length > 0 && (
             <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />
           )}
-          <div className="flex justify-end">
+          <div className={cn('flex justify-end', actionRow)}>
             {/*
               Said before the money moves, not discovered after.
 
@@ -673,7 +681,7 @@ export function HireFlow(props: HireFlowProps) {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className={cn('flex items-center justify-between gap-3', actionRow)}>
             <Button intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={16} />}>
               Back
             </Button>
@@ -786,7 +794,7 @@ export function HireFlow(props: HireFlowProps) {
             </>
           )}
 
-          <div className="flex justify-start">
+          <div className={cn('flex justify-start', actionRow)}>
             <Button intent="ghost" onClick={() => setStep('review')} icon={<Icon.ChevronLeft size={16} />}>
               Back
             </Button>
@@ -878,7 +886,12 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
   /* Who is being hired and how far along, on one line: the identity has to
      stay visible past the first step, where the form stops naming it. */
   const tracker = (
-    <div className={cn('flex flex-col gap-3 border-b border-rule', embedded ? 'bg-raised px-5 py-3.5' : 'mx-auto max-w-3xl px-4 py-3.5 sm:px-6')}>
+    <div className={cn('flex flex-col gap-3 border-b border-rule', embedded ? 'bg-raised px-5 py-3' : 'mx-auto max-w-3xl px-4 py-3.5 sm:px-6')}>
+      {/* Only on the page. In the sheet the header above already carries the
+          avatar, the name and what it costs, and a second copy of it under
+          the title is the thing that made the first version of this look
+          like two dialogs stacked. */}
+      {!embedded && (
       <div className="flex min-w-0 items-center gap-2.5">
         <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={28} />
         <p className="truncate text-[13.5px] font-medium">{agent.name}</p>
@@ -891,6 +904,7 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
           </span>
         )}
       </div>
+      )}
       <StepTracker index={index} />
     </div>
   );

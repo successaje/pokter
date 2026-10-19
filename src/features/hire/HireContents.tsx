@@ -4,6 +4,7 @@ import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
 import { loadProfile } from '@/features/agent/profile';
+import { chainLabel } from '@/lib/network/presentation';
 import { HireFlow } from '@/features/hire/HireFlow';
 import type { ChainId } from '@/lib/scan/types';
 import { LinkButton } from '@/ui/Button';
@@ -86,4 +87,29 @@ export async function HireContents({
 /** A brief from the link, e.g. one an assistant composed through Pokter's MCP server. Prose only, and capped. */
 export function briefFromLink(task: string | undefined): string | null {
   return typeof task === 'string' && task.trim() ? task.trim().slice(0, 2000) : null;
+}
+
+/**
+ * The agent's name for the sheet's title, read from the same profile the
+ * form below it is built from.
+ *
+ * `loadProfile` is memoised per request, so asking twice in one render
+ * costs one load. A name passed down from the card that was clicked would
+ * be faster and would be whatever that card happened to say.
+ */
+export async function hireSheetAgent(chainId: number, tokenId: string, escrow?: string) {
+  const fallback = { name: 'this agent', imageUrl: null, seed: `${chainId}:${tokenId}`, subline: '' };
+  if ((chainId !== 56 && chainId !== 97) || !/^\d{1,12}$/.test(tokenId)) return fallback;
+  const result = await loadProfile(chainId as ChainId, tokenId, { escrow: jobChainParam(escrow) });
+  if (result.state !== 'ok') return fallback;
+  const p = result.profile;
+  const price = p.quote && p.quote.payable !== false ? p.quote.label : null;
+  return {
+    name: p.name,
+    imageUrl: p.imageUrl,
+    seed: p.key,
+    /* Price first when there is one, then where it settles. A buyer opening
+       this is deciding whether to spend, and on which kind of money. */
+    subline: [price, `escrowed on ${chainLabel(p.escrow.chainId)}`, p.escrow.chainId === 97 ? 'test tokens' : null].filter(Boolean).join(' \u00b7 '),
+  };
 }
