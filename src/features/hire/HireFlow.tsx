@@ -128,8 +128,13 @@ export function HireFlow(props: HireFlowProps) {
    * should not be at the end of a scroll, and the flow already knows which
    * action belongs to the step they are on — a footer outside it would have
    * to be told.
+   *
+   * `-bottom-5`, not `bottom-0`. The sheet's scrolling area carries 20px of
+   * padding, and a sticky element pins inside that, so `bottom-0` left a
+   * 20px strip of background under the row and above the sheet's edge. The
+   * offset has to clear the padding for the row to sit flush.
    */
-  const actionRow = props.embedded ? 'sticky bottom-0 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
+  const actionRow = props.embedded ? 'sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
@@ -840,14 +845,14 @@ function StepTracker({ index, className }: { index: number; className?: string }
         return (
           <li
             key={step.id}
-            className={cn('flex items-center gap-2', i > 0 && 'min-w-0 sm:flex-1')}
+            className="flex items-center gap-2"
             aria-current={current ? 'step' : undefined}
           >
-            {/* Fixed and short while the labels are folded away, stretching
-                once they are back. Stretching with the labels hidden drew
-                200px rails between bare circles, which reads as a loading
-                state rather than a stepper. */}
-            {i > 0 && <span aria-hidden className={cn('h-px w-7 shrink-0 sm:w-auto sm:min-w-2 sm:flex-1', done || current ? 'bg-ink-3' : 'bg-rule')} />}
+            {/* Fixed and short. Stretched to fill the row they ran to 105px
+                of empty rail between one step and the next, which separates
+                the three rather than joining them — the connector is there
+                to say these are one sequence. */}
+            {i > 0 && <span aria-hidden className={cn('h-px w-7 shrink-0 sm:w-10', done || current ? 'bg-ink-3' : 'bg-rule')} />}
             <span
               className={cn(
                 'grid size-5 shrink-0 place-items-center rounded-full border text-[10.5px] font-medium transition-colors',
@@ -915,7 +920,11 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
           Skip to content
         </a>
       )}
-      <div className={cn('sticky top-0 z-30', embedded ? '-mx-5 -mt-5' : 'border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md')}>
+      {/* `-top-5` in the sheet for the same reason the action row uses
+          `-bottom-5`: the scrolling area has 20px of padding and a sticky
+          element pins inside it, so `top-0` left a 20px strip above the
+          tracker that the form scrolled through. */}
+      <div className={cn('sticky z-30', embedded ? '-top-5 -mx-5 -mt-5' : 'top-0 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md')}>
         {!embedded && (
           <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 border-b border-rule px-4 sm:px-6">
             <span className="flex items-center gap-2.5">
