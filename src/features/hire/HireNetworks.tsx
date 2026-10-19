@@ -34,13 +34,16 @@ type Shared = Omit<HireFlowProps, keyof Omit<HireNetwork, 'chainId'> | 'escrowOp
  * The address is replaced, not pushed, so a refresh or a shared link opens
  * the same network and Back still closes the hire.
  */
-export function HireNetworks({ networks, initialChainId, ...shared }: Shared & { networks: HireNetwork[]; initialChainId: number }) {
+export function HireNetworks({ networks, initialChainId, initialTask, ...shared }: Shared & { networks: HireNetwork[]; initialChainId: number }) {
   const [chainId, setChainId] = useState(initialChainId);
+  /* The link's brief seeds the first form only; after a switch the form recalls the brief as the buyer left it. */
+  const [linkTask, setLinkTask] = useState(initialTask ?? null);
   const current = networks.find((n) => n.chainId === chainId) ?? networks[0];
 
   const choose = (next: number) => {
     if (next === current.chainId || !networks.some((n) => n.chainId === next)) return;
     setChainId(next);
+    setLinkTask(null);
     const url = new URL(window.location.href);
     url.searchParams.set('escrow', String(next));
     window.history.replaceState(null, '', url);
@@ -50,6 +53,7 @@ export function HireNetworks({ networks, initialChainId, ...shared }: Shared & {
     <HireFlow
       key={current.chainId}
       {...shared}
+      initialTask={linkTask}
       escrow={current.escrow}
       providers={current.providers}
       signedQuoteU={current.signedQuoteU}
