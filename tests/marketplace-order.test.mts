@@ -5,7 +5,7 @@ import { orderMarketplace } from '../src/lib/search/order';
 import type { SearchableAgent } from '../src/lib/search/match';
 
 function agent(name: string, opts: {
-  jobs?: number; completed?: number; probes?: number; priced?: boolean; ratio?: number;
+  jobs?: number; completed?: number; outsideCompleted?: number; probes?: number; priced?: boolean; ratio?: number; tested?: boolean;
 }): SearchableAgent {
   return {
     listing: {
@@ -19,8 +19,11 @@ function agent(name: string, opts: {
       windows: [{ label: '24h', probes: 2, ratio: opts.ratio ?? 1 }],
     },
     history: opts.jobs === undefined ? undefined : {
-      jobs: opts.jobs, completed: opts.completed ?? 0,
+      jobs: opts.jobs,
+      completed: opts.completed ?? 0,
+      outsideTeam: { completed: opts.outsideCompleted ?? 0 },
     },
+    tested: opts.tested,
   } as unknown as SearchableAgent;
 }
 
@@ -66,4 +69,18 @@ test('among hireable agents, a current payable signed price comes first by defau
   const unpriced = agent('unpriced-but-busy', { jobs: 3, completed: 3, priced: false });
   const priced = agent('signed-price', { jobs: 0, completed: 0, priced: true });
   assert.deepEqual(names(orderMarketplace([unpriced, priced], 'recommended')), ['signed-price', 'unpriced-but-busy']);
+});
+
+test('outside-buyer delivery outranks the same amount of team-funded work', () => {
+  const teamOnly = agent('team-only', { jobs: 2, completed: 2, outsideCompleted: 0, priced: true, ratio: 1 });
+  const outside = agent('outside-buyer', { jobs: 1, completed: 1, outsideCompleted: 1, priced: true, ratio: 0.5 });
+
+  assert.deepEqual(names(orderMarketplace([teamOnly, outside], 'recommended')), ['outside-buyer', 'team-only']);
+});
+
+test('a passed correctness check outranks reply activity when commerce evidence ties', () => {
+  const responsive = agent('responsive', { jobs: 0, completed: 0, priced: true, ratio: 1 });
+  const checked = agent('checked', { jobs: 0, completed: 0, priced: true, ratio: 0.5, tested: true });
+
+  assert.deepEqual(names(orderMarketplace([responsive, checked], 'recommended')), ['checked', 'responsive']);
 });

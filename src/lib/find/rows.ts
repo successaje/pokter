@@ -69,7 +69,7 @@ export interface FindRow {
   priceFresh: boolean;
   hirable: boolean;
   deliveredByPokter: boolean;
-  paid: { jobs: number; completed: number; delivered: number; missed: number };
+  paid: { jobs: number; completed: number; delivered: number; missed: number; outsideCompleted: number };
   maturity: AgentMaturity;
   owner: string;
 }
@@ -125,7 +125,13 @@ export function toFindRow(
     priceFresh,
     hirable,
     deliveredByPokter: agent.chain_id !== ALTANA_NETWORK.chainId,
-    paid: { jobs: history?.jobs ?? 0, completed: history?.completed ?? 0, delivered: history?.delivered ?? 0, missed: history?.missed ?? 0 },
+    paid: {
+      jobs: history?.jobs ?? 0,
+      completed: history?.completed ?? 0,
+      delivered: history?.delivered ?? 0,
+      missed: history?.missed ?? 0,
+      outsideCompleted: history?.outsideTeam.completed ?? 0,
+    },
     maturity,
     owner: agent.owner_address.toLowerCase(),
   };

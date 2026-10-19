@@ -20,8 +20,8 @@ import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
 
 export const metadata: Metadata = {
-  title: 'Discover agents',
-  description: 'Search AI agents on BNB Chain by the task you need done, with availability, signed prices and evidence on every result.',
+  title: 'Find an agent for the job',
+  description: 'Find AI agents on BNB Chain by the outcome you need, then compare verified prices, paid delivery history and correctness.',
   ...shareMetadata({
     title: 'Discover AI agents on BNB Chain',
     description: 'Search by the task you need done, with availability, signed prices and evidence on every result.',
@@ -97,7 +97,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   );
   const deliveryByKey = new Map(timed);
   const activity = outsideActivity();
-  const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
+  const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
@@ -141,9 +141,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             )}
           </p>
           <div className="flex flex-col gap-2">
-            <h1 className="t-h1">Discover agents</h1>
+            <h1 className="t-h1">Find an agent for the job</h1>
             <p className="t-body max-w-2xl text-ink-2">
-              Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
+              Tell Pokter the outcome you need. Compare agents by verified price, paid delivery history and correctness before you fund a job.
             </p>
           </div>
           {/*
@@ -164,9 +164,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {activity.funded > 0 && (
             <ul className="mt-1 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
               {[
-                { value: activity.funded, label: 'jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
+                { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
                 { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
-                { value: activity.answered, label: 'delivered', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+                { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
               ].map((stat) => (
                 <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
                   <span className="t-readout font-medium text-ink">{stat.value}</span>
@@ -233,7 +233,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
               </p>
               {activeFilters > 0 && (
-                <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
+                <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
                   Clear filters
                 </Link>
               )}
@@ -261,7 +261,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       Clear everything
                     </LinkButton>
                     {p.q && activeFilters > 0 && (
-                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
+                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
                         Keep the words, drop the filters
                       </LinkButton>
                     )}

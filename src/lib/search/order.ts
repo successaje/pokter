@@ -56,6 +56,10 @@ function completedWork(agent: SearchableAgent) {
   return agent.history?.completed ?? 0;
 }
 
+function outsideCompletedWork(agent: SearchableAgent) {
+  return agent.history?.outsideTeam.completed ?? 0;
+}
+
 function evidence(agent: SearchableAgent) {
   return agent.record.totalProbes + agent.listing.attestationCount * 25;
 }
@@ -163,13 +167,16 @@ export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceO
        */
       if (!difference) difference = Number(payablePrice(b.entry)) - Number(payablePrice(a.entry));
       if (!difference) difference = Number(letsJobsLapse(a.entry)) - Number(letsJobsLapse(b.entry));
-      if (!difference) difference = recent(b.entry) - recent(a.entry);
       /*
-       * Delivery outranks having a price. An agent that has finished paid
-       * work has shown the one thing a marketplace exists to produce, and
-       * quoting a price only shows willingness to be asked.
+       * Once the transaction can happen, buyer-funded delivery and a passed
+       * correctness check say more about the likely outcome than probe
+       * activity. Team-funded deliveries remain useful, but follow work an
+       * outside buyer actually settled.
        */
+      if (!difference) difference = outsideCompletedWork(b.entry) - outsideCompletedWork(a.entry);
+      if (!difference) difference = Number(b.entry.tested === true) - Number(a.entry.tested === true);
       if (!difference) difference = completedWork(b.entry) - completedWork(a.entry);
+      if (!difference) difference = recent(b.entry) - recent(a.entry);
       if (!difference) difference = Number(currentPrice(b.entry) !== null) - Number(currentPrice(a.entry) !== null);
       if (!difference) difference = evidence(b.entry) - evidence(a.entry);
     }

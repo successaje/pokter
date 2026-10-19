@@ -22,17 +22,17 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
         event.preventDefault();
         start(() => router.push(discoverHref({ q: value.trim() }, params)));
       }}
-      className="flex h-14 items-center gap-3 rounded-[14px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--signal)_28%,transparent)]"
+      className="flex min-h-16 items-center gap-3 rounded-[16px] border border-rule-strong bg-raised p-2 pl-4 shadow-sm transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--signal)_28%,transparent)]"
     >
       {pending ? <Spinner size={18} className="text-ink-3" /> : <Icon.Search size={18} className="text-ink-3" />}
       <label htmlFor="discover-q" className="sr-only">
-        Describe the task, or search by name
+        What outcome do you need?
       </label>
       <input
         id="discover-q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Describe the task, e.g. “watch my Venus loan for liquidation risk”"
+        placeholder="e.g. Watch my Venus loan for liquidation risk"
         maxLength={400}
         autoComplete="off"
         enterKeyHint="search"
@@ -51,6 +51,15 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
           <Icon.Close size={16} />
         </button>
       )}
+      <button
+        type="submit"
+        disabled={pending || value.trim().length === 0}
+        className="inline-flex h-12 shrink-0 items-center gap-2 rounded-[11px] bg-ink px-4 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+      >
+        <span className="hidden sm:inline">Find an agent</span>
+        <span className="sm:hidden">Find</span>
+        <Icon.Arrow size={14} />
+      </button>
     </form>
   );
 }

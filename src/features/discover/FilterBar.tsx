@@ -93,15 +93,17 @@ export function FilterBar({
   p: DiscoverParams;
   counts: Array<{ id: string; label: string; count: number }>;
   allTasks: number;
-  collections: { hireable: number; priced: number; answering: number; corroborated: number };
+  collections: { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
 }) {
   return (
     <div className="hidden flex-col gap-2.5 lg:flex" aria-label="Filters">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Availability">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Buyer signals">
           <Pill href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable}>{p.hireable && <Icon.Check size={13} />}Hireable now <Tally n={collections.hireable} on={p.hireable} /></Pill>
-          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
           <Pill href={discoverHref({ priced: !p.priced }, p)} on={p.priced}>{p.priced && <Icon.Check size={13} />}Has a signed price <Tally n={collections.priced} on={p.priced} /></Pill>
+          <Pill href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery}>{p.outsideDelivery && <Icon.Check size={13} />}Outside buyer delivered <Tally n={collections.outsideDelivery} on={p.outsideDelivery} /></Pill>
+          <Pill href={discoverHref({ checked: !p.checked }, p)} on={p.checked}>{p.checked && <Icon.Check size={13} />}Correctness checked <Tally n={collections.checked} on={p.checked} /></Pill>
+          <Pill href={discoverHref({ answering: !p.answering }, p)} on={p.answering}>{p.answering && <Icon.Check size={13} />}Answered this week <Tally n={collections.answering} on={p.answering} /></Pill>
         </div>
         <span aria-hidden className="h-5 w-px bg-rule" />
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Evidence">
@@ -150,11 +152,13 @@ export function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Ar
           </FilterLink>
         ))}
       </section>
-      <section className="flex flex-col gap-1" aria-label="Availability">
-        <h2 className="t-label mb-1.5 px-2.5">Availability</h2>
+      <section className="flex flex-col gap-1" aria-label="Buyer signals">
+        <h2 className="t-label mb-1.5 px-2.5">Buyer signals</h2>
         <Toggle href={discoverHref({ hireable: !p.hireable }, p)} on={p.hireable} label="Hireable now" hint="Answering, and payable through escrow" />
-        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" hint="Replied to a Pokter probe in 7 days" />
         <Toggle href={discoverHref({ priced: !p.priced }, p)} on={p.priced} label="Has a signed price" hint="Named a price, signed by its wallet" />
+        <Toggle href={discoverHref({ outsideDelivery: !p.outsideDelivery }, p)} on={p.outsideDelivery} label="Outside buyer delivered" hint="Settled work funded outside Pokter’s team" />
+        <Toggle href={discoverHref({ checked: !p.checked }, p)} on={p.checked} label="Correctness checked" hint="Passed the latest check for its category" />
+        <Toggle href={discoverHref({ answering: !p.answering }, p)} on={p.answering} label="Answered this week" hint="Replied to a Pokter probe in 7 days" />
       </section>
       <section className="flex flex-col gap-1" aria-label="Evidence">
         <h2 className="t-label mb-1.5 px-2.5">Evidence</h2>

@@ -9,6 +9,8 @@ export interface DiscoverParams {
   hireable: boolean;
   answering: boolean;
   priced: boolean;
+  checked: boolean;
+  outsideDelivery: boolean;
   evidence: 'any' | 'measured' | 'corroborated';
   chain: 'any' | '56' | '97';
   sort: MarketplaceOrder;
@@ -32,6 +34,8 @@ export function parseDiscoverParams(sp: Record<string, string | string[] | undef
     hireable: one('hireable') === '1',
     answering: one('answering') === '1',
     priced: one('priced') === '1',
+    checked: one('checked') === '1',
+    outsideDelivery: one('outside') === '1',
     evidence: evidence === 'measured' || evidence === 'corroborated' ? evidence : 'any',
     chain: chain === '56' || chain === '97' ? chain : 'any',
     sort: parseMarketplaceOrder(one('sort')),
@@ -52,6 +56,8 @@ export function discoverHref(params: Partial<DiscoverParams>, base: DiscoverPara
   if (next.hireable) sp.set('hireable', '1');
   if (next.answering) sp.set('answering', '1');
   if (next.priced) sp.set('priced', '1');
+  if (next.checked) sp.set('checked', '1');
+  if (next.outsideDelivery) sp.set('outside', '1');
   if (next.evidence !== 'any') sp.set('evidence', next.evidence);
   if (next.chain !== 'any') sp.set('chain', next.chain);
   if (next.sort !== 'recommended') sp.set('sort', next.sort);
