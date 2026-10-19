@@ -20,7 +20,7 @@ import { readVenusPosition, venusClient } from './venus';
 import { gradePaidScenario } from './paid-grade';
 import { getAssayStore } from './store';
 import type { AssayRun, AssayScenarioResult } from './types';
-import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered, mismatchRow } from './awaiting-capture';
+import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered, gradedAsUnreadableSinceStored, mismatchRow } from './awaiting-capture';
 
 /**
  * A correctness check assembled from the agent's own paid deliveries.
@@ -101,6 +101,9 @@ function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: st
   if (run.total === 0 && Date.now() - Date.parse(run.ranAt) > 6 * 60 * 60_000) return false;
   // An "undelivered" row for a job delivered since is stale: grade it again.
   if (gradedAsUndeliveredSinceDelivered(run.results, fixtures.values())) return false;
+  // An "unreadable" row whose file has since matched and been stored: grade it again.
+  const chainOf = new Map([...fixtures.values()].map((job) => [job.jobId, job.chainId]));
+  if (gradedAsUnreadableSinceStored(run.results, (jobId) => Boolean(readDeliverable(deliverableKey(chainOf.get(jobId) ?? target.chainId, jobId))))) return false;
   const graded = new Set(run.results.map((result) => `${result.scenario}:${result.jobId ?? ''}`));
   if (graded.size !== fixtures.size) return false;
   for (const [scenario, job] of fixtures) {

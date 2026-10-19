@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered } from '../src/lib/assay/awaiting-capture';
+import { awaitingCapture, awaitingRow, gradedAsUndeliveredSinceDelivered, gradedAsUnreadableSinceStored } from '../src/lib/assay/awaiting-capture';
 
 test('a delivered job with nothing stored waits for capture instead of failing', () => {
   assert.equal(awaitingCapture({ status: 'COMPLETED' }, null), true);
@@ -36,4 +36,16 @@ test('a delivery that does not match its on-chain hash is graded as unverifiable
   assert.equal(row.pass, false);
   assert.match(row.reason ?? '', /does not match the hash the job committed on chain/);
   assert.doesNotMatch(row.reason ?? '', /undelivered|no deliverable/i);
+});
+
+test('a run that called a since-stored delivery unreadable is graded again', () => {
+  const served = { served: '0x1f23b7538aa4c99d8a92' };
+  const rows = [{ jobId: '1511', outcome: 'unreadable', observed: served }, { jobId: '1512', outcome: 'unreadable', observed: served }];
+  assert.equal(gradedAsUnreadableSinceStored(rows, (jobId) => jobId === '1512'), true);
+  assert.equal(gradedAsUnreadableSinceStored(rows, () => false), false, 'still not stored: the result stands');
+  assert.equal(gradedAsUnreadableSinceStored([{ jobId: '1511', outcome: 'wrong', observed: null }], () => true), false);
+});
+
+test('a stored file graded unreadable for having no answer is final, not regraded every sweep', () => {
+  assert.equal(gradedAsUnreadableSinceStored([{ jobId: '1511', outcome: 'unreadable', observed: null }], () => true), false);
 });
