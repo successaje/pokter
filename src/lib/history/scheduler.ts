@@ -3,7 +3,7 @@ import 'server-only';
 import { Agent } from 'undici';
 
 import { sendOperatorAlert } from '@/lib/alerts/operator';
-import { getProbeStore } from '@/lib/history/store';
+import { getProbeStore, type SweepRecord } from '@/lib/history/store';
 import {
   SWEEP_FIRST_TICK_MS,
   SWEEP_INTERVAL_MS,
@@ -58,12 +58,11 @@ let alertedAt: string | null = null;
  * whether sweeps have stopped altogether (`staleAlertDue`), which is rightly
  * about completion rather than cadence.
  *
- * The cost is that pacing does not survive a restart: a fresh process sweeps
- * on its first tick, whenever the last one was. That is the right default —
- * a machine that has just booted has no readings in memory and the roster's
- * stalest agents are worth measuring — and the route's own `sweepRecent`
- * guard bounds what a restart loop could do, standing a sweep down if one
- * completed in the last eight minutes.
+ * A restart empties it, so the first tick of a new process seeds it from the
+ * store — see the tick itself. Without that seed the scheduler asked for a
+ * sweep after every deploy however recently one had run, and the route
+ * refused; with it, a process that has genuinely been away sweeps at once
+ * and one that has just redeployed waits out the floor.
  */
 let lastRunStartedAt: string | null = null;
 
@@ -93,15 +92,35 @@ export function startSweepScheduler(): void {
   const tick = async () => {
     if (inFlight) return;
     const now = Date.now();
-    let last: string | null = null;
+    let recorded: SweepRecord | null = null;
     try {
-      // Only for the staleness alert below. Cadence comes from
-      // `lastRunStartedAt`; see why that is not this value.
-      last = getProbeStore().lastSweep()?.finishedAt ?? null;
+      recorded = getProbeStore().lastSweep();
     } catch (error) {
       console.warn(`[sweep-scheduler] could not read the last sweep: ${(error as Error).message}`);
       return;
     }
+    const last = recorded?.finishedAt ?? null;
+
+    /*
+     * A process that has just booted remembers nothing, and the store does.
+     *
+     * Pacing lives in memory because a cadence is this scheduler's own
+     * business, but memory does not survive a deploy — and the store does.
+     * Left unseeded, the first tick after every restart asked for a sweep
+     * however recently one had run, and the route refused it: production
+     * redeployed at 14:42 with a sweep recorded at 14:40:28, so the tick at
+     * 14:43 was inside the route's stand-down window and nothing happened
+     * until the tick after. The route was right and the scheduler was wrong.
+     *
+     * The store's most recent record is the testnet pass, which starts near
+     * the end of a run, so this seed reads as slightly more recent than the
+     * run really was. That is the safe direction for a seed: it can only
+     * make a freshly booted process wait a little longer, never sweep twice
+     * over endpoints that were just called. It is a lower bound at boot, not
+     * the per-tick clock — which is the thing it must not become, since a
+     * run's own records finish a run-length after it began.
+     */
+    lastRunStartedAt ??= recorded?.startedAt ?? null;
 
     if (staleAlertDue(last, alertedAt, now)) {
       alertedAt = new Date(now).toISOString();

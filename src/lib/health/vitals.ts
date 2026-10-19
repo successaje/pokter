@@ -118,6 +118,17 @@ export interface Vitals {
   /** How long since the previous health check, which should be the interval. */
   sinceLastCheckMs: number | null;
   /**
+   * When a sweep run last began, as this process saw it.
+   *
+   * Reported because the finish below cannot answer the question anyone asks
+   * of it. A cadence is the spacing of starts, and runs vary in length, so
+   * successive finishes are the spacing plus a difference in duration —
+   * which is the precise confusion that made the scheduler pace itself
+   * wrongly twice. Instrumentation built to check a cadence that reported
+   * only finishes could not check it, and did not, for two releases.
+   */
+  lastRunStartedAt: string | null;
+  /**
    * When a sweep last finished, as this process saw it.
    *
    * From memory, never from the probe store. Reading the store here would
@@ -197,6 +208,7 @@ const STATE = Symbol.for('pokter.health.vitals');
 interface VitalsState {
   inFlight: number;
   nextId: number;
+  lastRunStartedAt: string | null;
   /** Insertion-ordered, so the first still-open entry is the oldest. */
   openedAt: Map<number, number>;
   timedOutAt: number[];
@@ -209,6 +221,7 @@ function state(): VitalsState {
   host[STATE] ??= {
     inFlight: 0,
     nextId: 1,
+    lastRunStartedAt: null,
     openedAt: new Map(),
     timedOutAt: [],
     lastCheckAt: null,
@@ -246,6 +259,18 @@ export function outboundStarted(now = Date.now()): (timedOut?: boolean) => void 
 /** Recorded when a sweep run finishes, so health can report it from memory. */
 export function noteSweepFinished(finishedAt: string): void {
   state().lastSweepFinishedAt = finishedAt;
+}
+
+/**
+ * Recorded when a run begins, by the route rather than the scheduler.
+ *
+ * Every run goes through the route — the scheduler's and the backup cron's
+ * alike — so recording it there counts all of them. Recording it in the
+ * scheduler would have counted only its own, and reported a quiet gap
+ * whenever the backup was the thing that swept.
+ */
+export function noteRunStarted(startedAt: string): void {
+  state().lastRunStartedAt = startedAt;
 }
 
 export function readVitals(now = Date.now()): Vitals {
@@ -300,6 +325,7 @@ export function readVitals(now = Date.now()): Vitals {
     outbound: { inFlight: s.inFlight, oldestOpenMs, timedOutRecently: s.timedOutAt.length },
     loopLagMs,
     sinceLastCheckMs,
+    lastRunStartedAt: s.lastRunStartedAt,
     lastSweepFinishedAt: s.lastSweepFinishedAt,
     saturated: reasons.length > 0,
     reasons,
@@ -314,5 +340,6 @@ export function resetVitals(): void {
   s.openedAt.clear();
   s.timedOutAt = [];
   s.lastCheckAt = null;
+  s.lastRunStartedAt = null;
   s.lastSweepFinishedAt = null;
 }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { runSweep } from '@/lib/history/sweep';
 import { runBudget } from '@/lib/history/budget';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { noteRunStarted } from '@/lib/health/vitals';
 import { BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
@@ -131,6 +132,9 @@ export async function POST(request: Request): Promise<NextResponse> {
      * is served from.
      */
     const budget = runBudget(SWEEP_RUN_BUDGET_MS);
+    /* Every run comes through here, whichever trigger sent it, so this is
+       where a run's start is worth recording for `/api/health` to report. */
+    noteRunStarted(new Date().toISOString());
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(SWEEP_RUN_BUDGET_MS)]);
 
     /*

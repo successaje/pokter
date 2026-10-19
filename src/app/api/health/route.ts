@@ -91,7 +91,17 @@ export function GET(): NextResponse {
         sinceLastCheckMs: vitals.sinceLastCheckMs,
         outbound: vitals.outbound,
       },
-      sweep: { lastFinishedAt: vitals.lastSweepFinishedAt, gates: false },
+      /*
+       * Both ends of the last run, because only the pair says anything about
+       * cadence. Successive starts are the schedule; successive finishes are
+       * the schedule plus however much the runs differed in length, which is
+       * what made this unmeasurable the first two times it was wrong.
+       */
+      sweep: {
+        lastStartedAt: vitals.lastRunStartedAt,
+        lastFinishedAt: vitals.lastSweepFinishedAt,
+        gates: false,
+      },
     },
     { status: healthy ? 200 : 503, headers: { 'Cache-Control': 'no-store' } },
   );
