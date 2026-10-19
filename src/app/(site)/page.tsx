@@ -488,7 +488,25 @@ export default async function HomePage() {
                   ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
                   ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
                   ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
-                  ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
+                  /*
+                    "Partial · Preflight only" was true when the only MCP
+                    Pokter did was check that a builder's endpoint answered.
+                    It is wrong on both counts now, and in both directions.
+
+                    Pokter serves MCP: `/api/mcp` answers `tools/list` with
+                    search_agents, get_agent, get_quote, hire_link and
+                    integration_kit, so the marketplace is usable from a
+                    client rather than only from this site. And it reads it:
+                    `listMcpTools` calls an agent's own `tools/list` and
+                    `mcpCapabilities` turns the result into the capabilities
+                    on its page, which is well past a preflight.
+
+                    The note still says what it does not do. An MCP-only
+                    agent cannot be hired — that runs through A2A and the
+                    escrow — and a row claiming "Live" without saying so
+                    would be read as more than it is.
+                  */
+                  ['MCP', 'Pokter inside an MCP client, and reading what an agent exposes', 'Live', 'Five tools at /api/mcp; an agent\u2019s own tools/list read and shown as its capabilities. Hiring still runs through A2A and escrow.'],
                   ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
                   /*
                     Says what was found, not only what is built.
