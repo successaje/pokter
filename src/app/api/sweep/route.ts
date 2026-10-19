@@ -111,7 +111,16 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   sweepRunning = true;
   try {
-    const outcome = await runSweep();
+    /*
+     * The request's signal, so a sweep nobody is waiting on stops.
+     *
+     * The route is reached from the in-process scheduler and from GitHub's
+     * cron, and either caller can go away mid-run — the scheduler on its own
+     * timeout, the cron when the connection drops. Until now the work carried
+     * on regardless, against third-party endpoints, on the one CPU the site
+     * is served from.
+     */
+    const outcome = await runSweep({ signal: request.signal });
 
     /*
      * Testnet, measured in parallel with mainnet and listed from neither.
@@ -139,6 +148,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       chainId: BSC_TESTNET,
       perCategory: 6,
       registryDepth: 50,
+      // A smaller share of the run than mainnet, for the reason above: a
+      // testnet agent is far likelier to answer, so each one costs more. The
+      // two passes together stay well inside `maxDuration`.
+      maxAgents: 20,
+      budgetMs: 45_000,
+      signal: request.signal,
     }).catch(() => null);
     const notificationResults = await Promise.allSettled(
       subscribedJobs().map(async ({ chainId, jobId }) => {

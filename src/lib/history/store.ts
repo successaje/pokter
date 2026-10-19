@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { readProbeTotals } from '@/lib/history/stats-query';
+import { readLastProbedAt, readProbeTotals } from '@/lib/history/stats-query';
 import type { CorrectableProbe, ProbeCorrection } from './corrections';
 
 /** One recorded probe of one agent at one moment. */
@@ -87,6 +87,16 @@ export interface ProbeStore {
   historyFor(chainId: number, tokenId: string, since: Date): ProbeRecord[];
   /** Agents we hold any history for, as `chainId:tokenId`. */
   trackedAgents(): { chainId: number; tokenId: string }[];
+  /**
+   * When each agent on a chain was last probed, keyed by token id.
+   *
+   * This is how a bounded sweep decides who to spend its budget on: oldest
+   * reading first, so coverage accumulates across runs instead of a single
+   * run trying to walk the whole roster. `idx_probes_agent` already orders
+   * by `(chain_id, token_id, probed_at DESC)`, so the grouping is served
+   * from the index rather than a scan of the probe table.
+   */
+  lastProbedAt(chainId: number): Map<string, string>;
   /**
    * Add an agent to the sweep roster without recording anything about it.
    *
@@ -464,6 +474,10 @@ class SqliteProbeStore implements ProbeStore {
       .all() as unknown as { chain_id: number; token_id: string }[];
 
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  lastProbedAt(chainId: number): Map<string, string> {
+    return readLastProbedAt(this.db, chainId);
   }
 
   enroll(agents: { chainId: number; tokenId: string }[]): void {

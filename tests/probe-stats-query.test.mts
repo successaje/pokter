@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 
-import { readProbeTotals } from '../src/lib/history/stats-query';
+import { readLastProbedAt, readProbeTotals } from '../src/lib/history/stats-query';
 
 function seeded(): DatabaseSync {
   const db = new DatabaseSync(':memory:');
@@ -90,4 +90,36 @@ test('a row marked as Pokter’s measurement error is not counted', () => {
   const totals = readProbeTotals(db, 56);
   assert.equal(totals.taken, 2);
   assert.equal(totals.answered, 2);
+});
+
+test('the sweep queue reads the newest probe per agent, scoped to its chain', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(
+    `CREATE TABLE probes (
+       id        INTEGER PRIMARY KEY AUTOINCREMENT,
+       chain_id  INTEGER NOT NULL,
+       token_id  TEXT    NOT NULL,
+       ok        INTEGER NOT NULL,
+       probed_at TEXT    NOT NULL
+     )`,
+  );
+  db.exec(
+    `INSERT INTO probes (chain_id, token_id, ok, probed_at) VALUES
+       (56, '100', 1, '2026-10-18T09:00:00Z'),
+       (56, '100', 0, '2026-10-19T11:00:00Z'),
+       (56, '200', 1, '2026-10-17T08:00:00Z'),
+       (97, '100', 1, '2026-10-01T00:00:00Z')`,
+  );
+
+  const mainnet = readLastProbedAt(db, 56);
+  assert.deepEqual(
+    [...mainnet.entries()].sort(),
+    [['100', '2026-10-19T11:00:00Z'], ['200', '2026-10-17T08:00:00Z']],
+    'the newest reading per agent, answered or not',
+  );
+  // Token 100 exists on both chains with very different recency. Reading
+  // across chains would put the testnet agent at the front of the mainnet
+  // queue and keep it there, measuring the wrong roster.
+  assert.deepEqual([...readLastProbedAt(db, 97).entries()], [['100', '2026-10-01T00:00:00Z']]);
+  assert.equal(readLastProbedAt(db, 1).size, 0, 'a chain with no probes yields an empty queue');
 });

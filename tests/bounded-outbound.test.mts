@@ -99,3 +99,49 @@ test('a cap larger than the list does not spawn idle workers', async () => {
   });
   assert.equal(calls, 2);
 });
+
+/*
+ * How `runSweep` bounds itself: a deadline tested at the top of each task.
+ *
+ * The sweep's budget is not a timeout around the whole run — it cannot be,
+ * because a run must record what it has already measured. It works by
+ * refusing to start further work once the clock is spent, which only bounds
+ * the run if `mapWithConcurrency` hands out work as slots free up rather than
+ * starting everything at once. These two tests are that property.
+ */
+test('work past a spent deadline is dropped rather than started', async () => {
+  const deadline = Date.now() + 40;
+  let measured = 0;
+  let dropped = 0;
+
+  await mapWithConcurrency(Array.from({ length: 20 }, (_, i) => i), 2, async () => {
+    if (Date.now() >= deadline) {
+      dropped += 1;
+      return null;
+    }
+    measured += 1;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    return 'done';
+  });
+
+  assert.ok(measured > 0, 'the run measured something before the budget ran out');
+  assert.ok(dropped > 0, 'and stopped starting work once it had');
+  assert.equal(measured + dropped, 20, 'every item was accounted for either way');
+});
+
+test('a run already in flight is not interrupted by the deadline', async () => {
+  // The four agents in flight when the budget expires still finish, bounded
+  // by their own outbound timeouts. Their results must survive the run.
+  const deadline = Date.now() + 10;
+  const finished: number[] = [];
+
+  const out = await mapWithConcurrency([1, 2, 3], 3, async (n: number) => {
+    if (Date.now() >= deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    finished.push(n);
+    return n;
+  });
+
+  assert.deepEqual(out, [1, 2, 3], 'all three started before the deadline and all three returned');
+  assert.equal(finished.length, 3);
+});
