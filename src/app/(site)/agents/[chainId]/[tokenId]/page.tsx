@@ -35,6 +35,8 @@ import { isHouseAgent } from '@/lib/house/wallets';
 import { BackToResults } from '@/features/discover/ReturnToResults';
 import { agentJsonLd } from '@/lib/seo/agent-jsonld';
 import { siteUrl } from '@/lib/site';
+import { StructuredProfile } from '@/features/agent/StructuredProfile';
+import { structuredProfile } from '@/features/agent/structured';
 
 export const dynamic = 'force-dynamic';
 
@@ -439,6 +441,10 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </h2>
             </div>
             <HeadlineStats p={p} />
+            {/* The five questions a buyer arrives with, each labelled with
+                who answered it. The operator's description lives here now,
+                under "What it does", with the same unverified label. */}
+            <StructuredProfile s={structuredProfile(p)} sampleAnchor="sample" />
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/*
@@ -463,8 +469,8 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   reads "a brief this agent cannot answer is declined here"
                   — and guessing among the rest would replace a wrong
                   statement with an arbitrary one. The operator's own
-                  account of the work is directly below, under "In its own
-                  words", where it is already marked unverified.
+                  account of the work is directly above, under "What it
+                  does", where it is marked unverified.
                 */}
                 <div className="flex flex-col gap-1.5">
                   <span className="t-label">What this category does</span>
@@ -485,18 +491,6 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
               </div>
             )}
-
-            <div className="flex flex-col gap-3">
-              <span className="t-label">In its own words</span>
-              {p.description ? (
-                <div className="rounded-[12px] border border-rule bg-raised px-5 py-4">
-                  <p className="whitespace-pre-line break-words text-[14px] leading-relaxed text-ink-2">{p.description}</p>
-                  <p className="mt-3 text-[12px] text-ink-3">Written by the operator. Pokter has not verified these claims; the evidence below is what has been checked.</p>
-                </div>
-              ) : (
-                <p className="text-ink-3">The operator has not published a description.</p>
-              )}
-            </div>
 
             {p.skills.length > 0 && (
               <div className="flex flex-col gap-3">
@@ -539,7 +533,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               <p className="text-[11.5px] leading-relaxed text-ink-3">Each step is something Pokter has seen this agent do. Availability ({p.verdict.label}) is judged separately, from Pokter&rsquo;s probes and third-party attestations.</p>
             </div>
             {p.sample && (
-              <div className="flex flex-col gap-3">
+              <div id="sample" className="scroll-mt-32 flex flex-col gap-3">
                 <span className="t-label">{p.sample.kind === 'lifecycle' ? 'A lifecycle demonstration, not an answer' : 'A real delivery'}</span>
                 {p.sample.kind === 'lifecycle' && (
                   <p className="text-[13px] text-ink-2">

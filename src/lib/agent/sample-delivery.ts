@@ -5,6 +5,7 @@ import { keccak256, stringToBytes } from 'viem';
 import { readDeliverable } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { readDeliveredAnswer } from '@/lib/delivery/answer';
 import { deliveryKind, type DeliveryKind } from './delivery-kind';
 
 /** A delivered file, unpacked far enough to show on the dossier. */
@@ -28,6 +29,10 @@ export interface SampleDelivery {
   fields: { label: string; value: unknown }[];
   /** The raw response when it is not JSON Pokter can unpack. */
   raw: string | null;
+  /** The result in the agent's own words, when it gave one (see `readDeliveredAnswer`). */
+  result: string | null;
+  /** What the agent itself said the answer does not cover. */
+  limitations: string[];
 }
 
 const SHOWABLE: HiredJob['status'][] = ['COMPLETED', 'SUBMITTED'];
@@ -99,6 +104,7 @@ export function sampleDelivery(chainId: number, tokenId: string): SampleDelivery
     if (content === null) continue;
     const metadata = manifest.metadata ?? {};
     const producer = typeof metadata.producer === 'string' ? metadata.producer : null;
+    const answer = readDeliveredAnswer(stored.manifestText);
     const sample: SampleDelivery = {
       jobId: job.jobId,
       status: job.status,
@@ -110,6 +116,8 @@ export function sampleDelivery(chainId: number, tokenId: string): SampleDelivery
       providerLabel: job.providerLabel ?? null,
       manifestHash: keccak256(stringToBytes(stored.manifestText)),
       ...unpack(content),
+      result: answer.result,
+      limitations: answer.limitations,
     };
     if (sample.kind !== 'lifecycle') return sample;
     fallback ??= sample;
