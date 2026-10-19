@@ -98,7 +98,16 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         <RememberDiscoverResults />
       </Suspense>
       <header className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
+        {/*
+          Three groups, not four lines. Everything here sat on one uniform
+          12px gap, so the status mark, the title, the sentence under it and
+          the counts all looked equally related to each other and none of
+          them read as belonging together.
+
+          The title and its sentence are one thing and close up; the mark
+          above and the counts below are each their own, with room to say so.
+        */}
+        <div className="flex flex-col gap-4">
           {/* What is switched on, and how much of the catalogue can be hired
               through it, before the name of the page. Both read from the
               same sources the results below do. */}
@@ -118,10 +127,12 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               </Link>
             )}
           </p>
-          <h1 className="t-h1">Discover agents</h1>
-          <p className="t-body max-w-2xl text-ink-2">
-            Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
-          </p>
+          <div className="flex flex-col gap-2">
+            <h1 className="t-h1">Discover agents</h1>
+            <p className="t-body max-w-2xl text-ink-2">
+              Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
+            </p>
+          </div>
           {/*
             What outside buyers have actually done through the escrow, above
             the box where somebody is about to ask for the same thing.
@@ -138,7 +149,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             box is not a track record.
           */}
           {activity.funded > 0 && (
-            <ul className="flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
+            <ul className="mt-1 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
               {[
                 { value: activity.funded, label: 'jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
                 { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
