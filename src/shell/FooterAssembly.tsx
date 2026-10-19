@@ -38,6 +38,16 @@ const LOGO_X = 150;
 const LOGO_RIGHT = 832;
 const VB_Y = 8;
 const VB_H = 800;
+/**
+ * Space to the left of the mark, in the same user units.
+ *
+ * Done by moving the view box's origin rather than by translating the
+ * logo: everything else is positioned in these units, so shifting the
+ * group would have moved the dock target and the travel start with it and
+ * needed both corrected. Widening the view box leaves the mark, the field
+ * and the proof tile all stated in exactly the coordinates they were.
+ */
+const LEAD = 430;
 /* Its centre tile, which is what the travelling tile becomes. */
 const PROOF = { x: 400, y: 290, w: 183, h: 182, rx: 36 } as const;
 
@@ -113,7 +123,7 @@ export function FooterAssembly() {
     /* The field starts clear of the mark and stops short of the edge, so
        no tile is ever cut in half by the viewport. */
     const from = LOGO_RIGHT + step;
-    const to = LOGO_X + width - size;
+    const to = LOGO_X - LEAD + width - size;
     const cols = Math.max(0, Math.floor((to - from) / step) + 1);
     const midY = VB_Y + VB_H / 2;
     const out: Tile[] = [];
@@ -155,7 +165,7 @@ export function FooterAssembly() {
         <div ref={host} className="frame h-full">
         <svg
           className="h-full w-full"
-          viewBox={`${LOGO_X} ${VB_Y} ${vbW} ${VB_H}`}
+          viewBox={`${LOGO_X - LEAD} ${VB_Y} ${vbW} ${VB_H}`}
           preserveAspectRatio="xMinYMid meet"
           role="img"
           aria-label="Pokter"
