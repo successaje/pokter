@@ -11,7 +11,7 @@ import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/D
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
-import { FilterBar, Filters } from '@/features/discover/FilterBar';
+import { FilterBar, Filters, MobileCategoryBar } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -104,7 +104,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       <Suspense>
         <RememberDiscoverResults />
       </Suspense>
-      <header className="flex flex-col gap-6">
+      <header className="flex flex-col gap-7 sm:gap-8">
         {/*
           Three groups, not four lines. Everything here sat on one uniform
           12px gap, so the status mark, the title, the sentence under it and
@@ -114,7 +114,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           The title and its sentence are one thing and close up; the mark
           above and the counts below are each their own, with room to say so.
         */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5 sm:gap-4">
           {/*
             What this page is, and how much of it can be hired right now.
 
@@ -140,10 +140,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               </Link>
             )}
           </p>
-          <div className="flex flex-col gap-2">
-            <h1 className="t-h1">Find an agent for the job</h1>
-            <p className="t-body max-w-2xl text-ink-2">
-              Tell Pokter the outcome you need. Compare agents by verified price, paid delivery history and correctness before you fund a job.
+          <div className="flex flex-col gap-3 sm:gap-2">
+            <h1 className="text-[2.35rem] font-semibold leading-[0.98] tracking-[-0.045em] sm:text-[3.25rem]">
+              Find an agent for the job.<br />
+              <span className="font-normal text-ink-3">Pay only through escrow.</span>
+            </h1>
+            <p className="max-w-2xl text-[17px] leading-[1.6] text-ink-2 sm:text-[18px]">
+              Describe the outcome in plain English. Compare verified prices, paid delivery history and correctness before you fund the work.
             </p>
           </div>
           {/*
@@ -162,7 +165,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             box is not a track record.
           */}
           {activity.funded > 0 && (
-            <ul className="mt-1 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
+            <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
               {[
                 { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
                 { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
@@ -222,10 +225,15 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
+        <MobileCategoryBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
 
         <section aria-label="Results" className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
-            <div className="flex items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <h2 className="text-[19px] font-medium tracking-[-0.02em]">
+                {p.q ? 'Best matches' : 'Recommended agents'}
+              </h2>
+              <div className="flex items-center gap-3">
               <MobileFilters count={activeFilters}>
                 <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
               </MobileFilters>
@@ -237,6 +245,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   Clear filters
                 </Link>
               )}
+              </div>
             </div>
             {/* One way out of a page that reads a query and pages its
                 results: the whole catalogue, unpaged. "Verify catalogue"

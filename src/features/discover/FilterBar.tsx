@@ -135,6 +135,31 @@ export function FilterBar({
   );
 }
 
+export function MobileCategoryBar({
+  p,
+  counts,
+  allTasks,
+}: {
+  p: DiscoverParams;
+  counts: Array<{ id: string; label: string; count: number }>;
+  allTasks: number;
+}) {
+  return (
+    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden" role="group" aria-label="Task">
+      <Pill href={discoverHref({}, p, ['category'])} on={!p.category}>All <Tally n={allTasks} on={!p.category} /></Pill>
+      {counts.map((category) => (
+        <Pill
+          key={category.id}
+          href={discoverHref({ category: category.id as DiscoverParams['category'] }, p)}
+          on={p.category === category.id}
+        >
+          {category.label} <Tally n={category.count} on={p.category === category.id} />
+        </Pill>
+      ))}
+    </div>
+  );
+}
+
 export function Filters({ p, counts, allTasks }: { p: DiscoverParams; counts: Array<{ id: string; label: string; count: number }>; allTasks: number }) {
   // Counted under the same filters as the results; the sum of the tasks
   // left out agents in no task, so it never matched the list.

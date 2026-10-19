@@ -218,7 +218,7 @@ export function AgentCard({
   const proof = cardProof(row);
   const terminalJobs = row.paid.completed + row.paid.missed;
   return (
-    <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
+    <article className={cn('group relative flex h-full flex-col rounded-[12px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift sm:rounded-[16px]', className)}>
       <div className="flex items-start gap-3.5">
         {/* No ring. It was a circle drawn around a rounded square, which
             left four corners reaching for it, and the answer dot then had
@@ -239,8 +239,9 @@ export function AgentCard({
             catalogue, in the loudest treatment on it, competing with the
             name for a fact that is not why anyone is reading.
           */}
-          <span className="truncate text-[12.5px] text-ink-3">
-            {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
+          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
+            <span className="truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
+            <span className="t-readout truncate">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="truncate">· Run by Pokter</span> : null}
           </span>
         </div>
         {/* The footer that used to hold this went with "View evidence";
@@ -248,7 +249,7 @@ export function AgentCard({
         {compare && <span className="relative z-10 shrink-0">{compare}</span>}
       </div>
 
-      <p className="mt-3.5 line-clamp-2 min-h-[2.9em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
+      <p className="mt-3.5 line-clamp-3 min-h-[4.35em] text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
 
       <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
         <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
@@ -267,8 +268,8 @@ export function AgentCard({
         5d ago" was the only reason the first dot was there, and the answer
         dot on the avatar now carries it on every card, in one glyph.
       */}
-      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
-        <div className="flex min-w-0 flex-col gap-1.5">
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
+        <div className="hidden min-w-0 flex-col gap-1.5 sm:flex">
           {/* "Replies", not "Answers": one of the maturity badges in the
               third column is the word "Answers", and a column headed
               Answers showing Answers two columns over reads as an error. */}

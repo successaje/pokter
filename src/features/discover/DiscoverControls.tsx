@@ -22,42 +22,43 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
         event.preventDefault();
         start(() => router.push(discoverHref({ q: value.trim() }, params)));
       }}
-      className="flex min-h-16 items-center gap-3 rounded-[16px] border border-rule-strong bg-raised p-2 pl-4 shadow-sm transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--signal)_28%,transparent)]"
+      className="flex flex-col gap-2.5 sm:flex-row"
     >
-      {pending ? <Spinner size={18} className="text-ink-3" /> : <Icon.Search size={18} className="text-ink-3" />}
-      <label htmlFor="discover-q" className="sr-only">
-        What outcome do you need?
-      </label>
-      <input
-        id="discover-q"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="e.g. Watch my Venus loan for liquidation risk"
-        maxLength={400}
-        autoComplete="off"
-        enterKeyHint="search"
-        className="h-full min-w-0 flex-1 bg-transparent text-[16px] placeholder:text-ink-3 focus:outline-none"
-      />
-      {value && (
-        <button
-          type="button"
-          onClick={() => {
-            setValue('');
-            start(() => router.push(discoverHref({ q: '' }, params)));
-          }}
-          className="grid size-8 place-items-center rounded-[7px] text-ink-3 hover:bg-sunken hover:text-ink"
-          aria-label="Clear search"
-        >
-          <Icon.Close size={16} />
-        </button>
-      )}
+      <div className="flex min-h-14 flex-1 items-center gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--signal)_24%,transparent)] sm:min-h-16 sm:rounded-[16px]">
+        {pending ? <Spinner size={18} className="text-ink-3" /> : <Icon.Search size={18} className="shrink-0 text-ink-3" />}
+        <label htmlFor="discover-q" className="sr-only">
+          What outcome do you need?
+        </label>
+        <input
+          id="discover-q"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="e.g. Watch my Venus loan for liquidation risk"
+          maxLength={400}
+          autoComplete="off"
+          enterKeyHint="search"
+          className="h-full min-w-0 flex-1 bg-transparent text-[15px] placeholder:text-ink-3 focus:outline-none sm:text-[16px]"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => {
+              setValue('');
+              start(() => router.push(discoverHref({ q: '' }, params)));
+            }}
+            className="grid size-8 shrink-0 place-items-center rounded-[7px] text-ink-3 hover:bg-sunken hover:text-ink"
+            aria-label="Clear search"
+          >
+            <Icon.Close size={16} />
+          </button>
+        )}
+      </div>
       <button
         type="submit"
-        disabled={pending || value.trim().length === 0}
-        className="inline-flex h-12 shrink-0 items-center gap-2 rounded-[11px] bg-ink px-4 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+        disabled={pending}
+        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-ink px-6 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:h-16 sm:rounded-[16px]"
       >
-        <span className="hidden sm:inline">Find an agent</span>
-        <span className="sm:hidden">Find</span>
+        Find an agent
         <Icon.Arrow size={14} />
       </button>
     </form>
