@@ -166,7 +166,7 @@ export function summariseProof(attestations: Attestation[]): ProofSummary {
       rationale:
         attestations.length === 0
           ? 'No on-chain attestations exist for this agent. There is nothing to verify, so Pokter does not recommend hiring it.'
-          : `${plural(attestations.length, 'attestation')} exist but none decoded into a readable measurement, so Pokter cannot recommend this agent.`,
+          : `${attestations.length === 1 ? '1 attestation exists but it does not' : `${plural(attestations.length, 'attestation')} exist but none`} decode into a readable measurement, so Pokter cannot recommend this agent.`,
     };
   }
 

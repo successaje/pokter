@@ -72,16 +72,23 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         </div>
       )}
       {profile.warnings.length > 0 && (
-        <div className="border-t border-rule bg-watch-wash/60 px-5 py-3.5">
-          <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-watch">
+        /* Folded so the price and the hire button stay together; the
+           heading keeps the count and the warning colour, so closing it
+           never hides that there is something to read. */
+        <details className="group border-t border-rule bg-watch-wash/60 px-5 py-3.5">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold text-watch [&::-webkit-details-marker]:hidden">
             <Icon.Alert size={15} /> Before you hire
-          </p>
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-[12.5px] leading-snug text-ink-2">
+            <span className="font-normal text-ink-2">
+              · {profile.warnings.length} {profile.warnings.length === 1 ? 'thing' : 'things'} to know
+            </span>
+            <Icon.ChevronRight size={14} className="ml-auto text-ink-3 transition-transform duration-200 group-open:rotate-90" />
+          </summary>
+          <ul className="mt-1.5 flex list-disc flex-col gap-1 pl-5 text-[12.5px] leading-snug text-ink-2">
             {profile.warnings.map((w) => (
               <li key={w}>{w}</li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
       <div className="flex flex-col gap-2 border-t border-rule p-5">
         {profile.hireable && blocked ? (
