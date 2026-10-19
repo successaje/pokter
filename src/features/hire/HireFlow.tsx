@@ -808,20 +808,90 @@ function Balance({ label, value, ok, known, note }: { label: string; value: stri
 }
 
 /**
+ * Where you are in three steps, read left to right.
+ *
+ * It was a vertical list in a 220px column beside the form, which cost a
+ * fifth of the width on every step to say one thing, and was hidden
+ * entirely below `md` - so on a phone, and in the sheet, the flow had no
+ * step indicator at all beyond a 2px bar.
+ *
+ * It is also the only progress indicator now. A hairline bar under a
+ * stepper is the same fact drawn twice, and the one that cannot say which
+ * step you are on was the one to drop.
+ *
+ * Labels for steps you are not on fold away under `sm`: three labels need
+ * about 360px and the sheet on a small phone has less. The current one
+ * always shows, so the tracker never degrades to unlabelled circles.
+ */
+function StepTracker({ index, className }: { index: number; className?: string }) {
+  return (
+    <ol className={cn('flex items-center gap-2 sm:gap-3', className)} aria-label="Steps">
+      {STEPS.map((step, i) => {
+        const done = i < index;
+        const current = i === index;
+        return (
+          <li
+            key={step.id}
+            className={cn('flex items-center gap-2', i > 0 && 'min-w-0 sm:flex-1')}
+            aria-current={current ? 'step' : undefined}
+          >
+            {/* Fixed and short while the labels are folded away, stretching
+                once they are back. Stretching with the labels hidden drew
+                200px rails between bare circles, which reads as a loading
+                state rather than a stepper. */}
+            {i > 0 && <span aria-hidden className={cn('h-px w-7 shrink-0 sm:w-auto sm:min-w-2 sm:flex-1', done || current ? 'bg-ink-3' : 'bg-rule')} />}
+            <span
+              className={cn(
+                'grid size-5 shrink-0 place-items-center rounded-full border text-[10.5px] font-medium transition-colors',
+                done ? 'border-ok bg-ok text-paper' : current ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-3',
+              )}
+            >
+              {done ? <Icon.Check size={11} /> : i + 1}
+            </span>
+            <span
+              className={cn(
+                'whitespace-nowrap text-[13px]',
+                current ? 'font-medium text-ink' : done ? 'text-ink-2' : 'text-ink-3',
+                !current && 'hidden sm:inline',
+              )}
+            >
+              {step.label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
  * `embedded` is the flow inside the sheet that opens over the catalogue.
  *
  * The page chrome goes, because the sheet is already providing all of it:
  * a brand bar under the sheet's own title is two headers, and an "Exit"
  * beside the sheet's close button is two ways to do one thing, one of
- * which leaves the site. What stays is the progress bar, which the sheet
- * has no equivalent for and which is the only thing on that header saying
- * how far along this is.
+ * which leaves the site. What stays is the tracker, which the sheet has
+ * no equivalent for.
  */
 function Shell({ agent, step, testnet, embedded = false, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; embedded?: boolean; children: React.ReactNode }) {
   const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
-  const progress = (
-    <div className="h-0.5 bg-rule">
-      <div className="h-full bg-signal transition-[width] duration-500 ease-out" style={{ width: `${((index + (step ? 0.5 : 0)) / STEPS.length) * 100}%` }} />
+  /* Who is being hired and how far along, on one line: the identity has to
+     stay visible past the first step, where the form stops naming it. */
+  const tracker = (
+    <div className={cn('flex flex-col gap-3 border-b border-rule', embedded ? 'bg-raised px-5 py-3.5' : 'mx-auto max-w-3xl px-4 py-3.5 sm:px-6')}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={28} />
+        <p className="truncate text-[13.5px] font-medium">{agent.name}</p>
+        <span className="t-readout shrink-0 text-[11.5px] text-ink-3">#{agent.tokenId}</span>
+        {testnet && (
+          /* Never folded away. It is the difference between play money and
+             real money, and the narrow screen is not the one to hide it on. */
+          <span className="ml-auto shrink-0 text-[11.5px] text-watch" title="BNB testnet. $U here is a test token with no value.">
+            Test tokens
+          </span>
+        )}
+      </div>
+      <StepTracker index={index} />
     </div>
   );
   return (
@@ -831,11 +901,9 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
           Skip to content
         </a>
       )}
-      {embedded ? (
-        <div className="sticky top-0 z-10">{progress}</div>
-      ) : (
-        <header className="sticky top-0 z-30 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
-          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className={cn('sticky top-0 z-30', embedded ? '-mx-5 -mt-5' : 'border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md')}>
+        {!embedded && (
+          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 border-b border-rule px-4 sm:px-6">
             <span className="flex items-center gap-2.5">
               <Mark size={20} />
               <span className="text-[15px] font-semibold">Hire</span>
@@ -844,31 +912,11 @@ function Shell({ agent, step, testnet, embedded = false, children }: { agent: Hi
               <Icon.Close size={15} /> Exit
             </Link>
           </div>
-          {progress}
-        </header>
-      )}
-      <div className={cn('grid grid-cols-1', embedded ? 'gap-6 pt-5' : 'mx-auto max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12')}>
-        <aside className="flex flex-col gap-6">
-          <div className="flex items-center gap-3">
-            <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={40} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{agent.name}</p>
-              <p className="text-[12px] text-ink-3">#{agent.tokenId}</p>
-            </div>
-          </div>
-          <ol className="hidden flex-col gap-1 md:flex" aria-label="Steps">
-            {STEPS.map((s, i) => (
-              <li key={s.id} className={cn('flex items-center gap-3 rounded-[8px] px-2 py-1.5 text-[13.5px]', i === index ? 'bg-sunken font-medium text-ink' : i < index ? 'text-ink-2' : 'text-ink-3')} aria-current={i === index ? 'step' : undefined}>
-                <span className={cn('grid size-5 place-items-center rounded-full border text-[10.5px]', i < index ? 'border-ok bg-ok text-paper' : i === index ? 'border-ink' : 'border-rule-strong')}>
-                  {i < index ? <Icon.Check size={11} /> : i + 1}
-                </span>
-                {s.label}
-              </li>
-            ))}
-          </ol>
-          {testnet && <p className="hidden text-[12px] leading-relaxed text-ink-3 md:block">BNB testnet. $U here is a test token with no value.</p>}
-        </aside>
-        <main id={embedded ? undefined : 'main'} className="min-w-0 max-w-2xl">
+        )}
+        {tracker}
+      </div>
+      <div className={cn(embedded ? 'pt-5' : 'mx-auto max-w-3xl px-4 py-8 sm:px-6 md:py-12')}>
+        <main id={embedded ? undefined : 'main'} className="min-w-0">
           {children}
         </main>
       </div>
