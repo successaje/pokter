@@ -14,7 +14,6 @@ import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { FilterBar, Filters } from '@/features/discover/FilterBar';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
-import { escrowAvailabilityLine } from '@/lib/network/presentation';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
@@ -108,13 +107,19 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           above and the counts below are each their own, with room to say so.
         */}
         <div className="flex flex-col gap-4">
-          {/* What is switched on, and how much of the catalogue can be hired
-              through it, before the name of the page. Both read from the
-              same sources the results below do. */}
+          {/*
+            What this page is, and how much of it can be hired right now.
+
+            The first mark used to carry `escrowAvailabilityLine()` — "On
+            BNB Testnet, in test tokens". That belongs where somebody is
+            about to spend, and it is still on every card that offers a
+            hire and in the sheet that takes the money; at the top of a
+            catalogue it was a warning attached to browsing.
+          */}
           <p className="flex flex-wrap items-center gap-2 text-[13px] font-medium">
             <span className="inline-flex h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 text-ok">
               <span aria-hidden className="size-1.5 rounded-full bg-ok" />
-              {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
+              Marketplace
             </span>
             {result.collections.hireable > 0 && (
               <Link

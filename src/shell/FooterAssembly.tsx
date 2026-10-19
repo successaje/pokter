@@ -46,8 +46,18 @@ const VB_H = 800;
  * group would have moved the dock target and the travel start with it and
  * needed both corrected. Widening the view box leaves the mark, the field
  * and the proof tile all stated in exactly the coordinates they were.
+ *
+ * At this distance the field runs on both sides of the mark rather than
+ * only to its right. A logo a third of the way across with nothing to its
+ * left is not a composition, it is a gap; the tiles carry across the whole
+ * band and the mark sits among them. The proof tile still arrives from
+ * the right, so the story it tells is unchanged.
+ *
+ * A fraction of the band, not a fixed count of units. User units scale
+ * with the band's height, so a constant put the mark 32% across a desktop
+ * and 42% across a phone — the same number reading as a different layout.
  */
-const LEAD = 430;
+const LEAD_FRACTION = 0.28;
 /* Its centre tile, which is what the travelling tile becomes. */
 const PROOF = { x: 400, y: 290, w: 183, h: 182, rx: 36 } as const;
 
@@ -115,16 +125,22 @@ export function FooterAssembly() {
     };
   }, []);
 
-  const { vbW, tiles, travel } = useMemo(() => {
+  const { vbW, originX, tiles, travel } = useMemo(() => {
     const width = Math.round(VB_H * (box.w / Math.max(box.h, 1)));
+    const lead = Math.round(width * LEAD_FRACTION);
+    const originX = LOGO_X - lead;
     const perPx = VB_H / Math.max(box.h, 1);
     const size = TILE_PX * perPx;
     const step = (TILE_PX + GAP_PX) * perPx;
-    /* The field starts clear of the mark and stops short of the edge, so
-       no tile is ever cut in half by the viewport. */
-    const from = LOGO_RIGHT + step;
-    const to = LOGO_X - LEAD + width - size;
+    /* Across the whole band, stopping short of each edge so no tile is
+       ever cut in half by the viewport. */
+    const from = originX + step;
+    const to = originX + width - size;
     const cols = Math.max(0, Math.floor((to - from) / step) + 1);
+    /* Clear of the mark itself, so the gates are never read through a
+       tile and the docking square has nothing sitting behind it. */
+    const clearFrom = LOGO_X - step;
+    const clearTo = LOGO_RIGHT + step;
     const midY = VB_Y + VB_H / 2;
     const out: Tile[] = [];
     let i = 0;
@@ -132,6 +148,7 @@ export function FooterAssembly() {
       for (let r = 0; r < ROWS; r += 1) {
         i += 1;
         const x = from + c * step + (noise(i, 1) - 0.5) * step * 0.18;
+        if (x + size > clearFrom && x < clearTo) continue;
         const y = midY + (r - (ROWS - 1) / 2) * step + (noise(i, 2) - 0.5) * step * 0.18;
         /* The nudge fires as the tile passes, so its delay is where this
            one sits along the path rather than a number per tile. */
@@ -149,7 +166,7 @@ export function FooterAssembly() {
         });
       }
     }
-    return { vbW: width, tiles: out, travel: q(from + (cols - 1) * step - PROOF.x) };
+    return { vbW: width, originX, tiles: out, travel: q(from + (cols - 1) * step - PROOF.x) };
   }, [box.w, box.h]);
 
   const running = inView && tabVisible && !paused;
@@ -165,7 +182,7 @@ export function FooterAssembly() {
         <div ref={host} className="frame h-full">
         <svg
           className="h-full w-full"
-          viewBox={`${LOGO_X - LEAD} ${VB_Y} ${vbW} ${VB_H}`}
+          viewBox={`${originX} ${VB_Y} ${vbW} ${VB_H}`}
           preserveAspectRatio="xMinYMid meet"
           role="img"
           aria-label="Pokter"
