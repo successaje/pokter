@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { MCP_PROTOCOL_VERSION, probeTarget } from '@/lib/proof/probe-target';
+import { MCP_PROTOCOL_VERSION, probeIsEvidence, probeTarget } from '@/lib/proof/probe-target';
 
 export { MCP_PROTOCOL_VERSION, probeTarget };
 
@@ -12,6 +12,7 @@ import { Agent } from 'undici';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { AttestationMethod } from './attestation';
 import { readRpcResponse } from '@/lib/protocol/stream';
+import { deadlineSignal } from '@/lib/net/bounded';
 import { listMcpTools, type McpTool } from '@/lib/mcp/probe';
 import { isAgentCard, jsonRpcEndpoint } from '@/lib/a2a/card';
 
@@ -249,13 +250,16 @@ async function probeOnce(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
   version: string | null = null,
+  signal?: AbortSignal,
 ): Promise<ProbeResult> {
-  const { result, body } = await probeAt(endpoint, protocol, version);
+  const { result, body } = await probeAt(endpoint, protocol, version, signal);
   // Only an endpoint that answered: an unreachable host has no card either.
   if (protocol !== 'a2a' || result.ok || result.status === null) return result;
   const card = a2aCardFallback(endpoint, body);
   if (!card) return result;
-  const retried = (await probeAt(card, protocol, version)).result;
+  // The fallback is a second call, so a cancelled probe must not make it.
+  if (signal?.aborted) return result;
+  const retried = (await probeAt(card, protocol, version, signal)).result;
   if (!retried.ok) return result;
   return {
     ...retried,
@@ -267,6 +271,7 @@ async function probeAt(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
   version: string | null = null,
+  signal?: AbortSignal,
 ): Promise<{ result: ProbeResult; body?: Record<string, unknown> }> {
   const startedAt = Date.now();
   const at = new Date().toISOString();
@@ -277,7 +282,7 @@ async function probeAt(
     if (protocol === 'mcp') {
       const handle = endpointHandle;
       const listing = await listMcpTools(
-        (init) => handle.fetch({ ...init, signal: AbortSignal.timeout(PROBE_TIMEOUT_MS), cache: 'no-store', redirect: 'error' }),
+        (init) => handle.fetch({ ...init, signal: deadlineSignal(PROBE_TIMEOUT_MS, signal), cache: 'no-store', redirect: 'error' }),
         { version, maxBytes: MAX_RESPONSE_BYTES },
       );
       return {
@@ -296,7 +301,7 @@ async function probeAt(
     const response = await endpointHandle.fetch({
       method: 'GET',
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: deadlineSignal(PROBE_TIMEOUT_MS, signal),
       cache: 'no-store',
       redirect: 'error',
     });
@@ -395,8 +400,9 @@ export async function probeEndpoint(
   endpoint: string,
   protocol: 'a2a' | 'mcp',
   version: string | null = null,
+  signal?: AbortSignal,
 ): Promise<ProbeResult> {
-  return probeOnce(endpoint, protocol, version);
+  return probeOnce(endpoint, protocol, version, signal);
 }
 
 /**
@@ -406,7 +412,22 @@ export async function probeEndpoint(
  */
 export async function probeAgent(
   agent: ScanAgentDetail,
-  { samples = 1 }: { samples?: number } = {},
+  {
+    samples = 1,
+    signal,
+  }: {
+    samples?: number;
+    /**
+     * The caller's cancellation, passed down to every request.
+     *
+     * A sweep is reached through a request, and when that request goes away
+     * the probes behind it should stop rather than carrying on against a
+     * third party's endpoint for nobody. The samples loop checks it too: a
+     * cancelled probe must not start its second sample, which abandoning the
+     * *wait* would not have prevented.
+     */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<LiveReading> {
   const target = probeTarget(agent);
 
@@ -435,7 +456,15 @@ export async function probeAgent(
 
   const probes: ProbeResult[] = [];
   for (let i = 0; i < samples; i += 1) {
-    probes.push(await probeOnce(target.endpoint, target.protocol, target.version));
+    if (signal?.aborted) break;
+    const probe = await probeOnce(target.endpoint, target.protocol, target.version, signal);
+    /*
+     * Our own cancellation is not a finding about the agent — see
+     * `probeIsEvidence`. A dropped sample means this run measured fewer of
+     * them; the stalest-first ordering sends the next run straight back here.
+     */
+    if (!probeIsEvidence(probe, signal)) break;
+    probes.push(probe);
   }
 
   const answered = probes.filter((p) => p.ok).length;

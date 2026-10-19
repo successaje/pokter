@@ -23,12 +23,14 @@ import { TimedOut, withTimeout } from '@/lib/net/bounded';
  * measurements" — so a deadline reached mid-run sheds exactly what that
  * reasoning says is sheddable, and the measurements are always done.
  *
- * What this cannot do is stop work already in flight. `withTimeout` bounds
- * the waiting, not the promise, and threading an `AbortSignal` through all
- * twenty-five would be a far larger change than the outage warrants. The
- * bound that holds is each call's own: after the run answers, what continues
- * in the background is at most one outbound timeout per call still open,
- * instead of the unbounded tail it was before.
+ * What this cannot do by itself is stop work already in flight: `withTimeout`
+ * bounds the waiting, not the promise. For the sweep's own calls that gap is
+ * closed separately — the signal the route builds is threaded into the prober
+ * and the quote negotiation, which is the bulk of a run's outbound volume, so
+ * cancelling genuinely cancels them. For the follow-on steps it is not, and
+ * the bound that holds there is each call's own timeout: after the run
+ * answers, what continues in the background is at most one timeout per call
+ * still open, instead of the unbounded tail it was before.
  */
 export interface RunBudget {
   /** Milliseconds left, never negative. */

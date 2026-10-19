@@ -299,7 +299,7 @@ export async function runSweep({
       return [] as ProbeRecord[];
     }
 
-    const reading = await probeAgent(agent, { samples });
+    const reading = await probeAgent(agent, { samples, signal });
     // Only a card that was actually read says anything about access.
     if (reading.protocol === 'a2a' && reading.answered > 0) {
       access.push({ chainId: agent.chain_id, tokenId: agent.token_id, requiresAuth: reading.requiresAuth, observedAt: new Date().toISOString() });
@@ -321,6 +321,7 @@ export async function runSweep({
     let failure: QuoteFailure | null = null;
     let refusal: string | null = null;
     let quote = await requestQuote(agent, {
+      signal,
       onFailure: (reason) => {
         failure = reason;
       },
@@ -336,10 +337,13 @@ export async function runSweep({
      * not asked twice.
      */
     const sample = !quote && refusal ? sampleBrief(classify(agent)) : null;
-    if (sample) {
+    // A second negotiation, so it is gated like the first: cancelling the run
+    // must stop it asking again, not merely stop it waiting for the answer.
+    if (sample && !signal?.aborted) {
       let retryFailure: QuoteFailure | null = null;
       let retryRefusal: string | null = null;
       const retried = await requestQuote(agent, {
+        signal,
         enquiry: { task_description: sample, terms: POKTER_TERMS },
         onFailure: (reason) => {
           retryFailure = reason;
@@ -358,7 +362,16 @@ export async function runSweep({
         refusal = retryRefusal ?? refusal;
       }
     }
-    if (!quote && failure) {
+    /*
+     * The same rule as the probe above: a negotiation we cancelled says
+     * nothing about the seller.
+     *
+     * The agent's own page shows this row to its owner as the reason Pokter
+     * could not get a price out of it. Writing "it did not answer" there
+     * because the run was abandoned mid-request would be Pokter blaming a
+     * builder for Pokter's own clock.
+     */
+    if (!quote && failure && !signal?.aborted) {
       const known = failure as QuoteFailure;
       quoteFailures.push({ chainId: agent.chain_id, tokenId: agent.token_id, code: known.code, detail: known.detail ?? null, sellerReason: refusal ?? known.sellerReason ?? null, observedAt: new Date().toISOString() });
     }

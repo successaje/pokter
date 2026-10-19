@@ -57,11 +57,28 @@ export function withTimeout<T>(work: Promise<T>, label: string, ms = DEFAULT_TIM
   });
 }
 
+/**
+ * A call's own deadline, and the caller's cancellation, as one signal.
+ *
+ * Every outbound call needs a ceiling of its own; a call made on someone's
+ * behalf also needs to stop when they stop waiting. Those are two different
+ * reasons to abort and both have to stay live, which is what `AbortSignal.any`
+ * is for — a call that took only the caller's signal would lose its ceiling,
+ * and one that took only its own would keep running after the work was
+ * cancelled.
+ *
+ * Written out once because it was being written out everywhere: the fetch
+ * below, both of the prober's, and the quote's. Four copies of a two-reason
+ * abort is three chances to drop one of the reasons.
+ */
+export function deadlineSignal(timeoutMs: number, signal?: AbortSignal | null): AbortSignal {
+  const deadline = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, deadline]) : deadline;
+}
+
 /** `fetch` that always has a deadline, including one it did not ask for. */
 export function boundedFetch(input: string | URL, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
-  /* A caller's own signal still wins; this only adds a ceiling where there
-     was none. `AbortSignal.any` keeps both live rather than dropping one. */
-  const deadline = AbortSignal.timeout(timeoutMs);
-  return fetch(input, { ...rest, signal: signal ? AbortSignal.any([signal, deadline]) : deadline });
+  // A caller's own signal still wins; this only adds a ceiling where there was none.
+  return fetch(input, { ...rest, signal: deadlineSignal(timeoutMs, signal) });
 }

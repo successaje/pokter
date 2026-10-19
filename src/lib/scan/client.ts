@@ -77,6 +77,22 @@ function sleep(ms: number): Promise<void> {
  * Keyed by resolved URL, so identical concurrent requests share one promise and
  * the map is cleared as soon as it settles — this is a stampede guard, not a
  * cache, and correctness still comes from the fetch layer's revalidation.
+ *
+ * **Why no caller signal reaches these requests.** The sweep threads its
+ * cancellation into everything it calls, so that abandoning a run stops the
+ * work rather than only stopping the wait — the prober and the quote
+ * negotiation both take an `AbortSignal` for that reason. This layer must not,
+ * and the map above is why: a promise here is shared. A signal passed in by
+ * one caller would abort the single request that several callers are waiting
+ * on, so a cancelled sweep would take down a page render that happened to ask
+ * for the same URL at the same moment. The sharing is the whole point of the
+ * map, so the signal is what has to give.
+ *
+ * What bounds these calls instead is `SCAN_TIMEOUT_MS` on each one, and the
+ * sweep not starting new ones once it is cancelled. The cost of the exception
+ * is therefore one timeout's worth of lookup per request still open when a run
+ * is abandoned — bounded, small, and much cheaper than coupling unrelated
+ * renders to each other's cancellation.
  */
 const inFlight = new Map<string, Promise<unknown>>();
 
