@@ -12,7 +12,8 @@ import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discove
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
 import { FilterBar, Filters } from '@/features/discover/FilterBar';
-import { deliveryTimes } from '@/lib/agent/delivery-times';
+import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -82,10 +83,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
    * read that fails leaves the card saying how many deliveries there were
    * rather than inventing a time for them.
    */
-  const timed = await Promise.all(
-    shown
-      .filter((row) => row.paid.delivered > 0)
-      .map(async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const),
+  /*
+   * Capped, not `Promise.all`. One page load used to start a chain read
+   * for every delivered agent at once, and each of those fans out again
+   * inside `deliveryTimes`: the product of two unbounded lists, on one
+   * shared CPU. The cap is small because this is decoration on a catalogue
+   * — an agent whose median does not arrive in time shows a dash.
+   */
+  const timed = await mapWithConcurrency(
+    shown.filter((row) => row.paid.delivered > 0),
+    DELIVERY_LOOKUP_CONCURRENCY,
+    async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const,
   );
   const deliveryByKey = new Map(timed);
   const activity = outsideActivity();

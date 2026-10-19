@@ -8,7 +8,8 @@ import { FilterBar, Filters } from '@/features/discover/FilterBar';
 import { discoverHref, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
-import { deliveryTimes } from '@/lib/agent/delivery-times';
+import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { shareMetadata } from '@/lib/og/share';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -41,10 +42,17 @@ export default async function AllAgentsPage({ searchParams }: { searchParams: Pr
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   /* Only agents with a delivery to time; the rest cost no call. */
-  const timed = await Promise.all(
-    result.rows
-      .filter((row) => row.paid.delivered > 0)
-      .map(async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const),
+  /*
+   * Capped, not `Promise.all`. One page load used to start a chain read
+   * for every delivered agent at once, and each of those fans out again
+   * inside `deliveryTimes`: the product of two unbounded lists, on one
+   * shared CPU. The cap is small because this is decoration on a catalogue
+   * — an agent whose median does not arrive in time shows a dash.
+   */
+  const timed = await mapWithConcurrency(
+    result.rows.filter((row) => row.paid.delivered > 0),
+    DELIVERY_LOOKUP_CONCURRENCY,
+    async (row) => [row.key, (await deliveryTimes(row.chainId, row.tokenId).catch(() => null))?.medianMs ?? null] as const,
   );
   const deliveryByKey = new Map(timed);
 

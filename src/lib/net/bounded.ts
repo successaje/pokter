@@ -1,0 +1,67 @@
+/**
+ * Budgets for anything that leaves this process.
+ *
+ * On 19 October the site stopped serving for about eight hours. The box is
+ * one shared CPU, and the cause was not a crash: outbound calls had no
+ * end-to-end budget, so a slow upstream turned into stuck work that piled
+ * up faster than it drained. `[warmup] registry cache primed in 187.4s` is
+ * what that looked like from the inside, and
+ * `testnet-relay.altana.network: The request took too long to respond` is
+ * what it looked like from outside.
+ *
+ * Two rules, and both are needed. A timeout bounds how long one call can
+ * cost; a concurrency cap bounds how many can be in flight at once,
+ * because a hundred calls that each honour their budget still arrive
+ * together. `Promise.all` over a list read from a database is the shape to
+ * watch for: the list grows with the product and the fan-out grows with
+ * it, silently, until the day it does not fit.
+ *
+ * Only the timeouts live here. The cap already existed as
+ * `lib/concurrency.ts`'s `mapWithConcurrency`, and a second one would be
+ * the drift this module exists to prevent — callers that must tolerate a
+ * failure catch inside the task, which is the idiom `marketplace.ts`
+ * already uses.
+ */
+
+/** Long enough for a slow-but-working upstream, short enough to shed load. */
+export const DEFAULT_TIMEOUT_MS = 8_000;
+
+export class TimedOut extends Error {
+  constructor(label: string, ms: number) {
+    super(`${label} did not answer within ${ms}ms`);
+    this.name = 'TimedOut';
+  }
+}
+
+/**
+ * A hard ceiling on a promise that has no timeout of its own.
+ *
+ * For work this process cannot pass an `AbortSignal` to — an SDK call that
+ * builds its own client, for instance. The underlying request is not
+ * cancelled, so this bounds the *waiting*, not the work; where a signal can
+ * be passed, pass one instead and cancel the request itself.
+ */
+export function withTimeout<T>(work: Promise<T>, label: string, ms = DEFAULT_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new TimedOut(label, ms)), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error as Error);
+      },
+    );
+  });
+}
+
+/** `fetch` that always has a deadline, including one it did not ask for. */
+export function boundedFetch(input: string | URL, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
+  /* A caller's own signal still wins; this only adds a ceiling where there
+     was none. `AbortSignal.any` keeps both live rather than dropping one. */
+  const deadline = AbortSignal.timeout(timeoutMs);
+  return fetch(input, { ...rest, signal: signal ? AbortSignal.any([signal, deadline]) : deadline });
+}
