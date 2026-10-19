@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import { runSweep } from '@/lib/history/sweep';
+import { runBudget } from '@/lib/history/budget';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import { BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
@@ -31,11 +33,14 @@ import { classify } from '@/lib/agents/categories';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { getProbeStore } from '@/lib/history/store';
-import { sweepRecent } from '@/lib/history/schedule';
+import { SWEEP_BUDGET_MS, SWEEP_RUN_BUDGET_MS, sweepRecent } from '@/lib/history/schedule';
 
 export const dynamic = 'force-dynamic';
-/** A sweep probes the whole roster; it needs more than the default budget. */
+/** The platform's ceiling. The run's own budget is below it, deliberately. */
 export const maxDuration = 300;
+
+/** Testnet probes a shallower roster, so it takes the smaller share. */
+const TESTNET_BUDGET_MS = 45_000;
 
 /** Held while a sweep runs in this process (there is one machine). */
 let sweepRunning = false;
@@ -112,15 +117,32 @@ export async function POST(request: Request): Promise<NextResponse> {
   sweepRunning = true;
   try {
     /*
-     * The request's signal, so a sweep nobody is waiting on stops.
+     * One clock for the whole run, and one signal.
      *
+     * The budget is what makes this a run with an end: every step below asks
+     * it for permission, and the slow optional ones at the bottom are the
+     * first to be refused. See `SWEEP_RUN_BUDGET_MS`.
+     *
+     * The signal is the request's, or the budget's, whichever fires first.
      * The route is reached from the in-process scheduler and from GitHub's
      * cron, and either caller can go away mid-run — the scheduler on its own
      * timeout, the cron when the connection drops. Until now the work carried
      * on regardless, against third-party endpoints, on the one CPU the site
      * is served from.
      */
-    const outcome = await runSweep({ signal: request.signal });
+    const budget = runBudget(SWEEP_RUN_BUDGET_MS);
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(SWEEP_RUN_BUDGET_MS)]);
+
+    /*
+     * The measurement is not optional, so it is not a budgeted step: it runs
+     * first, there is always time for it, and if it throws the run reports a
+     * failure rather than an empty success. Everything after it is optional
+     * by design — that is what every `.catch(() => null)` below already says.
+     */
+    const outcome = await runSweep({
+      signal,
+      budgetMs: Math.min(SWEEP_BUDGET_MS, budget.remaining()),
+    });
 
     /*
      * Testnet, measured in parallel with mainnet and listed from neither.
@@ -144,82 +166,123 @@ export async function POST(request: Request): Promise<NextResponse> {
      * Wrapped so it cannot fail the run. A measurement already taken must
      * not be lost to an experiment running after it.
      */
-    const testnetSweep = await runSweep({
-      chainId: BSC_TESTNET,
-      perCategory: 6,
-      registryDepth: 50,
-      // A smaller share of the run than mainnet, for the reason above: a
-      // testnet agent is far likelier to answer, so each one costs more. The
-      // two passes together stay well inside `maxDuration`.
-      maxAgents: 20,
-      budgetMs: 45_000,
-      signal: request.signal,
-    }).catch(() => null);
-    const notificationResults = await Promise.allSettled(
-      subscribedJobs().map(async ({ chainId, jobId }) => {
-        // Every escrow Pokter has funded hires on, not only the default.
-        if (chainId !== 56 && chainId !== 97) return { attempted: 0, sent: 0 };
-        const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
-        return notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
+    const testnetSweep = await budget.step('testnetSweep', () =>
+      runSweep({
+        chainId: BSC_TESTNET,
+        perCategory: 6,
+        registryDepth: 50,
+        // A smaller share of the run than mainnet, for the reason above: a
+        // testnet agent is far likelier to answer, so each one costs more.
+        maxAgents: 20,
+        budgetMs: Math.min(TESTNET_BUDGET_MS, budget.remaining()),
+        signal,
       }),
     );
-    const notifications = notificationResults.reduce(
-      (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
-      0,
-    );
-    const notificationFailures = notificationResults.filter((result) => result.status === 'rejected').length;
-    const builderResults = await Promise.allSettled(
-      getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97).map(async (job) => {
-        const network = altanaNetworkFor(job.chainId);
-        const onchain = await getErc8183Job(network, BigInt(job.jobId));
-        const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
-          ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
-          : undefined;
-        // The local row is only an index. Repair it from ERC-8183 during every
-        // sweep so Activity and Builder never depend on somebody opening a
-        // card to refresh a stale status.
-        getJobStore().record({
-          ...job,
-          client: onchain.client,
-          provider: onchain.provider,
-          budgetRaw: onchain.budget.toString(),
-          expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
-          status: onchain.statusName,
-          statusCheckedAt: new Date().toISOString(),
-          deliverableUrl: deliverableUrl ?? job.deliverableUrl,
-        });
-
-        // Historical demo jobs predate ERC-8004 linkage and use a descriptive
-        // slug instead of a token id. Their ERC-8183 state is still valid and
-        // must be reconciled, but there is no registry owner to notify.
-        if (!/^\d+$/.test(job.agentTokenId)) {
-          return {
-            attempted: 0, sent: 0, reconciled: true,
-            notificationSkipped: true, notificationFailed: false,
-          };
-        }
-
+    /*
+     * One escrow read per subscribed job, a few at a time.
+     *
+     * This was `Promise.allSettled` over the whole subscription list, which
+     * is the shape `lib/net/bounded.ts` warns about: a fan-out that grows
+     * with the product until the day it does not fit. Every subscriber added
+     * one more simultaneous RPC call, on the one CPU the site is served from.
+     * The cap is the same four the sweep itself probes at.
+     *
+     * The task catches its own failure, because `mapWithConcurrency` rejects
+     * on an uncaught throw — and a notification that could not be sent must
+     * not cost the measurements this run already took.
+     */
+    const notificationResults = await budget.step('notifications', () =>
+      mapWithConcurrency(subscribedJobs(), 4, async ({ chainId, jobId }) => {
         try {
-          const agent = await getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId);
-          const email = await notifyBuilderJobEvent({
-            owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
-            agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
-          });
-          return { ...email, reconciled: true, notificationSkipped: false, notificationFailed: false };
+          // Every escrow Pokter has funded hires on, not only the default.
+          if (chainId !== 56 && chainId !== 97) return { sent: 0, failed: false };
+          const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
+          const { sent } = await notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
+          return { sent, failed: false };
         } catch {
-          // A temporary registry or mail-path failure must never roll back a
-          // successful read of the canonical ERC-8183 job state.
-          return {
-            attempted: 0, sent: 0, reconciled: true,
-            notificationSkipped: false, notificationFailed: true,
-          };
+          return { sent: 0, failed: true };
         }
       }),
     );
-    const builderEmails = builderResults.reduce(
-      (sum, result) => result.status === 'fulfilled' ? sum + result.value.sent : sum,
-      0,
+    const notifications = (notificationResults ?? []).reduce((sum, result) => sum + result.sent, 0);
+    const notificationFailures = (notificationResults ?? []).filter((result) => result.failed).length;
+    /*
+     * Job reconciliation, a few at a time, for the same reason.
+     *
+     * The heaviest fan-out in the run: every row costs an escrow read, often
+     * a deliverable read, and for a row with a registry owner a lookup and a
+     * mail send as well. It was every job Pokter has ever brokered, at once.
+     */
+    const builderResults = await budget.step('reconcileJobs', () =>
+      mapWithConcurrency(
+        getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97),
+        4,
+        async (job) => {
+          /*
+           * The escrow read, caught here rather than by the caller.
+           *
+           * `Promise.allSettled` used to absorb this; `mapWithConcurrency`
+           * rejects on an uncaught throw, which would turn one unreadable job
+           * into a lost reconciliation pass for every other job in the list.
+           */
+          try {
+            const network = altanaNetworkFor(job.chainId);
+            const onchain = await getErc8183Job(network, BigInt(job.jobId));
+            const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
+              ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
+              : undefined;
+            // The local row is only an index. Repair it from ERC-8183 during every
+            // sweep so Activity and Builder never depend on somebody opening a
+            // card to refresh a stale status.
+            getJobStore().record({
+              ...job,
+              client: onchain.client,
+              provider: onchain.provider,
+              budgetRaw: onchain.budget.toString(),
+              expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
+              status: onchain.statusName,
+              statusCheckedAt: new Date().toISOString(),
+              deliverableUrl: deliverableUrl ?? job.deliverableUrl,
+            });
+
+            // Historical demo jobs predate ERC-8004 linkage and use a descriptive
+            // slug instead of a token id. Their ERC-8183 state is still valid and
+            // must be reconciled, but there is no registry owner to notify.
+            if (!/^\d+$/.test(job.agentTokenId)) {
+              return {
+                sent: 0, reconciled: true,
+                notificationSkipped: true, notificationFailed: false,
+              };
+            }
+
+            try {
+              const agent = await getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId);
+              const email = await notifyBuilderJobEvent({
+                owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
+                agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
+              });
+              return { sent: email.sent, reconciled: true, notificationSkipped: false, notificationFailed: false };
+            } catch {
+              // A temporary registry or mail-path failure must never roll back a
+              // successful read of the canonical ERC-8183 job state.
+              return {
+                sent: 0, reconciled: true,
+                notificationSkipped: false, notificationFailed: true,
+              };
+            }
+          } catch {
+            // Could not read the job at all: nothing was reconciled, and the
+            // run says so rather than counting it as repaired.
+            return {
+              sent: 0, reconciled: false,
+              notificationSkipped: false, notificationFailed: false,
+              unreadable: true,
+            };
+          }
+        },
+      ),
     );
+    const builderEmails = (builderResults ?? []).reduce((sum, result) => sum + (result?.sent ?? 0), 0);
     /*
      * Hire watching rides the sweep because the sweep is already scheduled,
      * already secret-guarded, and already the thing that runs when nobody is
@@ -228,7 +291,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * Settled rather than awaited bare: a watcher failure must not fail the
      * sweep, which has already done the measuring by this point.
      */
-    const hireWatch = await checkForNewHires().catch(() => null);
+    const hireWatch = await budget.step('hireWatch', () => checkForNewHires());
 
     /*
      * Deliver anything whose notification never arrived. Runs after the
@@ -236,14 +299,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      * just refreshed, and caught like the watcher because a retry failing
      * must not cost us the measurement the sweep already did.
      */
-    const deliveryRetries = await retryStuckDeliveries().catch(() => null);
+    const deliveryRetries = await budget.step('deliveryRetries', () => retryStuckDeliveries());
 
     /*
      * Outside sellers, on every escrow chain: tell any that were never told
      * their job is funded (a buyer who closed the tab first), and keep what
      * they answer. The retry above only ever covered Pokter's own seller.
      */
-    const sellerNotices = await noticeUnansweredJobs().catch(() => null);
+    const sellerNotices = await budget.step('sellerNotices', () => noticeUnansweredJobs());
 
     /*
      * After the retry, not instead of it. What matters is the jobs still
@@ -251,7 +314,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * and failing used to look identical to the retry succeeding, because
      * neither said anything.
      */
-    const stuckJobs = await alertStuckJobs().catch(() => null);
+    const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs());
 
     /*
      * Who first funded each mainnet owner wallet, so agents run from
@@ -259,14 +322,20 @@ export async function POST(request: Request): Promise<NextResponse> {
      * run and off without NODEREAL_API_KEY; last, because nothing above
      * depends on it and a slow lookup must not cost the measurements.
      */
-    const listings = await listMarketplaceWithStatus({ limit: 400 })
-      .then(({ sections }) => sections.flatMap(({ listings: l }) => l))
-      .catch(() => null);
+    const listings = await budget.step('listings', () =>
+      listMarketplaceWithStatus({ limit: 400 }).then(({ sections }) =>
+        sections.flatMap(({ listings: l }) => l),
+      ),
+    );
     const funders = listings
-      ? await refreshFunders(listings.filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address)).catch(() => null)
+      ? await budget.step('funders', () =>
+          refreshFunders(listings.filter((l) => l.agent.chain_id === 56).map((l) => l.agent.owner_address)),
+        )
       : null;
     // The same lookup for the wallets that reviewed listed agents, for the review-pattern check.
-    const reviewerFunders = listings ? await refreshReviewerFunders(listings.map((l) => l.agent)).catch(() => null) : null;
+    const reviewerFunders = listings
+      ? await budget.step('reviewerFunders', () => refreshReviewerFunders(listings.map((l) => l.agent)))
+      : null;
 
     /*
      * Health factor checks: a few listed health-factor agents per run, each
@@ -275,9 +344,11 @@ export async function POST(request: Request): Promise<NextResponse> {
      * cost the measurements above.
      */
     const healthFactorChecks = listings
-      ? await runDueHealthFactorChecks(
-          listings.filter((l) => l.category === 'health-factor').map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
-        ).catch(() => null)
+      ? await budget.step('healthFactorChecks', () =>
+          runDueHealthFactorChecks(
+            listings.filter((l) => l.category === 'health-factor').map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
+          ),
+        )
       : null;
 
     /*
@@ -287,9 +358,11 @@ export async function POST(request: Request): Promise<NextResponse> {
      * isolated so it cannot erase the availability measurements already made.
      */
     const categoryChecks = listings
-      ? await runDueStaticCategoryChecks(
-          listings.map((listing) => ({ chainId: listing.agent.chain_id, tokenId: listing.agent.token_id, category: listing.category })),
-        ).catch(() => null)
+      ? await budget.step('categoryChecks', () =>
+          runDueStaticCategoryChecks(
+            listings.map((listing) => ({ chainId: listing.agent.chain_id, tokenId: listing.agent.token_id, category: listing.category })),
+          ),
+        )
       : null;
 
     /*
@@ -302,28 +375,26 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     // Outside agents' deliveries live at their own URLs: fetched and checked
     // against the on-chain hash first, so the graders below can read them.
-    const capturedDeliverables = await captureFixtureDeliverables().catch(() => null);
-    const paidChecks = (() => {
-      try {
-        return gradeDuePaidChecks();
-      } catch {
-        return null;
-      }
-    })();
+    const capturedDeliverables = await budget.step('capturedDeliverables', () => captureFixtureDeliverables());
+    const paidChecks = await budget.step('paidChecks', () => gradeDuePaidChecks());
     // Health factor fixtures read Venus, so they are graded separately and
     // caught: a slow or failing RPC must not cost the measurements above.
-    const paidHfChecks = await gradeDuePaidHfChecks().catch(() => null);
+    const paidHfChecks = await budget.step('paidHfChecks', () => gradeDuePaidHfChecks());
     // Position ranges read different contracts, and fail independently.
-    const paidV3Checks = await gradeDuePaidV3Checks().catch(() => null);
+    const paidV3Checks = await budget.step('paidV3Checks', () => gradeDuePaidV3Checks());
 
     /*
      * The Set and Earn tracker's index: new escrow jobs on both chains by
      * id, and listed agents' registered wallets, so any wallet's hires on
      * any marketplace can be read without scanning the chain per request.
      */
-    const questIndex = await Promise.all([indexEscrowJobs(56).catch(() => null), indexEscrowJobs(97).catch(() => null)]);
+    const questIndex = await budget.step('questIndex', () =>
+      // Both chains, one at a time: each walks an escrow's jobs, and the
+      // pair ran together on the one CPU that also serves the site.
+      mapWithConcurrency([56, 97] as const, 1, (chain) => indexEscrowJobs(chain).catch(() => null)),
+    );
     // After the index, so the newest jobs are there to be judged.
-    const answeredTasks = await checkAnsweredTasks().catch(() => null);
+    const answeredTasks = await budget.step('answeredTasks', () => checkAnsweredTasks());
 
     /*
      * Recover any job Pokter brokered that never reached its own index.
@@ -336,7 +407,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * cooperation from any browser, and it is what makes the published
      * counts checkable rather than asserted.
      */
-    const reconciled = await reconcileJobIndex().catch(() => null);
+    const reconciled = await budget.step('reconciled', () => reconcileJobIndex());
 
     /*
      * Seal what Pokter currently claims, after the sweep has refreshed it
@@ -347,9 +418,11 @@ export async function POST(request: Request): Promise<NextResponse> {
      * the sweep's steps — a missing seal is a gap a reader can see, while
      * a thrown error would lose the probe results this run just gathered.
      */
-    const sealed = await publishSeal().catch(() => null);
+    const sealed = await budget.step('sealed', () => publishSeal());
     const agentWallets = listings
-      ? await refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))).catch(() => null)
+      ? await budget.step('agentWallets', () =>
+          refreshAgentWallets(listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, name: l.agent.name ?? null }))),
+        )
       : null;
     /*
      * What listed agents' wallets have done on chain: transactions sent, and
@@ -358,12 +431,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const listed = new Set((listings ?? []).map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
     const walletActivity = listings
-      ? await refreshWalletActivity(
-          getQuestStore()
-            .allAgentWallets()
-            .filter((w) => listed.has(`${w.chainId}:${w.tokenId}`))
-            .map((w) => ({ chainId: w.chainId, agentWallet: w.wallet })),
-        ).catch(() => null)
+      ? await budget.step('walletActivity', () =>
+          refreshWalletActivity(
+            getQuestStore()
+              .allAgentWallets()
+              .filter((w) => listed.has(`${w.chainId}:${w.tokenId}`))
+              .map((w) => ({ chainId: w.chainId, agentWallet: w.wallet })),
+          ),
+        )
       : null;
 
     /*
@@ -375,12 +450,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const onChainJobs = new Set((listings ?? []).filter((l) => JOB_ACTIONS[classify(l.agent)]).map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
     const capability = onChainJobs.size
-      ? await refreshCapability(
-          getQuestStore()
-            .allAgentWallets()
-            .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
-            .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
-        ).catch(() => null)
+      ? await budget.step('capability', () =>
+          refreshCapability(
+            getQuestStore()
+              .allAgentWallets()
+              .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
+              .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
+          ),
+        )
       : null;
 
     /*
@@ -389,8 +466,8 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const follows = followedAgents();
     const followerAlerts = follows.length
-      ? await listSearchableWithStatus({ limit: 400 })
-          .then(({ entries }) => {
+      ? await budget.step('followerAlerts', () =>
+          listSearchableWithStatus({ limit: 400 }).then(({ entries }) => {
             const wanted = new Set(follows.map((f) => `${f.chainId}:${f.tokenId}`));
             const states = new Map<string, { name: string; state: FollowedAgentState }>();
             for (const entry of entries) {
@@ -410,12 +487,20 @@ export async function POST(request: Request): Promise<NextResponse> {
               });
             }
             return notifyFollowers(states);
-          })
-          .catch(() => null)
+          }),
+        )
       : null;
 
     return NextResponse.json({
-      ...outcome, notifications, notificationFailures,
+      ...outcome,
+      /*
+       * What the run spent and what it shed, so a tail that never gets a
+       * turn is visible. `skipped` growing every run means the budget needs
+       * raising or a step needs moving out of the web process — not that the
+       * step quietly stopped working.
+       */
+      budget: budget.report(),
+      notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
       sellerNotices,
@@ -437,16 +522,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       followerAlerts,
       agentWallets,
       testnetSweep,
-      builderNotifications: builderResults.filter((result) => result.status === 'fulfilled').length,
+      builderNotifications: (builderResults ?? []).length,
       builderEmails,
-      reconciledJobs: builderResults.filter((result) => result.status === 'fulfilled' && result.value.reconciled).length,
-      builderNotificationsSkipped: builderResults.filter(
-        (result) => result.status === 'fulfilled' && result.value.notificationSkipped,
+      reconciledJobs: (builderResults ?? []).filter((result) => result.reconciled).length,
+      builderNotificationsSkipped: (builderResults ?? []).filter((result) => result.notificationSkipped).length,
+      builderNotificationFailures: (builderResults ?? []).filter((result) => result.notificationFailed).length,
+      // A job whose escrow could not be read at all, rather than one whose
+      // notification failed after a successful read.
+      jobReconciliationFailures: (builderResults ?? []).filter(
+        (result) => 'unreadable' in result && result.unreadable,
       ).length,
-      builderNotificationFailures: builderResults.filter(
-        (result) => result.status === 'fulfilled' && result.value.notificationFailed,
-      ).length,
-      jobReconciliationFailures: builderResults.filter((result) => result.status === 'rejected').length,
     });
   } catch (error) {
     return NextResponse.json(

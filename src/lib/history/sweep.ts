@@ -8,7 +8,13 @@ import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
-import { SWEEP_REGISTRY_PAGE, registryPageOffset, sweepBatch } from './schedule';
+import {
+  SWEEP_BUDGET_MS,
+  SWEEP_MAX_AGENTS,
+  SWEEP_REGISTRY_PAGE,
+  registryPageOffset,
+  sweepBatch,
+} from './schedule';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { sampleBrief } from '@/lib/erc8183/sample-enquiry';
 import { classify } from '@/lib/agents/categories';
@@ -224,42 +230,6 @@ export const SWEEP_PER_CATEGORY = 12;
  */
 export const SWEEP_REGISTRY_DEPTH = 150;
 
-/**
- * Agents measured per run.
- *
- * A sweep probed every agent on its roster in one invocation. That was fine
- * while the roster was the four category listings — about eighty agents — and
- * stopped being fine as the roster grew: by 19 October a run no longer
- * finished, and because it runs inside the web process on one shared CPU, the
- * run that did not finish stopped the site answering. `[warmup] registry
- * cache primed in 187.4s` was the same symptom from the same cause.
- *
- * The fix is not a bigger machine, it is a run that ends. Coverage is now the
- * schedule's job rather than one invocation's: each run takes the batch whose
- * readings are oldest (`sweepBatch`), and at a ten-minute interval forty
- * agents a run covers more of the roster per hour than the two-hourly full
- * sweep did — while being, unlike it, something that reliably completes.
- */
-export const SWEEP_MAX_AGENTS = 40;
-
-/**
- * The hard end of a run, whatever the batch has left.
- *
- * `SWEEP_MAX_AGENTS` bounds how many agents a run attempts; this bounds how
- * long it may spend doing so, because an agent's cost is not ours to predict.
- * Outbound calls each carry their own timeout (src/lib/net/bounded.ts), but
- * forty agents' worth of timeouts still add up, and an endpoint that answers
- * slowly without failing is exactly what went wrong. No new agent is started
- * past the deadline; the ones already in flight are bounded by their own
- * timeouts, so probing ends within roughly this budget plus one agent.
- *
- * It covers the probing, not building the roster — that is four listing calls
- * before the clock starts, each with its own timeout. Putting one budget
- * around the whole run is the next step; a budget that a slow listing can
- * spend before a single agent is measured would be worse than this one.
- */
-export const SWEEP_BUDGET_MS = 90_000;
-
 export async function runSweep({
   chainId = BSC_MAINNET,
   perCategory = SWEEP_PER_CATEGORY,
@@ -272,9 +242,18 @@ export async function runSweep({
   const store = getProbeStore();
   const startedAt = new Date().toISOString();
 
+  /*
+   * The clock starts before the roster, not after it.
+   *
+   * Building the roster is two listing calls against someone else's API, and
+   * a sweep whose budget began once they returned was a sweep with no bound
+   * on its slowest part. Each call carries its own timeout, so the roster
+   * cannot hang — but it can be slow, and when it is, this run measures
+   * fewer agents rather than running longer than it was allowed to.
+   */
+  const deadline = Date.now() + budgetMs;
   const roster = await buildRoster(chainId, perCategory, registryDepth);
   const batch = sweepBatch(roster, store.lastProbedAt(chainId), maxAgents);
-  const deadline = Date.now() + budgetMs;
 
   let probeCount = 0;
   let answered = 0;

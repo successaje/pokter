@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  SWEEP_BUDGET_MS,
+  SWEEP_INTERVAL_MS,
+  SWEEP_RUN_BUDGET_MS,
   registryPageOffset,
   staleAlertDue,
   sweepBatch,
@@ -104,4 +107,22 @@ test('a registry depth of one page or less never rotates', () => {
   const t = (ticks: number) => registryPageOffset(ticks * 10 * 60 * 1000, 50);
   assert.deepEqual([t(0), t(1), t(7)], [0, 0, 0]);
   assert.equal(registryPageOffset(0, 0), 0, 'and a depth of none does not divide by zero');
+});
+
+test('the run budget stays inside the platform ceiling and the tick', () => {
+  // Both constraints are stated in the constant's own doc; asserting them
+  // here is what stops a later nudge to either number from reintroducing
+  // the shape of the 19 October outage — a run with no room to answer in,
+  // or two runs sharing one CPU.
+  const MAX_DURATION_MS = 300_000; // route: `export const maxDuration = 300`
+  assert.ok(
+    SWEEP_RUN_BUDGET_MS < MAX_DURATION_MS,
+    'a run must finish early enough to report what it did',
+  );
+  assert.ok(
+    SWEEP_RUN_BUDGET_MS * 2 <= SWEEP_INTERVAL_MS,
+    'two runs must never be able to overlap',
+  );
+  // And the probing share must leave the follow-on steps something to use.
+  assert.ok(SWEEP_BUDGET_MS * 2 < SWEEP_RUN_BUDGET_MS, 'probing cannot claim the whole run');
 });
