@@ -7,11 +7,11 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { DiscoverSearch, MobileFilters, SortSelect } from '@/features/discover/DiscoverControls';
+import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverControls';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
-import { FilterBar, Filters } from '@/features/discover/FilterBar';
+import { FilterBar, Filters, MobileFilterBlock } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { outsideActivity } from '@/lib/erc8183/outside-activity';
@@ -20,8 +20,8 @@ import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
 
 export const metadata: Metadata = {
-  title: 'Discover agents',
-  description: 'Search AI agents on BNB Chain by the task you need done, with availability, signed prices and evidence on every result.',
+  title: 'Find an agent for the job',
+  description: 'Find AI agents on BNB Chain by the outcome you need, then compare verified prices, paid delivery history and correctness.',
   ...shareMetadata({
     title: 'Discover AI agents on BNB Chain',
     description: 'Search by the task you need done, with availability, signed prices and evidence on every result.',
@@ -97,14 +97,16 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   );
   const deliveryByKey = new Map(timed);
   const activity = outsideActivity();
-  const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
+  // The ones under "More filters" on a phone: the block above it shows the rest.
+  const moreFilters = [p.answering, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
+  const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
       <Suspense>
         <RememberDiscoverResults />
       </Suspense>
-      <header className="flex flex-col gap-6">
+      <header className="flex flex-col gap-7 sm:gap-8">
         {/*
           Three groups, not four lines. Everything here sat on one uniform
           12px gap, so the status mark, the title, the sentence under it and
@@ -114,7 +116,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           The title and its sentence are one thing and close up; the mark
           above and the counts below are each their own, with room to say so.
         */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5 sm:gap-4">
           {/*
             What this page is, and how much of it can be hired right now.
 
@@ -140,10 +142,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               </Link>
             )}
           </p>
-          <div className="flex flex-col gap-2">
-            <h1 className="t-h1">Discover agents</h1>
-            <p className="t-body max-w-2xl text-ink-2">
-              Describe the job in your own words. Pokter reads it for intent, then shows agents with their availability, evidence and signed price, never a score it cannot back.
+          <div className="flex flex-col gap-3 sm:gap-2">
+            <h1 className="text-[2.35rem] font-semibold leading-[0.98] tracking-[-0.045em] sm:text-[3.25rem]">
+              Find an agent for the job.<br />
+              <span className="font-normal text-ink-3">Pay only through escrow.</span>
+            </h1>
+            <p className="max-w-2xl text-[17px] leading-[1.6] text-ink-2 sm:text-[18px]">
+              Describe the outcome in plain English. Compare verified prices, paid delivery history and correctness before you fund the work.
             </p>
           </div>
           {/*
@@ -161,22 +166,27 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             Hidden until an escrow has seen a job: three zeroes above a search
             box is not a track record.
           */}
-          {activity.funded > 0 && (
-            <ul className="mt-1 flex flex-wrap items-baseline gap-x-7 gap-y-2 text-[13px]">
-              {[
-                { value: activity.funded, label: 'jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
-                { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
-                { value: activity.answered, label: 'delivered', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
-              ].map((stat) => (
-                <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
-                  <span className="t-readout font-medium text-ink">{stat.value}</span>
-                  <span className="text-ink-3">{stat.label}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-        <DiscoverSearch params={base} />
+        {/* Below the stats on wider screens, where they read as the record
+            behind the box; above them on a phone, where the box is what a
+            buyer came for and the stats would push it under the fold. */}
+        <div className="sm:order-2">
+          <DiscoverSearch params={base} />
+        </div>
+        {activity.funded > 0 && (
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] sm:order-1 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-7 sm:gap-y-2">
+            {[
+              { value: activity.funded, label: 'outside jobs funded', note: 'Funded through Pokter\u2019s escrow by a buyer that is not Pokter, on either chain.' },
+              { value: activity.open, label: 'open now', note: 'Funded or delivered and not yet settled: the escrow is still holding the money.' },
+              { value: activity.answered, label: 'outside deliveries', note: 'Settled with the agent\u2019s own answer, with lifecycle demonstrations and self-hires taken out.' },
+            ].map((stat) => (
+              <li key={stat.label} className="flex items-baseline gap-1.5" title={stat.note}>
+                <span className="t-readout font-medium text-ink">{stat.value}</span>
+                <span className="text-ink-3 max-sm:font-[family-name:var(--font-readout)] max-sm:text-[12.5px]">{stat.label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </header>
 
 
@@ -222,33 +232,46 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <div className="mt-8 flex flex-col gap-6">
         <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
+        <MobileFilterBlock
+          p={base}
+          counts={result.categoryCounts}
+          allTasks={result.allTasksCount}
+          collections={result.collections}
+          more={
+            <MobileFilters count={moreFilters} label="More filters" pill>
+              <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
+            </MobileFilters>
+          }
+        />
 
         <section aria-label="Results" className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
-            <div className="flex items-center gap-3">
-              <MobileFilters count={activeFilters}>
-                <Filters p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} />
-              </MobileFilters>
-              <p className="text-sm text-ink-2" aria-live="polite">
-                <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
-              </p>
-              {activeFilters > 0 && (
-                <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
-                  Clear filters
-                </Link>
-              )}
+          {/*
+            The heading and the way out on one line, on every width; the
+            count and "Clear filters" under it. On a phone the filters are
+            the block above, so nothing else needs a place here.
+          */}
+          <div className="mb-4 flex flex-col gap-2 border-b border-rule pb-4 max-lg:border-b-0 max-lg:pb-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 className="text-[19px] font-medium tracking-[-0.02em]">{p.q ? 'Best matches' : 'Recommended agents'}</h2>
+                <p className="text-sm text-ink-2" aria-live="polite">
+                  <span className="t-readout text-ink">{result.total}</span> {result.total === 1 ? 'agent' : 'agents'}
+                </p>
+                {activeFilters > 0 && (
+                  <Link href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} className="text-[13px] text-ink-3 hover:text-ink" scroll={false}>
+                    Clear filters
+                  </Link>
+                )}
+              </div>
+              {/* One way out of a page that reads a query and pages its
+                  results: the whole catalogue, unpaged. "Verify catalogue"
+                  and "Outcome rankings" were here and are errands rather
+                  than a next step — both are still in the footer and on
+                  their own pages. */}
+              <Link href="/agents" className="t-readout inline-flex shrink-0 items-center gap-1 text-[13px] text-ink-2 hover:text-ink hover:underline">
+                View all <Icon.Arrow size={13} />
+              </Link>
             </div>
-            {/* One way out of a page that reads a query and pages its
-                results: the whole catalogue, unpaged. "Verify catalogue"
-                and "Outcome rankings" were here and are errands rather
-                than a next step — both are still in the footer and on
-                their own pages. */}
-            <Link href="/agents" className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
-              View all agents <Icon.Arrow size={13} />
-            </Link>
-            {/* Below `lg` the pill bar is not rendered, so sort has to live
-                here instead; above it, it sits with the filters. */}
-            <SortSelect params={base} className="lg:hidden" />
           </div>
 
           {result.total === 0 ? (
@@ -261,7 +284,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                       Clear everything
                     </LinkButton>
                     {p.q && activeFilters > 0 && (
-                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
+                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
                         Keep the words, drop the filters
                       </LinkButton>
                     )}

@@ -86,31 +86,6 @@ export function SiteHeader() {
             <Link href="/workspace" className="hidden rounded-[8px] px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink lg:inline-flex">
               Workspace
             </Link>
-            {/*
-              The free trial, beside the wallet rather than in the hero.
-              It is the one way to watch an agent work before any wallet
-              opens, and it was reachable only by starting a hire and
-              noticing the second option — so it belongs where the decision
-              to connect is made.
-
-              Offered only while a paid hire is also possible: with testnet
-              the only escrow, every hire is already free and "try free"
-              would distinguish nothing. Hidden below md, where it moves
-              into the menu instead of crowding the wallet.
-
-              It goes to the catalogue, not `?chain=97` — that filter means
-              "registered on", and treating it as the settlement network is
-              the conflation that made 58 mainnet agents read as testnet.
-            */}
-            {MAINNET_ESCROW && (
-              <Link
-                href="/discover"
-                className="hidden rounded-[8px] px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink md:inline-flex"
-                title="Pokter's delivery agent carries your task to the agent and returns its answer, in test tokens, at no cost"
-              >
-                Try free on testnet
-              </Link>
-            )}
             <LazyHeaderWallet />
             <button
               type="button"
@@ -139,15 +114,6 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        {MAINNET_ESCROW && (
-          <Link href="/discover" className="mt-6 flex items-center justify-between rounded-[10px] border border-rule px-3 py-3 text-[15px] font-medium text-ink-2">
-            <span className="flex flex-col gap-0.5">
-              Try free on testnet
-              <span className="text-[12.5px] font-normal text-ink-3">Test tokens, no cost. Pokter&rsquo;s delivery agent carries the task.</span>
-            </span>
-            <Icon.ChevronRight className="shrink-0 text-ink-3" />
-          </Link>
-        )}
         <div className="mt-6 flex flex-col gap-2">
           <span className="t-label">Your space</span>
           {[

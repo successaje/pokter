@@ -36,6 +36,25 @@ export function availabilityText(row: FindRow): { text: string; tone: 'ok' | 'wa
 
 const DOT = { ok: 'bg-ok', watch: 'bg-watch', bad: 'bg-bad', none: 'bg-rule-strong' } as const;
 
+function cardProof(row: FindRow): { label: string; detail: string } {
+  const proven = row.maturity.steps.find((step) => step.id === 'proven-in-use');
+  if (proven?.earned) return { label: 'Buyer-proven', detail: proven.detail };
+  if (row.paid.outsideCompleted > 0) {
+    return {
+      label: `${row.paid.outsideCompleted} outside`,
+      detail: `${row.paid.outsideCompleted} settled paid ${row.paid.outsideCompleted === 1 ? 'job was' : 'jobs were'} funded outside Pokter’s team.`,
+    };
+  }
+  const checked = row.maturity.steps.find((step) => step.id === 'checked');
+  if (checked?.earned) return { label: 'Checked', detail: checked.detail };
+  /*
+   * "No proof yet", not "Not checked": an agent can have been checked and
+   * failed (Mandate Guard-1 scored 0 / 3), and "Not checked" said the check
+   * never happened. This is true either way; the profile says which.
+   */
+  return { label: 'No proof yet', detail: 'No passing correctness check or settled outside-buyer delivery on record.' };
+}
+
 /**
  * Which money the price is in, on the card.
  *
@@ -200,8 +219,11 @@ export function AgentCard({
    */
   deliveryMs?: number | null;
 }) {
+  const availability = availabilityText(row);
+  const proof = cardProof(row);
+  const terminalJobs = row.paid.completed + row.paid.missed;
   return (
-    <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
+    <article className={cn('group relative flex h-full flex-col rounded-[12px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift sm:rounded-[16px]', className)}>
       <div className="flex items-start gap-3.5">
         {/* No ring. It was a circle drawn around a rounded square, which
             left four corners reaching for it, and the answer dot then had
@@ -222,8 +244,9 @@ export function AgentCard({
             catalogue, in the loudest treatment on it, competing with the
             name for a fact that is not why anyone is reading.
           */}
-          <span className="truncate text-[12.5px] text-ink-3">
-            {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
+          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
+            <span className="truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
+            <span className="t-readout truncate">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="truncate">· Run by Pokter</span> : null}
           </span>
         </div>
         {/* The footer that used to hold this went with "View evidence";
@@ -231,7 +254,12 @@ export function AgentCard({
         {compare && <span className="relative z-10 shrink-0">{compare}</span>}
       </div>
 
-      <p className="mt-3.5 line-clamp-2 min-h-[2.9em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
+      <p className="mt-3.5 line-clamp-3 min-h-[4.35em] text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
+
+      <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
+        <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
+        {availability.text}
+      </p>
 
       {/*
         The evidence as three readings, not a panel.
@@ -245,26 +273,17 @@ export function AgentCard({
         5d ago" was the only reason the first dot was there, and the answer
         dot on the avatar now carries it on every card, in one glyph.
       */}
-      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
-        <div className="flex min-w-0 flex-col gap-1.5">
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px] sm:grid-cols-3">
+        <div className="hidden min-w-0 flex-col gap-1.5 sm:flex">
           {/* "Replies", not "Answers": one of the maturity badges in the
               third column is the word "Answers", and a column headed
               Answers showing Answers two columns over reads as an error. */}
-          <dt className="t-label">Replies</dt>
-          <dd className="t-readout truncate" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
-            {row.rate === null ? '\u2014' : `${Math.round(row.rate * 100)}%`}
-          </dd>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <dt className="t-label">Paid jobs</dt>
-          {/* A missed deadline is not a smaller success, so it is not
-              averaged into one: the denominator shows up only when there
-              is one, and it is the whole reason this reads in `watch`. */}
+          <dt className="t-label">Paid result</dt>
           <dd
             className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}
-            title={row.paid.missed ? `${row.paid.missed} of ${row.paid.delivered + row.paid.missed} funded jobs missed their deadline` : undefined}
+            title={terminalJobs > 0 ? `${row.paid.completed} settled and ${row.paid.missed} missed deadline` : 'No paid job has reached a terminal outcome yet'}
           >
-            {row.paid.missed ? `${row.paid.delivered}/${row.paid.delivered + row.paid.missed}` : row.paid.delivered}
+            {terminalJobs > 0 ? `${row.paid.completed}/${terminalJobs} settled` : row.paid.jobs > 0 ? 'In progress' : <span className="text-ink-3">Not hired</span>}
           </dd>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -290,6 +309,12 @@ export function AgentCard({
             ) : (
               <span className="text-ink-3">Not yet</span>
             )}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Proof</dt>
+          <dd className={cn('t-readout truncate', proof.label === 'No proof yet' ? 'text-ink-3' : undefined)} title={proof.detail}>
+            {proof.label}
           </dd>
         </div>
       </dl>

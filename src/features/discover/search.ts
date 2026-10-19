@@ -35,7 +35,7 @@ export interface DiscoverResult {
   /** The newest listings in the catalogue, whatever the current filters are. */
   recent: FindRow[];
   /** Sizes of the curated shortcuts, over everything listed. */
-  collections: { hireable: number; priced: number; answering: number; corroborated: number };
+  collections: { hireable: number; priced: number; answering: number; checked: number; outsideDelivery: number; corroborated: number };
   unreachable: boolean;
   /** Category labels on a chain where a registry read failed, so results there may be missing. */
   incomplete: string[];
@@ -148,12 +148,14 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
    * and the collection cards counted registrations where the list showed
    * agents. A count now says what picking it would show.
    */
-  const rules: Record<'category' | 'chain' | 'hireable' | 'answering' | 'priced' | 'evidence', (e: SearchableAgent) => boolean> = {
+  const rules: Record<'category' | 'chain' | 'hireable' | 'answering' | 'priced' | 'checked' | 'outsideDelivery' | 'evidence', (e: SearchableAgent) => boolean> = {
     category: (e) => !params.category || e.listing.category === params.category,
     chain: (e) => params.chain === 'any' || String(e.listing.agent.chain_id) === params.chain,
     hireable: (e) => !params.hireable || offersDirectHire(e),
     answering: (e) => !params.answering || answeredThisWeek(e),
     priced: (e) => !params.priced || e.listing.quote != null,
+    checked: (e) => !params.checked || e.tested === true,
+    outsideDelivery: (e) => !params.outsideDelivery || (e.history?.outsideTeam.completed ?? 0) > 0,
     evidence: (e) => (params.evidence === 'measured' ? e.record.totalProbes > 0 : params.evidence === 'corroborated' ? e.listing.attestationCount > 0 : true),
   };
   const applying = (items: SearchableAgent[], skip?: keyof typeof rules) =>
@@ -208,6 +210,8 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
       // Each card's count is what clicking it shows: one rule, one agent each.
       ...catalogueCounts(entries),
       answering: distinct(promotable.filter(answeredThisWeek)),
+      checked: distinct(promotable.filter((e) => e.tested === true)),
+      outsideDelivery: distinct(promotable.filter((e) => (e.history?.outsideTeam.completed ?? 0) > 0)),
       corroborated: distinct(promotable.filter((e) => e.listing.attestationCount > 0)),
     },
     suggestions,
