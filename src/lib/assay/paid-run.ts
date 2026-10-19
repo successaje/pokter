@@ -10,7 +10,7 @@ import type { HiredJob } from '@/lib/erc8183/types';
 import { deliverableKey, readDeliverable, readDeliverableMismatch } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 
-import { STATIC_SUITES, type StaticAssayCategory } from './category-suites';
+import { GRADING_RULES, STATIC_SUITES, type StaticAssayCategory } from './category-suites';
 import { HF_SUITE_ID } from './health-factor';
 import { readV3Positions, sampleV3PositionHolders, v3Client } from './pancakeswap-v3';
 import { gradePaidV3Scenarios } from './v3-grade';
@@ -92,9 +92,11 @@ export type PaidCheckOutcome =
  * a delivery is still picked up on the next pass rather than in three days.
  * Store reads only, no network.
  */
-function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: string, fixtures: Map<string, HiredJob>): boolean {
+function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: string, fixtures: Map<string, HiredJob>, rules = 0): boolean {
   const run = getAssayStore().latest(target, suiteId);
   if (!run || run.via !== 'paid-hire') return false;
+  // Graded under older rules: graded again, once, under the current ones.
+  if ((run.rules ?? 0) < rules) return false;
   // A pending row means the agent may still deliver: keep looking.
   if (run.results.some((result) => result.outcome === 'pending')) return false;
   // Nothing scored is a result, but a provisional one: looked at again after six hours, as grading improves or the agent redelivers.
@@ -165,6 +167,7 @@ export function gradePaidCategoryCheck(
     total: scored.length,
     via: 'paid-hire',
     results,
+    rules: GRADING_RULES,
   };
 
   if (record) getAssayStore().record(target, run);
@@ -290,7 +293,7 @@ export function gradeDuePaidChecks(): { graded: number; incomplete: number; pass
   let passedAll = 0;
   for (const target of bySuite.values()) {
     const suiteId = STATIC_SUITES[target.category].id;
-    if (alreadyGraded(target, suiteId, fixtureJobsForAgent(target, suiteId))) continue;
+    if (alreadyGraded(target, suiteId, fixtureJobsForAgent(target, suiteId), GRADING_RULES)) continue;
     const outcome = gradePaidCategoryCheck({ chainId: target.chainId, tokenId: target.tokenId }, target.category);
     if (outcome.state === 'recorded') {
       graded += 1;

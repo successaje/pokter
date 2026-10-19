@@ -48,4 +48,9 @@ export interface AssayRun {
   ranAt: string;
   via: AssayVia;
   results: AssayScenarioResult[];
+  /**
+   * Which revision of the grading rules produced this run (`GRADING_RULES`).
+   * 0 for every run recorded before the field existed.
+   */
+  rules?: number;
 }

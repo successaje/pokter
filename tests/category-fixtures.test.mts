@@ -129,3 +129,42 @@ test('the suite ids change when the fixture changes', () => {
   // Rebalancing has no free fixture at all now: see category-assays.
   assert.equal((STATIC_SUITES as Record<string, unknown>).rebalancing, undefined);
 });
+
+/*
+ * Nagi's answer to the BNB scenario (97:1511), as delivered: every figure
+ * right, under its own names. It was graded 0 / 3 for "not stating" the pair.
+ */
+const NAGI_BNB = {
+  base: 'BNB', quote: 'USDT', budget: 1000, range: { lower: 900, upper: 1100 }, grids: 8, spacing: 'geometric',
+  ratio: 1.0254010834, step_pct: 2.540108,
+  price_levels: [900, 922.860975, 946.302644, 970.339756, 994.987437, 1020.261196, 1046.176936, 1072.750963, 1100],
+  per_grid_quote: 125,
+};
+
+test('a grid answer is graded on its figures, not on which names it uses for them', () => {
+  const expected = STATIC_SUITES['grid-trading'].scenarios[0].expected as Record<string, unknown>;
+  const verdict = judgeStaticAnswer(expected, { text: null, data: NAGI_BNB });
+  assert.equal(verdict.pass, true, verdict.reason);
+  assert.deepEqual(verdict.observed, { pair: 'BNB/USDT', step_pct: 2.540108, levels: 9, budget_usd: 1000 });
+});
+
+test('the same names with a wrong figure still fail, on the figure', () => {
+  const expected = STATIC_SUITES['grid-trading'].scenarios[0].expected as Record<string, unknown>;
+  const fewerLevels = { ...NAGI_BNB, price_levels: NAGI_BNB.price_levels.slice(0, 7) };
+  assert.match(judgeStaticAnswer(expected, { text: null, data: fewerLevels }).reason, /levels should be 9; answered 7/);
+  const wrongBudget = { ...NAGI_BNB, budget: 814 };
+  assert.match(judgeStaticAnswer(expected, { text: null, data: wrongBudget }).reason, /budget_usd should be 1000; answered 814/);
+  const wrongBase = { ...NAGI_BNB, base: 'CAKE' };
+  assert.equal(judgeStaticAnswer(expected, { text: null, data: wrongBase }).pass, false);
+});
+
+test('a yield answer that only echoes the brief back states nothing', () => {
+  // Venus Yield Keeper (97:2554, job 1522): the brief returned as a string, then a report on its own position.
+  const expected = STATIC_SUITES.yield.scenarios[0].expected as Record<string, unknown>;
+  const echoed = {
+    task: JSON.stringify({ task: 'I hold 1000 USDT…', data: { amount: 1000, asset: 'USDT', holding_days: 30, current_apr_pct: 0, threshold_pp: 0.5 } }),
+    answer: 'Venus vBNB supply APY 35.20%. Supplied 0.0571 BNB.',
+    report: { market: 'Venus core pool vBNB', apy: '35.20%' },
+  };
+  assert.equal(judgeStaticAnswer(expected, { text: null, data: echoed }).pass, false);
+});
