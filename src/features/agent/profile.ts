@@ -38,6 +38,8 @@ import { chainLabel } from '@/lib/network/presentation';
 import type { HireBlocker } from '@/lib/hire/blocker';
 import { currentHireBlocker } from '@/lib/hire/blocker-live';
 import { clipAtWord } from '@/lib/ui/clip';
+import { agentReadings, type PlatformBenchmark } from '@/lib/benchmark/platform';
+import { currentPlatformBenchmark } from '@/lib/benchmark/platform-server';
 
 /** Agent-provided text is untrusted: strip control characters and cap it. */
 function clean(text: string | null | undefined, max = 4000) {
@@ -134,6 +136,8 @@ export interface AgentProfile {
   }>;
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
+  /** What is typical on Pokter, and this agent's own readings by the same rules (`lib/benchmark/platform`). Null when it could not be read in time. */
+  benchmark: { platform: PlatformBenchmark; own: ReturnType<typeof agentReadings> } | null;
   reviews: VerifiedReview[];
   /** The latest category-specific correctness check and its published scope. */
   categoryCheck: { definition: AssayDefinition; run: AssayRun | null } | null;
@@ -192,13 +196,14 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const testnetTrial = escrowChain === 97 && escrowOptions.includes(56);
   const addresses = correctedErc8183Addresses(escrowChain);
 
-  const [skills, delivery, providers, suggestion, alternatives, imageUrl] = await Promise.all([
+  const [skills, delivery, providers, suggestion, alternatives, imageUrl, platform] = await Promise.all([
     fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id).catch(() => []),
     deliveryTimes(agent.chain_id, agent.token_id).catch(() => ({ samples: 0, medianMs: null, fastestMs: null, slowestMs: null, onTime: null })),
     providerChoicesFor(agent, escrowChain, d.quote).catch(() => [] as ProviderChoice[]),
     d.quote || category === 'unclassified' ? Promise.resolve(null) : suggestedBudgetFor(category, { chainId: agent.chain_id as ChainId }).catch(() => null),
     category === 'unclassified' ? Promise.resolve([]) : recommendedAlternatives(category, agent.token_id, 3).catch(() => []),
     resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => httpsOnly(agent.image_url)),
+    currentPlatformBenchmark().catch(() => null),
   ]);
 
   /* The alternatives carry images too, and were reading the indexer
@@ -365,6 +370,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     })(),
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
+    benchmark: platform ? { platform, own: agentReadings({ record, history }) } : null,
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),
     categoryCheck,
     services,

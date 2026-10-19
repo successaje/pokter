@@ -153,24 +153,45 @@ function Section({ id, label, title, children, aside }: { id: string; label: str
 function HeadlineStats({ p }: { p: AgentProfile }) {
   const month = p.record.windows.find((w) => w.label === '30d');
   const replies = p.record.totalProbes > 0 ? p.record.totalAnswered / p.record.totalProbes : null;
-  const stats: Array<{ label: string; value: string; note: string; muted?: boolean }> = [
+  /*
+   * Each figure beside what is typical on Pokter: the median across listed
+   * agents that have the reading, never fewer than five (`lib/benchmark`).
+   * How many agents it is drawn from is on hover, so the norm carries its
+   * own denominator. Delivery time has none: timing a delivery is a chain
+   * read per job, too costly to make for every agent on every view.
+   */
+  const bench = p.benchmark;
+  const settled = bench?.platform.settledRate;
+  const replyNorm = bench?.platform.replyRate;
+  const msNorm = bench?.platform.replyMs;
+  // Whole percentages: a tenth of a point is noise beside a median of a few dozen agents.
+  const whole = (v: number) => `${Math.round(v * 100)}%`;
+  const stats: Array<{ label: string; value: string; note: string; muted?: boolean; norm?: { text: string; title: string } }> = [
     {
       label: 'Paid jobs',
       value: String(p.history.jobs),
       note: p.history.jobs ? `${p.history.delivered} delivered` : 'None funded yet',
       muted: !p.history.jobs,
+      norm: settled
+        ? {
+            text: bench?.own.settledRate != null ? `Settled ${whole(bench.own.settledRate)} · typical ${whole(settled.median)}` : `Typical agent settles ${whole(settled.median)}`,
+            title: `Of finished paid jobs (settled or missed), the share that settled. Typical is the median of ${settled.agents} listed agents with a finished job.`,
+          }
+        : undefined,
     },
     {
       label: 'Replies',
       value: replies === null ? '\u2014' : pct(replies),
       note: p.record.totalProbes ? `${p.record.totalProbes} checks, lifetime` : 'Never called',
       muted: replies === null,
+      norm: replyNorm ? { text: `Typical ${whole(replyNorm.median)}`, title: `Median lifetime reply rate of ${replyNorm.agents} listed agents Pokter has checked at least 10 times.` } : undefined,
     },
     {
       label: 'Response',
       value: month?.medianMs ? formatMs(month.medianMs) : '\u2014',
       note: month?.probes ? 'median, last 30 days' : 'nothing answered in 30 days',
       muted: !month?.medianMs,
+      norm: msNorm ? { text: `Typical ${formatMs(msNorm.median)}`, title: `Median 30-day reply time of ${msNorm.agents} listed agents that answered in the last 30 days.` } : undefined,
     },
     {
       label: 'Delivers',
@@ -195,6 +216,11 @@ function HeadlineStats({ p }: { p: AgentProfile }) {
           <dt className="t-label">{stat.label}</dt>
           <dd className={cn('t-readout text-[1.5rem] leading-none tracking-[-0.02em]', stat.muted ? 'text-ink-3' : 'text-ink')}>{stat.value}</dd>
           <dd className="text-[12px] leading-snug text-ink-3">{stat.note}</dd>
+          {stat.norm && (
+            <dd className="mt-1.5 border-t border-rule pt-1.5 text-[11.5px] leading-snug text-ink-2" title={stat.norm.title}>
+              {stat.norm.text}
+            </dd>
+          )}
         </div>
       ))}
     </dl>
