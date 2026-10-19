@@ -33,6 +33,20 @@ function payablePrice(agent: SearchableAgent): boolean {
   return currentPrice(agent) !== null && agent.listing.quotePayable !== false;
 }
 
+/**
+ * A price the agent has signed that the escrow can pay, current or not.
+ *
+ * A signed quote lasts about fifteen minutes and the sweep asks again on
+ * its next pass, so between sweeps almost every quote is expired. Ranking
+ * on a current quote alone put priced agents first for a few minutes an
+ * hour; the rest of the time an agent that had never named a price could
+ * sit above one that names it every sweep. The "Has a signed price" filter
+ * already counts any signed quote, and the ranking now agrees with it.
+ */
+function signedPrice(agent: SearchableAgent): boolean {
+  return agent.listing.quote != null && agent.listing.quotePayable !== false;
+}
+
 function currentPrice(agent: SearchableAgent): number | null {
   const quote = agent.listing.quote;
   if (!quote || (quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now())) return null;
@@ -161,10 +175,12 @@ export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceO
     if (order === 'recommended') {
       difference = Number(offersDirectHire(b.entry)) - Number(offersDirectHire(a.entry));
       /*
-       * Among hireable agents, a current signed price the escrow can pay
-       * comes first: the agent has agreed to the job's price before anyone
-       * funds it. Then agents that let paid jobs lapse go down.
+       * Among hireable agents, a signed price the escrow can pay comes
+       * first: the agent has agreed to the job's price before anyone funds
+       * it. A current quote edges out an expired one. Then agents that let
+       * paid jobs lapse go down.
        */
+      if (!difference) difference = Number(signedPrice(b.entry)) - Number(signedPrice(a.entry));
       if (!difference) difference = Number(payablePrice(b.entry)) - Number(payablePrice(a.entry));
       if (!difference) difference = Number(letsJobsLapse(a.entry)) - Number(letsJobsLapse(b.entry));
       /*
@@ -177,7 +193,6 @@ export function orderMarketplace(entries: SearchableAgent[], order: MarketplaceO
       if (!difference) difference = Number(b.entry.tested === true) - Number(a.entry.tested === true);
       if (!difference) difference = completedWork(b.entry) - completedWork(a.entry);
       if (!difference) difference = recent(b.entry) - recent(a.entry);
-      if (!difference) difference = Number(currentPrice(b.entry) !== null) - Number(currentPrice(a.entry) !== null);
       if (!difference) difference = evidence(b.entry) - evidence(a.entry);
     }
     return difference || a.index - b.index;

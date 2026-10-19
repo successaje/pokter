@@ -5,13 +5,13 @@ import { orderMarketplace } from '../src/lib/search/order';
 import type { SearchableAgent } from '../src/lib/search/match';
 
 function agent(name: string, opts: {
-  jobs?: number; completed?: number; outsideCompleted?: number; probes?: number; priced?: boolean; ratio?: number; tested?: boolean;
+  jobs?: number; completed?: number; outsideCompleted?: number; probes?: number; priced?: boolean; expired?: boolean; ratio?: number; tested?: boolean;
 }): SearchableAgent {
   return {
     listing: {
       agent: { name, token_id: name, chain_id: 56 },
       attestationCount: 0,
-      quote: opts.priced ? { priceU: '0.1', expiresAt: null } : null,
+      quote: opts.priced ? { priceU: '0.1', expiresAt: opts.expired ? '2026-01-01T00:00:00Z' : null } : null,
     },
     record: {
       totalProbes: opts.probes ?? 10,
@@ -83,4 +83,17 @@ test('a passed correctness check outranks reply activity when commerce evidence 
   const checked = agent('checked', { jobs: 0, completed: 0, priced: true, ratio: 0.5, tested: true });
 
   assert.deepEqual(names(orderMarketplace([responsive, checked], 'recommended')), ['checked', 'responsive']);
+});
+
+test('a signed price that has expired still ranks above no price at all', () => {
+  // Quotes last about fifteen minutes; between sweeps nearly all are expired.
+  const busy = agent('never-priced', { jobs: 3, completed: 3, priced: false, ratio: 1 });
+  const priced = agent('priced-last-sweep', { jobs: 0, completed: 0, priced: true, expired: true, ratio: 0.5 });
+  assert.deepEqual(names(orderMarketplace([busy, priced], 'recommended')), ['priced-last-sweep', 'never-priced']);
+});
+
+test('between two signed prices, the current one comes first', () => {
+  const stale = agent('expired-quote', { jobs: 1, completed: 1, priced: true, expired: true });
+  const fresh = agent('current-quote', { jobs: 0, completed: 0, priced: true });
+  assert.deepEqual(names(orderMarketplace([stale, fresh], 'recommended')), ['current-quote', 'expired-quote']);
 });

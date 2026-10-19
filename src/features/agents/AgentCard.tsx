@@ -47,7 +47,12 @@ function cardProof(row: FindRow): { label: string; detail: string } {
   }
   const checked = row.maturity.steps.find((step) => step.id === 'checked');
   if (checked?.earned) return { label: 'Checked', detail: checked.detail };
-  return { label: 'Not checked', detail: 'No passing correctness check or settled outside-buyer delivery on record.' };
+  /*
+   * "No proof yet", not "Not checked": an agent can have been checked and
+   * failed (Mandate Guard-1 scored 0 / 3), and "Not checked" said the check
+   * never happened. This is true either way; the profile says which.
+   */
+  return { label: 'No proof yet', detail: 'No passing correctness check or settled outside-buyer delivery on record.' };
 }
 
 /**
@@ -308,7 +313,7 @@ export function AgentCard({
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <dt className="t-label">Proof</dt>
-          <dd className={cn('t-readout truncate', proof.label === 'Not checked' ? 'text-ink-3' : undefined)} title={proof.detail}>
+          <dd className={cn('t-readout truncate', proof.label === 'No proof yet' ? 'text-ink-3' : undefined)} title={proof.detail}>
             {proof.label}
           </dd>
         </div>
