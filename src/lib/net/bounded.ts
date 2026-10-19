@@ -23,6 +23,8 @@
  * already uses.
  */
 
+import { outboundStarted } from '@/lib/health/vitals';
+
 /** Long enough for a slow-but-working upstream, short enough to shed load. */
 export const DEFAULT_TIMEOUT_MS = 8_000;
 
@@ -76,9 +78,32 @@ export function deadlineSignal(timeoutMs: number, signal?: AbortSignal | null): 
   return signal ? AbortSignal.any([signal, deadline]) : deadline;
 }
 
-/** `fetch` that always has a deadline, including one it did not ask for. */
+/**
+ * `fetch` that always has a deadline, including one it did not ask for.
+ *
+ * Also the one place the process can count its own outbound load, which is
+ * why the call is registered with `outboundStarted`. `/api/health` reports
+ * those counts: on 19 October the check answered `ok` throughout, because
+ * nothing it looked at could tell it that every page was stuck waiting on
+ * calls exactly like these.
+ */
 export function boundedFetch(input: string | URL, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
   // A caller's own signal still wins; this only adds a ceiling where there was none.
-  return fetch(input, { ...rest, signal: deadlineSignal(timeoutMs, signal) });
+  const settled = outboundStarted();
+  return fetch(input, { ...rest, signal: deadlineSignal(timeoutMs, signal) }).then(
+    (response) => {
+      settled();
+      return response;
+    },
+    (error: unknown) => {
+      /* A deadline reached is the interesting kind of failure, and the only
+         one the health report counts separately: it is what piling up looks
+         like one call at a time. An abort by the caller is not — that is the
+         process shedding work on purpose. */
+      const name = (error as Error)?.name;
+      settled(name === 'TimeoutError');
+      throw error as Error;
+    },
+  );
 }

@@ -8,6 +8,7 @@ import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { noteSweepFinished } from '@/lib/health/vitals';
 import {
   SWEEP_BUDGET_MS,
   SWEEP_MAX_AGENTS,
@@ -430,5 +431,14 @@ export async function runSweep({
   };
 
   store.recordSweep(outcome);
+  /*
+   * And in memory, for `/api/health` to report.
+   *
+   * The check deliberately reads no store — one that waits on a lock a sweep
+   * is holding is one that gets the machine recycled mid-sweep. Pushing the
+   * timestamp to it instead keeps sweep staleness visible without making the
+   * check depend on the sweep at all.
+   */
+  noteSweepFinished(outcome.finishedAt);
   return outcome;
 }
