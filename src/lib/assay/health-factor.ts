@@ -101,6 +101,17 @@ function readBool(value: unknown): boolean | null {
 }
 
 /** Pull the agent's health factor and liquidatable flag out of its answer, structured or prose. */
+/**
+ * The account an answer says it is about, whether or not it gives a health
+ * factor. Read on its own because an answer about another wallet often has
+ * no health factor at all ("no Venus position on this address"), and the
+ * account check used to sit behind the health-factor one.
+ */
+export function answerAccount(answer: { text: string | null; data: Record<string, unknown> | null }): string | null {
+  const value = answer.data ? findKey(answer.data, [...ACCOUNT_KEYS, 'subject']) : undefined;
+  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) ? value : null;
+}
+
 export function readHfAnswer(answer: { text: string | null; data: Record<string, unknown> | null }): HfObserved | null {
   const records: Record<string, unknown>[] = [];
   if (answer.data) records.push(answer.data);

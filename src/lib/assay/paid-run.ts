@@ -97,6 +97,8 @@ function alreadyGraded(target: { chainId: number; tokenId: string }, suiteId: st
   if (!run || run.via !== 'paid-hire') return false;
   // A pending row means the agent may still deliver: keep looking.
   if (run.results.some((result) => result.outcome === 'pending')) return false;
+  // Nothing scored is a result, but a provisional one: looked at again after six hours, as grading improves or the agent redelivers.
+  if (run.total === 0 && Date.now() - Date.parse(run.ranAt) > 6 * 60 * 60_000) return false;
   // An "undelivered" row for a job delivered since is stale: grade it again.
   if (gradedAsUndeliveredSinceDelivered(run.results, fixtures.values())) return false;
   const graded = new Set(run.results.map((result) => `${result.scenario}:${result.jobId ?? ''}`));
@@ -235,7 +237,7 @@ export async function gradePaidHealthFactorCheck(
 
   const aside = [
     pending > 0 ? `${pending} still inside its delivery window` : null,
-    moved > 0 ? `${moved} delivered against a position that had moved too far from Pokter's reading to compare` : null,
+    moved > 0 ? `${moved} could not be compared with Pokter's reading (each row says why)` : null,
   ].filter(Boolean);
 
   const run: Omit<AssayRun, 'ranAt'> = {
