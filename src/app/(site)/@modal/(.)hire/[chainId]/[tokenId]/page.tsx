@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic';
 
 /*
  * Hire opened from a page on this site: the flow in a sheet over that page,
- * so the reader keeps their place in the catalogue. A shared link, a
- * refresh or "Open as a page" loads /hire itself.
+ * so the reader keeps their place in the catalogue. A shared link or a
+ * refresh loads /hire itself.
  *
  * `WalletRoot` is here because `(site)` has none — only `(app)` and
  * `(flow)` wrap one, and the form cannot ask for a signature without it.
@@ -20,13 +20,9 @@ export default async function HireInSheet({
   searchParams: Promise<{ escrow?: string; task?: string }>;
 }) {
   const [{ chainId, tokenId }, { escrow, task }] = await Promise.all([params, searchParams]);
-  const query = new URLSearchParams();
-  if (escrow) query.set('escrow', escrow);
-  if (task) query.set('task', task);
-  const suffix = query.toString();
   const agent = await hireSheetAgent(Number(chainId), tokenId, escrow);
   return (
-    <HireSheet agent={agent} fullPageHref={`/hire/${chainId}/${tokenId}${suffix ? `?${suffix}` : ''}`}>
+    <HireSheet agent={agent}>
       <WalletRoot>
         <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} embedded />
       </WalletRoot>

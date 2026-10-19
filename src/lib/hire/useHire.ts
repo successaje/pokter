@@ -39,6 +39,7 @@ import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import { taskFields } from '@/lib/hire/task-fields';
+import { withWalletPlaceholder } from './example-chips';
 
 /**
  * A provider the escrow can actually reach.
@@ -253,23 +254,28 @@ export function useHire({
   );
   // A brief typed before switching network comes back; a linked one wins.
   const [recalled] = useState(() => (initialTask || typeof window === 'undefined' ? null : recallBrief(agent)));
+  /*
+   * The brief starts empty. It opened on the first example, wallet and all,
+   * so a buyer met someone else's address in their own brief before they
+   * had typed anything. Examples are one tap away, as chips.
+   */
   const [selectedTemplate, setSelectedTemplate] = useState<CommissionTaskTemplate['id'] | null>(
-    initialTask ? null : recalled ? (recalled.template as CommissionTaskTemplate['id'] | null) : taskTemplates[0].id,
+    initialTask ? null : ((recalled?.template as CommissionTaskTemplate['id'] | null | undefined) ?? null),
   );
   /*
    * A template in a guided format starts empty: its example's figures are
    * the operator's, shown as placeholders, never funded as the buyer's.
    */
-  const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : template.task);
-  const [task, setTaskState] = useState(initialTask ?? recalled?.task ?? startingTask(taskTemplates[0]));
+  const startingTask = (template: CommissionTaskTemplate) => (template.recipe ? '' : withWalletPlaceholder(template.task));
+  const [task, setTaskState] = useState(initialTask ?? recalled?.task ?? '');
   /** The guided format in use; kept while the brief is edited, like the schema. */
-  const [recipeId, setRecipeId] = useState(initialTask ? null : recalled ? recalled.recipe : (taskTemplates[0].recipe ?? null));
+  const [recipeId, setRecipeId] = useState(initialTask ? null : (recalled?.recipe ?? null));
   /*
    * The template the buyer started from: its fields and their types stay
    * fixed while values are edited (see `fieldsWithValues`). Editing the
    * task never changes it; choosing another template does.
    */
-  const [schemaSource, setSchemaSource] = useState(recalled?.schema ?? taskTemplates[0].task);
+  const [schemaSource, setSchemaSource] = useState(recalled?.schema ?? '');
   const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
   const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
@@ -400,7 +406,7 @@ export function useHire({
    */
   const taskReady =
     task.trim().length >= 10 ||
-    taskTemplates.some((template) => template.task === task.trim());
+    taskTemplates.some((template) => template.task === task.trim() || startingTask(template) === task.trim());
 
   const describeValid = task.trim().length > 0 && budgetValid && providerCanDeliver && !selfHire;
 
