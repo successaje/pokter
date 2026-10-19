@@ -182,9 +182,13 @@ jobs:
             code=$(status 'https://pokter.xyz/api/jobs/56975?chain=56')
             [ "$code" = "404" ] || { echo "::error::Mainnet job lookup returned ${code}, expected 404 for a non-Pokter job"; exit 1; }
 
-            # An agent that signs its price in mainnet $U offers both ways to hire.
+            # An agent that signs its price in mainnet $U offers both ways to hire:
+            # the network switch on its hire page holds a BNB Chain and a Testnet option.
+            # Matched on the switch's markup, not on prose, so a copy change cannot fail a release.
             hire=$(get https://pokter.xyz/hire/56/269223 90)
-            echo "$hire" | grep -q 'Hire on BNB Chain' && echo "$hire" | grep -q 'Try free on testnet' \
+            echo "$hire" | grep -q 'aria-label="Network"' \
+              && echo "$hire" | grep -qE 'role="radio"[^>]*>BNB Chain<' \
+              && echo "$hire" | grep -qE 'role="radio"[^>]*>Testnet<' \
               || { echo '::error::A mainnet-priced agent no longer offers both mainnet and the free testnet hire'; exit 1; }
           fi
 
