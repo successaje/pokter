@@ -140,7 +140,19 @@ export function SignOutStudio() {
 
 type OwnedAgent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; declaresProtocol: boolean; createdAt: string | null };
 
-export function OwnedAgents() {
+/** The empty state an overview uses: one dashed panel, one sentence, one way forward. */
+function EmptyAgents({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[14px] border border-dashed border-rule-strong px-6 py-10 text-center text-[14px] text-ink-2">
+      {children}{' '}
+      <Link href="/build/new" className="font-medium text-ink underline-offset-2 hover:underline">
+        Create your first agent &rarr;
+      </Link>
+    </div>
+  );
+}
+
+export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
   const { address } = useActiveWallet();
   const owned = useQuery({
     queryKey: ['owned-agents', address],
@@ -151,11 +163,15 @@ export function OwnedAgents() {
       return (await r.json()) as { agents: OwnedAgent[] };
     },
   });
-  if (!address) return <p className="text-[13px] text-ink-3">Connect the wallet that owns your agents to list them here.</p>;
+  if (!address) {
+    return boxed ? <EmptyAgents>Connect the wallet that owns your agents to list them here, or start a new one.</EmptyAgents> : <p className="text-[13px] text-ink-3">Connect the wallet that owns your agents to list them here.</p>;
+  }
   if (owned.isLoading) return <Skeleton className="h-24 w-full" />;
   if (owned.isError) return <Notice tone="watch">{(owned.error as Error).message}</Notice>;
   const agents = owned.data?.agents ?? [];
-  if (agents.length === 0) return <p className="text-[13px] text-ink-3">{shortAddress(address)} owns no ERC-8004 agents on BNB Chain or testnet.</p>;
+  if (agents.length === 0) {
+    return boxed ? <EmptyAgents>{shortAddress(address)} owns no agents yet.</EmptyAgents> : <p className="text-[13px] text-ink-3">{shortAddress(address)} owns no ERC-8004 agents on BNB Chain or testnet.</p>;
+  }
   return (
     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {agents.map((a) => (

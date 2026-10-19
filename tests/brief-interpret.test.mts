@@ -6,7 +6,9 @@ import { TASK_SUGGESTIONS } from '../src/features/home/TaskSearch';
 
 test('the home page’s own example searches read as what they ask for', () => {
   const read = (q: string) => interpretBrief(q).category;
-  assert.deepEqual(TASK_SUGGESTIONS.map(read), ['health-factor', 'yield', 'token-safety', 'rebalancing']);
+  // Each example runs its full wording, whatever its short label says.
+  assert.deepEqual(TASK_SUGGESTIONS.map((s) => read(s.query)), ['health-factor', 'token-safety', 'yield']);
+  assert.equal(read('Review a liquidity position'), 'rebalancing');
   assert.equal(read('Monitor the liquidation risk of my lending position'), 'health-factor');
   assert.equal(read('Check the liquidation risk of my lending position'), 'health-factor');
   assert.equal(read('Check how far my portfolio has drifted from target'), 'rebalancing');

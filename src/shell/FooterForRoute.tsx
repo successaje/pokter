@@ -2,6 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 
+import { isWorkingRoute } from './working-route';
+
 /**
  * The full footer on the landing page, the compact one everywhere else.
  *
@@ -15,11 +17,10 @@ import { usePathname } from 'next/navigation';
  * the pages that now render the short one: a catalogue page did not need a
  * site map and a wordmark the height of a screen under every search.
  */
-/* Hiring, Building and Settings are working views with their own navigation; a footer under the sidebar is noise. */
-const WORKING = /^\/(workspace|account)(\/|$)|^\/build(\/(?!integration)|$)/;
 
 export function FooterForRoute({ full, compact }: { full: React.ReactNode; compact: React.ReactNode }) {
   const pathname = usePathname() ?? '/';
-  if (WORKING.test(pathname)) return null;
+  // Working views have their own navigation; a footer under the rail is noise.
+  if (isWorkingRoute(pathname)) return null;
   return pathname === '/' ? <>{full}</> : <>{compact}</>;
 }
