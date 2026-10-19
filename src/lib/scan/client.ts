@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { boundedFetch } from '@/lib/net/bounded';
+
 import type {
   ChainId,
   ScanAgent,
@@ -16,6 +18,15 @@ const BASE_URL = process.env.SCAN_BASE_URL ?? 'https://api.8004scan.io/api/v1';
  * the browser — per 8004scan's own guidance.
  */
 const API_KEY = process.env.SCAN_API_KEY;
+
+/**
+ * How long one 8004scan query may take before it counts as unanswered.
+ *
+ * Above the service's normal response and well below anything a reader
+ * would wait through. The retry below multiplies it, so this is the budget
+ * per attempt rather than for the call as a whole.
+ */
+const SCAN_TIMEOUT_MS = 8_000;
 
 /** Registry data changes slowly; cache to stay far inside the rate limit. */
 const REVALIDATE_SECONDS = 300;
@@ -66,6 +77,22 @@ function sleep(ms: number): Promise<void> {
  * Keyed by resolved URL, so identical concurrent requests share one promise and
  * the map is cleared as soon as it settles — this is a stampede guard, not a
  * cache, and correctness still comes from the fetch layer's revalidation.
+ *
+ * **Why no caller signal reaches these requests.** The sweep threads its
+ * cancellation into everything it calls, so that abandoning a run stops the
+ * work rather than only stopping the wait — the prober and the quote
+ * negotiation both take an `AbortSignal` for that reason. This layer must not,
+ * and the map above is why: a promise here is shared. A signal passed in by
+ * one caller would abort the single request that several callers are waiting
+ * on, so a cancelled sweep would take down a page render that happened to ask
+ * for the same URL at the same moment. The sharing is the whole point of the
+ * map, so the signal is what has to give.
+ *
+ * What bounds these calls instead is `SCAN_TIMEOUT_MS` on each one, and the
+ * sweep not starting new ones once it is cancelled. The cost of the exception
+ * is therefore one timeout's worth of lookup per request still open when a run
+ * is abandoned — bounded, small, and much cheaper than coupling unrelated
+ * renders to each other's cancellation.
  */
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -85,13 +112,22 @@ async function scanFetch<T>(
 
   const request = (async (): Promise<T> => {
     for (let attempt = 0; ; attempt += 1) {
-      const response = await fetch(url, {
+      /*
+       * A deadline, which this call did not have. 8004scan answering
+       * slowly rather than failing is what produced a 187-second cache
+       * warmup on the day the site stopped serving: every caller waited,
+       * and on one shared CPU the waiting was the outage. A query that
+       * cannot be answered in time is treated as a query that failed,
+       * which callers already handle by rendering fewer results.
+       */
+      const response = await boundedFetch(url, {
         headers: {
           accept: 'application/json',
           ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
         },
         next: { revalidate },
-      });
+        timeoutMs: SCAN_TIMEOUT_MS,
+      } as RequestInit & { next: { revalidate: number }; timeoutMs: number });
 
       if (response.ok) return (await response.json()) as T;
 

@@ -8,6 +8,14 @@ import { BSC_MAINNET } from '@/lib/scan/types';
 import { listMarketplace } from '@/lib/marketplace';
 import { probeAgent, probeTarget } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { noteSweepFinished } from '@/lib/health/vitals';
+import {
+  SWEEP_BUDGET_MS,
+  SWEEP_MAX_AGENTS,
+  SWEEP_REGISTRY_PAGE,
+  registryPageOffset,
+  sweepBatch,
+} from './schedule';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { sampleBrief } from '@/lib/erc8183/sample-enquiry';
 import { classify } from '@/lib/agents/categories';
@@ -37,9 +45,37 @@ export interface SweepOptions {
    * describing the shortlist rather than the registry.
    */
   registryDepth?: number;
+  /**
+   * Agents measured in this run, stalest first.
+   *
+   * A sweep used to take the whole roster. See `SWEEP_MAX_AGENTS`.
+   */
+  maxAgents?: number;
+  /** Wall-clock budget: once it is spent, no further agent is started. */
+  budgetMs?: number;
+  /**
+   * The caller's abort signal, if it has one.
+   *
+   * A sweep is reached through a request. When that request goes away — the
+   * client gave up, the platform cut it off — the work behind it should stop
+   * too, rather than carrying on against endpoints nobody is waiting on.
+   */
+  signal?: AbortSignal;
 }
 
 export interface SweepOutcome extends SweepRecord {
+  /**
+   * Agents eligible this run, of which `agents` were measured.
+   *
+   * The gap between the two is the roster this sweep did not reach; the next
+   * run starts with whatever has gone longest unmeasured, so the gap closes
+   * over successive runs rather than within one.
+   */
+  rosterSize: number;
+  /** Agents in the batch dropped unmeasured because the budget ran out. */
+  unmeasured: number;
+  /** True when the run stopped on its budget or an abort, not on its batch. */
+  cutShort: boolean;
   /** Agents skipped because they publish nothing probeable. */
   skipped: number;
   /** Agents we could not look up at all — rate limits, outages, bad ids. */
@@ -87,20 +123,17 @@ async function buildRoster(
    * improvement to coverage, not a precondition for measuring the listings.
    */
   const fromRegistry: { chainId: number; tokenId: string }[] = [];
-  const pageSize = 50;
-  for (let offset = 0; offset < registryDepth; offset += pageSize) {
-    const page = await listAgents({
-      chainId,
-      limit: Math.min(pageSize, registryDepth - offset),
-      offset,
-      sortBy: 'total_score',
-      sortOrder: 'desc',
-    }).catch(() => null);
+  const offset = registryPageOffset(Date.now(), registryDepth);
+  const page = await listAgents({
+    chainId,
+    limit: Math.min(SWEEP_REGISTRY_PAGE, Math.max(registryDepth - offset, 0)),
+    offset,
+    sortBy: 'total_score',
+    sortOrder: 'desc',
+  }).catch(() => null);
 
-    if (!page?.items?.length) break;
-    for (const agent of page.items) {
-      fromRegistry.push({ chainId: agent.chain_id, tokenId: agent.token_id });
-    }
+  for (const agent of page?.items ?? []) {
+    fromRegistry.push({ chainId: agent.chain_id, tokenId: agent.token_id });
   }
 
   const seen = new Set<string>();
@@ -185,12 +218,16 @@ export const SWEEP_PER_CATEGORY = 12;
  * Registry agents pulled in per sweep, beyond the listed ones.
  *
  * Bounded on purpose. Each entry costs a detail lookup plus its probes, and
- * the run is on a two-hourly schedule against someone else's API — a sweep
- * that tries to call the whole registry once is a sweep that gets rate
- * limited and measures nothing. Ordered by the registry's own score so the
- * depth is spent on agents most likely to be real, and the store remembers
- * everything it has ever measured, so coverage accumulates across runs rather
- * than being re-earned every time.
+ * the run is scheduled against someone else's API — a sweep that tries to
+ * call the whole registry once is a sweep that gets rate limited and measures
+ * nothing. Ordered by the registry's own score so the depth is spent on
+ * agents most likely to be real, and the store remembers everything it has
+ * ever measured, so coverage accumulates across runs rather than being
+ * re-earned every time.
+ *
+ * This is the depth a rotation covers, not the depth of one run:
+ * `registryPageOffset` reads one page per run and advances it, so three runs
+ * cover 150 and each costs a single listing call.
  */
 export const SWEEP_REGISTRY_DEPTH = 150;
 
@@ -199,11 +236,25 @@ export async function runSweep({
   perCategory = SWEEP_PER_CATEGORY,
   samples = 2,
   registryDepth = SWEEP_REGISTRY_DEPTH,
+  maxAgents = SWEEP_MAX_AGENTS,
+  budgetMs = SWEEP_BUDGET_MS,
+  signal,
 }: SweepOptions = {}): Promise<SweepOutcome> {
   const store = getProbeStore();
   const startedAt = new Date().toISOString();
 
+  /*
+   * The clock starts before the roster, not after it.
+   *
+   * Building the roster is two listing calls against someone else's API, and
+   * a sweep whose budget began once they returned was a sweep with no bound
+   * on its slowest part. Each call carries its own timeout, so the roster
+   * cannot hang — but it can be slow, and when it is, this run measures
+   * fewer agents rather than running longer than it was allowed to.
+   */
+  const deadline = Date.now() + budgetMs;
   const roster = await buildRoster(chainId, perCategory, registryDepth);
+  const batch = sweepBatch(roster, store.lastProbedAt(chainId), maxAgents);
 
   let probeCount = 0;
   let answered = 0;
@@ -213,10 +264,25 @@ export async function runSweep({
   const quotes: QuoteRecord[] = [];
   const quoteFailures: QuoteFailureRecord[] = [];
   const access: { chainId: number; tokenId: string; requiresAuth: boolean; observedAt: string }[] = [];
+  let unmeasured = 0;
 
   // Agents are swept a few at a time: each one costs a registry lookup plus
   // several outbound probes, and hammering either side helps nobody.
-  const batches = await mapWithConcurrency(roster, 4, async (entry) => {
+  const batches = await mapWithConcurrency(batch, 4, async (entry) => {
+    /*
+     * The budget, checked before each agent rather than around the run.
+     *
+     * `mapWithConcurrency` hands out work as slots free up, so a deadline
+     * tested here stops the queue advancing without interrupting the four
+     * agents already in flight — each of which is bounded by its own
+     * outbound timeouts. What has been measured so far is still recorded:
+     * a run that ends early is a shorter run, not a lost one.
+     */
+    if (signal?.aborted || Date.now() >= deadline) {
+      unmeasured += 1;
+      return [] as ProbeRecord[];
+    }
+
     const agent = await getAgent(entry.chainId as ChainId, entry.tokenId).catch(
       (error: unknown) => {
         // A lookup failure is not a measurement. Recording nothing and
@@ -234,7 +300,7 @@ export async function runSweep({
       return [] as ProbeRecord[];
     }
 
-    const reading = await probeAgent(agent, { samples });
+    const reading = await probeAgent(agent, { samples, signal });
     // Only a card that was actually read says anything about access.
     if (reading.protocol === 'a2a' && reading.answered > 0) {
       access.push({ chainId: agent.chain_id, tokenId: agent.token_id, requiresAuth: reading.requiresAuth, observedAt: new Date().toISOString() });
@@ -256,6 +322,7 @@ export async function runSweep({
     let failure: QuoteFailure | null = null;
     let refusal: string | null = null;
     let quote = await requestQuote(agent, {
+      signal,
       onFailure: (reason) => {
         failure = reason;
       },
@@ -271,10 +338,13 @@ export async function runSweep({
      * not asked twice.
      */
     const sample = !quote && refusal ? sampleBrief(classify(agent)) : null;
-    if (sample) {
+    // A second negotiation, so it is gated like the first: cancelling the run
+    // must stop it asking again, not merely stop it waiting for the answer.
+    if (sample && !signal?.aborted) {
       let retryFailure: QuoteFailure | null = null;
       let retryRefusal: string | null = null;
       const retried = await requestQuote(agent, {
+        signal,
         enquiry: { task_description: sample, terms: POKTER_TERMS },
         onFailure: (reason) => {
           retryFailure = reason;
@@ -293,7 +363,16 @@ export async function runSweep({
         refusal = retryRefusal ?? refusal;
       }
     }
-    if (!quote && failure) {
+    /*
+     * The same rule as the probe above: a negotiation we cancelled says
+     * nothing about the seller.
+     *
+     * The agent's own page shows this row to its owner as the reason Pokter
+     * could not get a price out of it. Writing "it did not answer" there
+     * because the run was abandoned mid-request would be Pokter blaming a
+     * builder for Pokter's own clock.
+     */
+    if (!quote && failure && !signal?.aborted) {
       const known = failure as QuoteFailure;
       quoteFailures.push({ chainId: agent.chain_id, tokenId: agent.token_id, code: known.code, detail: known.detail ?? null, sellerReason: refusal ?? known.sellerReason ?? null, observedAt: new Date().toISOString() });
     }
@@ -337,15 +416,29 @@ export async function runSweep({
   const outcome: SweepOutcome = {
     startedAt,
     finishedAt: new Date().toISOString(),
-    agents: roster.length,
+    // What this run measured, which is what `skipped` and `failed` are counted
+    // against. The roster it was drawn from is reported separately.
+    agents: batch.length - unmeasured,
     probes: probeCount,
     answered,
     skipped,
     failed,
     errors: [...errors],
     quoted: quotes.length,
+    rosterSize: roster.length,
+    unmeasured,
+    cutShort: unmeasured > 0,
   };
 
   store.recordSweep(outcome);
+  /*
+   * And in memory, for `/api/health` to report.
+   *
+   * The check deliberately reads no store — one that waits on a lock a sweep
+   * is holding is one that gets the machine recycled mid-sweep. Pushing the
+   * timestamp to it instead keeps sweep staleness visible without making the
+   * check depend on the sweep at all.
+   */
+  noteSweepFinished(outcome.finishedAt);
   return outcome;
 }

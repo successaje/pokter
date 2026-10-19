@@ -52,3 +52,28 @@ export function probeTarget(
   return null;
 }
 
+
+/**
+ * Whether a probe counts as evidence about the agent, or about us.
+ *
+ * Threading the run's cancellation into the probe request — so that
+ * abandoning a sweep stops the calls rather than only stopping the wait —
+ * means an abort now returns through the same path a refusal does: `ok:
+ * false`, with a detail that reads as the endpoint's fault. And when the
+ * abort comes from the run's wall-clock budget it arrives as a
+ * `TimeoutError`, which is precisely what a genuinely slow agent produces.
+ *
+ * So the error cannot be the test; only the identity of the signal can.
+ * If our own signal has fired and the probe did not succeed, this run
+ * stopped asking and nothing was measured — an endpoint Pokter cannot reach
+ * is Pokter's gap, not the agent's finding, and never more so than when the
+ * reason is that Pokter gave up. A sample that had already succeeded is kept,
+ * because it is a real reading whatever became of the run around it.
+ *
+ * Here rather than inside the prober so it can be tested: the prober is
+ * `server-only`, and a rule this easy to get backwards should be covered by
+ * something that runs.
+ */
+export function probeIsEvidence(probe: { ok: boolean }, signal?: AbortSignal | null): boolean {
+  return !(signal?.aborted && !probe.ok);
+}

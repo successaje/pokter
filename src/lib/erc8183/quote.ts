@@ -2,6 +2,7 @@ import { statedRefusal } from '@/lib/erc8183/refusal';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { deadlineSignal } from '@/lib/net/bounded';
 import { negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
@@ -115,6 +116,7 @@ export async function requestQuote(
     enquiry = PRICE_ENQUIRY,
     onRefused,
     onFailure,
+    signal,
   }: {
     timeoutMs?: number;
     /*
@@ -142,6 +144,14 @@ export async function requestQuote(
     onRefused?: (reason: string) => void;
     /** Why no quote came back, when none did: which layer, and whether to retry. */
     onFailure?: (failure: QuoteFailure) => void;
+    /**
+     * The caller's cancellation, so an abandoned sweep stops negotiating.
+     *
+     * Asking an agent what it charges is a real request to a third party's
+     * endpoint, and the sweep makes up to two of them per agent. When the
+     * run that asked has gone away, the asking should stop with it.
+     */
+    signal?: AbortSignal;
   } = {},
 ): Promise<AgentQuote | null> {
   const endpoint = agent.services?.a2a?.endpoint?.replace(
@@ -195,7 +205,7 @@ export async function requestQuote(
         }),
         cache: 'no-store',
         redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: deadlineSignal(timeoutMs, signal),
       });
       if (!response.ok) throw new Error(`Agent answered ${response.status}.`);
       return readJson(response, { expectId: rpcId });

@@ -40,3 +40,30 @@ export function readProbeTotals(
     )
     .get({ chainId: chainId ?? null }) as unknown as ProbeTotals;
 }
+
+/**
+ * When each agent on a chain was last probed, keyed by token id.
+ *
+ * Here rather than in the store for the same reason as `readProbeTotals`: the
+ * store is `server-only`, and this file's other query reached production
+ * through typecheck, lint and the build before failing on its first row.
+ * A bounded sweep decides who it measures from this, so a query that returns
+ * nothing would not error — it would quietly sweep the roster in its listed
+ * order for ever, and the record of the agents at the back would never
+ * refresh. That is a fault worth a test rather than a reading.
+ *
+ * `idx_probes_agent` is `(chain_id, token_id, probed_at DESC)`, so the
+ * grouping is served from the index.
+ */
+export function readLastProbedAt(db: DatabaseSync, chainId: number): Map<string, string> {
+  const rows = db
+    .prepare(
+      `SELECT token_id, MAX(probed_at) AS last_at
+         FROM probes
+        WHERE chain_id = :chainId
+        GROUP BY token_id`,
+    )
+    .all({ chainId }) as unknown as { token_id: string; last_at: string }[];
+
+  return new Map(rows.map((row) => [row.token_id, row.last_at]));
+}
