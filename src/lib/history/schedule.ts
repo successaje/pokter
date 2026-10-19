@@ -107,8 +107,21 @@ export const STALE_ALERT_MS = 6 * 60 * 60 * 1000;
 
 const age = (iso: string | null, now: number) => (iso ? now - Date.parse(iso) : Number.POSITIVE_INFINITY);
 
-export function sweepDue(lastFinishedAt: string | null, now: number): boolean {
-  return age(lastFinishedAt, now) >= SWEEP_INTERVAL_MS;
+/**
+ * Whether a sweep is due, given when the last one *started*.
+ *
+ * The parameter is a run's start, not its finish, and the distinction is the
+ * whole cadence. Fed a finish, this under-paces by however long the run took:
+ * the scheduler checks on a fixed tick, so the age of the last finish is
+ * always the tick interval minus the run, always just short of due, and the
+ * sweep slips to the following tick. In production that turned a ten-minute
+ * schedule into an eighteen-minute one.
+ *
+ * `staleAlertDue` is the one that wants a finish, because an outage of the
+ * evidence layer is about sweeps not completing.
+ */
+export function sweepDue(lastStartedAt: string | null, now: number): boolean {
+  return age(lastStartedAt, now) >= SWEEP_INTERVAL_MS;
 }
 
 export function sweepRecent(lastFinishedAt: string | null, now: number): boolean {

@@ -34,6 +34,33 @@ const patient = new Agent({ headersTimeout: SWEEP_TIMEOUT_MS, bodyTimeout: SWEEP
 let started = false;
 let inFlight = false;
 let alertedAt: string | null = null;
+/**
+ * When this scheduler last started a run, which is what paces it.
+ *
+ * It used to pace from the last sweep the store had recorded finishing, and
+ * that quietly halved the cadence. A run takes a couple of minutes, so at the
+ * next tick the age of the last *finish* is the tick interval minus the run —
+ * never quite the interval itself, so never due, so the sweep landed on the
+ * tick after. Measured in production: runs at 12:40 and 12:58, eighteen
+ * minutes apart on a ten-minute schedule.
+ *
+ * The store could not fix it either. Its most recent record is the testnet
+ * pass, which starts near the end of the run, so even that `startedAt` is
+ * short of a full interval by the time the next tick comes round.
+ *
+ * A cadence is about when work starts, and when this scheduler starts work is
+ * something it knows without asking anything. The store is still read, for
+ * whether sweeps have stopped altogether (`staleAlertDue`), which is rightly
+ * about completion rather than cadence.
+ *
+ * The cost is that pacing does not survive a restart: a fresh process sweeps
+ * on its first tick, whenever the last one was. That is the right default —
+ * a machine that has just booted has no readings in memory and the roster's
+ * stalest agents are worth measuring — and the route's own `sweepRecent`
+ * guard bounds what a restart loop could do, standing a sweep down if one
+ * completed in the last eight minutes.
+ */
+let lastRunStartedAt: string | null = null;
 
 /**
  * The server's own sweep schedule.
@@ -63,6 +90,8 @@ export function startSweepScheduler(): void {
     const now = Date.now();
     let last: string | null = null;
     try {
+      // Only for the staleness alert below. Cadence comes from
+      // `lastRunStartedAt`; see why that is not this value.
       last = getProbeStore().lastSweep()?.finishedAt ?? null;
     } catch (error) {
       console.warn(`[sweep-scheduler] could not read the last sweep: ${(error as Error).message}`);
@@ -79,8 +108,11 @@ export function startSweepScheduler(): void {
       }).catch(() => undefined);
     }
 
-    if (!sweepDue(last, now)) return;
+    if (!sweepDue(lastRunStartedAt, now)) return;
     inFlight = true;
+    // Before the run, not after it: the next tick has to see that this one
+    // happened even while it is still going.
+    lastRunStartedAt = new Date(now).toISOString();
     try {
       const response = await fetch(`http://127.0.0.1:${port}/api/sweep`, {
         method: 'POST',
