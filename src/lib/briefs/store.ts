@@ -155,6 +155,18 @@ class BriefStore {
     return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
   }
 
+  /** Requests one wallet posted, newest first: the Hiring view's "Posted jobs and proposals". */
+  byPoster(poster: string): Brief[] {
+    const rows = this.db.prepare('SELECT * FROM briefs WHERE poster = ? ORDER BY posted_at DESC').all(poster.toLowerCase());
+    return (rows as Record<string, unknown>[]).map(BriefStore.toBrief);
+  }
+
+  /** Bids one wallet signed, newest first: the Building view's "My proposals". */
+  bidsBy(bidder: string): Bid[] {
+    const rows = this.db.prepare('SELECT * FROM bids WHERE bidder = ? ORDER BY placed_at DESC').all(bidder.toLowerCase());
+    return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
+  }
+
   bid(id: string): Bid | null {
     const row = this.db.prepare('SELECT * FROM bids WHERE id = ?').get(id);
     return row ? BriefStore.toBid(row as Record<string, unknown>) : null;

@@ -7,6 +7,6 @@ import type { EmailLinkTarget } from './server';
  */
 export function emailLinkDestination(target: EmailLinkTarget | null): string {
   if (target?.kind === 'follow') return `/agents/${target.chainId}/${encodeURIComponent(target.tokenId)}`;
-  if (target?.kind === 'builder') return '/studio';
+  if (target?.kind === 'builder') return '/build';
   return '/workspace/inbox';
 }

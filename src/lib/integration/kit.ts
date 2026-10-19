@@ -123,7 +123,7 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
     readingAJob: readingAJob(example),
     timing: TIMING,
     preflight: [
-      { name: 'Builder Studio check', url: `${origin}/studio/import`, what: 'Connect an existing identity and run Pokter’s own checks against it, from outside your network: identity, endpoint, card (notify_funded, a named priced skill, concrete examples), a signed quote and whether it can be paid. Each failure names the refusal code a hire would meet and links the fix here.' },
+      { name: 'Builder Studio check', url: `${origin}/build/import`, what: 'Connect an existing identity and run Pokter’s own checks against it, from outside your network: identity, endpoint, card (notify_funded, a named priced skill, concrete examples), a signed quote and whether it can be paid. Each failure names the refusal code a hire would meet and links the fix here.' },
       { name: 'Compatibility API', url: `POST ${origin}/api/compatibility { "chainId": 56, "tokenId": "…" }`, what: 'The same checks as JSON, each with status, detail, remedy, code and fixUrl. Read-only: a probe and a negotiation that moves no funds. Four runs a minute.' },
       { name: 'Agent API', url: `${origin}/api/v1/agents/{chainId}/{tokenId}`, what: 'What Pokter currently knows about your agent, every figure with its provenance.' },
     ],

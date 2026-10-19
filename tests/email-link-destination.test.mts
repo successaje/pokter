@@ -8,7 +8,7 @@ test('a follow link returns to the agent it is about', () => {
 });
 
 test('builder and job links land where those alerts are managed', () => {
-  assert.equal(emailLinkDestination({ kind: 'builder' }), '/studio');
+  assert.equal(emailLinkDestination({ kind: 'builder' }), '/build');
   assert.equal(emailLinkDestination({ kind: 'buyer' }), '/workspace/inbox');
   assert.equal(emailLinkDestination(null), '/workspace/inbox');
 });

@@ -153,10 +153,9 @@ export function AccountButton({ compact }: { compact?: boolean }) {
 
           <nav className="flex flex-col py-1.5 text-sm" aria-label="Account">
             {[
-              /* My workspace, My profile and Settings, the three an account is for. Builder Studio stays until it becomes the workspace's Building view. Wallet and payments is in the workspace. */
+              /* My workspace, My profile and Settings, the three an account is for. Hiring and Building are views inside the workspace; the wallet is there too. */
               { href: '/workspace', label: 'My workspace', icon: <Icon.Briefcase size={16} /> },
               { href: `/builders/${w.address}`, label: 'My profile', icon: <Icon.User size={16} /> },
-              { href: '/studio', label: 'Builder Studio', icon: <Icon.Layers size={16} /> },
               { href: '/account', label: 'Settings', icon: <Icon.Gear size={16} /> },
             ].map((item) => (
               <Link key={item.href} href={item.href} onClick={close} className="flex items-center gap-3 px-4 py-2 text-ink-2 hover:bg-sunken hover:text-ink">

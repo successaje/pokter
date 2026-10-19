@@ -135,7 +135,7 @@ export function SiteFooter() {
 export function CompactFooter() {
   /*
    * Short, but not so short that something becomes unreachable. The header
-   * carries Discover, Requests, Proof, Build and Developers; everything
+   * carries Discover, Requests, Hiring, Building, Proof and Developers; everything
    * else only ever had the footer, so cutting to a line meant deciding what
    * a reader can still get to from a page deep in the catalogue.
    *

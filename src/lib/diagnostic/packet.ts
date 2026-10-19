@@ -31,7 +31,7 @@ export function diagnosticPacket(report: DiagnosticReport, origin = 'https://pok
       ...(check.fixUrl ? [`  Docs: ${check.fixUrl.startsWith('/') ? `${origin}${check.fixUrl}` : check.fixUrl}`] : []),
     ]),
     '',
-    `Re-run: ${origin}/studio/import`,
+    `Re-run: ${origin}/build/import`,
   ];
   return redactSecrets(lines.join('\n'));
 }

@@ -169,7 +169,7 @@ export default async function QuestPage({ searchParams }: { searchParams: Promis
         {!address && (
           <p className="text-[14px] text-ink-2">
             Building an agent too? The build track is tracked in{' '}
-            <Link href="/studio" className="link">
+            <Link href="/build" className="link">
               Builder Studio
             </Link>
             , and the steps are in the{' '}

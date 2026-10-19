@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 
 import { JobsPage } from '@/features/workspace/Pages';
 
-export const metadata: Metadata = { title: 'Jobs' };
+export const metadata: Metadata = { title: 'My jobs' };
 
 export default function Page() {
   return (

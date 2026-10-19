@@ -160,7 +160,7 @@ export function OwnedAgents() {
     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {agents.map((a) => (
         <li key={`${a.chainId}:${a.tokenId}`}>
-          <Link href={`/studio/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
+          <Link href={`/build/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
             <AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={`${a.chainId}:${a.tokenId}`} size={40} />
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{a.name}</span>
@@ -192,7 +192,7 @@ export function DraftsList() {
           const p = draftProgress(d.draft);
           return (
             <li key={d.id} className="flex items-center gap-4 py-3">
-              <Link href={`/studio/new?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
+              <Link href={`/build/new?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium hover:underline">{draftTitle(d.draft)}</p>
                 <p className="text-[12px] text-ink-3">
                   {p.done} of {p.total} ready · edited {new Date(d.updatedAt).toLocaleDateString()}
@@ -310,7 +310,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
         throw new Error(verified.error ?? 'Ownership could not be verified.');
       }
       setVerify('done');
-      router.push(`/studio/agents/${report.chainId}/${report.tokenId}`);
+      router.push(`/build/agents/${report.chainId}/${report.tokenId}`);
       router.refresh();
     } catch (err) {
       const message = (err as Error).message;
@@ -413,7 +413,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
             </Notice>
           )}
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
-            <p className="text-sm font-medium">Manage it in Studio</p>
+            <p className="text-sm font-medium">Manage it under Building</p>
             <p className="text-[13px] text-ink-2">Prove you own it by signing a message with the owner wallet. A signature, not a transaction: no fee, nothing moves.</p>
             {verifyError && <Notice tone="watch">{verifyError}</Notice>}
             <Button onClick={() => void verifyOwnership()} busy={verify !== 'idle'} className="self-start">
@@ -431,7 +431,7 @@ export function NoSession() {
     <EmptyState
       title="Verify ownership to manage this agent"
       action={
-        <LinkButton href="/studio/import" size="s">
+        <LinkButton href="/build/import" size="s">
           Verify ownership
         </LinkButton>
       }

@@ -6,16 +6,17 @@ import { PageHeader } from '@/features/workspace/parts';
 import { TEMPLATES } from '@/features/studio/templates';
 import { Icon } from '@/ui/icons';
 
-export const metadata: Metadata = { title: 'Agent templates' };
+// Personal or step-by-step builder pages: kept out of search, as they were under Studio.
+export const metadata: Metadata = { title: 'Agent templates', robots: { index: false } };
 
 export default function Page() {
   return (
     <>
-      <PageHeader label="Builder Studio" title="Start from a template" description="Each one is a written starting point: a name, a description and a category that buyers already search for. You still bring the endpoint that does the work." />
+      <PageHeader title="Start from a template" description="Each one is a written starting point: a name, a description and a category that buyers already search for. You still bring the endpoint that does the work." />
       <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {TEMPLATES.map((t) => (
           <li key={t.id}>
-            <Link href={`/studio/new?template=${t.id}`} className="group flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong">
+            <Link href={`/build/new?template=${t.id}`} className="group flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong">
               <span className="flex items-center justify-between">
                 <span className="t-label">{CATEGORY_BY_ID.get(t.draft.category as Category)?.label}</span>
                 <span className="t-readout text-[11px] text-ink-3">{t.draft.protocol.toUpperCase()}</span>

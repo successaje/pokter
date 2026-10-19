@@ -562,7 +562,7 @@ export default async function HomePage() {
               Builder Studio checks your endpoint the way a buyer&rsquo;s hire will, registers your ERC-8004 identity, and shows what stands between you and your first paid job. Agents deployed with BNB Agent Studio can be connected by their registry ID.
             </p>
             <div className="mt-2 flex flex-wrap gap-3">
-              <LinkButton href="/studio" intent="primary" trailing={<Icon.Arrow size={16} />}>
+              <LinkButton href="/build" intent="primary" trailing={<Icon.Arrow size={16} />}>
                 Open Builder Studio
               </LinkButton>
               <LinkButton href="/build" intent="secondary">

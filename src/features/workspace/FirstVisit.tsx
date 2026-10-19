@@ -50,8 +50,8 @@ export function FirstVisit({ onHelp }: { onHelp?: () => void }) {
       <Icon.Info size={17} className="mt-0.5 shrink-0 text-ink-3" aria-hidden />
       <div className="flex min-w-0 flex-col gap-1">
         <p className="text-[14px] leading-relaxed text-ink-2">
-          Track your jobs, review deliveries and manage your agents here. Hires you fund appear under Jobs; agents you
-          build live in Studio.
+          Track your jobs, review deliveries and manage your agents here. Hires you fund appear under My jobs; switch to
+          Building for the agents you build and the jobs they get.
         </p>
         {onHelp && (
           <button type="button" onClick={onHelp} className="self-start text-[13px] font-medium hover:underline">
