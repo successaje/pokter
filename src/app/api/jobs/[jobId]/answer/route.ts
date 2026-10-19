@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job, verifyErc8183ManifestText } from '@altananetwork/sdk';
+import { getErc8183Job } from '@altananetwork/sdk';
 import { keccak256, stringToBytes } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -13,6 +13,7 @@ import { questClient } from '@/lib/quest/indexer';
 import { getJobStore } from '@/lib/erc8183/store';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { manifestMatch } from '@/lib/erc8183/manifest-match';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,10 +75,12 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
       manifestText = await fetchDeliverableText(url).catch(() => null);
       if (!manifestText) return NextResponse.json({ delivered: true, readable: false, reason: 'The delivery link could not be read just now.' });
     }
+    const matchedBy = manifestMatch(manifestText, job.deliverable);
     return NextResponse.json({
       delivered: true,
       readable: true,
-      matchesChain: verifyErc8183ManifestText(manifestText, job.deliverable),
+      matchesChain: matchedBy !== null,
+      matchedBy,
       manifestHash: keccak256(stringToBytes(manifestText)),
       answer: readDeliveredAnswer(manifestText),
     });

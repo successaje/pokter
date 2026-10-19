@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import {
   getErc8183DeliverableUrl,
   getErc8183Job,
-  verifyErc8183ManifestText,
 } from '@altananetwork/sdk';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
@@ -17,6 +16,7 @@ import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { questClient } from '@/lib/quest/indexer';
+import { manifestMatch } from '@/lib/erc8183/manifest-match';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -82,9 +82,9 @@ export async function GET(request: Request): Promise<NextResponse> {
      * Every sweep already reconciles each job against ERC-8183 and keeps the
      * deliverable URL it finds, so the index holds the answer from while the
      * submission was still in range. That value came from this same chain
-     * read, and the manifest it points at is still verified byte-for-byte
-     * against the on-chain hash below — nothing here is taken on trust, only
-     * remembered.
+     * read, and the manifest it points at is still checked against the
+     * on-chain hash below (exactly, or as sorted-key JSON; see
+     * `manifestMatch`) — nothing here is taken on trust, only remembered.
      */
     const indexed = getJobStore()
       .all()
@@ -153,8 +153,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     const candidate = new URL(value);
     const manifestText = await fetchDeliverableText(candidate.href);
 
+    const matchedBy = manifestMatch(manifestText, job.deliverable);
     return NextResponse.json({
-      verified: verifyErc8183ManifestText(manifestText, job.deliverable),
+      verified: matchedBy !== null,
+      matchedBy,
       jobId,
       deliverableUrl: candidate.href,
       onchainHash: job.deliverable,

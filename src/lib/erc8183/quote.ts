@@ -9,6 +9,7 @@ import { settlementHint } from '@/lib/network/escrow';
 import { readA2AReply } from '@/lib/a2a/reply';
 import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
+import { POKTER_TERMS } from './terms';
 
 /**
  * A price an agent quoted for itself, and the evidence that it did.
@@ -75,19 +76,7 @@ function responseData(payload: unknown): Record<string, unknown> | null {
   return reply.state === 'completed' || reply.state === 'input-required' ? reply.data : null;
 }
 
-/**
- * The terms every Pokter negotiation is conducted under.
- *
- * Exported because the hire path has to negotiate under exactly these and
- * then fund under exactly these: the seller's signature covers the terms, so
- * two copies that drifted apart would produce a quote that does not match
- * the job it was obtained for, and the seller would be right to refuse it.
- */
-export const POKTER_TERMS = {
-  deliverables: 'A JSON assessment with assumptions and data sources.',
-  quality_standards:
-    'Read-only analysis only. Execute no transaction and move no funds.',
-} as const;
+export { POKTER_TERMS } from './terms';
 
 /** The fixed, read-only brief used to ask an agent what it charges. */
 const PRICE_ENQUIRY = {

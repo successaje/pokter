@@ -29,6 +29,8 @@ import { BriefSourceNotice } from './BriefSource';
 import { GuidedBrief } from './GuidedBrief';
 import { recipeById } from '@/lib/hire/brief-recipes';
 import { taskProblems } from '@/lib/hire/task-fields';
+import { asksToTransact } from '@/lib/hire/transact-brief';
+import { POKTER_TERMS } from '@/lib/erc8183/terms';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
 import type { AnsweredTask } from '@/lib/agent/answered-tasks';
@@ -521,6 +523,32 @@ export function HireFlow(props: HireFlowProps) {
             <h1 className="t-h2">Review the terms</h1>
             <p className="mt-1 text-sm text-ink-2">Nothing has been signed or sent. Check the budget and what you are agreeing to.</p>
           </div>
+
+          {/*
+            The terms are what the agent signs and what it will be held to,
+            and this step said "what you are agreeing to" without showing
+            them. A buyer who asked Nagi to trade paid for a session its
+            signed terms forbade; it made no trade, correctly. Said here,
+            while the brief can still change.
+          */}
+          {asksToTransact(hire.task) ? (
+            <Notice
+              tone="watch"
+              title="Your brief asks for trades, and these terms forbid them"
+              action={
+                <Button size="s" intent="secondary" onClick={() => setStep('describe')}>
+                  Change the brief
+                </Button>
+              }
+            >
+              Every hire through Pokter is signed under these terms: &ldquo;{POKTER_TERMS.quality_standards}&rdquo; An agent that keeps its terms will report on what it would do and make no transaction. Ask for an analysis or a plan instead, or hire knowing that no trade will be made.
+            </Notice>
+          ) : (
+            <p className="text-[13px] text-ink-2">
+              <span className="font-medium text-ink">The terms it signs: </span>
+              {POKTER_TERMS.quality_standards} It delivers {POKTER_TERMS.deliverables.charAt(0).toLowerCase() + POKTER_TERMS.deliverables.slice(1)}
+            </p>
+          )}
 
           {/*
             Said before the first signature, not discovered at it.
