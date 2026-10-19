@@ -55,11 +55,11 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
   );
 }
 
-export function SortSelect({ params }: { params: DiscoverParams }) {
+export function SortSelect({ params, className }: { params: DiscoverParams; className?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
-    <label className="flex items-center gap-2 text-[13px] text-ink-3">
+    <label className={cn('flex items-center gap-2 text-[13px] text-ink-3', className)}>
       {pending ? <Spinner size={13} /> : 'Sort'}
       <select
         value={params.sort}

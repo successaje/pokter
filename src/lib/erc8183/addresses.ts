@@ -44,3 +44,8 @@ export function hasPolicyOverride(chainId: number): boolean {
   if (!override) return false;
   return erc8183Addresses(chainId).policy.toLowerCase() !== override.toLowerCase();
 }
+
+/** The ERC-8183 commerce contract for a chain: the escrow that holds its jobs. */
+export function escrowCommerceAddress(chainId: number): string {
+  return correctedErc8183Addresses(chainId).commerce;
+}

@@ -1,17 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { SiteFooter } from '@/shell/SiteFooter';
-import { SiteHeader } from '@/shell/SiteHeader';
 import { LinkButton } from '@/ui/Button';
 
 export const metadata: Metadata = { title: 'Page not found' };
 
+/**
+ * No header, no footer, no `main`. The layout that this renders inside
+ * already supplies all three, and rendering them here put two of each on
+ * the page — two site headers, two `main#main`, two footers, one on top of
+ * the other. It is easy to miss because both copies look right.
+ */
 export default function NotFound() {
   return (
-    <>
-      <SiteHeader />
-      <main id="main" className="frame flex min-h-[60vh] flex-col items-start justify-center gap-6 py-24">
+    <div className="frame flex min-h-[60vh] flex-col items-start justify-center gap-6 py-24">
         <span className="t-readout text-sm text-ink-3">404</span>
         <h1 className="t-h1 max-w-xl">Nothing is registered at this address.</h1>
         <p className="t-body max-w-lg text-ink-2">
@@ -27,8 +29,6 @@ export default function NotFound() {
         <Link href="/support" className="text-sm text-ink-3 hover:text-ink">
           Report a broken link
         </Link>
-      </main>
-      <SiteFooter />
-    </>
+    </div>
   );
 }

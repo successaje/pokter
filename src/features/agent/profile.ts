@@ -15,7 +15,7 @@ import type { AssayDefinition } from '@/lib/assay/catalog';
 import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
-import { stripCells, type StripCell } from '@/lib/history/strip';
+import { daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { loadDossier, recommendedAlternatives, suggestedBudgetFor, type AgentDossier } from '@/lib/marketplace';
@@ -24,6 +24,10 @@ import { VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine
 import { summarisePublishedEvidence, type PublishedEvidenceSummary } from '@/lib/proof/published';
 import { suggestionLabel, suggestionNote } from '@/lib/find/suggested';
 import { getProbeStore } from '@/lib/history/store';
+import { getJobStore } from '@/lib/erc8183/store';
+import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
+import { jobReceipt } from '@/lib/jobs/receipt-link';
+import { teamAddressSet } from '@/lib/team/wallets';
 import { getReviewStore } from '@/lib/reviews/store';
 import type { VerifiedReview } from '@/lib/reviews/model';
 import type { ChainId } from '@/lib/scan/types';
@@ -76,6 +80,15 @@ export interface AgentProfile {
   verdict: { id: Verdict; label: string; meaning: string; rationale: string; recommended: boolean };
   maturity: AgentMaturity;
   live: { answered: boolean; ratio: number | null; medianMs: number | null; protocol: string; endpoint: string | null; capabilities: string[] };
+  /**
+   * Days since the last answered check, or null if one never has.
+   *
+   * The same measurement the catalogue cards draw their answer dot from,
+   * through the same function, so the dot here cannot say something
+   * different from the dot on the card that led to this page.
+   * `record.lastSeen` is the last day Pokter called, which is not it.
+   */
+  sinceAnswer: number | null;
   record: { windows: TrackRecord['windows']; totalProbes: number; totalAnswered: number; firstSeen: string | null; lastSeen: string | null; observedDays: number; longestOutage: TrackRecord['longestOutage']; cells: StripCell[] };
   skills: DeclaredSkill[];
   /**
@@ -99,6 +112,26 @@ export interface AgentProfile {
   /** Every escrow this agent can be hired on, preferred first; `escrow` is one of them. */
   escrowOptions: number[];
   history: AgentEconomicHistory;
+  /**
+   * The funded jobs behind the counts above, newest first.
+   *
+   * The tab reported five totals and showed none of the work they came
+   * from, so "2 of 3 delivered" could not be checked against anything
+   * without leaving the page. Each row carries the job id the escrow
+   * knows it by, so a reader can verify any of them on chain.
+   */
+  jobHistory: Array<{
+    chainId: number;
+    jobId: string;
+    status: string;
+    budgetU: number;
+    hiredAt: string;
+    delivered: boolean;
+    /** A Pokter wallet was the provider: the work is Pokter's, not the agent's. */
+    byOperator: boolean;
+    /** Where this row can be checked on chain, and whether that is a transaction. */
+    receipt: { href: string; hash: string | null };
+  }>;
   delivery: DeliveryTimes;
   sample: SampleDelivery | null;
   reviews: VerifiedReview[];
@@ -232,6 +265,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     verdict: { id: verdict, label: VERDICT_LABEL[verdict], meaning: VERDICT_MEANING[verdict], rationale: verdictRationale, recommended: proof.recommendedForHire },
     maturity,
     live: { answered: answeredNow, ratio: live.ratio, medianMs: live.medianMs, protocol: live.protocol, endpoint: live.endpoint, capabilities: live.capabilities.slice(0, 20) },
+    sinceAnswer: daysSinceLastAnswer(record),
     record: {
       windows: record.windows,
       totalProbes: record.totalProbes,
@@ -309,6 +343,26 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     escrow: { chainId: escrowChain, paymentToken: addresses.paymentToken, commerce: addresses.commerce },
     escrowOptions,
     history,
+    /* Same source as the counts beside them: the store, read once. */
+    jobHistory: (() => {
+      const team = teamAddressSet();
+      return getJobStore()
+        .byAgent(agent.chain_id, agent.token_id)
+        .filter((job) => job.status !== 'OPEN')
+        .slice()
+        .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt))
+        .slice(0, 12)
+        .map((job) => ({
+          chainId: job.chainId,
+          jobId: job.jobId,
+          status: job.status,
+          budgetU: Number(job.budgetRaw) / 1e18,
+          hiredAt: job.hiredAt,
+          delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
+          byOperator: Boolean(job.provider) && team.has(String(job.provider).toLowerCase()),
+          receipt: jobReceipt(job, escrowCommerceAddress),
+        }));
+    })(),
     delivery,
     sample: sampleDelivery(agent.chain_id, agent.token_id),
     reviews: getReviewStore().byAgent(agent.chain_id, agent.token_id).filter((r) => r.visibility !== 'hidden'),

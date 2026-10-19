@@ -455,6 +455,145 @@ main:has(> [data-flush-footer]:last-child) + footer {
   }
 }
 
+/*
+ * The footer band: tiles that deliver the mark's centre.
+ *
+ * One 11s loop, shared by every part so nothing drifts out of phase.
+ * Tiles scatter and regroup (0-3.2s), the proof tile appears far right
+ * (3.3s) and travels in (to 7.2s), the mark breathes once (7.2-7.9s),
+ * holds (to 9.8s), and the centre fades (to 10.6s) before a beat of
+ * quiet.
+ *
+ * Every rule below moves things *away* from the finished logo and back,
+ * so the un-animated state is the completed mark with its yellow centre
+ * and a still field. That is what `prefers-reduced-motion` renders, and
+ * it needs no second code path to do it.
+ */
+.fa-band {
+  color: var(--rule-strong);
+  position: relative;
+  overflow: hidden;
+}
+
+.fa-band rect.fa-nudge {
+  fill: var(--rule-strong);
+}
+
+.fa-drift {
+  animation: fa-drift 11s cubic-bezier(0.37, 0, 0.26, 1) infinite;
+}
+
+.fa-nudge {
+  animation: fa-nudge 11s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+}
+
+/* About the mark's own centre, in view-box units, so the pulse does not
+   take its origin from a group whose box includes the travelling tile. */
+.fa-pulse {
+  transform-box: view-box;
+  transform-origin: 491px 408px;
+  animation: fa-pulse 11s ease-in-out infinite;
+}
+
+.fa-proof {
+  animation: fa-proof 11s linear infinite;
+}
+
+/* Offscreen, hidden tab, or the reader asked it to stop. */
+.fa-band.is-still .fa-drift,
+.fa-band.is-still .fa-nudge,
+.fa-band.is-still .fa-pulse,
+.fa-band.is-still .fa-proof {
+  animation-play-state: paused;
+}
+
+@keyframes fa-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  14.5% {
+    transform: translate(var(--dx), var(--dy));
+  }
+  29% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes fa-nudge {
+  0% {
+    transform: translate(0, 0);
+  }
+  4% {
+    transform: translate(var(--nx), var(--ny));
+  }
+  18% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes fa-pulse {
+  0%,
+  65.5% {
+    transform: scale(1);
+  }
+  68.5% {
+    transform: scale(1.025);
+  }
+  72% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes fa-proof {
+  /* Waiting off to the right, invisible, so its return to the start is
+     never seen. */
+  0%,
+  29% {
+    transform: translateX(var(--travel));
+    opacity: 0;
+  }
+  33% {
+    transform: translateX(calc(var(--travel) * 0.94));
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.32, 0, 0.1, 1);
+  }
+  65.5% {
+    transform: translateX(0);
+    opacity: 1;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  69% {
+    filter: drop-shadow(0 0 16px color-mix(in oklab, var(--signal) 50%, transparent));
+  }
+  75%,
+  89% {
+    transform: translateX(0);
+    opacity: 1;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  96%,
+  100% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fa-drift,
+  .fa-nudge,
+  .fa-pulse,
+  .fa-proof {
+    animation: none;
+  }
+}
+
 /* The brand's own square, which keeps its colour at rest. */
 .wordmark-dot {
   display: inline-block;

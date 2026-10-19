@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 
 import { buttonClass } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
@@ -16,10 +16,16 @@ import { Sheet } from '@/ui/Sheet';
  */
 export function CompareSheet({ fullPageHref, children }: { fullPageHref: string | null; children: ReactNode }) {
   const router = useRouter();
-  const close = useCallback(() => router.back(), [router]);
+  /* Dismiss first, navigate after — same reason as `HireSheet`: `router.back()`
+     alone leaves the sheet up until the route behind it is ready to render. */
+  const [open, setOpen] = useState(true);
+  const close = useCallback(() => {
+    setOpen(false);
+    router.back();
+  }, [router]);
   return (
     <Sheet
-      open
+      open={open}
       onClose={close}
       variant="drawer"
       floating

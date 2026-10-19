@@ -32,6 +32,8 @@ export interface DiscoverResult {
   reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean }) | null;
   advanced: { unknown: string[] } | null;
   categoryCounts: Array<{ id: Category; label: string; count: number }>;
+  /** The newest listings in the catalogue, whatever the current filters are. */
+  recent: FindRow[];
   /** Sizes of the curated shortcuts, over everything listed. */
   collections: { hireable: number; priced: number; answering: number; corroborated: number };
   unreachable: boolean;
@@ -181,8 +183,22 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     suggestions = { close: findRows(close), active: findRows(active) };
   }
 
+  /*
+   * Newest first by registration date, over everything listed rather than
+   * over the filtered page. A "recently listed" strip that narrows with the
+   * filters would repeat the results above it, which is the one thing it
+   * cannot be useful for.
+   */
+  const recent = findRows(
+    mainnetFirstPerAgent(promotable, (e) => e.listing.agent)
+      .items.slice()
+      .sort((a, b) => String(b.listing.agent.created_at ?? '').localeCompare(String(a.listing.agent.created_at ?? '')))
+      .slice(0, 8),
+  );
+
   return {
     rows: rows.map((row, i) => ({ ...row, reason: reasons.get(shown[i]) ?? null, alsoOn: alsoOn.get(shown[i]) ?? [], nameOnly: nameOnly.has(shown[i]) })),
+    recent,
     total: rows.length,
     allTasksCount: forTasks.length,
     reading,

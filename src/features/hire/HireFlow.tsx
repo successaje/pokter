@@ -42,6 +42,8 @@ const STEPS: Array<{ id: Step; label: string }> = [
 ];
 
 export interface HireFlowProps {
+  /** Rendered inside the sheet over the catalogue: the page chrome is the sheet's. */
+  embedded?: boolean;
   agent: HireAgent & { imageUrl: string | null; key: string };
   providers: ProviderChoice[];
   signedQuoteU: number | null;
@@ -120,6 +122,19 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
 }
 
 export function HireFlow(props: HireFlowProps) {
+  /*
+   * In the sheet, the step's actions are pinned to the bottom edge, where
+   * the sheet's own footer used to be. The thing a reader is reaching for
+   * should not be at the end of a scroll, and the flow already knows which
+   * action belongs to the step they are on — a footer outside it would have
+   * to be told.
+   *
+   * `-bottom-5`, not `bottom-0`. The sheet's scrolling area carries 20px of
+   * padding, and a sticky element pins inside that, so `bottom-0` left a
+   * 20px strip of background under the row and above the sheet's edge. The
+   * offset has to clear the padding for the row to sit flush.
+   */
+  const actionRow = props.embedded ? 'sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
   const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
@@ -206,7 +221,7 @@ export function HireFlow(props: HireFlowProps) {
   if (done && hire.job) {
     const job = hire.job;
     return (
-      <Shell agent={props.agent} step={null} testnet={testnet}>
+      <Shell agent={props.agent} step={null} testnet={testnet} embedded={props.embedded}>
         <div className="anim-rise flex flex-col gap-6">
           <div className="flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-full bg-ok-wash text-ok">
@@ -283,7 +298,7 @@ export function HireFlow(props: HireFlowProps) {
   // ── In progress ───────────────────────────────────────
   if (busy) {
     return (
-      <Shell agent={props.agent} step="pay" testnet={testnet}>
+      <Shell agent={props.agent} step="pay" testnet={testnet} embedded={props.embedded}>
         <div className="flex flex-col gap-6">
           <div>
             <h1 className="t-h2">Funding the job</h1>
@@ -303,7 +318,7 @@ export function HireFlow(props: HireFlowProps) {
   }
 
   return (
-    <Shell agent={props.agent} step={step} testnet={testnet}>
+    <Shell agent={props.agent} step={step} testnet={testnet} embedded={props.embedded}>
       <ConversionBeacon event="hire_opened" chainId={props.agent.chainId} tokenId={props.agent.tokenId} escrowChainId={escrowChainId} />
       {failure && (
         <Notice tone="bad" title={failure.title} className="mb-6" action={step !== 'pay' ? undefined : <span className="text-[12.5px] text-ink-2">Check the details below and confirm again to retry.</span>}>
@@ -432,7 +447,7 @@ export function HireFlow(props: HireFlowProps) {
           {props.providers.length > 0 && (
             <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />
           )}
-          <div className="flex justify-end">
+          <div className={cn('flex justify-end', actionRow)}>
             {/*
               Said before the money moves, not discovered after.
 
@@ -671,7 +686,7 @@ export function HireFlow(props: HireFlowProps) {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
+          <div className={cn('flex items-center justify-between gap-3', actionRow)}>
             <Button intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={16} />}>
               Back
             </Button>
@@ -784,7 +799,7 @@ export function HireFlow(props: HireFlowProps) {
             </>
           )}
 
-          <div className="flex justify-start">
+          <div className={cn('flex justify-start', actionRow)}>
             <Button intent="ghost" onClick={() => setStep('review')} icon={<Icon.ChevronLeft size={16} />}>
               Back
             </Button>
@@ -805,49 +820,126 @@ function Balance({ label, value, ok, known, note }: { label: string; value: stri
   );
 }
 
-function Shell({ agent, step, testnet, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; children: React.ReactNode }) {
-  const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
+/**
+ * Where you are in three steps, read left to right.
+ *
+ * It was a vertical list in a 220px column beside the form, which cost a
+ * fifth of the width on every step to say one thing, and was hidden
+ * entirely below `md` - so on a phone, and in the sheet, the flow had no
+ * step indicator at all beyond a 2px bar.
+ *
+ * It is also the only progress indicator now. A hairline bar under a
+ * stepper is the same fact drawn twice, and the one that cannot say which
+ * step you are on was the one to drop.
+ *
+ * Labels for steps you are not on fold away under `sm`: three labels need
+ * about 360px and the sheet on a small phone has less. The current one
+ * always shows, so the tracker never degrades to unlabelled circles.
+ */
+function StepTracker({ index, className }: { index: number; className?: string }) {
   return (
-    <div className="min-h-dvh">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
-        Skip to content
-      </a>
-      <header className="sticky top-0 z-30 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <span className="flex items-center gap-2.5">
-            <Mark size={20} />
-            <span className="text-[15px] font-semibold">Hire</span>
+    <ol className={cn('flex items-center gap-2 sm:gap-3', className)} aria-label="Steps">
+      {STEPS.map((step, i) => {
+        const done = i < index;
+        const current = i === index;
+        return (
+          <li
+            key={step.id}
+            className="flex items-center gap-2"
+            aria-current={current ? 'step' : undefined}
+          >
+            {/* Fixed and short. Stretched to fill the row they ran to 105px
+                of empty rail between one step and the next, which separates
+                the three rather than joining them — the connector is there
+                to say these are one sequence. */}
+            {i > 0 && <span aria-hidden className={cn('h-px w-7 shrink-0 sm:w-10', done || current ? 'bg-ink-3' : 'bg-rule')} />}
+            <span
+              className={cn(
+                'grid size-5 shrink-0 place-items-center rounded-full border text-[10.5px] font-medium transition-colors',
+                done ? 'border-ok bg-ok text-paper' : current ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-3',
+              )}
+            >
+              {done ? <Icon.Check size={11} /> : i + 1}
+            </span>
+            <span
+              className={cn(
+                'whitespace-nowrap text-[13px]',
+                current ? 'font-medium text-ink' : done ? 'text-ink-2' : 'text-ink-3',
+                !current && 'hidden sm:inline',
+              )}
+            >
+              {step.label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * `embedded` is the flow inside the sheet that opens over the catalogue.
+ *
+ * The page chrome goes, because the sheet is already providing all of it:
+ * a brand bar under the sheet's own title is two headers, and an "Exit"
+ * beside the sheet's close button is two ways to do one thing, one of
+ * which leaves the site. What stays is the tracker, which the sheet has
+ * no equivalent for.
+ */
+function Shell({ agent, step, testnet, embedded = false, children }: { agent: HireFlowProps['agent']; step: Step | null; testnet: boolean; embedded?: boolean; children: React.ReactNode }) {
+  const index = step ? STEPS.findIndex((s) => s.id === step) : STEPS.length;
+  /* Who is being hired and how far along, on one line: the identity has to
+     stay visible past the first step, where the form stops naming it. */
+  const tracker = (
+    <div className={cn('flex flex-col gap-3 border-b border-rule', embedded ? 'bg-raised px-5 py-3' : 'mx-auto max-w-3xl px-4 py-3.5 sm:px-6')}>
+      {/* Only on the page. In the sheet the header above already carries the
+          avatar, the name and what it costs, and a second copy of it under
+          the title is the thing that made the first version of this look
+          like two dialogs stacked. */}
+      {!embedded && (
+      <div className="flex min-w-0 items-center gap-2.5">
+        <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={28} />
+        <p className="truncate text-[13.5px] font-medium">{agent.name}</p>
+        <span className="t-readout shrink-0 text-[11.5px] text-ink-3">#{agent.tokenId}</span>
+        {testnet && (
+          /* Never folded away. It is the difference between play money and
+             real money, and the narrow screen is not the one to hide it on. */
+          <span className="ml-auto shrink-0 text-[11.5px] text-watch" title="BNB testnet. $U here is a test token with no value.">
+            Test tokens
           </span>
-          <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
-            <Icon.Close size={15} /> Exit
-          </Link>
-        </div>
-        <div className="h-0.5 bg-rule">
-          <div className="h-full bg-signal transition-[width] duration-500 ease-out" style={{ width: `${((index + (step ? 0.5 : 0)) / STEPS.length) * 100}%` }} />
-        </div>
-      </header>
-      <div className="mx-auto grid grid-cols-1 max-w-5xl gap-10 px-4 py-8 sm:px-6 md:grid-cols-[220px_minmax(0,1fr)] md:py-12">
-        <aside className="flex flex-col gap-6">
-          <div className="flex items-center gap-3">
-            <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={40} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{agent.name}</p>
-              <p className="text-[12px] text-ink-3">#{agent.tokenId}</p>
-            </div>
+        )}
+      </div>
+      )}
+      <StepTracker index={index} />
+    </div>
+  );
+  return (
+    <div className={embedded ? undefined : 'min-h-dvh'}>
+      {!embedded && (
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
+          Skip to content
+        </a>
+      )}
+      {/* `-top-5` in the sheet for the same reason the action row uses
+          `-bottom-5`: the scrolling area has 20px of padding and a sticky
+          element pins inside it, so `top-0` left a 20px strip above the
+          tracker that the form scrolled through. */}
+      <div className={cn('sticky z-30', embedded ? '-top-5 -mx-5 -mt-5' : 'top-0 border-b border-rule bg-[color-mix(in_oklab,var(--paper)_92%,transparent)] backdrop-blur-md')}>
+        {!embedded && (
+          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 border-b border-rule px-4 sm:px-6">
+            <span className="flex items-center gap-2.5">
+              <Mark size={20} />
+              <span className="text-[15px] font-semibold">Hire</span>
+            </span>
+            <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
+              <Icon.Close size={15} /> Exit
+            </Link>
           </div>
-          <ol className="hidden flex-col gap-1 md:flex" aria-label="Steps">
-            {STEPS.map((s, i) => (
-              <li key={s.id} className={cn('flex items-center gap-3 rounded-[8px] px-2 py-1.5 text-[13.5px]', i === index ? 'bg-sunken font-medium text-ink' : i < index ? 'text-ink-2' : 'text-ink-3')} aria-current={i === index ? 'step' : undefined}>
-                <span className={cn('grid size-5 place-items-center rounded-full border text-[10.5px]', i < index ? 'border-ok bg-ok text-paper' : i === index ? 'border-ink' : 'border-rule-strong')}>
-                  {i < index ? <Icon.Check size={11} /> : i + 1}
-                </span>
-                {s.label}
-              </li>
-            ))}
-          </ol>
-          {testnet && <p className="hidden text-[12px] leading-relaxed text-ink-3 md:block">BNB testnet. $U here is a test token with no value.</p>}
-        </aside>
-        <main id="main" className="min-w-0 max-w-2xl">
+        )}
+        {tracker}
+      </div>
+      <div className={cn(embedded ? 'pt-5' : 'mx-auto max-w-3xl px-4 py-8 sm:px-6 md:py-12')}>
+        <main id={embedded ? undefined : 'main'} className="min-w-0">
           {children}
         </main>
       </div>

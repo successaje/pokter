@@ -84,6 +84,14 @@ export const Icon = {
   BookmarkFilled: (p: IconProps) => (
     <svg {...base(p)} fill="currentColor"><path d="M5.5 3.5h9v13l-4.5-3.25-4.5 3.25v-13Z" /></svg>
   ),
+  /* Same path twice, outline and filled, the way Bookmark is: a rating
+     draws both and the two have to be the same shape exactly. */
+  Star: (p: IconProps) => (
+    <svg {...base(p)}><path d="M10 2.6l2.32 4.7 5.18.76-3.75 3.65.89 5.16L10 14.44l-4.64 2.43.89-5.16L2.5 8.06l5.18-.76L10 2.6Z" /></svg>
+  ),
+  StarFilled: (p: IconProps) => (
+    <svg {...base(p)} fill="currentColor"><path d="M10 2.6l2.32 4.7 5.18.76-3.75 3.65.89 5.16L10 14.44l-4.64 2.43.89-5.16L2.5 8.06l5.18-.76L10 2.6Z" /></svg>
+  ),
   Share: (p: IconProps) => (
     <svg {...base(p)}><path d="M10 12.5V3.5M6.5 7 10 3.5 13.5 7M4.5 11v4.25c0 .7.55 1.25 1.25 1.25h8.5c.7 0 1.25-.55 1.25-1.25V11" /></svg>
   ),

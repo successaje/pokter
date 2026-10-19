@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
@@ -17,7 +19,7 @@ import { ReportReview } from '@/features/agent/ReportReview';
 import { LatencyTrend } from '@/features/studio/OpsCharts';
 import { MoreActions, menuRow } from '@/features/agent/MoreActions';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
-import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
+import { AgentAvatar, ProbeStrip, answerState } from '@/ui/Agent';
 import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
@@ -27,6 +29,7 @@ import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { VerdictChip, VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
+import { Rating } from '@/ui/Rating';
 import { ConversionBeacon } from '@/features/conversion/ConversionBeacon';
 import { isHouseAgent } from '@/lib/house/wallets';
 import { BackToResults } from '@/features/discover/ReturnToResults';
@@ -34,6 +37,56 @@ import { agentJsonLd } from '@/lib/seo/agent-jsonld';
 import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
+
+/*
+ * The escrow's own state names, in the words the rest of the page uses.
+ * SUBMITTED is the one that misleads: it means the agent delivered and
+ * the review window is running, not that something is pending on Pokter.
+ */
+/* The three answers a buyer signs, written out. "on-time" is a stored value,
+   not a sentence, and a mark that says the delivery was late has to say it in
+   the same voice as the two beside it. */
+/* The explorer a job's own chain resolves to, named rather than assumed:
+   a testnet job says testnet.bscscan.com because that is where its link goes. */
+function explorerHost(chainId: number): string {
+  return explorerBaseFor(chainId).replace('https://', '');
+}
+
+const REVIEW_SPEED: Record<string, string> = {
+  early: 'Delivered early',
+  'on-time': 'Delivered on time',
+  late: 'Delivered late',
+};
+
+/**
+ * One of the three answers a buyer signed, as a mark.
+ *
+ * Only the exception is coloured. A hirer scanning reviews is looking for the
+ * one that went wrong, and it used to be the faintest text on the row: "Would
+ * not hire again" sat in `text-ink-3`, quieter than the praise beside it.
+ * Marking the yeses as well would make six good reviews a wall of green and
+ * bury the one that is not, so a "yes" stays quiet and a "no" carries `watch`.
+ */
+function ReviewMark({ ok, children }: { ok: boolean; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-7 items-center rounded-full border px-2.5 text-[12.5px] font-medium',
+        ok ? 'border-rule-strong bg-sunken text-ink-2' : 'border-watch bg-watch-wash text-watch',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+const JOB_STATE: Record<string, string> = {
+  FUNDED: 'Funded, not delivered yet',
+  SUBMITTED: 'Delivered, in review',
+  COMPLETED: 'Settled',
+  EXPIRED: 'Expired, reclaimed',
+  REJECTED: 'Disputed',
+};
 
 type Params = Promise<{ chainId: string; tokenId: string }>;
 
@@ -77,6 +130,72 @@ function Section({ id, label, title, children, aside }: { id: string; label: str
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * The four numbers worth having before anything else on the dossier.
+ *
+ * Each carries its own scope underneath, because these are not comparable
+ * to each other and the scopes are genuinely different: one is lifetime
+ * escrow, one is every check ever made, one is a 30-day median, one is a
+ * sample of deliveries. A strip of bare figures invites the reader to treat
+ * them as one measurement of one thing.
+ *
+ * There is no score here, and there will not be. The pattern this follows
+ * ends with a composite reputation out of 100; Pokter does not publish one,
+ * for the reason `ui/Rating.tsx` gives about aggregates - a number that
+ * looks measured and is not is worse than no number, and it is the specific
+ * claim this whole product exists to refuse.
+ */
+function HeadlineStats({ p }: { p: AgentProfile }) {
+  const month = p.record.windows.find((w) => w.label === '30d');
+  const replies = p.record.totalProbes > 0 ? p.record.totalAnswered / p.record.totalProbes : null;
+  const stats: Array<{ label: string; value: string; note: string; muted?: boolean }> = [
+    {
+      label: 'Paid jobs',
+      value: String(p.history.jobs),
+      note: p.history.jobs ? `${p.history.delivered} delivered` : 'None funded yet',
+      muted: !p.history.jobs,
+    },
+    {
+      label: 'Replies',
+      value: replies === null ? '\u2014' : pct(replies),
+      note: p.record.totalProbes ? `${p.record.totalProbes} checks, lifetime` : 'Never called',
+      muted: replies === null,
+    },
+    {
+      label: 'Response',
+      value: month?.medianMs ? formatMs(month.medianMs) : '\u2014',
+      note: month?.probes ? 'median, last 30 days' : 'nothing answered in 30 days',
+      muted: !month?.medianMs,
+    },
+    {
+      label: 'Delivers',
+      value: p.delivery.medianMs ? formatDelivery(p.delivery.medianMs) : '\u2014',
+      note: p.delivery.samples ? `${p.delivery.samples} timed on chain` : 'No deliveries timed',
+      muted: !p.delivery.medianMs,
+    },
+  ];
+  return (
+    <dl className="grid grid-cols-2 overflow-hidden rounded-[14px] border border-rule bg-raised sm:grid-cols-4">
+      {stats.map((stat, i) => (
+        <div
+          key={stat.label}
+          className={cn(
+            'flex min-w-0 flex-col gap-1 p-4 sm:p-5',
+            /* Rules between, never around: the container already has one. */
+            i % 2 === 1 && 'border-l border-rule',
+            i >= 2 && 'border-t border-rule sm:border-t-0',
+            i >= 1 && 'sm:border-l sm:border-rule',
+          )}
+        >
+          <dt className="t-label">{stat.label}</dt>
+          <dd className={cn('t-readout text-[1.5rem] leading-none tracking-[-0.02em]', stat.muted ? 'text-ink-3' : 'text-ink')}>{stat.value}</dd>
+          <dd className="text-[12px] leading-snug text-ink-3">{stat.note}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -219,7 +338,25 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           </div>
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-5">
-              <AgentAvatar name={p.name} imageUrl={p.imageUrl} seed={p.key} size={76} className="rounded-[16px]" eager />
+              {/* Two readings, answering different questions: the ring is
+                  this page load, the dot is the record behind it. An agent
+                  can answer right now and have answered nothing for a
+                  month, and that is worth seeing without scrolling. */}
+              <AgentAvatar
+                name={p.name}
+                imageUrl={p.imageUrl}
+                seed={p.key}
+                size={76}
+                className="rounded-[16px]"
+                eager
+                status={answerState({ sinceAnswer: p.sinceAnswer })}
+                live={{
+                  answered: p.live.answered,
+                  label: p.live.answered
+                    ? `Answering now${p.live.medianMs ? ` \u00b7 ${formatMs(p.live.medianMs)}` : ''}`
+                    : 'No answer just now',
+                }}
+              />
               <div className="flex min-w-0 flex-col gap-2">
                 <h1 className="t-h1 break-words">{p.name}</h1>
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3">
@@ -247,31 +384,24 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     </span>
                   )}
                   {/*
-                    The live check is part of availability, so it is read as
-                    its tail rather than as another chip; the category was a
-                    chip too, and the breadcrumb above already names it.
+                    The live check is the ring around the picture now, which
+                    is read before any of these chips and leaves the row to
+                    the facts that do not change between page loads. The
+                    sentence it replaced is that ring's title, and is still
+                    in the accessibility tree.
                   */}
-                  <span className={`inline-flex items-center gap-1.5 text-[12.5px] ${p.live.answered ? 'text-ok' : 'text-ink-3'}`}>
-                    <span className={`size-1.5 rounded-full ${p.live.answered ? 'bg-ok pulse' : 'bg-rule-strong'}`} aria-hidden />
-                    {p.live.answered ? `Answered just now${p.live.medianMs ? ` · ${formatMs(p.live.medianMs)}` : ''}` : 'No answer just now'}
-                  </span>
                   {/*
-                    Where a hire is funded, beside the chips a reader
-                    already looks at.
-                    
-                    "Hired on", not "on": the line above says which
-                    registry the identity lives in, and the two are
-                    different chains for most of the catalogue — an agent
-                    registered on BNB Chain is hired on testnet whenever
-                    its price is in testnet $U. Repeating the bare chain
-                    name would read as the same fact twice and quietly
-                    mislead on the agents where it is not.
+                    "Hired on BNB Testnet · test tokens" was here. The hire
+                    panel says it four times over — the network row, "On
+                    BNB Testnet", "Test tokens only" and "escrowed on" —
+                    and it renders at every width, in the sidebar on wide
+                    screens and under the content on narrow ones. This chip
+                    was the fifth, in the row a reader scans first.
+
+                    It is still said somewhere a buyer cannot miss it: the
+                    panel they fund from. That was the condition for
+                    removing it, not that it was repetitive.
                   */}
-                  <span className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] font-medium ${p.escrow.chainId === 97 ? 'border-watch/40 bg-watch-wash text-watch' : 'border-rule-strong text-ink-2'}`}>
-                    <Icon.Lock size={13} aria-hidden />
-                    Hired on {chainLabel(p.escrow.chainId)}
-                    {p.escrow.chainId === 97 && ' · test tokens'}
-                  </span>
                 </div>
               </div>
             </div>
@@ -299,9 +429,16 @@ export default async function AgentPage({ params, searchParams }: { params: Para
           {/* Overview */}
           <AgentTabPanel id="overview">
           <section aria-labelledby="overview-title" className="flex flex-col gap-8">
-            <h2 id="overview-title" className="sr-only">
-              Overview
-            </h2>
+            {/* Every other tab names what it is showing; this one labelled
+                itself only for screen readers, so the first tab was the one
+                with no heading on it. */}
+            <div className="flex flex-col gap-1.5">
+              <span className="t-label">Overview</span>
+              <h2 id="overview-title" className="t-h2">
+                What this agent is, and how it has behaved
+              </h2>
+            </div>
+            <HeadlineStats p={p} />
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/*
@@ -602,19 +739,72 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 <Readout label="Median delivery" value={p.delivery.medianMs ? formatDelivery(p.delivery.medianMs) : '—'} note={p.delivery.samples ? `${p.delivery.samples} sampled` : 'No deliveries timed'} muted={!p.delivery.medianMs} />
                 <Readout label="On time" value={p.delivery.onTime !== null ? pct(p.delivery.onTime) : '—'} muted={p.delivery.onTime === null} />
               </div>
+              {/*
+                The jobs behind the figures above. Five totals with none of
+                the work under them could not be checked without leaving
+                the page, and every row here carries the id the escrow
+                knows it by.
+              */}
+              {p.jobHistory.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <h3 className="t-label">Jobs funded through escrow</h3>
+                    <span className="text-[12px] text-ink-3">
+                      {p.jobHistory.length === p.history.jobs ? 'All of them' : `Newest ${p.jobHistory.length} of ${p.history.jobs}`}
+                    </span>
+                  </div>
+                  <ol className="ruled overflow-hidden rounded-[12px] border border-rule">
+                    {p.jobHistory.map((job) => (
+                      <li key={`${job.chainId}:${job.jobId}`} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-[13px]">
+                        <span className={cn('size-1.5 shrink-0 rounded-full', job.status === 'COMPLETED' ? 'bg-ok' : job.status === 'EXPIRED' || job.status === 'REJECTED' ? 'bg-watch' : job.delivered ? 'bg-ok' : 'bg-rule-strong')} aria-hidden />
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-medium">{JOB_STATE[job.status] ?? job.status}</span>
+                            <span className="t-readout text-[11.5px] text-ink-3">#{job.jobId}</span>
+                            {/* Said on the row, not inferred from a total: a job a
+                                Pokter wallet delivered is not the agent's work. */}
+                            {job.byOperator && <span className="text-[11.5px] text-watch">Pokter&rsquo;s wallet delivered this</span>}
+                          </span>
+                          <span className="text-[11.5px] text-ink-3">
+                            {new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {chainLabel(job.chainId)}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <span className="t-readout text-[13px]">{formatQuotedPrice(job.budgetU)}</span>
+                          {/* Named for what it opens. A transaction is a receipt;
+                              the escrow's read page is not, and calling it one
+                              would be the claim this list exists to avoid. */}
+                          <a
+                            href={job.receipt.href}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink"
+                            title={job.receipt.hash ? `Open this transaction on ${explorerHost(job.chainId)}` : `This job settled outside Pokter, so no transaction was recorded here. Read job #${job.jobId} from the escrow on ${explorerHost(job.chainId)}.`}
+                          >
+                            {job.receipt.hash ? `${job.receipt.hash.slice(0, 8)}\u2026` : 'Read in escrow'}
+                          </a>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
               {p.reviews.length === 0 ? (
                 <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[13.5px] text-ink-2">
                   No reviews yet. On Pokter, only the wallet that funded a completed job can review it, and the review is signed by that wallet, so there are no anonymous ratings to show.
                 </p>
               ) : (
-                <ul className="ruled">
+                <ul className="ruled" aria-label="Reviews signed by the wallets that funded these jobs">
                   {p.reviews.slice(0, 6).map((r) => (
                     <li key={`${r.chainId}:${r.jobId}`} className="flex flex-col gap-1.5 py-4">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-                        <span className="t-readout font-medium">{r.rating}/5</span>
-                        <span className="text-ink-2">{r.deliveredAsPromised ? 'Delivered as promised' : 'Did not deliver as promised'}</span>
-                        <span className="text-ink-3">· {r.speed.replace('-', ' ')}</span>
-                        <span className="text-ink-3">· {r.wouldHireAgain ? 'Would hire again' : 'Would not hire again'}</span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
+                        <Rating value={r.rating} />
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <ReviewMark ok={r.deliveredAsPromised}>{r.deliveredAsPromised ? 'Delivered as promised' : 'Did not deliver as promised'}</ReviewMark>
+                          <ReviewMark ok={r.speed !== 'late'}>{REVIEW_SPEED[r.speed] ?? r.speed}</ReviewMark>
+                          <ReviewMark ok={r.wouldHireAgain}>{r.wouldHireAgain ? 'Would hire again' : 'Would not hire again'}</ReviewMark>
+                        </span>
                       </div>
                       {r.comment && <p className="text-[14px] leading-relaxed">{r.comment.slice(0, 600)}</p>}
                       <div className="flex flex-wrap items-center gap-x-3 text-[12px] text-ink-3">

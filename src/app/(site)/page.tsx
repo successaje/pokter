@@ -102,26 +102,42 @@ export default async function HomePage() {
         <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,var(--rule)_1px,transparent_1px)] [background-size:calc((100%-2rem)/12)_100%] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="frame relative grid grid-cols-1 gap-12 pb-16 pt-10 sm:pt-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16 lg:pb-24 lg:pt-20">
           <div className="flex flex-col justify-center gap-8">
-            <p className="anim-rise flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-ink-2">
-              <span className="tile" aria-hidden />
-              {/*
-                "for BNB Chain" only when the escrow line is not there to
-                name the chain already — otherwise the eyebrow said
-                "marketplace for BNB Chain · Live on BNB Chain Mainnet",
-                naming it twice in one line.
-              */}
-              The agent marketplace{escrowAvailabilityLine() ? '' : ' for BNB Chain'}
-              {/*
-                Which escrows are switched on, read from the config rather
-                than written out, so the sentence cannot outlive the thing
-                it describes. It says what is available, not what has been
-                proven — the funnel below counts what actually settled.
-              */}
-              {escrowAvailabilityLine() && (
-                <span className="text-ink-3">
-                  <span aria-hidden>· </span>
-                  {escrowAvailabilityLine()}
-                </span>
+            {/*
+              Two marks, not a sentence.
+
+              The eyebrow ran "The agent marketplace · Live on BNB Chain
+              Mainnet · Testnet available" as one line of small grey text,
+              where the status and the standing claim read as the same
+              weight and neither was worth stopping on. Split in two: what
+              is switched on, and how much is actually hireable through it.
+
+              The first still comes from the config rather than being
+              written out, so the sentence cannot outlive the thing it
+              describes, and it still says what is available rather than
+              what has been proven — the record below counts what settled.
+              When no escrow is configured it carries the marketplace line
+              instead, which is the only case the old conditional existed
+              for.
+
+              The second is a count, and it is a link because a count a
+              reader cannot go and check is the kind of number this site
+              exists to not publish. It is read from the same source as
+              Discover's own collections, so the two cannot disagree, and
+              the destination is that collection.
+            */}
+            <p className="anim-rise flex flex-wrap items-center gap-2 text-[13px] font-medium">
+              <span className="inline-flex h-7 items-center gap-2 rounded-full border border-ok/30 bg-ok-wash px-3 text-ok">
+                <span aria-hidden className="size-1.5 rounded-full bg-ok" />
+                {escrowAvailabilityLine() ?? 'The agent marketplace for BNB Chain'}
+              </span>
+              {home.catalogue.hireable > 0 && (
+                <Link
+                  href="/discover?hireable=1"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2 transition-colors hover:border-ink hover:text-ink"
+                >
+                  <span className="t-readout">{home.catalogue.hireable}</span> hireable right now
+                  <Icon.Arrow size={13} />
+                </Link>
               )}
             </p>
             {/*
@@ -472,7 +488,25 @@ export default async function HomePage() {
                   ['ERC-8004 identity', 'Who an agent is, who owns it, where it answers', 'Live', 'BNB Chain and testnet'],
                   ['ERC-8183 escrow', 'Funding, delivery, settlement and refunds per job', 'Live', ESCROW_NETWORKS_LABEL],
                   ['A2A agent cards', 'Probing, signed quotes and delivery requests', 'Live', ''],
-                  ['MCP', 'Endpoint checks for builders', 'Partial', 'Preflight only'],
+                  /*
+                    "Partial · Preflight only" was true when the only MCP
+                    Pokter did was check that a builder's endpoint answered.
+                    It is wrong on both counts now, and in both directions.
+
+                    Pokter serves MCP: `/api/mcp` answers `tools/list` with
+                    search_agents, get_agent, get_quote, hire_link and
+                    integration_kit, so the marketplace is usable from a
+                    client rather than only from this site. And it reads it:
+                    `listMcpTools` calls an agent's own `tools/list` and
+                    `mcpCapabilities` turns the result into the capabilities
+                    on its page, which is well past a preflight.
+
+                    The note still says what it does not do. An MCP-only
+                    agent cannot be hired — that runs through A2A and the
+                    escrow — and a row claiming "Live" without saying so
+                    would be read as more than it is.
+                  */
+                  ['MCP', 'Pokter inside an MCP client, and reading what an agent exposes', 'Live', 'Five tools at /api/mcp; an agent\u2019s own tools/list read and shown as its capabilities. Hiring still runs through A2A and escrow.'],
                   ['BNB Agent Studio', 'Agents it registers appear automatically; connect one by ID', 'Live', 'Via ERC-8004'],
                   /*
                     Says what was found, not only what is built.

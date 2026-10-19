@@ -17,6 +17,8 @@ export function Sheet({
   description,
   children,
   footer,
+  headerAction,
+  icon,
   variant = 'dialog',
   className,
   labelledBy,
@@ -28,6 +30,10 @@ export function Sheet({
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** Beside Close: a second way out, for sheets that have one. */
+  headerAction?: ReactNode;
+  /** Left of the title: what this sheet is about, usually a picture of it. */
+  icon?: ReactNode;
   variant?: 'dialog' | 'drawer';
   className?: string;
   labelledBy?: string;
@@ -83,10 +89,15 @@ export function Sheet({
         >
           {(title || description) && (
             <header className="flex items-start justify-between gap-4 border-b border-rule px-5 py-4">
-              <div className="flex min-w-0 flex-col gap-1">
-                {title && <h2 className="t-h3">{title}</h2>}
-                {description && <p className="text-[13px] leading-snug text-ink-3">{description}</p>}
+              <div className="flex min-w-0 items-center gap-3">
+                {icon}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  {title && <h2 className="t-h3 truncate">{title}</h2>}
+                  {description && <p className="text-[13px] leading-snug text-ink-3">{description}</p>}
+                </div>
               </div>
+              <div className="flex shrink-0 items-center gap-1">
+              {headerAction}
               <button
                 type="button"
                 onClick={onClose}
@@ -95,6 +106,7 @@ export function Sheet({
               >
                 <Icon.Close />
               </button>
+              </div>
             </header>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>

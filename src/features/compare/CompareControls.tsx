@@ -7,7 +7,18 @@ import { buttonClass } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { COMPARE_MAX, useCompare } from './store';
 
-export function CompareToggle({ agentKey, className, variant = 'button' }: { agentKey: string; className?: string; variant?: 'button' | 'checkbox' }) {
+export function CompareToggle({
+  agentKey,
+  className,
+  variant = 'button',
+  compact = false,
+}: {
+  agentKey: string;
+  className?: string;
+  variant?: 'button' | 'checkbox';
+  /** Checkbox only: keeps the word for screen readers, not for the layout. */
+  compact?: boolean;
+}) {
   const compare = useCompare();
   const selected = compare.has(agentKey);
   const disabled = !selected && compare.full;
@@ -25,7 +36,9 @@ export function CompareToggle({ agentKey, className, variant = 'button' }: { age
         <span className={cn('grid size-4 place-items-center rounded-[4px] border transition-colors', selected ? 'border-ink bg-ink text-paper' : 'border-rule-strong')} aria-hidden>
           {selected && <Icon.Check size={11} />}
         </span>
-        Compare
+        {/* On a card the word costs 81px of a 334px header and the agent's
+            own name pays it, so there it is read rather than shown. */}
+        <span className={compact ? 'sr-only' : undefined}>Compare</span>
       </button>
     );
   }

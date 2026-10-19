@@ -2,7 +2,7 @@ import 'server-only';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
-import { ALTANA_NETWORK } from '@/lib/altana/client';
+import { altanaNetworkFor } from '@/lib/altana/client';
 import { getJobStore } from '@/lib/erc8183/store';
 
 /** How long this agent's past deliveries took, from funding to submission. */
@@ -57,7 +57,13 @@ export async function deliveryTimes(chainId: number, tokenId: string): Promise<D
   const readings = await Promise.all(
     delivered.map(async (job) => {
       try {
-        const onChain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
+        /* The job's own chain, not the site's. `ALTANA_NETWORK` is one
+           network chosen by env, and `altanaNetworkFor` exists because a
+           job is not necessarily on it — `client.ts` says so in as many
+           words. Reading a mainnet job against the testnet escrow returns
+           a different job or none, so a mainnet agent's deliveries were
+           timed against whatever else holds that id. */
+        const onChain = await getErc8183Job(altanaNetworkFor(job.chainId), BigInt(job.jobId));
         const submitted = Number(onChain.submittedAt) * 1000;
         const funded = Date.parse(job.hiredAt);
         if (!submitted || !Number.isFinite(funded) || submitted < funded) return null;

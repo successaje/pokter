@@ -3,7 +3,8 @@ import Link from 'next/link';
 import type { FindRow } from '@/lib/find/rows';
 import { chainLabel, escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
-import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
+import { formatDelivery } from '@/lib/ui/format';
+import { AgentAvatar, answerState } from '@/ui/Agent';
 import { Icon } from '@/ui/icons';
 import { VerdictLabel } from '@/ui/Verdict';
 import { MaturityLabel } from '@/ui/Maturity';
@@ -71,9 +72,17 @@ export function PriceText({ row, className }: { row: FindRow; className?: string
    * not the agent's silence. The exact refusal is named on the agent's own
    * page, which is the only surface that reads the sweep's failure code.
    */
+  /* A dash, in the same readout the price would be in, so every card's
+     money line sits on the same baseline at the same height. The sentence
+     it replaces is still here, on hover: two sentences of small grey text
+     in the loudest position on the card was the price's own slot being
+     spent on the absence of one. */
   return (
-    <span className={cn('text-[13px] text-ink-3', className)}>
-      {row.priceState === 'unverified' ? 'No price Pokter could verify' : 'No price available'}
+    <span
+      className={cn('t-readout text-ink-3', className)}
+      title={row.priceState === 'unverified' ? 'This agent answers Pokter\u2019s checks, but no price it returned could be verified. Its page names the exact refusal.' : 'Nothing has reached this agent, so it has never named a price.'}
+    >
+      {'\u2014'}
     </span>
   );
 }
@@ -128,9 +137,41 @@ export function HiringLines({ row, align }: { row: FindRow; align?: 'end' }) {
  */
 export function TrialNote({ className }: { className?: string }) {
   return (
-    <span className={cn('text-[11.5px] text-watch', className)} title="Pokter’s delivery agent carries the task to the agent and returns its answer. It does not count as a delivery by the agent.">
-      Free testnet trial · carried by Pokter’s delivery agent
+    /* Short enough not to wrap. At 11.5px on a 376px card the full
+       sentence took two lines and pushed the button out of line with the
+       card beside it; it is the title now, which is where the detail was
+       already duplicated. */
+    <span className={cn('whitespace-nowrap text-[11.5px] text-watch', className)} title="Pokter’s delivery agent carries the task to the agent and returns its answer. It does not count as a delivery by the agent.">
+      Free testnet trial
     </span>
+  );
+}
+
+/**
+ * The small card: a picture, a name, what it does and what it costs.
+ *
+ * The same shape the agent page uses for "also measured in", with the price
+ * added, because a list somebody is browsing rather than comparing still has
+ * to answer "how much" — it is the one fact that decides whether to read
+ * the rest, and leaving it off made those lists decorative.
+ *
+ * Deliberately not a shrunken `AgentCard`: no replies, no paid jobs, no
+ * delivery time. Those are for choosing between agents, and this is for
+ * noticing one.
+ */
+export function MiniAgentCard({ row }: { row: FindRow }) {
+  return (
+    <Link
+      href={agentHref(row)}
+      className="group flex h-full items-start gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong"
+    >
+      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={36} status={answerState(row)} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[13.5px] font-medium">{row.name}</span>
+        <span className="line-clamp-1 text-[12.5px] text-ink-3">{row.description || 'No description published.'}</span>
+      </span>
+      <PriceText row={row} className="shrink-0 text-[13px]" />
+    </Link>
   );
 }
 
@@ -140,15 +181,34 @@ export function TrialNote({ className }: { className?: string }) {
  * delivered), what it costs and in which money, then one clear action.
  * No ratings, no popularity, no badges that measure nothing.
  */
-export function AgentCard({ row, className, note, compare }: { row: FindRow; className?: string; note?: string | null; compare?: React.ReactNode }) {
-  const status = availabilityText(row);
+export function AgentCard({
+  row,
+  className,
+  note,
+  compare,
+  deliveryMs,
+}: {
+  row: FindRow;
+  className?: string;
+  note?: string | null;
+  compare?: React.ReactNode;
+  /**
+   * Median time from funding to submission, when the caller has read it.
+   * Optional because reading it costs a chain call per job: a surface that
+   * has not paid for it says how many deliveries there were and stops,
+   * rather than printing a time it has not measured.
+   */
+  deliveryMs?: number | null;
+}) {
   return (
     <article className={cn('group relative flex h-full flex-col rounded-[16px] border border-rule bg-raised p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-lift', className)}>
       <div className="flex items-start gap-3.5">
-        <span className="shrink-0 rounded-full p-[3px] ring-1 ring-rule-strong">
-          <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} />
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
+        {/* No ring. It was a circle drawn around a rounded square, which
+            left four corners reaching for it, and the answer dot then had
+            to sit on the ring itself. The dot is the accent now, and the
+            three card variants finally draw the avatar the same way. */}
+        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="truncate text-[16px] font-semibold tracking-[-0.015em]">
             <Link href={agentHref(row)} className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none">
               {row.name}
@@ -166,43 +226,69 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
             {row.categoryLabel} <span className="t-readout">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? ' · Run by Pokter' : ''}
           </span>
         </div>
+        {/* The footer that used to hold this went with "View evidence";
+            the card itself has always linked to the agent page. */}
+        {compare && <span className="relative z-10 shrink-0">{compare}</span>}
       </div>
 
       <p className="mt-3.5 line-clamp-2 min-h-[2.9em] text-[13.5px] leading-[1.45] text-ink-2">{row.description || 'No description published.'}</p>
 
-      {/* The evidence, as two facts a buyer can check: does it answer, and has it delivered paid work. */}
-      <dl className="mt-4 flex flex-col rounded-[12px] border border-rule bg-sunken/40 text-[12.5px]">
-        <div className="flex flex-col gap-1 px-3.5 py-2.5">
-          <div className="flex items-center gap-3">
-            <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status.tone])} aria-hidden />
-            {/* Same shape as the row below: shrink-0 label, value pushed right. */}
-            <dt className="shrink-0 text-ink-2">Probe replies</dt>
-            <dd className="ml-auto flex min-w-0 shrink-0 items-center gap-2.5" title={row.probes ? `${row.probes} probes in total` : undefined}>
-              <span className="t-readout text-ink">{row.rate === null ? '—' : `${Math.round(row.rate * 100)}%`}</span>
-              {row.probes > 0 && <ProbeStrip cells={row.cells} className="h-4 [&>span]:w-[3px]" />}
-            </dd>
-          </div>
-          {/* Not answering right now is said in words, not left to the colour of a dot. */}
-          {status.tone !== 'ok' && <p className="pl-[18px] text-[11.5px] text-ink-3">{status.text}</p>}
+      {/*
+        The evidence as three readings, not a panel.
+
+        It was a bordered, filled box holding a status dot, a percentage, a
+        14-day sparkline, a second dot, a label and a chip — six treatments
+        for three facts, and by some way the heaviest thing on the card.
+        The facts have not changed; they are just read off now.
+
+        Recency left with the box and needed no replacement. "Last answered
+        5d ago" was the only reason the first dot was there, and the answer
+        dot on the avatar now carries it on every card, in one glyph.
+      */}
+      <dl className="mt-5 grid grid-cols-3 gap-3 text-[13px]">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          {/* "Replies", not "Answers": one of the maturity badges in the
+              third column is the word "Answers", and a column headed
+              Answers showing Answers two columns over reads as an error. */}
+          <dt className="t-label">Replies</dt>
+          <dd className="t-readout truncate" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
+            {row.rate === null ? '\u2014' : `${Math.round(row.rate * 100)}%`}
+          </dd>
         </div>
-        {/*
-          Wrapping, not nowrap. The label was `min-w-0 flex-1
-          whitespace-nowrap`, so it shrank below its own text and ran
-          straight over the chip beside it: "Delivery evidenNot answering
-          yet". A chip's width is the agent's, not ours, so the row has to
-          survive a long one rather than assume a short one.
-        */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-rule px-3.5 py-2.5">
-          <span className={cn('size-1.5 shrink-0 rounded-full', row.paid.missed ? DOT.watch : row.paid.delivered ? DOT.ok : DOT.none)} aria-hidden />
-          <dt className="shrink-0 text-ink-2">Delivery evidence</dt>
-          <dd className="ml-auto min-w-0">
-            {row.paid.missed ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-watch/35 bg-watch-wash px-2.5 py-1 text-[12px] font-medium text-watch" title="Funded through Pokter escrow, nothing delivered before the deadline">
-                <span className="size-1.5 rounded-full bg-watch" aria-hidden />
-                {row.paid.missed} of {row.paid.delivered + row.paid.missed} paid job{row.paid.delivered + row.paid.missed === 1 ? '' : 's'} missed
-              </span>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <dt className="t-label">Paid jobs</dt>
+          {/* A missed deadline is not a smaller success, so it is not
+              averaged into one: the denominator shows up only when there
+              is one, and it is the whole reason this reads in `watch`. */}
+          <dd
+            className={cn('t-readout truncate', row.paid.missed ? 'text-watch' : undefined)}
+            title={row.paid.missed ? `${row.paid.missed} of ${row.paid.delivered + row.paid.missed} funded jobs missed their deadline` : undefined}
+          >
+            {row.paid.missed ? `${row.paid.delivered}/${row.paid.delivered + row.paid.missed}` : row.paid.delivered}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          {/* How long it takes, not which rung of the ladder it is on. The
+              rung was a chip with a dot in it and it is on the agent's own
+              page; a buyer choosing between three cards is asking how long
+              this takes, and that question had no answer here at all. */}
+          <dt className="t-label">Delivers</dt>
+          <dd
+            className="t-readout truncate"
+            title={
+              deliveryMs != null
+                ? 'Median time from the buyer funding the job to the agent submitting it'
+                : row.paid.delivered > 0
+                  ? 'Delivered, but none of its submissions could be timed on chain'
+                  : 'No paid job delivered from this agent\u2019s own wallet yet'
+            }
+          >
+            {deliveryMs != null ? (
+              formatDelivery(deliveryMs)
+            ) : row.paid.delivered > 0 ? (
+              '\u2014'
             ) : (
-              <MaturityLabel maturity={row.maturity} concise />
+              <span className="text-ink-3">Not yet</span>
             )}
           </dd>
         </div>
@@ -215,24 +301,17 @@ export function AgentCard({ row, className, note, compare }: { row: FindRow; cla
         </p>
       )}
 
-      {/* Price, then where it settles, then where the identity lives: the
-          three facts in the order a buyer needs them. */}
-      <div className="mt-auto flex flex-col pt-5">
-        {row.priceU !== null ? <PriceText row={row} className="text-[1.6rem] font-medium leading-none tracking-[-0.02em]" /> : <PriceText row={row} />}
-        <span className="mt-1.5 flex flex-col gap-0.5">
-          <HiringLines row={row} />
-        </span>
-      </div>
-
-      <div className="relative z-10 mt-4">
-        <NextStep row={row} wide />
-      </div>
-
-      <div className="relative z-10 mt-3 flex items-center justify-between gap-3 border-t border-rule pt-3">
-        <Link href={`${agentHref(row)}#evidence`} className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-ink hover:underline">
-          View evidence <Icon.ArrowUpRight size={13} />
-        </Link>
-        {compare}
+      {/* Price, where it settles and where the identity lives, against the
+          one action: the facts a buyer needs in the order they need them,
+          on the same line as the button they lead to. */}
+      <div className="relative z-10 mt-auto flex items-end justify-between gap-3 border-t border-rule pt-4">
+        <div className="flex min-w-0 flex-col">
+          <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
+          <span className="mt-1.5 flex flex-col gap-0.5">
+            <HiringLines row={row} />
+          </span>
+        </div>
+        <NextStep row={row} />
       </div>
     </article>
   );
@@ -277,7 +356,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
   const status = availabilityText(row);
   return (
     <article className="group relative grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 gap-y-2 py-4 sm:grid-cols-[44px_minmax(0,1fr)_150px_120px_110px] sm:items-center">
-      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={44} />
+      <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={44} status={answerState(row)} />
       <div className="flex min-w-0 flex-col gap-0.5">
         <h3 className="flex items-center gap-2 text-[15px] font-semibold">
           <Link href={agentHref(row)} className="truncate after:absolute after:inset-0 hover:underline focus-visible:outline-none">
@@ -325,7 +404,7 @@ export function FeaturedAgent({ row }: { row: FindRow }) {
   return (
     <article className="group relative flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6 transition-[border-color,box-shadow] duration-200 hover:border-rule-strong hover:shadow-lift">
       <div className="flex items-center justify-between gap-3">
-        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} />
+        <AgentAvatar name={row.name} imageUrl={row.imageUrl} seed={row.key} size={48} status={answerState(row)} />
         <span className="t-label">{row.categoryLabel}</span>
       </div>
       <div className="flex flex-col gap-1.5">
