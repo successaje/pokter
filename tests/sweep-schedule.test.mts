@@ -223,3 +223,33 @@ test('every tick sweeps, once the floor clears the gaps', () => {
   assert.equal(swept[2] - swept[1], SWEEP_TICK_MS);
   assert.equal(swept[3] - swept[2], SWEEP_TICK_MS);
 });
+
+test('a restart just after a sweep does not sweep again at once', () => {
+  /*
+   * What the boot-time seed is for, as the route observed it on 19 October:
+   * production redeployed at 14:42 with a sweep recorded at 14:40:28, so the
+   * scheduler's first tick at 14:43 asked for another and the route refused.
+   *
+   * The scheduler paces from memory, which a deploy empties, while the store
+   * remembers. Unseeded, every restart asks regardless of how recently a
+   * sweep ran; seeded, only a process that has genuinely been away does.
+   */
+  const seeded = (recordedStart: string | null) => recordedStart; // what the tick now does
+
+  assert.equal(sweepDue(seeded(minsAgo(2)), NOW), false, 'a sweep two minutes ago is not due again');
+  assert.equal(
+    sweepDue(null, NOW),
+    true,
+    'and an unseeded process would have asked, which is what the route kept refusing',
+  );
+
+  // A process that has genuinely been away still sweeps on its first tick.
+  assert.equal(sweepDue(seeded(minsAgo(45)), NOW), true);
+  assert.equal(sweepDue(seeded(null), NOW), true, 'nor does an empty store hold the first sweep back');
+
+  // And the seed must leave the route with nothing to refuse: anything the
+  // scheduler now calls due is outside the stand-down window by construction.
+  const atFloor = minsAgo(SWEEP_INTERVAL_MS / 60_000);
+  assert.equal(sweepDue(atFloor, NOW), true);
+  assert.equal(sweepRecent(atFloor, NOW), false);
+});

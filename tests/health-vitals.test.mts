@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { boundedFetch } from '../src/lib/net/bounded';
-import { noteSweepFinished, outboundStarted, readVitals, resetVitals } from '../src/lib/health/vitals';
+import { noteRunStarted, noteSweepFinished, outboundStarted, readVitals, resetVitals } from '../src/lib/health/vitals';
 
 test.beforeEach(() => resetVitals());
 
@@ -165,4 +165,42 @@ test('the counters are actually wired to the fetch everything goes through', asy
   const after = readVitals().outbound;
   assert.equal(after.inFlight, 0, 'a settled call is not');
   assert.equal(after.timedOutRecently, 1, 'and a deadline reached is counted as one');
+});
+
+test('both ends of a run are reported, because only the pair gives a cadence', () => {
+  /*
+   * A cadence is the spacing of starts. Runs vary in length, so successive
+   * finishes are the spacing plus a difference in duration — and reporting
+   * only finishes is why two wrong cadences shipped without being measurable
+   * from outside. Observed: two runs 11m30s apart by finish on a schedule
+   * that was either nine or ten minutes, with no way to tell which.
+   */
+  assert.deepEqual(
+    { start: readVitals().lastRunStartedAt, finish: readVitals().lastSweepFinishedAt },
+    { start: null, finish: null },
+    'a fresh process has seen neither',
+  );
+
+  noteRunStarted('2026-10-19T15:02:00.000Z');
+  noteSweepFinished('2026-10-19T15:02:37.457Z');
+
+  const vitals = readVitals();
+  assert.equal(vitals.lastRunStartedAt, '2026-10-19T15:02:00.000Z');
+  assert.equal(vitals.lastSweepFinishedAt, '2026-10-19T15:02:37.457Z');
+
+  // The next run replaces the start, so successive reads give the spacing.
+  noteRunStarted('2026-10-19T15:12:00.000Z');
+  const next = readVitals();
+  assert.equal(
+    Date.parse(next.lastRunStartedAt!) - Date.parse('2026-10-19T15:02:00.000Z'),
+    10 * 60_000,
+    'ten minutes, readable without knowing how long either run took',
+  );
+});
+
+test('a run start is not a health criterion either', () => {
+  // Same rule as the finish: reported, never gating. A sweep that has not
+  // started is not this machine failing to serve.
+  noteRunStarted('2020-01-01T00:00:00Z');
+  assert.equal(readVitals().saturated, false);
 });
