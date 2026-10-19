@@ -42,6 +42,33 @@ export function gradedAsUndeliveredSinceDelivered(
 }
 
 /**
+ * Whether a run called a delivery unreadable that Pokter has since stored.
+ *
+ * A file is stored only once it matches its on-chain hash, so a stored file
+ * means the earlier "does not match" no longer holds. Nagi's three grid
+ * checks (97:1511–1513) were intact all along: Pokter accepted one way of
+ * hashing and Nagi used another. Once the check learned the second way, the
+ * files could be stored, but a finished run is never looked at again, so the
+ * page would have kept saying "unverifiable".
+ */
+export function gradedAsUnreadableSinceStored(
+  results: ReadonlyArray<{ jobId?: string | null; outcome?: string; observed?: unknown }>,
+  isStored: (jobId: string) => boolean,
+): boolean {
+  return results.some((result) => isMismatchRow(result) && result.jobId != null && isStored(result.jobId));
+}
+
+/*
+ * Only a hash mismatch (`mismatchRow`, which records the served hash).
+ * Graders also call a stored file "unreadable" when it holds no answer they
+ * can read; that row is final, and treating it as stale would regrade it
+ * on every sweep.
+ */
+function isMismatchRow(result: { outcome?: string; observed?: unknown }): boolean {
+  return result.outcome === 'unreadable' && typeof result.observed === 'object' && result.observed !== null && 'served' in result.observed;
+}
+
+/**
  * A delivery Pokter fetched that does not hash to what the job committed
  * on chain. Graded as unreadable, and counted: a buyer cannot verify what
  * they were given. Worded as the fact it is, not as a judgement of intent.
