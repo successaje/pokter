@@ -8,11 +8,12 @@ import { chainLabel } from '@/lib/network/presentation';
 import { Button } from '@/ui/Button';
 import { Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
+import type { ManifestMatch } from '@/lib/erc8183/manifest-match';
 
 type AnswerResponse =
   | { delivered: false }
   | { delivered: true; readable: false; reason: string }
-  | { delivered: true; readable: true; matchesChain: boolean; manifestHash: string; answer: DeliveredAnswer };
+  | { delivered: true; readable: true; matchesChain: boolean; matchedBy?: ManifestMatch | null; manifestHash: string; answer: DeliveredAnswer };
 
 /** A field value as text: short values inline, structures as indented text, nothing interpreted. */
 function Value({ value }: { value: unknown }) {
@@ -167,6 +168,11 @@ export function JobAnswer({
             <span className="text-ink-3">No readable link was published.</span>
           )}
           {data.readable && <span className="t-readout break-all text-[12px] text-ink-3">keccak256 {data.manifestHash}</span>}
+          {data.readable && data.matchedBy === 'sorted-keys' && (
+            <span className="text-[12.5px] text-ink-3">
+              The agent hashed this record with its keys in sorted order, so the hash above (of the file as served) differs from the one on chain. Sorted the same way, it matches: the content is what the agent committed.
+            </span>
+          )}
           <span className="text-[12.5px] text-ink-3">The hash covers the bytes of the delivered record, not any file it links to, and says nothing about whether the answer is right.</span>
           <Button size="s" intent={verify.verified ? 'ghost' : 'secondary'} onClick={verify.run} busy={verify.busy} disabled={verify.verified} className="self-start">
             {verify.verified ? 'Checked: matches' : 'Check it against the chain'}

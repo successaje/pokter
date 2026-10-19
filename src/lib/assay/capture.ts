@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { getErc8183DeliverableUrl, getErc8183Job, verifyErc8183ManifestText } from '@altananetwork/sdk';
+import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { clearDeliverableMismatch, deliverableKey, readDeliverable, readDeliverableMismatch, recordDeliverableMismatch, writeDeliverable } from '@/lib/erc8183/deliverables';
@@ -10,6 +10,7 @@ import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 
 import { readCheckMarker } from './paid-brief';
+import { manifestMatch } from '@/lib/erc8183/manifest-match';
 
 /**
  * Bring an outside agent's delivery into the store the graders read.
@@ -39,7 +40,7 @@ export async function captureDeliverables(jobs: readonly HiredJob[]): Promise<{ 
       const url = job.deliverableUrl ?? (await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined));
       if (!url) throw new Error('no deliverable URL');
       const text = await fetchDeliverableText(url);
-      if (!verifyErc8183ManifestText(text, onchain.deliverable)) {
+      if (!manifestMatch(text, onchain.deliverable)) {
         // Read, but not what was committed: remembered, so the check can say so.
         recordDeliverableMismatch({ jobId: key, servedHash: keccak256(stringToBytes(text)), chainHash: onchain.deliverable, checkedAt: new Date().toISOString() });
         throw new Error('bytes do not match the on-chain hash');
