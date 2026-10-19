@@ -77,6 +77,8 @@ class AssayStore {
     for (const migration of [
       "ALTER TABLE assay_runs ADD COLUMN via TEXT NOT NULL DEFAULT 'free-call'",
       'ALTER TABLE assay_results ADD COLUMN job_id TEXT',
+      // Which grading rules produced a run, so a run graded under older rules can be redone (`GRADING_RULES`).
+      'ALTER TABLE assay_runs ADD COLUMN rules INTEGER NOT NULL DEFAULT 0',
     ]) {
       try {
         this.db.exec(migration);
@@ -89,8 +91,8 @@ class AssayStore {
   record(target: { chainId: number; tokenId: string }, run: Omit<AssayRun, 'ranAt'>): void {
     const ranAt = new Date().toISOString();
     const { lastInsertRowid } = this.db
-      .prepare('INSERT INTO assay_runs (chain_id, token_id, suite, status, detail, passed, total, ran_at, via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(target.chainId, target.tokenId, run.suite, run.status, run.detail, run.passed, run.total, ranAt, run.via);
+      .prepare('INSERT INTO assay_runs (chain_id, token_id, suite, status, detail, passed, total, ran_at, via, rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(target.chainId, target.tokenId, run.suite, run.status, run.detail, run.passed, run.total, ranAt, run.via, run.rules ?? 0);
     const insert = this.db.prepare(
       'INSERT INTO assay_results (run_id, scenario, expected, observed, excerpt, pass, outcome, reason, latency_ms, job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
@@ -111,7 +113,7 @@ class AssayStore {
     const run = this.db
       .prepare("SELECT * FROM assay_runs WHERE chain_id = ? AND token_id = ? AND suite = ? ORDER BY (via = 'paid-hire' AND status = 'checked') DESC, ran_at DESC, id DESC LIMIT 1")
       .get(target.chainId, target.tokenId, suite) as
-      | { id: number; suite: string; status: AssayRunStatus; detail: string | null; passed: number; total: number; ran_at: string; via: AssayVia | null }
+      | { id: number; suite: string; status: AssayRunStatus; detail: string | null; passed: number; total: number; ran_at: string; via: AssayVia | null; rules: number | null }
       | undefined;
     if (!run) return null;
     const rows = this.db.prepare('SELECT * FROM assay_results WHERE run_id = ? ORDER BY rowid').all(run.id) as Array<{
@@ -126,6 +128,7 @@ class AssayStore {
       ranAt: run.ran_at,
       // Rows written before the column existed were all free calls.
       via: run.via ?? 'free-call',
+      rules: run.rules ?? 0,
       results: rows.map((r) => ({
         scenario: r.scenario,
         expected: JSON.parse(r.expected),

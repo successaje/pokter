@@ -204,6 +204,67 @@ function find(record: Record<string, unknown>, key: string, depth = 0): unknown 
 }
 
 /*
+ * The same output under the names agents actually use.
+ *
+ * The briefs say "Reply with JSON only" and name no fields, yet the grader
+ * read one name per output: the names Pokter's own grid agent happens to
+ * use. Nagi answered all three grid scenarios with every figure right —
+ * BNB/USDT, a 2.540% step, nine levels, a 1,000 USDT budget — as `base` and
+ * `quote`, `price_levels` and `budget`, and was graded 0 / 3 for "not
+ * stating" the pair. What is graded is the figure, not its label.
+ *
+ * Kept short on purpose. Each name is one a builder would use for exactly
+ * this output, and every figure is still compared with the expected value,
+ * so a name that matched the wrong thing would fail on its value. A brief
+ * echoed back is not read: `task` arrives as a string, and `find` reads
+ * only nested objects.
+ */
+/**
+ * The revision of the rules `judgeStaticAnswer` grades by. Raise it when a
+ * change could alter a recorded result: a paid run graded under a lower
+ * revision is graded again (`alreadyGraded`), because a finished run is
+ * otherwise never revisited and would keep showing the old verdict.
+ *
+ * 1: outputs read under their common names (`FIELD_NAMES`, `DERIVED`).
+ */
+export const GRADING_RULES = 1;
+
+const FIELD_NAMES: Record<string, string[]> = {
+  // Not `symbol`: a grid answer's symbol is usually the base alone ("BNB"), and would fail as the pair before base and quote were read.
+  pair: ['pair'],
+  step_pct: ['step_pct', 'step_percent', 'grid_step_pct'],
+  levels: ['levels', 'level_count', 'num_levels', 'levels_count'],
+  budget_usd: ['budget_usd', 'budget_usdt', 'budget', 'total_budget'],
+  amount: ['amount', 'principal'],
+  asset: ['asset', 'stablecoin'],
+  holding_days: ['holding_days', 'horizon_days', 'duration_days'],
+  current_apr_pct: ['current_apr_pct', 'current_apr'],
+  threshold_pp: ['threshold_pp', 'min_improvement_pp'],
+};
+
+/** Outputs an answer states in parts: a pair as base and quote, a level count as the list of levels. */
+const DERIVED: Record<string, (record: Record<string, unknown>) => unknown> = {
+  pair: (record) => {
+    const base = find(record, 'base') ?? find(record, 'base_asset');
+    const quote = find(record, 'quote') ?? find(record, 'quote_asset');
+    return typeof base === 'string' && typeof quote === 'string' ? `${base}/${quote}` : undefined;
+  },
+  levels: (record) => {
+    const list = ['price_levels', 'grid_levels', 'levels'].map((key) => find(record, key)).find(Array.isArray);
+    return list ? list.length : undefined;
+  },
+};
+
+function stated(record: Record<string, unknown>, key: string): unknown {
+  for (const name of FIELD_NAMES[key] ?? [key]) {
+    const value = find(record, name);
+    // A list under the expected name ("levels": [...]) is read through DERIVED, not compared as a value.
+    if (value !== undefined && value !== null && !Array.isArray(value)) return value;
+  }
+  return DERIVED[key]?.(record);
+}
+
+/*
  * Services name the same three classes differently: Safe, Caution, Avoid;
  * pass, warn, fail; low, medium, high risk. What is graded is the class,
  * so each word is read into one before comparing. An unrecognised word is
@@ -225,7 +286,7 @@ export function judgeStaticAnswer(expected: Record<string, unknown>, answer: { t
   if (!record) return { pass: false, observed: null, reason: 'No JSON object could be read from the answer.' };
   const observed: Record<string, unknown> = {};
   for (const [key, wanted] of Object.entries(expected)) {
-    const got = find(record, key);
+    const got = stated(record, key);
     observed[key] = got;
     // Not stated is not the same as stated wrongly, and "answered undefined" told a builder nothing.
     if (got === undefined || got === null) return { pass: false, observed, reason: `The answer does not state ${key.replaceAll('_', ' ')}; the scenario expects ${String(wanted)}.` };
