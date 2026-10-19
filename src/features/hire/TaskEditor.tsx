@@ -26,7 +26,11 @@ export function TaskEditor({
   onChange,
   wallet,
   hintId,
+  label = 'Task',
+  placeholder,
 }: {
+  label?: string;
+  placeholder?: string;
   task: string;
   /** The template's fixed field layout; null for a prose task. */
   schema?: TaskField[] | null;
@@ -53,7 +57,7 @@ export function TaskEditor({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-3">
           <label htmlFor="task" className="text-sm font-medium">
-            Task
+            {label}
           </label>
           {fields && (
             <button type="button" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline" onClick={() => setAsJson(false)}>
@@ -61,7 +65,7 @@ export function TaskEditor({
             </button>
           )}
         </div>
-        <Textarea id="task" value={task} onChange={(e) => onChange(e.target.value)} maxLength={2000} className={cn('min-h-40', fields && 't-readout text-[13px]')} aria-describedby={hintId} />
+        <Textarea id="task" value={task} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} maxLength={2000} className={cn('min-h-40', fields && 't-readout text-[13px]')} aria-describedby={hintId} />
       </div>
     );
   }
@@ -73,7 +77,7 @@ export function TaskEditor({
   return (
     <fieldset className="flex flex-col gap-3" aria-describedby={hintId}>
       <div className="flex items-baseline justify-between gap-3">
-        <legend className="text-sm font-medium">Task</legend>
+        <legend className="text-sm font-medium">{label}</legend>
         <button type="button" className="text-[12.5px] font-medium text-ink-2 hover:text-ink hover:underline" onClick={() => setAsJson(true)}>
           Edit as JSON
         </button>

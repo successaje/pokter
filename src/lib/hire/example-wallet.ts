@@ -14,6 +14,9 @@
  * examples, not the template that was last clicked.
  */
 const ADDRESS = /0x[0-9a-fA-F]{40}/g;
+
+/** What an example's account address becomes when it is put in the brief: the buyer's to fill. */
+export const WALLET_PLACEHOLDER = '[wallet address]';
 const PLACEHOLDER = /0x(?:…|\.{2,})(?![0-9a-fA-F])/;
 
 /**
@@ -32,7 +35,7 @@ const PLACEHOLDER = /0x(?:…|\.{2,})(?![0-9a-fA-F])/;
 const NOT_AN_ACCOUNT = /\b(token|contract|pool|pair|vault|market|asset|collection|router|factory|lp|nft|mint|erc-?20|erc-?721)\b["'\s:=,._-]{0,24}$/i;
 
 /** Addresses in `text` that something immediately before names as not an account. */
-function nonAccountAddresses(task: string): Set<string> {
+export function nonAccountAddresses(task: string): Set<string> {
   const skip = new Set<string>();
   for (const match of task.matchAll(ADDRESS)) {
     const before = task.slice(Math.max(0, match.index - 40), match.index);
@@ -59,7 +62,7 @@ export function checkExampleWallets(task: string, examples: readonly string[], c
   const notAccounts = nonAccountAddresses(task);
   return {
     exampleWallets: inTask.filter((a) => fromExamples.has(a) && !confirmed.has(a) && !notAccounts.has(a)),
-    placeholder: PLACEHOLDER.test(task),
+    placeholder: PLACEHOLDER.test(task) || task.includes(WALLET_PLACEHOLDER),
   };
 }
 

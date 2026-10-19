@@ -1,4 +1,5 @@
 import { recipeForExample } from './brief-recipes';
+import { withWalletPlaceholder } from './example-chips';
 
 export interface CommissionTaskTemplate {
   id: 'analyse' | 'recommend' | 'monitor' | `declared-${number}`;
@@ -110,8 +111,13 @@ export function templatesFromSkills(
   for (const skill of skills.filter((s) => s.kind !== 'preview')) {
     for (const example of skill.examples) {
       const task = example.trim();
-      if (!task || seen.has(task.toLowerCase())) continue;
-      seen.add(task.toLowerCase());
+      /* Two examples that differ only in whose wallet they name are one
+         brief: Brinkwatch's card gives it once with an address and once
+         with "0x…", and both became the same chip once the wallet was
+         made the buyer's to fill. */
+      const same = withWalletPlaceholder(task).toLowerCase();
+      if (!task || seen.has(same)) continue;
+      seen.add(same);
       // A JSON example reads as noise on a button; the skill's own name is the label.
       const shown = task.startsWith('{') ? skill.name : task;
       templates.push({

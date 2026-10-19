@@ -35,6 +35,8 @@ import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/Co
 import { explainFailure } from '@/lib/hire/failure';
 import type { AnsweredTask } from '@/lib/agent/answered-tasks';
 import { stoppedHireEvent } from '@/lib/conversion/funnel';
+import { exampleLabels, withWalletPlaceholder } from '@/lib/hire/example-chips';
+import { WALLET_PLACEHOLDER } from '@/lib/hire/example-wallet';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -67,6 +69,8 @@ export interface HireFlowProps {
   answeredTasks?: AnsweredTask[];
   /** A brief to start from, from the link (`?task=`). */
   initialTask?: string | null;
+  /** The networks this agent can be hired on, and how to switch between them (`HireNetworks`). */
+  network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void };
 }
 
 /**
@@ -192,6 +196,46 @@ export function HireFlow(props: HireFlowProps) {
   const busy = hire.state === 'hiring';
   const done = hire.state === 'hired' && hire.job;
   const failure = hire.state === 'error' && hire.error ? explainFailure(hire.error, hire.errorLayer) : null;
+
+  /* Which networks this agent can be hired on, switched in place by `HireNetworks`. */
+  const network = props.network ?? { options: [{ chainId: escrowChainId, deliveredByAgent: hire.provider?.relationship === 'registry-agent' }], onChange: () => {} };
+  const deliveredByAgent = hire.provider?.relationship === 'registry-agent';
+  /* "Other ways to deliver" only when there is another way that works. */
+  const usableProviders = props.providers.filter((p) => p.reachable && p.automatedDelivery).length;
+
+  /*
+   * Examples, as chips that fill the brief. The agent's own card first;
+   * with none, briefs it has answered in earlier paid jobs; with neither,
+   * Pokter's generic wording, which "How this works" says is Pokter's.
+   */
+  const examples = useMemo(() => {
+    const declared = hire.taskTemplates.filter((t) => t.id.startsWith('declared-'));
+    if (declared.length > 0) {
+      const labels = exampleLabels(declared.map((t) => t.task));
+      return {
+        source: 'card' as const,
+        items: declared.map((t, i) => ({ key: t.id, label: t.task.trim().startsWith('{') ? t.label : labels[i], template: t.id, text: t.recipe ? '' : withWalletPlaceholder(t.task) })),
+      };
+    }
+    const answered = (props.answeredTasks ?? []).slice(0, 3);
+    if (answered.length > 0) {
+      const labels = exampleLabels(answered.map((a) => a.task));
+      return { source: 'answered' as const, items: answered.map((a, i) => ({ key: `answered-${a.jobId}`, label: labels[i], template: null, text: withWalletPlaceholder(a.task) })) };
+    }
+    return { source: 'pokter' as const, items: hire.taskTemplates.map((t) => ({ key: t.id, label: t.label, template: t.id, text: withWalletPlaceholder(t.task) })) };
+  }, [hire.taskTemplates, props.answeredTasks]);
+  type Example = (typeof examples.items)[number];
+  /* The brief as an example left it; anything else is the buyer's own writing. */
+  const [insertedText, setInsertedText] = useState<string | null>(null);
+  const [pendingExample, setPendingExample] = useState<string | null>(null);
+  const pending = examples.items.find((e) => e.key === pendingExample) ?? null;
+  const briefEdited = hire.task.trim() !== '' && hire.task !== insertedText;
+  const applyExample = (example: Example) => {
+    if (example.template) hire.chooseTemplate(example.template);
+    else hire.setTask(example.text);
+    setInsertedText(example.text);
+    setPendingExample(null);
+  };
 
   const passkeySteps = useMemo(
     () => [
@@ -331,175 +375,170 @@ export function HireFlow(props: HireFlowProps) {
 
       {step === 'describe' && (
         <div className="anim-fade flex flex-col gap-6">
-          <div>
-            <h1 className="t-h2">What should {props.agent.name} do?</h1>
-            <p className="mt-1 text-sm text-ink-2">Start from a template or write your own. The agent reads exactly this.</p>
-          </div>
-          {(props.escrowOptions?.length ?? 0) > 1 && (
-            <div role="radiogroup" aria-label="Where to hire" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {props.escrowOptions!.map((option) => {
-                const selected = option === escrowChainId;
-                return (
-                  <Link
-                    key={option}
-                    role="radio"
-                    aria-checked={selected}
-                    replace
-                    scroll={false}
-                    href={`/hire/${props.agent.chainId}/${props.agent.tokenId}?escrow=${option}`}
-                    className={cn(
-                      'flex flex-col gap-0.5 rounded-[12px] border p-3.5 text-left transition-colors',
-                      selected ? 'border-ink bg-raised' : 'border-rule hover:border-rule-strong',
-                    )}
-                  >
-                    <span className="text-sm font-medium">{option === 56 ? 'Hire on BNB Chain' : 'Try free on testnet'}</span>
-                    <span className="text-[12.5px] text-ink-2">
-                      {option === 56
-                        ? 'Real $U from a browser wallet. The agent is paid directly, at its signed price.'
-                        : 'Test tokens, no cost. Pokter’s delivery agent carries your task to it and returns its answer.'}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          {!props.embedded && <h1 className="t-h2">Hire {props.agent.name}</h1>}
+
           {/*
-            The phrasings this agent is known to answer, from its own
-            delivered jobs. Some sellers parse only a narrow form: Sluicegate
-            answered nine one-line questions and returned an error for a
-            five-line brief with the same facts. Shown before the generic
-            templates because they are evidence about this agent.
+            Where it is funded and who delivers, as one choice with one line
+            under it. The two cards this replaced each held a paragraph; the
+            longer account is under "How this works".
           */}
-          {props.answeredTasks && props.answeredTasks.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">Wording that previously returned an output</span>
-                <span className="text-[12.5px] text-ink-3">
-                  From delivered jobs paid to this agent’s wallet, where the delivery held content rather than only an error. That shows
-                  the wording was understood, not that the answer was right.
-                </span>
-              </div>
-              <div role="radiogroup" aria-label="Wording that previously returned an output" className="flex flex-col gap-2">
-                {props.answeredTasks.map((answered) => (
-                  <div key={answered.task} className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
+            {network.options.length > 1 && (
+              <div role="radiogroup" aria-label="Network" className="grid grid-cols-2 gap-1 rounded-[10px] border border-rule bg-sunken p-1">
+                {network.options.map((option) => {
+                  const selected = option.chainId === escrowChainId;
+                  return (
                     <button
+                      key={option.chainId}
                       type="button"
                       role="radio"
-                      aria-checked={hire.task === answered.task}
-                      onClick={() => hire.setTask(answered.task)}
-                      className={cn('flex items-start gap-2.5 rounded-[12px] border p-3 text-left text-[13.5px] transition-colors', hire.task === answered.task ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
+                      aria-checked={selected}
+                      onClick={() => network.onChange(option.chainId)}
+                      className={cn('h-9 rounded-[7px] text-sm font-medium transition-colors', selected ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}
                     >
-                      <Icon.Check size={14} className="mt-0.5 shrink-0 text-ok" />
-                      <span className="flex flex-col gap-0.5">
-                        <span>{answered.task}</span>
-                        <span className="text-[11.5px] text-ink-3">
-                          Job #{answered.jobId} on {chainLabel(answered.chainId)}
-                          {answered.figures.length > 0 ? ` · ${answered.figures.join(', ')} were that buyer’s figures: change them to yours` : ''}
-                        </span>
-                      </span>
+                      {option.chainId === 56 ? 'BNB Chain' : 'Testnet'}
                     </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          )}
-          <BriefSourceNotice
-            source={hire.briefSource}
-            agentName={props.agent.name}
-            chainId={props.agent.chainId}
-            tokenId={props.agent.tokenId}
-            task={hire.task}
-            preview={hire.previewSkill}
-            wallet={hire.active.address ?? null}
-            onUseExample={hire.setTask}
-          />
-          <div role="radiogroup" aria-label="Task templates" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {hire.taskTemplates.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="radio"
-                aria-checked={hire.selectedTemplate === t.id}
-                onClick={() => hire.chooseTemplate(t.id)}
-                className={cn('flex flex-col gap-1 rounded-[12px] border p-3.5 text-left transition-colors', hire.selectedTemplate === t.id ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
-              >
-                <span className="text-sm font-semibold">{t.label}</span>
-                <span className="text-[12.5px] leading-snug text-ink-3">{t.description}</span>
-              </button>
-            ))}
+            )}
+            <p className="text-[13px] text-ink-2">
+              {network.options.length <= 1 && <>{networkLabel} · </>}
+              {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : 'Delivery relayed by Pokter'}
+            </p>
           </div>
-          {recipeById(hire.recipeId ?? undefined) && (
-            <GuidedBrief
-              key={hire.recipeId}
-              recipe={recipeById(hire.recipeId ?? undefined)!}
-              example={hire.recipeExample}
-              agentName={props.agent.name}
+
+          <div className="flex flex-col gap-3">
+            <TaskEditor
+              label="Your brief"
+              placeholder="What should this agent do? Include the wallet address if needed."
               task={hire.task}
-              onChange={hire.setTaskKeepingFormat}
+              schema={hire.taskSchema}
+              onChange={(value) => {
+                setPendingExample(null);
+                hire.setTask(value);
+              }}
+              wallet={hire.active.address ?? null}
+              hintId="task-hint"
             />
-          )}
-          <div className="flex flex-col gap-1.5">
-            <TaskEditor task={hire.task} schema={hire.taskSchema} onChange={hire.setTask} wallet={hire.active.address ?? null} hintId="task-hint" />
+            {recipeById(hire.recipeId ?? undefined) && (
+              <GuidedBrief
+                key={hire.recipeId}
+                recipe={recipeById(hire.recipeId ?? undefined)!}
+                example={hire.recipeExample}
+                agentName={props.agent.name}
+                task={hire.task}
+                onChange={hire.setTaskKeepingFormat}
+              />
+            )}
             <p id="task-hint" className="flex justify-between gap-3 text-[12.5px] text-ink-3">
-              <span>Stored on chain with the job, so anyone can read it. Never include keys, seed phrases or passwords.</span>
+              <span>Your brief is public on-chain. Don’t include secrets.</span>
               <span className="t-readout shrink-0">{hire.task.length}/2000</span>
             </p>
           </div>
 
-          {props.providers.length > 0 && (
-            <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />
-          )}
-          <div className={cn('flex justify-end', actionRow)}>
-            {/*
-              Said before the money moves, not discovered after.
-
-              The escrow will not let a seller deliver to itself, and
-              Pokter knew both addresses the whole time. Two mainnet jobs
-              were funded this way and can never be completed by anyone.
-            */}
-            {/*
-              An example's wallet is someone else's account. Said before the
-              quote, with the two honest ways on: swap in the buyer's own
-              wallet, or confirm this is the wallet they mean.
-            */}
-            {hire.exampleCheck.exampleWallets.map((example) => (
-              <Notice key={example} tone="watch" title="This brief checks the example wallet from the agent’s card" className="w-full">
-                <span className="t-readout">{shortAddress(example)}</span> came with the example, so the report would be about that wallet, not yours.
-                <span className="mt-3 flex flex-wrap gap-2">
-                  {hire.active.address && hire.active.address.toLowerCase() !== example && (
-                    <Button size="s" onClick={() => hire.adoptOwnWallet(example)}>
-                      Use my wallet {shortAddress(hire.active.address)}
-                    </Button>
-                  )}
-                  <Button size="s" intent="secondary" onClick={() => hire.confirmExampleWallet(example)}>
-                    I mean this wallet
+          {examples.items.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Need an example?</span>
+              <div className="flex flex-wrap gap-2">
+                {examples.items.map((example) => (
+                  <button
+                    key={example.key}
+                    type="button"
+                    onClick={() => (briefEdited ? setPendingExample(example.key) : applyExample(example))}
+                    className={cn('rounded-full border px-3 py-1.5 text-[13px] transition-colors', pendingExample === example.key ? 'border-ink bg-raised' : 'border-rule bg-paper hover:border-rule-strong')}
+                  >
+                    {example.label}
+                  </button>
+                ))}
+              </div>
+              {/* An example never silently replaces what the buyer wrote. */}
+              {pending && (
+                <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2" role="status">
+                  <span>Replace what you wrote with “{pending.label}”?</span>
+                  <Button size="s" intent="secondary" onClick={() => applyExample(pending)}>
+                    Replace
                   </Button>
-                </span>
-                {!hire.active.address && <span className="mt-2 block text-[12.5px] text-ink-3">Or replace it in the brief above with the wallet you want checked.</span>}
-              </Notice>
-            ))}
-            {/*
-              The agent's answer to this exact brief, before any wallet. The
-              brief stays as written; nothing is changed or resent for the
-              buyer. Fix it, or pick another agent, and ask again.
-            */}
-            {hire.quoteFailure && (
-              <Notice tone={hire.quoteFailure.layer === 'network' ? 'watch' : 'bad'} title={explainFailure(hire.quoteFailure.message, hire.quoteFailure.layer).title} className="w-full">
-                {hire.quoteFailure.message} Your brief is kept as you wrote it.
-              </Notice>
-            )}
-            {hire.selfHire && (
-              <Notice tone="bad" title="This wallet is the agent's own provider">
-                You would be paying yourself, and the escrow will not accept a delivery
-                where the seller and the buyer are the same wallet — the job would sit
-                funded until it expired and you reclaimed it. Hire from a different
-                wallet to test this agent end to end.
-                {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
-              </Notice>
-            )}
-            {(taskIssues.length > 0 || hire.exampleCheck.placeholder) && (
-              <p className="mr-auto self-center text-[12.5px] text-ink-3">
-                To continue: {[...taskIssues, ...(hire.exampleCheck.placeholder ? ['replace “0x…” with the wallet to check'] : [])].join('; ')}.
+                  <Button size="s" intent="ghost" onClick={() => setPendingExample(null)}>
+                    Keep mine
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/*
+            Said before the money moves, in the form rather than pinned over
+            it. On a phone the pinned row held the example-wallet notice and
+            covered half of the brief it was about.
+          */}
+          {hire.exampleCheck.exampleWallets.map((example) => (
+            <Notice key={example} tone="watch" title="This brief checks the example wallet from the agent’s card">
+              <span className="t-readout">{shortAddress(example)}</span> came with the example, so the report would be about that wallet, not yours.
+              <span className="mt-3 flex flex-wrap gap-2">
+                {hire.active.address && hire.active.address.toLowerCase() !== example && (
+                  <Button size="s" onClick={() => hire.adoptOwnWallet(example)}>
+                    Use my wallet {shortAddress(hire.active.address)}
+                  </Button>
+                )}
+                <Button size="s" intent="secondary" onClick={() => hire.confirmExampleWallet(example)}>
+                  I mean this wallet
+                </Button>
+              </span>
+            </Notice>
+          ))}
+          {/*
+            The agent's answer to this exact brief, before any wallet. The
+            brief stays as written; nothing is changed or resent for the
+            buyer. Fix it, or pick another agent, and ask again.
+          */}
+          {hire.quoteFailure && (
+            <Notice tone={hire.quoteFailure.layer === 'network' ? 'watch' : 'bad'} title={explainFailure(hire.quoteFailure.message, hire.quoteFailure.layer).title}>
+              {hire.quoteFailure.message} Your brief is kept as you wrote it.
+            </Notice>
+          )}
+          {/*
+            The escrow will not let a seller deliver to itself, and Pokter
+            knew both addresses the whole time. Two mainnet jobs were funded
+            this way and can never be completed by anyone.
+          */}
+          {hire.selfHire && (
+            <Notice tone="bad" title="This wallet is the agent's own provider">
+              You would be paying yourself, and the escrow will not accept a delivery where the seller and the buyer are the same wallet. Hire from a different wallet to test this agent end to end.
+              {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
+            </Notice>
+          )}
+
+          <Details summary="How this works">
+            <div className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-ink-2">
+              <p>{examples.source === 'card' ? `The examples come from ${props.agent.name}’s own card. A wallet in them is replaced with [wallet address] for you to fill.` : examples.source === 'answered' ? `The examples are briefs ${props.agent.name} returned an answer to in earlier paid jobs. That shows the wording was understood, not that the answer was right.` : `${props.agent.name}’s card publishes no example request, so the examples are Pokter’s generic wording, not a format this agent is known to support. If it cannot use a brief, it declines to quote and nothing is paid.`}</p>
+              <p>{testnet ? (deliveredByAgent ? `On testnet you pay in test tokens with no value, and ${props.agent.name} delivers from its own wallet.` : `On testnet you pay in test tokens with no value. Pokter’s delivery agent carries your brief to ${props.agent.name} and returns its answer unchanged; if it does not answer, nothing is delivered and you reclaim the escrow after the deadline.`) : `On BNB Chain you pay in real $U from your own wallet, and ${props.agent.name} is paid at its signed price once it delivers and the review window passes.`}</p>
+              <p>Your brief is stored with the job on chain, where anyone can read it. The price, the delivery deadline and the escrow rules are on the next step, before anything is signed.</p>
+              {/* The choice the line at the top summarises, offered only when another way would work. */}
+              {usableProviders > 1 && <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />}
+              <BriefSourceNotice
+                source={hire.briefSource}
+                agentName={props.agent.name}
+                chainId={props.agent.chainId}
+                tokenId={props.agent.tokenId}
+                task={hire.task}
+                preview={hire.previewSkill}
+                wallet={hire.active.address ?? null}
+                onUseExample={hire.setTask}
+              />
+            </div>
+          </Details>
+
+          <div className={cn('flex items-center justify-end gap-3', actionRow)}>
+            {/* A disabled button always says why. "Who delivers" used to say it when nobody could; that box is now folded away. */}
+            {(taskIssues.length > 0 || hire.exampleCheck.placeholder || !hire.providerCanDeliver) && (
+              <p className="mr-auto text-[12.5px] text-ink-3">
+                {hire.providerCanDeliver ? 'To continue: ' : ''}
+                {[
+                  ...(!hire.providerCanDeliver ? [`Nobody can deliver this job on ${networkLabel} right now${network.options.length > 1 ? '; try the other network' : ''}`] : []),
+                  ...taskIssues,
+                  ...(hire.exampleCheck.placeholder ? [hire.task.includes(WALLET_PLACEHOLDER) ? `replace ${WALLET_PLACEHOLDER} with the wallet to check` : 'replace “0x…” with the wallet to check'] : []),
+                ].join('; ')}.
               </p>
             )}
             <Button

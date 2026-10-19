@@ -4,8 +4,7 @@ import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
 import { loadProfile } from '@/features/agent/profile';
-import { chainLabel } from '@/lib/network/presentation';
-import { HireFlow } from '@/features/hire/HireFlow';
+import { HireNetworks } from '@/features/hire/HireNetworks';
 import type { ChainId } from '@/lib/scan/types';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -62,20 +61,34 @@ export async function HireContents({
     );
   }
 
+  /*
+   * Every escrow this agent can be hired on, loaded together so the form
+   * can switch between them in place (`HireNetworks`). The dossier behind
+   * them is read once and shared; only the escrow-specific parts differ.
+   */
+  const others = await Promise.all(
+    p.escrowOptions
+      .filter((option) => option !== p.escrow.chainId)
+      .map((option) => loadProfile(chainId as ChainId, tokenId, { escrow: option })),
+  );
+  const networks = [p, ...others.flatMap((r) => (r.state === 'ok' && r.profile.escrow.chainId !== p.escrow.chainId ? [r.profile] : []))]
+    .sort((a, b) => p.escrowOptions.indexOf(a.escrow.chainId) - p.escrowOptions.indexOf(b.escrow.chainId))
+    .map((profile) => ({
+      chainId: profile.escrow.chainId,
+      escrow: profile.escrow,
+      providers: profile.providers,
+      signedQuoteU: profile.quote && profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
+      lastSignedU: profile.quote && !profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
+      suggestedU: profile.suggestion?.u ?? null,
+      warnings: profile.warnings,
+    }));
+
   return (
-    // Keyed on the escrow, so switching between hiring options starts the
-    // form again rather than carrying a provider chosen for the other chain.
-    <HireFlow
-      key={p.escrow.chainId}
+    <HireNetworks
+      networks={networks}
+      initialChainId={p.escrow.chainId}
       embedded={embedded}
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
-      providers={p.providers}
-      signedQuoteU={p.quote && p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
-      lastSignedU={p.quote && !p.quote.current && p.quote.payable !== false ? p.quote.priceU : null}
-      suggestedU={p.suggestion?.u ?? null}
-      warnings={p.warnings}
-      escrow={p.escrow}
-      escrowOptions={p.escrowOptions}
       declaredSkills={p.skills}
       answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
@@ -103,13 +116,7 @@ export async function hireSheetAgent(chainId: number, tokenId: string, escrow?: 
   const result = await loadProfile(chainId as ChainId, tokenId, { escrow: jobChainParam(escrow) });
   if (result.state !== 'ok') return fallback;
   const p = result.profile;
-  const price = p.quote && p.quote.payable !== false ? p.quote.label : null;
-  return {
-    name: p.name,
-    imageUrl: p.imageUrl,
-    seed: p.key,
-    /* Price first when there is one, then where it settles. A buyer opening
-       this is deciding whether to spend, and on which kind of money. */
-    subline: [price, `escrowed on ${chainLabel(p.escrow.chainId)}`, p.escrow.chainId === 97 ? 'test tokens' : null].filter(Boolean).join(' \u00b7 '),
-  };
+  /* The title only. Price and network sat here too, and went stale the
+     moment the form below switched network; they are in the form. */
+  return { name: p.name, imageUrl: p.imageUrl, seed: p.key, subline: '' };
 }
