@@ -15,10 +15,41 @@ import {
 const NOW = Date.parse('2026-10-15T13:00:00Z');
 const minsAgo = (m: number) => new Date(NOW - m * 60_000).toISOString();
 
-test('a sweep is due ten minutes after the last one finished, or when none ever has', () => {
+test('a sweep is due ten minutes after the last one started, or when none ever has', () => {
   assert.equal(sweepDue(minsAgo(9), NOW), false);
   assert.equal(sweepDue(minsAgo(10), NOW), true);
   assert.equal(sweepDue(null, NOW), true);
+});
+
+test('pacing from a run start holds the cadence; pacing from its finish does not', () => {
+  /*
+   * The bug this encodes, measured in production: runs at 12:40:07 and
+   * 12:58:25, eighteen minutes apart on a ten-minute schedule.
+   *
+   * The scheduler checks on a fixed tick. Fed the last *finish*, the age it
+   * sees at the next tick is the interval minus however long the run took —
+   * always just short of due, so the sweep slips to the tick after, and the
+   * cadence doubles. Fed the last *start*, the age is exactly the interval.
+   */
+  const TICK = 10 * 60_000;
+  const RUN = 150_000; // a real run: mainnet at ~12:39:28, testnet at ~12:40:07
+
+  const started = NOW;
+  const finished = started + RUN;
+  const nextTick = started + TICK;
+
+  const iso = (t: number) => new Date(t).toISOString();
+
+  assert.equal(
+    sweepDue(iso(finished), nextTick),
+    false,
+    'from the finish the tick is short by the run, so nothing sweeps',
+  );
+  assert.equal(sweepDue(iso(started), nextTick), true, 'from the start it is exactly due');
+
+  // And the tick after that is where a finish-paced schedule actually lands,
+  // which is the doubling.
+  assert.equal(sweepDue(iso(finished), started + 2 * TICK), true);
 });
 
 test('a backup trigger stands down just inside the sweep interval', () => {
@@ -119,9 +150,12 @@ test('the run budget stays inside the platform ceiling and the tick', () => {
     SWEEP_RUN_BUDGET_MS < MAX_DURATION_MS,
     'a run must finish early enough to report what it did',
   );
+  // Runs now start on the interval rather than a run-length after the last
+  // one finished, so the budget has to fit inside the interval — and by more
+  // than a hair, since the machine also has a site to serve.
   assert.ok(
     SWEEP_RUN_BUDGET_MS * 2 <= SWEEP_INTERVAL_MS,
-    'two runs must never be able to overlap',
+    'a run must finish well inside the gap before the next one starts',
   );
   // And the probing share must leave the follow-on steps something to use.
   assert.ok(SWEEP_BUDGET_MS * 2 < SWEEP_RUN_BUDGET_MS, 'probing cannot claim the whole run');
