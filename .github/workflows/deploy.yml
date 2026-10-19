@@ -90,17 +90,53 @@ jobs:
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
+      # Two attempts, for the reason the build step above already gives: a
+      # second attempt costs minutes where a false red costs a release. The
+      # build had this and the deploy did not, which is the wrong way round —
+      # a build that fails leaves main undeployed and says so loudly in the
+      # pull request, while a deploy that fails leaves main and production
+      # silently diverged. The health check cannot see it either, since it
+      # reports on the code that is running, which is fine, just old.
+      #
+      # On 19 October the remote builder cancelled one second in, before it
+      # had read the Dockerfile: `failed to read dockerfile: context
+      # canceled`. Nothing about the release was wrong, and the same commit
+      # deployed on a re-run by hand, after someone noticed a red tick.
+      #
+      # Safe to repeat: the deploy rolls out an image built from a fixed
+      # commit, the concurrency group above keeps two releases off the
+      # machine, and a retry after a partial rollout rolls out the same image
+      # again. The warning marks any release that needed the second go, so a
+      # new flake shows up as a pattern instead of vanishing into a green tick.
       - name: Deploy
-        run: flyctl deploy --remote-only --config fly.toml
+        run: |
+          for attempt in 1 2; do
+            if flyctl deploy --remote-only --config fly.toml; then exit 0; fi
+            echo "::warning::Deploy attempt ${attempt} of 2 failed; retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Deploy failed twice."
+          exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      # `saturated` counts as serving. The health route reports three states:
+      # `ok`, `saturated` for a machine that is serving badly, and `degraded`
+      # for the storage faults that mean it cannot serve at all — and only
+      # the last is a reason to call a release bad. Matching `ok` alone made
+      # a release fail whenever the new machine happened to be busy in the
+      # seconds after boot, which is when it warms its caches and runs its
+      # first sweep. A green deploy that turns on the timing of a sweep is
+      # not a check, it is a coin toss.
       - name: Verify production health
         run: |
           response=$(curl --fail --silent --show-error \
             --retry 6 --retry-all-errors --retry-delay 5 \
             --max-time 20 https://pokter.xyz/api/health)
-          echo "$response" | grep -q '"status":"ok"'
+          echo "$response" | grep -qE '"status":"(ok|saturated)"'
+          if echo "$response" | grep -q '"status":"saturated"'; then
+            echo "::warning::Released, but the machine reports saturated serving: $response"
+          fi
 
       - name: Verify critical public journeys
         run: |

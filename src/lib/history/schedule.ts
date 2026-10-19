@@ -9,6 +9,24 @@
  * rules, and GitHub's cron stays as a backup that skips when one is recent.
  */
 
+/**
+ * How often the scheduler wakes up, which is what actually sets the cadence.
+ *
+ * Here rather than in ./scheduler because `SWEEP_INTERVAL_MS` only means
+ * anything in relation to it, and getting that relation wrong has now cost
+ * two releases. A test asserts it.
+ */
+export const SWEEP_TICK_MS = 10 * 60 * 1000;
+
+/**
+ * When the first tick fires after boot, earlier than the rest.
+ *
+ * `setInterval` is anchored to boot, not to this timer, so the gap between
+ * the first tick and the second is `SWEEP_TICK_MS` minus this — the tightest
+ * gap in the schedule, and the one the floor below has to clear.
+ */
+export const SWEEP_FIRST_TICK_MS = 60_000;
+
 /*
  * One sweep every ten minutes, each one bounded.
  *
@@ -21,25 +39,44 @@
  *
  * A sweep now measures a batch of the agents whose readings are oldest, under
  * a wall-clock budget (`SWEEP_BUDGET_MS` below), so the interval is free
- * to be short. Ten minutes at `SWEEP_MAX_AGENTS` apiece covers a roster of
- * three hundred in about an hour — better than the two-hourly full sweep it
- * replaces, and no single run can occupy the process.
+ * to be short. `SWEEP_TICK_MS` at `SWEEP_MAX_AGENTS` apiece covers a roster
+ * of three hundred in about an hour — better than the two-hourly full sweep
+ * it replaces, and no single run can occupy the process.
+ *
+ * **This is a floor, not the cadence.** The cadence is `SWEEP_TICK_MS`: the
+ * scheduler sweeps on every tick, and this only stops it sweeping twice if
+ * ticks ever bunch up. It therefore has to sit clear of the tightest gap
+ * between ticks, which is the first one — and it did not. Set equal to the
+ * tick, every tick landed a hair short of due and the sweep slipped to the
+ * one after, so a ten-minute schedule ran at eighteen. Pacing from a run's
+ * start rather than its finish fixed half of that; the other half is that a
+ * threshold equal to the gap it is tested against is decided by timer drift,
+ * and drifts silently towards half the intended rate.
  */
-export const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+export const SWEEP_INTERVAL_MS = 7 * 60 * 1000;
 /**
  * A backup trigger inside this window finds a recent sweep and stands down.
  *
- * Just under the interval, so GitHub's cron still skips a sweep that has only
- * just run, without suppressing the next scheduled batch.
+ * At or under `SWEEP_INTERVAL_MS`, and that bound is not cosmetic: this is
+ * checked in the route, which the scheduler goes through, so a window longer
+ * than the scheduler's own floor would have the route refusing sweeps the
+ * scheduler had correctly decided were due. It was eight minutes against a
+ * ten-minute floor, which was safe only by coincidence; the floor is now
+ * seven, and a test holds the relationship.
+ *
+ * The cost of the smaller window is that GitHub's two-hourly backup may
+ * sweep a few minutes after a scheduled one rather than standing down. That
+ * is one extra bounded run every couple of hours, against the alternative of
+ * the route silently halving the cadence again.
  */
-export const RECENT_SWEEP_MS = 8 * 60 * 1000;
+export const RECENT_SWEEP_MS = 6 * 60 * 1000;
 /**
  * A whole sweep run: the measurements and everything that rides on them.
  *
  * Two constraints fix this number, and both are why it lives beside the
  * interval rather than in the route. It must sit below the platform's
  * `maxDuration` of 300s, so the route *answers* rather than being cut off
- * with nothing to report. And it must sit below half `SWEEP_INTERVAL_MS`, so
+ * with nothing to report. And it must sit below half `SWEEP_TICK_MS`, so
  * two runs can never meet on the one CPU that also serves the site — the
  * route's `sweepRunning` guard would turn the second away, but a guard that
  * is load-bearing every tick is a design relying on being refused.
@@ -176,7 +213,11 @@ export const SWEEP_REGISTRY_PAGE = 50;
  *
  * So each run reads one page and the page advances with the schedule, which
  * costs a third of what a single old run did while covering the same depth
- * over three runs. Nothing is lost by not re-reading a page: the registry
+ * over three runs. Keyed to `SWEEP_TICK_MS`, because a run happens on a tick:
+ * it was keyed to `SWEEP_INTERVAL_MS`, which was the same number until that
+ * became a floor sitting below the cadence, at which point the page would
+ * have advanced faster than runs occurred and skipped part of the registry
+ * on every lap. Nothing is lost by not re-reading a page: the registry
  * tier exists to *discover* agents, and the store remembers every agent it
  * has ever probed, so one sighting puts an agent on the roster permanently.
  * A newly sighted agent has no reading at all, so `sweepBatch` puts it at the
@@ -191,5 +232,5 @@ export function registryPageOffset(
   pageSize = SWEEP_REGISTRY_PAGE,
 ): number {
   const pages = Math.max(1, Math.ceil(depth / pageSize));
-  return (Math.floor(now / SWEEP_INTERVAL_MS) % pages) * pageSize;
+  return (Math.floor(now / SWEEP_TICK_MS) % pages) * pageSize;
 }
