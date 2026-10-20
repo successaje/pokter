@@ -151,6 +151,7 @@ export function ProfileEditor({
       clean.tags.length > 0 && `What you build: ${clean.tags.map((t) => CATEGORIES.find((c) => c.id === t)?.label).join(', ')}`,
       clean.links.length > 0 && `${clean.links.length} ${clean.links.length === 1 ? 'link' : 'links'}`,
       clean.usage && `Role: ${USAGES.find((u) => u.id === clean.usage)?.role}`,
+      clean.showWallet && 'Your wallet address',
       clean.showBuilding && `Building: ${chosen.length} ${chosen.length === 1 ? 'agent' : 'agents'} you chose, each with its own record and its eligible reviews`,
       clean.showHiring && `Hiring: ${hiringActivity.requests} public ${hiringActivity.requests === 1 ? 'request' : 'requests'} and counts of the ${hiringActivity.jobsFunded} ${hiringActivity.jobsFunded === 1 ? 'job' : 'jobs'} you funded (never amounts)`,
     ].filter(Boolean) as string[];
@@ -345,6 +346,12 @@ export function ProfileEditor({
             )}
           </div>
         )}
+        <Checkbox
+          checked={draft.showWallet}
+          onChange={(e) => set({ showWallet: e.target.checked })}
+          label="Show my wallet address"
+          description="Off: the profile leads with your handle and picture. Your agents still name this wallet in the public registry."
+        />
         <Checkbox
           checked={draft.showHiring}
           onChange={(e) => set({ showHiring: e.target.checked })}

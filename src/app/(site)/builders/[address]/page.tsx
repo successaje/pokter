@@ -4,7 +4,6 @@ import { notFound, redirect } from 'next/navigation';
 import { getAddress, isAddress, type Address } from 'viem';
 
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
-import { verifiedPublisherByOwner } from '@/lib/builders/store';
 import { getBriefStore } from '@/lib/briefs/store';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, type NetworkRecord } from '@/lib/profiles/evidence';
@@ -91,7 +90,7 @@ export default async function ProfilePage({
   const images = await resolveAgentImages(owned);
   const ownedOptions = owned.map((a, i) => {
     const cat = classify(a);
-    return { key: `${a.chain_id}:${a.token_id}`, chainId: a.chain_id, tokenId: a.token_id, name: a.name, imageUrl: images[i], category: cat === 'unclassified' ? null : (CATEGORY_BY_ID.get(cat)?.label ?? null) };
+    return { key: `${a.chain_id}:${a.token_id}`, chainId: a.chain_id, tokenId: a.token_id, name: a.name, description: a.description ?? '', imageUrl: images[i], category: cat === 'unclassified' ? null : (CATEGORY_BY_ID.get(cat)?.label ?? null) };
   });
   const byKey = new Map(ownedOptions.map((o) => [o.key, o]));
   const hiring = hirerRecord(wallet);
@@ -105,7 +104,6 @@ export default async function ProfilePage({
    */
   const chosen = published?.showBuilding ? published.agents : [];
   const live = await Promise.all(chosen.map((key) => registryOwner(Number(key.split(':')[0]), key.split(':')[1]).catch(() => null)));
-  const verifiedKeys = new Set(verifiedPublisherByOwner(wallet).map((v) => `${v.chainId}:${v.tokenId}`));
   const shown = chosen
     .map((key, i) => ({ key, status: live[i] === null ? ('unavailable' as const) : live[i] === wallet ? ('owned' as const) : ('elsewhere' as const) }))
     .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere')
@@ -117,10 +115,10 @@ export default async function ProfilePage({
         chainId: Number(chain),
         tokenId: token,
         name: option?.name ?? `Agent #${token}`,
+        description: option?.description ?? '',
         imageUrl: option?.imageUrl ?? null,
         category: option?.category ?? null,
         pinned: published!.pinned.includes(a.key),
-        proved: a.status === 'owned' && verifiedKeys.has(a.key),
       };
     })
     .sort((x, y) => Number(y.pinned) - Number(x.pinned));
@@ -195,24 +193,33 @@ export default async function ProfilePage({
             <span className="text-ink-3">This wallet signed this profile. That proves who wrote it, not that it is true.</span>
           </li>
         )}
-        {shown.some((a) => a.proved) && (
+        {shown.some((a) => a.status === 'owned') && (
           <li className="flex flex-col">
             <span className="inline-flex items-center gap-1 font-medium text-ok">
               <Icon.Shield size={13} aria-hidden /> Agent ownership verified
             </span>
-            <span className="text-ink-3">{shown.filter((a) => a.proved).length} of the agents shown: the registry owner signed, and the registry still names this wallet.</span>
+            <span className="text-ink-3">For the agents shown: the registry names the wallet that signed this profile as their owner, checked just now.</span>
           </li>
         )}
-        <li className="flex items-center gap-2 text-ink-3">
-          Wallet <span className="t-readout text-ink-2">{short(wallet)}</span> <CopyButton value={wallet} label="Copy address" />
-        </li>
+        {/* The address only when the owner chose to show it; a wallet without a profile has nothing else to be known by. */}
+        {(!published || published.showWallet) && (
+          <li className="flex items-center gap-2 text-ink-3">
+            Wallet <span className="t-readout text-ink-2">{short(wallet)}</span> <CopyButton value={wallet} label="Copy address" />
+          </li>
+        )}
       </ul>
 
-      {published && (published.showBuilding || published.showHiring) && (
+      {/* Counts for the view being read, and only ones attributable to this person. */}
+      {published && sections.length > 0 && (
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
-          {published.showBuilding && <MiniStat label="Agents shown" value={String(shown.length)} />}
-          {published.showHiring && <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />}
-          {published.showHiring && <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />}
+          {view === 'building' ? (
+            <MiniStat label="Agents published" value={String(shown.length)} />
+          ) : (
+            <>
+              <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
+              <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />
+            </>
+          )}
         </dl>
       )}
       {published && <p className="text-[11.5px] leading-snug text-ink-3">Name, bio, tags and links are self-provided. Pokter does not endorse them or guarantee any agent&rsquo;s performance.</p>}
@@ -278,7 +285,7 @@ function Empty({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-type ShownAgent = { key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; status: 'owned' | 'unavailable'; pinned: boolean; proved: boolean };
+type ShownAgent = { key: string; chainId: number; tokenId: string; name: string; description: string; imageUrl: string | null; category: string | null; status: 'owned' | 'unavailable'; pinned: boolean };
 
 /** Shown for a wallet with no published profile: registry facts only, labelled as not chosen by anyone. */
 function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean }) {
@@ -326,7 +333,7 @@ function RecordTable({ mainnet, testnet }: { mainnet: NetworkRecord; testnet: Ne
       <thead>
         <tr className="text-left text-[11.5px] text-ink-3">
           <th className="py-1.5 font-normal" scope="col">
-            Outside jobs
+            External customer jobs
           </th>
           <th className="py-1.5 text-right font-normal" scope="col">
             Mainnet
@@ -351,44 +358,58 @@ function RecordTable({ mainnet, testnet }: { mainnet: NetworkRecord; testnet: Ne
   );
 }
 
+/**
+ * An agent as a portfolio piece: what it does, where it runs, whether
+ * this person's ownership checks out, and the two things a visitor can
+ * do with it. Its track record is one click away, not the card's bulk.
+ */
 function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
   const record = agentRecord(agent.chainId, agent.tokenId, wallet);
+  const history = record.mainnet.funded + record.testnet.funded > 0;
+  const testnet = agent.chainId === 97;
   return (
-    <article className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5">
-      <div className="flex items-start justify-between gap-3">
-        <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="group flex min-w-0 items-center gap-3">
-          <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={44} />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[15.5px] font-semibold group-hover:underline">{agent.name}</span>
-            <span className="truncate text-[12.5px] text-ink-3">
-              {agent.category ?? 'No category'} · {chainLabel(agent.chainId)} #{agent.tokenId}
-            </span>
+    <article className="flex flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5">
+      <div className="flex items-start gap-3">
+        <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={44} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex items-start justify-between gap-2">
+            <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="min-w-0 break-words text-[15.5px] font-semibold hover:underline">
+              {agent.name}
+            </Link>
+            {agent.pinned && (
+              <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-ink-3">
+                <Icon.Star size={12} aria-hidden /> Pinned
+              </span>
+            )}
           </span>
-        </Link>
-        <span className="flex shrink-0 flex-col items-end gap-1 text-[12px]">
-          {agent.pinned && (
-            <span className="inline-flex items-center gap-1 text-ink-2">
-              <Icon.Star size={12} aria-hidden /> Pinned
-            </span>
-          )}
-          {agent.status === 'unavailable' ? (
-            <span className="inline-flex items-center gap-1 text-watch">
-              <Icon.Alert size={12} aria-hidden /> Ownership check unavailable
-            </span>
-          ) : agent.proved ? (
-            <span className="inline-flex items-center gap-1 text-ok">
-              <Icon.Shield size={12} aria-hidden /> Ownership verified
-            </span>
-          ) : (
-            <span className="text-ink-3">Owned, per the registry</span>
-          )}
-        </span>
+          <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
+            {agent.category && <span className="rounded-full border border-rule-strong px-2 py-0.5 text-ink-2">{agent.category}</span>}
+            <span className={cn('rounded-full px-2 py-0.5 font-medium', testnet ? 'bg-watch-wash text-watch' : 'bg-sunken text-ink-2')}>{testnet ? 'BNB Testnet' : 'BNB Chain'}</span>
+          </span>
+        </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <RecordTable mainnet={record.mainnet} testnet={record.testnet} />
-        <p className="text-[11.5px] text-ink-3">This agent&rsquo;s record under all its owners, not this person&rsquo;s. Excludes Pokter&rsquo;s own, demo, self-hire and owner-funded jobs.</p>
-      </div>
-      <div className="flex gap-2">
+      {agent.description && <p className="line-clamp-3 break-words text-[13.5px] leading-relaxed text-ink-2">{agent.description}</p>}
+      <span className={cn('inline-flex items-center gap-1 text-[12.5px] font-medium', agent.status === 'owned' ? 'text-ok' : 'text-watch')}>
+        {agent.status === 'owned' ? <Icon.Shield size={13} aria-hidden /> : <Icon.Alert size={13} aria-hidden />}
+        {agent.status === 'owned' ? 'Ownership verified' : 'Ownership check unavailable'}
+      </span>
+      {history ? (
+        <details className="group rounded-[10px] border border-rule">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+            View track record
+            <Icon.ChevronDown size={14} className="text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="flex flex-col gap-2 border-t border-rule px-3 py-2.5">
+            <RecordTable mainnet={record.mainnet} testnet={record.testnet} />
+            <p className="text-[11.5px] leading-snug text-ink-3">
+              This agent&rsquo;s history under every owner it has had, not this person&rsquo;s own record: Pokter does not yet record who owned an agent at the time of each job. External customer jobs leave out jobs funded by Pokter, demonstrations, the agent paying itself, and jobs this wallet funded. &ldquo;Settled without dispute&rdquo; means the review window closed or the buyer approved, and the escrow paid out; it is not proof of quality.
+            </p>
+          </div>
+        </details>
+      ) : (
+        <p className="text-[12.5px] text-ink-3">No external job history yet.</p>
+      )}
+      <div className="mt-auto flex gap-2 pt-1">
         <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex h-9 items-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">
           View agent
         </Link>
@@ -402,13 +423,14 @@ function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
 
 function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: { agents: ShownAgent[]; wallet: string; reviews: ReturnType<typeof eligibleReviews>; reviewsHref: string; agentsHref: string }) {
   if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
-  const featured = agents.some((a) => a.pinned) ? agents.filter((a) => a.pinned) : agents.slice(0, 2);
+  /* Pinned first (the list is already ordered that way), then the rest, up to four. */
+  const featured = agents.slice(0, 4);
   return (
     <div className="flex flex-col gap-8">
       <section aria-labelledby="featured-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 id="featured-title" className="text-[17px] font-semibold">
-            {agents.some((a) => a.pinned) ? 'Pinned agents' : 'Agents'}
+            Agents
           </h2>
           {agents.length > featured.length && (
             <Link href={agentsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
@@ -416,7 +438,7 @@ function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: 
             </Link>
           )}
         </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {featured.map((a) => (
             <AgentCard key={a.key} agent={a} wallet={wallet} />
           ))}
@@ -442,7 +464,7 @@ function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: 
 function AgentsTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
   if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {agents.map((a) => (
         <AgentCard key={a.key} agent={a} wallet={wallet} />
       ))}

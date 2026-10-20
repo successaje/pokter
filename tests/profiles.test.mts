@@ -20,7 +20,7 @@ test('the signature covers every field, including what is published, and says wh
   assert.match(message, /not that it is true/);
   const signature = await account.signMessage({ message });
   assert.equal(await verifyMessage({ address: account.address, message, signature }), true);
-  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, usage: 'hire' as const }]) {
+  for (const changed of [{ ...CONTENT, bio: 'Audited by everyone.' }, { ...CONTENT, published: false }, { ...CONTENT, showHiring: true }, { ...CONTENT, agents: ['97:2618', '56:1'] }, { ...CONTENT, usage: 'hire' as const }, { ...CONTENT, showWallet: true }]) {
     assert.equal(await verifyMessage({ address: account.address, message: profileMessage({ ...changed, wallet: account.address, signedAt: AT }), signature }), false);
   }
 });

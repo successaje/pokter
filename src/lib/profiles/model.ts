@@ -50,6 +50,8 @@ export interface ProfileContent {
   /** Which parts of the account the published profile shows. Changing usage never turns these on. */
   showBuilding: boolean;
   showHiring: boolean;
+  /** Whether the wallet address is shown. Off by default: the profile leads with the handle. */
+  showWallet: boolean;
   /** Agents chosen for the profile, as "chain:token"; each must be owned by this wallet when saved. */
   agents: string[];
   /** Up to three of those, shown first. */
@@ -87,6 +89,7 @@ export function profileMessage(input: ProfileContent & { wallet: string; signedA
     `Published: ${input.published ? 'yes' : 'no'}`,
     `Search indexing: ${input.indexable ? 'yes' : 'no'}`,
     `Sections: ${[input.showBuilding && 'building', input.showHiring && 'hiring'].filter(Boolean).join(', ') || 'none'}`,
+    `Wallet shown: ${input.showWallet ? 'yes' : 'no'}`,
     `Agents: ${input.agents.join(', ')}`,
     `Pinned: ${input.pinned.join(', ')}`,
     'This is self-provided information. Signing proves this wallet authorised it, not that it is true.',
@@ -147,6 +150,7 @@ export function normalizeProfile(c: ProfileContent): ProfileContent {
     indexable: Boolean(c.published && c.indexable),
     showBuilding: Boolean(c.showBuilding),
     showHiring: Boolean(c.showHiring),
+    showWallet: Boolean(c.showWallet),
     agents: [...new Set(c.agents)],
     pinned: [...new Set(c.pinned)].filter((p) => c.agents.includes(p)),
   };
@@ -171,6 +175,7 @@ export function readProfileContent(raw: unknown): ProfileContent | null {
     indexable: b.indexable === true,
     showBuilding: b.showBuilding === true,
     showHiring: b.showHiring === true,
+    showWallet: b.showWallet === true,
     agents: (b.agents as unknown[]).map(String),
     pinned: (b.pinned as unknown[]).map(String),
   });
@@ -193,6 +198,7 @@ export const EMPTY_PROFILE: ProfileContent = {
   indexable: false,
   showBuilding: false,
   showHiring: false,
+  showWallet: false,
   agents: [],
   pinned: [],
 };
@@ -211,6 +217,7 @@ export function profileContentOf(p: Profile): ProfileContent {
     indexable: p.indexable,
     showBuilding: p.showBuilding,
     showHiring: p.showHiring,
+    showWallet: p.showWallet,
     agents: p.agents,
     pinned: p.pinned,
   };
