@@ -150,8 +150,8 @@ test('the hire carries what a delivery is held to, even when the description has
 test('a category is signed when chosen, and only one of the board’s is accepted', () => {
   const plain = briefMessage({ ...CONTENT, poster: POSTER, postedAt: AT });
   assert.equal(briefMessage({ ...CONTENT, category: null, poster: POSTER, postedAt: AT }), plain);
-  assert.equal(briefMessage({ ...CONTENT, category: 'defi', poster: POSTER, postedAt: AT }), `${plain}\nCategory: defi`);
-  assert.equal(readBriefContent({ ...CONTENT, category: 'defi' })?.category, 'defi');
+  assert.equal(briefMessage({ ...CONTENT, category: 'yield', poster: POSTER, postedAt: AT }), `${plain}\nCategory: yield`);
+  assert.equal(readBriefContent({ ...CONTENT, category: 'yield' })?.category, 'yield');
   assert.equal(readBriefContent({ ...CONTENT, category: 'gambling' }), null);
   assert.equal(readBriefContent(CONTENT)?.category, null);
 });

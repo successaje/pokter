@@ -292,18 +292,29 @@ export function RequestForm({ networks }: { networks: number[] }) {
           )}
         </Field>
 
-        <fieldset className="flex flex-col gap-3">
-          <legend className="mb-1.5 text-sm font-medium text-ink">Your proposed budget</legend>
-          <NetworkChoice networks={networks} value={draft.chainId} onChange={(id) => set('chainId', id)} />
-          <Field label={<span className="sr-only">Amount</span>} hint={`What you expect to pay, up to ${BUDGET_MAX} $U per job. Builders may propose another price; you fund only the one you choose.`} error={problems.budget}>
-            {(p) => (
+        {/* Amount and network as one line — "1.50 $U on BNB Chain" — with what the money is said right under it. */}
+        <Field
+          label="Your proposed budget"
+          error={problems.budget}
+          hint={
+            <>
+              <span className={escrowMoney(draft.chainId).real === false ? 'font-medium text-watch' : undefined}>
+                {escrowMoney(draft.chainId).real === false ? 'Test tokens, no real value.' : 'Real $U on BNB Chain.'}
+              </span>{' '}
+              Up to {BUDGET_MAX} $U per job. Builders may propose another price; you fund only the one you choose.
+            </>
+          }
+        >
+          {(p) => (
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <div className="relative">
-                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="1.00" className="t-readout pr-14 text-[17px]" />
+                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="1.00" className="t-readout pr-12 text-[17px]" />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$U</span>
               </div>
-            )}
-          </Field>
-        </fieldset>
+              <NetworkChoice networks={networks} value={draft.chainId} onChange={(id) => set('chainId', id)} />
+            </div>
+          )}
+        </Field>
 
         <Field label="Delivery time" hint="How soon after hiring do you need the result?">
           {(p) => (
@@ -397,33 +408,38 @@ export function RequestForm({ networks }: { networks: number[] }) {
   );
 }
 
-/** Mainnet and testnet as two unmistakable options: the mark, the name, and whether the money is real. */
+/**
+ * The network, beside the amount it qualifies. A segmented pair, mainnet
+ * first; the line under the field says whether the money is real, in the
+ * warning colour when it is not, so the two never look alike.
+ */
 function NetworkChoice({ networks, value, onChange }: { networks: number[]; value: number; onChange: (chainId: number) => void }) {
+  const ordered = [...networks].sort((a, b) => (a === 56 ? -1 : b === 56 ? 1 : 0));
+  if (ordered.length === 1) {
+    return (
+      <span className="inline-flex h-11 items-center gap-2 rounded-[9px] border border-rule bg-sunken px-3 text-[13.5px] font-medium text-ink-2">
+        <BnbMark size={16} /> {ordered[0] === 56 ? 'BNB Chain' : 'Testnet'}
+      </span>
+    );
+  }
   return (
-    <div role="radiogroup" aria-label="Network" className={cn('grid gap-2', networks.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-      {networks.map((chainId) => {
+    <div role="radiogroup" aria-label="Network" className="inline-flex h-11 rounded-[9px] border border-rule-strong bg-sunken p-1">
+      {ordered.map((chainId) => {
         const selected = chainId === value;
-        const money = escrowMoney(chainId);
         return (
           <button
             key={chainId}
             type="button"
             role="radio"
             aria-checked={selected}
-            disabled={networks.length === 1}
             onClick={() => onChange(chainId)}
             className={cn(
-              'flex items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-[border-color,box-shadow] disabled:cursor-default',
-              networks.length === 1 ? 'border-rule bg-raised' : selected ? 'border-ink bg-raised shadow-[0_0_0_1px_var(--ink)]' : 'border-rule-strong bg-raised hover:border-ink-3',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-[6px] px-3 text-[13.5px] font-medium transition-colors',
+              selected ? 'bg-raised text-ink shadow-[0_1px_2px_rgb(0_0_0/0.08)]' : 'text-ink-3 hover:text-ink',
             )}
           >
-            <BnbMark size={22} />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[14px] font-semibold text-ink">{chainId === 56 ? 'BNB Chain' : 'BNB Testnet'}</span>
-              <span className={cn('text-[12px]', money.real === false ? 'font-medium text-watch' : 'text-ink-3')}>
-                {money.real === false ? 'Test tokens, no real value' : 'Real $U'}
-              </span>
-            </span>
+            {chainId === 56 && <BnbMark size={15} />}
+            {chainId === 56 ? 'BNB Chain' : 'Testnet'}
           </button>
         );
       })}

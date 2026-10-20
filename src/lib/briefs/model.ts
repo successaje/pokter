@@ -21,16 +21,21 @@ import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 /**
  * What kind of work a request is, for the board's filters.
  *
- * Its own short list rather than the agent categories: those are five
- * kinds of DeFi agent Pokter grades, and most requests are not one of
- * them. A request asks for work; this says roughly what sort.
+ * Shaped by what Pokter's agents actually do, so a request lands where
+ * the builders who could answer it already look: the first four match
+ * the categories agents are listed and graded under, and the last two
+ * cover the work around them — reading and reporting, and watching
+ * something over time. "DeFi" was one chip among five on a board where
+ * almost every request is DeFi, which made it a filter that filters
+ * nothing; "Content" was a category no agent here serves.
  */
 export const REQUEST_CATEGORIES = [
+  { id: 'yield', label: 'Yield' },
+  { id: 'lending-risk', label: 'Lending risk' },
+  { id: 'token-safety', label: 'Token safety' },
+  { id: 'portfolio', label: 'Portfolio' },
   { id: 'research', label: 'Research' },
-  { id: 'defi', label: 'DeFi' },
-  { id: 'data', label: 'Data' },
-  { id: 'automation', label: 'Automation' },
-  { id: 'content', label: 'Content' },
+  { id: 'monitoring', label: 'Monitoring' },
 ] as const;
 export type RequestCategory = (typeof REQUEST_CATEGORIES)[number]['id'];
 
