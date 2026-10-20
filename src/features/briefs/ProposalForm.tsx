@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
-import { bidMessage, type BidContent } from '@/lib/briefs/model';
+import { bidMessage, withinBudget, type BidContent } from '@/lib/briefs/model';
 import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -63,6 +63,7 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
     if (!note.trim()) found.note = 'Say how it will do the work: buyers compare proposals on this.';
     const priceU = Number(price);
     if (!(priceU >= BUDGET_MIN && priceU <= BUDGET_MAX)) found.price = `Between ${BUDGET_MIN} and ${BUDGET_MAX} ${unit}.`;
+    else if (!withinBudget(priceU, request.budgetU)) found.price = `Up to the budget of ${request.budgetU.toFixed(2)} ${unit}.`;
     setProblems(found);
     if (Object.keys(found).length === 0) {
       setError(null);
@@ -168,7 +169,7 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Your price" hint={`Budget ${request.budgetU.toFixed(2)} ${unit}.`} error={problems.price}>
+        <Field label="Your price" hint={`Up to the budget, ${request.budgetU.toFixed(2)} ${unit}.`} error={problems.price}>
           {(p) => (
             <div className="relative">
               <Input {...p} value={price} inputMode="decimal" onChange={(e) => setPrice(decimalOnly(e.target.value))} placeholder={request.budgetU.toFixed(2)} className="t-readout pr-16" />

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { acceptsProposals, bidMessage, readBidContent, type Bid } from '@/lib/briefs/model';
+import { acceptsProposals, bidMessage, readBidContent, withinBudget, type Bid } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -46,6 +46,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const content = readBidContent(body.content);
   if (!isAddress(bidder) || !isHex(signature) || !content || Number.isNaN(Date.parse(placedAt))) {
     return NextResponse.json({ error: 'The bid payload is invalid.' }, { status: 400 });
+  }
+  if (!withinBudget(content.priceU, brief.budgetU)) {
+    return NextResponse.json({ error: `The price is above this request's budget of ${brief.budgetU} $U.` }, { status: 422 });
   }
 
   const owner = await registryOwner(content.agentChainId, content.agentTokenId);
