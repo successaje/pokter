@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { PromptBuilder } from '@/features/build/PromptBuilder';
-import { BuildWithMcpCard } from '@/features/studio/BuildWithMcp';
+import { BuildWithAI } from '@/features/build/BuildWithAI';
 import { BuildWithStudio } from '@/features/studio/BuildWithStudio';
 import { PageHeader } from '@/features/workspace/parts';
 import { LinkButton } from '@/ui/Button';
@@ -28,22 +28,18 @@ export default function BuildWithAssistant() {
       </div>
       <PageHeader title="Build with your AI assistant" description="Your assistant writes the agent; you run it. Pick how it learns what Pokter needs, then come back to list it." />
 
-      <section aria-labelledby="method-mcp" className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <h2 id="method-mcp" className="text-[19px] font-medium tracking-[-0.015em]">
-            1. Connect Pokter MCP
-          </h2>
-          <span className="rounded-full border border-ok/30 bg-ok-wash px-2 py-0.5 text-[11.5px] font-medium text-ok">Recommended</span>
-        </div>
-        <BuildWithMcpCard />
+      {/* Pokter MCP: pick a tool, connect it, hand it the brief. The same section the Build page has always carried. */}
+      <section aria-label="Connect Pokter MCP" className="flex flex-col gap-3">
+        <span className="w-fit rounded-full border border-ok/30 bg-ok-wash px-2 py-0.5 text-[11.5px] font-medium text-ok">Recommended</span>
+        <BuildWithAI />
       </section>
 
       <section aria-labelledby="method-prompt" className="mt-12 flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <h2 id="method-prompt" className="text-[19px] font-medium tracking-[-0.015em]">
-            2. Or copy a build prompt
+            Or copy a build prompt
           </h2>
-          <p className="text-[13.5px] text-ink-2">Works with any assistant and needs no setup. Add a few details to point it in a direction, or leave them blank and it will ask you.</p>
+          <p className="text-[13.5px] text-ink-2">Works with any assistant and needs no setup; your assistant will not be able to check Pokter as it builds. Add a few details to point it in a direction, or leave them blank and it will ask you.</p>
         </div>
         <div className="rounded-[16px] border border-rule bg-raised p-6">
           <PromptBuilder />
@@ -52,7 +48,7 @@ export default function BuildWithAssistant() {
 
       <section aria-labelledby="method-studio" className="mt-12 flex flex-col gap-3">
         <h2 id="method-studio" className="text-[19px] font-medium tracking-[-0.015em]">
-          3. Or scaffold it with BNB Agent Studio
+          Or scaffold it with BNB Agent Studio
         </h2>
         <BuildWithStudio compact />
       </section>
