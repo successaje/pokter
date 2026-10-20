@@ -93,7 +93,7 @@ export default async function SetAndEarn() {
             <Link href="/quest" className="text-[13px] font-medium text-ink hover:underline">
               Hires across marketplaces: the tracker <Icon.Arrow size={13} className="inline" />
             </Link>
-            <Link href="/studio" className="text-[13px] font-medium text-ink-2 hover:text-ink">
+            <Link href="/build" className="text-[13px] font-medium text-ink-2 hover:text-ink">
               Build track: your agent&rsquo;s hires, actions and active days are in Builder Studio <Icon.Arrow size={13} className="inline" />
             </Link>
           </div>
@@ -159,7 +159,7 @@ export default async function SetAndEarn() {
           <p>
             BNB Chain checks six things, from on-chain data and public endpoints only. Three are straightforward, and Builder Studio walks you through them: registered on ERC-8004 and owned by your wallet, a resolvable agent card stating its category, and answering when probed.
           </p>
-          <LinkButton href="/studio" className="self-start" trailing={<Icon.Arrow size={16} />}>
+          <LinkButton href="/build" className="self-start" trailing={<Icon.Arrow size={16} />}>
             Open Builder Studio
           </LinkButton>
           <div className="mt-2 flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">

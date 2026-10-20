@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { awardMessage, bidMessage, briefMessage, readBidContent, readBriefContent } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, withdrawMessage } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -88,4 +88,87 @@ test('a bid names an agent that could exist', () => {
   assert.equal(readBidContent({ ...ok, agentTokenId: 'not-a-token' }), null);
   assert.equal(readBidContent({ ...ok, agentChainId: 1 }), null);
   assert.equal(readBidContent({ ...ok, priceU: 0 }), null);
+});
+
+test('a closing date is signed when set, and a request without one signs what it always did', () => {
+  const before = [
+    'Pokter posted brief',
+    `Posted by: ${POSTER.toLowerCase()}`,
+    `At: ${AT}`,
+    'Title: Route planner',
+    'Budget: 2.5 $U on chain 97',
+    'Deliver within: 7 days',
+    'Brief: Plan crew routes and find schedule gaps.',
+    'Acceptance: Every job assigned or explained',
+    'Fail signals: A message is sent instead of drafted',
+  ].join('\n');
+  // Requests posted before closing dates existed must still verify.
+  assert.equal(briefMessage({ ...CONTENT, poster: POSTER, postedAt: AT }), before);
+  assert.equal(briefMessage({ ...CONTENT, closesAt: null, poster: POSTER, postedAt: AT }), before);
+  const closing = briefMessage({ ...CONTENT, closesAt: '2026-10-26T10:00:00.000Z', poster: POSTER, postedAt: AT });
+  assert.equal(closing, `${before}\nProposals close: 2026-10-26T10:00:00.000Z`);
+});
+
+test('a closing date must be ahead, and not so far ahead the request is open in name only', () => {
+  const now = Date.parse(AT);
+  const day = 86_400_000;
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: new Date(now - day).toISOString() }, now), null);
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: new Date(now + 61 * day).toISOString() }, now), null);
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: 'next week' }, now), null);
+  const week = new Date(now + 7 * day).toISOString();
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: week }, now)?.closesAt, week, 'kept exactly as signed');
+  assert.equal(readBriefContent(CONTENT, now)?.closesAt, null);
+});
+
+test('proposals are taken while a request is open and before it closes', () => {
+  const now = Date.parse(AT);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: null }, now), true);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: new Date(now + 1000).toISOString() }, now), true);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: new Date(now - 1000).toISOString() }, now), false);
+  assert.equal(acceptsProposals({ state: 'awarded', closesAt: null }, now), false);
+  assert.equal(acceptsProposals({ state: 'cancelled', closesAt: null }, now), false);
+});
+
+test('a withdrawal names the request and its poster, and nothing else verifies for it', () => {
+  assert.notEqual(withdrawMessage('b1', POSTER), withdrawMessage('b2', POSTER));
+  assert.equal(withdrawMessage('b1', POSTER), withdrawMessage('b1', POSTER.toLowerCase()));
+  assert.notEqual(withdrawMessage('b1', POSTER), awardMessage('b1', 'b1', POSTER));
+});
+
+test('the hire carries what a delivery is held to, even when the description has to be cut', () => {
+  const task = hireTaskFromRequest(CONTENT);
+  assert.equal(
+    task,
+    'Plan crew routes and find schedule gaps.\n\nDone when:\n- Every job assigned or explained\n\nRejected if:\n- A message is sent instead of drafted',
+  );
+  const long = hireTaskFromRequest({ ...CONTENT, brief: 'x'.repeat(4000) });
+  assert.ok(long.length <= 2000, 'fits the hire form');
+  assert.ok(long.includes('- Every job assigned or explained'), 'the criteria survive');
+  assert.ok(long.includes('- A message is sent instead of drafted'));
+});
+
+test('a category is signed when chosen, and only one of the board’s is accepted', () => {
+  const plain = briefMessage({ ...CONTENT, poster: POSTER, postedAt: AT });
+  assert.equal(briefMessage({ ...CONTENT, category: null, poster: POSTER, postedAt: AT }), plain);
+  assert.equal(briefMessage({ ...CONTENT, category: 'yield', poster: POSTER, postedAt: AT }), `${plain}\nCategory: yield`);
+  assert.equal(readBriefContent({ ...CONTENT, category: 'yield' })?.category, 'yield');
+  assert.equal(readBriefContent({ ...CONTENT, category: 'gambling' }), null);
+  assert.equal(readBriefContent(CONTENT)?.category, null);
+});
+
+test('a budget or a proposal above what one hire can be funded with is refused', () => {
+  // A request priced past the hire limit could be chosen and then never funded.
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 5 })?.budgetU, 5);
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 5.01 }), null);
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 0.001 }), null);
+  const ok = { agentChainId: 97, agentTokenId: '2554', priceU: 5, deliverDays: 3, note: '' };
+  assert.ok(readBidContent(ok));
+  assert.equal(readBidContent({ ...ok, priceU: 25 }), null);
+});
+
+test('a list the server would trim is caught before it is signed', () => {
+  // The signature covers the text as written; a trimmed copy would not verify.
+  assert.equal(listProblem(['fine']), null);
+  assert.match(listProblem(Array.from({ length: 13 }, (_, i) => `line ${i}`)) ?? '', /12 lines/);
+  assert.match(listProblem(['x'.repeat(241)]) ?? '', /240 characters/);
 });

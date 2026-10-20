@@ -140,7 +140,19 @@ export function SignOutStudio() {
 
 type OwnedAgent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; declaresProtocol: boolean; createdAt: string | null };
 
-export function OwnedAgents() {
+/** The empty state an overview uses: one dashed panel, one sentence, one way forward. */
+function EmptyAgents({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[14px] border border-dashed border-rule-strong px-6 py-10 text-center text-[14px] text-ink-2">
+      {children}{' '}
+      <Link href="/build/new" className="font-medium text-ink underline-offset-2 hover:underline">
+        Create your first agent &rarr;
+      </Link>
+    </div>
+  );
+}
+
+export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
   const { address } = useActiveWallet();
   const owned = useQuery({
     queryKey: ['owned-agents', address],
@@ -151,16 +163,20 @@ export function OwnedAgents() {
       return (await r.json()) as { agents: OwnedAgent[] };
     },
   });
-  if (!address) return <p className="text-[13px] text-ink-3">Connect the wallet that owns your agents to list them here.</p>;
+  if (!address) {
+    return boxed ? <EmptyAgents>Connect the wallet that owns your agents to list them here, or start a new one.</EmptyAgents> : <p className="text-[13px] text-ink-3">Connect the wallet that owns your agents to list them here.</p>;
+  }
   if (owned.isLoading) return <Skeleton className="h-24 w-full" />;
   if (owned.isError) return <Notice tone="watch">{(owned.error as Error).message}</Notice>;
   const agents = owned.data?.agents ?? [];
-  if (agents.length === 0) return <p className="text-[13px] text-ink-3">{shortAddress(address)} owns no ERC-8004 agents on BNB Chain or testnet.</p>;
+  if (agents.length === 0) {
+    return boxed ? <EmptyAgents>{shortAddress(address)} owns no agents yet.</EmptyAgents> : <p className="text-[13px] text-ink-3">{shortAddress(address)} owns no ERC-8004 agents on BNB Chain or testnet.</p>;
+  }
   return (
     <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {agents.map((a) => (
         <li key={`${a.chainId}:${a.tokenId}`}>
-          <Link href={`/studio/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
+          <Link href={`/build/agents/${a.chainId}/${a.tokenId}`} className="flex items-center gap-3 rounded-[12px] border border-rule bg-raised p-3.5 transition-colors hover:border-rule-strong">
             <AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={`${a.chainId}:${a.tokenId}`} size={40} />
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium">{a.name}</span>
@@ -192,7 +208,7 @@ export function DraftsList() {
           const p = draftProgress(d.draft);
           return (
             <li key={d.id} className="flex items-center gap-4 py-3">
-              <Link href={`/studio/new?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
+              <Link href={`/build/new/guided?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium hover:underline">{draftTitle(d.draft)}</p>
                 <p className="text-[12px] text-ink-3">
                   {p.done} of {p.total} ready · edited {new Date(d.updatedAt).toLocaleDateString()}
@@ -310,7 +326,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
         throw new Error(verified.error ?? 'Ownership could not be verified.');
       }
       setVerify('done');
-      router.push(`/studio/agents/${report.chainId}/${report.tokenId}`);
+      router.push(`/build/agents/${report.chainId}/${report.tokenId}`);
       router.refresh();
     } catch (err) {
       const message = (err as Error).message;
@@ -413,7 +429,7 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
             </Notice>
           )}
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
-            <p className="text-sm font-medium">Manage it in Studio</p>
+            <p className="text-sm font-medium">Manage it under Building</p>
             <p className="text-[13px] text-ink-2">Prove you own it by signing a message with the owner wallet. A signature, not a transaction: no fee, nothing moves.</p>
             {verifyError && <Notice tone="watch">{verifyError}</Notice>}
             <Button onClick={() => void verifyOwnership()} busy={verify !== 'idle'} className="self-start">
@@ -431,7 +447,7 @@ export function NoSession() {
     <EmptyState
       title="Verify ownership to manage this agent"
       action={
-        <LinkButton href="/studio/import" size="s">
+        <LinkButton href="/build/import" size="s">
           Verify ownership
         </LinkButton>
       }

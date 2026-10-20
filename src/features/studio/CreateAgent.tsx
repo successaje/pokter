@@ -18,6 +18,8 @@ import { CopyButton, Details } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
 import { Checkbox, Field, Input, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { Sheet } from '@/ui/Sheet';
+import { LivePreview } from './LivePreview';
 import { siteUrlClient } from './site';
 import { useAgentDraft, type AgentDraft } from './useAgentDraft';
 
@@ -203,6 +205,13 @@ function StepConfigure({ d }: { d: AgentDraft }) {
                 BNB Agent Studio
               </a>
               . Agents behind an OAuth-protected endpoint cannot be called anonymously, so buyers here could not hire them.
+            </p>
+            <p>
+              <strong className="font-medium text-ink">With your assistant, through Pokter MCP.</strong> Connect Pokter to Claude, Cursor or Codex and it can read the integration kit while it writes the agent.{' '}
+              <Link href="/mcp" className="link">
+                Set up Pokter MCP
+              </Link>
+              .
             </p>
           </div>
         </Details>
@@ -424,7 +433,7 @@ function StepPublish({ d }: { d: AgentDraft }) {
           Pokter starts probing it on the next sweep. Its listing shows &ldquo;Not measured&rdquo; until there is evidence, and it becomes hireable once it answers.
         </Notice>
         <div className="flex flex-wrap gap-3">
-          <LinkButton href={`/studio/agents/${d.published.chainId}/${d.published.tokenId}`} trailing={<Icon.Arrow size={16} />}>
+          <LinkButton href={`/build/agents/${d.published.chainId}/${d.published.tokenId}`} trailing={<Icon.Arrow size={16} />}>
             Manage this agent
           </LinkButton>
           <LinkButton href={`/agents/${d.published.chainId}/${d.published.tokenId}`} intent="secondary">
@@ -553,6 +562,7 @@ function DraftSaveNote({ status }: { status: DraftSaveStatus }) {
 
 export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null; onBound?: (draftId: string) => void }) {
   const d = useAgentDraft(initial, onBound);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const step = Math.min(d.step, 3);
   const canNext = step === 0 ? d.checks[0].done && d.checks[1].done && d.checks[2].done : step === 1 ? /^https:\/\//i.test(d.draft.endpoint.trim()) && !d.repositoryProblem : step === 2 ? d.endpointChecked : false;
   const go = (n: number) => {
@@ -560,10 +570,20 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const preview = (
+    <LivePreview draft={d.draft} image={d.image} network={d.network} checks={d.checks} footnote={<DraftSaveNote status={d.saveStatus} />} />
+  );
+
+  /*
+   * The steps run across the top and the form takes the left; the listing
+   * it produces sits on the right, updating as it is written. Narrower
+   * than that, the same preview opens in a sheet, so it never pushes the
+   * form down a phone screen.
+   */
   return (
-    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-24 lg:self-start">
-        <ol className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1" aria-label="Steps">
+    <div className="flex flex-col gap-8">
+      <div className="flex items-center justify-between gap-3">
+        <ol className="no-scrollbar flex min-w-0 gap-1 overflow-x-auto" aria-label="Steps">
           {STEPS.map((s, i) => (
             <li key={s.id} className="shrink-0">
               <button
@@ -576,22 +596,22 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
                 <span className={cn('grid size-6 shrink-0 place-items-center rounded-full border text-[11px]', i < step ? 'border-ok bg-ok text-paper' : i === step ? 'border-ink' : 'border-rule-strong text-ink-3')}>{i < step ? <Icon.Check size={12} /> : i + 1}</span>
                 <span className="flex flex-col">
                   <span className={cn('text-sm font-medium', i > step && 'text-ink-3')}>{s.label}</span>
-                  <span className="hidden text-[12px] text-ink-3 lg:block">{s.detail}</span>
+                  <span className="hidden text-[12px] text-ink-3 xl:block">{s.detail}</span>
                 </span>
               </button>
             </li>
           ))}
         </ol>
-        <div className="mt-6 hidden rounded-[12px] border border-rule p-4 lg:block">
-          <span className="t-label">Readiness</span>
-          <p className="t-readout mt-1 text-xl">
-            {d.checks.filter((c) => c.done).length}/{d.checks.length}
-          </p>
-          <DraftSaveNote status={d.saveStatus} />
-        </div>
-      </aside>
+        <Button intent="secondary" size="s" onClick={() => setPreviewOpen(true)} className="shrink-0 lg:hidden" icon={<Icon.Eye size={14} />}>
+          Preview listing
+        </Button>
+      </div>
+      <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview">
+        {preview}
+      </Sheet>
 
-      <section className="min-w-0 max-w-2xl" aria-labelledby="step-title">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <section className="min-w-0" aria-labelledby="step-title">
         <div className="mb-6">
           <span className="t-label">
             Step {step + 1} of 4
@@ -616,7 +636,7 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
                 Back
               </Button>
             ) : (
-              <Link href="/studio" className="text-sm text-ink-3 hover:text-ink">
+              <Link href="/build" className="text-sm text-ink-3 hover:text-ink">
                 Cancel
               </Link>
             )}
@@ -628,6 +648,10 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
           </div>
         )}
       </section>
+      <aside className="hidden lg:sticky lg:top-24 lg:block lg:self-start" aria-label="Live preview">
+        {preview}
+      </aside>
+      </div>
     </div>
   );
 }

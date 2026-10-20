@@ -54,7 +54,7 @@ export default function IntegrationKitPage() {
       <DocSection id="start" title="Start here">
         <p>
           The order to work in. Each step names the line of Pokter&rsquo;s self-check that confirms it and the refusal a buyer&rsquo;s hire meets without it.
-          Run the check any time at <Link href="/studio/import" className="link">Builder Studio</Link>, or call the <a href="#preflight" className="link">compatibility API</a>.
+          Run the check any time by <Link href="/build/import" className="link">importing an agent</Link>, or call the <a href="#preflight" className="link">compatibility API</a>.
         </p>
         <ol className="ruled border-y border-rule text-[14px]">
           {kit.checklist.map((item, i) => (

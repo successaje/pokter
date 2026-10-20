@@ -1,5 +1,7 @@
 import type { Address, Hex } from 'viem';
 
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+
 /**
  * A brief is demand, posted before any agent is chosen.
  *
@@ -15,6 +17,31 @@ import type { Address, Hex } from 'viem';
  * price quoted through `negotiate` — a commitment by a wallet, not a row in
  * Pokter's database.
  */
+
+/**
+ * What kind of work a request is, for the board's filters.
+ *
+ * Shaped by what Pokter's agents actually do, so a request lands where
+ * the builders who could answer it already look: the first four match
+ * the categories agents are listed and graded under, and the last two
+ * cover the work around them — reading and reporting, and watching
+ * something over time. "DeFi" was one chip among five on a board where
+ * almost every request is DeFi, which made it a filter that filters
+ * nothing; "Content" was a category no agent here serves.
+ */
+export const REQUEST_CATEGORIES = [
+  { id: 'yield', label: 'Yield' },
+  { id: 'lending-risk', label: 'Lending risk' },
+  { id: 'token-safety', label: 'Token safety' },
+  { id: 'portfolio', label: 'Portfolio' },
+  { id: 'research', label: 'Research' },
+  { id: 'monitoring', label: 'Monitoring' },
+] as const;
+export type RequestCategory = (typeof REQUEST_CATEGORIES)[number]['id'];
+
+export function requestCategoryLabel(id: string | null | undefined): string | null {
+  return REQUEST_CATEGORIES.find((c) => c.id === id)?.label ?? null;
+}
 
 export const BRIEF_STATES = ['open', 'awarded', 'cancelled'] as const;
 export type BriefState = (typeof BRIEF_STATES)[number];
@@ -40,6 +67,17 @@ export interface BriefContent {
   chainId: number;
   /** Days from award to delivery. */
   deliverDays: number;
+  /**
+   * When proposals stop being accepted, as an ISO time; null for a request
+   * that stays open until it is awarded or withdrawn.
+   *
+   * Kept apart from `deliverDays` on purpose: one is how long builders have
+   * to answer, the other how long the chosen agent has to deliver, and a
+   * form that asked for "a deadline" would get whichever the poster meant.
+   */
+  closesAt?: string | null;
+  /** Optional; a request without one is listed under every filter's "All". */
+  category?: RequestCategory | null;
 }
 
 export interface Brief extends BriefContent {
@@ -89,6 +127,10 @@ export function briefMessage(input: BriefContent & { poster: string; postedAt: s
     `Brief: ${input.brief}`,
     `Acceptance: ${input.acceptance.join(' | ')}`,
     `Fail signals: ${input.failSignals.join(' | ')}`,
+    /* Only when set, so a request posted before closing dates existed still
+       verifies against the message its poster actually signed. */
+    ...(input.closesAt ? [`Proposals close: ${input.closesAt}`] : []),
+    ...(input.category ? [`Category: ${input.category}`] : []),
   ].join('\n');
 }
 
@@ -110,10 +152,74 @@ export function awardMessage(briefId: string, bidId: string, poster: string): st
   return ['Pokter brief award', `Brief: ${briefId}`, `Bid: ${bidId}`, `Poster: ${poster.toLowerCase()}`].join('\n');
 }
 
-const LIMITS = { title: 120, brief: 4000, note: 1200, line: 240, lines: 12 } as const;
+/**
+ * The poster, withdrawing. Signed for the same reason an award is: Pokter
+ * should not be able to take a request down on somebody's behalf.
+ */
+export function withdrawMessage(briefId: string, poster: string): string {
+  return ['Pokter request withdrawn', `Request: ${briefId}`, `Poster: ${poster.toLowerCase()}`].join('\n');
+}
+
+/** Whether a request still takes proposals: open, and before its closing time if it has one. */
+export function acceptsProposals(brief: Pick<Brief, 'state' | 'closesAt'>, now: number = Date.now()): boolean {
+  if (brief.state !== 'open') return false;
+  return !brief.closesAt || Date.parse(brief.closesAt) > now;
+}
+
+/** A chosen proposal, carried into the hire so its price can be held against the agent's quote. */
+export interface ProposalForHire {
+  requestId: string;
+  requestTitle: string;
+  priceU: number;
+  deliverDays: number;
+  /** The network the request asked to be funded on. */
+  chainId: number;
+}
+
+/** The hire brief's length limit; the hire form will not hold more. */
+const HIRE_TASK_MAX = 2000;
+
+/**
+ * The task an agent is hired with, from the request it was chosen for.
+ *
+ * The request's text alone loses what made it a request: the lines a
+ * delivery is accepted or rejected by. Those go to the agent too. If the
+ * whole would overflow the hire form, the description is shortened and the
+ * criteria kept, because they are what the delivery will be held to.
+ */
+export function hireTaskFromRequest(brief: Pick<BriefContent, 'brief' | 'acceptance' | 'failSignals'>): string {
+  const criteria = [
+    brief.acceptance.length > 0 ? `Done when:\n${brief.acceptance.map((l) => `- ${l}`).join('\n')}` : '',
+    brief.failSignals.length > 0 ? `Rejected if:\n${brief.failSignals.map((l) => `- ${l}`).join('\n')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  const tail = criteria ? `\n\n${criteria}` : '';
+  const room = HIRE_TASK_MAX - tail.length;
+  const text = brief.brief.length > room ? `${brief.brief.slice(0, Math.max(0, room - 1)).trimEnd()}…` : brief.brief;
+  return `${text}${tail}`.slice(0, HIRE_TASK_MAX);
+}
+
+/** Proposals may be asked for over at most this long. */
+export const MAX_CLOSING_DAYS = 60;
+
+export const LIMITS = { title: 120, brief: 4000, note: 1200, line: 240, lines: 12 } as const;
+
+/**
+ * Why a list field would not survive the server as written, or null.
+ *
+ * The server trims a long list rather than refusing it, but the poster has
+ * already signed the untrimmed text, so the stored request would no longer
+ * match its signature. The form asks for a shorter list instead.
+ */
+export function listProblem(lines: readonly string[]): string | null {
+  if (lines.length > LIMITS.lines) return `At most ${LIMITS.lines} lines.`;
+  if (lines.some((l) => l.length > LIMITS.line)) return `Keep each line under ${LIMITS.line} characters.`;
+  return null;
+}
 
 /** Rejects what cannot be stored or displayed, before any signature work. */
-export function readBriefContent(raw: unknown): BriefContent | null {
+export function readBriefContent(raw: unknown, now: number = Date.now()): BriefContent | null {
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
   const title = typeof b.title === 'string' ? b.title.trim() : '';
@@ -127,12 +233,25 @@ export function readBriefContent(raw: unknown): BriefContent | null {
       : [];
   if (!title || title.length > LIMITS.title) return null;
   if (!brief || brief.length > LIMITS.brief) return null;
-  if (!Number.isFinite(budgetU) || budgetU <= 0) return null;
+  /* Within what one hire can be funded with; a request above it could be chosen and never paid. */
+  if (!Number.isFinite(budgetU) || budgetU < BUDGET_MIN || budgetU > BUDGET_MAX) return null;
   if (chainId !== 56 && chainId !== 97) return null;
   if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
   const acceptance = lines(b.acceptance);
   if (acceptance.length === 0) return null;
-  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays };
+  let closesAt: string | null = null;
+  if (b.closesAt !== undefined && b.closesAt !== null && b.closesAt !== '') {
+    const at = typeof b.closesAt === 'string' ? Date.parse(b.closesAt) : NaN;
+    /* In the future, and not so far out that the request is open in name only. */
+    if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return null;
+    closesAt = new Date(at).toISOString();
+  }
+  let category: RequestCategory | null = null;
+  if (b.category !== undefined && b.category !== null && b.category !== '') {
+    if (!REQUEST_CATEGORIES.some((c) => c.id === b.category)) return null;
+    category = b.category as RequestCategory;
+  }
+  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt, category };
 }
 
 export function readBidContent(raw: unknown): BidContent | null {
@@ -145,7 +264,7 @@ export function readBidContent(raw: unknown): BidContent | null {
   const note = typeof b.note === 'string' ? b.note.trim().slice(0, LIMITS.note) : '';
   if (agentChainId !== 56 && agentChainId !== 97) return null;
   if (!/^\d{1,12}$/.test(agentTokenId)) return null;
-  if (!Number.isFinite(priceU) || priceU <= 0) return null;
+  if (!Number.isFinite(priceU) || priceU < BUDGET_MIN || priceU > BUDGET_MAX) return null;
   if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
   return { agentChainId, agentTokenId, priceU, deliverDays, note };
 }

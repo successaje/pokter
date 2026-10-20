@@ -8,8 +8,18 @@ import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({ briefs: getBriefStore().all() });
+/**
+ * Every request, or one wallet's (`?poster=`), each with its bid count.
+ *
+ * A poster's requests are already public on /requests; this only filters
+ * them, for the Hiring view's "My requests".
+ */
+export async function GET(request: Request): Promise<NextResponse> {
+  const store = getBriefStore();
+  const poster = new URL(request.url).searchParams.get('poster');
+  if (poster !== null && !isAddress(poster)) return NextResponse.json({ error: 'poster must be a wallet address.' }, { status: 400 });
+  const briefs = poster ? store.byPoster(poster) : store.all();
+  return NextResponse.json({ briefs: briefs.map((brief) => ({ ...brief, bids: store.bidsFor(brief.id).length })) });
 }
 
 /**

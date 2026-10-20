@@ -30,12 +30,21 @@ import { jobHref } from '@/lib/jobs/href';
 
 /* ───────────────────────── Jobs ───────────────────────── */
 
-const FILTERS: Array<{ id: string; label: string; phases: JobPhase[] | null }> = [
+/*
+ * Status filters live inside My jobs rather than in the sidebar. The ids
+ * `attention`, `active` and `done` are linked from the overview and keep
+ * their meaning. "Not funded" appears only when a job is in that state:
+ * a filter that can only ever be empty is noise.
+ */
+const FILTERS: Array<{ id: string; label: string; phases: JobPhase[] | null; onlyIfAny?: boolean }> = [
   { id: 'all', label: 'All', phases: null },
-  { id: 'active', label: 'In progress', phases: ['working'] },
   { id: 'attention', label: 'Needs you', phases: ['review', 'reclaim'] },
-  { id: 'done', label: 'Settled', phases: ['settled'] },
-  { id: 'failed', label: 'Disputed, refunded or unfunded', phases: ['disputed', 'rejected', 'refunded', 'expired', 'unfunded'] },
+  { id: 'active', label: 'Running', phases: ['working'] },
+  { id: 'review', label: 'Ready to review', phases: ['review'] },
+  { id: 'disputed', label: 'Disputed', phases: ['disputed', 'rejected'] },
+  { id: 'done', label: 'Completed', phases: ['settled'] },
+  { id: 'refunds', label: 'Refunds', phases: ['refunded', 'expired'] },
+  { id: 'unfunded', label: 'Not funded', phases: ['unfunded'], onlyIfAny: true },
 ];
 
 export function JobsPage() {
@@ -46,7 +55,7 @@ export function JobsPage() {
   if (!address) {
     return (
       <>
-        <PageHeader title="Jobs" />
+        <PageHeader title="My jobs" />
         <NeedsWallet what="your jobs" />
       </>
     );
@@ -57,7 +66,18 @@ export function JobsPage() {
   const shown = filter.phases ? scoped.filter((j) => filter.phases!.includes(jobPhase(j, now))) : scoped;
   return (
     <>
-      <PageHeader title="Jobs" description="Every job this wallet has funded through Pokter, read from this device and refreshed from chain when opened." action={<RecoverJob compact />} />
+      <PageHeader
+        title="My jobs"
+        description="Every job this wallet has funded through Pokter, read from this device and refreshed from chain when opened."
+        action={
+          <div className="flex items-center gap-2">
+            <LinkButton href="/workspace/agents" intent="ghost" size="s">
+              By agent
+            </LinkButton>
+            <RecoverJob compact />
+          </div>
+        }
+      />
       {agent && scoped[0] && (
         <p className="mb-3 text-sm text-ink-2">
           Showing jobs for <strong className="font-medium text-ink">{scoped[0].agentName}</strong> ·{' '}
@@ -66,7 +86,7 @@ export function JobsPage() {
           </Link>
         </p>
       )}
-      <TabLinks label="Filter jobs" active={filter.id} tabs={counted.map((f) => ({ id: f.id, label: f.label, href: f.id === 'all' ? '/workspace/jobs' : `/workspace/jobs?filter=${f.id}`, count: f.count }))} className="mb-2" />
+      <TabLinks label="Filter jobs" active={filter.id} tabs={counted.filter((f) => !f.onlyIfAny || f.count > 0 || f.id === filter.id).map((f) => ({ id: f.id, label: f.label, href: f.id === 'all' ? '/workspace/jobs' : `/workspace/jobs?filter=${f.id}`, count: f.count }))} className="mb-2" />
       {shown.length === 0 ? (
         <EmptyState title={jobs.length === 0 ? 'No jobs yet' : 'Nothing here'} className="mt-6" action={jobs.length === 0 ? <LinkButton href="/discover">Find an agent</LinkButton> : undefined}>
           {jobs.length === 0 ? 'Hire an agent and its job appears here, with its deadline, delivery and settlement.' : 'No job is in this state right now.'}

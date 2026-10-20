@@ -24,10 +24,16 @@ export function budgetDefault(input: {
   lastSignedU?: number | null;
   /** Pokter's own suggestion for the category. */
   suggestedU?: number | null;
+  /**
+   * The price of the proposal the buyer chose on a request. It leads: the
+   * buyer has already agreed to it, and the agent's owner signed it.
+   */
+  proposalU?: number | null;
 }): number {
   const usable = (value: number | null | undefined): value is number =>
     typeof value === 'number' && Number.isFinite(value) && value > 0;
 
+  if (usable(input.proposalU)) return input.proposalU;
   if (usable(input.signedU)) return input.signedU;
   if (usable(input.lastSignedU)) return input.lastSignedU;
   if (usable(input.suggestedU)) return input.suggestedU;

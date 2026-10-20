@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 
 import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
+import { hireTaskFromRequest, type ProposalForHire } from '@/lib/briefs/model';
+import { getBriefStore } from '@/lib/briefs/store';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
 import { loadProfile } from '@/features/agent/profile';
@@ -23,12 +25,15 @@ export async function HireContents({
   tokenId,
   escrow,
   initialTask,
+  proposalId,
   embedded = false,
 }: {
   chainId: number;
   tokenId: string;
   escrow?: string;
   initialTask: string | null;
+  /** A proposal chosen on a request (`?proposal=`); ignored unless it is the chosen one, for this agent. */
+  proposalId?: string;
   /** Inside the sheet, where the sheet already draws the chrome. */
   embedded?: boolean;
 }) {
@@ -83,6 +88,8 @@ export async function HireContents({
       warnings: profile.warnings,
     }));
 
+  const fromRequest = chosenProposal(proposalId, chainId, tokenId);
+
   return (
     <HireNetworks
       networks={networks}
@@ -92,9 +99,28 @@ export async function HireContents({
       declaredSkills={p.skills}
       answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
-      initialTask={initialTask}
+      initialTask={initialTask ?? fromRequest?.task ?? null}
+      proposal={fromRequest?.proposal ?? null}
     />
   );
+}
+
+/**
+ * The proposal a hire link names, if it really is the one chosen on its
+ * request and is for this agent. Anything else is ignored rather than
+ * refused: the hire still works, only without a price to hold it to.
+ */
+function chosenProposal(id: string | undefined, chainId: number, tokenId: string): { proposal: ProposalForHire; task: string } | null {
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const store = getBriefStore();
+  const bid = store.bid(id);
+  if (!bid || bid.agentChainId !== chainId || bid.agentTokenId !== tokenId) return null;
+  const request = store.get(bid.briefId);
+  if (!request || request.awardedBidId !== bid.id) return null;
+  return {
+    proposal: { requestId: request.id, requestTitle: request.title, priceU: bid.priceU, deliverDays: bid.deliverDays, chainId: request.chainId },
+    task: hireTaskFromRequest(request),
+  };
 }
 
 /** A brief from the link, e.g. one an assistant composed through Pokter's MCP server. Prose only, and capped. */

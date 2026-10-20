@@ -37,3 +37,10 @@ test('a zero or broken price is not a price', () => {
   assert.equal(budgetDefault({ signedU: Number.NaN, suggestedU: 0.3 }), 0.3);
   assert.equal(budgetDefault({ lastSignedU: -1 }), DEFAULT_BUDGET_U);
 });
+
+test('a proposal the buyer chose on a request leads, ahead of any quote', () => {
+  // The buyer agreed to it and the agent's owner signed it; the hire's fresh quote is held against it.
+  assert.equal(budgetDefault({ proposalU: 4, signedU: 0.5, lastSignedU: 0.3, suggestedU: 0.2 }), 4);
+  assert.equal(budgetDefault({ proposalU: null, signedU: 0.5 }), 0.5);
+  assert.equal(budgetDefault({ proposalU: 0, suggestedU: 0.2 }), 0.2, 'an unusable price is ignored');
+});
