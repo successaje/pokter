@@ -1,5 +1,7 @@
 import type { Address, Hex } from 'viem';
 
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+
 /**
  * A brief is demand, posted before any agent is chosen.
  *
@@ -196,7 +198,20 @@ export function hireTaskFromRequest(brief: Pick<BriefContent, 'brief' | 'accepta
 /** Proposals may be asked for over at most this long. */
 export const MAX_CLOSING_DAYS = 60;
 
-const LIMITS = { title: 120, brief: 4000, note: 1200, line: 240, lines: 12 } as const;
+export const LIMITS = { title: 120, brief: 4000, note: 1200, line: 240, lines: 12 } as const;
+
+/**
+ * Why a list field would not survive the server as written, or null.
+ *
+ * The server trims a long list rather than refusing it, but the poster has
+ * already signed the untrimmed text, so the stored request would no longer
+ * match its signature. The form asks for a shorter list instead.
+ */
+export function listProblem(lines: readonly string[]): string | null {
+  if (lines.length > LIMITS.lines) return `At most ${LIMITS.lines} lines.`;
+  if (lines.some((l) => l.length > LIMITS.line)) return `Keep each line under ${LIMITS.line} characters.`;
+  return null;
+}
 
 /** Rejects what cannot be stored or displayed, before any signature work. */
 export function readBriefContent(raw: unknown, now: number = Date.now()): BriefContent | null {
@@ -213,7 +228,8 @@ export function readBriefContent(raw: unknown, now: number = Date.now()): BriefC
       : [];
   if (!title || title.length > LIMITS.title) return null;
   if (!brief || brief.length > LIMITS.brief) return null;
-  if (!Number.isFinite(budgetU) || budgetU <= 0) return null;
+  /* Within what one hire can be funded with; a request above it could be chosen and never paid. */
+  if (!Number.isFinite(budgetU) || budgetU < BUDGET_MIN || budgetU > BUDGET_MAX) return null;
   if (chainId !== 56 && chainId !== 97) return null;
   if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
   const acceptance = lines(b.acceptance);
@@ -243,7 +259,7 @@ export function readBidContent(raw: unknown): BidContent | null {
   const note = typeof b.note === 'string' ? b.note.trim().slice(0, LIMITS.note) : '';
   if (agentChainId !== 56 && agentChainId !== 97) return null;
   if (!/^\d{1,12}$/.test(agentTokenId)) return null;
-  if (!Number.isFinite(priceU) || priceU <= 0) return null;
+  if (!Number.isFinite(priceU) || priceU < BUDGET_MIN || priceU > BUDGET_MAX) return null;
   if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
   return { agentChainId, agentTokenId, priceU, deliverDays, note };
 }

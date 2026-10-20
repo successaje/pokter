@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { awardMessage, bidMessage, withdrawMessage, type Bid, type BidContent } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { chainLabel } from '@/lib/network/presentation';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Button } from '@/ui/Button';
@@ -47,8 +48,8 @@ export function PlaceBid({ briefId }: { briefId: string }) {
       deliverDays: Number(deliverDays),
       note: note.trim(),
     };
-    if (!(content.priceU > 0)) {
-      setError('Give the price you will take, in $U.');
+    if (!(content.priceU >= BUDGET_MIN && content.priceU <= BUDGET_MAX)) {
+      setError(`Give the price you will take, between ${BUDGET_MIN} and ${BUDGET_MAX} $U: the most one hire can be funded with today.`);
       return;
     }
     setBusy(true);

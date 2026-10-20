@@ -428,7 +428,9 @@ export function HireFlow(props: HireFlowProps) {
             >
               {proposalHere
                 ? `You chose a proposal of ${props.proposal.priceU} $U, delivered within ${props.proposal.deliverDays === 1 ? '1 day' : `${props.proposal.deliverDays} days`} of hiring. The brief below is your request. Before anything is funded, the agent signs a quote for it, and you see it on the next step.`
-                : `That proposal was made for ${chainLabel(props.proposal.chainId)}. Switch back to hire at the price you chose.`}
+                : network.options.some((o) => o.chainId === props.proposal!.chainId)
+                  ? `That proposal was made for ${chainLabel(props.proposal.chainId)}. Switch back to hire at the price you chose.`
+                  : `That proposal was made for ${chainLabel(props.proposal.chainId)}, where this agent cannot be hired right now. Hiring here is a new price, not the one you chose.`}
             </Notice>
           )}
 

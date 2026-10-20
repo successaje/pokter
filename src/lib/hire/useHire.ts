@@ -79,8 +79,8 @@ export type NotificationState =
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
-export const BUDGET_MIN = 0.01;
-export const BUDGET_MAX = 5;
+export { BUDGET_MAX, BUDGET_MIN } from './budget-limits';
+import { BUDGET_MAX, BUDGET_MIN } from './budget-limits';
 
 /**
  * A read-only client for quoting the swap, built per attempt.

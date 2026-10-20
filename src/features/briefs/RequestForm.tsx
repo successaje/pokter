@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { briefMessage, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+import { briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
 import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
@@ -36,7 +37,7 @@ interface Draft {
   savedAt?: string;
 }
 
-type Problems = Partial<Record<'title' | 'brief' | 'acceptance' | 'budget', string>>;
+type Problems = Partial<Record<'title' | 'brief' | 'acceptance' | 'failSignals' | 'budget', string>>;
 
 const lines = (value: string) => value.split('\n').map((l) => l.trim()).filter(Boolean);
 
@@ -65,6 +66,7 @@ export function RequestForm({ networks }: { networks: number[] }) {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [step, setStep] = useState<'write' | 'review'>('write');
   const [openedAt] = useState(() => Date.now());
+  const moreOptions = useRef<HTMLDetailsElement>(null);
   const [problems, setProblems] = useState<Problems>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,9 +135,14 @@ export function RequestForm({ networks }: { networks: number[] }) {
     if (!content.title) found.title = 'Give the request a title.';
     if (!content.brief) found.brief = 'Describe the work.';
     if (content.acceptance.length === 0) found.acceptance = 'Add at least one line: what the result must include.';
-    if (!(Number(draft.budget) > 0)) found.budget = 'Propose a budget above zero.';
+    else if (listProblem(content.acceptance)) found.acceptance = listProblem(content.acceptance)!;
+    if (listProblem(content.failSignals)) found.failSignals = listProblem(content.failSignals)!;
+    const budgetU = Number(draft.budget);
+    if (!(budgetU >= BUDGET_MIN && budgetU <= BUDGET_MAX)) found.budget = `Propose between ${BUDGET_MIN} and ${BUDGET_MAX} $U, the most one hire can be funded with today.`;
     setProblems(found);
     if (Object.keys(found).length > 0) {
+      /* A problem under More options is opened up, or the focus below would land on a hidden field. */
+      if (found.failSignals && moreOptions.current) moreOptions.current.open = true;
       /* Take the poster to the first thing to fix, which may be above the button they pressed. */
       requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
       return;
@@ -288,10 +295,10 @@ export function RequestForm({ networks }: { networks: number[] }) {
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-1.5 text-sm font-medium text-ink">Your proposed budget</legend>
           <NetworkChoice networks={networks} value={draft.chainId} onChange={(id) => set('chainId', id)} />
-          <Field label={<span className="sr-only">Amount</span>} hint="What you expect to pay. Builders may propose another price; you fund only the one you choose." error={problems.budget}>
+          <Field label={<span className="sr-only">Amount</span>} hint={`What you expect to pay, up to ${BUDGET_MAX} $U per job. Builders may propose another price; you fund only the one you choose.`} error={problems.budget}>
             {(p) => (
               <div className="relative">
-                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="5.00" className="t-readout pr-14 text-[17px]" />
+                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="1.00" className="t-readout pr-14 text-[17px]" />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$U</span>
               </div>
             )}
@@ -310,7 +317,7 @@ export function RequestForm({ networks }: { networks: number[] }) {
           )}
         </Field>
 
-        <details className="group rounded-[12px] border border-rule">
+        <details ref={moreOptions} className="group rounded-[12px] border border-rule">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-medium [&::-webkit-details-marker]:hidden">
             <span>
               More options
@@ -330,7 +337,7 @@ export function RequestForm({ networks }: { networks: number[] }) {
                 </Select>
               )}
             </Field>
-            <Field label="Rejected if" optional hint="One per line. What would make a delivery wrong, not just incomplete.">
+            <Field label="Rejected if" optional hint="One per line. What would make a delivery wrong, not just incomplete." error={problems.failSignals}>
               {(p) => (
                 <Textarea
                   {...p}

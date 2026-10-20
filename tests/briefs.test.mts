@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, readBidContent, readBriefContent, withdrawMessage } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, withdrawMessage } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -154,4 +154,21 @@ test('a category is signed when chosen, and only one of the board’s is accepte
   assert.equal(readBriefContent({ ...CONTENT, category: 'defi' })?.category, 'defi');
   assert.equal(readBriefContent({ ...CONTENT, category: 'gambling' }), null);
   assert.equal(readBriefContent(CONTENT)?.category, null);
+});
+
+test('a budget or a proposal above what one hire can be funded with is refused', () => {
+  // A request priced past the hire limit could be chosen and then never funded.
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 5 })?.budgetU, 5);
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 5.01 }), null);
+  assert.equal(readBriefContent({ ...CONTENT, budgetU: 0.001 }), null);
+  const ok = { agentChainId: 97, agentTokenId: '2554', priceU: 5, deliverDays: 3, note: '' };
+  assert.ok(readBidContent(ok));
+  assert.equal(readBidContent({ ...ok, priceU: 25 }), null);
+});
+
+test('a list the server would trim is caught before it is signed', () => {
+  // The signature covers the text as written; a trimmed copy would not verify.
+  assert.equal(listProblem(['fine']), null);
+  assert.match(listProblem(Array.from({ length: 13 }, (_, i) => `line ${i}`)) ?? '', /12 lines/);
+  assert.match(listProblem(['x'.repeat(241)]) ?? '', /240 characters/);
 });
