@@ -571,7 +571,7 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
   };
 
   const preview = (
-    <LivePreview draft={d.draft} image={d.image} checks={d.checks} footnote={<DraftSaveNote status={d.saveStatus} />} />
+    <LivePreview draft={d.draft} image={d.image} network={d.network} checks={d.checks} footnote={<DraftSaveNote status={d.saveStatus} />} />
   );
 
   /*

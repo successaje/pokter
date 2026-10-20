@@ -11,11 +11,12 @@ import type { FindRow } from '@/lib/find/rows';
  * has not yet answered Pokter's scheduled checks, which are what the
  * listing's "Answers" step counts, so the card does not claim it.
  */
-export function draftPreviewRow(draft: { name: string; description: string; category: string; image: string }): FindRow {
+export function draftPreviewRow(draft: { name: string; description: string; category: string; image: string }, chainId: 56 | 97): FindRow {
   const category = (CATEGORY_BY_ID.has(draft.category as Category) ? draft.category : 'unclassified') as Category | 'unclassified';
   return {
     key: 'draft',
-    chainId: 97,
+    /* The network chosen at Publish: the card names where it is registered, and that must not say testnet for a mainnet agent. */
+    chainId,
     tokenId: 'new',
     name: draft.name.trim() || 'Your agent',
     imageUrl: /^https:\/\//i.test(draft.image) ? draft.image : null,

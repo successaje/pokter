@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useId, useMemo, type ReactNode } from 'react';
 
 import { AgentCard } from '@/features/agents/AgentCard';
 import { cn } from '@/lib/ui/cn';
@@ -17,8 +17,22 @@ type Check = { id: string; label: string; done: boolean; hint: string };
  * does not exist yet. Under it, what is left before the agent can be
  * published, item by item, rather than a count.
  */
-export function LivePreview({ draft, image, checks, footnote }: { draft: { name: string; description: string; category: string }; image: string; checks: Check[]; footnote?: ReactNode }) {
-  const row = useMemo(() => draftPreviewRow({ ...draft, image }), [draft, image]);
+export function LivePreview({
+  draft,
+  image,
+  network,
+  checks,
+  footnote,
+}: {
+  draft: { name: string; description: string; category: string };
+  image: string;
+  network: 56 | 97;
+  checks: Check[];
+  footnote?: ReactNode;
+}) {
+  const row = useMemo(() => draftPreviewRow({ ...draft, image }, network), [draft, image, network]);
+  /* Mounted twice — beside the form and in the small-screen sheet — so its ids are its own. */
+  const readyId = useId();
   const done = checks.filter((c) => c.done).length;
   return (
     <div className="flex flex-col gap-5">
@@ -30,9 +44,9 @@ export function LivePreview({ draft, image, checks, footnote }: { draft: { name:
         <AgentCard row={row} />
       </div>
 
-      <section aria-labelledby="ready-title" className="rounded-[14px] border border-rule p-4">
+      <section aria-labelledby={readyId} className="rounded-[14px] border border-rule p-4">
         <div className="flex items-baseline justify-between">
-          <h2 id="ready-title" className="t-label">
+          <h2 id={readyId} className="t-label">
             Ready to publish
           </h2>
           <span className="t-readout text-[13px] text-ink-2">
