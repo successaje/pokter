@@ -76,6 +76,8 @@ export async function GET(request: Request): Promise<NextResponse> {
       name: agent.name,
       imageUrl: images[i],
       category: category === 'unclassified' ? null : CATEGORY_BY_ID.get(category)?.label ?? null,
+      /* The id as well as the label, for matching: request alerts compare categories, and a label is copy. */
+      categoryId: category === 'unclassified' ? null : category,
       /* List rows carry the declared protocols; the endpoint itself only
          appears on the detail record, and fetching 100 of those to draw a
          dot is not worth the indexer's quota. */
