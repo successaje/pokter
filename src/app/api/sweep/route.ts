@@ -13,7 +13,7 @@ import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
 import { CAMPAIGN_ENDS_AT, isCampaignLive } from '@/lib/campaign/window';
-import { lookupQuest } from '@/lib/quest/lookup';
+import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
@@ -338,8 +338,8 @@ export async function POST(request: Request): Promise<NextResponse> {
             nowMs: Date.now(),
             endsAtMs: CAMPAIGN_ENDS_AT.getTime(),
             hiresOf: async (wallet) => {
-              const quest = await lookupQuest(wallet);
-              return { distinctAgents: quest.summary.distinctAgents, marketplaces: quest.summary.namedMarketplaces.map((m) => (m === POKTER_MARKETPLACE ? 'Pokter' : m)) };
+              const { summary } = await campaignHires(wallet);
+              return { distinctAgents: summary.distinctAgents, marketplaces: summary.namedMarketplaces.map((m) => (m === POKTER_MARKETPLACE ? 'Pokter' : m)) };
             },
           })
         : Promise.resolve({ checked: 0, sent: 0 }),

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
+import { campaignTimeLeft, isCampaignLive } from '@/lib/campaign/window';
 import { FAUCETS, IS_TESTNET, NATIVE_SYMBOL, NETWORK_LABEL, chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -29,6 +30,8 @@ export function AccountButton({ compact }: { compact?: boolean }) {
   const w = useWalletState();
   const { openConnect } = useConnect();
   const [open, setOpen] = useState(false);
+  // Read once: the countdown beside "Set and Earn" only needs the day, and the clock is not read during render.
+  const [mountedAt] = useState(() => Date.now());
   const close = useCallback(() => setOpen(false), []);
   const layer = useDismissibleLayer<HTMLDivElement>({ open, onDismiss: close });
 
@@ -158,11 +161,14 @@ export function AccountButton({ compact }: { compact?: boolean }) {
               /* Builders land in Building, everyone else in Hiring; both are one switch away. */
               { href: rememberedUsage(w.address) === 'build' ? '/build' : '/workspace', label: 'My workspace', icon: <Icon.Briefcase size={16} /> },
               { href: `/builders/${w.address}`, label: 'My profile', icon: <Icon.User size={16} /> },
+              /* While the campaign runs: where this wallet stands, one click from the wallet that is being tracked. */
+              ...(isCampaignLive() ? [{ href: '/set-and-earn', label: 'Set and Earn', icon: <Icon.Rocket size={16} />, note: campaignTimeLeft(mountedAt) }] : []),
               { href: '/account', label: 'Settings', icon: <Icon.Gear size={16} /> },
-            ].map((item) => (
+            ].map((item: { href: string; label: string; icon: React.ReactNode; note?: string }) => (
               <Link key={item.href} href={item.href} onClick={close} className="flex items-center gap-3 px-4 py-2 text-ink-2 hover:bg-sunken hover:text-ink">
                 <span className="text-ink-3">{item.icon}</span>
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.note && <span className="text-[11.5px] text-ink-3">{item.note}</span>}
               </Link>
             ))}
             <button

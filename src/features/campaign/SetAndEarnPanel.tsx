@@ -207,19 +207,30 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
   const adoptionState: StepState = !inWindow ? 'todo' : adoptionDone ? 'done' : a && (a.independentWallets || a.actions) ? 'partial' : 'todo';
   const states: StepState[] = [registered ? 'done' : 'todo', hireState, buildState, adoptionState];
   const done = states.filter((s) => s === 'done').length;
+  const started = states.filter((s) => s === 'partial').length;
+  /* How full each segment is, so one agent of three shows as a third, not as nothing. */
+  const part = (value: number, target: number) => Math.min(value, target) / target;
+  const fills = [
+    registered ? 1 : 0,
+    hireState === 'done' ? 1 : Math.min(0.95, part(h.distinctAgents, 3)),
+    buildState === 'done' ? 1 : 0,
+    adoptionState === 'done' ? 1 : a ? Math.min(0.95, (part(a.independentWallets, 3) + part(a.actions, 5) + part(a.activeDays, 3)) / 3) : 0,
+  ];
 
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-2 px-5 pt-5">
         <div className="flex items-baseline justify-between">
           <span className="text-[13.5px] font-medium">
-            {done === 4 ? 'Everything Pokter can see is done' : `${done} of 4 done`}
+            {done === 4 ? 'Everything Pokter can see is done' : `${done} of 4 done${started ? ` · ${started} in progress` : ''}`}
           </span>
           <span className="text-[12px] text-ink-3">BNB Chain decides who qualifies</span>
         </div>
         <div className="grid grid-cols-4 gap-1.5" aria-hidden>
-          {states.map((s, i) => (
-            <span key={i} className={cn('h-1.5 rounded-full', s === 'done' ? 'bg-ok' : s === 'partial' ? 'bg-ok/40' : 'bg-sunken')} />
+          {fills.map((fill, i) => (
+            <span key={i} className="h-1.5 overflow-hidden rounded-full bg-sunken">
+              <span className="block h-full rounded-full bg-ok transition-[width] duration-500" style={{ width: `${Math.round(fill * 100)}%` }} />
+            </span>
           ))}
         </div>
       </div>
@@ -246,6 +257,11 @@ function Steps({ report, rulesUrl }: { report: CampaignProgressReport; rulesUrl:
           status={
             <>
               <Meter value={h.distinctAgents} target={3} label="agents" />
+              {h.recent.length > 0 && (
+                <span className="block text-ink-3">
+                  {[...new Map(h.recent.map((r) => [r.name, r])).values()].map((r) => `${r.name}${r.marketplace ? ` (${r.marketplace})` : ''}`).join(', ')}
+                </span>
+              )}
               <span className="block">
                 {h.marketplacesStatus === 'met'
                   ? `On ${h.marketplaces.join(' and ')}: two marketplaces, as required.`
