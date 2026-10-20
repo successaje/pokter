@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { answeredTasksFor } from '@/lib/agent/answered-tasks-sweep';
 import { hireTaskFromRequest, type ProposalForHire } from '@/lib/briefs/model';
@@ -6,7 +6,9 @@ import { getBriefStore } from '@/lib/briefs/store';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
 import { loadProfile } from '@/features/agent/profile';
-import { HireNetworks } from '@/features/hire/HireNetworks';
+import { deliversItself } from '@/features/hire/delivery';
+import { HireNetworks, type HireNetwork } from '@/features/hire/HireNetworks';
+import { ownRegistration } from '@/lib/agents/own-registration';
 import type { ChainId } from '@/lib/scan/types';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -88,11 +90,30 @@ export async function HireContents({
       warnings: profile.warnings,
     }));
 
+  /*
+   * A network only Pokter's delivery agent can serve here, where the same
+   * agent — same owner, same name — has its own registration: hiring that
+   * registration is the agent delivering itself. Relayed, an agent that
+   * works only when paid through escrow answers the relay with a price,
+   * and the job sits funded until it expires; that is how testnet job 1572
+   * was hired from Brinkwatch's mainnet page and never delivered.
+   */
+  const handoffs = await Promise.all(
+    networks.map((n) => (n.chainId === chainId || deliversItself(n.providers) ? Promise.resolve(null) : ownRegistration(n.chainId, p.owner, p.name, chainId, tokenId))),
+  );
+  const withHandoffs: HireNetwork[] = networks.map((n, i) => (handoffs[i] ? { ...n, handoff: handoffs[i] } : n));
+  /* Opened straight onto a relayed network (a shared `?escrow=` link, or the only one offered): go to the agent's own registration. */
+  const opening = withHandoffs.find((n) => n.chainId === p.escrow.chainId)?.handoff;
+  if (opening && !proposalId) {
+    const task = initialTask?.trim();
+    redirect(`/hire/${opening.chainId}/${opening.tokenId}?escrow=${p.escrow.chainId}${task ? `&task=${encodeURIComponent(task)}` : ''}`);
+  }
+
   const fromRequest = chosenProposal(proposalId, chainId, tokenId);
 
   return (
     <HireNetworks
-      networks={networks}
+      networks={withHandoffs}
       initialChainId={p.escrow.chainId}
       embedded={embedded}
       agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name, category: p.category?.id ?? 'unclassified', wallet: p.agentWallet, imageUrl: p.imageUrl, key: p.key }}
