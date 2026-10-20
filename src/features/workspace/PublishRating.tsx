@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useSwitchChain, useWriteContract } from 'wagmi';
+import { useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 
 import type { VerifiedReview } from '@/lib/reviews/model';
@@ -11,6 +11,7 @@ import { explorerBaseFor } from '@/lib/network/presentation';
 import { wagmiConfig } from '@/lib/wallet/config';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
+import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
 type Step = 'idle' | 'switching' | 'signing' | 'confirming' | 'verifying' | 'done';
 
@@ -39,7 +40,7 @@ function errorText(message: string): string {
  * transaction before showing the review as on chain.
  */
 export function PublishRating({ review }: { review: VerifiedReview }) {
-  const { switchChainAsync } = useSwitchChain();
+  const { switchChainAsync } = useLiveSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const [step, setStep] = useState<Step>(review.onchainTx ? 'done' : 'idle');
   const [hash, setHash] = useState<string | null>(review.onchainTx ?? null);
