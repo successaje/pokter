@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits } from 'viem';
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { useActiveWallet } from '@/lib/wallet/active';
@@ -12,6 +12,7 @@ import { WALLET_NETWORK, walletClient } from '@/lib/wallet/passkey';
 import { balanceScope, selectableChains, switchAllowed } from '@/lib/wallet/balance-scope';
 import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useHydrated } from '@/lib/ui/use-hydrated';
+import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
 export interface WalletBalances {
   /** The payment token ($U), as a decimal number. */
@@ -44,7 +45,7 @@ export function useWalletState() {
   const { address: externalAddress, isConnected, chain, connector } = useAccount();
   const { connect, connectors, isPending: connecting, error: connectError, reset: resetConnect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
+  const { switchChain, isPending: switching, error: switchError } = useLiveSwitchChain();
 
   const injectedAvailable = hydrated && Boolean(hasInjectedWallet());
   const injected = injectedAvailable ? (connectors.find((c) => c.id === 'injected') ?? null) : null;

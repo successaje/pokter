@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { connect, createConfig, getConnectorClient, http, mock, signMessage } from '@wagmi/core';
-import { bscTestnet } from '@wagmi/core/chains';
+import { connect, createConfig, getConnectorClient, http, mock, signMessage, switchChain } from '@wagmi/core';
+import { bsc, bscTestnet } from '@wagmi/core/chains';
 
-import { liveConnector } from '../src/lib/wallet/live-connector';
+import { liveConnector, switchThroughLive } from '../src/lib/wallet/live-connector';
 
 /*
  * A wallet session restored from storage holds a plain stand-in for its
@@ -40,4 +40,35 @@ test('a connector is matched by uid first, then by id, and nothing is invented',
   assert.equal(liveConnector({ uid: 'z', id: 'walletConnect' }, connectors), connectors[1]);
   assert.equal(liveConnector({ uid: 'z', id: 'other' }, connectors), undefined);
   assert.equal(liveConnector(undefined, connectors), undefined);
+});
+
+/*
+ * The same window, switching networks: wagmi's switchChain uses the
+ * connector stored on the connection whatever it is passed, so it failed
+ * with '"Injected" does not support programmatic chain switching' until
+ * the page was refreshed. Switching through the live connector works.
+ */
+test('switching networks during a reconnect goes through the live connector', async () => {
+  const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+  const config = createConfig({ chains: [bscTestnet, bsc], connectors: [mock({ accounts: [account], features: { defaultConnected: false } })], transports: { [bscTestnet.id]: http(), [bsc.id]: http() } });
+  const real = config.connectors[0];
+  await connect(config, { connector: real, chainId: bscTestnet.id });
+
+  const standIn = { id: real.id, name: real.name, type: real.type, uid: real.uid };
+  config.setState((s) => {
+    const connections = new Map(s.connections);
+    connections.set(s.current!, { ...s.connections.get(s.current!)!, connector: standIn as never });
+    return { ...s, connections, status: 'reconnecting' };
+  });
+
+  await assert.rejects(switchChain(config, { chainId: bsc.id, connector: real }), /does not support programmatic chain switching/);
+  assert.equal(await switchThroughLive(config as never, bsc.id), true);
+  assert.equal(await real.getChainId(), bsc.id);
+});
+
+test('a connection that can switch is left to wagmi, and a missing live connector is said', async () => {
+  const connected = { state: { current: 'a', connections: new Map([['a', { connector: { uid: 'a', id: 'injected', switchChain: async () => ({}) } }]]) }, connectors: [] };
+  assert.equal(await switchThroughLive(connected, 56), false);
+  const orphan = { state: { current: 'a', connections: new Map([['a', { connector: { uid: 'a', id: 'injected' } }]]) }, connectors: [] };
+  await assert.rejects(switchThroughLive(orphan, 56), /still reconnecting/);
 });

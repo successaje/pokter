@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { formatEther, formatUnits } from 'viem';
-import { useSwitchChain } from 'wagmi';
 
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
@@ -38,6 +37,7 @@ import type { AnsweredTask } from '@/lib/agent/answered-tasks';
 import { stoppedHireEvent } from '@/lib/conversion/funnel';
 import { exampleLabels, withWalletPlaceholder } from '@/lib/hire/example-chips';
 import { WALLET_PLACEHOLDER } from '@/lib/hire/example-wallet';
+import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
 type Step = 'describe' | 'review' | 'pay';
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -172,7 +172,7 @@ export function HireFlow(props: HireFlowProps) {
   const faucets = testnet ? FAUCETS : null;
   const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
-  const { switchChain, isPending: switching } = useSwitchChain();
+  const { switchChain, isPending: switching } = useLiveSwitchChain();
   const sponsored = useGasSponsorship();
   const [step, setStepState] = useState<Step>('describe');
   const setStep = (next: Step) => {

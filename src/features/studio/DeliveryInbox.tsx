@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatUnits, getAddress } from 'viem';
-import { useAccount, useSwitchChain } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { chainLabel } from '@/lib/network/presentation';
@@ -21,6 +21,7 @@ import { EmptyState, Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
+import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
 const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   OPEN: { label: 'Not funded', tone: 'text-ink-3' },
@@ -334,7 +335,7 @@ function amountOf(job: HiredJob): string {
 export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
   const { address, isConnected, chain } = useAccount();
   const { openConnect } = useConnect();
-  const { switchChain, isPending: switching } = useSwitchChain();
+  const { switchChain, isPending: switching } = useLiveSwitchChain();
   const [open, setOpen] = useState<string | null>(null);
   const connected = address ? getAddress(address) : null;
   // Each job is delivered on the escrow it was funded on.
