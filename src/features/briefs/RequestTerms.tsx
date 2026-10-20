@@ -18,6 +18,8 @@ export function RequestTerms({
   byline,
   heading: Heading = 'h1',
   action,
+  part = 'all',
+  facts = true,
   className,
 }: {
   content: BriefContent;
@@ -26,19 +28,24 @@ export function RequestTerms({
   heading?: 'h1' | 'h2';
   /** Beside the title, such as "Make a proposal". */
   action?: ReactNode;
+  /** The title and byline alone, the body alone, or both: a page can put something between them. */
+  part?: 'all' | 'head' | 'body';
+  /** The budget, delivery, network and closing boxes; off where the page shows them elsewhere. */
+  facts?: boolean;
   className?: string;
 }) {
-  return (
-    <div className={cn('flex flex-col gap-8', className)}>
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <Heading className="t-h1 min-w-0 break-words">{content.title || 'Untitled request'}</Heading>
-          {action}
-        </div>
-        <RequestFacts content={content} />
-        {byline && <p className="text-[13px] text-ink-3">{byline}</p>}
-      </header>
-
+  const head = (
+    <header className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <Heading className="t-h1 min-w-0 break-words">{content.title || 'Untitled request'}</Heading>
+        {action}
+      </div>
+      {facts && <RequestFacts content={content} />}
+      {byline && <p className="text-[13px] text-ink-3">{byline}</p>}
+    </header>
+  );
+  const body = (
+    <>
       <section aria-labelledby="brief-title">
         <h2 id="brief-title" className="t-label mb-3">What is needed</h2>
         <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-ink-2">{content.brief}</p>
@@ -74,6 +81,14 @@ export function RequestTerms({
           </ul>
         </section>
       )}
+    </>
+  );
+  if (part === 'head') return <div className={className}>{head}</div>;
+  if (part === 'body') return <div className={cn('flex flex-col gap-8', className)}>{body}</div>;
+  return (
+    <div className={cn('flex flex-col gap-8', className)}>
+      {head}
+      {body}
     </div>
   );
 }

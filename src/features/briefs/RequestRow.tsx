@@ -3,12 +3,15 @@ import Link from 'next/link';
 import { requestCategoryLabel, type BriefContent } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { cn } from '@/lib/ui/cn';
-import { AgentAvatar } from '@/ui/Agent';
+import { avatarUrl } from '@/lib/ui/avatar-art';
+import { AvatarImage } from '@/ui/AvatarImage';
 import { Icon } from '@/ui/icons';
 
 export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | 'budgetU' | 'chainId' | 'closesAt' | 'category'> {
   id: string;
   poster: string;
+  /** The poster's published name and picture; absent while their profile is private. */
+  posterIdentity?: { name: string; avatar: string | null } | null;
   postedAt: string;
   proposals: number;
   state: 'open' | 'awarded' | 'cancelled';
@@ -26,14 +29,20 @@ export function RequestRow({ request, now, preview = false }: { request: Request
   const closing = request.closesAt ? closesIn(request.closesAt, now) : null;
   const testnet = request.chainId === 97;
   const meta = [
-    preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`,
+    `${preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`}${request.posterIdentity ? ` by ${request.posterIdentity.name}` : ''}`,
     request.proposals === 1 ? '1 proposal' : `${request.proposals} proposals`,
     request.state === 'awarded' ? 'Agent chosen' : request.state === 'cancelled' ? 'Withdrawn' : closing,
   ].filter(Boolean);
 
   const body = (
     <>
-      <AgentAvatar name="Poster" seed={request.poster.toLowerCase()} size={40} className="mt-0.5 hidden rounded-full @lg:block" />
+      <AvatarImage
+        src={request.posterIdentity?.avatar ?? null}
+        fallback={avatarUrl(request.poster.toLowerCase())}
+        name={request.posterIdentity?.name ?? 'Poster'}
+        size={40}
+        className="mt-0.5 hidden rounded-full @lg:block"
+      />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <span className={cn('min-w-0 break-words text-[16px] font-semibold tracking-[-0.015em]', !request.title && 'text-ink-3')}>

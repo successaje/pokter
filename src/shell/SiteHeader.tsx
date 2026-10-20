@@ -10,7 +10,6 @@ import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { Wordmark } from './Logo';
 import { PRIMARY_NAV } from './nav';
-import { isWorkingRoute } from './working-route';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
 import { LazyHeaderWallet } from './wallet/LazyHeaderWallet';
 
@@ -22,15 +21,13 @@ function isActive(pathname: string, href: string) {
 /**
  * The site header, on every page including Hiring and Building. Six
  * destinations, search, the account control, and nothing else; How it
- * works is in the footer. It tightens and takes a hairline once the page scrolls, so the hero
- * gets the full height and the working page gets a clear edge.
+ * works is in the footer. It always has its hairline, and tightens and
+ * blurs what is behind it once the page scrolls.
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
   const [scrolled, setScrolled] = useState(false);
   const [menu, setMenu] = useState(false);
-  /* On Hiring, Building and Settings the header always has its rule: those pages start with a rail and a panel, not a hero, and without it the header floated over the work. */
-  const working = isWorkingRoute(pathname);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -47,7 +44,9 @@ export function SiteHeader() {
       <header
         className={cn(
           'sticky top-0 z-40 transition-[background-color,border-color,height] duration-300 ease-out',
-          scrolled ? 'border-b border-rule bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md' : working ? 'border-b border-rule bg-paper' : 'border-b border-transparent bg-paper',
+          /* The rule is always drawn: hidden at the top of some pages and shown on others, it read as the header flickering. */
+          'border-b border-rule',
+          scrolled ? 'bg-[color-mix(in_oklab,var(--paper)_88%,transparent)] backdrop-blur-md' : 'bg-paper',
         )}
       >
         <div className={cn('frame flex items-center gap-6 transition-[height] duration-300 ease-out', scrolled ? 'h-14' : 'h-16')}>
@@ -69,7 +68,7 @@ export function SiteHeader() {
             </span>
           )}
 
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 md:flex">
+          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
             {PRIMARY_NAV.map((item) => (
               <Link
                 key={item.href}
@@ -86,7 +85,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle className="hidden md:grid" />
+            <ThemeToggle className="hidden lg:grid" />
             {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
             {/* Already on /discover, the hash changes through pushState, which fires no hashchange for the search box to hear, so it is focused here. From any other page the box focuses itself on arrival. */}
             <Link
@@ -94,7 +93,7 @@ export function SiteHeader() {
               onClick={() => requestAnimationFrame(() => document.getElementById('discover-q')?.focus())}
               aria-label="Search agents"
               title="Search agents"
-              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:grid"
+              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink lg:grid"
             >
               <Icon.Search size={17} />
             </Link>
@@ -102,7 +101,7 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setMenu(true)}
-              className="grid size-10 place-items-center rounded-[8px] text-ink md:hidden"
+              className="grid size-10 place-items-center rounded-[8px] text-ink lg:hidden"
               aria-label="Open menu"
               aria-expanded={menu}
             >

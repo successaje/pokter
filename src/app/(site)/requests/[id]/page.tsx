@@ -3,13 +3,20 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { WithdrawRequest } from '@/features/briefs/BriefActions';
-import { MakeProposalButton, RequestDetail } from '@/features/briefs/RequestDetail';
+import { RequestDetail } from '@/features/briefs/RequestDetail';
+import { ago } from '@/features/briefs/RequestRow';
+import { requestCategoryLabel, type Brief } from '@/lib/briefs/model';
 import { proposalCards } from '@/features/briefs/proposal-cards';
 import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
+import { escrowMoney } from '@/lib/network/presentation';
+import { cn } from '@/lib/ui/cn';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { Address } from '@/ui/Data';
+import { AvatarImage } from '@/ui/AvatarImage';
+import { avatarUrl } from '@/lib/ui/avatar-art';
+import { publicIdentity } from '@/lib/profiles/identity';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -33,6 +40,7 @@ export default async function BriefPage({
   if (!brief) notFound();
   const bids = store.bidsFor(id);
   const taking = acceptsProposals(brief);
+  const poster = publicIdentity(brief.poster);
   const status =
     brief.state === 'awarded'
       ? { label: 'Agent chosen', tone: 'border-ok/30 bg-ok-wash text-ok' }
@@ -57,19 +65,33 @@ export default async function BriefPage({
       <RequestDetail
         request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, poster: brief.poster }}
         taking={taking}
+        head={
+          <div className="flex flex-col gap-3">
+            <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
+            <RequestTerms
+              content={brief}
+              part="head"
+              facts={false}
+              byline={
+                <>
+                  Posted by{' '}
+                  {poster ? (
+                    <Link href={poster.href} className="inline-flex items-center gap-1.5 align-middle font-medium text-ink-2 hover:text-ink hover:underline">
+                      <AvatarImage src={poster.avatar} fallback={avatarUrl(brief.poster.toLowerCase())} name={poster.name} size={20} className="rounded-full" eager />
+                      {poster.name}
+                    </Link>
+                  ) : (
+                    <Address address={brief.poster} chainExplorer={false} />
+                  )}
+                  , signed with their wallet
+                </>
+              }
+            />
+          </div>
+        }
+        summary={<RequestSummary brief={brief} proposals={bids.length} now={renderedAt()} />}
       >
-        <div className="flex flex-col gap-3">
-          <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
-          <RequestTerms
-            content={brief}
-            action={<MakeProposalButton />}
-            byline={
-              <>
-                Posted {closingDate(brief.postedAt)} by <Address address={brief.poster} chainExplorer={false} /> · signed by that wallet
-              </>
-            }
-          />
-        </div>
+        <RequestTerms content={brief} part="body" facts={false} />
 
         {brief.state === 'open' && (
           <div className="flex justify-start">
@@ -106,4 +128,43 @@ export default async function BriefPage({
 /* One clock for every "sent 2 hours ago" on the page. */
 function renderedAt(): number {
   return Date.now();
+}
+
+/**
+ * The request's terms as a builder prices them, budget first. Times are
+ * given in UTC so the page reads the same wherever it is rendered.
+ */
+function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: number; now: number }) {
+  const money = escrowMoney(brief.chainId);
+  const testnet = money.real === false;
+  const category = requestCategoryLabel(brief.category);
+  const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
+  const rows: Array<[string, React.ReactNode]> = [
+    ['Posted', ago(brief.postedAt, now)],
+    ['Posted at', `${new Date(brief.postedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`],
+    ['Network', <span key="n" className={cn(testnet && 'text-watch')}>{testnet ? 'BNB Testnet · test tokens' : 'BNB Chain · real $U'}</span>],
+    ['Delivery', `${days(brief.deliverDays)} after hiring`],
+    ['Proposals close', brief.closesAt ? closingDate(brief.closesAt) : 'When one is chosen'],
+    ['Proposals', String(proposals)],
+    ...(category ? ([['Category', category]] as Array<[string, React.ReactNode]>) : []),
+    ['Who can propose', 'Any agent’s owner'],
+  ];
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <span className="t-label">Proposed budget</span>
+        <span className="t-readout text-[34px] leading-none tracking-[-0.02em] text-ink">
+          {brief.budgetU.toFixed(2)} <span className="text-[18px] text-ink-2">{testnet ? 'test $U' : '$U'}</span>
+        </span>
+      </div>
+      <dl className="ruled rounded-[12px] border border-rule bg-paper px-4 text-[13px]">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-4 py-2.5">
+            <dt className="shrink-0 text-ink-3">{label}</dt>
+            <dd className="text-right font-medium text-ink">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
 }
