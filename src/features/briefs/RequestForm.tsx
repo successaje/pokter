@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import { briefMessage, type BriefContent } from '@/lib/briefs/model';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { briefMessage, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
 import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
@@ -15,6 +14,7 @@ import { Notice } from '@/ui/Feedback';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { BnbMark } from '@/ui/Network';
+import { RequestRow } from './RequestRow';
 import { RequestTerms } from './RequestTerms';
 
 const DRAFT_KEY = 'pokter.request-draft-v1';
@@ -32,6 +32,7 @@ interface Draft {
   chainId: number;
   deliverDays: number;
   closesInDays: number;
+  category: RequestCategory | null;
   savedAt?: string;
 }
 
@@ -58,11 +59,12 @@ export function RequestForm({ networks }: { networks: number[] }) {
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
 
-  const empty: Draft = { title: '', brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, deliverDays: 3, closesInDays: 0 };
+  const empty: Draft = { title: '', brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, deliverDays: 3, closesInDays: 0, category: null };
   const [draft, setDraft] = useState<Draft>(empty);
   const [restored, setRestored] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [step, setStep] = useState<'write' | 'review'>('write');
+  const [openedAt] = useState(() => Date.now());
   const [problems, setProblems] = useState<Problems>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export function RequestForm({ networks }: { networks: number[] }) {
       chainId: draft.chainId,
       deliverDays: draft.deliverDays,
       closesAt: draft.closesInDays > 0 ? closingFromNow(draft.closesInDays) : null,
+      category: draft.category,
     }),
     [draft],
   );
@@ -229,6 +232,34 @@ export function RequestForm({ networks }: { networks: number[] }) {
           {(p) => <Input {...p} value={draft.title} maxLength={120} onChange={(e) => set('title', e.target.value)} placeholder="Compare lending rates on Venus and Aave" />}
         </Field>
 
+        {/* One tap, and optional: it is what the board filters on, so it earns its place on the first screen. */}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1.5 flex w-full items-baseline justify-between text-sm font-medium text-ink">
+            <span>Category</span>
+            <span className="text-xs font-normal text-ink-3">Optional</span>
+          </legend>
+          <div role="radiogroup" aria-label="Category" className="flex flex-wrap gap-2">
+            {REQUEST_CATEGORIES.map((c) => {
+              const on = draft.category === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => set('category', on ? null : c.id)}
+                  className={cn(
+                    'h-8 rounded-full border px-3.5 text-[13px] font-medium transition-colors',
+                    on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink-3 hover:text-ink',
+                  )}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
         <Field label="What do you need?" hint="What should the agent do, what information should it use, and what should it deliver?" error={problems.brief}>
           {(p) => (
             <Textarea
@@ -335,7 +366,7 @@ export function RequestForm({ networks }: { networks: number[] }) {
       <aside className="hidden lg:block">
         <div className="sticky top-24 flex flex-col gap-5">
           <span className="t-label">On the Requests board</span>
-          <BoardCard content={content} />
+          <RequestRow preview now={openedAt} request={{ ...content, id: 'preview', poster: address ?? 'new-request', postedAt: '', proposals: 0, state: 'open' }} />
           <ol className="flex flex-col gap-3 text-[13px] leading-snug text-ink-2">
             {[
               ['Builders send proposals', 'Each names an agent, a price and a delivery time, signed by the agent’s owner.'],
@@ -389,28 +420,6 @@ function NetworkChoice({ networks, value, onChange }: { networks: number[]; valu
           </button>
         );
       })}
-    </div>
-  );
-}
-
-/** The request as it will sit on /requests, updating as the poster types. */
-function BoardCard({ content }: { content: BriefContent }) {
-  const money = escrowMoney(content.chainId);
-  return (
-    <div aria-hidden className="flex flex-col gap-3 rounded-[16px] border border-rule bg-raised p-5 shadow-lift">
-      <span className="flex items-start justify-between gap-3">
-        <span className={cn('break-words text-[16px] font-semibold tracking-[-0.015em]', !content.title && 'text-ink-3')}>{content.title || 'Your title'}</span>
-        <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-ok/30 bg-ok-wash px-2.5 text-[12px] font-medium text-ok">Open</span>
-      </span>
-      <span className={cn('line-clamp-3 break-words text-[13.5px] leading-relaxed', content.brief ? 'text-ink-2' : 'text-ink-3')}>
-        {content.brief || 'What you need, in a sentence or two.'}
-      </span>
-      <span className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-rule pt-3 text-[12.5px] text-ink-3">
-        <span className="t-readout text-[15px] text-ink">{content.budgetU > 0 ? formatQuotedPrice(content.budgetU) : '— $U'}</span>
-        <span>deliver in {content.deliverDays === 1 ? '1 day' : `${content.deliverDays} days`}</span>
-        <span className={money.real === false ? 'font-medium text-watch' : undefined}>{money.network}</span>
-        <span className="ml-auto">0 proposals</span>
-      </span>
     </div>
   );
 }

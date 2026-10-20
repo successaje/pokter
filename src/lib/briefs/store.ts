@@ -60,6 +60,7 @@ class BriefStore {
     /* Added after the first requests were posted; theirs stay null, which reads as "open until awarded". */
     const columns = this.db.prepare('PRAGMA table_info(briefs)').all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === 'closes_at')) this.db.exec('ALTER TABLE briefs ADD COLUMN closes_at TEXT');
+    if (!columns.some((c) => c.name === 'category')) this.db.exec('ALTER TABLE briefs ADD COLUMN category TEXT');
   }
 
   private static toBrief(row: Record<string, unknown>): Brief {
@@ -78,6 +79,7 @@ class BriefStore {
       postedAt: row.posted_at as string,
       awardedBidId: (row.awarded_bid_id as string | null) ?? null,
       closesAt: (row.closes_at as string | null) ?? null,
+      category: (row.category as Brief['category']) ?? null,
     };
   }
 
@@ -99,8 +101,8 @@ class BriefStore {
   add(brief: Brief): void {
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       )
       .run(
         brief.id,
@@ -116,6 +118,7 @@ class BriefStore {
         brief.state,
         brief.postedAt,
         brief.closesAt ?? null,
+        brief.category ?? null,
       );
   }
 

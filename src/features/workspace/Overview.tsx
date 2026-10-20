@@ -221,7 +221,7 @@ export function WorkspaceOverview() {
 function HiringActions() {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <LinkButton href="/requests/new" intent="secondary" size="s" icon={<Icon.Plus size={14} />}>
+      <LinkButton href="/workspace/requests/new" intent="secondary" size="s" icon={<Icon.Plus size={14} />}>
         Post a request
       </LinkButton>
       <LinkButton href="/discover" size="s" icon={<Icon.Search size={14} />}>

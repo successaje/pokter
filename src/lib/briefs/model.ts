@@ -16,6 +16,26 @@ import type { Address, Hex } from 'viem';
  * Pokter's database.
  */
 
+/**
+ * What kind of work a request is, for the board's filters.
+ *
+ * Its own short list rather than the agent categories: those are five
+ * kinds of DeFi agent Pokter grades, and most requests are not one of
+ * them. A request asks for work; this says roughly what sort.
+ */
+export const REQUEST_CATEGORIES = [
+  { id: 'research', label: 'Research' },
+  { id: 'defi', label: 'DeFi' },
+  { id: 'data', label: 'Data' },
+  { id: 'automation', label: 'Automation' },
+  { id: 'content', label: 'Content' },
+] as const;
+export type RequestCategory = (typeof REQUEST_CATEGORIES)[number]['id'];
+
+export function requestCategoryLabel(id: string | null | undefined): string | null {
+  return REQUEST_CATEGORIES.find((c) => c.id === id)?.label ?? null;
+}
+
 export const BRIEF_STATES = ['open', 'awarded', 'cancelled'] as const;
 export type BriefState = (typeof BRIEF_STATES)[number];
 
@@ -49,6 +69,8 @@ export interface BriefContent {
    * form that asked for "a deadline" would get whichever the poster meant.
    */
   closesAt?: string | null;
+  /** Optional; a request without one is listed under every filter's "All". */
+  category?: RequestCategory | null;
 }
 
 export interface Brief extends BriefContent {
@@ -101,6 +123,7 @@ export function briefMessage(input: BriefContent & { poster: string; postedAt: s
     /* Only when set, so a request posted before closing dates existed still
        verifies against the message its poster actually signed. */
     ...(input.closesAt ? [`Proposals close: ${input.closesAt}`] : []),
+    ...(input.category ? [`Category: ${input.category}`] : []),
   ].join('\n');
 }
 
@@ -202,7 +225,12 @@ export function readBriefContent(raw: unknown, now: number = Date.now()): BriefC
     if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return null;
     closesAt = new Date(at).toISOString();
   }
-  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt };
+  let category: RequestCategory | null = null;
+  if (b.category !== undefined && b.category !== null && b.category !== '') {
+    if (!REQUEST_CATEGORIES.some((c) => c.id === b.category)) return null;
+    category = b.category as RequestCategory;
+  }
+  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt, category };
 }
 
 export function readBidContent(raw: unknown): BidContent | null {

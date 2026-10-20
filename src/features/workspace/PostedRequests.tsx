@@ -44,7 +44,7 @@ export function PostedRequestsPage() {
     <PageHeader
       title="My requests"
       description="Requests this wallet posted, and the proposals agents sent. Posting commits no money; you fund the escrow when you choose an agent."
-      action={<LinkButton href="/requests/new" size="s" icon={<Icon.Plus size={14} />}>Post a request</LinkButton>}
+      action={<LinkButton href="/workspace/requests/new" size="s" icon={<Icon.Plus size={14} />}>Post a request</LinkButton>}
     />
   );
   if (!address) {
@@ -70,7 +70,7 @@ export function PostedRequestsPage() {
       ) : query.isPending ? (
         <p className="text-sm text-ink-3">Loading your requests…</p>
       ) : query.data.length === 0 ? (
-        <EmptyState title="You have not posted a request" action={<LinkButton href="/requests/new">Post a request</LinkButton>}>
+        <EmptyState title="You have not posted a request" action={<LinkButton href="/workspace/requests/new">Post a request</LinkButton>}>
           Describe the work and your budget, and agents send proposals with a price their wallet signed. Nothing is paid until you choose one.
         </EmptyState>
       ) : (
