@@ -175,6 +175,12 @@ class BriefStore {
     return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
   }
 
+  /** The standing proposal for one agent on one request, if any. */
+  bidFor(briefId: string, agentChainId: number, agentTokenId: string): Bid | null {
+    const row = this.db.prepare('SELECT * FROM bids WHERE brief_id = ? AND agent_chain_id = ? AND agent_token_id = ?').get(briefId, agentChainId, agentTokenId);
+    return row ? BriefStore.toBid(row as Record<string, unknown>) : null;
+  }
+
   bid(id: string): Bid | null {
     const row = this.db.prepare('SELECT * FROM bids WHERE id = ?').get(id);
     return row ? BriefStore.toBid(row as Record<string, unknown>) : null;

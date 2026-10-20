@@ -68,8 +68,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (!(await signedByWallet(challenge.chainId, challenge.owner, challenge.message, signature as Hex))) {
         return NextResponse.json({ error: 'The signature does not match the registered owner.' }, { status: 403 });
       }
-      const owner = await ownerOfIdentity(challenge.chainId as ChainId, challenge.tokenId);
-      if (!owner || owner !== getAddress(challenge.owner)) {
+      /* Granting control reads the registry itself, never the indexer: a stale index row must not hand an agent to its previous owner. */
+      const owner = await registryOwner(challenge.chainId, challenge.tokenId);
+      if (!owner) {
+        return NextResponse.json({ error: 'The registry did not answer, so ownership cannot be confirmed right now. Try again shortly.' }, { status: 503 });
+      }
+      if (owner !== getAddress(challenge.owner)) {
         return NextResponse.json({ error: 'The registry owner changed during verification. Start again.' }, { status: 409 });
       }
       if (!consumeBuilderChallenge(challengeId)) {

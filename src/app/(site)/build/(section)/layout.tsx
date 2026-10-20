@@ -1,3 +1,4 @@
+import { SessionWalletCheck } from '@/features/studio/SessionWalletCheck';
 import { WorkspaceFrame } from '@/shell/WorkspaceFrame';
 import { Icon } from '@/ui/icons';
 
@@ -22,6 +23,7 @@ export default function BuildingLayout({ children }: { children: React.ReactNode
         { href: '/build/integration', label: 'Integration kit', icon: <Icon.Plug size={17} /> },
       ]}
     >
+      <SessionWalletCheck />
       {children}
     </WorkspaceFrame>
   );
