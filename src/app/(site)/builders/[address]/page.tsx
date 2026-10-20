@@ -511,7 +511,7 @@ function OperatorRecord({ operator }: { operator: ReturnType<typeof operatorReco
           Track record as owner
         </h2>
         <p className="text-[13px] text-ink-3">
-          Outside jobs taken on while this wallet owned the agent, across every agent it owned at the time. Recorded since {day(operator.since)}; earlier jobs are not attributed to anyone.
+          Outside jobs taken on while this wallet owned the agent, across every agent it owned at the time. Counted only where the registry shows the agent did not change hands between the funding and Pokter’s check. Recorded since {day(operator.since)}; earlier jobs are not attributed to anyone.
         </p>
       </div>
       {any ? (

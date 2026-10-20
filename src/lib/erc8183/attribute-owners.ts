@@ -1,16 +1,34 @@
 import 'server-only';
 
-import { createPublicClient, getAddress, http, pad, toHex, type Hex } from 'viem';
+import { createPublicClient, getAddress, http, pad, parseAbiItem, toHex, type Hex } from 'viem';
 
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { isEscrowChain } from '@/lib/network/escrow';
-import { registryOwner } from '@/lib/registry/onchain';
-import { fundedRecently, ownerCandidate } from './owner-at-job';
+import { REGISTRY_ABI, registryAddress, registryClient } from '@/lib/registry/onchain';
+import { fundedRecently, ownerAtFunding, ownerCandidate, type OwnershipReader } from './owner-at-job';
 
 const MAX_PER_RUN = 10;
+const TRANSFER = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)');
+
+/** The proof's reads, against the agent's own registry chain. Null when Pokter has no registry or RPC for it. */
+function registryReader(chainId: number, tokenId: string): OwnershipReader | null {
+  const client = registryClient(chainId);
+  const address = registryAddress(chainId);
+  if (!client || !address || !/^\d+$/.test(tokenId)) return null;
+  const token = BigInt(tokenId);
+  return {
+    latestBlock: () => client.getBlockNumber(),
+    blockTimeMs: async (block) => Number((await client.getBlock({ blockNumber: block })).timestamp) * 1000,
+    ownerAt: async (block) => {
+      const owner = await client.readContract({ address, abi: REGISTRY_ABI, functionName: 'ownerOf', args: [token], blockNumber: block }).catch(() => null);
+      return owner ? getAddress(owner) : null;
+    },
+    transfers: async (from, to) => (await client.getLogs({ address, event: TRANSFER, args: { tokenId: token }, fromBlock: from, toBlock: to })).length,
+  };
+}
 
 /**
  * Record who owned the agent for one job, if its funding is recent enough
@@ -35,10 +53,45 @@ export async function attributeJob(job: HiredJob, nowMs = Date.now()): Promise<b
   if (!block) return false;
   const fundedAtMs = Number(block.timestamp) * 1000;
   if (!fundedRecently(fundedAtMs, nowMs)) return false;
-  const owner = await registryOwner(job.agentChainId ?? 56, job.agentTokenId).catch(() => null);
-  if (!owner) return false;
-  store.recordOwnerAt({ id: job.id, owner, fundedAt: new Date(fundedAtMs).toISOString() });
+  const registryChain = job.agentChainId ?? 56;
+  const reader = registryReader(registryChain, job.agentTokenId);
+  if (!reader) return false;
+  // Proven, not read: the owner now, with no transfer of the agent since the funding (owner-at-job.ts).
+  const owner = await ownerAtFunding(reader, { fundedAtMs, ...(registryChain === job.chainId ? { fromBlock: receipt.blockNumber } : {}) }).catch(() => undefined);
+  if (owner === undefined) return false; // unreadable: tried again while the funding is recent
+  if (owner === null) {
+    store.markOwnerUnknown(job.id);
+    return false;
+  }
+  store.recordOwnerAt({ id: job.id, owner, fundedAt: new Date(fundedAtMs).toISOString(), proof: 'no-transfer-since-funding' });
   return true;
+}
+
+/**
+ * Rows the first version recorded by reading the owner alone, without the
+ * proof. They are not shown until proven the same way, from the funding
+ * time they kept; a transfer since then, or a funding too long ago to
+ * check, leaves the job unattributed.
+ */
+export async function proveLegacyOwners(): Promise<{ proven: number; dropped: number }> {
+  const store = getJobStore();
+  let proven = 0;
+  let dropped = 0;
+  for (const row of store.unprovenOwners().slice(0, MAX_PER_RUN)) {
+    const job = store.byId(row.id);
+    const reader = job ? registryReader(job.agentChainId ?? 56, job.agentTokenId) : null;
+    if (!job || !reader) continue;
+    const owner = await ownerAtFunding(reader, { fundedAtMs: Date.parse(row.fundedAt) }, 40).catch(() => undefined);
+    if (owner === undefined) continue;
+    if (owner !== null && owner.toLowerCase() === row.owner.toLowerCase()) {
+      store.proveOwner(row.id, 'no-transfer-since-funding');
+      proven += 1;
+    } else {
+      store.dropOwner(row.id);
+      dropped += 1;
+    }
+  }
+  return { proven, dropped };
 }
 
 /** The sweep's pass: recently funded jobs nobody has attributed yet. */
@@ -50,5 +103,6 @@ export async function attributeRecentJobs(nowMs = Date.now()): Promise<{ attribu
     .slice(0, MAX_PER_RUN);
   let attributed = 0;
   for (const job of due) if (await attributeJob(job, nowMs)) attributed += 1;
-  return { attributed, checked: due.length };
+  const legacy = await proveLegacyOwners().catch(() => ({ proven: 0, dropped: 0 }));
+  return { attributed, checked: due.length, ...legacy };
 }
