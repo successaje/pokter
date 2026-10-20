@@ -67,11 +67,31 @@ primary_region = 'iad'
     hard_limit = 80
 
 [[vm]]
-  # Sweeps probe dozens of endpoints concurrently and the SQLite writes are
-  # synchronous, so the smallest shared CPU is not enough headroom.
-  size = 'shared-cpu-1x'
+  # A shared CPU was not enough, and the measurement is worth keeping.
+  #
+  # On 20 October the site flapped and then stopped serving. The cause was
+  # not load the app created: `/proc/stat` showed the hypervisor taking
+  # **88.1%** of the CPU in steal, leaving the guest about 7% of one core.
+  # A static file took seconds; the homepage returned 502. Load sat at 1.6
+  # on one core with 1.5GB of 2GB free, so it was neither memory nor GC.
+  #
+  # Measured again on `performance-1x` over fifty minutes, sweeps off and
+  # code unchanged: steal 0.10%, event-loop p99 25ms median against 8607ms,
+  # 46 of 46 checks healthy, no saturation episode opened. Steal on a shared
+  # CPU can come from quota throttling or from competition on the host and
+  # these numbers do not say which; a dedicated CPU removes the shared quota
+  # rather than guaranteeing no steal at all.
+  #
+  # This is a mitigation, not a fix. The homepage still costs roughly 0.7s
+  # more than a static file at the median, and whether that is CPU or
+  # waiting on an upstream is not yet measured — a dedicated core absorbs it
+  # either way, which is what makes it easy to leave unfixed. Revisit the
+  # size once that delay is understood.
+  size = 'performance-1x'
   # 2GB: the machine crashed at 1GB during a sweep, and was scaled by hand
-  # without this file, so every deploy put it back to 1GB.
+  # without this file, so every deploy put it back to 1GB. The same thing
+  # happened to the CPU above on 20 October, which is why the size is pinned
+  # here and not left to `fly scale`.
   memory = '2gb'
 
 [mounts]
