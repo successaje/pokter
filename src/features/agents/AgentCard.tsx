@@ -22,6 +22,30 @@ function MissedNote({ row, className }: { row: FindRow; className?: string }) {
   );
 }
 
+/**
+ * What the agent does on chain, in two words: whether its own wallet was
+ * seen doing its job, says it does and shows none of it, or only advises.
+ * The sentence it is drawn from is the tooltip and the agent page's line.
+ */
+export function OnChainTag({ row, className }: { row: Pick<FindRow, 'onChain'>; className?: string }) {
+  const c = row.onChain;
+  if (!c) return null;
+  const label = c.kind === 'acts' ? 'Acts on chain' : c.kind === 'claims' ? 'Says it acts · none seen' : 'Advises';
+  return (
+    <span
+      title={c.text}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11.5px] font-medium',
+        c.kind === 'acts' ? 'bg-ok-wash text-ok' : c.kind === 'claims' ? 'bg-watch-wash text-watch' : 'text-ink-3',
+        className,
+      )}
+    >
+      {c.kind === 'acts' && <Icon.Check size={11} aria-hidden />}
+      {label}
+    </span>
+  );
+}
+
 export function agentHref(row: Pick<FindRow, 'chainId' | 'tokenId'>) {
   return `/agents/${row.chainId}/${row.tokenId}`;
 }
@@ -246,6 +270,7 @@ export function AgentCard({
           */}
           <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
             <span className="truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
+            <OnChainTag row={row} />
             <span className="t-readout truncate">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="truncate">· Run by Pokter</span> : null}
           </span>
         </div>
@@ -390,7 +415,7 @@ export function AgentRow({ row, reason, trailing }: { row: FindRow; reason?: str
           {row.hirable && <span className="shrink-0 rounded-[5px] bg-signal-wash px-1.5 py-px text-[11px] font-medium text-ink">Hireable</span>}
         </h3>
         <p className="truncate text-[13px] text-ink-2">{row.description || 'No description published.'}</p>
-        <span className="mt-1"><MaturityLabel maturity={row.maturity} concise /></span>
+        <span className="mt-1 flex flex-wrap items-center gap-2"><MaturityLabel maturity={row.maturity} concise /><OnChainTag row={row} /></span>
         {reason && (
           <p className="text-[12px] text-ink-3">
             <span className="text-ink-2">Why it matches:</span> {reason}

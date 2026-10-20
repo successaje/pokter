@@ -254,6 +254,16 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         />
 
         <section aria-label="Results" className="min-w-0">
+          {/* Somebody looking for a health-factor agent usually wants to keep an eye on a loan; that part is free. */}
+          {p.category === 'health-factor' && (
+            <Link href="/watch" className="mb-5 flex items-center justify-between gap-3 rounded-[14px] border border-rule bg-raised px-4 py-3 text-[13.5px] hover:border-ink-3">
+              <span>
+                <span className="font-semibold text-ink">Free Venus liquidation alerts.</span>{' '}
+                <span className="text-ink-2">Check a position now and get an email before it can be liquidated.</span>
+              </span>
+              <Icon.Arrow size={15} className="shrink-0 text-ink-3" aria-hidden />
+            </Link>
+          )}
           {/*
             The heading and the way out on one line, on every width; the
             count and "Clear filters" under it. On a phone the filters are

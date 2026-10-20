@@ -470,7 +470,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             {/* The five questions a buyer arrives with, each labelled with
                 who answered it. The operator's description lives here now,
                 under "What it does", with the same unverified label. */}
-            <StructuredProfile s={structuredProfile(p)} sampleAnchor="sample" />
+            <StructuredProfile s={structuredProfile(p)} sampleAnchor="sample" onChain={p.onChain} />
             {p.category && (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/*

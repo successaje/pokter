@@ -140,3 +140,32 @@ export function capabilityText(input: {
   if (input.declared === 'acts') return { text: `Says it acts; ${none.charAt(0).toLowerCase()}${none.slice(1)}`, seen: false };
   return { text: input.declared === 'advises' ? `${none}. It says it only advises` : none, seen: false };
 }
+
+/**
+ * What a card says an agent does on chain, in one word, with the full
+ * sentence beside it.
+ *
+ * - acts: its own wallet was seen doing its job (Venus calls, swaps).
+ * - claims: it says it acts, and its wallet shows none of that work.
+ * - advises: its job is advice, or it moves nothing and says nothing else.
+ *
+ * Null when there is nothing to judge yet (no wallet, not read, no
+ * category), which a card leaves blank rather than guessing.
+ */
+export type OnChainKind = 'acts' | 'claims' | 'advises';
+
+export function onChainSummary(input: {
+  category: string;
+  description: string | null | undefined;
+  wallet: string | null | undefined;
+  reads: readonly CapabilityRead[];
+  chainLabel: (chainId: number) => string;
+  now?: number;
+}): { kind: OnChainKind; text: string } | null {
+  const declared = declaredAction(input.description);
+  const result = capabilityText({ category: input.category, declared, wallet: input.wallet, reads: input.reads, chainLabel: input.chainLabel, now: input.now });
+  if (JOB_ACTIONS[input.category] === null) return { kind: 'advises', text: result.text };
+  if (result.seen === true) return { kind: 'acts', text: result.text };
+  if (result.seen === false) return { kind: declared === 'acts' ? 'claims' : 'advises', text: result.text };
+  return null;
+}

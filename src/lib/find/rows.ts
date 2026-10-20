@@ -21,6 +21,8 @@ export interface FindRow {
   imageUrl: string | null;
   category: Category | 'unclassified';
   categoryLabel: string;
+  /** What its own wallet does on chain: acts, says it acts but shows none, or advises. Null when not read. */
+  onChain: { kind: 'acts' | 'claims' | 'advises'; text: string } | null;
   description: string;
   verdict: Verdict;
   /** 0..1 over everything measured, or null when never called. */
@@ -109,6 +111,7 @@ export function toFindRow(
     imageUrl: agent.image_url ?? null,
     category: listing.category,
     categoryLabel: meta?.label ?? 'Unclassified',
+    onChain: entry.onChain ?? null,
     description: (agent.description ?? '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim(),
     verdict: verdictFor(entry),
     rate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,

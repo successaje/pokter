@@ -44,7 +44,8 @@ import { getAssayStore } from '@/lib/assay/store';
 import { getWalletActivityStore } from '@/lib/activity/store';
 import { getFunderStore } from '@/lib/funding/store';
 import { getCapabilityStore } from '@/lib/capability/store';
-import { declaredAction, type CapabilityRead, type Declared } from '@/lib/capability/match';
+import { getQuestStore } from '@/lib/quest/store';
+import { declaredAction, onChainSummary, type CapabilityRead, type Declared } from '@/lib/capability/match';
 import { reviewCoordination, type Coordination } from '@/lib/proof/coordination';
 import type { WalletActivity } from '@/lib/activity/reading';
 import { assayForCategory } from '@/lib/assay/catalog';
@@ -59,6 +60,23 @@ export { preferDistinctOwners };
  */
 export const MAX_LISTINGS_PER_OWNER_PER_CATEGORY = 2;
 type SearchableWithHistory = SearchableAgent & { history: AgentEconomicHistory };
+
+/** Each agent's registered wallet, from the table the capability sweep reads, keyed `chain:token`. */
+function agentWallets(): Map<string, string> {
+  return new Map(getQuestStore().allAgentWallets().map((row) => [`${row.chainId}:${row.tokenId}`, row.wallet]));
+}
+
+/** The card's one-word reading of what the agent's own wallet does on chain. */
+function onChainOf(agent: ScanAgent, category: Category | 'unclassified', wallets: Map<string, string>) {
+  const wallet = wallets.get(`${agent.chain_id}:${agent.token_id}`) ?? null;
+  return onChainSummary({
+    category,
+    description: agent.description,
+    wallet,
+    reads: wallet ? getCapabilityStore().reads(wallet) : [],
+    chainLabel: (chainId) => (chainId === 56 ? 'BNB Chain' : 'BNB Testnet'),
+  });
+}
 
 function passedCategoryCheck(agent: ScanAgent, category: Category | 'unclassified'): boolean {
   const assay = assayForCategory(category);
@@ -750,6 +768,7 @@ export async function searchByName(
 
   const store = getProbeStore();
   const jobs = getJobStore();
+  const wallets = agentWallets();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
   const quotes = store.quotesFor(
     found.map((agent) => ({ chainId: agent.chain_id, tokenId: agent.token_id })),
@@ -774,6 +793,7 @@ export async function searchByName(
       record: buildTrackRecord(store.historyFor(agent.chain_id, agent.token_id, since)),
       history: agentHistory(jobs.byAgent(agent.chain_id, agent.token_id)),
       tested: passedCategoryCheck(agent, category),
+      onChain: onChainOf(agent, category, wallets),
     };
   });
 }
@@ -818,6 +838,7 @@ export async function listSearchableWithStatus(
    * were not already paying.
    */
   const jobs = getJobStore();
+  const wallets = agentWallets();
 
   const entries = timedSync('catalogue.entries', () => all.map((listing) => ({
     listing: {
@@ -836,6 +857,7 @@ export async function listSearchableWithStatus(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
     tested: passedCategoryCheck(listing.agent, listing.category),
+    onChain: onChainOf(listing.agent, listing.category, wallets),
   })));
 
   return { entries, unreachable, incomplete };
