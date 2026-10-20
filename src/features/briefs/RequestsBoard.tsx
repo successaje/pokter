@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { REQUEST_CATEGORIES, type RequestCategory } from '@/lib/briefs/model';
+import { REQUEST_CATEGORIES, requestCategoryOf, type RequestCategory } from '@/lib/briefs/model';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
 import { Select } from '@/ui/Field';
@@ -37,7 +37,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
     const rows = requests.filter(
       (r) =>
         (network === 'all' || String(r.chainId) === network) &&
-        (category === 'all' || r.category === category) &&
+        (category === 'all' || requestCategoryOf(r.category) === category) &&
         words.every((w) => `${r.title} ${r.brief}`.toLowerCase().includes(w)),
     );
     const closingAt = (r: RequestRowData) => (r.closesAt ? Date.parse(r.closesAt) : Number.POSITIVE_INFINITY);

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, withdrawMessage } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, REQUEST_CATEGORIES, requestCategoryLabel, requestCategoryOf, withdrawMessage } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -171,4 +171,28 @@ test('a list the server would trim is caught before it is signed', () => {
   assert.equal(listProblem(['fine']), null);
   assert.match(listProblem(Array.from({ length: 13 }, (_, i) => `line ${i}`)) ?? '', /12 lines/);
   assert.match(listProblem(['x'.repeat(241)]) ?? '', /240 characters/);
+});
+
+test('request categories are the agent categories, plus one for none of them', () => {
+  assert.deepEqual(
+    REQUEST_CATEGORIES.map((c) => c.id),
+    ['rebalancing', 'grid-trading', 'yield', 'health-factor', 'token-safety', 'none'],
+  );
+  assert.equal(requestCategoryLabel('grid-trading'), 'Grid Trading');
+  assert.equal(requestCategoryLabel('none'), null, 'no tag for "something else"');
+});
+
+test('a request signed with an earlier category id keeps it, and reads as today’s category', () => {
+  // The id is part of the signed text, so it is stored as sent; only labels and filters map it.
+  const legacy = readBriefContent({ ...CONTENT, category: 'lending-risk' });
+  assert.equal(legacy?.category, 'lending-risk');
+  assert.equal(
+    briefMessage({ ...CONTENT, category: 'lending-risk', poster: POSTER, postedAt: AT }).endsWith('Category: lending-risk'),
+    true,
+  );
+  assert.equal(requestCategoryOf('lending-risk'), 'health-factor');
+  assert.equal(requestCategoryOf('portfolio'), 'rebalancing');
+  assert.equal(requestCategoryOf('research'), 'none');
+  assert.equal(requestCategoryLabel('lending-risk'), 'Health Factor');
+  assert.equal(requestCategoryOf('gambling'), null);
 });

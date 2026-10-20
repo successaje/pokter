@@ -1,5 +1,6 @@
 import type { Address, Hex } from 'viem';
 
+import { CATEGORIES, NO_CATEGORY, type Category } from '@/lib/agents/categories';
 import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 
 /**
@@ -19,28 +20,47 @@ import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
  */
 
 /**
- * What kind of work a request is, for the board's filters.
- *
- * Shaped by what Pokter's agents actually do, so a request lands where
- * the builders who could answer it already look: the first four match
- * the categories agents are listed and graded under, and the last two
- * cover the work around them — reading and reporting, and watching
- * something over time. "DeFi" was one chip among five on a board where
- * almost every request is DeFi, which made it a filter that filters
- * nothing; "Content" was a category no agent here serves.
+ * What kind of work a request is: the same vocabulary agents are listed
+ * and graded under, so a request lands where the builders who could
+ * answer it already look, and a filter on the board means the same thing
+ * as one on Discover. A request that fits none of them says so, with the
+ * same id an agent uses for "none of the five" (`NO_CATEGORY`).
  */
-export const REQUEST_CATEGORIES = [
-  { id: 'yield', label: 'Yield' },
-  { id: 'lending-risk', label: 'Lending risk' },
-  { id: 'token-safety', label: 'Token safety' },
-  { id: 'portfolio', label: 'Portfolio' },
-  { id: 'research', label: 'Research' },
-  { id: 'monitoring', label: 'Monitoring' },
-] as const;
-export type RequestCategory = (typeof REQUEST_CATEGORIES)[number]['id'];
+export const REQUEST_CATEGORIES: ReadonlyArray<{ id: RequestCategory; label: string }> = [
+  ...CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
+  { id: NO_CATEGORY, label: 'Something else' },
+];
+export type RequestCategory = Category | typeof NO_CATEGORY;
 
+/*
+ * Ids an earlier version of the form offered. A category is part of what
+ * the poster signs, so a stored request keeps the id it was signed with;
+ * these map it to today's category for labels and filters only. Nothing
+ * is rewritten.
+ */
+const LEGACY_REQUEST_CATEGORIES: Readonly<Record<string, RequestCategory>> = {
+  'lending-risk': 'health-factor',
+  portfolio: 'rebalancing',
+  research: NO_CATEGORY,
+  monitoring: NO_CATEGORY,
+  defi: 'yield',
+  data: NO_CATEGORY,
+  automation: NO_CATEGORY,
+  content: NO_CATEGORY,
+};
+
+/** Today's category for a stored id, current or legacy; null for none or unknown. */
+export function requestCategoryOf(id: string | null | undefined): RequestCategory | null {
+  if (!id) return null;
+  if (REQUEST_CATEGORIES.some((c) => c.id === id)) return id as RequestCategory;
+  return LEGACY_REQUEST_CATEGORIES[id] ?? null;
+}
+
+/** The tag a request row shows; none for "Something else", which is a filter, not a description. */
 export function requestCategoryLabel(id: string | null | undefined): string | null {
-  return REQUEST_CATEGORIES.find((c) => c.id === id)?.label ?? null;
+  const current = requestCategoryOf(id);
+  if (current === null || current === NO_CATEGORY) return null;
+  return REQUEST_CATEGORIES.find((c) => c.id === current)?.label ?? null;
 }
 
 export const BRIEF_STATES = ['open', 'awarded', 'cancelled'] as const;
@@ -77,7 +97,12 @@ export interface BriefContent {
    */
   closesAt?: string | null;
   /** Optional; a request without one is listed under every filter's "All". */
-  category?: RequestCategory | null;
+  /**
+   * Optional, and kept exactly as signed: usually a `RequestCategory`, but a
+   * request signed by an earlier form carries a legacy id. Read it through
+   * `requestCategoryOf`.
+   */
+  category?: string | null;
 }
 
 export interface Brief extends BriefContent {
@@ -246,10 +271,11 @@ export function readBriefContent(raw: unknown, now: number = Date.now()): BriefC
     if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return null;
     closesAt = new Date(at).toISOString();
   }
-  let category: RequestCategory | null = null;
+  let category: string | null = null;
   if (b.category !== undefined && b.category !== null && b.category !== '') {
-    if (!REQUEST_CATEGORIES.some((c) => c.id === b.category)) return null;
-    category = b.category as RequestCategory;
+    /* Today's ids, or a legacy one from a client still on the earlier form; stored as sent, because it is signed as sent. */
+    if (typeof b.category !== 'string' || requestCategoryOf(b.category) === null) return null;
+    category = b.category;
   }
   return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt, category };
 }
