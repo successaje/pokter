@@ -1,8 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { recallBrief } from '@/lib/hire/brief-memory';
 import type { ProviderChoice } from '@/lib/hire/useHire';
+import { deliversItself } from './delivery';
 import { HireFlow, type HireFlowProps } from './HireFlow';
 
 /** Everything about a hire that depends on which escrow funds it. */
@@ -14,6 +17,8 @@ export interface HireNetwork {
   lastSignedU: number | null;
   suggestedU: number | null;
   warnings: string[];
+  /** The agent's own registration on this chain, hired there instead of through Pokter's relay. */
+  handoff?: { chainId: number; tokenId: string };
 }
 
 type Shared = Omit<HireFlowProps, keyof Omit<HireNetwork, 'chainId'> | 'escrowOptions' | 'network'>;
@@ -38,10 +43,18 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
   const [chainId, setChainId] = useState(initialChainId);
   /* The link's brief seeds the first form only; after a switch the form recalls the brief as the buyer left it. */
   const [linkTask, setLinkTask] = useState(initialTask ?? null);
+  const router = useRouter();
   const current = networks.find((n) => n.chainId === chainId) ?? networks[0];
 
   const choose = (next: number) => {
     if (next === current.chainId || !networks.some((n) => n.chainId === next)) return;
+    const handoff = networks.find((n) => n.chainId === next)?.handoff;
+    if (handoff) {
+      /* Another registration is another page; the brief goes with the buyer. */
+      const task = recallBrief(shared.agent)?.task ?? linkTask ?? '';
+      router.replace(`/hire/${handoff.chainId}/${handoff.tokenId}?escrow=${next}${task.trim() ? `&task=${encodeURIComponent(task)}` : ''}`);
+      return;
+    }
     setChainId(next);
     setLinkTask(null);
     const url = new URL(window.location.href);
@@ -62,15 +75,9 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
       warnings={current.warnings}
       escrowOptions={networks.map((n) => n.chainId)}
       network={{
-        options: networks.map((n) => ({ chainId: n.chainId, deliveredByAgent: deliveredByAgent(n.providers) })),
+        options: networks.map((n) => ({ chainId: n.chainId, deliveredByAgent: Boolean(n.handoff) || deliversItself(n.providers) })),
         onChange: choose,
       }}
     />
   );
-}
-
-/** Whether the provider this network starts on is the agent's own wallet, rather than Pokter's delivery agent. */
-function deliveredByAgent(providers: ProviderChoice[]): boolean {
-  const first = providers.find((p) => p.reachable && p.automatedDelivery) ?? providers.find((p) => p.reachable) ?? providers[0];
-  return first?.relationship === 'registry-agent';
 }
