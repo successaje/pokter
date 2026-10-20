@@ -16,7 +16,7 @@ export default function Page() {
       <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {TEMPLATES.map((t) => (
           <li key={t.id}>
-            <Link href={`/build/new?template=${t.id}`} className="group flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong">
+            <Link href={`/build/new/guided?template=${t.id}`} className="group flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 transition-colors hover:border-rule-strong">
               <span className="flex items-center justify-between">
                 <span className="t-label">{CATEGORY_BY_ID.get(t.draft.category as Category)?.label}</span>
                 <span className="t-readout text-[11px] text-ink-3">{t.draft.protocol.toUpperCase()}</span>

@@ -46,7 +46,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   const chainId = Number(raw);
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) notFound();
   const owner = await studioOwner();
-  const crumbs = <Breadcrumbs items={[{ href: '/build', label: 'Studio' }, { label: `#${tokenId}` }]} className="mb-6" />;
+  const crumbs = <Breadcrumbs items={[{ href: '/build', label: 'Building' }, { label: `#${tokenId}` }]} className="mb-6" />;
 
   if (!owner) {
     return (

@@ -39,7 +39,7 @@ export default function BuildCard() {
             <Mark size={40} ink={PAPER} />
             Pokter
           </div>
-          <div style={{ display: 'flex', fontSize: 22, color: DIM }}>Builder Studio · BNB Chain</div>
+          <div style={{ display: 'flex', fontSize: 22, color: DIM }}>Build on Pokter · BNB Chain</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 48 }}>

@@ -16,8 +16,37 @@ import { Icon } from '@/ui/icons';
  */
 const STUDIO_REPO = 'https://github.com/bnb-chain/bnbagent-studio';
 
-export function BuildWithStudio() {
+/**
+ * `compact` is the card beside Pokter MCP under "Other ways to build": the
+ * description, the commands and the protocol note, without the checklist,
+ * which the import page and the form already cover.
+ */
+export function BuildWithStudio({ compact = false }: { compact?: boolean }) {
   const campaign = isCampaignLive();
+  if (compact) {
+    return (
+      <section aria-labelledby="studio-build-title" className="flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6">
+        <div className="flex flex-col gap-1.5">
+          <span className="t-label">BNB Agent Studio</span>
+          <h3 id="studio-build-title" className="t-h3">
+            Scaffold one with BNB Chain&rsquo;s CLI
+          </h3>
+          <p className="text-[13.5px] leading-relaxed text-ink-2">
+            It builds an ERC-8004 seller with its agent card and the ERC-8183 selling side, driven in plain language from Claude Code or Cursor. Choose <span className="t-readout text-[12.5px]">A2A</span>: Pokter prices and hires over A2A.
+          </p>
+        </div>
+        <CodeBlock label="Copy install commands">{'pip install bnbagent-studio\nbag skills install'}</CodeBlock>
+        <div className="mt-auto flex flex-wrap gap-x-4 gap-y-2 text-[13px] font-medium">
+          <a href={STUDIO_REPO} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline">
+            BNB Agent Studio docs <Icon.ArrowUpRight size={13} />
+          </a>
+          <Link href="/build/import" className="inline-flex items-center gap-1 text-ink-2 hover:text-ink hover:underline">
+            Import it when it is registered <Icon.Arrow size={13} />
+          </Link>
+        </div>
+      </section>
+    );
+  }
   return (
     <section aria-labelledby="build-one-title" className="grid gap-6 rounded-[16px] border border-rule bg-raised p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
       <div className="flex flex-col gap-4">
