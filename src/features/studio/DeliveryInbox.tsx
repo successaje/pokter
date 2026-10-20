@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatUnits, getAddress } from 'viem';
-import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
+import { useAccount, useSwitchChain } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { chainLabel } from '@/lib/network/presentation';
@@ -20,6 +20,7 @@ import { TxLink } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 const STATUS: Record<HiredJob['status'], { label: string; tone: string }> = {
   OPEN: { label: 'Not funded', tone: 'text-ink-3' },
@@ -98,7 +99,7 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
       /* Kept in memory only. */
     }
   };
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
 
   const post = async (body: unknown) => {
       const r = await fetch('/api/builders/deliveries', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

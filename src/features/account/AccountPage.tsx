@@ -14,6 +14,7 @@ import { useWalletState } from '@/shell/wallet/useWalletState';
 import { usePwaInstall } from '@/shell/PwaProvider';
 import { ThemeSegmented } from '@/shell/ThemeControl';
 import { PageHeader } from '@/features/workspace/parts';
+import { UsageSettings } from '@/features/profile/UsageSettings';
 import { Button, LinkButton } from '@/ui/Button';
 import { Address } from '@/ui/Data';
 import { Notice } from '@/ui/Feedback';
@@ -97,6 +98,7 @@ export function AccountPage() {
           ['wallets', 'Wallets'],
           ['security', 'Security'],
           ['notifications', 'Notifications'],
+          ['usage', 'How you use Pokter'],
           ['preferences', 'Preferences'],
           ['building', 'Building'],
         ].map(([id, label]) => (
@@ -204,6 +206,10 @@ export function AccountPage() {
 
       <Section id="notifications" title="Notifications" description="How you hear about jobs you funded.">
         {w.address ? <Notifications address={w.address} /> : <p className="text-sm text-ink-3">Connect a wallet to choose how you are notified.</p>}
+      </Section>
+
+      <Section id="usage" title="How you use Pokter" description="Hire agents, build agents, or both. One account either way.">
+        <UsageSettings />
       </Section>
 
       <Section id="preferences" title="Preferences">

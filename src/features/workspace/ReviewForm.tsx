@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSignMessage } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { reviewMessage, type ReviewContent, type ReviewSpeed, type VerifiedReview } from '@/lib/reviews/model';
@@ -15,6 +14,7 @@ import { Segmented } from '@/ui/Controls';
 import { Notice } from '@/ui/Feedback';
 import { Textarea } from '@/ui/Field';
 import { PublishRating } from './PublishRating';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 /**
  * A review only the funding wallet can write, for a completed job. The
@@ -23,7 +23,7 @@ import { PublishRating } from './PublishRating';
  */
 export function ReviewForm({ job }: { job: HiredJob }) {
   const active = useActiveWallet();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const passkey = usePasskeyWallet();
   const [rating, setRating] = useState(5);
   const [promised, setPromised] = useState<'yes' | 'no'>('yes');

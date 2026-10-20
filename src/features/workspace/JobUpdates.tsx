@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSignMessage } from 'wagmi';
 
 import type { JobUpdateOffer } from '@/lib/notifications/job-updates';
 import { useActiveWallet } from '@/lib/wallet/active';
@@ -11,6 +10,7 @@ import { Button } from '@/ui/Button';
 import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobEmailAlert } from './JobEmailAlert';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 /**
  * "Get updates for this job", for a buyer who has already proven an email.
@@ -33,7 +33,7 @@ export function JobUpdates({ jobId, chainId, className, compact = false }: {
   jobId: string; chainId: number; className?: string; compact?: boolean;
 }) {
   const { address, mode } = useActiveWallet();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const queryClient = useQueryClient();
   const [includeAnswer, setIncludeAnswer] = useState(false);
   const [busy, setBusy] = useState(false);

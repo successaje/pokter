@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 import { jobHref } from '@/lib/jobs/href';
 import type { IdentityState } from '@/lib/notifications/identity';
@@ -14,6 +14,7 @@ import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Feedback';
 import { Field, Input } from '@/ui/Field';
 import { Segmented } from '@/ui/Controls';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 interface IdentityView {
   state: IdentityState;
@@ -45,7 +46,7 @@ interface IdentityView {
 export function NotificationEmail({ address }: { address: string }) {
   const { chain } = useAccount();
   const { mode } = useActiveWallet();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const queryClient = useQueryClient();
   const chainId = chain && isEscrowChain(chain.id) ? chain.id : CHAIN_ID;
 
