@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, REQUEST_CATEGORIES, requestCategoryLabel, requestCategoryOf, withdrawMessage } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, REQUEST_CATEGORIES, requestCategoryLabel, requestCategoryOf, withdrawMessage, withinBudget } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -195,4 +195,13 @@ test('a request signed with an earlier category id keeps it, and reads as todayâ
   assert.equal(requestCategoryOf('research'), 'none');
   assert.equal(requestCategoryLabel('lending-risk'), 'Health Factor');
   assert.equal(requestCategoryOf('gambling'), null);
+});
+
+test('a proposal may not ask more than the requestâ€™s budget', () => {
+  // The budget is what the poster said they would fund; a higher price is one they already declined.
+  assert.equal(withinBudget(2.5, 2.5), true);
+  assert.equal(withinBudget(1, 2.5), true);
+  assert.equal(withinBudget(2.51, 2.5), false);
+  assert.equal(withinBudget(0.1 + 0.2, 0.3), true, 'compared to the cent, not to float noise');
+  assert.equal(withinBudget(Number.NaN, 2.5), false);
 });

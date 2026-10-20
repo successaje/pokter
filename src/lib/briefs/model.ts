@@ -225,6 +225,17 @@ export function hireTaskFromRequest(brief: Pick<BriefContent, 'brief' | 'accepta
   return `${text}${tail}`.slice(0, HIRE_TASK_MAX);
 }
 
+/**
+ * The most a proposal for this request may ask: its budget.
+ *
+ * A request's budget is what its poster said they would fund, so a price
+ * above it is one they have already said no to. A proposal may come in
+ * under it. Floating-point budgets are compared to the cent.
+ */
+export function withinBudget(priceU: number, budgetU: number): boolean {
+  return Number.isFinite(priceU) && Math.round(priceU * 100) <= Math.round(budgetU * 100);
+}
+
 /** Proposals may be asked for over at most this long. */
 export const MAX_CLOSING_DAYS = 60;
 
