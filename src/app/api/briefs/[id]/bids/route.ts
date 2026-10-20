@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { acceptsProposals, bidMessage, readBidContent, withinBudget, type Bid } from '@/lib/briefs/model';
+import { acceptsProposals, bidMessage, readBidContent, staleProposal, withinBudget, type Bid } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -47,6 +47,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!isAddress(bidder) || !isHex(signature) || !content || Number.isNaN(Date.parse(placedAt))) {
     return NextResponse.json({ error: 'The bid payload is invalid.' }, { status: 400 });
   }
+  const stale = staleProposal(placedAt, Date.now(), getBriefStore().bidFor(id, content.agentChainId, content.agentTokenId));
+  if (stale) return NextResponse.json({ error: stale }, { status: 409 });
   if (!withinBudget(content.priceU, brief.budgetU)) {
     return NextResponse.json({ error: `The price is above this request's budget of ${brief.budgetU} $U.` }, { status: 422 });
   }

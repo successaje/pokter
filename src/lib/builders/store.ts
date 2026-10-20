@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { getAddress, type Address, type Hex } from 'viem';
 
+import { siteUrl } from '@/lib/site';
 import { BUILDER_CHALLENGE_TTL_MS, builderVerificationMessage } from './verification';
 
 const DB_PATH = process.env.BUILDER_DB_PATH ?? './data/builders.db';
@@ -67,6 +68,7 @@ export function createBuilderChallenge(input: { chainId: number; tokenId: string
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + BUILDER_CHALLENGE_TTL_MS);
   const message = builderVerificationMessage({
+    domain: new URL(siteUrl()).host,
     challengeId: id, nonce, chainId: input.chainId, tokenId: input.tokenId,
     owner: input.owner, issuedAt: issuedAt.toISOString(), expiresAt: expiresAt.toISOString(),
   });

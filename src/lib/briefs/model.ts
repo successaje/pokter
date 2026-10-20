@@ -236,6 +236,24 @@ export function withinBudget(priceU: number, budgetU: number): boolean {
   return Number.isFinite(priceU) && Math.round(priceU * 100) <= Math.round(budgetU * 100);
 }
 
+/** A proposal is accepted for this long after it was signed. */
+export const PROPOSAL_SIGNING_WINDOW_MS = 10 * 60_000;
+
+/**
+ * Why a signed proposal is stale, or null.
+ *
+ * Proposals are public and carry their signatures, and a new one for the
+ * same agent replaces the old. Without this, anyone could post an agent's
+ * earlier, signed proposal back over its current one. So it must be
+ * freshly signed, and newer than the one it replaces.
+ */
+export function staleProposal(placedAt: string, now: number, current: { placedAt: string } | null): string | null {
+  const at = Date.parse(placedAt);
+  if (!Number.isFinite(at) || Math.abs(now - at) > PROPOSAL_SIGNING_WINDOW_MS) return 'This proposal was signed too long ago. Sign it again.';
+  if (current && Date.parse(current.placedAt) >= at) return 'A newer proposal for this agent is already in place.';
+  return null;
+}
+
 /** Proposals may be asked for over at most this long. */
 export const MAX_CLOSING_DAYS = 60;
 

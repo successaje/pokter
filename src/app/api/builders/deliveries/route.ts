@@ -7,7 +7,7 @@ import {
   verifyErc8183ManifestText,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
-import { createPublicClient, getAddress, http, isHash, isHex, stringToHex, verifyMessage, type Hex } from 'viem';
+import { createPublicClient, getAddress, http, isHash, isHex, stringToHex, type Hex } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { jobChainParam } from '@/lib/jobs/href';
@@ -23,8 +23,8 @@ import {
 } from '@/lib/erc8183/deliverables';
 import { getJobStore } from '@/lib/erc8183/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
-import { getAgent } from '@/lib/scan/client';
-import type { ChainId } from '@/lib/scan/types';
+import { registryOwner } from '@/lib/registry/onchain';
+import { signedByWallet } from '@/lib/wallet/signed-by';
 import { siteUrl } from '@/lib/site';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -38,11 +38,17 @@ function deliveryUrl(chainId: number, jobId: string, deliverable: Hex) {
   return url.href;
 }
 
+/*
+ * The job, if the session's wallet owns its agent now. Read from the
+ * registry rather than the indexer, so an agent transferred away stops
+ * being deliverable from the old owner's session at once; if the registry
+ * cannot be read, nobody is granted the delivery.
+ */
 async function ownedJob(owner: `0x${string}`, chainId: number, jobId: string) {
   const job = getJobStore().byId(`${chainId}:${jobId}`);
   if (!job) return null;
-  const agent = await getAgent((job.agentChainId ?? 56) as ChainId, job.agentTokenId);
-  return getAddress(agent.owner_address) === getAddress(owner) ? job : null;
+  const current = await registryOwner(job.agentChainId ?? 56, job.agentTokenId);
+  return current && current === getAddress(owner) ? job : null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -88,7 +94,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (onchain.statusName !== 'FUNDED' || getAddress(challenge.provider) !== getAddress(onchain.provider)) {
         return NextResponse.json({ error: 'The funded job changed after authorization began.' }, { status: 409 });
       }
-      if (!(await verifyMessage({ address: onchain.provider, message: challenge.message, signature: signature as Hex }))) {
+      /* Through the wallet-aware check, so a smart-account provider can deliver as well as a plain key. */
+      if (!(await signedByWallet(chainId, getAddress(onchain.provider), challenge.message, signature as Hex))) {
         return NextResponse.json({ error: 'The signature was not produced by this job provider.' }, { status: 403 });
       }
       if (!consumeDeliveryChallenge(challenge.id)) return NextResponse.json({ error: 'The provider challenge was already used.' }, { status: 409 });

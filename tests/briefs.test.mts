@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, REQUEST_CATEGORIES, requestCategoryLabel, requestCategoryOf, withdrawMessage, withinBudget } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, listProblem, readBidContent, readBriefContent, REQUEST_CATEGORIES, requestCategoryLabel, requestCategoryOf, staleProposal, withdrawMessage, withinBudget } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -204,4 +204,13 @@ test('a proposal may not ask more than the request’s budget', () => {
   assert.equal(withinBudget(2.51, 2.5), false);
   assert.equal(withinBudget(0.1 + 0.2, 0.3), true, 'compared to the cent, not to float noise');
   assert.equal(withinBudget(Number.NaN, 2.5), false);
+});
+
+test('an old signed proposal cannot be replayed over a newer one', () => {
+  // Proposals and their signatures are public; a replay must not roll a price back.
+  const now = Date.parse('2026-10-20T12:00:00.000Z');
+  assert.equal(staleProposal('2026-10-20T11:58:00.000Z', now, null), null);
+  assert.match(staleProposal('2026-10-20T11:00:00.000Z', now, null) ?? '', /too long ago/);
+  assert.match(staleProposal('2026-10-20T11:58:00.000Z', now, { placedAt: '2026-10-20T11:59:00.000Z' }) ?? '', /newer/);
+  assert.equal(staleProposal('2026-10-20T11:59:30.000Z', now, { placedAt: '2026-10-20T11:59:00.000Z' }), null);
 });
