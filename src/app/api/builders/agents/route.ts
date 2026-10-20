@@ -49,10 +49,16 @@ export async function GET(request: Request): Promise<NextResponse> {
   const pages = await Promise.all(
     ([56, 97] as const).map((chainId) =>
       listAgents({ chainId, ownerAddress: owner, limit: 100 }).catch(
-        () => ({ items: [] as ScanAgent[] }),
+        () => ({ items: [] as ScanAgent[], failed: chainId }),
       ),
     ),
   );
+  /*
+   * A chain the indexer did not answer for is named, not folded into an
+   * empty list: "you own no agents" and "we could not look" lead a builder
+   * to opposite conclusions, and only one of them is true.
+   */
+  const unavailable = pages.flatMap((page) => ('failed' in page ? [page.failed] : []));
 
   const rows = pages.flatMap((page) => page.items);
   /* The registry record first, since the indexer's media proxy misses for
@@ -78,5 +84,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     };
   });
 
-  return NextResponse.json({ owner, agents, observedAt: new Date().toISOString() });
+  return NextResponse.json({ owner, agents, unavailable, observedAt: new Date().toISOString() });
 }

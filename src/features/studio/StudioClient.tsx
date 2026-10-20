@@ -160,7 +160,10 @@ export function OwnedAgents({ boxed = false }: { boxed?: boolean }) {
     queryFn: async () => {
       const r = await fetch(`/api/builders/agents?address=${address}`, { cache: 'no-store' });
       if (!r.ok) throw new Error('The registry did not answer.');
-      return (await r.json()) as { agents: OwnedAgent[] };
+      const body = (await r.json()) as { agents: OwnedAgent[]; unavailable?: number[] };
+      /* Nothing found while a chain went unread is not "no agents". */
+      if (body.agents.length === 0 && body.unavailable?.length) throw new Error('The agent index did not answer, so your agents could not be listed. Reload to try again.');
+      return body;
     },
   });
   if (!address) {

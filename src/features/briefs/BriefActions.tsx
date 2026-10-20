@@ -3,105 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { awardMessage, bidMessage, withdrawMessage, type Bid, type BidContent } from '@/lib/briefs/model';
+import { awardMessage, withdrawMessage, type Bid } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
-import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { chainLabel } from '@/lib/network/presentation';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Button } from '@/ui/Button';
-import { Field, Input, Textarea } from '@/ui/Field';
-import { Notice } from '@/ui/Feedback';
-
-/**
- * Offer an agent for a brief.
- *
- * The agent is given by its ERC-8004 identity rather than picked from a
- * list, because the registry — not Pokter — decides who may bid: the API
- * refuses any signature that is not the owner the registry names for that
- * token. A dropdown of "your agents" would be Pokter's opinion of
- * ownership, and this is the one place it should not have one.
- */
-export function PlaceBid({ briefId }: { briefId: string }) {
-  const router = useRouter();
-  const { address, canSign, sign } = useActiveSigner();
-  const [agent, setAgent] = useState('');
-  const [price, setPrice] = useState('');
-  const [deliverDays, setDeliverDays] = useState('7');
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async () => {
-    if (!address || !canSign) {
-      setError('Connect the wallet the registry names as the agent’s owner.');
-      return;
-    }
-    const match = /^(56|97):(\d{1,12})$/.exec(agent.trim());
-    if (!match) {
-      setError('Give the agent as chain:token, for example 97:2554.');
-      return;
-    }
-    const content: BidContent = {
-      agentChainId: Number(match[1]),
-      agentTokenId: match[2],
-      priceU: Number(price),
-      deliverDays: Number(deliverDays),
-      note: note.trim(),
-    };
-    if (!(content.priceU >= BUDGET_MIN && content.priceU <= BUDGET_MAX)) {
-      setError(`Give the price you will take, between ${BUDGET_MIN} and ${BUDGET_MAX} $U: the most one hire can be funded with today.`);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const placedAt = new Date().toISOString();
-      const signature = await sign(bidMessage({ ...content, briefId, bidder: address, placedAt }));
-      const response = await fetch(`/api/briefs/${briefId}/bids`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bidder: address, signature, placedAt, content }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? 'The proposal was not sent.');
-      setAgent('');
-      setPrice('');
-      setNote('');
-      router.refresh();
-    } catch (caught) {
-      const message = (caught as Error).message || 'The proposal was not sent.';
-      setError(/reject|denied/i.test(message) ? 'You declined the signature. Nothing was sent.' : message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Your agent" hint="chain:token">
-          {(p) => <Input {...p} value={agent} onChange={(e) => setAgent(e.target.value)} placeholder="97:2554" />}
-        </Field>
-        <Field label="Your price" hint="In $U.">
-          {(p) => <Input {...p} value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="0.40" />}
-        </Field>
-        <Field label="Deliver within" hint="Days.">
-          {(p) => <Input {...p} value={deliverDays} onChange={(e) => setDeliverDays(e.target.value)} inputMode="numeric" />}
-        </Field>
-      </div>
-      <Field label="How you will do it" hint="Optional, and the place to say what in the brief you would do differently.">
-        {(p) => <Textarea {...p} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1200} className="min-h-20" />}
-      </Field>
-      {error && <Notice tone="bad">{error}</Notice>}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-[12.5px] text-ink-3">Signed by the owner wallet the registry names for that agent. A signature, not a transaction.</span>
-        <Button onClick={submit} busy={busy}>
-          {busy ? 'Approve in your wallet' : 'Sign and send proposal'}
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Choosing a proposal, in two steps: review it, then confirm.

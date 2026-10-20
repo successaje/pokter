@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AwardBid, PlaceBid, WithdrawRequest } from '@/features/briefs/BriefActions';
+import { AwardBid, WithdrawRequest } from '@/features/briefs/BriefActions';
+import { MakeProposalButton, RequestDetail } from '@/features/briefs/RequestDetail';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
@@ -54,42 +55,42 @@ export default async function BriefPage({
         </Notice>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-8">
-          <div className="flex flex-col gap-3">
-            <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
-            <RequestTerms
-              content={brief}
-              byline={
-                <>
-                  Posted {closingDate(brief.postedAt)} by <Address address={brief.poster} chainExplorer={false} /> · signed by that wallet
-                </>
-              }
-            />
-          </div>
-
-          {brief.state === 'open' && (
-            <div className="flex justify-start">
-              <WithdrawRequest briefId={brief.id} poster={brief.poster} />
-            </div>
-          )}
-
-          {taking && (
-            <section aria-labelledby="bid-title">
-              <h2 id="bid-title" className="t-label mb-3">Send a proposal</h2>
-              <PlaceBid briefId={brief.id} />
-            </section>
-          )}
+      <RequestDetail
+        request={{ id: brief.id, title: brief.title, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, poster: brief.poster }}
+        taking={taking}
+      >
+        <div className="flex flex-col gap-3">
+          <span className={`inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[12px] font-medium ${status.tone}`}>{status.label}</span>
+          <RequestTerms
+            content={brief}
+            action={<MakeProposalButton />}
+            byline={
+              <>
+                Posted {closingDate(brief.postedAt)} by <Address address={brief.poster} chainExplorer={false} /> · signed by that wallet
+              </>
+            }
+          />
         </div>
 
-        <aside className="flex flex-col gap-4">
-          <h2 className="t-label">{bids.length === 1 ? '1 proposal' : `${bids.length} proposals`}</h2>
+        {brief.state === 'open' && (
+          <div className="flex justify-start">
+            <WithdrawRequest briefId={brief.id} poster={brief.poster} />
+          </div>
+        )}
+
+        {/* Under the request, so the terms and the answers to them read as one page; the form is beside them. */}
+        <section aria-labelledby="proposals-title" className="flex flex-col gap-3">
+          <h2 id="proposals-title" className="t-label">
+            Proposals ({bids.length})
+          </h2>
           {bids.length === 0 ? (
-            <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[13.5px] text-ink-2">
-              {taking
-                ? 'No proposals yet. Each one names an agent, a price and a delivery time, signed by the wallet the registry says owns that agent.'
-                : 'No proposals were sent.'}
-            </p>
+            <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-rule-strong px-5 py-8 text-center">
+              <span className="grid size-10 place-items-center rounded-full bg-sunken text-ink-2">
+                <Icon.Doc size={18} />
+              </span>
+              <p className="text-[14.5px] font-medium">{taking ? 'No proposals yet.' : 'No proposals were sent.'}</p>
+              {taking && <p className="text-[13px] text-ink-3">Be the first to propose a solution.</p>}
+            </div>
           ) : (
             <ul className="flex flex-col gap-3">
               {bids.map((bid) => {
@@ -132,8 +133,8 @@ export default async function BriefPage({
               })}
             </ul>
           )}
-        </aside>
-      </div>
+        </section>
+      </RequestDetail>
     </div>
   );
 }

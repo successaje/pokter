@@ -17,18 +17,24 @@ export function RequestTerms({
   content,
   byline,
   heading: Heading = 'h1',
+  action,
   className,
 }: {
   content: BriefContent;
   byline?: ReactNode;
   /** h2 where the page already has its own title, as the poster's preview does. */
   heading?: 'h1' | 'h2';
+  /** Beside the title, such as "Make a proposal". */
+  action?: ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn('flex flex-col gap-8', className)}>
       <header className="flex flex-col gap-3">
-        <Heading className="t-h1 break-words">{content.title || 'Untitled request'}</Heading>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <Heading className="t-h1 min-w-0 break-words">{content.title || 'Untitled request'}</Heading>
+          {action}
+        </div>
         <RequestFacts content={content} />
         {byline && <p className="text-[13px] text-ink-3">{byline}</p>}
       </header>
