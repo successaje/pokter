@@ -6,7 +6,7 @@ import { getAddress, isAddress, type Address } from 'viem';
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
 import { getBriefStore } from '@/lib/briefs/store';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
-import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, type NetworkRecord } from '@/lib/profiles/evidence';
+import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, operatorRecord, type NetworkRecord } from '@/lib/profiles/evidence';
 import { avatarSrc, linkLabel, profileContentOf, profilePath, USAGES, type Profile } from '@/lib/profiles/model';
 import { getProfileStore } from '@/lib/profiles/store';
 import { resolveAgentImages } from '@/lib/registry/image';
@@ -94,6 +94,7 @@ export default async function ProfilePage({
   });
   const byKey = new Map(ownedOptions.map((o) => [o.key, o]));
   const hiring = hirerRecord(wallet);
+  const operator = operatorRecord(wallet);
   const hiringActivity = { requests: hiring.requestsPosted, jobsFunded: hiring.mainnet.funded + hiring.testnet.funded };
 
   /*
@@ -213,7 +214,10 @@ export default async function ProfilePage({
       {published && sections.length > 0 && (
         <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
           {view === 'building' ? (
-            <MiniStat label="Agents published" value={String(shown.length)} />
+            <>
+              <MiniStat label="Agents published" value={String(shown.length)} />
+              {operator.since && <MiniStat label="Jobs taken on" value={String(operator.mainnet.funded)} note={`mainnet · since ${day(operator.since)}`} />}
+            </>
           ) : (
             <>
               <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />
@@ -252,9 +256,9 @@ export default async function ProfilePage({
               ))}
             </nav>
 
-            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} reviews={reviews} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
+            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} operator={operator} reviews={reviews} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
             {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} />}
-            {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} />}
+            {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} takenOn={operator.jobIds} />}
             {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
             {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
             {view === 'hiring' && tab === 'requests' && <RequestsTab requests={requests} />}
@@ -320,7 +324,11 @@ function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; ch
   );
 }
 
-function RecordTable({ mainnet, testnet }: { mainnet: NetworkRecord; testnet: NetworkRecord }) {
+function day(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function RecordTable({ mainnet, testnet, caption = 'External customer jobs' }: { mainnet: NetworkRecord; testnet: NetworkRecord; caption?: string }) {
   const rows: Array<[string, keyof NetworkRecord, string]> = [
     ['Jobs funded', 'funded', 'A buyer funded the escrow.'],
     ['Deliveries submitted', 'submitted', 'The provider put a delivery on chain.'],
@@ -333,7 +341,7 @@ function RecordTable({ mainnet, testnet }: { mainnet: NetworkRecord; testnet: Ne
       <thead>
         <tr className="text-left text-[11.5px] text-ink-3">
           <th className="py-1.5 font-normal" scope="col">
-            External customer jobs
+            {caption}
           </th>
           <th className="py-1.5 text-right font-normal" scope="col">
             Mainnet
@@ -421,7 +429,21 @@ function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
   );
 }
 
-function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: { agents: ShownAgent[]; wallet: string; reviews: ReturnType<typeof eligibleReviews>; reviewsHref: string; agentsHref: string }) {
+function BuildingOverview({
+  agents,
+  wallet,
+  operator,
+  reviews,
+  reviewsHref,
+  agentsHref,
+}: {
+  agents: ShownAgent[];
+  wallet: string;
+  operator: ReturnType<typeof operatorRecord>;
+  reviews: ReturnType<typeof eligibleReviews>;
+  reviewsHref: string;
+  agentsHref: string;
+}) {
   if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
   /* Pinned first (the list is already ordered that way), then the rest, up to four. */
   const featured = agents.slice(0, 4);
@@ -444,6 +466,7 @@ function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: 
           ))}
         </div>
       </section>
+      <OperatorRecord operator={operator} />
       <section aria-labelledby="recent-reviews" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 id="recent-reviews" className="text-[17px] font-semibold">
@@ -473,7 +496,36 @@ function AgentsTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string })
 }
 
 /** Evidence-only work: which outside jobs these agents did and how each ended. Never a brief or an output. */
-function WorkTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
+/**
+ * This builder's own record: jobs whose agent they owned when it was
+ * funded, as recorded then. Unlike an agent's record, it follows the
+ * person, not the agent, and starts the day recording began.
+ */
+function OperatorRecord({ operator }: { operator: ReturnType<typeof operatorRecord> }) {
+  if (!operator.since) return null;
+  const any = operator.mainnet.funded + operator.testnet.funded > 0;
+  return (
+    <section aria-labelledby="operator-record" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h2 id="operator-record" className="text-[17px] font-semibold">
+          Track record as owner
+        </h2>
+        <p className="text-[13px] text-ink-3">
+          Outside jobs taken on while this wallet owned the agent, across every agent it owned at the time. Recorded since {day(operator.since)}; earlier jobs are not attributed to anyone.
+        </p>
+      </div>
+      {any ? (
+        <div className="rounded-[14px] border border-rule bg-raised px-4 py-2">
+          <RecordTable mainnet={operator.mainnet} testnet={operator.testnet} caption="Jobs taken on" />
+        </div>
+      ) : (
+        <Empty title="None recorded yet">No outside job has been funded for an agent while this wallet owned it, since recording began.</Empty>
+      )}
+    </section>
+  );
+}
+
+function WorkTab({ agents, wallet, takenOn }: { agents: ShownAgent[]; wallet: string; takenOn: Set<string> }) {
   const jobs = agents
     .flatMap((a) => agentJobs(a.chainId, a.tokenId, wallet).map((job) => ({ job, agent: a })))
     .sort((x, y) => Date.parse(y.job.hiredAt) - Date.parse(x.job.hiredAt))
@@ -494,7 +546,10 @@ function WorkTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
                     · job #{job.jobId} · {chainLabel(job.chainId)}
                   </span>
                 </span>
-                <span className="text-[12.5px] text-ink-3">{new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                <span className="text-[12.5px] text-ink-3">
+                  {day(job.hiredAt)}
+                  {takenOn.has(job.id) ? ' · taken on by this owner' : ''}
+                </span>
               </span>
               <span className={cn('text-[12.5px] font-medium', job.status === 'COMPLETED' ? 'text-ok' : job.status === 'REJECTED' ? 'text-bad' : 'text-ink-2')}>{JOB_STATE_LABEL[job.status] ?? job.status}</span>
             </li>

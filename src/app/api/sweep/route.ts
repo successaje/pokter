@@ -11,6 +11,7 @@ import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
 import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
+import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
@@ -321,6 +322,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs());
 
     /*
+     * Who owned each newly funded job's agent, read while the funding is
+     * still recent enough to say. A job this misses stays unattributed;
+     * a later run never fills it in with whoever owns the agent by then.
+     */
+    const jobOwners = await budget.step('jobOwners', () => attributeRecentJobs());
+
+    /*
      * Who first funded each mainnet owner wallet, so agents run from
      * several wallets count as one operator in "Most reliable". Bounded per
      * run and off without NODEREAL_API_KEY; last, because nothing above
@@ -509,6 +517,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       deliveryRetries,
       sellerNotices,
       stuckJobs,
+      jobOwners,
       funders,
       healthFactorChecks,
       categoryChecks,

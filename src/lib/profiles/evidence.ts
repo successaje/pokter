@@ -18,10 +18,13 @@ import { tallyJobs, type NetworkRecord } from './record';
  *
  *  - An agent's record belongs to the agent. It is every outside job the
  *    agent has done under whoever owned it at the time, and is labelled
- *    that way. Pokter does not record who owned an agent when each job
- *    happened, so these figures are never added up into the current
- *    owner's own track record: a builder who buys an agent does not
- *    inherit its history as theirs.
+ *    that way. These figures are never added up into the current owner's
+ *    own track record: a builder who buys an agent does not inherit its
+ *    history as theirs.
+ *  - An operator's record is the jobs whose agent this wallet owned when
+ *    the job was funded, as recorded at the time (see owner-at-job.ts).
+ *    Only jobs since recording began count; older ones were never
+ *    attributed and are not guessed at.
  *  - A hirer's record is the jobs this wallet funded as the buyer. The
  *    buyer is named on each job, so that attribution is exact.
  *
@@ -58,6 +61,25 @@ export function agentJobs(chainId: number, tokenId: string, excludeWallet: strin
 export function agentRecord(chainId: number, tokenId: string, excludeWallet: string): { mainnet: NetworkRecord; testnet: NetworkRecord } {
   const jobs = agentJobs(chainId, tokenId, excludeWallet);
   return { mainnet: tally(jobs, 56), testnet: tally(jobs, 97) };
+}
+
+/**
+ * The jobs this wallet took on as the agent's owner, across every agent it
+ * owned at funding — including ones it has since sold or does not show, so
+ * a builder cannot tidy a record by hiding an agent. The same exclusions
+ * as an agent's record apply. `since` is when recording began; null means
+ * nothing has been recorded yet, which is said rather than shown as zero.
+ */
+export function operatorRecord(wallet: string): { mainnet: NetworkRecord; testnet: NetworkRecord; since: string | null; jobIds: Set<string> } {
+  const store = getJobStore();
+  const owned = new Set(store.jobsOwnedAtFunding(wallet));
+  const team = teamWalletSet();
+  const self = wallet.toLowerCase();
+  const jobs = store
+    .all()
+    .filter((j) => owned.has(j.id))
+    .filter((j) => j.status !== 'OPEN' && !fundedByTeam(j, team) && !isLifecycleDemo(j) && !isSelfHire(j) && j.client?.toLowerCase() !== self);
+  return { mainnet: tally(jobs, 56), testnet: tally(jobs, 97), since: store.ownerRecordsBegan(), jobIds: new Set(jobs.map((j) => j.id)) };
 }
 
 /** What each job state is called on a profile; payment alone is never called acceptance. */

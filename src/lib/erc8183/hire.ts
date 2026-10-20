@@ -15,6 +15,7 @@ import { correctedErc8183Addresses } from './addresses';
 
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
+import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
 import { isThisHire } from './hire-confirm';
 import type { HiredJob, JobStatusName } from './types';
@@ -240,6 +241,7 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
   };
 
   getJobStore().record(job);
+  void attributeJob(job).catch(() => false);
   return job;
 }
 
