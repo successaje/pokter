@@ -41,62 +41,54 @@ export function ProposalList({
         const saving = request.budgetU - bid.priceU;
         return (
           <li key={bid.id} className={cn('flex flex-col gap-4 rounded-[16px] border p-5', chosen ? 'border-ok/40 bg-ok-wash' : 'border-rule bg-raised')}>
-            <div className="flex items-start justify-between gap-4">
-              <Link href={`/agents/${bid.agentChainId}/${bid.agentTokenId}`} className="group flex min-w-0 items-center gap-3">
+            {/* Who first, then the offer. The name never gives way to the price. */}
+            <div className="flex items-start gap-3">
+              <Link href={`/agents/${bid.agentChainId}/${bid.agentTokenId}`} className="shrink-0">
                 <AgentAvatar name={name} imageUrl={imageUrl} seed={`${bid.agentChainId}:${bid.agentTokenId}`} size={44} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-[15.5px] font-semibold group-hover:underline">{name}</span>
-                  <span className="truncate text-[12.5px] text-ink-3">
-                    {row && row.category !== 'unclassified' ? `${row.categoryLabel} · ` : ''}
-                    {bid.agentChainId === 56 ? 'BNB Chain' : 'Testnet'} #{bid.agentTokenId} · by {bidder?.name ?? shortAddress(bid.bidder)}
-                  </span>
-                </span>
               </Link>
-              <span className="flex shrink-0 flex-col items-end">
-                <span className="t-readout text-[19px] text-ink">
-                  {bid.priceU.toFixed(2)} {unit}
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <Link href={`/agents/${bid.agentChainId}/${bid.agentTokenId}`} className="break-words text-[15.5px] font-semibold hover:underline">
+                  {name}
+                </Link>
+                <span className="text-[12.5px] text-ink-3">
+                  {row && row.category !== 'unclassified' ? `${row.categoryLabel} · ` : ''}
+                  {bid.agentChainId === 56 ? 'BNB Chain' : 'Testnet'} #{bid.agentTokenId} · by {bidder?.name ?? shortAddress(bid.bidder)}
                 </span>
-                <span className={cn('text-[12.5px]', later ? 'font-medium text-watch' : 'text-ink-3')}>
-                  {days(bid.deliverDays)} after hiring{later ? ` · asked ${days(request.deliverDays)}` : ''}
-                </span>
-              </span>
+              </div>
+              <Offer className="hidden sm:flex sm:flex-col sm:items-end" price={`${bid.priceU.toFixed(2)} ${unit}`} delivery={`${days(bid.deliverDays)} after hiring`} late={later ? `asked ${days(request.deliverDays)}` : null} />
             </div>
+            <Offer className="flex flex-wrap items-baseline gap-x-2 sm:hidden" price={`${bid.priceU.toFixed(2)} ${unit}`} delivery={`${days(bid.deliverDays)} after hiring`} late={later ? `asked ${days(request.deliverDays)}` : null} />
 
             {bid.note && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink-2">{bid.note}</p>}
 
-            {/* The record, in the same three slots on every card. */}
+            {/* The agent's record on Pokter, as one line of facts in the same order on every card. */}
             {row ? (
-              <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-3">
-                <Fact label="Answers Pokter’s checks">
+              <ul aria-label="Record on Pokter" className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[10px] bg-sunken/70 px-3.5 py-2.5 text-[12.5px] text-ink-3">
+                <li className="flex items-center gap-2">
                   {row.probes > 0 && row.rate !== null ? (
-                    <span className="flex items-center justify-between gap-2">
-                      <span>
-                        {Math.round(row.rate * 100)}%{' '}
-                        <span className="font-normal text-ink-3">· {VERDICT_LABEL[row.verdict]}</span>
-                      </span>
-                      <ProbeStrip cells={row.cells} className="h-5 shrink-0" />
-                    </span>
-                  ) : (
-                    <span className="font-normal text-ink-3">Not checked yet</span>
-                  )}
-                </Fact>
-                <Fact label="Paid jobs">
-                  {row.paid.jobs > 0 ? (
                     <>
-                      {row.paid.completed} completed <span className="font-normal text-ink-3">of {row.paid.jobs}</span>
+                      <span>
+                        <span className="font-medium text-ink">{Math.round(row.rate * 100)}%</span> of checks answered · {VERDICT_LABEL[row.verdict]}
+                      </span>
+                      <ProbeStrip cells={row.cells} className="hidden h-4 sm:flex" />
                     </>
                   ) : (
-                    <span className="font-normal text-ink-3">None yet</span>
+                    'Not checked by Pokter yet'
                   )}
-                </Fact>
-                <Fact label="Last signed price">
-                  {row.priceState === 'signed' && row.priceU !== null ? formatQuotedPrice(row.priceU) : <span className="font-normal text-ink-3">No signed price</span>}
-                </Fact>
-              </dl>
+                </li>
+                <li>
+                  {row.paid.jobs > 0 ? (
+                    <>
+                      <span className="font-medium text-ink">{row.paid.completed}</span> of {row.paid.jobs} paid jobs completed
+                    </>
+                  ) : (
+                    'No paid jobs yet'
+                  )}
+                </li>
+                <li>{row.priceState === 'signed' && row.priceU !== null ? <>Last signed price <span className="font-medium text-ink">{formatQuotedPrice(row.priceU)}</span></> : 'No signed price yet'}</li>
+              </ul>
             ) : (
-              <p className="rounded-[12px] border border-dashed border-rule-strong px-4 py-3 text-[13px] text-ink-3">
-                Not listed on Pokter yet, so there is no record of its checks or paid jobs here.
-              </p>
+              <p className="rounded-[10px] bg-sunken/70 px-3.5 py-2.5 text-[12.5px] text-ink-3">Not listed on Pokter yet: no record of its checks or paid jobs here.</p>
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-3">
@@ -125,11 +117,14 @@ export function ProposalList({
   );
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Offer({ price, delivery, late, className }: { price: string; delivery: string; late: string | null; className?: string }) {
   return (
-    <div className="flex flex-col gap-1 bg-raised px-3.5 py-2.5">
-      <dt className="text-[11.5px] text-ink-3">{label}</dt>
-      <dd className="text-[13.5px] font-medium text-ink">{children}</dd>
-    </div>
+    <span className={className}>
+      <span className="t-readout text-[16.5px] text-ink">{price}</span>
+      <span className={cn('text-[12.5px]', late ? 'font-medium text-watch' : 'text-ink-3')}>
+        {delivery}
+        {late ? ` · ${late}` : ''}
+      </span>
+    </span>
   );
 }

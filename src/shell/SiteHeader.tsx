@@ -69,7 +69,7 @@ export function SiteHeader() {
             </span>
           )}
 
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 md:flex">
+          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
             {PRIMARY_NAV.map((item) => (
               <Link
                 key={item.href}
@@ -86,7 +86,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle className="hidden md:grid" />
+            <ThemeToggle className="hidden lg:grid" />
             {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
             {/* Already on /discover, the hash changes through pushState, which fires no hashchange for the search box to hear, so it is focused here. From any other page the box focuses itself on arrival. */}
             <Link
@@ -94,7 +94,7 @@ export function SiteHeader() {
               onClick={() => requestAnimationFrame(() => document.getElementById('discover-q')?.focus())}
               aria-label="Search agents"
               title="Search agents"
-              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:grid"
+              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink lg:grid"
             >
               <Icon.Search size={17} />
             </Link>
@@ -102,7 +102,7 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setMenu(true)}
-              className="grid size-10 place-items-center rounded-[8px] text-ink md:hidden"
+              className="grid size-10 place-items-center rounded-[8px] text-ink lg:hidden"
               aria-label="Open menu"
               aria-expanded={menu}
             >

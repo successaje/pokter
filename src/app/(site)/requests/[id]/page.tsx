@@ -77,8 +77,8 @@ export default async function BriefPage({
                   </Link>
                 ) : (
                   <Address address={brief.poster} chainExplorer={false} />
-                )}{' '}
-                · signed by that wallet
+                )}
+                , signed with their wallet
               </>
             }
           />
