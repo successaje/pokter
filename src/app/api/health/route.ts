@@ -3,6 +3,7 @@ import { accessSync, constants } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { readVitals } from '@/lib/health/vitals';
+import { lastSaturation, recordSaturation } from '@/lib/health/saturation-store';
 import { STORES, isDurable, storePath } from '@/lib/health/stores';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,19 @@ export function GET(): NextResponse {
     // storage faults that gate, and the log must use the same vocabulary as
     // the body or the two read as different problems.
     console.error(`[health] serving is saturated: ${vitals.reasons.join('; ')}`);
+    /*
+     * And written down, because loud was not enough. On 20 October these
+     * lines said precisely what was wrong, and the window they said it in
+     * had scrolled out of the log buffer before anyone read them; the site
+     * came back on a guess. The log is for watching, the store is for
+     * afterwards, and an incident is nearly always read afterwards.
+     */
+    recordSaturation({
+      at: new Date().toISOString(),
+      lagP99Ms: vitals.loopLagMs?.p99 ?? null,
+      timedOutRecently: vitals.outbound.timedOutRecently,
+      reasons: vitals.reasons,
+    });
   }
 
   return NextResponse.json(
@@ -97,6 +111,12 @@ export function GET(): NextResponse {
        * the schedule plus however much the runs differed in length, which is
        * what made this unmeasurable the first two times it was wrong.
        */
+      /*
+       * The last episode, so the question "has this happened before, and how
+       * badly" is answerable with the same request that reports the current
+       * state. Reported, never gating — the same rule as `saturated` itself.
+       */
+      lastSaturation: lastSaturation(),
       sweep: {
         lastStartedAt: vitals.lastRunStartedAt,
         lastFinishedAt: vitals.lastSweepFinishedAt,
