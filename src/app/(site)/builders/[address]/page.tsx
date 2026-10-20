@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { formatUnits, getAddress, isAddress } from 'viem';
+import { notFound, redirect } from 'next/navigation';
+import { formatUnits, getAddress, isAddress, type Address } from 'viem';
 
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
 import { resolveAgentImages } from '@/lib/registry/image';
@@ -10,26 +10,33 @@ import { earnedByNetwork } from '@/lib/builder/earnings';
 import { getJobStore } from '@/lib/erc8183/store';
 import { chainLabel } from '@/lib/network/presentation';
 import { listAgents } from '@/lib/scan/client';
-import { ProfileAbout } from '@/features/profile/ProfileAbout';
+import { ProfileHeader } from '@/features/profile/ProfileHeader';
+import { profilePath, type Profile } from '@/lib/profiles/model';
+import { registryOwner } from '@/lib/registry/onchain';
 import { getBriefStore } from '@/lib/briefs/store';
 import { getProfileStore } from '@/lib/profiles/store';
 import { AgentAvatar } from '@/ui/Agent';
-import { AvatarImage } from '@/ui/AvatarImage';
-import { avatarUrl } from '@/lib/ui/avatar-art';
-import { Address } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
+/** A profile's wallet, from either its handle or its address. */
+function resolve(param: string): { wallet: Address; profile: Profile | null } | null {
+  const store = getProfileStore();
+  if (isAddress(param)) return { wallet: getAddress(param), profile: store.get(param) };
+  const profile = store.byHandle(decodeURIComponent(param));
+  return profile ? { wallet: getAddress(profile.wallet), profile } : null;
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
-  const { address } = await params;
-  if (!isAddress(address)) return { title: 'Profile' };
-  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
-  const name = getProfileStore().get(address)?.displayName;
+  const found = resolve((await params).address);
+  if (!found) return { title: 'Profile' };
+  const short = `${found.wallet.slice(0, 6)}…${found.wallet.slice(-4)}`;
+  const name = found.profile?.displayName || (found.profile?.handle ? `@${found.profile.handle}` : null);
   return {
-    /* The address always travels with a self-provided name, so a name alone never stands for the wallet. */
-    title: name ? `${name} (${short})` : `Profile ${short}`,
-    description: `What ${short} has done on Pokter: the agents it owns on BNB Chain, paid work, hires, requests and proposals.`,
+    title: name ? name : `Profile ${short}`,
+    description: found.profile?.bio || `Agents ${name ?? short} builds on BNB Chain, with the evidence behind them: checks, paid work and reviews.`,
+    alternates: { canonical: profilePath(found.wallet, found.profile?.handle) },
   };
 }
 
@@ -44,9 +51,11 @@ export async function generateMetadata({ params }: { params: Promise<{ address: 
  */
 export default async function ProfilePage({ params }: { params: Promise<{ address: string }> }) {
   const { address: raw } = await params;
-  if (!isAddress(raw)) notFound();
-  const address = getAddress(raw);
-  const profile = getProfileStore().get(address);
+  const found = resolve(raw);
+  if (!found) notFound();
+  const { wallet: address, profile } = found;
+  /* One address per profile: once it has a handle, the wallet's URL leads there. */
+  if (profile?.handle && isAddress(raw)) redirect(profilePath(address, profile.handle));
   const verified = verifiedPublisherByOwner(address);
   const pages = await Promise.all([
     listAgents({ chainId: 56, ownerAddress: address, limit: 100 }).catch(() => null),
@@ -68,35 +77,25 @@ export default async function ProfilePage({ params }: { params: Promise<{ addres
   const paid = earnedByNetwork(completed);
   const amount = (raw: bigint) => `${Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`;
   const completedOn = (chainId: number) => completed.filter((j) => j.chainId === chainId).length;
-  const verifiedKeys = new Set(verified.map((v) => `${v.chainId}:${v.tokenId}`));
+  /*
+   * "Ownership verified" only where the proof still holds: signed by the
+   * registry owner then, and the registry still names this wallet now. A
+   * proof for an agent since transferred no longer counts.
+   */
+  const proven = verified.filter((v) => keys.has(`${v.chainId}:${v.tokenId}`));
+  const liveOwners = await Promise.all(proven.map((v) => registryOwner(v.chainId, v.tokenId).catch(() => null)));
+  const provenNow = new Set(proven.filter((_, i) => liveOwners[i] === address).map((v) => `${v.chainId}:${v.tokenId}`));
   const hires = jobStore.byClient(address).filter((j) => j.status !== 'OPEN');
   const hiresSettled = hires.filter((j) => j.status === 'COMPLETED').length;
   const briefs = getBriefStore();
   const requests = briefs.byPoster(address);
   const proposals = briefs.bidsBy(address);
-  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
   const nothing = agents.length === 0 && hires.length === 0 && requests.length === 0 && proposals.length === 0;
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-14">
-      <header className="mb-8 flex items-center gap-4">
-        <AvatarImage
-          src={profile?.avatarUrl || null}
-          fallback={avatarUrl(address.toLowerCase())}
-          name={profile?.displayName || short}
-          size={64}
-          className="rounded-full"
-          eager
-        />
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="t-label">Profile</span>
-          <h1 className="t-h1 break-words text-[clamp(1.5rem,3.2vw,2.1rem)]">{profile?.displayName || <span className="t-readout">{short}</span>}</h1>
-          <Address address={address} />
-        </div>
-      </header>
-
-      <div className="flex max-w-4xl flex-col gap-10">
-        <ProfileAbout wallet={address} profile={profile} />
+      <div className="flex max-w-4xl flex-col gap-12">
+        <ProfileHeader wallet={address} profile={profile} ownedVerified={provenNow.size} />
 
         <section aria-labelledby="evidence-title" className="flex flex-col gap-6">
           <div className="flex flex-col gap-1">
@@ -109,12 +108,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ addres
           {nothing && !agentsUnavailable && <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[14px] text-ink-2">No public activity on Pokter yet.</p>}
 
           {(agents.length > 0 || agentsUnavailable) && (
-            <div className="flex flex-col gap-3">
+            <div id="agents" className="flex scroll-mt-24 flex-col gap-3">
               <SourceHead title="Agents owned" source="ERC-8004 registry, via the agent index. The shield marks agents this wallet proved it owns by signing to Pokter." />
               {agentsUnavailable && <p className="text-[13px] text-watch">The agent index did not answer for one network, so this list may be incomplete.</p>}
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                  { k: 'Agents', v: String(agents.length), note: verified.length ? `${verified.length} proved to Pokter` : null },
+                  { k: 'Agents', v: String(agents.length), note: provenNow.size ? `${provenNow.size} ownership verified` : null },
                   { k: 'Paid jobs completed', v: String(completed.length), note: `${completedOn(56)} on ${chainLabel(56)} · ${completedOn(97)} on ${chainLabel(97)}` },
                   { k: `Paid out on ${chainLabel(56)}`, v: amount(paid.real), note: 'Real $U' },
                   { k: `Test tokens on ${chainLabel(97)}`, v: amount(paid.test), note: 'No cash value' },
@@ -140,7 +139,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ addres
                         <span className="flex min-w-0 flex-col">
                           <span className="flex items-center gap-2 truncate font-medium">
                             {a.name}
-                            {verifiedKeys.has(key) && (
+                            {provenNow.has(key) && (
                               <span className="inline-flex items-center gap-1 text-[12px] font-normal text-ok">
                                 <Icon.Shield size={13} aria-hidden /> Ownership proved
                               </span>

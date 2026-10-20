@@ -53,6 +53,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'That signature does not match this profile.' }, { status: 403 });
   }
 
+  if (store.handleTaken(content.handle, wallet)) {
+    return NextResponse.json({ error: `@${content.handle} is taken. Choose another handle.` }, { status: 409 });
+  }
+  if (content.avatar && !store.avatar(content.avatar)) {
+    return NextResponse.json({ error: 'That picture was not found. Upload it again.' }, { status: 400 });
+  }
+
   if (isEmptyProfile(content)) store.remove(wallet);
   else store.put({ ...content, wallet, signedAt, signature });
   return NextResponse.json({ profile: isEmptyProfile(content) ? null : store.get(wallet) });
