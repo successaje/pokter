@@ -208,7 +208,7 @@ export function DraftsList() {
           const p = draftProgress(d.draft);
           return (
             <li key={d.id} className="flex items-center gap-4 py-3">
-              <Link href={`/build/new?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
+              <Link href={`/build/new/guided?draft=${encodeURIComponent(d.id)}`} className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium hover:underline">{draftTitle(d.draft)}</p>
                 <p className="text-[12px] text-ink-3">
                   {p.done} of {p.total} ready · edited {new Date(d.updatedAt).toLocaleDateString()}

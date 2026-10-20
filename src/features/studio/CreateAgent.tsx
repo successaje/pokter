@@ -20,7 +20,6 @@ import { Checkbox, Field, Input, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { LivePreview } from './LivePreview';
-import { BuildWithMcpRow } from './BuildWithMcp';
 import { siteUrlClient } from './site';
 import { useAgentDraft, type AgentDraft } from './useAgentDraft';
 
@@ -97,7 +96,6 @@ function StepDefine({ d }: { d: AgentDraft }) {
   return (
     <div className="flex flex-col gap-6">
       <Blueprint d={d} />
-      <BuildWithMcpRow />
       <Field label="Name" hint="What buyers will see. Specific beats clever.">
         {(p) => <Input {...p} value={d.draft.name} maxLength={80} onChange={(e) => d.update('name', e.target.value)} placeholder="Position Guardian" />}
       </Field>

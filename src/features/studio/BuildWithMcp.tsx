@@ -32,22 +32,7 @@ function ConnectLinks() {
   );
 }
 
-/** One line at the top of the first step, where someone chooses how to start. */
-export function BuildWithMcpRow() {
-  return (
-    <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-raised p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-semibold">Pokter MCP</span>
-        <span className="t-label">Optional</span>
-      </div>
-      <p className="text-[13.5px] text-ink-2">Build it with the assistant you already use.</p>
-      <CodeBlock label="Copy the Claude Code command">{MCP_SETUP.claudeCode}</CodeBlock>
-      <ConnectLinks />
-    </div>
-  );
-}
-
-/** The fuller version, one of the "Other ways to build". */
+/** Building with an assistant through Pokter MCP: the recommended method on "Build with your AI assistant". */
 export function BuildWithMcpCard() {
   return (
     <section aria-labelledby="mcp-build-title" className="flex h-full flex-col gap-4 rounded-[16px] border border-rule bg-raised p-6">
