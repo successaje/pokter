@@ -23,6 +23,8 @@ import {
 import { answerFromManifest, previewOf } from './answer';
 import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
+import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
+import { dueDeadlineReminder, hireProgressNews, settledWith } from '@/lib/campaign/reminders';
 
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
@@ -110,6 +112,20 @@ function db(): DatabaseSync {
       UNIQUE(email, chain_id, token_id)
     );
     CREATE INDEX IF NOT EXISTS idx_agent_follows_agent ON agent_follows (chain_id, token_id);
+
+    CREATE TABLE IF NOT EXISTS campaign_reminders (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      wallet_address TEXT,
+      deadline INTEGER NOT NULL,
+      progress INTEGER NOT NULL,
+      verification_hash TEXT NOT NULL,
+      verified_at TEXT,
+      unsubscribed_at TEXT,
+      created_at TEXT NOT NULL,
+      sent TEXT NOT NULL DEFAULT '',
+      last_agents INTEGER
+    );
   `);
   // Added after launch; existing rows keep the default (preview only).
   addColumn(database, 'notification_subscriptions', 'include_answer INTEGER NOT NULL DEFAULT 0');
@@ -327,7 +343,7 @@ export async function createBuilderSubscription(input: { email: string; owner: s
 }
 
 export type EmailLinkTarget =
-  | { kind: 'buyer' | 'builder' }
+  | { kind: 'buyer' | 'builder' | 'campaign' }
   | { kind: 'follow'; chainId: number; tokenId: string };
 
 /** Confirm an address. A follow also says which agent, so the link can return to it. */
@@ -340,6 +356,9 @@ export function verifySubscription(token: string): EmailLinkTarget | null {
   const builder = db().prepare(`UPDATE builder_notification_subscriptions SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
   if (builder.changes > 0) return { kind: 'builder' };
+  const campaign = db().prepare(`UPDATE campaign_reminders SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  if (campaign.changes > 0) return { kind: 'campaign' };
   const follow = db().prepare(`SELECT id, chain_id, token_id FROM agent_follows WHERE verification_hash=? AND verified_at IS NULL`).get(tokenHash) as
     | { id: string; chain_id: number; token_id: string }
     | undefined;
@@ -373,6 +392,8 @@ export function unsubscribe(token: string): EmailLinkTarget | null {
   if (buyer.changes > 0) return { kind: 'buyer' };
   const builder = db().prepare('UPDATE builder_notification_subscriptions SET unsubscribed_at=? WHERE id=?').run(now, id);
   if (builder.changes > 0) return { kind: 'builder' };
+  const campaign = db().prepare('UPDATE campaign_reminders SET unsubscribed_at=? WHERE id=?').run(now, id);
+  if (campaign.changes > 0) return { kind: 'campaign' };
   const follow = db().prepare('SELECT chain_id, token_id FROM agent_follows WHERE id=?').get(id) as { chain_id: number; token_id: string } | undefined;
   if (!follow) return null;
   db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
@@ -558,6 +579,104 @@ export async function notifyFollowers(states: Map<string, { name: string; state:
       }
     }
     db().prepare('UPDATE agent_follows SET last_state=?, agent_name=? WHERE id=?').run(JSON.stringify(current.state), current.name || row.agent_name, row.id);
+  }
+  return { checked: rows.length, sent };
+}
+
+/* ---------------------------------------------------------------------- *
+ * Set and Earn reminders
+ *
+ * One row per inbox. Deadline reminders need nothing but the email;
+ * progress emails also need a wallet, whose hires are public on chain
+ * anyway (the /quest page reads any address). Nothing is sent until the
+ * address is confirmed, and every email carries its own unsubscribe link.
+ * ---------------------------------------------------------------------- */
+
+export async function createCampaignReminder(input: { email: string; wallet: string | null; deadline: boolean; progress: boolean }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const token = randomBytes(32).toString('base64url');
+  const now = new Date().toISOString();
+  db().prepare(`INSERT INTO campaign_reminders (id,email,wallet_address,deadline,progress,verification_hash,created_at)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(email) DO UPDATE SET
+      wallet_address=excluded.wallet_address,
+      deadline=excluded.deadline,
+      progress=excluded.progress,
+      verification_hash=excluded.verification_hash,
+      verified_at=NULL,
+      unsubscribed_at=NULL,
+      last_agents=NULL,
+      created_at=excluded.created_at`).run(randomUUID(), email, input.wallet?.toLowerCase() ?? null, input.deadline ? 1 : 0, input.progress && input.wallet ? 1 : 0, hash(token), now);
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  const what = [input.deadline ? 'a reminder a week, two days and one day before entries close' : null, input.progress && input.wallet ? 'an email when this wallet hires another agent' : null].filter(Boolean).join(', and ');
+  await sendEmail({
+    to: email,
+    subject: 'Confirm your Set and Earn reminders',
+    idempotencyKey: `campaign-verify-${hash(`${email}:${token}`).slice(0, 48)}`,
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">BNB Chain · Set and Earn</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Confirm your reminders</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">You asked for ${escapeHtml(what)}. Pokter reads hires from BNB Chain's escrow contracts; BNB Chain decides who qualifies.</p>${emailContext([['Entries close', CAMPAIGN_ENDS_AT.toUTCString().replace(':00 GMT', ' UTC')], ...(input.wallet ? ([['Wallet', `${input.wallet.slice(0, 6)}…${input.wallet.slice(-4)}`]] as Array<[string, string]>) : [])])}<div>${emailButton(verifyUrl, 'Confirm reminders')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only turns on reminders. It grants no wallet permission. If you did not ask for them, ignore this email.</p>`, 'Confirm your Set and Earn reminders on Pokter.'),
+  });
+}
+
+/**
+ * The sweep's pass: each confirmed subscription gets the deadline reminder
+ * that has come due, and, when it watches a wallet, an email the first time
+ * its count of distinct hired agents rises. A failed send is retried next
+ * sweep; what was sent is recorded after each send.
+ */
+export async function notifyCampaignReminders(input: {
+  nowMs: number;
+  endsAtMs: number;
+  hiresOf: (wallet: string) => Promise<{ distinctAgents: number; marketplaces: string[] }>;
+  maxProgressReads?: number;
+}): Promise<{ checked: number; sent: number }> {
+  const rows = db().prepare(`SELECT id,email,wallet_address,deadline,progress,created_at,sent,last_agents FROM campaign_reminders
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as Array<{ id: string; email: string; wallet_address: string | null; deadline: number; progress: number; created_at: string; sent: string; last_agents: number | null }>;
+  let sent = 0;
+  let reads = 0;
+  for (const row of rows) {
+    const unsubscribeUrl = () => `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    const pageUrl = `${appUrl()}/set-and-earn${row.wallet_address ? `?address=${row.wallet_address}` : ''}`;
+    const footer = () => `<p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">BNB Chain's rules decide who qualifies; Pokter shows what it can read on chain. <a href="${unsubscribeUrl()}" style="color:#55534d;text-decoration:underline">Stop these reminders</a>.</p>`;
+
+    if (row.deadline) {
+      const due = dueDeadlineReminder({ nowMs: input.nowMs, endsAtMs: input.endsAtMs, subscribedAtMs: Date.parse(row.created_at), sent: row.sent.split(',').filter(Boolean) });
+      if (due) {
+        try {
+          const hours = Math.max(1, Math.round((input.endsAtMs - input.nowMs) / 3_600_000));
+          await sendEmail({
+            to: row.email,
+            subject: `Set and Earn: ${due.label.toLowerCase()}`,
+            idempotencyKey: `campaign-${row.id}-${due.id}`,
+            html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">BNB Chain · Set and Earn</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(due.label)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Entries close in about ${hours >= 48 ? `${Math.round(hours / 24)} days` : `${hours} hours`}. Your agent needs actions on three separate days, so the build track cannot be finished on the last one.</p>${emailContext([['Entries close', new Date(input.endsAtMs).toUTCString().replace(':00 GMT', ' UTC')]])}<div>${emailButton(pageUrl, 'See your progress')}</div>${footer()}`, `${due.label} to complete Set and Earn.`),
+          });
+          sent += 1;
+          db().prepare('UPDATE campaign_reminders SET sent=? WHERE id=?').run(settledWith(due).join(','), row.id);
+        } catch {
+          /* Not recorded as sent: tried again next sweep. */
+        }
+      }
+    }
+
+    if (row.progress && row.wallet_address && reads < (input.maxProgressReads ?? 20)) {
+      reads += 1;
+      const now = await input.hiresOf(row.wallet_address).catch(() => null);
+      if (!now) continue;
+      if (hireProgressNews(row.last_agents, now.distinctAgents)) {
+        try {
+          const left = Math.max(0, 3 - now.distinctAgents);
+          await sendEmail({
+            to: row.email,
+            subject: left === 0 ? 'Set and Earn: three agents hired' : `Set and Earn: ${now.distinctAgents} of 3 agents hired`,
+            idempotencyKey: `campaign-${row.id}-agents-${now.distinctAgents}`,
+            html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">BNB Chain · Set and Earn</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${now.distinctAgents} of 3 different agents hired</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${left === 0 ? 'The hire count is met. The track also needs at least two marketplaces.' : `${left} more to go, on at least two marketplaces.`}</p>${emailContext([['Marketplaces named', now.marketplaces.length ? now.marketplaces.join(', ') : 'None recorded yet']])}<div>${emailButton(pageUrl, 'See your progress')}</div>${footer()}`, `${now.distinctAgents} of 3 agents hired for Set and Earn.`),
+          });
+          sent += 1;
+        } catch {
+          continue; // Keep the old count, so this is sent next sweep.
+        }
+      }
+      db().prepare('UPDATE campaign_reminders SET last_agents=? WHERE id=?').run(now.distinctAgents, row.id);
+    }
   }
   return { checked: rows.length, sent };
 }
