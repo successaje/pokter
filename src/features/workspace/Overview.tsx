@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { formatUnits } from 'viem';
 
 import { splitNeedsYou } from '@/lib/jobs/needs-you';
@@ -16,6 +17,7 @@ import { RecoverJob } from './RecoverJob';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobHref } from '@/lib/jobs/href';
+import { cn } from '@/lib/ui/cn';
 
 export function WorkspaceOverview() {
   const { jobs, address } = useMyJobs();
@@ -23,6 +25,8 @@ export function WorkspaceOverview() {
   const inbox = useInbox();
   const alerts = useSavedAlerts();
   const now = useNow();
+  /* "Needs you" opens folded on every visit: the heading and the stat strip carry the count, and the list is one click away. */
+  const [needsOpen, setNeedsOpen] = useState(false);
 
   if (!address) {
     return (
@@ -87,33 +91,46 @@ export function WorkspaceOverview() {
         <div className="flex flex-col gap-10">
           {needsYou.length > 0 && (
             <section aria-labelledby="needs-title" className="flex flex-col gap-3">
-              <h2 id="needs-title" className="flex items-center gap-2 text-sm font-semibold text-watch">
-                <Icon.Alert size={16} /> Needs you ({needsYou.length})
+              <h2 id="needs-title">
+                <button
+                  type="button"
+                  aria-expanded={needsOpen}
+                  aria-controls="needs-list"
+                  onClick={() => setNeedsOpen((open) => !open)}
+                  className="flex items-center gap-2 text-sm font-semibold text-watch"
+                >
+                  <Icon.Alert size={16} /> Needs you ({needsYou.length})
+                  <Icon.ChevronDown size={15} className={cn('transition-transform', !needsOpen && '-rotate-90')} />
+                </button>
               </h2>
-              <ul className="flex flex-col gap-2">
-                {shownNeeds.map(({ job, phase }) => (
-                  <li key={job.id}>
-                    <Link href={jobHref(job)} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
-                      <span className="flex items-center gap-3">
-                        <AgentAvatar name={job.agentName} seed={`${job.agentChainId}:${job.agentTokenId}`} size={36} />
-                        <span className="flex flex-col">
-                          <span className="text-[14.5px] font-semibold">
-                            {phase === 'review' ? `${job.agentName} delivered` : `${job.agentName} did not deliver`}
+              {needsOpen && (
+                <div id="needs-list" className="flex flex-col gap-3">
+                  <ul className="flex flex-col gap-2">
+                    {shownNeeds.map(({ job, phase }) => (
+                      <li key={job.id}>
+                        <Link href={jobHref(job)} className="flex flex-col gap-3 rounded-[14px] border border-[color-mix(in_oklab,var(--watch)_35%,transparent)] bg-watch-wash/50 p-4 transition-colors hover:bg-watch-wash sm:flex-row sm:items-center sm:justify-between">
+                          <span className="flex items-center gap-3">
+                            <AgentAvatar name={job.agentName} seed={`${job.agentChainId}:${job.agentTokenId}`} size={36} />
+                            <span className="flex flex-col">
+                              <span className="text-[14.5px] font-semibold">
+                                {phase === 'review' ? `${job.agentName} delivered` : `${job.agentName} did not deliver`}
+                              </span>
+                              <span className="text-[13px] text-ink-2">{PHASE[phase].next}</span>
+                            </span>
                           </span>
-                          <span className="text-[13px] text-ink-2">{PHASE[phase].next}</span>
-                        </span>
-                      </span>
-                      <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium">
-                        {phase === 'review' ? 'Review delivery' : 'Reclaim escrow'} <Icon.Arrow size={15} />
-                      </span>
+                          <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium">
+                            {phase === 'review' ? 'Review delivery' : 'Reclaim escrow'} <Icon.Arrow size={15} />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {remainingNeeds > 0 && (
+                    <Link href="/workspace/jobs?filter=attention" className="self-start text-[13px] font-medium hover:underline">
+                      View all {needsYou.length} &mdash; {remainingNeeds} more {remainingNeeds === 1 ? 'needs' : 'need'} you <Icon.Arrow size={14} className="inline align-[-2px]" />
                     </Link>
-                  </li>
-                ))}
-              </ul>
-              {remainingNeeds > 0 && (
-                <Link href="/workspace/jobs?filter=attention" className="self-start text-[13px] font-medium hover:underline">
-                  View all {needsYou.length} &mdash; {remainingNeeds} more {remainingNeeds === 1 ? 'needs' : 'need'} you <Icon.Arrow size={14} className="inline align-[-2px]" />
-                </Link>
+                  )}
+                </div>
               )}
             </section>
           )}
