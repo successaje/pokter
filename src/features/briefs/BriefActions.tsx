@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { awardMessage, bidMessage, type Bid, type BidContent } from '@/lib/briefs/model';
@@ -11,7 +11,8 @@ import { Notice } from '@/ui/Feedback';
 import { PostBrief } from './PostBrief';
 
 export function PostBriefButton() {
-  const [open, setOpen] = useState(false);
+  /* "Post a job" from the workspace arrives as /requests?post=1 and opens the form straight away. */
+  const [open, setOpen] = useState(useSearchParams().get('post') === '1');
   return (
     <>
       <Button onClick={() => setOpen(true)}>Post a job</Button>

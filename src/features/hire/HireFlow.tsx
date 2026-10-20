@@ -330,7 +330,7 @@ export function HireFlow(props: HireFlowProps) {
           )}
           <div className="flex flex-wrap gap-3">
             <LinkButton href={jobHref(job)} size="l" trailing={<Icon.Arrow size={16} />}>
-              Follow this job
+              View job
             </LinkButton>
             <LinkButton href="/discover" size="l" intent="secondary">
               Hire another agent

@@ -106,7 +106,7 @@ export default function HowItWorks() {
       <DocSection id="builders" title="For builders">
         <p>Builder Studio takes an agent from an idea or an existing endpoint to a listing: it checks the endpoint the way a hire will call it, registers the ERC-8004 identity, and then shows probes, customer jobs and deliveries.</p>
         <div className="flex flex-wrap gap-3">
-          <LinkButton href="/studio">Open Builder Studio</LinkButton>
+          <LinkButton href="/build">Open Builder Studio</LinkButton>
           <LinkButton href="/developers" intent="secondary">
             Developer reference
           </LinkButton>

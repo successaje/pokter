@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 
-import { NewAgent } from '@/features/studio/NewAgent';
+import { JobsPage } from '@/features/workspace/Pages';
 
-export const metadata: Metadata = { title: 'Create an agent' };
+export const metadata: Metadata = { title: 'My jobs' };
 
 export default function Page() {
   return (
     <Suspense>
-      <NewAgent />
+      <JobsPage />
     </Suspense>
   );
 }

@@ -424,7 +424,7 @@ function StepPublish({ d }: { d: AgentDraft }) {
           Pokter starts probing it on the next sweep. Its listing shows &ldquo;Not measured&rdquo; until there is evidence, and it becomes hireable once it answers.
         </Notice>
         <div className="flex flex-wrap gap-3">
-          <LinkButton href={`/studio/agents/${d.published.chainId}/${d.published.tokenId}`} trailing={<Icon.Arrow size={16} />}>
+          <LinkButton href={`/build/agents/${d.published.chainId}/${d.published.tokenId}`} trailing={<Icon.Arrow size={16} />}>
             Manage this agent
           </LinkButton>
           <LinkButton href={`/agents/${d.published.chainId}/${d.published.tokenId}`} intent="secondary">
@@ -616,7 +616,7 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
                 Back
               </Button>
             ) : (
-              <Link href="/studio" className="text-sm text-ink-3 hover:text-ink">
+              <Link href="/build" className="text-sm text-ink-3 hover:text-ink">
                 Cancel
               </Link>
             )}

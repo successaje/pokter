@@ -2,7 +2,9 @@
 export const PRIMARY_NAV = [
   { href: '/discover', label: 'Discover' },
   { href: '/requests', label: 'Requests' },
+  // The two workspaces, side by side: the work you hire, and the work your agents do.
+  { href: '/workspace', label: 'Hiring' },
+  { href: '/build', label: 'Building' },
   { href: '/proof', label: 'Proof' },
-  { href: '/build', label: 'Build' },
   { href: '/developers', label: 'Developers' },
 ];

@@ -13,6 +13,10 @@
  * imported from elsewhere), asked for in the AI build prompt, and carried
  * by the agents Pokter runs itself.
  */
+/*
+ * Published inside agents' registrations, so it stays byte for byte as it
+ * shipped. The /studio address redirects to /build.
+ */
 export const BUILT_WITH_KEY = 'built_with';
 export const BUILT_WITH_POKTER = 'Pokter Studio · https://pokter.xyz/studio';
 

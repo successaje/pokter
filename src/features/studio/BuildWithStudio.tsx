@@ -46,7 +46,7 @@ export function BuildWithStudio() {
         <li className="flex flex-col gap-1 p-4">
           <span className="font-medium text-ink">Check it before a buyer does</span>
           <span>
-            Once it is registered, <Link href="/studio/import" className="link">run Pokter&rsquo;s checks</Link> with its ERC-8004 id: identity, endpoint, card and a signed quote, each failure with its fix. Free, and no wallet needed. An agent whose endpoint passes is added to Pokter&rsquo;s probe schedule.
+            Once it is registered, <Link href="/build/import" className="link">run Pokter&rsquo;s checks</Link> with its ERC-8004 id: identity, endpoint, card and a signed quote, each failure with its fix. Free, and no wallet needed. An agent whose endpoint passes is added to Pokter&rsquo;s probe schedule.
           </span>
         </li>
         <li className="flex flex-col gap-1 p-4">

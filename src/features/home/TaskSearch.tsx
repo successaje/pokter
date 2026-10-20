@@ -8,11 +8,16 @@ import { cn } from '@/lib/ui/cn';
 import { Spinner } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 
+/*
+ * Three, on one line: short labels, each running the full wording Discover
+ * already reads correctly. Four wrapped to a second row under the box and
+ * read as a menu rather than as examples. On a phone the third is left off
+ * so the line never wraps.
+ */
 export const TASK_SUGGESTIONS = [
-  'Check my lending risk',
-  'Compare DeFi yield opportunities',
-  'Check if a token is safe to buy',
-  'Review a liquidity position',
+  { label: 'Check my lending risk', query: 'Check my lending risk' },
+  { label: 'Is a token safe to buy?', query: 'Check if a token is safe to buy' },
+  { label: 'Compare DeFi yields', query: 'Compare DeFi yield opportunities' },
 ];
 
 /**
@@ -71,14 +76,14 @@ export function TaskSearch({ size = 'l', autoFocus, className }: { size?: 'l' | 
           <span className="sm:hidden">{pending ? '' : <Icon.Arrow size={16} />}</span>
         </button>
       </form>
-      <ul className="flex flex-wrap gap-2" aria-label="Example tasks">
-        {TASK_SUGGESTIONS.map((suggestion) => (
-          <li key={suggestion}>
+      <ul className="flex flex-nowrap gap-2 overflow-hidden" aria-label="Example tasks">
+        {TASK_SUGGESTIONS.map((suggestion, i) => (
+          <li key={suggestion.query} className={cn('shrink-0', i === 2 && 'max-sm:hidden')}>
             <Link
-              href={`/discover?q=${encodeURIComponent(suggestion)}`}
-              className="inline-flex h-8 items-center rounded-full border border-rule bg-paper px-3 text-[13px] text-ink-2 transition-colors hover:border-ink hover:text-ink"
+              href={`/discover?q=${encodeURIComponent(suggestion.query)}`}
+              className="inline-flex h-8 items-center whitespace-nowrap rounded-full border border-rule bg-paper px-3 text-[13px] text-ink-2 transition-colors hover:border-ink hover:text-ink"
             >
-              {suggestion}
+              {suggestion.label}
             </Link>
           </li>
         ))}

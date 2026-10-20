@@ -11,7 +11,7 @@ import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAlerts } from './hooks';
-import { JobRow, NeedsWallet, PageHeader, Stat, timeLeft } from './parts';
+import { JobRow, NeedsWallet, PageHeader, StatStrip, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
@@ -27,7 +27,7 @@ export function WorkspaceOverview() {
   if (!address) {
     return (
       <>
-        <PageHeader title="Workspace" description="Everything you have hired, what it is doing, and what needs you." />
+        <PageHeader title="Overview" description="Everything you have hired, what it is doing, and what needs you." action={<HiringActions />} />
         <FirstVisit />
         <NeedsWallet what="your hires" />
       </>
@@ -57,13 +57,9 @@ export function WorkspaceOverview() {
   return (
     <>
       <PageHeader
-        title="Workspace"
-        description={jobs.length ? 'What your agents are doing, and anything waiting on you.' : 'Your hires will appear here once you fund one.'}
-        action={
-          <LinkButton href="/discover" icon={<Icon.Search size={16} />}>
-            Hire an agent
-          </LinkButton>
-        }
+        title="Overview"
+        description={jobs.length ? 'What the agents you hired are doing, and anything waiting on you.' : 'Your hires will appear here once you fund one.'}
+        action={<HiringActions />}
       />
       <FirstVisit />
 
@@ -122,15 +118,19 @@ export function WorkspaceOverview() {
             </section>
           )}
 
-          <section aria-label="Summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="In progress" value={working.length} href="/workspace/jobs?filter=active" />
-            <Stat label="Awaiting you" value={needsYou.length} tone={needsYou.length ? 'watch' : undefined} href="/workspace/jobs?filter=attention" />
-            <Stat label="Settled" value={phases.filter((p) => p.phase === 'settled').length} href="/workspace/jobs?filter=done" />
-            <Stat
-              label="In escrow"
-              value={fmt(heldReal > 0 ? heldReal : heldTest)}
-              note={heldReal > 0 ? `$U${heldTest > 0 ? ` · plus ${fmt(heldTest)} test` : ''}` : heldTest > 0 ? '$U · test' : '$U'}
-              href="/workspace/wallet"
+          <section aria-label="Summary">
+            <StatStrip
+              stats={[
+                { label: 'Running', value: working.length, href: '/workspace/jobs?filter=active' },
+                { label: 'Needs you', value: needsYou.length, tone: needsYou.length ? 'watch' : undefined, href: '/workspace/jobs?filter=attention' },
+                { label: 'Completed', value: phases.filter((p) => p.phase === 'settled').length, href: '/workspace/jobs?filter=done' },
+                {
+                  label: 'In escrow',
+                  value: fmt(heldReal > 0 ? heldReal : heldTest),
+                  note: heldReal > 0 ? `$U${heldTest > 0 ? ` · plus ${fmt(heldTest)} test` : ''}` : heldTest > 0 ? '$U · test' : '$U',
+                  href: '/workspace/wallet',
+                },
+              ]}
             />
           </section>
 
@@ -214,5 +214,19 @@ export function WorkspaceOverview() {
         </section>
       )}
     </>
+  );
+}
+
+/** Two different things, two buttons: put work up for proposals, or hire an agent now. */
+function HiringActions() {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <LinkButton href="/requests?post=1" intent="secondary" size="s" icon={<Icon.Plus size={14} />}>
+        Post a job
+      </LinkButton>
+      <LinkButton href="/discover" size="s" icon={<Icon.Search size={14} />}>
+        Hire an agent
+      </LinkButton>
+    </div>
   );
 }

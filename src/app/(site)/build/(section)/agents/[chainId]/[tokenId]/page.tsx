@@ -21,7 +21,8 @@ import { LaunchKit } from '@/features/studio/LaunchKit';
 import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Manage agent' };
+// Personal or step-by-step builder pages: kept out of search, as they were under Studio.
+export const metadata: Metadata = { title: 'Manage agent', robots: { index: false } };
 
 function Progress({ label, value, target, met, note }: { label: string; value: number; target: number; met: boolean; note?: string }) {
   return (
@@ -45,7 +46,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
   const chainId = Number(raw);
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) notFound();
   const owner = await studioOwner();
-  const crumbs = <Breadcrumbs items={[{ href: '/studio', label: 'Studio' }, { label: `#${tokenId}` }]} className="mb-6" />;
+  const crumbs = <Breadcrumbs items={[{ href: '/build', label: 'Studio' }, { label: `#${tokenId}` }]} className="mb-6" />;
 
   if (!owner) {
     return (
@@ -66,7 +67,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
     return (
       <>
         {crumbs}
-        <Notice tone="watch" title="Pokter could not read the registry just now" action={<LinkButton href={`/studio/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Try again</LinkButton>}>
+        <Notice tone="watch" title="Pokter could not read the registry just now" action={<LinkButton href={`/build/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Try again</LinkButton>}>
           The lookup of agents owned by {owner.slice(0, 6)}…{owner.slice(-4)} failed, so Studio cannot confirm this agent yet. Nothing about the agent has changed.
         </Notice>
       </>
@@ -76,7 +77,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
     return (
       <>
         {crumbs}
-        <Notice tone="watch" title="This agent is not owned by the wallet you verified" action={<LinkButton href="/studio/import" size="s" intent="secondary">Verify another owner</LinkButton>}>
+        <Notice tone="watch" title="This agent is not owned by the wallet you verified" action={<LinkButton href="/build/import" size="s" intent="secondary">Verify another owner</LinkButton>}>
           Studio manages agents owned by {owner.slice(0, 6)}…{owner.slice(-4)}. If ownership changed recently, the registry index may still be catching up.
         </Notice>
       </>
@@ -109,7 +110,7 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
           <LinkButton href={`/agents/${agent.chainId}/${agent.tokenId}`} intent="secondary" size="s" trailing={<Icon.ArrowUpRight size={13} />}>
             Public listing
           </LinkButton>
-          <LinkButton href={`/studio/import?chainId=${agent.chainId}&tokenId=${agent.tokenId}`} intent="ghost" size="s" icon={<Icon.Refresh size={14} />}>
+          <LinkButton href={`/build/import?chainId=${agent.chainId}&tokenId=${agent.tokenId}`} intent="ghost" size="s" icon={<Icon.Refresh size={14} />}>
             Re-run checks
           </LinkButton>
         </div>

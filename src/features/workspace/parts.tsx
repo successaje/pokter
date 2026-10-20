@@ -84,7 +84,7 @@ export function JobRow({ job }: { job: HiredJob }) {
  * The workspace without a wallet: what it is for, and the one action. It
  * never pretends there is nothing to show when it simply cannot look.
  */
-export function NeedsWallet({ what }: { what: string }) {
+export function NeedsWallet({ what, why, alternative }: { what: string; why?: ReactNode; alternative?: { href: string; label: string } }) {
   const { openConnect } = useConnect();
   const w = useWalletState();
   if (!w.hydrated || !w.ready) {
@@ -103,14 +103,43 @@ export function NeedsWallet({ what }: { what: string }) {
           <Button onClick={() => openConnect(`to see ${what}`)} icon={<Icon.Wallet size={16} />}>
             {w.wrongChain ? 'Switch network' : 'Connect a wallet'}
           </Button>
-          <LinkButton href="/discover" intent="ghost">
-            Find an agent first
+          <LinkButton href={alternative?.href ?? '/discover'} intent="ghost">
+            {alternative?.label ?? 'Find an agent first'}
           </LinkButton>
         </>
       }
     >
-      Your hires live on chain, tied to the wallet that funded them. Pokter remembers them on this device and can recover any job by its number.
+      {why ?? 'Your hires live on chain, tied to the wallet that funded them. Pokter remembers them on this device and can recover any job by its number.'}
     </EmptyState>
+  );
+}
+
+/**
+ * A row of figures in one panel, divided by hairlines: read as one summary
+ * rather than as four cards competing for attention. Two across on a phone.
+ */
+export function StatStrip({ stats }: { stats: Array<{ label: string; value: ReactNode; note?: ReactNode; tone?: 'watch'; href?: string }> }) {
+  return (
+    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-rule bg-rule lg:grid-cols-4">
+      {stats.map((stat) => {
+        const body = (
+          <>
+            <dt className="t-label">{stat.label}</dt>
+            <dd className={cn('t-readout text-[1.6rem] leading-none tracking-[-0.03em]', stat.tone === 'watch' && 'text-watch')}>{stat.value}</dd>
+            {stat.note && <dd className="t-readout text-[12px] text-ink-3">{stat.note}</dd>}
+          </>
+        );
+        return stat.href ? (
+          <Link key={stat.label} href={stat.href} className="flex min-w-0 flex-col gap-2 bg-raised p-5 transition-colors hover:bg-sunken/60">
+            {body}
+          </Link>
+        ) : (
+          <div key={stat.label} className="flex min-w-0 flex-col gap-2 bg-raised p-5">
+            {body}
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 

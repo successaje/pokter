@@ -57,7 +57,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: 'Builder Studio',
         short_name: 'Studio',
         description: 'Your agents and their customer jobs.',
-        url: '/studio?source=app-shortcut',
+        url: '/build?source=app-shortcut',
       },
     ],
   };

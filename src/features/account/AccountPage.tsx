@@ -243,7 +243,7 @@ export function AccountPage() {
               </>
             )}
           </div>
-          <LinkButton href="/studio" size="s" intent="secondary">
+          <LinkButton href="/build" size="s" intent="secondary">
             Open Studio
           </LinkButton>
         </div>

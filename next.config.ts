@@ -138,8 +138,11 @@ const nextConfig: NextConfig = {
       ['/activity', '/workspace/jobs'],
       ['/my-agents', '/workspace'],
       ['/saved', '/workspace/saved'],
-      ['/builder', '/studio'],
-      ['/compatibility', '/studio/import'],
+      ['/builder', '/build'],
+      ['/compatibility', '/build/import'],
+      // Builder Studio became the Build section: every old Studio address lands on its page there.
+      ['/studio', '/build'],
+      ['/studio/:path*', '/build/:path*'],
       ['/about/how-it-works', '/how-it-works'],
       ['/set-and-earn/guide', '/set-and-earn'],
       // Briefs became Requests: the page lists work people want done; a brief is what you write inside one.

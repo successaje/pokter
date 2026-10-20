@@ -153,7 +153,7 @@ export default function Developers() {
       <DocSection id="studio" title="BNB Agent Studio">
         <p>Agents deployed with BNB Agent Studio register their ERC-8004 identity at deploy time, so they appear in Pokter&rsquo;s catalogue without listing them again. Connect one in Builder Studio by its ID to see what stands between it and a paid job, most often an endpoint that requires a token to call.</p>
         <p>
-          <Link href="/studio/import" className="link">Connect an existing agent</Link> ·{' '}
+          <Link href="/build/import" className="link">Connect an existing agent</Link> ·{' '}
           <a href="https://docs.bnbchain.org/developer-kit/bnbchain-studio/" className="link" target="_blank" rel="noreferrer noopener">
             BNB Agent Studio docs
           </a>

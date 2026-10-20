@@ -9,8 +9,8 @@ import { Icon } from '@/ui/icons';
 const TABS = [
   { href: '/', label: 'Home', icon: Icon.Home, match: (p: string) => p === '/' },
   { href: '/discover', label: 'Discover', icon: Icon.Compass, match: (p: string) => p.startsWith('/discover') || p.startsWith('/agents') || p.startsWith('/compare') },
-  { href: '/workspace', label: 'Activity', icon: Icon.Pulse, match: (p: string) => p.startsWith('/workspace') },
-  { href: '/account', label: 'Account', icon: Icon.User, match: (p: string) => p.startsWith('/account') || p.startsWith('/studio') },
+  { href: '/workspace', label: 'Workspace', icon: Icon.Briefcase, match: (p: string) => p.startsWith('/workspace') || (p.startsWith('/build') && !p.startsWith('/build/integration')) },
+  { href: '/account', label: 'Account', icon: Icon.User, match: (p: string) => p.startsWith('/account') },
 ];
 
 /**
