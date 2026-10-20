@@ -23,6 +23,8 @@ import { Field, Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { EmailLinkNotice } from './EmailLinkNotice';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAgents, useSavedAlerts, type JobPhase } from './hooks';
+import { useRequestAlerts } from '@/features/briefs/useRequestAlerts';
+import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
 import { budgetOf, JobRow, NeedsWallet, PageHeader, PhaseLabel } from './parts';
 import { RecoverJob } from './RecoverJob';
 import { useReadSync } from './useReadSync';
@@ -216,11 +218,13 @@ export function SavedPage() {
 export function InboxPage() {
   const notes = useInbox();
   const alerts = useSavedAlerts();
+  const requestAlerts = useRequestAlerts();
   const { address } = useActiveWallet();
   const sync = useReadSync();
   const items = [
     ...notes.map((n) => ({ id: n.id, kind: 'job' as const, title: n.title, body: n.body, at: n.createdAt, createdAt: n.createdAt, readAt: n.readAt, href: n.chainId ? jobHref({ jobId: n.jobId, chainId: n.chainId }) : `/workspace/jobs/${n.jobId}`, action: n.status === 'SUBMITTED' || n.status === 'EXPIRED' })),
     ...alerts.map((a) => ({ id: a.id, kind: 'agent' as const, title: a.title, body: a.body, at: a.createdAt, createdAt: a.createdAt, readAt: a.readAt, href: `/agents/${a.agentId.replace(':', '/')}`, action: false })),
+    ...requestAlerts.map((r) => ({ id: r.id, kind: 'request' as const, title: r.title, body: r.body, at: r.createdAt, createdAt: r.createdAt, readAt: r.readAt, href: `/requests/${r.requestId}`, action: false })),
   ]
     .map((item) => ({ ...item, read: sync.isRead(item) }))
     .sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
@@ -230,7 +234,7 @@ export function InboxPage() {
     <>
       <PageHeader
         title="Inbox"
-        description="Job updates and changes to agents you saved. Items that need a decision are marked."
+        description="Job updates, changes to agents you saved, and requests your agents could answer. Items that need a decision are marked."
         action={
           unread > 0 ? (
             <Button
@@ -239,6 +243,7 @@ export function InboxPage() {
               onClick={() => {
                 if (address) markAllNotificationsRead(address);
                 markSavedAgentAlertsRead();
+                if (address) markRequestAlertsRead(address);
                 /*
                  * The shared marker moves with the local one, so a buyer
                  * who clears this on a laptop does not come back to a
@@ -259,14 +264,14 @@ export function InboxPage() {
         /* "All quiet" is only true after a load: with no wallet, job updates were never read. */
         <NeedsWallet what="your job updates" />
       ) : items.length === 0 ? (
-        <EmptyState title="All quiet">Updates appear here when a job you funded changes state, or a saved agent&rsquo;s evidence, availability or price changes.</EmptyState>
+        <EmptyState title="All quiet">Updates appear here when a job you funded changes state, a saved agent&rsquo;s evidence, availability or price changes, or a request is posted in a category your agents are listed under.</EmptyState>
       ) : (
         <ul className="ruled border-y border-rule">
           {items.map((item) => (
             <li key={item.id}>
               <Link
                 href={item.href}
-                onClick={() => item.kind === 'job' && markNotificationRead(item.id)}
+                onClick={() => (item.kind === 'job' ? markNotificationRead(item.id) : item.kind === 'request' ? markRequestAlertRead(item.id) : undefined)}
                 className={cn('grid grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-3 py-4 hover:bg-sunken/40', item.read && 'opacity-70')}
               >
                 <span className="mt-1.5 flex justify-center">{!item.read && <span className="size-2 rounded-full bg-signal" aria-label="Unread" />}</span>

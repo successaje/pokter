@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { formatUnits } from 'viem';
 
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
+import { RequestsForYourAgents } from '@/features/briefs/RequestsForYourAgents';
 import { FleetList } from '@/features/studio/FleetList';
 import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/features/studio/StudioClient';
 import { loadFleet, studioOwner } from '@/features/studio/data';
@@ -102,7 +103,8 @@ function Start() {
         <OwnedAgents boxed />
       </section>
 
-      <div className="mt-12">
+      <div className="mt-12 flex flex-col gap-10">
+        <RequestsForYourAgents />
         <DraftsList />
       </div>
 
@@ -171,6 +173,7 @@ async function Overview({ owner }: { owner: string }) {
       </section>
 
       <div className="mt-12 flex flex-col gap-10">
+        <RequestsForYourAgents />
         <BuilderAlerts />
         <DraftsList />
       </div>

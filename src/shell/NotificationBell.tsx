@@ -11,6 +11,8 @@ import { useActiveWallet } from '@/lib/wallet/active';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { cn } from '@/lib/ui/cn';
 import { useInbox, useSavedAlerts } from '@/features/workspace/hooks';
+import { useRequestAlerts, useRequestAlertSync } from '@/features/briefs/useRequestAlerts';
+import { markRequestAlertRead, markRequestAlertsRead } from '@/lib/briefs/request-alerts';
 import { useReadSync } from '@/features/workspace/useReadSync';
 import { Icon } from '@/ui/icons';
 
@@ -32,6 +34,9 @@ import { Icon } from '@/ui/icons';
 export function NotificationBell() {
   const notes = useInbox();
   const alerts = useSavedAlerts();
+  /* Requests that fit this wallet's agents: synced here because the header is on every page. */
+  useRequestAlertSync();
+  const requestAlerts = useRequestAlerts();
   const { address } = useActiveWallet();
   /*
    * The same read state the page uses, for the same reason it reads the
@@ -64,6 +69,14 @@ export function NotificationBell() {
       at: a.createdAt,
       read: sync.isRead(a),
       href: `/agents/${a.agentId.replace(':', '/')}`,
+    })),
+    ...requestAlerts.map((r) => ({
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      at: r.createdAt,
+      read: sync.isRead(r),
+      href: `/requests/${r.requestId}`,
     })),
   ].sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
 
@@ -112,7 +125,8 @@ export function NotificationBell() {
                    * disagreed with the button that had just been pressed.
                    */
                   markSavedAgentAlertsRead();
-                  sync.markSeen([...notes, ...alerts]);
+                  if (address) markRequestAlertsRead(address);
+                  sync.markSeen([...notes, ...alerts, ...requestAlerts]);
                 }}
                 className="text-[12.5px] font-medium text-ink-3 hover:text-ink"
               >
@@ -123,7 +137,7 @@ export function NotificationBell() {
 
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-[13px] text-ink-3">
-              Nothing yet. Updates about your jobs appear here.
+              Nothing yet. Updates about your jobs, and requests your agents could answer, appear here.
             </p>
           ) : (
             <ul className="max-h-[22rem] divide-y divide-rule overflow-y-auto">
@@ -133,6 +147,7 @@ export function NotificationBell() {
                     href={item.href}
                     onClick={() => {
                       markNotificationRead(item.id);
+                      markRequestAlertRead(item.id);
                       close();
                     }}
                     className={cn('flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-sunken', !item.read && 'bg-sunken/40')}
