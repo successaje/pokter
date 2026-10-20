@@ -18,6 +18,8 @@ import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { cache } from 'react';
+
+import { timed, timedSync } from '@/lib/health/span';
 import {
   catalogueSuggestion,
   suggestionsByCategory,
@@ -783,7 +785,17 @@ export async function listSearchableWithStatus(
   unreachable: boolean;
   incomplete: Array<{ category: Category; chainId: ChainId }>;
 }> {
-  const { sections, unreachable, incomplete } = await listMarketplaceWithStatus(options);
+  /*
+   * Split in two, because the whole point is which half costs the 0.7s.
+   *
+   * `catalogue.registry` is the read this function does not own; everything
+   * after it is local work over the probe and job stores. Measurement on
+   * 20 October put the probe history at roughly 16ms of a request, so if the
+   * remainder is also small the cost is in the registry read and not here.
+   */
+  const { sections, unreachable, incomplete } = await timed('catalogue.registry', () =>
+    listMarketplaceWithStatus(options),
+  );
   const store = getProbeStore();
   const since = new Date(Date.now() - HISTORY_DAYS * 86_400_000);
 
@@ -807,7 +819,7 @@ export async function listSearchableWithStatus(
    */
   const jobs = getJobStore();
 
-  const entries = all.map((listing) => ({
+  const entries = timedSync('catalogue.entries', () => all.map((listing) => ({
     listing: {
       ...listing,
       quote:
@@ -824,7 +836,7 @@ export async function listSearchableWithStatus(
       jobs.byAgent(listing.agent.chain_id, listing.agent.token_id),
     ),
     tested: passedCategoryCheck(listing.agent, listing.category),
-  }));
+  })));
 
   return { entries, unreachable, incomplete };
 }
