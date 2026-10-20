@@ -11,6 +11,8 @@ import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverContr
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
+import { RequestRow } from '@/features/briefs/RequestRow';
+import { requestRows } from '@/features/briefs/request-rows';
 import { FilterBar, Filters, MobileFilterBlock } from '@/features/discover/FilterBar';
 import { deliveryTimes, DELIVERY_LOOKUP_CONCURRENCY } from '@/lib/agent/delivery-times';
 import { mapWithConcurrency } from '@/lib/concurrency';
@@ -97,6 +99,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   );
   const deliveryByKey = new Map(timed);
   const activity = outsideActivity();
+  /* The newest few requests still taking proposals. */
+  const now = renderedAt();
+  const open = requestRows(now)
+    .filter((r) => r.taking)
+    .sort((x, y) => Date.parse(y.postedAt) - Date.parse(x.postedAt));
+  const openTotal = open.length;
+  const openRequests = open.slice(0, 4);
   // The ones under "More filters" on a phone: the block above it shows the rest.
   const moreFilters = [p.answering, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
   const activeFilters = [p.category, p.hireable, p.answering, p.priced, p.checked, p.outsideDelivery, p.evidence !== 'any', p.chain !== 'any'].filter(Boolean).length;
@@ -360,9 +369,43 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </section>
         )}
 
+        {/* Work people have posted, for the builders who browse here too. Only when there is some. */}
+        {openRequests.length > 0 && (
+          <section aria-labelledby="requests-title" className="mt-10 border-t border-rule pt-8">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h2 id="requests-title" className="text-[18px] font-semibold tracking-[-0.015em]">
+                  Open requests
+                </h2>
+                <p className="text-[13.5px] text-ink-3">Work people have posted. Builders send proposals; the poster chooses one and hires.</p>
+              </div>
+              <span className="flex items-center gap-4 text-[13.5px] font-medium">
+                <Link href="/workspace/requests/new" className="text-ink-2 hover:text-ink">
+                  Post a request
+                </Link>
+                <Link href="/requests" className="inline-flex items-center gap-1 text-ink hover:underline">
+                  All {openTotal} open <Icon.Arrow size={13} aria-hidden />
+                </Link>
+              </span>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {openRequests.map((request) => (
+                <li key={request.id}>
+                  <RequestRow request={request} now={now} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <CatalogueTools />
       </div>
       <CompareTray />
     </div>
   );
+}
+
+/* One clock for the page, so every "posted 2 hours ago" agrees. */
+function renderedAt(): number {
+  return Date.now();
 }

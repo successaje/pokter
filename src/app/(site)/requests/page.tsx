@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 
 import { RequestsBoard } from '@/features/briefs/RequestsBoard';
-import { publicIdentities } from '@/lib/profiles/identity';
-import { acceptsProposals } from '@/lib/briefs/model';
-import { getBriefStore } from '@/lib/briefs/store';
+import { requestRows } from '@/features/briefs/request-rows';
 import { shareMetadata } from '@/lib/og/share';
 import { redirect } from 'next/navigation';
 import { LinkButton } from '@/ui/Button';
@@ -33,26 +31,8 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   /* The old way in: "Post a job" opened a sheet over this page. */
   if ((await searchParams).post === '1') redirect('/workspace/requests/new');
 
-  const store = getBriefStore();
   const now = renderedAt();
-  const all = store.all();
-  /* Each poster's published name and picture; a private profile shows the generated picture, as before. */
-  const identities = publicIdentities(all.map((b) => b.poster));
-  const requests = all.map((b) => ({
-    id: b.id,
-    poster: b.poster,
-    posterIdentity: identities.get(b.poster.toLowerCase()) ?? null,
-    title: b.title,
-    brief: b.brief,
-    budgetU: b.budgetU,
-    chainId: b.chainId,
-    closesAt: b.closesAt ?? null,
-    category: b.category ?? null,
-    postedAt: b.postedAt,
-    state: b.state,
-    proposals: store.bidsFor(b.id).length,
-    taking: acceptsProposals(b, now),
-  }));
+  const requests = requestRows(now);
   const networks = [...new Set(requests.map((r) => r.chainId))].sort((a, b) => b - a);
 
   return (
