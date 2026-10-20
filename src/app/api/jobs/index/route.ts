@@ -13,6 +13,7 @@ import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobIdentity } from '@/lib/erc8183/job-identity';
+import { attributeJob } from '@/lib/erc8183/attribute-owners';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -140,6 +141,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       disputeTxHash: null,
     };
     getJobStore().record(indexed);
+    // Who owns the agent now is who took the job on, read while that is still true; the sweep retries a miss.
+    void attributeJob(indexed).catch(() => false);
     return NextResponse.json({ indexed: true, jobId: jobIdText, status: onchain.statusName });
   } catch (error) {
     return NextResponse.json({ error: `Job indexing failed: ${(error as Error).message}` }, { status: 502 });

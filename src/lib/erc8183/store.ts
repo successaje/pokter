@@ -76,6 +76,26 @@ export interface JobStore {
   quoteIntent(negotiationHash: string): QuoteIntent | null;
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
+  /**
+   * Who owned the hired agent when the job was funded, if Pokter saw it
+   * close enough to the funding to say (see owner-at-job.ts).
+   *
+   * Written once and never by `record()`: a job re-read later must not
+   * take on whoever owns the agent by then.
+   */
+  recordOwnerAt(input: { id: string; owner: string; fundedAt: string }): void;
+  ownerAt(id: string): JobOwner | null;
+  /** Ids of the jobs whose agent this wallet owned at funding. */
+  jobsOwnedAtFunding(owner: string): string[];
+  /** When the first owner was recorded: jobs before it were never attributed. */
+  ownerRecordsBegan(): string | null;
+}
+
+export interface JobOwner {
+  id: string;
+  owner: string;
+  fundedAt: string;
+  recordedAt: string;
 }
 
 const SCHEMA = `
@@ -131,6 +151,15 @@ const SCHEMA = `
     last_at  TEXT NOT NULL,
     PRIMARY KEY (chain_id, job_id)
   );
+
+  CREATE TABLE IF NOT EXISTS job_owners (
+    id          TEXT PRIMARY KEY,
+    owner       TEXT NOT NULL,
+    funded_at   TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_job_owners_owner ON job_owners (owner);
 `;
 
 interface NoticeRow {
@@ -347,6 +376,29 @@ class SqliteJobStore implements JobStore {
   notices(): SellerNotice[] {
     const rows = this.db.prepare('SELECT * FROM seller_notices').all() as unknown as NoticeRow[];
     return rows.map(toNotice);
+  }
+
+  recordOwnerAt(input: { id: string; owner: string; fundedAt: string }): void {
+    this.db
+      .prepare('INSERT OR IGNORE INTO job_owners (id, owner, funded_at, recorded_at) VALUES (?, ?, ?, ?)')
+      .run(input.id, input.owner.toLowerCase(), input.fundedAt, new Date().toISOString());
+  }
+
+  ownerAt(id: string): JobOwner | null {
+    const row = this.db.prepare('SELECT * FROM job_owners WHERE id = ?').get(id) as
+      | { id: string; owner: string; funded_at: string; recorded_at: string }
+      | undefined;
+    return row ? { id: row.id, owner: row.owner, fundedAt: row.funded_at, recordedAt: row.recorded_at } : null;
+  }
+
+  jobsOwnedAtFunding(owner: string): string[] {
+    const rows = this.db.prepare('SELECT id FROM job_owners WHERE owner = ?').all(owner.toLowerCase()) as unknown as { id: string }[];
+    return rows.map((row) => row.id);
+  }
+
+  ownerRecordsBegan(): string | null {
+    const row = this.db.prepare('SELECT MIN(recorded_at) AS began FROM job_owners').get() as { began: string | null } | undefined;
+    return row?.began ?? null;
   }
 
   byId(id: string): HiredJob | null {
