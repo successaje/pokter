@@ -35,7 +35,7 @@ export function ProposalList({
   const unit = request.chainId === 97 ? 'test $U' : '$U';
   return (
     <ul className="flex flex-col gap-3">
-      {cards.map(({ bid, name, imageUrl, row }) => {
+      {cards.map(({ bid, name, imageUrl, row, bidder }) => {
         const chosen = request.awardedBidId === bid.id;
         const later = bid.deliverDays > request.deliverDays;
         const saving = request.budgetU - bid.priceU;
@@ -48,7 +48,7 @@ export function ProposalList({
                   <span className="truncate text-[15.5px] font-semibold group-hover:underline">{name}</span>
                   <span className="truncate text-[12.5px] text-ink-3">
                     {row && row.category !== 'unclassified' ? `${row.categoryLabel} · ` : ''}
-                    {bid.agentChainId === 56 ? 'BNB Chain' : 'Testnet'} #{bid.agentTokenId} · by {shortAddress(bid.bidder)}
+                    {bid.agentChainId === 56 ? 'BNB Chain' : 'Testnet'} #{bid.agentTokenId} · by {bidder?.name ?? shortAddress(bid.bidder)}
                   </span>
                 </span>
               </Link>

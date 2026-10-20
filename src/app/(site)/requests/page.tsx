@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { RequestsBoard } from '@/features/briefs/RequestsBoard';
+import { publicIdentities } from '@/lib/profiles/identity';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { shareMetadata } from '@/lib/og/share';
@@ -34,9 +35,13 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
   const store = getBriefStore();
   const now = renderedAt();
-  const requests = store.all().map((b) => ({
+  const all = store.all();
+  /* Each poster's published name and picture; a private profile shows the generated picture, as before. */
+  const identities = publicIdentities(all.map((b) => b.poster));
+  const requests = all.map((b) => ({
     id: b.id,
     poster: b.poster,
+    posterIdentity: identities.get(b.poster.toLowerCase()) ?? null,
     title: b.title,
     brief: b.brief,
     budgetU: b.budgetU,

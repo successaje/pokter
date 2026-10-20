@@ -10,6 +10,9 @@ import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { Address } from '@/ui/Data';
+import { AvatarImage } from '@/ui/AvatarImage';
+import { avatarUrl } from '@/lib/ui/avatar-art';
+import { publicIdentity } from '@/lib/profiles/identity';
 import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -33,6 +36,7 @@ export default async function BriefPage({
   if (!brief) notFound();
   const bids = store.bidsFor(id);
   const taking = acceptsProposals(brief);
+  const poster = publicIdentity(brief.poster);
   const status =
     brief.state === 'awarded'
       ? { label: 'Agent chosen', tone: 'border-ok/30 bg-ok-wash text-ok' }
@@ -65,7 +69,16 @@ export default async function BriefPage({
             action={<MakeProposalButton />}
             byline={
               <>
-                Posted {closingDate(brief.postedAt)} by <Address address={brief.poster} chainExplorer={false} /> · signed by that wallet
+                Posted {closingDate(brief.postedAt)} by{' '}
+                {poster ? (
+                  <Link href={poster.href} className="inline-flex items-center gap-1.5 align-middle font-medium text-ink-2 hover:text-ink hover:underline">
+                    <AvatarImage src={poster.avatar} fallback={avatarUrl(brief.poster.toLowerCase())} name={poster.name} size={20} className="rounded-full" eager />
+                    {poster.name}
+                  </Link>
+                ) : (
+                  <Address address={brief.poster} chainExplorer={false} />
+                )}{' '}
+                · signed by that wallet
               </>
             }
           />

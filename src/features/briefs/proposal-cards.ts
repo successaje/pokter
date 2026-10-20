@@ -5,6 +5,7 @@ import { findRows, type FindRow } from '@/lib/find/rows';
 import { listSearchable } from '@/lib/marketplace';
 import { resolveAgentImage } from '@/lib/registry/image';
 import { getAgent } from '@/lib/scan/client';
+import { publicIdentity, type PublicIdentity } from '@/lib/profiles/identity';
 
 export interface ProposalCard {
   bid: Bid;
@@ -12,6 +13,8 @@ export interface ProposalCard {
   imageUrl: string | null;
   /** The agent's record in Pokter's catalogue; null when it is not listed, which is said, not hidden. */
   row: FindRow | null;
+  /** The proposer's published name, when their profile is published. */
+  bidder: PublicIdentity | null;
 }
 
 /**
@@ -37,11 +40,12 @@ export async function proposalCards(bids: Bid[]): Promise<ProposalCard[]> {
   return Promise.all(
     bids.map(async (bid) => {
       const row = rows.get(`${bid.agentChainId}:${bid.agentTokenId}`) ?? null;
-      if (row) return { bid, name: row.name, imageUrl: row.imageUrl, row };
+      const bidder = publicIdentity(bid.bidder);
+      if (row) return { bid, name: row.name, imageUrl: row.imageUrl, row, bidder };
       const chainId = bid.agentChainId as 56 | 97;
       const detail = await getAgent(chainId, bid.agentTokenId).catch(() => null);
       const imageUrl = await resolveAgentImage(chainId, bid.agentTokenId, detail?.image_url).catch(() => null);
-      return { bid, name: detail?.name ?? `Agent #${bid.agentTokenId}`, imageUrl, row: null };
+      return { bid, name: detail?.name ?? `Agent #${bid.agentTokenId}`, imageUrl, row: null, bidder };
     }),
   );
 }
