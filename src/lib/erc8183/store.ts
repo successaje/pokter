@@ -83,19 +83,29 @@ export interface JobStore {
    * Written once and never by `record()`: a job re-read later must not
    * take on whoever owns the agent by then.
    */
-  recordOwnerAt(input: { id: string; owner: string; fundedAt: string }): void;
+  recordOwnerAt(input: { id: string; owner: string; fundedAt: string; proof: OwnerProof }): void;
+  /** Settled as unknown: never attributed, and never filled in later with whoever owns the agent by then. */
+  markOwnerUnknown(id: string): void;
   ownerAt(id: string): JobOwner | null;
-  /** Ids of the jobs whose agent this wallet owned at funding. */
+  /** Rows recorded before ownership was proven (`proof` is null), still to be proven or dropped. */
+  unprovenOwners(): JobOwner[];
+  proveOwner(id: string, proof: OwnerProof): void;
+  dropOwner(id: string): void;
+  /** Ids of the jobs whose agent this wallet provably owned at funding. */
   jobsOwnedAtFunding(owner: string): string[];
-  /** When the first owner was recorded: jobs before it were never attributed. */
+  /** When the first proven owner was recorded: jobs before it were never attributed. */
   ownerRecordsBegan(): string | null;
 }
+
+/** How an owner at funding was established. Only `no-transfer-since-funding` is shown; `unknown` settles a job as unattributed. */
+export type OwnerProof = 'no-transfer-since-funding' | 'unknown';
 
 export interface JobOwner {
   id: string;
   owner: string;
   fundedAt: string;
   recordedAt: string;
+  proof: OwnerProof | null;
 }
 
 const SCHEMA = `
@@ -234,6 +244,18 @@ function toJob(row: JobRow): HiredJob {
   };
 }
 
+interface OwnerRow {
+  id: string;
+  owner: string;
+  funded_at: string;
+  recorded_at: string;
+  proof: string | null;
+}
+
+function toOwner(row: OwnerRow): JobOwner {
+  return { id: row.id, owner: row.owner, fundedAt: row.funded_at, recordedAt: row.recorded_at, proof: (row.proof as OwnerProof | null) ?? null };
+}
+
 class SqliteJobStore implements JobStore {
   private readonly db: DatabaseSync;
 
@@ -251,6 +273,8 @@ class SqliteJobStore implements JobStore {
       'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN reclaim_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN client TEXT',
+      // Owners recorded before this column were read, not proven, and stay hidden until proven.
+      'ALTER TABLE job_owners ADD COLUMN proof TEXT',
     ]) {
       try {
         this.db.exec(statement);
@@ -378,26 +402,40 @@ class SqliteJobStore implements JobStore {
     return rows.map(toNotice);
   }
 
-  recordOwnerAt(input: { id: string; owner: string; fundedAt: string }): void {
+  recordOwnerAt(input: { id: string; owner: string; fundedAt: string; proof: OwnerProof }): void {
     this.db
-      .prepare('INSERT OR IGNORE INTO job_owners (id, owner, funded_at, recorded_at) VALUES (?, ?, ?, ?)')
-      .run(input.id, input.owner.toLowerCase(), input.fundedAt, new Date().toISOString());
+      .prepare('INSERT OR IGNORE INTO job_owners (id, owner, funded_at, recorded_at, proof) VALUES (?, ?, ?, ?, ?)')
+      .run(input.id, input.owner.toLowerCase(), input.fundedAt, new Date().toISOString(), input.proof);
+  }
+
+  markOwnerUnknown(id: string): void {
+    this.db.prepare("INSERT OR IGNORE INTO job_owners (id, owner, funded_at, recorded_at, proof) VALUES (?, '', '', ?, 'unknown')").run(id, new Date().toISOString());
   }
 
   ownerAt(id: string): JobOwner | null {
-    const row = this.db.prepare('SELECT * FROM job_owners WHERE id = ?').get(id) as
-      | { id: string; owner: string; funded_at: string; recorded_at: string }
-      | undefined;
-    return row ? { id: row.id, owner: row.owner, fundedAt: row.funded_at, recordedAt: row.recorded_at } : null;
+    const row = this.db.prepare('SELECT * FROM job_owners WHERE id = ?').get(id) as OwnerRow | undefined;
+    return row ? toOwner(row) : null;
+  }
+
+  unprovenOwners(): JobOwner[] {
+    return (this.db.prepare('SELECT * FROM job_owners WHERE proof IS NULL ORDER BY recorded_at').all() as unknown as OwnerRow[]).map(toOwner);
+  }
+
+  proveOwner(id: string, proof: OwnerProof): void {
+    this.db.prepare('UPDATE job_owners SET proof = ? WHERE id = ? AND proof IS NULL').run(proof, id);
+  }
+
+  dropOwner(id: string): void {
+    this.db.prepare("UPDATE job_owners SET owner = '', proof = 'unknown' WHERE id = ?").run(id);
   }
 
   jobsOwnedAtFunding(owner: string): string[] {
-    const rows = this.db.prepare('SELECT id FROM job_owners WHERE owner = ?').all(owner.toLowerCase()) as unknown as { id: string }[];
+    const rows = this.db.prepare("SELECT id FROM job_owners WHERE owner = ? AND proof = 'no-transfer-since-funding'").all(owner.toLowerCase()) as unknown as { id: string }[];
     return rows.map((row) => row.id);
   }
 
   ownerRecordsBegan(): string | null {
-    const row = this.db.prepare('SELECT MIN(recorded_at) AS began FROM job_owners').get() as { began: string | null } | undefined;
+    const row = this.db.prepare("SELECT MIN(recorded_at) AS began FROM job_owners WHERE proof = 'no-transfer-since-funding'").get() as { began: string | null } | undefined;
     return row?.began ?? null;
   }
 

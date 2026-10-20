@@ -182,10 +182,15 @@ jobs:
             code=$(status 'https://pokter.xyz/api/jobs/56975?chain=56')
             [ "$code" = "404" ] || { echo "::error::Mainnet job lookup returned ${code}, expected 404 for a non-Pokter job"; exit 1; }
 
-            # An agent that signs its price in mainnet $U offers both ways to hire:
-            # the network switch on its hire page holds a BNB Chain and a Testnet option.
+            # A mainnet-priced agent with a way to deliver on testnet offers both ways
+            # to hire: the network switch on its hire page holds a BNB Chain and a
+            # Testnet option. Brinkwatch, Pokter's own agent, delivers on testnet from
+            # its own testnet registration (56/374107 -> 97/2618). An agent that only
+            # answers a relayed brief with a price is correctly offered mainnet alone,
+            # so a third-party agent cannot stand in here: whether it refuses the relay
+            # is its builder's choice, and changes this page.
             # Matched on the switch's markup, not on prose, so a copy change cannot fail a release.
-            hire=$(get https://pokter.xyz/hire/56/269223 90)
+            hire=$(get https://pokter.xyz/hire/56/374107 90)
             echo "$hire" | grep -q 'aria-label="Network"' \
               && echo "$hire" | grep -qE 'role="radio"[^>]*>BNB Chain<' \
               && echo "$hire" | grep -qE 'role="radio"[^>]*>Testnet<' \

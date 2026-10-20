@@ -21,8 +21,10 @@ import { tallyJobs, type NetworkRecord } from './record';
  *    that way. These figures are never added up into the current owner's
  *    own track record: a builder who buys an agent does not inherit its
  *    history as theirs.
- *  - An operator's record is the jobs whose agent this wallet owned when
- *    the job was funded, as recorded at the time (see owner-at-job.ts).
+ *  - An operator's record is the jobs whose agent this wallet provably
+ *    owned when the job was funded: the owner read soon after, with no
+ *    transfer of the agent between the funding and that read
+ *    (see owner-at-job.ts). Jobs where that cannot be shown stay unknown.
  *    Only jobs since recording began count; older ones were never
  *    attributed and are not guessed at.
  *  - A hirer's record is the jobs this wallet funded as the buyer. The
