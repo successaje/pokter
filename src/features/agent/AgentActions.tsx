@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { deviceFollow, forgetFollow, maskEmail, rememberFollow, subscribeToFollows } from '@/lib/wallet/follows';
 import { isAgentSaved, subscribeToSavedAgents, toggleSavedAgent, type SavedAgent } from '@/lib/wallet/saved-agents';
 import { cn } from '@/lib/ui/cn';
+import { copyText } from '@/lib/ui/copy-text';
 import { Button } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
@@ -39,28 +40,30 @@ export function SaveButton({ agent, className, compact }: { agent: Omit<SavedAge
 }
 
 export function ShareButton({ title, path, className }: { title: string; path: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
   return (
     <button
       type="button"
       className={cn(iconButton, className)}
       onClick={async () => {
         const url = new URL(path, window.location.origin).toString();
-        try {
-          if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+        if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+          try {
             await navigator.share({ title, url });
             return;
+          } catch (error) {
+            if ((error as Error).name === 'AbortError') return;
           }
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1600);
-        } catch {
-          /* Dismissed share sheet or blocked clipboard: nothing to report. */
         }
+        // A refused clipboard used to end here silently; now it says so (copy-text.ts).
+        const ok = await copyText(url);
+        setCopy(ok ? 'copied' : 'failed');
+        window.setTimeout(() => setCopy('idle'), ok ? 1600 : 4000);
       }}
+      title={copy === 'failed' ? 'This browser blocked copying. Copy the address from the address bar.' : undefined}
     >
-      {copied ? <Icon.Check size={15} /> : <Icon.Share size={15} />}
-      {copied ? 'Link copied' : 'Share'}
+      {copy === 'copied' ? <Icon.Check size={15} /> : <Icon.Share size={15} />}
+      <span aria-live="polite">{copy === 'copied' ? 'Link copied' : copy === 'failed' ? 'Copy blocked: use the address bar' : 'Share'}</span>
     </button>
   );
 }

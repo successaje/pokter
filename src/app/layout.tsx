@@ -110,7 +110,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   };
 
   return (
-    <html lang="en" data-theme={explicit} className={`${instrument.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    /* data-scroll-behavior: Next 16 no longer turns off globals.css's smooth scrolling while it moves the page during a navigation; this asks it to. */
+    <html lang="en" data-theme={explicit} data-scroll-behavior="smooth" className={`${instrument.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: BOOT }} />
         <script
