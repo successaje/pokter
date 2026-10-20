@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { bidMessage, readBidContent, type Bid } from '@/lib/briefs/model';
+import { acceptsProposals, bidMessage, readBidContent, type Bid } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -31,7 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const brief = getBriefStore().get(id);
   if (!brief) return NextResponse.json({ error: 'No such brief.' }, { status: 404 });
-  if (brief.state !== 'open') return NextResponse.json({ error: 'This brief is closed to bids.' }, { status: 409 });
+  if (!acceptsProposals(brief)) return NextResponse.json({ error: 'This request is no longer taking proposals.' }, { status: 409 });
 
   let body: Record<string, unknown>;
   try {

@@ -17,14 +17,14 @@ export default async function HireInSheet({
   searchParams,
 }: {
   params: Promise<{ chainId: string; tokenId: string }>;
-  searchParams: Promise<{ escrow?: string; task?: string }>;
+  searchParams: Promise<{ escrow?: string; task?: string; proposal?: string }>;
 }) {
-  const [{ chainId, tokenId }, { escrow, task }] = await Promise.all([params, searchParams]);
+  const [{ chainId, tokenId }, { escrow, task, proposal }] = await Promise.all([params, searchParams]);
   const agent = await hireSheetAgent(Number(chainId), tokenId, escrow);
   return (
     <HireSheet agent={agent}>
       <WalletRoot>
-        <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} embedded />
+        <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} proposalId={proposal} embedded />
       </WalletRoot>
     </HireSheet>
   );
