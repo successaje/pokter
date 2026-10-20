@@ -46,9 +46,11 @@ function deliveryUrl(chainId: number, jobId: string, deliverable: Hex) {
  */
 async function ownedJob(owner: `0x${string}`, chainId: number, jobId: string) {
   const job = getJobStore().byId(`${chainId}:${jobId}`);
-  if (!job) return null;
-  const current = await registryOwner(job.agentChainId ?? 56, job.agentTokenId);
-  return current && current === getAddress(owner) ? job : null;
+  if (!job) return { job: null, unavailable: false };
+  const current = await registryOwner(job.agentChainId ?? 56, job.agentTokenId).catch(() => null);
+  /* "Could not check" is reported as that, never as "not yours". */
+  if (!current) return { job: null, unavailable: true };
+  return { job: current === getAddress(owner) ? job : null, unavailable: false };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -67,7 +69,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const chainId = jobChainParam(body.chainId === undefined ? undefined : String(body.chainId)) ?? ALTANA_NETWORK.chainId;
   const network = altanaNetworkFor(chainId);
   const key = deliverableKey(chainId, jobId);
-  const indexed = await ownedJob(owner, chainId, jobId).catch(() => null);
+  const owned = await ownedJob(owner, chainId, jobId).catch(() => ({ job: null, unavailable: true }));
+  if (owned.unavailable) return NextResponse.json({ error: 'Ownership check unavailable: the registry did not answer. Nothing was changed; try again shortly.' }, { status: 503 });
+  const indexed = owned.job;
   if (!indexed) return NextResponse.json({ error: 'This job is not attributed to a verified agent in this workspace.' }, { status: 403 });
 
   try {
