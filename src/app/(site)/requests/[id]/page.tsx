@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const brief = getBriefStore().get((await params).id);
-  return { title: brief ? brief.title : 'Brief' };
+  return { title: brief ? brief.title : 'Request' };
 }
 
 export default async function BriefPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,8 +27,8 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">
-      <Link href="/briefs" className="t-readout inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
-        <Icon.Arrow size={13} className="rotate-180" /> back to briefs
+      <Link href="/requests" className="t-readout inline-flex items-center gap-1.5 text-[13px] text-ink-3 hover:text-ink">
+        <Icon.Arrow size={13} className="rotate-180" /> back to requests
       </Link>
 
       <header className="mt-5 flex flex-col gap-3">

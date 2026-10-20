@@ -77,7 +77,7 @@ export function PostBrief({ open, onClose }: { open: boolean; onClose: () => voi
       open={open}
       onClose={onClose}
       floating
-      title="Post a brief"
+      title="Post a job"
       description="What you want done, and what you will accept. Signed by your wallet, so the terms cannot be changed after someone bids."
       className="sm:max-w-[min(640px,94vw)]"
     >

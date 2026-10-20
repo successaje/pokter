@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 
 import { MARKETPLACE_ORDERS, type MarketplaceOrder } from '@/lib/search/order';
 import { cn } from '@/lib/ui/cn';
@@ -15,6 +15,21 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
   const router = useRouter();
   const [value, setValue] = useState(params.q);
   const [pending, start] = useTransition();
+  /* The header's search button lands here (`#discover-q`): ready to type, not just scrolled to. */
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focus = () => {
+      if (window.location.hash === '#discover-q') input.current?.focus();
+    };
+    // Arriving from another page, the hash is set after this first runs; the next frame sees it.
+    focus();
+    const frame = requestAnimationFrame(focus);
+    window.addEventListener('hashchange', focus);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', focus);
+    };
+  }, []);
   return (
     <form
       role="search"
@@ -30,6 +45,7 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
           What outcome do you need?
         </label>
         <input
+          ref={input}
           id="discover-q"
           value={value}
           onChange={(e) => setValue(e.target.value)}

@@ -142,6 +142,9 @@ const nextConfig: NextConfig = {
       ['/compatibility', '/studio/import'],
       ['/about/how-it-works', '/how-it-works'],
       ['/set-and-earn/guide', '/set-and-earn'],
+      // Briefs became Requests: the page lists work people want done; a brief is what you write inside one.
+      ['/briefs', '/requests'],
+      ['/briefs/:id', '/requests/:id'],
     ];
     return moved.map(([source, destination]) => ({ source, destination, permanent: false }));
   },

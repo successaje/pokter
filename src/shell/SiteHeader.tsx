@@ -19,8 +19,8 @@ function isActive(pathname: string, href: string) {
 }
 
 /**
- * The public header. Four destinations, the account control, and nothing
- * else. It tightens and takes a hairline once the page scrolls, so the hero
+ * The public header. Five destinations, search, the account control, and
+ * nothing else; How it works is in the footer. It tightens and takes a hairline once the page scrolls, so the hero
  * gets the full height and the working page gets a clear edge.
  */
 export function SiteHeader() {
@@ -83,8 +83,16 @@ export function SiteHeader() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle className="hidden md:grid" />
-            <Link href="/workspace" className="hidden rounded-[8px] px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink lg:inline-flex">
-              Workspace
+            {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
+            {/* Already on /discover, the hash changes through pushState, which fires no hashchange for the search box to hear, so it is focused here. From any other page the box focuses itself on arrival. */}
+            <Link
+              href="/discover#discover-q"
+              onClick={() => requestAnimationFrame(() => document.getElementById('discover-q')?.focus())}
+              aria-label="Search agents"
+              title="Search agents"
+              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink md:grid"
+            >
+              <Icon.Search size={17} />
             </Link>
             <LazyHeaderWallet />
             <button
@@ -117,9 +125,9 @@ export function SiteHeader() {
         <div className="mt-6 flex flex-col gap-2">
           <span className="t-label">Your space</span>
           {[
-            { href: '/workspace', label: 'Workspace', icon: <Icon.Briefcase size={16} /> },
+            { href: '/workspace', label: 'My workspace', icon: <Icon.Briefcase size={16} /> },
             { href: '/studio', label: 'Builder Studio', icon: <Icon.Layers size={16} /> },
-            { href: '/account', label: 'Account', icon: <Icon.User size={16} /> },
+            { href: '/account', label: 'Settings', icon: <Icon.Gear size={16} /> },
           ].map((item) => (
             <Link key={item.href} href={item.href} className="flex items-center gap-3 py-2 text-[15px] text-ink-2">
               <span className="text-ink-3">{item.icon}</span>
