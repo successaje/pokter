@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSignMessage } from 'wagmi';
 
 import type { HiredJob } from '@/lib/erc8183/types';
 import { CONTACT_MAX, REASON_MAX, feedbackMessage, type JobFeedbackContent, type UsefulAnswer } from '@/lib/feedback/model';
@@ -13,6 +12,7 @@ import { Button } from '@/ui/Button';
 import { Segmented } from '@/ui/Controls';
 import { Notice } from '@/ui/Feedback';
 import { Checkbox, Input, Textarea } from '@/ui/Field';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 const ANSWER_LABEL: Record<UsefulAnswer, string> = { yes: 'Yes', partly: 'Partly', no: 'No' };
 
@@ -37,7 +37,7 @@ function remembered(job: HiredJob): { answered: UsefulAnswer; updatedAt: string 
  */
 export function UsefulnessQuestion({ job }: { job: HiredJob }) {
   const active = useActiveWallet();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const passkey = usePasskeyWallet();
   const hydrated = useHydrated();
   const [justSaved, setPrior] = useState<{ answered: UsefulAnswer; updatedAt: string } | null>(null);

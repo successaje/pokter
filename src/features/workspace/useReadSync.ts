@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 import { isEscrowChain } from '@/lib/network/escrow';
 import { CHAIN_ID } from '@/lib/network/presentation';
@@ -14,6 +14,7 @@ import {
 } from '@/lib/notifications/read-state';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { useHydrated } from '@/lib/ui/use-hydrated';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 /**
  * Read state that follows a buyer between their devices.
@@ -32,7 +33,7 @@ export function useReadSync() {
   const hydrated = useHydrated();
   const { address, mode } = useActiveWallet();
   const { chain } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const queryClient = useQueryClient();
   const chainId = chain && isEscrowChain(chain.id) ? chain.id : CHAIN_ID;
 

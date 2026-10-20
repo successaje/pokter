@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useSignMessage } from 'wagmi';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 import { useActiveWallet } from '@/lib/wallet/active';
 import { signPasskeyMessage } from '@/lib/wallet/passkey-message';
@@ -23,7 +23,7 @@ export function useActiveSigner(): {
 } {
   const active = useActiveWallet();
   const passkey = usePasskeyWallet();
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useLiveSignMessage();
   const canSign = Boolean(active.address && (active.mode === 'external' || (active.mode === 'passkey' && passkey.wallet)));
 
   const sign = useCallback(
