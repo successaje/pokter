@@ -8,5 +8,6 @@ import type { EmailLinkTarget } from './server';
 export function emailLinkDestination(target: EmailLinkTarget | null): string {
   if (target?.kind === 'follow') return `/agents/${target.chainId}/${encodeURIComponent(target.tokenId)}`;
   if (target?.kind === 'builder') return '/build';
+  if (target?.kind === 'campaign') return '/set-and-earn';
   return '/workspace/inbox';
 }

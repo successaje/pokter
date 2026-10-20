@@ -12,9 +12,12 @@ import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
+import { CAMPAIGN_ENDS_AT, isCampaignLive } from '@/lib/campaign/window';
+import { lookupQuest } from '@/lib/quest/lookup';
+import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { followedAgents, notifyBuilderJobEvent, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -328,6 +331,20 @@ export async function POST(request: Request): Promise<NextResponse> {
      */
     const jobOwners = await budget.step('jobOwners', () => attributeRecentJobs());
 
+    /* Set and Earn reminders: deadline emails as they come due, and a note when a watched wallet hires another agent. */
+    const campaignReminders = await budget.step('campaignReminders', () =>
+      isCampaignLive()
+        ? notifyCampaignReminders({
+            nowMs: Date.now(),
+            endsAtMs: CAMPAIGN_ENDS_AT.getTime(),
+            hiresOf: async (wallet) => {
+              const quest = await lookupQuest(wallet);
+              return { distinctAgents: quest.summary.distinctAgents, marketplaces: quest.summary.namedMarketplaces.map((m) => (m === POKTER_MARKETPLACE ? 'Pokter' : m)) };
+            },
+          })
+        : Promise.resolve({ checked: 0, sent: 0 }),
+    );
+
     /*
      * Who first funded each mainnet owner wallet, so agents run from
      * several wallets count as one operator in "Most reliable". Bounded per
@@ -518,6 +535,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       sellerNotices,
       stuckJobs,
       jobOwners,
+      campaignReminders,
       funders,
       healthFactorChecks,
       categoryChecks,

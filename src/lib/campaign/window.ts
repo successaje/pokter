@@ -83,3 +83,13 @@ export function isCampaignLive(now: Date = new Date()): boolean {
  */
 export const CAMPAIGN_RULES_URL =
   'https://www.bnbchain.org/en/hackathons/smart-money-era-set-and-earn';
+
+/** "12 days left", "1 day left", "5 hours left", or "Closed": the countdown beside the deadline. */
+export function campaignTimeLeft(nowMs: number): string {
+  const ms = CAMPAIGN_ENDS_AT.getTime() - nowMs;
+  if (ms < 0) return 'Closed';
+  const days = Math.floor(ms / 86_400_000);
+  if (days >= 2) return `${days} days left`;
+  if (days === 1) return '1 day left';
+  return `${Math.max(1, Math.floor(ms / 3_600_000))} hours left`;
+}
