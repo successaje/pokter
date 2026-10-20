@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 
-import { isEmptyProfile, PROFILE_EDIT_WINDOW_MS, profileMessage, readProfileContent } from '@/lib/profiles/model';
+import { isEmptyProfile, PROFILE_EDIT_WINDOW_MS, profileContentOf, profileMessage, readProfileContent } from '@/lib/profiles/model';
 import { getProfileStore } from '@/lib/profiles/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { registryOwner } from '@/lib/registry/onchain';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * A wallet's published profile, and whether it has one at all. A profile
+ * that is not published comes back as `published: null`: its content is
+ * private, and only its owner can read it, by signing (`/draft`).
+ */
+export async function GET(request: Request): Promise<NextResponse> {
+  const rate = consumeRateLimit(`profile-read:${requestClientKey(request)}`, { limit: 60, windowMs: 60_000 });
+  if (!rate.allowed) return NextResponse.json({ error: 'Too many requests just now.' }, { status: 429 });
+  const wallet = new URL(request.url).searchParams.get('wallet') ?? '';
+  if (!isAddress(wallet)) return NextResponse.json({ error: 'A wallet address is required.' }, { status: 400 });
+  const profile = getProfileStore().get(wallet);
+  return NextResponse.json({ exists: Boolean(profile), published: profile?.published ? profileContentOf(profile) : null });
+}
 
 /**
  * Set or clear a wallet's self-provided profile.
@@ -58,6 +73,23 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   if (content.avatar && !store.avatar(content.avatar)) {
     return NextResponse.json({ error: 'That picture was not found. Upload it again.' }, { status: 400 });
+  }
+
+  /*
+   * Every agent put on the profile must be this wallet's now, by the
+   * registry itself. If the registry cannot be read, nothing is saved:
+   * "could not check" must never be recorded as either answer.
+   */
+  const owners = await Promise.all(content.agents.map((key) => {
+    const [chain, token] = key.split(':');
+    return registryOwner(Number(chain), token).catch(() => null);
+  }));
+  if (owners.some((o) => o === null)) {
+    return NextResponse.json({ error: 'Ownership check unavailable: the registry did not answer. Nothing was saved; try again shortly.' }, { status: 503 });
+  }
+  const notOwned = content.agents.filter((_, i) => owners[i] !== owner);
+  if (notOwned.length > 0) {
+    return NextResponse.json({ error: `This wallet does not own ${notOwned.map((k) => `#${k.split(':')[1]}`).join(', ')} in the registry, so it cannot be shown as yours.` }, { status: 409 });
   }
 
   if (isEmptyProfile(content)) store.remove(wallet);

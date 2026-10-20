@@ -10,6 +10,7 @@ import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
 import { buttonClass } from '@/ui/Button';
 import { CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
+import { rememberedUsage } from '@/features/profile/usage';
 import { useConnect } from './ConnectProvider';
 import { useWalletState } from './useWalletState';
 
@@ -154,7 +155,8 @@ export function AccountButton({ compact }: { compact?: boolean }) {
           <nav className="flex flex-col py-1.5 text-sm" aria-label="Account">
             {[
               /* My workspace, My profile and Settings, the three an account is for. Hiring and Building are views inside the workspace; the wallet is there too. */
-              { href: '/workspace', label: 'My workspace', icon: <Icon.Briefcase size={16} /> },
+              /* Builders land in Building, everyone else in Hiring; both are one switch away. */
+              { href: rememberedUsage(w.address) === 'build' ? '/build' : '/workspace', label: 'My workspace', icon: <Icon.Briefcase size={16} /> },
               { href: `/builders/${w.address}`, label: 'My profile', icon: <Icon.User size={16} /> },
               { href: '/account', label: 'Settings', icon: <Icon.Gear size={16} /> },
             ].map((item) => (

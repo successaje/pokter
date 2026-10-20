@@ -1,204 +1,611 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { formatUnits, getAddress, isAddress, type Address } from 'viem';
+import { getAddress, isAddress, type Address } from 'viem';
 
 import { CATEGORY_BY_ID, classify } from '@/lib/agents/categories';
-import { resolveAgentImages } from '@/lib/registry/image';
 import { verifiedPublisherByOwner } from '@/lib/builders/store';
-import { earnedByNetwork } from '@/lib/builder/earnings';
-import { getJobStore } from '@/lib/erc8183/store';
-import { chainLabel } from '@/lib/network/presentation';
-import { listAgents } from '@/lib/scan/client';
-import { ProfileHeader } from '@/features/profile/ProfileHeader';
-import { profilePath, type Profile } from '@/lib/profiles/model';
-import { registryOwner } from '@/lib/registry/onchain';
 import { getBriefStore } from '@/lib/briefs/store';
+import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
+import { agentJobs, agentRecord, eligibleReviews, hirerRecord, JOB_STATE_LABEL, type NetworkRecord } from '@/lib/profiles/evidence';
+import { avatarSrc, linkLabel, profileContentOf, profilePath, USAGES, type Profile } from '@/lib/profiles/model';
 import { getProfileStore } from '@/lib/profiles/store';
+import { resolveAgentImages } from '@/lib/registry/image';
+import { registryOwner } from '@/lib/registry/onchain';
+import { listAgents } from '@/lib/scan/client';
+import { avatarUrl } from '@/lib/ui/avatar-art';
+import { cn } from '@/lib/ui/cn';
+import { ProfileShell } from '@/features/profile/ProfileShell';
+import { ShareButton } from '@/features/profile/ShareButton';
 import { AgentAvatar } from '@/ui/Agent';
+import { AvatarImage } from '@/ui/AvatarImage';
+import { CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
-/** A profile's wallet, from either its handle or its address. */
+type View = 'building' | 'hiring';
+type Tab = 'overview' | 'agents' | 'work' | 'reviews' | 'requests';
+
+/**
+ * A wallet, resolved from its handle or its address. A handle resolves
+ * only once its profile is published: an unpublished profile's handle is
+ * as private as the rest of it.
+ */
 function resolve(param: string): { wallet: Address; profile: Profile | null } | null {
   const store = getProfileStore();
   if (isAddress(param)) return { wallet: getAddress(param), profile: store.get(param) };
   const profile = store.byHandle(decodeURIComponent(param));
-  return profile ? { wallet: getAddress(profile.wallet), profile } : null;
+  return profile?.published ? { wallet: getAddress(profile.wallet), profile } : null;
 }
+
+const short = (wallet: string) => `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
 
 export async function generateMetadata({ params }: { params: Promise<{ address: string }> }): Promise<Metadata> {
   const found = resolve((await params).address);
   if (!found) return { title: 'Profile' };
-  const short = `${found.wallet.slice(0, 6)}…${found.wallet.slice(-4)}`;
-  const name = found.profile?.displayName || (found.profile?.handle ? `@${found.profile.handle}` : null);
+  const p = found.profile?.published ? found.profile : null;
+  const name = p?.displayName || (p?.handle ? `@${p.handle}` : null);
   return {
-    title: name ? name : `Profile ${short}`,
-    description: found.profile?.bio || `Agents ${name ?? short} builds on BNB Chain, with the evidence behind them: checks, paid work and reviews.`,
-    alternates: { canonical: profilePath(found.wallet, found.profile?.handle) },
+    title: name ?? `Profile ${short(found.wallet)}`,
+    description: p?.bio || `What ${name ?? short(found.wallet)} has done on Pokter, with the evidence behind it.`,
+    alternates: { canonical: profilePath(found.wallet, p?.handle) },
+    /* Search engines list a profile only when its owner published it and chose to be listed. */
+    robots: p?.indexable ? undefined : { index: false, follow: false },
   };
 }
 
 /**
- * A wallet's profile, in two parts that never mix.
+ * A person's profile on Pokter, for hiring, building or both.
  *
- * "About" is what the wallet says about itself: a name, a picture, a bio
- * and links, signed by the wallet and labelled as self-provided. "Evidence
- * and activity" is what the registry and Pokter's own records show, each
- * part with its source, and nothing in it can be edited by the wallet.
- * Every address has a page, so "My profile" never lands on "not found".
+ * Two kinds of content, never mixed. The identity column is what the
+ * person says about themselves, shown only once they publish it. The
+ * main area is evidence, each figure defined and scoped: an agent's
+ * record is the agent's (under every owner it has had), never added up
+ * into the current owner's own track record, and a hirer's record is
+ * the jobs this wallet funded. What appears is what the owner chose to
+ * publish; an unpublished wallet shows only what the registry says.
  */
-export default async function ProfilePage({ params }: { params: Promise<{ address: string }> }) {
-  const { address: raw } = await params;
+export default async function ProfilePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ address: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const [{ address: raw }, sp] = await Promise.all([params, searchParams]);
   const found = resolve(raw);
   if (!found) notFound();
-  const { wallet: address, profile } = found;
-  /* One address per profile: once it has a handle, the wallet's URL leads there. */
-  if (profile?.handle && isAddress(raw)) redirect(profilePath(address, profile.handle));
-  const verified = verifiedPublisherByOwner(address);
-  const pages = await Promise.all([
-    listAgents({ chainId: 56, ownerAddress: address, limit: 100 }).catch(() => null),
-    listAgents({ chainId: 97, ownerAddress: address, limit: 100 }).catch(() => null),
-  ]);
-  /* A network the indexer did not answer for is said, not shown as "owns nothing". */
-  const agentsUnavailable = pages.some((p) => p === null);
-  const agents = pages.flatMap((p) => p?.items ?? []);
-  /* The registry record first, since the indexer's media proxy misses for
-     some agents — see `resolveAgentImage`. A builder's page is short. */
-  const images = await resolveAgentImages(agents);
-  const keys = new Set(agents.map((a) => `${a.chain_id}:${a.token_id}`));
-  const jobStore = getJobStore();
-  const jobs = jobStore
-    .all()
-    .filter((j) => keys.has(`${j.agentChainId ?? 56}:${j.agentTokenId}`) && j.status !== 'OPEN');
-  const completed = jobs.filter((j) => j.status === 'COMPLETED');
-  // Kept apart by network: test tokens have no cash value and were added in.
-  const paid = earnedByNetwork(completed);
-  const amount = (raw: bigint) => `${Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`;
-  const completedOn = (chainId: number) => completed.filter((j) => j.chainId === chainId).length;
+  const { wallet, profile } = found;
+  const published = profile?.published ? profile : null;
+  /* One address per published profile: the wallet's URL leads to the handle. */
+  if (published?.handle && isAddress(raw)) {
+    const query = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === 'string')).toString();
+    redirect(`${profilePath(wallet, published.handle)}${query ? `?${query}` : ''}`);
+  }
+
+  /* What the registry says this wallet owns now. A network the index did not answer for is said, not shown as nothing. */
+  const pages = await Promise.all([56, 97].map((chainId) => listAgents({ chainId: chainId as 56 | 97, ownerAddress: wallet, limit: 100 }).catch(() => null)));
+  const indexUnavailable = pages.some((p) => p === null);
+  const owned = pages.flatMap((p) => p?.items ?? []);
+  const images = await resolveAgentImages(owned);
+  const ownedOptions = owned.map((a, i) => {
+    const cat = classify(a);
+    return { key: `${a.chain_id}:${a.token_id}`, chainId: a.chain_id, tokenId: a.token_id, name: a.name, imageUrl: images[i], category: cat === 'unclassified' ? null : (CATEGORY_BY_ID.get(cat)?.label ?? null) };
+  });
+  const byKey = new Map(ownedOptions.map((o) => [o.key, o]));
+  const hiring = hirerRecord(wallet);
+  const hiringActivity = { requests: hiring.requestsPosted, jobsFunded: hiring.mainnet.funded + hiring.testnet.funded };
+
   /*
-   * "Ownership verified" only where the proof still holds: signed by the
-   * registry owner then, and the registry still names this wallet now. A
-   * proof for an agent since transferred no longer counts.
+   * The agents the owner chose to show, each checked against the registry
+   * now. "Unavailable" when the registry did not answer — never read as
+   * "no longer owned"; an agent the registry says is someone else's is
+   * left off the page.
    */
-  const proven = verified.filter((v) => keys.has(`${v.chainId}:${v.tokenId}`));
-  const liveOwners = await Promise.all(proven.map((v) => registryOwner(v.chainId, v.tokenId).catch(() => null)));
-  const provenNow = new Set(proven.filter((_, i) => liveOwners[i] === address).map((v) => `${v.chainId}:${v.tokenId}`));
-  const hires = jobStore.byClient(address).filter((j) => j.status !== 'OPEN');
-  const hiresSettled = hires.filter((j) => j.status === 'COMPLETED').length;
-  const briefs = getBriefStore();
-  const requests = briefs.byPoster(address);
-  const proposals = briefs.bidsBy(address);
-  const nothing = agents.length === 0 && hires.length === 0 && requests.length === 0 && proposals.length === 0;
+  const chosen = published?.showBuilding ? published.agents : [];
+  const live = await Promise.all(chosen.map((key) => registryOwner(Number(key.split(':')[0]), key.split(':')[1]).catch(() => null)));
+  const verifiedKeys = new Set(verifiedPublisherByOwner(wallet).map((v) => `${v.chainId}:${v.tokenId}`));
+  const shown = chosen
+    .map((key, i) => ({ key, status: live[i] === null ? ('unavailable' as const) : live[i] === wallet ? ('owned' as const) : ('elsewhere' as const) }))
+    .filter((a): a is { key: string; status: 'owned' | 'unavailable' } => a.status !== 'elsewhere')
+    .map((a) => {
+      const [chain, token] = a.key.split(':');
+      const option = byKey.get(a.key);
+      return {
+        ...a,
+        chainId: Number(chain),
+        tokenId: token,
+        name: option?.name ?? `Agent #${token}`,
+        imageUrl: option?.imageUrl ?? null,
+        category: option?.category ?? null,
+        pinned: published!.pinned.includes(a.key),
+        proved: a.status === 'owned' && verifiedKeys.has(a.key),
+      };
+    })
+    .sort((x, y) => Number(y.pinned) - Number(x.pinned));
+
+  const sections: View[] = published ? [...(published.showBuilding ? (['building'] as const) : []), ...(published.showHiring ? (['hiring'] as const) : [])] : [];
+  const preferred: View = published?.usage === 'hire' ? 'hiring' : 'building';
+  const view: View = sections.includes(sp.view as View) ? (sp.view as View) : sections.includes(preferred) ? preferred : (sections[0] ?? 'building');
+  const tabs: Tab[] = view === 'building' ? ['overview', 'agents', 'work', 'reviews'] : ['overview', 'requests'];
+  const tab: Tab = tabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : 'overview';
+  const base = profilePath(wallet, published?.handle);
+  const href = (v: View, t: Tab) => `${base}?view=${v}&tab=${t}`;
+
+  const reviews = view === 'building' && shown.length > 0 ? eligibleReviews(shown, wallet) : { reviews: [], hidden: 0 };
+  const name = published?.displayName || (published?.handle ? `@${published.handle}` : short(wallet));
+  const role = published?.usage ? USAGES.find((u) => u.id === published.usage)?.role : null;
+  const requests = getBriefStore().byPoster(wallet);
+
+  const identity = (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-4 lg:flex-col lg:items-start">
+        <AvatarImage src={avatarSrc(published?.avatar ?? '')} fallback={avatarUrl(wallet.toLowerCase())} name={name} size={88} className="shrink-0 rounded-full" eager />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h1 className="break-words text-[clamp(1.5rem,3vw,1.9rem)] font-semibold leading-tight tracking-[-0.02em]">{published?.displayName || (published?.handle ? `@${published.handle}` : <span className="t-readout">{short(wallet)}</span>)}</h1>
+          {published?.handle && published.displayName && <span className="text-[14.5px] text-ink-3">@{published.handle}</span>}
+          {role && <span className="mt-1 w-fit rounded-full bg-sunken px-2.5 py-0.5 text-[12.5px] font-medium text-ink-2">{role}</span>}
+        </div>
+      </div>
+      {published?.bio && <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-ink-2">{published.bio}</p>}
+      {published && published.showBuilding && published.tags.length > 0 && (
+        <ul aria-label="Builds" className="flex flex-wrap gap-1.5">
+          {published.tags.map((t) => (
+            <li key={t} className="rounded-full border border-rule-strong px-2.5 py-0.5 text-[12px] text-ink-2">
+              {CATEGORY_BY_ID.get(t)?.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      {published && published.links.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {published.links.map((link) => (
+            <li key={link}>
+              <a href={link} target="_blank" rel="nofollow ugc noopener noreferrer" className="inline-flex items-center gap-1.5 text-[13.5px] text-ink-2 hover:text-ink hover:underline">
+                <Icon.External size={13} aria-hidden /> {linkLabel(link)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!published && <p className="text-[13.5px] text-ink-3">No public profile. What follows is what the ERC-8004 registry says about this wallet.</p>}
+
+      <div className="flex flex-wrap gap-2">
+        {sections.includes('building') && shown.length > 0 && (
+          <Link href={href('building', 'agents')} className="inline-flex h-9 items-center justify-center rounded-[9px] bg-ink px-3 text-[13.5px] font-medium text-paper hover:opacity-90">
+            View agents
+          </Link>
+        )}
+        {sections.includes('hiring') && hiring.requestsOpen > 0 && (
+          <Link href={href('hiring', 'requests')} className={cn('inline-flex h-9 items-center justify-center rounded-[9px] px-3 text-[13.5px] font-medium', sections.includes('building') && shown.length > 0 ? 'border border-rule-strong text-ink-2 hover:text-ink' : 'bg-ink text-paper hover:opacity-90')}>
+            View open requests
+          </Link>
+        )}
+        <ShareButton path={base} title={name} />
+      </div>
+
+      {/* What was checked, said exactly. None of it is identity verification or an endorsement. */}
+      <ul aria-label="Checks" className="flex flex-col gap-2 border-t border-rule pt-4 text-[12.5px]">
+        {published && (
+          <li className="flex flex-col">
+            <span className="inline-flex items-center gap-1 font-medium text-ok">
+              <Icon.Check size={13} aria-hidden /> Wallet control verified
+            </span>
+            <span className="text-ink-3">This wallet signed this profile. That proves who wrote it, not that it is true.</span>
+          </li>
+        )}
+        {shown.some((a) => a.proved) && (
+          <li className="flex flex-col">
+            <span className="inline-flex items-center gap-1 font-medium text-ok">
+              <Icon.Shield size={13} aria-hidden /> Agent ownership verified
+            </span>
+            <span className="text-ink-3">{shown.filter((a) => a.proved).length} of the agents shown: the registry owner signed, and the registry still names this wallet.</span>
+          </li>
+        )}
+        <li className="flex items-center gap-2 text-ink-3">
+          Wallet <span className="t-readout text-ink-2">{short(wallet)}</span> <CopyButton value={wallet} label="Copy address" />
+        </li>
+      </ul>
+
+      {published && (published.showBuilding || published.showHiring) && (
+        <dl className="grid grid-cols-2 gap-2 text-[12.5px]">
+          {published.showBuilding && <MiniStat label="Agents shown" value={String(shown.length)} />}
+          {published.showHiring && <MiniStat label="Requests posted" value={String(hiring.requestsPosted)} />}
+          {published.showHiring && <MiniStat label="Jobs funded" value={`${hiring.mainnet.funded}`} note={`mainnet · ${hiring.testnet.funded} testnet`} />}
+        </dl>
+      )}
+      {published && <p className="text-[11.5px] leading-snug text-ink-3">Name, bio, tags and links are self-provided. Pokter does not endorse them or guarantee any agent&rsquo;s performance.</p>}
+    </div>
+  );
 
   return (
-    <div className="frame pb-24 pt-10 sm:pt-14">
-      <div className="flex max-w-4xl flex-col gap-12">
-        <ProfileHeader wallet={address} profile={profile} ownedVerified={provenNow.size} />
+    <div className="frame pb-24 pt-8 sm:pt-12">
+      <ProfileShell wallet={wallet} published={published ? profileContentOf(published) : null} hasSaved={Boolean(profile)} agents={ownedOptions} hiringActivity={hiringActivity} identity={identity}>
+        {!published ? (
+          <RegistryView agents={ownedOptions} unavailable={indexUnavailable} />
+        ) : sections.length === 0 ? (
+          <Empty title="Nothing shown yet">This profile shows no building or hiring activity.</Empty>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {sections.length > 1 && (
+              <nav aria-label="Profile section" className="inline-flex w-fit rounded-[10px] bg-sunken p-1">
+                {sections.map((s) => (
+                  <Link key={s} href={href(s, 'overview')} aria-current={view === s ? 'page' : undefined} className={cn('rounded-[7px] px-4 py-1.5 text-[14px] font-medium', view === s ? 'bg-raised text-ink shadow-sm' : 'text-ink-3 hover:text-ink')}>
+                    {s === 'building' ? 'Building' : 'Hiring'}
+                  </Link>
+                ))}
+              </nav>
+            )}
+            <nav aria-label={`${view === 'building' ? 'Building' : 'Hiring'} tabs`} className="-mx-4 flex gap-1 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
+              {tabs.map((t) => (
+                <Link key={t} href={href(view, t)} aria-current={tab === t ? 'page' : undefined} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2.5 text-[14px] font-medium capitalize', tab === t ? 'border-ink text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>
+                  {t === 'reviews' ? `Reviews${reviews.reviews.length ? ` (${reviews.reviews.length})` : ''}` : t}
+                </Link>
+              ))}
+            </nav>
 
-        <section aria-labelledby="evidence-title" className="flex flex-col gap-6">
-          <div className="flex flex-col gap-1">
-            <h2 id="evidence-title" className="text-[20px] font-semibold tracking-[-0.015em]">
-              Evidence and activity
-            </h2>
-            <p className="text-[13px] text-ink-3">From the ERC-8004 registry and Pokter&rsquo;s own records. Not editable by this wallet; each part names its source.</p>
+            {view === 'building' && tab === 'overview' && <BuildingOverview agents={shown} wallet={wallet} reviews={reviews} reviewsHref={href('building', 'reviews')} agentsHref={href('building', 'agents')} />}
+            {view === 'building' && tab === 'agents' && <AgentsTab agents={shown} wallet={wallet} />}
+            {view === 'building' && tab === 'work' && <WorkTab agents={shown} wallet={wallet} />}
+            {view === 'building' && tab === 'reviews' && <ReviewsTab data={reviews} />}
+            {view === 'hiring' && tab === 'overview' && <HiringOverview record={hiring} requestsHref={href('hiring', 'requests')} />}
+            {view === 'hiring' && tab === 'requests' && <RequestsTab requests={requests} />}
           </div>
-
-          {nothing && !agentsUnavailable && <p className="rounded-[12px] border border-dashed border-rule-strong px-5 py-4 text-[14px] text-ink-2">No public activity on Pokter yet.</p>}
-
-          {(agents.length > 0 || agentsUnavailable) && (
-            <div id="agents" className="flex scroll-mt-24 flex-col gap-3">
-              <SourceHead title="Agents owned" source="ERC-8004 registry, via the agent index. The shield marks agents this wallet proved it owns by signing to Pokter." />
-              {agentsUnavailable && <p className="text-[13px] text-watch">The agent index did not answer for one network, so this list may be incomplete.</p>}
-              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  { k: 'Agents', v: String(agents.length), note: provenNow.size ? `${provenNow.size} ownership verified` : null },
-                  { k: 'Paid jobs completed', v: String(completed.length), note: `${completedOn(56)} on ${chainLabel(56)} · ${completedOn(97)} on ${chainLabel(97)}` },
-                  { k: `Paid out on ${chainLabel(56)}`, v: amount(paid.real), note: 'Real $U' },
-                  { k: `Test tokens on ${chainLabel(97)}`, v: amount(paid.test), note: 'No cash value' },
-                ].map(({ k, v, note }) => (
-                  <div key={k} className="rounded-[12px] border border-rule bg-raised px-4 py-3">
-                    <dt className="t-label">{k}</dt>
-                    <dd className="t-readout mt-1 text-lg">{v}</dd>
-                    {note && <dd className="mt-0.5 text-[11.5px] text-ink-3">{note}</dd>}
-                  </div>
-                ))}
-              </dl>
-              <p className="text-[12px] text-ink-3">
-                Paid amounts are the budgets of jobs that completed through Pokter escrow, which pays the budget to the agent. They are not net income: the operator&rsquo;s own costs are not known here.
-              </p>
-              <ul className="ruled border-y border-rule">
-                {agents.map((a, i) => {
-                  const key = `${a.chain_id}:${a.token_id}`;
-                  const cat = classify(a);
-                  return (
-                    <li key={key}>
-                      <Link href={`/agents/${a.chain_id}/${a.token_id}`} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-4 py-4 hover:bg-sunken/40">
-                        <AgentAvatar name={a.name} imageUrl={images[i]} seed={key} size={40} />
-                        <span className="flex min-w-0 flex-col">
-                          <span className="flex items-center gap-2 truncate font-medium">
-                            {a.name}
-                            {provenNow.has(key) && (
-                              <span className="inline-flex items-center gap-1 text-[12px] font-normal text-ok">
-                                <Icon.Shield size={13} aria-hidden /> Ownership proved
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-[12.5px] text-ink-3">
-                            #{a.token_id} · {chainLabel(a.chain_id)} · {cat === 'unclassified' ? 'Unclassified' : (CATEGORY_BY_ID.get(cat)?.label ?? '')}
-                          </span>
-                        </span>
-                        <Icon.ChevronRight size={16} className="text-ink-3" />
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {hires.length > 0 && (
-            <div className="flex flex-col gap-3">
-              <SourceHead title="Hiring" source="Jobs this wallet funded through Pokter escrow." />
-              <p className="text-[14px] text-ink-2">
-                <span className="t-readout text-ink">{hires.length}</span> {hires.length === 1 ? 'job' : 'jobs'} funded ·{' '}
-                <span className="t-readout text-ink">{hiresSettled}</span> completed
-              </p>
-            </div>
-          )}
-
-          {(requests.length > 0 || proposals.length > 0) && (
-            <div className="flex flex-col gap-3">
-              <SourceHead title="Requests and proposals" source="Posted on Pokter and signed by this wallet." />
-              <ul className="ruled border-y border-rule">
-                {requests.slice(0, 5).map((r) => (
-                  <li key={r.id}>
-                    <Link href={`/requests/${r.id}`} className="flex items-center justify-between gap-4 py-3 hover:bg-sunken/40">
-                      <span className="truncate text-[14px] font-medium">{r.title}</span>
-                      <span className="shrink-0 text-[12.5px] text-ink-3">Request · {r.state === 'open' ? 'open' : r.state === 'awarded' ? 'agent chosen' : 'withdrawn'}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              {proposals.length > 0 && (
-                <p className="text-[13.5px] text-ink-2">
-                  <span className="t-readout text-ink">{proposals.length}</span> {proposals.length === 1 ? 'proposal' : 'proposals'} sent on requests
-                </p>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
+        )}
+      </ProfileShell>
     </div>
   );
 }
 
-function SourceHead({ title, source }: { title: string; source: string }) {
+function MiniStat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <h3 className="text-[15px] font-semibold">{title}</h3>
-      <p className="text-[12px] text-ink-3">Source: {source}</p>
+    <div className="rounded-[10px] border border-rule bg-raised px-3 py-2">
+      <dt className="text-ink-3">{label}</dt>
+      <dd className="t-readout text-[16px] text-ink">
+        {value} {note && <span className="text-[11px] text-ink-3">{note}</span>}
+      </dd>
     </div>
+  );
+}
+
+function Empty({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-[14px] border border-dashed border-rule-strong px-5 py-6">
+      <p className="text-[15px] font-medium">{title}</p>
+      <p className="text-[13.5px] text-ink-2">{children}</p>
+    </div>
+  );
+}
+
+type ShownAgent = { key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; status: 'owned' | 'unavailable'; pinned: boolean; proved: boolean };
+
+/** Shown for a wallet with no published profile: registry facts only, labelled as not chosen by anyone. */
+function RegistryView({ agents, unavailable }: { agents: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null }>; unavailable: boolean }) {
+  return (
+    <section aria-labelledby="registry-title" className="flex flex-col gap-3">
+      <h2 id="registry-title" className="text-[18px] font-semibold">
+        Agents this wallet owns
+      </h2>
+      <p className="text-[12.5px] text-ink-3">Source: the ERC-8004 registry, via the agent index. Not a profile: the owner has not chosen what to show.</p>
+      {unavailable && <p className="text-[13px] text-watch">The agent index did not answer for one network, so this list may be incomplete.</p>}
+      {agents.length === 0 ? (
+        !unavailable && <Empty title="No agents in the registry">This wallet owns no ERC-8004 agents on BNB Chain or testnet.</Empty>
+      ) : (
+        <ul className="ruled border-y border-rule">
+          {agents.map((a) => (
+            <li key={a.key}>
+              <Link href={`/agents/${a.chainId}/${a.tokenId}`} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-4 py-3.5 hover:bg-sunken/40">
+                <AgentAvatar name={a.name} imageUrl={a.imageUrl} seed={a.key} size={40} />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">{a.name}</span>
+                  <span className="text-[12.5px] text-ink-3">
+                    #{a.tokenId} · {chainLabel(a.chainId)} · {a.category ?? 'Unclassified'}
+                  </span>
+                </span>
+                <Icon.ChevronRight size={16} className="text-ink-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RecordTable({ mainnet, testnet }: { mainnet: NetworkRecord; testnet: NetworkRecord }) {
+  const rows: Array<[string, keyof NetworkRecord, string]> = [
+    ['Jobs funded', 'funded', 'A buyer funded the escrow.'],
+    ['Deliveries submitted', 'submitted', 'The provider put a delivery on chain.'],
+    ['Settled without dispute', 'settledUndisputed', 'Review window closed or buyer approved, and escrow paid out. Not proof of quality.'],
+    ['Rejected after dispute', 'rejectedAfterDispute', 'The buyer disputed and the policy’s voters upheld it.'],
+    ['Buyer wallets', 'buyerWallets', 'Distinct wallets, not people.'],
+  ];
+  return (
+    <table className="w-full text-[13px]">
+      <thead>
+        <tr className="text-left text-[11.5px] text-ink-3">
+          <th className="py-1.5 font-normal" scope="col">
+            Outside jobs
+          </th>
+          <th className="py-1.5 text-right font-normal" scope="col">
+            Mainnet
+          </th>
+          <th className="py-1.5 text-right font-normal" scope="col">
+            Testnet
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-rule">
+        {rows.map(([label, key, hint]) => (
+          <tr key={key}>
+            <th scope="row" className="py-1.5 text-left font-normal" title={hint}>
+              {label}
+            </th>
+            <td className="t-readout py-1.5 text-right">{mainnet[key]}</td>
+            <td className="t-readout py-1.5 text-right text-ink-2">{testnet[key]}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function AgentCard({ agent, wallet }: { agent: ShownAgent; wallet: string }) {
+  const record = agentRecord(agent.chainId, agent.tokenId, wallet);
+  return (
+    <article className="flex flex-col gap-4 rounded-[16px] border border-rule bg-raised p-5">
+      <div className="flex items-start justify-between gap-3">
+        <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="group flex min-w-0 items-center gap-3">
+          <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={44} />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-[15.5px] font-semibold group-hover:underline">{agent.name}</span>
+            <span className="truncate text-[12.5px] text-ink-3">
+              {agent.category ?? 'No category'} · {chainLabel(agent.chainId)} #{agent.tokenId}
+            </span>
+          </span>
+        </Link>
+        <span className="flex shrink-0 flex-col items-end gap-1 text-[12px]">
+          {agent.pinned && (
+            <span className="inline-flex items-center gap-1 text-ink-2">
+              <Icon.Star size={12} aria-hidden /> Pinned
+            </span>
+          )}
+          {agent.status === 'unavailable' ? (
+            <span className="inline-flex items-center gap-1 text-watch">
+              <Icon.Alert size={12} aria-hidden /> Ownership check unavailable
+            </span>
+          ) : agent.proved ? (
+            <span className="inline-flex items-center gap-1 text-ok">
+              <Icon.Shield size={12} aria-hidden /> Ownership verified
+            </span>
+          ) : (
+            <span className="text-ink-3">Owned, per the registry</span>
+          )}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <RecordTable mainnet={record.mainnet} testnet={record.testnet} />
+        <p className="text-[11.5px] text-ink-3">This agent&rsquo;s record under all its owners, not this person&rsquo;s. Excludes Pokter&rsquo;s own, demo, self-hire and owner-funded jobs.</p>
+      </div>
+      <div className="flex gap-2">
+        <Link href={`/agents/${agent.chainId}/${agent.tokenId}`} className="inline-flex h-9 items-center rounded-[9px] border border-rule-strong px-3 text-[13.5px] font-medium text-ink-2 hover:text-ink">
+          View agent
+        </Link>
+        <Link href={`/hire/${agent.chainId}/${agent.tokenId}`} className="inline-flex h-9 items-center rounded-[9px] bg-ink px-3 text-[13.5px] font-medium text-paper hover:opacity-90">
+          Hire
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function BuildingOverview({ agents, wallet, reviews, reviewsHref, agentsHref }: { agents: ShownAgent[]; wallet: string; reviews: ReturnType<typeof eligibleReviews>; reviewsHref: string; agentsHref: string }) {
+  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  const featured = agents.some((a) => a.pinned) ? agents.filter((a) => a.pinned) : agents.slice(0, 2);
+  return (
+    <div className="flex flex-col gap-8">
+      <section aria-labelledby="featured-title" className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between">
+          <h2 id="featured-title" className="text-[17px] font-semibold">
+            {agents.some((a) => a.pinned) ? 'Pinned agents' : 'Agents'}
+          </h2>
+          {agents.length > featured.length && (
+            <Link href={agentsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
+              All {agents.length} agents
+            </Link>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {featured.map((a) => (
+            <AgentCard key={a.key} agent={a} wallet={wallet} />
+          ))}
+        </div>
+      </section>
+      <section aria-labelledby="recent-reviews" className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between">
+          <h2 id="recent-reviews" className="text-[17px] font-semibold">
+            Recent reviews
+          </h2>
+          {reviews.reviews.length > 0 && (
+            <Link href={reviewsHref} className="text-[13px] font-medium text-ink-2 hover:text-ink">
+              All {reviews.reviews.length}
+            </Link>
+          )}
+        </div>
+        {reviews.reviews.length === 0 ? <Empty title="No reviews yet">Only the buyer of a completed job can review an agent.</Empty> : <ReviewList reviews={reviews.reviews.slice(0, 2)} />}
+      </section>
+    </div>
+  );
+}
+
+function AgentsTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
+  if (agents.length === 0) return <Empty title="No agents shown">This profile has not chosen any agents to show.</Empty>;
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      {agents.map((a) => (
+        <AgentCard key={a.key} agent={a} wallet={wallet} />
+      ))}
+    </div>
+  );
+}
+
+/** Evidence-only work: which outside jobs these agents did and how each ended. Never a brief or an output. */
+function WorkTab({ agents, wallet }: { agents: ShownAgent[]; wallet: string }) {
+  const jobs = agents
+    .flatMap((a) => agentJobs(a.chainId, a.tokenId, wallet).map((job) => ({ job, agent: a })))
+    .sort((x, y) => Date.parse(y.job.hiredAt) - Date.parse(x.job.hiredAt))
+    .slice(0, 30);
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="text-[13px] text-ink-3">Outside jobs these agents did, under all their owners, and how each ended on chain. Briefs and outputs belong to the buyers and are not shown.</p>
+      {jobs.length === 0 ? (
+        <Empty title="No outside jobs yet">When a buyer outside Pokter hires one of these agents, the job and how it ended appear here.</Empty>
+      ) : (
+        <ul className="ruled border-y border-rule">
+          {jobs.map(({ job, agent }) => (
+            <li key={`${job.chainId}:${job.jobId}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 text-[13.5px]">
+              <span className="flex min-w-0 flex-col">
+                <span className="font-medium">
+                  {agent.name}{' '}
+                  <span className="font-normal text-ink-3">
+                    · job #{job.jobId} · {chainLabel(job.chainId)}
+                  </span>
+                </span>
+                <span className="text-[12.5px] text-ink-3">{new Date(job.hiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              </span>
+              <span className={cn('text-[12.5px] font-medium', job.status === 'COMPLETED' ? 'text-ok' : job.status === 'REJECTED' ? 'text-bad' : 'text-ink-2')}>{JOB_STATE_LABEL[job.status] ?? job.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ReviewList({ reviews }: { reviews: ReturnType<typeof eligibleReviews>['reviews'] }) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {reviews.map((r) => (
+        <li key={`${r.chainId}:${r.jobId}`} className="flex flex-col gap-2 rounded-[14px] border border-rule bg-raised p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="flex items-center gap-1" role="img" aria-label={`${r.rating} out of 5`}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <Icon.StarFilled key={i} size={14} className={i < r.rating ? 'text-ink' : 'text-rule-strong'} aria-hidden />
+              ))}
+            </span>
+            <span className="text-[12px] text-ink-3">{new Date(r.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          </div>
+          {r.comment && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink-2">{r.comment}</p>}
+          <p className="text-[12px] text-ink-3">
+            For{' '}
+            <Link href={`/agents/${r.agentChainId}/${r.agentTokenId}`} className="underline underline-offset-2 hover:text-ink">
+              {r.agentName}
+            </Link>{' '}
+            · job #{r.jobId} on {chainLabel(r.chainId)} · by its buyer, {short(r.buyer)}
+            {r.onchainTx && (
+              <>
+                {' · '}
+                <a href={`${explorerBaseFor(r.agentChainId)}/tx/${r.onchainTx}`} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 hover:text-ink">
+                  on chain
+                </a>
+              </>
+            )}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ReviewsTab({ data }: { data: ReturnType<typeof eligibleReviews> }) {
+  const count = data.reviews.length;
+  const average = count ? data.reviews.reduce((n, r) => n + r.rating, 0) / count : null;
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <p className="text-[15px] font-semibold">{count === 0 ? 'No eligible reviews yet' : `${average!.toFixed(1)} out of 5 · ${count} eligible ${count === 1 ? 'review' : 'reviews'}`}</p>
+        <p className="text-[12.5px] text-ink-3">
+          All eligible reviews for these agents: each written and signed by the buyer of a completed job. The builder cannot hide or choose among them, and reviews by this wallet are left out.
+          {data.hidden > 0 && ` ${data.hidden} ${data.hidden === 1 ? 'was' : 'were'} removed by Pokter’s moderation for breaking its rules.`}
+        </p>
+      </div>
+      {count > 0 && <ReviewList reviews={data.reviews} />}
+    </section>
+  );
+}
+
+function HiringOverview({ record, requestsHref }: { record: ReturnType<typeof hirerRecord>; requestsHref: string }) {
+  const rows: Array<[string, number, number]> = [
+    ['Jobs funded', record.mainnet.funded, record.testnet.funded],
+    ['Deliveries received', record.mainnet.submitted, record.testnet.submitted],
+    ['Settled without dispute', record.mainnet.settledUndisputed, record.testnet.settledUndisputed],
+    ['Rejected after dispute', record.mainnet.rejectedAfterDispute, record.testnet.rejectedAfterDispute],
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2 rounded-[16px] border border-rule bg-raised p-5">
+        <h2 className="text-[16px] font-semibold">As a buyer</h2>
+        <table className="w-full text-[13.5px]">
+          <thead>
+            <tr className="text-left text-[11.5px] text-ink-3">
+              <th className="py-1.5 font-normal" scope="col">
+                Jobs this wallet funded
+              </th>
+              <th className="py-1.5 text-right font-normal" scope="col">
+                Mainnet
+              </th>
+              <th className="py-1.5 text-right font-normal" scope="col">
+                Testnet
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule">
+            {rows.map(([label, m, t]) => (
+              <tr key={label}>
+                <th scope="row" className="py-1.5 text-left font-normal">
+                  {label}
+                </th>
+                <td className="t-readout py-1.5 text-right">{m}</td>
+                <td className="t-readout py-1.5 text-right text-ink-2">{t}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-[11.5px] text-ink-3">Counts only. Amounts, proposals and payment details stay private.</p>
+      </section>
+      <section className="flex items-center justify-between gap-4 rounded-[16px] border border-rule bg-raised p-5">
+        <span className="flex flex-col">
+          <span className="text-[16px] font-semibold">Requests</span>
+          <span className="text-[13px] text-ink-3">
+            {record.requestsPosted} posted · {record.requestsOpen} open
+          </span>
+        </span>
+        <Link href={requestsHref} className="text-[13.5px] font-medium text-ink-2 hover:text-ink">
+          See requests
+        </Link>
+      </section>
+    </div>
+  );
+}
+
+function RequestsTab({ requests }: { requests: ReturnType<ReturnType<typeof getBriefStore>['byPoster']> }) {
+  if (requests.length === 0) return <Empty title="No requests posted">Requests this wallet posts appear here.</Empty>;
+  return (
+    <ul className="ruled border-y border-rule">
+      {requests.map((r) => (
+        <li key={r.id}>
+          <Link href={`/requests/${r.id}`} className="flex items-center justify-between gap-4 py-3.5 hover:bg-sunken/40">
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[14.5px] font-medium">{r.title}</span>
+              <span className="text-[12.5px] text-ink-3">
+                {chainLabel(r.chainId)} · posted {new Date(r.postedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </span>
+            </span>
+            <span className={cn('shrink-0 text-[12.5px] font-medium', r.state === 'open' ? 'text-ok' : 'text-ink-3')}>{r.state === 'open' ? 'Taking proposals' : r.state === 'awarded' ? 'Agent chosen' : 'Withdrawn'}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

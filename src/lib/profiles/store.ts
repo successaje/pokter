@@ -4,8 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import type { Category } from '@/lib/agents/categories';
-import type { Profile } from './model';
+import { EMPTY_PROFILE, type Profile, type ProfileContent } from './model';
 
 const DB_PATH = process.env.PROFILE_DB_PATH ?? './data/profiles.db';
 
@@ -29,11 +28,7 @@ class ProfileStore {
       CREATE TABLE IF NOT EXISTS profiles (
         wallet TEXT PRIMARY KEY,
         handle TEXT,
-        display_name TEXT NOT NULL,
-        bio TEXT NOT NULL,
-        avatar TEXT NOT NULL,
-        tags TEXT NOT NULL,
-        links TEXT NOT NULL,
+        content TEXT NOT NULL,
         signed_at TEXT NOT NULL,
         signature TEXT NOT NULL
       );
@@ -48,17 +43,8 @@ class ProfileStore {
   }
 
   private static toProfile(row: Record<string, string | null>): Profile {
-    return {
-      wallet: row.wallet!,
-      handle: row.handle ?? '',
-      displayName: row.display_name!,
-      bio: row.bio!,
-      avatar: row.avatar!,
-      tags: JSON.parse(row.tags!) as Category[],
-      links: JSON.parse(row.links!) as string[],
-      signedAt: row.signed_at!,
-      signature: row.signature!,
-    };
+    /* Content is stored as signed; fields added later default to their empty value. */
+    return { ...EMPTY_PROFILE, ...(JSON.parse(row.content!) as Partial<ProfileContent>), wallet: row.wallet!, signedAt: row.signed_at!, signature: row.signature! };
   }
 
   get(wallet: string): Profile | null {
@@ -79,23 +65,13 @@ class ProfileStore {
   }
 
   put(profile: Profile): void {
+    const { wallet, signedAt, signature, ...content } = profile;
     this.db
       .prepare(
-        `INSERT INTO profiles (wallet, handle, display_name, bio, avatar, tags, links, signed_at, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (wallet) DO UPDATE SET handle = excluded.handle, display_name = excluded.display_name, bio = excluded.bio,
-           avatar = excluded.avatar, tags = excluded.tags, links = excluded.links, signed_at = excluded.signed_at, signature = excluded.signature`,
+        `INSERT INTO profiles (wallet, handle, content, signed_at, signature) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (wallet) DO UPDATE SET handle = excluded.handle, content = excluded.content, signed_at = excluded.signed_at, signature = excluded.signature`,
       )
-      .run(
-        profile.wallet.toLowerCase(),
-        profile.handle || null,
-        profile.displayName,
-        profile.bio,
-        profile.avatar,
-        JSON.stringify(profile.tags),
-        JSON.stringify(profile.links),
-        profile.signedAt,
-        profile.signature,
-      );
+      .run(wallet.toLowerCase(), content.handle || null, JSON.stringify(content), signedAt, signature);
   }
 
   remove(wallet: string): void {

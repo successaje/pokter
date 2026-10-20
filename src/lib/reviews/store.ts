@@ -101,6 +101,12 @@ class ReviewStore {
     return rows.map(toReview);
   }
 
+  /** How many of an agent's reviews Pokter's moderation hid, so a rating is never presented as complete when some were removed. */
+  hiddenCount(chainId: number, tokenId: string): number {
+    const row = this.db.prepare("SELECT COUNT(*) AS n FROM reviews WHERE agent_chain_id=? AND agent_token_id=? AND visibility='hidden'").get(chainId, tokenId) as { n: number };
+    return row.n;
+  }
+
   /** One review by its job, hidden or not; callers decide what to expose. */
   get(chainId: number, jobId: string): VerifiedReview | null {
     const row = this.db.prepare('SELECT * FROM reviews WHERE chain_id=? AND job_id=?').get(chainId, jobId) as unknown as Record<string, string | number | null> | undefined;
