@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AwardBid, PlaceBid, WithdrawRequest } from '@/features/briefs/BriefActions';
+import { AwardBid, WithdrawRequest } from '@/features/briefs/BriefActions';
+import { ProposalForm } from '@/features/briefs/ProposalForm';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
@@ -77,7 +78,7 @@ export default async function BriefPage({
           {taking && (
             <section aria-labelledby="bid-title">
               <h2 id="bid-title" className="t-label mb-3">Send a proposal</h2>
-              <PlaceBid briefId={brief.id} />
+              <ProposalForm briefId={brief.id} requestDays={brief.deliverDays} requestBudgetU={brief.budgetU} />
             </section>
           )}
         </div>
