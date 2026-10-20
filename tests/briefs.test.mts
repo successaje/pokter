@@ -3,7 +3,7 @@ import test from 'node:test';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
-import { awardMessage, bidMessage, briefMessage, readBidContent, readBriefContent } from '../src/lib/briefs/model';
+import { acceptsProposals, awardMessage, bidMessage, briefMessage, hireTaskFromRequest, readBidContent, readBriefContent, withdrawMessage } from '../src/lib/briefs/model';
 
 /*
  * A brief is a set of terms somebody will be held to, so the signature has
@@ -88,4 +88,61 @@ test('a bid names an agent that could exist', () => {
   assert.equal(readBidContent({ ...ok, agentTokenId: 'not-a-token' }), null);
   assert.equal(readBidContent({ ...ok, agentChainId: 1 }), null);
   assert.equal(readBidContent({ ...ok, priceU: 0 }), null);
+});
+
+test('a closing date is signed when set, and a request without one signs what it always did', () => {
+  const before = [
+    'Pokter posted brief',
+    `Posted by: ${POSTER.toLowerCase()}`,
+    `At: ${AT}`,
+    'Title: Route planner',
+    'Budget: 2.5 $U on chain 97',
+    'Deliver within: 7 days',
+    'Brief: Plan crew routes and find schedule gaps.',
+    'Acceptance: Every job assigned or explained',
+    'Fail signals: A message is sent instead of drafted',
+  ].join('\n');
+  // Requests posted before closing dates existed must still verify.
+  assert.equal(briefMessage({ ...CONTENT, poster: POSTER, postedAt: AT }), before);
+  assert.equal(briefMessage({ ...CONTENT, closesAt: null, poster: POSTER, postedAt: AT }), before);
+  const closing = briefMessage({ ...CONTENT, closesAt: '2026-10-26T10:00:00.000Z', poster: POSTER, postedAt: AT });
+  assert.equal(closing, `${before}\nProposals close: 2026-10-26T10:00:00.000Z`);
+});
+
+test('a closing date must be ahead, and not so far ahead the request is open in name only', () => {
+  const now = Date.parse(AT);
+  const day = 86_400_000;
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: new Date(now - day).toISOString() }, now), null);
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: new Date(now + 61 * day).toISOString() }, now), null);
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: 'next week' }, now), null);
+  const week = new Date(now + 7 * day).toISOString();
+  assert.equal(readBriefContent({ ...CONTENT, closesAt: week }, now)?.closesAt, week, 'kept exactly as signed');
+  assert.equal(readBriefContent(CONTENT, now)?.closesAt, null);
+});
+
+test('proposals are taken while a request is open and before it closes', () => {
+  const now = Date.parse(AT);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: null }, now), true);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: new Date(now + 1000).toISOString() }, now), true);
+  assert.equal(acceptsProposals({ state: 'open', closesAt: new Date(now - 1000).toISOString() }, now), false);
+  assert.equal(acceptsProposals({ state: 'awarded', closesAt: null }, now), false);
+  assert.equal(acceptsProposals({ state: 'cancelled', closesAt: null }, now), false);
+});
+
+test('a withdrawal names the request and its poster, and nothing else verifies for it', () => {
+  assert.notEqual(withdrawMessage('b1', POSTER), withdrawMessage('b2', POSTER));
+  assert.equal(withdrawMessage('b1', POSTER), withdrawMessage('b1', POSTER.toLowerCase()));
+  assert.notEqual(withdrawMessage('b1', POSTER), awardMessage('b1', 'b1', POSTER));
+});
+
+test('the hire carries what a delivery is held to, even when the description has to be cut', () => {
+  const task = hireTaskFromRequest(CONTENT);
+  assert.equal(
+    task,
+    'Plan crew routes and find schedule gaps.\n\nDone when:\n- Every job assigned or explained\n\nRejected if:\n- A message is sent instead of drafted',
+  );
+  const long = hireTaskFromRequest({ ...CONTENT, brief: 'x'.repeat(4000) });
+  assert.ok(long.length <= 2000, 'fits the hire form');
+  assert.ok(long.includes('- Every job assigned or explained'), 'the criteria survive');
+  assert.ok(long.includes('- A message is sent instead of drafted'));
 });

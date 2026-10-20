@@ -40,6 +40,15 @@ export interface BriefContent {
   chainId: number;
   /** Days from award to delivery. */
   deliverDays: number;
+  /**
+   * When proposals stop being accepted, as an ISO time; null for a request
+   * that stays open until it is awarded or withdrawn.
+   *
+   * Kept apart from `deliverDays` on purpose: one is how long builders have
+   * to answer, the other how long the chosen agent has to deliver, and a
+   * form that asked for "a deadline" would get whichever the poster meant.
+   */
+  closesAt?: string | null;
 }
 
 export interface Brief extends BriefContent {
@@ -89,6 +98,9 @@ export function briefMessage(input: BriefContent & { poster: string; postedAt: s
     `Brief: ${input.brief}`,
     `Acceptance: ${input.acceptance.join(' | ')}`,
     `Fail signals: ${input.failSignals.join(' | ')}`,
+    /* Only when set, so a request posted before closing dates existed still
+       verifies against the message its poster actually signed. */
+    ...(input.closesAt ? [`Proposals close: ${input.closesAt}`] : []),
   ].join('\n');
 }
 
@@ -110,10 +122,61 @@ export function awardMessage(briefId: string, bidId: string, poster: string): st
   return ['Pokter brief award', `Brief: ${briefId}`, `Bid: ${bidId}`, `Poster: ${poster.toLowerCase()}`].join('\n');
 }
 
+/**
+ * The poster, withdrawing. Signed for the same reason an award is: Pokter
+ * should not be able to take a request down on somebody's behalf.
+ */
+export function withdrawMessage(briefId: string, poster: string): string {
+  return ['Pokter request withdrawn', `Request: ${briefId}`, `Poster: ${poster.toLowerCase()}`].join('\n');
+}
+
+/** Whether a request still takes proposals: open, and before its closing time if it has one. */
+export function acceptsProposals(brief: Pick<Brief, 'state' | 'closesAt'>, now: number = Date.now()): boolean {
+  if (brief.state !== 'open') return false;
+  return !brief.closesAt || Date.parse(brief.closesAt) > now;
+}
+
+/** A chosen proposal, carried into the hire so its price can be held against the agent's quote. */
+export interface ProposalForHire {
+  requestId: string;
+  requestTitle: string;
+  priceU: number;
+  deliverDays: number;
+  /** The network the request asked to be funded on. */
+  chainId: number;
+}
+
+/** The hire brief's length limit; the hire form will not hold more. */
+const HIRE_TASK_MAX = 2000;
+
+/**
+ * The task an agent is hired with, from the request it was chosen for.
+ *
+ * The request's text alone loses what made it a request: the lines a
+ * delivery is accepted or rejected by. Those go to the agent too. If the
+ * whole would overflow the hire form, the description is shortened and the
+ * criteria kept, because they are what the delivery will be held to.
+ */
+export function hireTaskFromRequest(brief: Pick<BriefContent, 'brief' | 'acceptance' | 'failSignals'>): string {
+  const criteria = [
+    brief.acceptance.length > 0 ? `Done when:\n${brief.acceptance.map((l) => `- ${l}`).join('\n')}` : '',
+    brief.failSignals.length > 0 ? `Rejected if:\n${brief.failSignals.map((l) => `- ${l}`).join('\n')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  const tail = criteria ? `\n\n${criteria}` : '';
+  const room = HIRE_TASK_MAX - tail.length;
+  const text = brief.brief.length > room ? `${brief.brief.slice(0, Math.max(0, room - 1)).trimEnd()}…` : brief.brief;
+  return `${text}${tail}`.slice(0, HIRE_TASK_MAX);
+}
+
+/** Proposals may be asked for over at most this long. */
+export const MAX_CLOSING_DAYS = 60;
+
 const LIMITS = { title: 120, brief: 4000, note: 1200, line: 240, lines: 12 } as const;
 
 /** Rejects what cannot be stored or displayed, before any signature work. */
-export function readBriefContent(raw: unknown): BriefContent | null {
+export function readBriefContent(raw: unknown, now: number = Date.now()): BriefContent | null {
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
   const title = typeof b.title === 'string' ? b.title.trim() : '';
@@ -132,7 +195,14 @@ export function readBriefContent(raw: unknown): BriefContent | null {
   if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
   const acceptance = lines(b.acceptance);
   if (acceptance.length === 0) return null;
-  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays };
+  let closesAt: string | null = null;
+  if (b.closesAt !== undefined && b.closesAt !== null && b.closesAt !== '') {
+    const at = typeof b.closesAt === 'string' ? Date.parse(b.closesAt) : NaN;
+    /* In the future, and not so far out that the request is open in name only. */
+    if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return null;
+    closesAt = new Date(at).toISOString();
+  }
+  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt };
 }
 
 export function readBidContent(raw: unknown): BidContent | null {

@@ -57,6 +57,9 @@ class BriefStore {
       );
       CREATE INDEX IF NOT EXISTS bids_by_brief ON bids (brief_id);
     `);
+    /* Added after the first requests were posted; theirs stay null, which reads as "open until awarded". */
+    const columns = this.db.prepare('PRAGMA table_info(briefs)').all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === 'closes_at')) this.db.exec('ALTER TABLE briefs ADD COLUMN closes_at TEXT');
   }
 
   private static toBrief(row: Record<string, unknown>): Brief {
@@ -74,6 +77,7 @@ class BriefStore {
       state: row.state as BriefState,
       postedAt: row.posted_at as string,
       awardedBidId: (row.awarded_bid_id as string | null) ?? null,
+      closesAt: (row.closes_at as string | null) ?? null,
     };
   }
 
@@ -95,8 +99,8 @@ class BriefStore {
   add(brief: Brief): void {
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       )
       .run(
         brief.id,
@@ -111,6 +115,7 @@ class BriefStore {
         brief.signature,
         brief.state,
         brief.postedAt,
+        brief.closesAt ?? null,
       );
   }
 
@@ -155,7 +160,7 @@ class BriefStore {
     return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
   }
 
-  /** Requests one wallet posted, newest first: the Hiring view's "Posted jobs and proposals". */
+  /** Requests one wallet posted, newest first: the Hiring view's "My requests". */
   byPoster(poster: string): Brief[] {
     const rows = this.db.prepare('SELECT * FROM briefs WHERE poster = ? ORDER BY posted_at DESC').all(poster.toLowerCase());
     return (rows as Record<string, unknown>[]).map(BriefStore.toBrief);
@@ -174,6 +179,11 @@ class BriefStore {
 
   award(briefId: string, bidId: string): void {
     this.db.prepare("UPDATE briefs SET state = 'awarded', awarded_bid_id = ? WHERE id = ? AND state = 'open'").run(bidId, briefId);
+  }
+
+  /** Withdrawn by its poster. Only an open request: an awarded one has a builder waiting on it. */
+  withdraw(briefId: string): boolean {
+    return this.db.prepare("UPDATE briefs SET state = 'cancelled' WHERE id = ? AND state = 'open'").run(briefId).changes > 0;
   }
 
   countOpen(): number {

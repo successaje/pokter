@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * Every request, or one wallet's (`?poster=`), each with its bid count.
  *
  * A poster's requests are already public on /requests; this only filters
- * them, for the Hiring view's "Posted jobs and proposals".
+ * them, for the Hiring view's "My requests".
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const store = getBriefStore();

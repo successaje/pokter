@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { PostBriefButton } from '@/features/briefs/BriefActions';
 import { getBriefStore } from '@/lib/briefs/store';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { chainLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
+import { redirect } from 'next/navigation';
+
+import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -13,10 +15,10 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Requests',
-  description: 'Work posted by buyers on Pokter, open for agents to bid on. Every brief and every bid is signed by the wallet behind it.',
+  description: 'Work posted by buyers on Pokter, open for builders to send proposals. Every request and every proposal is signed by the wallet behind it.',
   ...shareMetadata({
-    title: 'Work posted on Pokter, open for bids',
-    description: 'Buyers post what they need; agents bid with a signed price. Awarding funds nothing until the buyer funds the escrow.',
+    title: 'Work posted on Pokter, open for proposals',
+    description: 'Buyers post what they need; builders propose a signed price. Choosing a proposal funds nothing until the buyer hires.',
   }),
 };
 
@@ -29,7 +31,9 @@ export const metadata: Metadata = {
  * that question, posted before an agent is chosen, and a bid is an answer
  * to it that carries a wallet's signature.
  */
-export default async function RequestsPage() {
+export default async function RequestsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  /* The old way in: "Post a job" opened a sheet over this page. */
+  if ((await searchParams).post === '1') redirect('/requests/new');
   const briefs = getBriefStore().all();
   const open = briefs.filter((b) => b.state === 'open');
 
@@ -43,7 +47,7 @@ export default async function RequestsPage() {
           </span>
           {open.length > 0 && (
             <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-rule-strong bg-sunken px-3 text-ink-2">
-              <span className="t-readout">{open.length}</span> open for bids
+              <span className="t-readout">{open.length}</span> taking proposals
             </span>
           )}
         </p>
@@ -51,11 +55,13 @@ export default async function RequestsPage() {
           <div className="flex flex-col gap-2">
             <h1 className="t-h1">Work people want done</h1>
             <p className="t-body max-w-2xl text-ink-2">
-              Describe what you need before choosing who does it. Agents bid with a price their wallet signed; you
-              award the one you want, and fund the escrow yourself when you do.
+              Describe what you need before choosing who does it. Builders send proposals with a price their wallet
+              signed; you choose one, and fund the escrow yourself when you hire.
             </p>
           </div>
-          <PostBriefButton />
+          <LinkButton href="/requests/new" icon={<Icon.Plus size={15} />}>
+            Post a request
+          </LinkButton>
         </div>
       </header>
 
@@ -80,7 +86,7 @@ export default async function RequestsPage() {
                         brief.state === 'open' ? 'border-ok/30 bg-ok-wash text-ok' : 'border-rule-strong text-ink-3'
                       }`}
                     >
-                      {brief.state === 'open' ? 'Open' : brief.state === 'awarded' ? 'Awarded' : 'Cancelled'}
+                      {brief.state === 'open' ? 'Open' : brief.state === 'awarded' ? 'Agent chosen' : 'Withdrawn'}
                     </span>
                   </span>
                   <span className="line-clamp-2 text-[13.5px] leading-relaxed text-ink-2">{brief.brief}</span>
@@ -89,7 +95,7 @@ export default async function RequestsPage() {
                     <span>deliver in {brief.deliverDays} days</span>
                     <span>{chainLabel(brief.chainId)}</span>
                     <span className="ml-auto inline-flex items-center gap-1 text-ink-2 group-hover:text-ink">
-                      {getBriefStore().bidsFor(brief.id).length} bids <Icon.Arrow size={13} />
+                      {proposalCount(getBriefStore().bidsFor(brief.id).length)} <Icon.Arrow size={13} />
                     </span>
                   </span>
                 </Link>
@@ -100,4 +106,8 @@ export default async function RequestsPage() {
       </div>
     </div>
   );
+}
+
+function proposalCount(n: number): string {
+  return n === 1 ? '1 proposal' : `${n} proposals`;
 }

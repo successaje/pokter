@@ -193,6 +193,7 @@ export function useHire({
   declaredSkills = [],
   escrowChainId = WALLET_NETWORK.chainId,
   initialTask = null,
+  proposalU = null,
 }: {
   agent: HireAgent;
   providers: ProviderChoice[];
@@ -224,6 +225,8 @@ export function useHire({
    */
   lastSignedU?: number | null;
   riskWarnings?: string[];
+  /** The price of a proposal chosen on a request, which the budget starts at. */
+  proposalU?: number | null;
   /** The agent's own skills, whose examples beat a category guess. */
   declaredSkills?: readonly { name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
 }) {
@@ -291,7 +294,7 @@ export function useHire({
    */
   const [schemaSource, setSchemaSource] = useState(recalled?.schema ?? '');
   const taskSchema = useMemo(() => taskFields(schemaSource), [schemaSource]);
-  const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU }));
+  const [budget, setBudget] = useState(budgetDefault({ signedU: signedQuoteU, lastSignedU, suggestedU, proposalU }));
   const [riskAccepted, setRiskAccepted] = useState(riskWarnings.length === 0);
   const [screen, setScreen] = useState<HireScreen>('describe');
   /*

@@ -15,12 +15,12 @@ export default async function HirePage({
   searchParams,
 }: {
   params: Promise<{ chainId: string; tokenId: string }>;
-  searchParams: Promise<{ escrow?: string; task?: string }>;
+  searchParams: Promise<{ escrow?: string; task?: string; proposal?: string }>;
 }) {
-  const [{ chainId, tokenId }, { escrow, task }] = await Promise.all([params, searchParams]);
+  const [{ chainId, tokenId }, { escrow, task, proposal }] = await Promise.all([params, searchParams]);
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-16">
-      <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} />
+      <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} proposalId={proposal} />
     </div>
   );
 }

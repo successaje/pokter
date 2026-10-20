@@ -20,7 +20,7 @@ export default function HiringLayout({ children }: { children: React.ReactNode }
         items={[
           { href: '/workspace', label: 'Overview', icon: <Icon.Grid size={17} />, exact: true },
           { href: '/workspace/jobs', label: 'My jobs', icon: <Icon.Briefcase size={17} /> },
-          { href: '/workspace/requests', label: 'Posted jobs', icon: <Icon.Doc size={17} /> },
+          { href: '/workspace/requests', label: 'My requests', icon: <Icon.Doc size={17} /> },
           { href: '/workspace/inbox', label: 'Inbox', icon: <Icon.Inbox size={17} /> },
         ]}
         more={[

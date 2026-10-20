@@ -31,6 +31,7 @@ import { recipeById } from '@/lib/hire/brief-recipes';
 import { taskProblems } from '@/lib/hire/task-fields';
 import { asksToTransact } from '@/lib/hire/transact-brief';
 import { POKTER_TERMS } from '@/lib/erc8183/terms';
+import type { ProposalForHire } from '@/lib/briefs/model';
 import { ConversionBeacon, recordConversionOnce } from '@/features/conversion/ConversionBeacon';
 import { explainFailure } from '@/lib/hire/failure';
 import type { AnsweredTask } from '@/lib/agent/answered-tasks';
@@ -69,6 +70,8 @@ export interface HireFlowProps {
   answeredTasks?: AnsweredTask[];
   /** A brief to start from, from the link (`?task=`). */
   initialTask?: string | null;
+  /** The proposal chosen on a request, when the hire comes from one (`?proposal=`). */
+  proposal?: ProposalForHire | null;
   /** The networks this agent can be hired on, and how to switch between them (`HireNetworks`). */
   network?: { options: Array<{ chainId: number; deliveredByAgent: boolean }>; onChange: (chainId: number) => void };
 }
@@ -141,7 +144,9 @@ export function HireFlow(props: HireFlowProps) {
    * offset has to clear the padding for the row to sit flush.
    */
   const actionRow = props.embedded ? 'sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null });
+  /* A chosen proposal applies on the network its request named, and nowhere else. */
+  const proposalHere = Boolean(props.proposal && props.proposal.chainId === props.escrow.chainId);
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, proposalU: proposalHere ? props.proposal!.priceU : null });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.
@@ -407,6 +412,25 @@ export function HireFlow(props: HireFlowProps) {
               {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : 'Delivery relayed by Pokter'}
             </p>
           </div>
+
+          {props.proposal && (
+            /* The hire comes from a request: say which, and hold the agent to the price it proposed. */
+            <Notice
+              tone={proposalHere ? 'neutral' : 'watch'}
+              title={
+                <>
+                  From your request:{' '}
+                  <Link href={`/requests/${props.proposal.requestId}`} className="underline underline-offset-2">
+                    {props.proposal.requestTitle}
+                  </Link>
+                </>
+              }
+            >
+              {proposalHere
+                ? `You chose a proposal of ${props.proposal.priceU} $U, delivered within ${props.proposal.deliverDays === 1 ? '1 day' : `${props.proposal.deliverDays} days`} of hiring. The brief below is your request. Before anything is funded, the agent signs a quote for it, and you see it on the next step.`
+                : `That proposal was made for ${chainLabel(props.proposal.chainId)}. Switch back to hire at the price you chose.`}
+            </Notice>
+          )}
 
           <div className="flex flex-col gap-3">
             <TaskEditor
@@ -695,7 +719,7 @@ export function HireFlow(props: HireFlowProps) {
             </div>
             <p className="text-[12.5px] text-ink-3">
               {hire.reviewQuote
-                ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task. A budget below that is refused before any payment.`
+                ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} $U it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
                 : 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'}
             </p>
           </div>
