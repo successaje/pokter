@@ -7,6 +7,8 @@ import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
 import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
+import { ownRegistration } from '@/lib/agents/own-registration';
+import { relayRefusal } from '@/lib/erc8183/relay-refusal';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
@@ -186,7 +188,17 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   // The escrow that can pay this agent's signed price, with testnet offered
   // as a free trial; or the default escrow when none can (the page then says
   // why it cannot be hired at that price).
-  const escrowOptions: number[] = escrowOptionsForHire(d.quote?.currency);
+  const offered: number[] = escrowOptionsForHire(d.quote?.currency);
+  /*
+   * Testnet for an agent registered elsewhere is a relayed hire. When the
+   * agent is known to refuse a carried brief, the relay is not offered: a
+   * buyer funded it and waited for a job that could not be delivered. The
+   * agent's own testnet registration, if it has one, is hired instead
+   * (HireContents redirects there), so testnet stays on offer for it.
+   */
+  const relayRefused = agent.chain_id !== 97 && offered.includes(97) ? await relayRefusal(agent.chain_id, agent.token_id).catch(() => null) : null;
+  const ownTestnet = relayRefused ? await ownRegistration(97, agent.owner_address, agent.name ?? '', agent.chain_id, agent.token_id).catch(() => null) : null;
+  const escrowOptions: number[] = relayRefused && !ownTestnet ? offered.filter((chain) => chain !== 97) : offered;
   const escrowChain =
     requestedEscrow !== null && escrowOptions.includes(requestedEscrow)
       ? requestedEscrow
@@ -199,7 +211,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const [skills, delivery, providers, suggestion, alternatives, imageUrl, platform] = await Promise.all([
     fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id).catch(() => []),
     deliveryTimes(agent.chain_id, agent.token_id).catch(() => ({ samples: 0, medianMs: null, fastestMs: null, slowestMs: null, onTime: null })),
-    providerChoicesFor(agent, escrowChain, d.quote).catch(() => [] as ProviderChoice[]),
+    providerChoicesFor(agent, escrowChain, d.quote, relayRefused).catch(() => [] as ProviderChoice[]),
     d.quote || category === 'unclassified' ? Promise.resolve(null) : suggestedBudgetFor(category, { chainId: agent.chain_id as ChainId }).catch(() => null),
     category === 'unclassified' ? Promise.resolve([]) : recommendedAlternatives(category, agent.token_id, 3).catch(() => []),
     resolveAgentImage(agent.chain_id, agent.token_id, agent.image_url).catch(() => httpsOnly(agent.image_url)),

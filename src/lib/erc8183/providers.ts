@@ -30,6 +30,8 @@ export async function providerChoicesFor(
   agent: ScanAgentDetail,
   escrowChainId: number,
   quote?: { currency: string } | null,
+  /** Why Pokter's delivery agent cannot carry a job to this agent (relay-refusal.ts); null when nothing says so. */
+  relayRefused: string | null = null,
 ): Promise<ProviderChoice[]> {
   const choices: ProviderChoice[] = [];
 
@@ -74,12 +76,14 @@ export async function providerChoicesFor(
         address,
         label: 'Pokter delivery agent',
         relationship: 'separate-provider',
-        reachable: true,
-        automatedDelivery: true,
-        note: 'Carries your task to this agent and delivers its answer unchanged, on the escrow chain. If the agent does not answer, nothing is delivered and you reclaim the escrow after the deadline.',
+        reachable: !relayRefused,
+        automatedDelivery: !relayRefused,
+        note: relayRefused ?? 'Carries your task to this agent and delivers its answer unchanged, on the escrow chain. If the agent does not answer, nothing is delivered and you reclaim the escrow after the deadline.',
       });
     }
   }
+  /* A different seller offered in its place would be hiring another agent under this one's name. */
+  if (relayRefused) return choices;
 
   // Offered only where it can be hired. On another escrow it would sit in the
   // list as an option nobody can choose.

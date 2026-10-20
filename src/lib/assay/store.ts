@@ -101,6 +101,14 @@ class AssayStore {
     }
   }
 
+  /** The newest free call of any suite: how the agent answers a brief sent to it directly, outside escrow. */
+  latestFreeCall(target: { chainId: number; tokenId: string }): { status: AssayRunStatus; detail: string | null; ranAt: string } | null {
+    const row = this.db
+      .prepare("SELECT status, detail, ran_at FROM assay_runs WHERE chain_id = ? AND token_id = ? AND via = 'free-call' ORDER BY ran_at DESC, id DESC LIMIT 1")
+      .get(target.chainId, target.tokenId) as { status: AssayRunStatus; detail: string | null; ran_at: string } | undefined;
+    return row ? { status: row.status, detail: row.detail, ranAt: row.ran_at } : null;
+  }
+
   latest(target: { chainId: number; tokenId: string }, suite: string): AssayRun | null {
     /*
      * A graded paid hire outranks any free call. The free check runs every

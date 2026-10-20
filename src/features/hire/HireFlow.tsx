@@ -204,7 +204,9 @@ export function HireFlow(props: HireFlowProps) {
 
   /* Which networks this agent can be hired on, switched in place by `HireNetworks`. */
   const network = props.network ?? { options: [{ chainId: escrowChainId, deliveredByAgent: hire.provider?.relationship === 'registry-agent' }], onChange: () => {} };
-  const deliveredByAgent = hire.provider?.relationship === 'registry-agent';
+  const deliveredByAgent = hire.provider?.relationship === 'registry-agent' && hire.provider.reachable;
+  /* Why the relay cannot carry this job, when that is the reason nobody can deliver it. */
+  const relayBlocked = props.providers.find((p) => p.relationship === 'separate-provider' && !p.reachable)?.note.replace(/\.$/, '') ?? null;
   /* "Other ways to deliver" only when there is another way that works. */
   const usableProviders = props.providers.filter((p) => p.reachable && p.automatedDelivery).length;
 
@@ -409,7 +411,7 @@ export function HireFlow(props: HireFlowProps) {
             )}
             <p className="text-[13px] text-ink-2">
               {network.options.length <= 1 && <>{networkLabel} · </>}
-              {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : 'Delivery relayed by Pokter'}
+              {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
             </p>
           </div>
 
@@ -538,7 +540,7 @@ export function HireFlow(props: HireFlowProps) {
           <Details summary="How this works">
             <div className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-ink-2">
               <p>{examples.source === 'card' ? `The examples come from ${props.agent.name}’s own card. A wallet in them is replaced with [wallet address] for you to fill.` : examples.source === 'answered' ? `The examples are briefs ${props.agent.name} returned an answer to in earlier paid jobs. That shows the wording was understood, not that the answer was right.` : `${props.agent.name}’s card publishes no example request, so the examples are Pokter’s generic wording, not a format this agent is known to support. If it cannot use a brief, it declines to quote and nothing is paid.`}</p>
-              <p>{testnet ? (deliveredByAgent ? `On testnet you pay in test tokens with no value, and ${props.agent.name} delivers from its own wallet.` : `On testnet you pay in test tokens with no value. Pokter’s delivery agent carries your brief to ${props.agent.name} and returns its answer unchanged; if it does not answer, nothing is delivered and you reclaim the escrow after the deadline.`) : `On BNB Chain you pay in real $U from your own wallet, and ${props.agent.name} is paid at its signed price once it delivers and the review window passes.`}</p>
+              <p>{testnet ? (deliveredByAgent ? `On testnet you pay in test tokens with no value, and ${props.agent.name} delivers from its own wallet.` : relayBlocked ? `${relayBlocked}.` : `On testnet you pay in test tokens with no value. Pokter’s delivery agent carries your brief to ${props.agent.name} and returns its answer unchanged; if it does not answer, nothing is delivered and you reclaim the escrow after the deadline.`) : `On BNB Chain you pay in real $U from your own wallet, and ${props.agent.name} is paid at its signed price once it delivers and the review window passes.`}</p>
               <p>Your brief is stored with the job on chain, where anyone can read it. The price, the delivery deadline and the escrow rules are on the next step, before anything is signed.</p>
               {/* The choice the line at the top summarises, offered only when another way would work. */}
               {usableProviders > 1 && <ProviderChoices providers={props.providers} selected={hire.providerAddress} onSelect={hire.setProviderAddress} />}
@@ -561,7 +563,7 @@ export function HireFlow(props: HireFlowProps) {
               <p className="mr-auto text-[12.5px] text-ink-3">
                 {hire.providerCanDeliver ? 'To continue: ' : ''}
                 {[
-                  ...(!hire.providerCanDeliver ? [`Nobody can deliver this job on ${networkLabel} right now${network.options.length > 1 ? '; try the other network' : ''}`] : []),
+                  ...(!hire.providerCanDeliver ? [`Nobody can deliver this job on ${networkLabel} right now${relayBlocked ? `. ${relayBlocked}` : ''}${network.options.length > 1 ? '; try the other network' : ''}`] : []),
                   ...taskIssues,
                   ...(hire.exampleCheck.placeholder ? [hire.task.includes(WALLET_PLACEHOLDER) ? `replace ${WALLET_PLACEHOLDER} with the wallet to check` : 'replace “0x…” with the wallet to check'] : []),
                 ].join('; ')}.
