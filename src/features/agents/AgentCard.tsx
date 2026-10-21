@@ -279,7 +279,11 @@ export function AgentCard({
         {compare && <span className="relative z-10 shrink-0">{compare}</span>}
       </div>
 
-      <p className="mt-3.5 line-clamp-3 min-h-[4.35em] text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
+      {/* The reserved height is for cards side by side, where it keeps
+          every availability line in a row level. On a phone there is one
+          card a row and nothing to line up with, and reserving three lines
+          left a short description with a blank one under it. */}
+      <p className="mt-3.5 line-clamp-3 text-[13.5px] leading-[1.45] text-ink-2 sm:line-clamp-2 sm:min-h-[2.9em]">{row.description || 'No description published.'}</p>
 
       <p className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2" title={row.probes ? `${row.probes} probes in total` : 'Pokter has never called this agent'}>
         <span className={cn('size-1.5 shrink-0 rounded-full', DOT[availability.tone])} aria-hidden />
