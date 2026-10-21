@@ -1,5 +1,6 @@
 import 'server-only';
 import { mayStartSideEffect } from '@/lib/history/budget';
+import { mayAdvanceHireCursor } from '@/lib/alerts/hire-cursor';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, http, type Address } from 'viem';
@@ -213,7 +214,16 @@ export async function checkForNewHires(
     alerted = delivery.telegram === 'sent' || delivery.email === 'sent';
   }
 
-  store.writeCursor(CURSOR, last.toString());
+  /*
+   * Only past hires somebody has been told about.
+   *
+   * Advancing regardless is what made the deadline guard above a data loss
+   * rather than a delay: the alert was skipped, the cursor moved, and those
+   * outside hires were never read again. See `mayAdvanceHireCursor`.
+   */
+  if (mayAdvanceHireCursor({ outsiders: outside.length, alerted })) {
+    store.writeCursor(CURSOR, last.toString());
+  }
 
   return {
     counter: counter.toString(),

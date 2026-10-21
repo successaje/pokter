@@ -89,7 +89,16 @@ export function classifyStageResult(label: string, value: unknown): StageOutcome
      * read the counter cannot have detected a new hire — it returns without
      * throwing and was being recorded as a success.
      */
-    if ((value as { counter: unknown }).counter === null) return 'failed';
+    const watch = value as { counter?: unknown; outsiders?: unknown; alerted?: unknown; channels?: { any?: unknown } };
+    if (watch.counter === null) return 'failed';
+    /*
+     * Hires were found and nobody was told. Guarded on `channels.any`,
+     * because with no channel configured `alerted: false` is a deployment
+     * state rather than a failure — and a signal that fires on configuration
+     * is one everybody learns to ignore.
+     */
+    const outsiders = typeof watch.outsiders === 'number' ? watch.outsiders : 0;
+    if (outsiders > 0 && watch.alerted !== true && watch.channels?.any === true) return 'failed';
   }
   return null;
 }
