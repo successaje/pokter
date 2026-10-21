@@ -35,6 +35,11 @@ import { TimedOut, withTimeout } from '@/lib/net/bounded';
 export interface RunBudget {
   /** Milliseconds left, never negative. */
   remaining(): number;
+  /**
+   * What an ordinary step may spend: what remains, less the reservation that
+   * only critical steps may draw on.
+   */
+  spendable(): number;
   /** True once there is no time left to start anything. */
   spent(): boolean;
   /**
@@ -44,9 +49,30 @@ export interface RunBudget {
    * `.catch(() => null)` on every one of these steps: a step that cannot
    * run is a gap in that run's report, never a failed sweep.
    */
-  step<T>(label: string, work: () => Promise<T> | T): Promise<T | null>;
+  step<T>(label: string, work: () => Promise<T> | T, options?: StepOptions): Promise<T | null>;
   /** What the run did not get to, so a squeezed tail is visible, not guessed. */
   report(): RunBudgetReport;
+}
+
+export interface StepOptions {
+  /**
+   * A step the run exists to perform, which an earlier step may not starve.
+   *
+   * Critical steps may draw on the reservation; ordinary ones may not. Mark
+   * a step critical when skipping it has a consequence outside this process
+   * — a hire undetected, a stuck delivery never retried, a seller never
+   * told — rather than a figure being one run out of date.
+   */
+  critical?: boolean;
+  /**
+   * The most this step may spend, whatever else is left.
+   *
+   * Without it the reservation is shared, so the first critical step to hang
+   * consumes the lot and starves the rest: the original fault with the
+   * victims narrowed from eighteen steps to three. A cap makes each critical
+   * step survivable on its own.
+   */
+  maxMs?: number;
 }
 
 export interface RunBudgetReport {
@@ -65,27 +91,45 @@ export interface RunBudgetReport {
    * where the other 218s went could not be read from anything.
    */
   steps: Array<{ label: string; ms: number; outcome: 'ok' | 'failed' | 'timed-out' }>;
+  /** Of the lost steps, the ones marked critical: this run did not do its job. */
+  criticalMissed: string[];
   /** How long the run actually took, against the budget it was given. */
   usedMs: number;
   budgetMs: number;
+  /** What was held back for critical steps, so a report reads against it. */
+  reservedMs: number;
 }
 
-export function runBudget(totalMs: number, clock: () => number = Date.now): RunBudget {
+export function runBudget(totalMs: number, clock: () => number = Date.now, reserveMs = 0): RunBudget {
   const startedAt = clock();
   const skipped: string[] = [];
   const timedOut: string[] = [];
   const failed: string[] = [];
   const steps: RunBudgetReport['steps'] = [];
+  const criticalMissed: string[] = [];
   const remaining = () => Math.max(0, totalMs - (clock() - startedAt));
+  /* Never reserve the whole run: a reservation larger than the budget would
+     stop every ordinary step from starting, which is the same starvation
+     with the victims swapped. */
+  const reserved = Math.max(0, Math.min(reserveMs, totalMs));
+  const spendable = () => Math.max(0, remaining() - reserved);
 
   return {
     remaining,
+    spendable,
     spent: () => remaining() === 0,
 
-    async step<T>(label: string, work: () => Promise<T> | T): Promise<T | null> {
-      const left = remaining();
+    async step<T>(label: string, work: () => Promise<T> | T, options?: StepOptions): Promise<T | null> {
+      const critical = options?.critical === true;
+      /* A critical step may draw on the reservation; an ordinary one sees
+         only what is left beyond it, so it cannot spend what was held back. */
+      const available = critical ? remaining() : spendable();
+      /* And no step outspends its own cap, so one that hangs cannot take the
+         share the steps after it were going to use. */
+      const left = options?.maxMs === undefined ? available : Math.min(available, Math.max(0, options.maxMs));
       if (left === 0) {
         skipped.push(label);
+        if (critical) criticalMissed.push(label);
         return null;
       }
 
@@ -100,6 +144,7 @@ export function runBudget(totalMs: number, clock: () => number = Date.now): RunB
         const outcome = error instanceof TimedOut ? 'timed-out' : 'failed';
         (outcome === 'timed-out' ? timedOut : failed).push(label);
         steps.push({ label, ms: clock() - started, outcome });
+        if (critical) criticalMissed.push(label);
         return null;
       }
     },
@@ -108,9 +153,11 @@ export function runBudget(totalMs: number, clock: () => number = Date.now): RunB
       skipped: [...skipped],
       timedOut: [...timedOut],
       failed: [...failed],
+      criticalMissed: [...criticalMissed],
       steps: steps.map((s) => ({ ...s })),
       usedMs: clock() - startedAt,
       budgetMs: totalMs,
+      reservedMs: reserved,
     }),
   };
 }

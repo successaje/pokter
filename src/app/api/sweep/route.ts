@@ -41,7 +41,10 @@ import { classify } from '@/lib/agents/categories';
 import { listMarketplaceWithStatus, listSearchableWithStatus } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
 import { getProbeStore } from '@/lib/history/store';
-import { SWEEP_BUDGET_MS, SWEEP_RUN_BUDGET_MS, sweepRecent } from '@/lib/history/schedule';
+import { SWEEP_BUDGET_MS, SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS, SWEEP_RUN_BUDGET_MS, sweepRecent } from '@/lib/history/schedule';
+import { getMaintenanceStore } from '@/lib/history/maintenance-store';
+import { persistStageOutcomes } from '@/lib/history/stage-outcomes';
+import { RECONCILE_DEADLINE_SLACK_MS, afterAttempt, dueForReconcile } from '@/lib/history/reconcile-schedule';
 
 export const dynamic = 'force-dynamic';
 /** The platform's ceiling. The run's own budget is below it, deliberately. */
@@ -138,7 +141,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * on regardless, against third-party endpoints, on the one CPU the site
      * is served from.
      */
-    const budget = runBudget(SWEEP_RUN_BUDGET_MS);
+    const budget = runBudget(SWEEP_RUN_BUDGET_MS, Date.now, SWEEP_CRITICAL_RESERVE_MS);
     /* Every run comes through here, whichever trigger sent it, so this is
        where a run's start is worth recording for `/api/health` to report. */
     noteRunStarted(new Date().toISOString());
@@ -224,11 +227,36 @@ export async function POST(request: Request): Promise<NextResponse> {
      * a deliverable read, and for a row with a registry owner a lookup and a
      * mail send as well. It was every job Pokter has ever brokered, at once.
      */
+    /*
+     * A bounded batch, least recently attempted first.
+     *
+     * This was every job on the escrow chains, every run. The cost grows
+     * with the job count for ever, and on 21 October it took the run's whole
+     * remaining budget. `dueForReconcile` takes a batch and orders it by
+     * when each job was last *attempted*, so a job that cannot succeed goes
+     * to the back like any other and the queue drains — ordering by last
+     * success would park a broken row at the head permanently.
+     *
+     * The deadline is read inside the task rather than around the batch, so
+     * a run that is nearly out of time stops doing work instead of being cut
+     * off mid-job. The workers still walk the remaining items, which is
+     * cheap once the batch is bounded.
+     */
+    const reconcileAttempts = getMaintenanceStore().jobAttempts();
+    const reconcileStartedAt = new Date().toISOString();
+    const reconcileDeadline = Date.now() + Math.max(0, budget.spendable() - RECONCILE_DEADLINE_SLACK_MS);
+    const reconcileBatch = dueForReconcile(
+      getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97),
+      (job) => `${job.chainId}:${job.jobId}`,
+      reconcileAttempts,
+      Date.now(),
+    );
     const builderResults = await budget.step('reconcileJobs', () =>
       mapWithConcurrency(
-        getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97),
+        reconcileBatch,
         4,
         async (job) => {
+          if (Date.now() >= reconcileDeadline) return null;
           /*
            * The escrow read, caught here rather than by the caller.
            *
@@ -293,7 +321,22 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
       ),
     );
-    const builderEmails = (builderResults ?? []).reduce((sum, result) => sum + (result?.sent ?? 0), 0);
+    /*
+     * Null means the deadline passed before this job was started, which is
+     * different from a job that was tried and could not be read. Only the
+     * tried ones get an attempt recorded, so a job the run never reached
+     * keeps its place at the front of the queue for next time.
+     */
+    const reconcileResults = (builderResults ?? []).filter((result): result is NonNullable<typeof result> => result !== null);
+    (builderResults ?? []).forEach((result, index) => {
+      if (result === null) return;
+      const job = reconcileBatch[index];
+      if (!job) return;
+      const key = `${job.chainId}:${job.jobId}`;
+      const outcome = 'unreadable' in result && result.unreadable ? 'failed' : 'ok';
+      getMaintenanceStore().noteJobAttempt(key, afterAttempt(reconcileAttempts.get(key), outcome, reconcileStartedAt));
+    });
+    const builderEmails = reconcileResults.reduce((sum, result) => sum + (result?.sent ?? 0), 0);
     /*
      * Hire watching rides the sweep because the sweep is already scheduled,
      * already secret-guarded, and already the thing that runs when nobody is
@@ -302,7 +345,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * Settled rather than awaited bare: a watcher failure must not fail the
      * sweep, which has already done the measuring by this point.
      */
-    const hireWatch = await budget.step('hireWatch', () => checkForNewHires());
+    const hireWatch = await budget.step('hireWatch', () => checkForNewHires(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * Deliver anything whose notification never arrived. Runs after the
@@ -310,14 +353,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      * just refreshed, and caught like the watcher because a retry failing
      * must not cost us the measurement the sweep already did.
      */
-    const deliveryRetries = await budget.step('deliveryRetries', () => retryStuckDeliveries());
+    const deliveryRetries = await budget.step('deliveryRetries', () => retryStuckDeliveries(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * Outside sellers, on every escrow chain: tell any that were never told
      * their job is funded (a buyer who closed the tab first), and keep what
      * they answer. The retry above only ever covered Pokter's own seller.
      */
-    const sellerNotices = await budget.step('sellerNotices', () => noticeUnansweredJobs());
+    const sellerNotices = await budget.step('sellerNotices', () => noticeUnansweredJobs(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * After the retry, not instead of it. What matters is the jobs still
@@ -325,7 +368,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * and failing used to look identical to the retry succeeding, because
      * neither said anything.
      */
-    const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs());
+    const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * Who owned each newly funded job's agent, read while the funding is
@@ -554,7 +597,14 @@ export async function POST(request: Request): Promise<NextResponse> {
        * raising or a step needs moving out of the web process — not that the
        * step quietly stopped working.
        */
-      budget: budget.report(),
+      /*
+       * Written down as well as returned. The report dies with the response
+       * and the log line holds minutes; on 21 October that meant eighteen
+       * skipped steps left no trace by the time anyone looked. `stage_runs`
+       * keeps the last attempt and the last *success* apart, so a stage that
+       * has been failing for a day cannot look recent.
+       */
+      budget: persistStageOutcomes(budget.report()),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,
@@ -581,14 +631,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       followerAlerts,
       agentWallets,
       testnetSweep,
-      builderNotifications: (builderResults ?? []).length,
+      builderNotifications: reconcileResults.length,
       builderEmails,
-      reconciledJobs: (builderResults ?? []).filter((result) => result.reconciled).length,
-      builderNotificationsSkipped: (builderResults ?? []).filter((result) => result.notificationSkipped).length,
-      builderNotificationFailures: (builderResults ?? []).filter((result) => result.notificationFailed).length,
+      reconciledJobs: reconcileResults.filter((result) => result.reconciled).length,
+      builderNotificationsSkipped: reconcileResults.filter((result) => result.notificationSkipped).length,
+      builderNotificationFailures: reconcileResults.filter((result) => result.notificationFailed).length,
       // A job whose escrow could not be read at all, rather than one whose
       // notification failed after a successful read.
-      jobReconciliationFailures: (builderResults ?? []).filter(
+      jobReconciliationFailures: reconcileResults.filter(
         (result) => 'unreadable' in result && result.unreadable,
       ).length,
     });
