@@ -360,6 +360,41 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     /*
+     * Followed agents: what each looks like now, compared with what its
+     * followers last heard. Only read when someone follows something.
+     *
+     * Here, with the other email people asked for, and ahead of the optional
+     * measurement below: it was the last step of the run, so a run squeezed
+     * for time dropped the alerts people had opted into before anything else.
+     */
+    const follows = followedAgents();
+    const followerAlerts = follows.length
+      ? await budget.step('followerAlerts', () =>
+          listSearchableWithStatus({ limit: 400 }).then(({ entries }) => {
+            const wanted = new Set(follows.map((f) => `${f.chainId}:${f.tokenId}`));
+            const states = new Map<string, { name: string; state: FollowedAgentState }>();
+            for (const entry of entries) {
+              const key = `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`;
+              if (!wanted.has(key)) continue;
+              const day = entry.record.windows.find((w) => w.label === '24h');
+              const quote = entry.listing.quote;
+              const current = quote && !(quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now());
+              states.set(key, {
+                name: entry.listing.agent.name,
+                state: {
+                  answering: day && day.probes > 0 ? (day.ratio ?? 0) > 0 : null,
+                  priceU: current ? Number(quote.priceU) : null,
+                  delivered: entry.history?.delivered ?? 0,
+                  missed: entry.history?.missed ?? 0,
+                },
+              });
+            }
+            return notifyFollowers(states);
+          }),
+        )
+      : null;
+
+    /*
      * Who first funded each mainnet owner wallet, so agents run from
      * several wallets count as one operator in "Most reliable". Bounded per
      * run and off without NODEREAL_API_KEY; last, because nothing above
@@ -508,37 +543,6 @@ export async function POST(request: Request): Promise<NextResponse> {
               .filter((w) => onChainJobs.has(`${w.chainId}:${w.tokenId}`))
               .map((w) => ({ chainId: w.chainId, wallet: w.wallet })),
           ),
-        )
-      : null;
-
-    /*
-     * Followed agents: what each looks like now, compared with what its
-     * followers last heard. Only read when someone follows something.
-     */
-    const follows = followedAgents();
-    const followerAlerts = follows.length
-      ? await budget.step('followerAlerts', () =>
-          listSearchableWithStatus({ limit: 400 }).then(({ entries }) => {
-            const wanted = new Set(follows.map((f) => `${f.chainId}:${f.tokenId}`));
-            const states = new Map<string, { name: string; state: FollowedAgentState }>();
-            for (const entry of entries) {
-              const key = `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`;
-              if (!wanted.has(key)) continue;
-              const day = entry.record.windows.find((w) => w.label === '24h');
-              const quote = entry.listing.quote;
-              const current = quote && !(quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now());
-              states.set(key, {
-                name: entry.listing.agent.name,
-                state: {
-                  answering: day && day.probes > 0 ? (day.ratio ?? 0) > 0 : null,
-                  priceU: current ? Number(quote.priceU) : null,
-                  delivered: entry.history?.delivered ?? 0,
-                  missed: entry.history?.missed ?? 0,
-                },
-              });
-            }
-            return notifyFollowers(states);
-          }),
         )
       : null;
 

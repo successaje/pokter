@@ -168,12 +168,24 @@ export function startSweepScheduler(): void {
       const body = (await response.json().catch(() => ({}))) as {
         probes?: number; answered?: number; agents?: number; rosterSize?: number;
         cutShort?: boolean; standDown?: string; error?: string;
+        budget?: { skipped?: string[]; timedOut?: string[]; usedMs?: number; budgetMs?: number };
       };
       // Coverage per run matters now that a run is a batch: `agents of
       // rosterSize` is how to see the roster being worked through, and
       // `cut short` is how to see the budget being hit every time.
       const measured = `${body.agents ?? 0}/${body.rosterSize ?? 0} agents, ${body.probes ?? 0} probes, ${body.answered ?? 0} answered${body.cutShort ? ', cut short' : ''}`;
-      console.log(`[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : body.error ?? measured}`);
+      /*
+       * What the run left undone, said on the same line. The route has always
+       * reported it; this log dropped it, so whether the tail of the run (the
+       * steps that send people email among them) got a turn could not be seen.
+       */
+      const b = body.budget;
+      const tail = b
+        ? ` · ${Math.round((b.usedMs ?? 0) / 1000)}s of ${Math.round((b.budgetMs ?? 0) / 1000)}s` +
+          (b.skipped?.length ? ` · skipped ${b.skipped.join(', ')}` : '') +
+          (b.timedOut?.length ? ` · timed out ${b.timedOut.join(', ')}` : '')
+        : '';
+      console.log(`[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : (body.error ?? measured) + tail}`);
     } catch (error) {
       console.warn(`[sweep-scheduler] sweep request failed: ${(error as Error).message}`);
     } finally {
