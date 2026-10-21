@@ -908,7 +908,7 @@ export async function notifyTradingAlerts(input: {
     if (bad.length > 0) {
       const help = input.revokeHelp(row.wallet_address);
       const items = bad
-        .map((f) => `<li style="margin:0 0 8px"><b>${escapeHtml(f.sent.map((x) => `${x.amount} ${x.symbol}`).join(' + '))}</b> out, nothing back · <a href="https://bscscan.com/tx/${escapeHtml(f.txHash)}" style="color:#55534d">${escapeHtml(f.txHash.slice(0, 12))}…</a></li>`)
+        .map((f) => `<li style="margin:0 0 8px"><b>${escapeHtml(f.sent.map((x) => `${x.amount} ${x.symbol}`).join(' + '))}</b> out to ${escapeHtml(f.sent.map((x) => `${x.to.slice(0, 6)}…${x.to.slice(-4)}`).filter((v, i, all) => all.indexOf(v) === i).join(', '))}, nothing back · <a href="https://bscscan.com/tx/${escapeHtml(f.txHash)}" style="color:#55534d">${escapeHtml(f.txHash.slice(0, 12))}…</a></li>`)
         .join('');
       try {
         await sendEmail({
