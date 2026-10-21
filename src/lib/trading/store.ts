@@ -10,6 +10,8 @@ export interface WatchedTradingWallet {
   wallet: string;
   agentKey: string | null;
   owners: string[];
+  /** When the wallet signed its owner list; null when it has never set one. */
+  ownersSignedAt: string | null;
   addedAt: string;
   /** The last block scanned; the next scan starts after it. Null before the first scan. */
   scannedTo: number | null;
@@ -78,13 +80,28 @@ class TradingStore {
         at         TEXT NOT NULL
       );
     `);
+    /* Added with signed owner lists; a wallet watched before has none signed. */
+    const columns = (this.db.prepare('PRAGMA table_info(trading_wallets)').all() as Array<{ name: string }>).map((c) => c.name);
+    if (!columns.includes('owners_signed_at')) this.db.exec('ALTER TABLE trading_wallets ADD COLUMN owners_signed_at TEXT');
   }
 
-  watch(input: { wallet: string; agentKey: string | null; owners: string[] }): void {
+  /**
+   * Start watching. Never touches the owner list: that is an exception to
+   * the alert, and only `setOwners`, after a signature from the wallet,
+   * may change it.
+   */
+  watch(input: { wallet: string; agentKey: string | null }): void {
     this.db
-      .prepare(`INSERT INTO trading_wallets (wallet, agent_key, owners, added_at) VALUES (?, ?, ?, ?)
-        ON CONFLICT (wallet) DO UPDATE SET agent_key = COALESCE(excluded.agent_key, trading_wallets.agent_key), owners = excluded.owners`)
-      .run(input.wallet.toLowerCase(), input.agentKey, JSON.stringify(input.owners.map((o) => o.toLowerCase())), new Date().toISOString());
+      .prepare(`INSERT INTO trading_wallets (wallet, agent_key, owners, added_at) VALUES (?, ?, '[]', ?)
+        ON CONFLICT (wallet) DO UPDATE SET agent_key = COALESCE(excluded.agent_key, trading_wallets.agent_key)`)
+      .run(input.wallet.toLowerCase(), input.agentKey, new Date().toISOString());
+  }
+
+  /** Replace the owner list with one the wallet signed at `signedAt` (checked by the caller: `ownersSignatureProblem`, `signedByWallet`). */
+  setOwners(wallet: string, owners: readonly string[], signedAt: string): void {
+    this.db
+      .prepare('UPDATE trading_wallets SET owners = ?, owners_signed_at = ? WHERE wallet = ?')
+      .run(JSON.stringify(owners.map((o) => o.toLowerCase())), signedAt, wallet.toLowerCase());
   }
 
   count(): number {
@@ -126,6 +143,7 @@ interface Row {
   wallet: string;
   agent_key: string | null;
   owners: string;
+  owners_signed_at: string | null;
   added_at: string;
   scanned_to: number | null;
   last_scan_at: string | null;
@@ -133,7 +151,7 @@ interface Row {
 }
 
 function toWallet(r: Row): WatchedTradingWallet {
-  return { wallet: r.wallet, agentKey: r.agent_key, owners: JSON.parse(r.owners), addedAt: r.added_at, scannedTo: r.scanned_to, lastScanAt: r.last_scan_at, lastError: r.last_error };
+  return { wallet: r.wallet, agentKey: r.agent_key, owners: JSON.parse(r.owners), ownersSignedAt: r.owners_signed_at ?? null, addedAt: r.added_at, scannedTo: r.scanned_to, lastScanAt: r.last_scan_at, lastError: r.last_error };
 }
 
 const DB_PATH = process.env.TRADING_DB_PATH ?? './data/trading.db';

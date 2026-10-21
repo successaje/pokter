@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { isAddress } from 'viem';
+import { useAccount } from 'wagmi';
 
 import type { DelegatedTrader } from '@/lib/trading/agents';
+import type { Coverage } from '@/lib/trading/coverage';
 import type { FlowVerdict } from '@/lib/trading/flows';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
@@ -11,6 +13,8 @@ import { Button } from '@/ui/Button';
 import { Notice, Skeleton } from '@/ui/Feedback';
 import { Input } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
+import { normaliseOwners, ownersMessage } from '@/lib/trading/owners';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 
 interface WalletView {
   holdings: {
@@ -20,7 +24,8 @@ interface WalletView {
     positions: Array<{ tokenId: string; pair: string; feePct: number; liquidity: string; inRange: boolean | null }>;
     readAt: string;
   };
-  watched: { addedAt: string; lastScanAt: string | null; lastError: string | null; owners: string[] } | null;
+  watched: { addedAt: string; lastScanAt: string | null; owners: string[]; ownersSignedAt: string | null } | null;
+  coverage: Coverage;
   flows: Array<{ txHash: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: Array<{ symbol: string; amount: string; to: string }> }>;
   gaps: Array<{ fromBlock: number; toBlock: number }>;
   checkedTokens: string[];
@@ -52,7 +57,6 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB'
  */
 export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initialWallet: string | null; agentKey: string | null; trader: DelegatedTrader | null }) {
   const [wallet, setWallet] = useState(initialWallet ?? '');
-  const [owners, setOwners] = useState('');
   const [view, setView] = useState<WalletView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +83,7 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
       const r = await fetch('/api/trading/watch', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wallet: wallet.trim(), agent: agentKey, owners: owners.split(/[\s,]+/).filter(Boolean) }),
+        body: JSON.stringify({ wallet: wallet.trim(), agent: agentKey }),
       });
       const body = (await r.json().catch(() => ({}))) as { error?: string };
       if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
@@ -107,10 +111,6 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
               The wallet the agent trades from
             </label>
             <Input id="trading-wallet" value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="0x…" className="t-readout" spellCheck={false} autoComplete="off" />
-            <label htmlFor="trading-owners" className="text-[12.5px] text-ink-3">
-              Your other wallets, if you move funds between them (optional, comma-separated)
-            </label>
-            <Input id="trading-owners" value={owners} onChange={(e) => setOwners(e.target.value)} placeholder="0x…, 0x…" className="t-readout" spellCheck={false} autoComplete="off" />
             <Button type="submit" busy={busy} disabled={!isAddress(wallet.trim())} className="self-start">
               Start watching
             </Button>
@@ -128,7 +128,7 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
                   Every token that left {shortAddress(view.holdings.wallet)}
                 </h2>
                 <span className="text-[12px] text-ink-3">
-                  {view.watched ? `Watching since ${when(view.watched.addedAt)} · last checked ${when(view.watched.lastScanAt)}` : 'Not watched'}
+                  {view.watched ? `Watching since ${when(view.watched.addedAt)} · last checked ${when(view.watched.lastScanAt)}` : 'Not watched: nothing checked'}
                 </span>
               </header>
               {flagged > 0 && (
@@ -138,8 +138,9 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
                   </Notice>
                 </div>
               )}
+              <CoverageNote coverage={view.coverage} />
               {view.flows.length === 0 ? (
-                <p className="px-5 py-6 text-[13.5px] text-ink-2">No token has left this wallet since watching began. Pokter checks about every ten minutes.</p>
+                view.coverage.state === 'current' && <p className="px-5 py-6 text-[13.5px] text-ink-2">No token has left this wallet since watching began. Pokter checks about every ten minutes.</p>
               ) : (
                 <ul className="ruled px-5">
                   {view.flows.map((f) => (
@@ -208,6 +209,8 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
           </p>
         </section>
 
+        {view?.watched && <OwnerAddresses wallet={view.holdings.wallet} owners={view.watched.owners} onSaved={() => load(view.holdings.wallet)} />}
+
         {trader && (
           <section aria-labelledby="controls-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
             <h2 id="controls-title" className="text-[15px] font-semibold">
@@ -236,5 +239,113 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
         {!view && !error && initialWallet && <Skeleton className="h-40 w-full" />}
       </aside>
     </div>
+  );
+}
+
+/**
+ * What the page has actually checked, said before the list. Every state
+ * but `current` means the list may be missing transactions, and the list's
+ * "nothing left" sentence is withheld (`coverage.ts`).
+ */
+function CoverageNote({ coverage }: { coverage: Coverage }) {
+  const note =
+    coverage.state === 'unwatched'
+      ? { tone: 'neutral' as const, title: 'Not checked', text: 'This wallet is not being watched, so Pokter has not checked what left it. Start watching to check every transaction from now on.' }
+      : coverage.state === 'never-scanned'
+        ? coverage.failed
+          ? { tone: 'watch' as const, title: 'Not checked yet', text: 'The first check could not read BNB Chain. Nothing has been checked; Pokter tries again about every ten minutes.' }
+          : { tone: 'neutral' as const, title: 'Not checked yet', text: 'The first check has not run. Nothing has been checked.' }
+        : coverage.state === 'failing'
+          ? { tone: 'watch' as const, title: 'The last check failed', text: `Checked up to block ${coverage.scannedTo.toLocaleString('en-US')}. Anything after it is not shown until a check succeeds; Pokter tries again about every ten minutes.` }
+          : coverage.state === 'stale'
+            ? { tone: 'watch' as const, title: 'Not checked recently', text: `Last checked ${when(coverage.lastScanAt || null)}, up to block ${coverage.scannedTo.toLocaleString('en-US')}. Anything after it is not shown.` }
+            : coverage.state === 'behind'
+              ? { tone: 'watch' as const, title: 'Still catching up', text: `This wallet has more transactions than one check reads, so Pokter is working through them: checked up to block ${coverage.scannedTo.toLocaleString('en-US')} of ${coverage.head.toLocaleString('en-US')}. Anything after it is not shown yet.` }
+              : null;
+  if (!note) return null;
+  return (
+    <div className="px-5 pt-4">
+      <Notice tone={note.tone} title={note.title}>
+        {note.text}
+      </Notice>
+    </div>
+  );
+}
+
+/**
+ * The addresses transfers may go to without an alert. Changing them takes
+ * a signature from the trading wallet itself (`/api/trading/owners`), so a
+ * stranger cannot add their own address to somebody else's watch.
+ */
+function OwnerAddresses({ wallet, owners, onSaved }: { wallet: string; owners: string[]; onSaved: () => void }) {
+  const { address } = useAccount();
+  const { signMessageAsync } = useLiveSignMessage();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isWallet = address?.toLowerCase() === wallet.toLowerCase();
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (draft === null) return;
+    const list = normaliseOwners(wallet, draft.split(/[\s,]+/).filter(Boolean));
+    if (!list) return setError('Up to five valid addresses, other than the trading wallet itself.');
+    setBusy(true);
+    setError(null);
+    try {
+      const issuedAt = new Date().toISOString();
+      const signature = await signMessageAsync({ message: ownersMessage({ wallet, owners: list, issuedAt }) });
+      const r = await fetch('/api/trading/owners', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, owners: list, issuedAt, signature }) });
+      const body = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
+      setDraft(null);
+      onSaved();
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="owners-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
+      <h2 id="owners-title" className="text-[15px] font-semibold">
+        Your own addresses
+      </h2>
+      {owners.length ? (
+        <ul className="flex flex-col gap-1">
+          {owners.map((o) => (
+            <li key={o} className="t-readout text-[12.5px] text-ink-2">
+              {shortAddress(o)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-ink-2">None. A transfer to any other address raises an alert.</p>
+      )}
+      <p className="text-[12px] text-ink-3">Transfers to these never raise an alert, so only the trading wallet can change them, by signing the list.</p>
+      {draft === null ? (
+        isWallet ? (
+          <button type="button" onClick={() => setDraft(owners.join(', '))} className="self-start font-medium text-ink hover:underline">
+            Change
+          </button>
+        ) : (
+          <p className="text-[12px] text-ink-3">To change them, connect {shortAddress(wallet)} to Pokter.</p>
+        )
+      ) : (
+        <form onSubmit={save} className="flex flex-col gap-2">
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="0x…, 0x…" aria-label="Your own addresses, comma-separated" className="t-readout" spellCheck={false} autoComplete="off" />
+          {error && <p className="text-[12px] text-bad">{error}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="s" busy={busy}>
+              Sign and save
+            </Button>
+            <Button type="button" size="s" intent="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
