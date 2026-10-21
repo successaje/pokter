@@ -13,6 +13,8 @@ import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { acceptsProposals } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
+import { hireForProposal } from '@/lib/briefs/hired';
+import { getJobStore } from '@/lib/erc8183/store';
 import { Address } from '@/ui/Data';
 import { AvatarImage } from '@/ui/AvatarImage';
 import { avatarUrl } from '@/lib/ui/avatar-art';
@@ -41,8 +43,15 @@ export default async function BriefPage({
   const bids = store.bidsFor(id);
   const taking = acceptsProposals(brief);
   const poster = publicIdentity(brief.poster);
+  const chosenBid = brief.awardedBidId ? bids.find((bid) => bid.id === brief.awardedBidId) : undefined;
+  const hire = chosenBid
+    ? hireForProposal(getJobStore().byClient(brief.poster), { poster: brief.poster, chainId: brief.chainId, agentChainId: chosenBid.agentChainId, agentTokenId: chosenBid.agentTokenId, placedAt: chosenBid.placedAt })
+    : null;
+  const hired = hire && !hire.returned ? hire : null;
   const status =
-    brief.state === 'awarded'
+    hired
+      ? { label: 'Agent hired', tone: 'border-ok/30 bg-ok-wash text-ok' }
+      : brief.state === 'awarded'
       ? { label: 'Agent chosen', tone: 'border-ok/30 bg-ok-wash text-ok' }
       : brief.state === 'cancelled'
         ? { label: 'Withdrawn', tone: 'border-rule-strong text-ink-3' }
@@ -117,6 +126,7 @@ export default async function BriefPage({
               cards={await proposalCards(bids)}
               now={renderedAt()}
               request={{ id: brief.id, poster: brief.poster, chainId: brief.chainId, deliverDays: brief.deliverDays, budgetU: brief.budgetU, state: brief.state, awardedBidId: brief.awardedBidId }}
+              hire={hire}
             />
           )}
         </section>
