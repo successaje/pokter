@@ -321,3 +321,62 @@ test('stuck jobs that nobody was told about is not a success', async () => {
   const none = { telegram: false, email: false, any: false };
   assert.equal(classifyStageResult('stuckJobs', { checked: 9, stuck: 2, alerted: false, jobIds: ['1'], channels: none }), null);
 });
+
+test('an unreachable seller notice is a failure, a rejection is not', () => {
+  /*
+   * `SellerNoticeStatus` is `accepted | rejected | unreachable`. Only the
+   * last is a failure of this stage: a seller that rejected the job was
+   * asked and answered, which is the notice doing its work. Classifying a
+   * rejection as failure would make the signal fire on sellers declining,
+   * which is ordinary business.
+   */
+  assert.equal(classifyStageResult('sellerNotices', [
+    { jobId: '1', chainId: 56, status: 'rejected' },
+    { jobId: '2', chainId: 56, status: 'accepted' },
+  ]), null, 'asked and answered, either way');
+
+  assert.equal(classifyStageResult('sellerNotices', [
+    { jobId: '1', chainId: 56, status: 'unreachable' },
+    { jobId: '2', chainId: 56, status: 'unreachable' },
+  ]), 'failed', 'nobody was reached');
+
+  assert.equal(classifyStageResult('sellerNotices', [
+    { jobId: '1', chainId: 56, status: 'accepted' },
+    { jobId: '2', chainId: 56, status: 'unreachable' },
+  ]), 'partial');
+
+  // Nothing due is not a failure.
+  assert.equal(classifyStageResult('sellerNotices', []), null);
+});
+
+test('a notice attempt that threw is exposed rather than swallowed', () => {
+  /*
+   * The catch pushed nothing, so a run in which every notice threw returned
+   * an empty array — indistinguishable from a run with nothing to do. It now
+   * pushes `failed: true`, kept distinct from `status: 'unreachable'`, which
+   * is a seller that answered nothing rather than a notice never completed.
+   */
+  assert.equal(classifyStageResult('sellerNotices', [
+    { jobId: '1', chainId: 56, status: 'unreachable', failed: true },
+  ]), 'failed');
+
+  assert.equal(classifyStageResult('sellerNotices', [
+    { jobId: '1', chainId: 56, status: 'accepted' },
+    { jobId: '2', chainId: 56, status: 'unreachable', failed: true },
+  ]), 'partial', 'one landed, one never completed');
+});
+
+test('an alert skipped for lack of time reads as maintenance not done', async () => {
+  /*
+   * The deadline guard leaves the alert unsent, which surfaces as
+   * `alerted: false`. That must classify as a failure rather than disappear
+   * — the stage exists to raise the alarm, and not raising it is the thing
+   * worth knowing.
+   */
+  const channels = { telegram: true, email: true, any: true };
+  assert.equal(
+    classifyStageResult('stuckJobs', { checked: 4, stuck: 2, alerted: false, jobIds: ['1', '2'], channels }),
+    'failed',
+    'stuck jobs and no alert sent',
+  );
+});

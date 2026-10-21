@@ -374,7 +374,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * Settled rather than awaited bare: a watcher failure must not fail the
      * sweep, which has already done the measuring by this point.
      */
-    const hireWatch = await budget.step('hireWatch', () => checkForNewHires(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
+    const hireWatch = await budget.step('hireWatch', () => checkForNewHires({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * Deliver anything whose notification never arrived. Runs after the
@@ -393,7 +393,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * their job is funded (a buyer who closed the tab first), and keep what
      * they answer. The retry above only ever covered Pokter's own seller.
      */
-    const sellerNotices = await budget.step('sellerNotices', () => noticeUnansweredJobs(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
+    const sellerNotices = await budget.step('sellerNotices', () => noticeUnansweredJobs({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * After the retry, not instead of it. What matters is the jobs still
@@ -401,7 +401,7 @@ export async function POST(request: Request): Promise<NextResponse> {
      * and failing used to look identical to the retry succeeding, because
      * neither said anything.
      */
-    const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
+    const stuckJobs = await budget.step('stuckJobs', () => alertStuckJobs({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
 
     /*
      * Who owned each newly funded job's agent, read while the funding is
@@ -645,7 +645,7 @@ export async function POST(request: Request): Promise<NextResponse> {
        * failed returns normally, and recording that as a success would be
        * the same false green one level down.
        */
-      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch, stuckJobs }),
+      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch, sellerNotices, stuckJobs }),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,

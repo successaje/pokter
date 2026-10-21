@@ -52,6 +52,21 @@ export function classifyStageResult(label: string, value: unknown): StageOutcome
     const delivered = attempted.filter((r) => r.action === 'delivered').length;
     return delivered > 0 ? 'partial' : 'failed';
   }
+  if (label === 'sellerNotices' && Array.isArray(value)) {
+    /*
+     * `SellerNoticeStatus` is `accepted | rejected | unreachable`, and only
+     * the last is a failure of this stage: a seller that rejected the job was
+     * asked and answered, which is the notice doing its work. `failed` marks
+     * an attempt that threw before reaching anyone — previously swallowed, so
+     * a run where every notice threw returned an empty array and read exactly
+     * like a run with nothing due.
+     */
+    const attempted = value.filter((n): n is { status?: unknown; failed?: unknown } => typeof n === 'object' && n !== null);
+    const landed = attempted.filter((n) => n.status === 'accepted' || n.status === 'rejected').length;
+    const lost = attempted.filter((n) => n.failed === true || n.status === 'unreachable').length;
+    if (lost === 0) return null;
+    return landed > 0 ? 'partial' : 'failed';
+  }
   if (label === 'stuckJobs' && typeof value === 'object' && value !== null && 'stuck' in value) {
     /*
      * `stuck-alert.ts` says it reports an unsent alert "as `alerted: false`

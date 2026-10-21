@@ -1,4 +1,5 @@
 import 'server-only';
+import { mayStartSideEffect } from '@/lib/history/budget';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -16,10 +17,21 @@ export interface NoticeSweepOutcome {
   jobId: string;
   chainId: number;
   status: string;
+  /**
+   * The attempt threw rather than reaching a seller.
+   *
+   * Distinct from `status: 'unreachable'`, which is a seller that answered
+   * nothing: this is the notice never being completed at all. Previously the
+   * catch below pushed nothing, so a run in which every notice threw
+   * returned an empty array — indistinguishable from a run with nothing due.
+   */
+  failed?: true;
 }
 
 /** Tell sellers about funded jobs on any escrow chain that have no answer yet. */
-export async function noticeUnansweredJobs(): Promise<NoticeSweepOutcome[]> {
+export async function noticeUnansweredJobs(
+  { deadlineAt }: { deadlineAt?: number } = {},
+): Promise<NoticeSweepOutcome[]> {
   const store = getJobStore();
   const now = Date.now();
   const results: NoticeSweepOutcome[] = [];
@@ -37,6 +49,15 @@ export async function noticeUnansweredJobs(): Promise<NoticeSweepOutcome[]> {
       // The index can lag the chain; a delivered or reclaimed job needs no notice.
       const onchain = await getErc8183Job(altanaNetworkFor(job.chainId), BigInt(job.jobId));
       if (onchain.statusName !== 'FUNDED') continue;
+      /*
+       * Rechecked before the send, not only at the top of the loop.
+       *
+       * The escrow read above is a network call and `noticeSeller` waits up
+       * to fifty seconds for a seller to answer. A notice begun with no time
+       * left is one the run cannot see through, and the caller's timeout
+       * bounds how long it waits rather than what this loop has started.
+       */
+      if (!mayStartSideEffect(deadlineAt)) break;
       const answered = await noticeSeller({
         agentChainId: (job.agentChainId ?? 56) as ChainId,
         tokenId: job.agentTokenId,
@@ -47,7 +68,12 @@ export async function noticeUnansweredJobs(): Promise<NoticeSweepOutcome[]> {
       });
       results.push({ jobId: job.jobId, chainId: job.chainId, status: answered.status });
     } catch {
-      /* The next sweep tries again. */
+      /*
+       * Reported rather than swallowed. The next sweep does try again, but a
+       * run in which every notice threw used to return an empty array, which
+       * reads exactly like a run with nothing to do.
+       */
+      results.push({ jobId: job.jobId, chainId: job.chainId, status: 'unreachable', failed: true });
     }
   }
   return results;

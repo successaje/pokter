@@ -1,4 +1,5 @@
 import 'server-only';
+import { mayStartSideEffect } from '@/lib/history/budget';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -48,7 +49,7 @@ export interface StuckAlertOutcome {
  * alert is worth, and the sweep reports the outcome so a dead channel shows
  * up as `alerted: false` beside the count rather than as success.
  */
-export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
+export async function alertStuckJobs({ deadlineAt }: { deadlineAt?: number } = {}): Promise<StuckAlertOutcome> {
   const store = getJobStore();
   const channels = alertChannels();
 
@@ -109,14 +110,23 @@ export async function alertStuckJobs(): Promise<StuckAlertOutcome> {
     )
     .join('\n\n');
 
-  const delivery = await sendOperatorAlert({
+  /*
+   * Not started without time to see it through. The caller's cap bounds
+   * how long it waits for this step, not what the step has set in motion,
+   * so an alert begun with no time left is one nobody watches land. Left
+   * unsent reads as `alerted: false`, which the sweep now classifies as
+   * maintenance that did not complete rather than as a success.
+   */
+  const delivery = mayStartSideEffect(deadlineAt)
+    ? await sendOperatorAlert({
     subject: `Pokter: ${stuck.length} funded job${stuck.length === 1 ? '' : 's'} not delivered`,
     body:
       `${lines}\n\n` +
       'Escrow is funded and nothing has been submitted. The sweep retries ' +
       'these automatically; they are still unmoved after that attempt, so ' +
       'they need a look before the window closes.',
-  });
+      })
+    : { telegram: 'skipped' as const, email: 'skipped' as const };
 
   const alerted = delivery.telegram === 'sent' || delivery.email === 'sent';
 
