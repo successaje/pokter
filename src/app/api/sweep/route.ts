@@ -645,7 +645,7 @@ export async function POST(request: Request): Promise<NextResponse> {
        * failed returns normally, and recording that as a success would be
        * the same false green one level down.
        */
-      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch }),
+      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch, stuckJobs }),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,

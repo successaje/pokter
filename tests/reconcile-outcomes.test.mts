@@ -303,3 +303,21 @@ test('only an unreadable escrow increments the streak', async () => {
   assert.equal(afterAttempt(ten, 'partial', '2026-10-21T12:00:00.000Z').failures, 0);
   assert.equal(afterAttempt(ten, 'failed', '2026-10-21T12:00:00.000Z').failures, 11);
 });
+
+test('stuck jobs that nobody was told about is not a success', async () => {
+  /*
+   * `stuck-alert.ts` reports an unsent alert "as `alerted: false` beside the
+   * count rather than as success", and the budget was recording `ok` because
+   * nothing threw — so the stage that exists to raise the alarm could fail
+   * to raise it and read as healthy.
+   */
+  const channels = { telegram: true, email: true, any: true };
+  assert.equal(classifyStageResult('stuckJobs', { checked: 9, stuck: 2, alerted: false, jobIds: ['1', '2'], channels }), 'failed');
+  assert.equal(classifyStageResult('stuckJobs', { checked: 9, stuck: 2, alerted: true, jobIds: ['1', '2'], channels }), null, 'alerted is fine');
+  assert.equal(classifyStageResult('stuckJobs', { checked: 9, stuck: 0, alerted: false, jobIds: [], channels }), null, 'nothing stuck is fine');
+
+  // With no channel configured, `alerted: false` is a deployment state. A
+  // signal that fires on configuration teaches everyone to ignore it.
+  const none = { telegram: false, email: false, any: false };
+  assert.equal(classifyStageResult('stuckJobs', { checked: 9, stuck: 2, alerted: false, jobIds: ['1'], channels: none }), null);
+});

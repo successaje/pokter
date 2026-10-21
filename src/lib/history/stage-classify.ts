@@ -52,6 +52,20 @@ export function classifyStageResult(label: string, value: unknown): StageOutcome
     const delivered = attempted.filter((r) => r.action === 'delivered').length;
     return delivered > 0 ? 'partial' : 'failed';
   }
+  if (label === 'stuckJobs' && typeof value === 'object' && value !== null && 'stuck' in value) {
+    /*
+     * `stuck-alert.ts` says it reports an unsent alert "as `alerted: false`
+     * beside the count rather than as success" — its author meant this to be
+     * visible, and the budget was recording `ok` because nothing threw.
+     *
+     * Guarded on `channels.any`: with no channel configured, `alerted: false`
+     * is a deployment state and not a failure, and a signal that fires on
+     * configuration would teach everyone to ignore it.
+     */
+    const outcome = value as { stuck?: unknown; alerted?: unknown; channels?: { any?: unknown } };
+    const stuck = typeof outcome.stuck === 'number' ? outcome.stuck : 0;
+    if (stuck > 0 && outcome.alerted !== true && outcome.channels?.any === true) return 'failed';
+  }
   if (label === 'hireWatch' && typeof value === 'object' && value !== null && 'counter' in value) {
     /*
      * `HireWatchResult.counter` is documented as "null when the counter
