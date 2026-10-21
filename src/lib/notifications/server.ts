@@ -26,7 +26,7 @@ import { siteUrl } from '@/lib/site';
 import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { dueDeadlineReminder, hireProgressNews, settledWith } from '@/lib/campaign/reminders';
 import { alertFor, dropToLiquidation, levelOf, REPEAT_MS, staleDue, type Level } from '@/lib/loan-watch/rules';
-import { alertableFlows } from '@/lib/trading/alerts';
+import { alertableFlows, coverageNotice } from '@/lib/trading/alerts';
 
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
@@ -171,6 +171,9 @@ function db(): DatabaseSync {
   addColumn(database, 'notification_subscriptions', 'include_answer INTEGER NOT NULL DEFAULT 0');
   // When a watched wallet was last tried, read or not: the rotation key, so wallets that fail cannot take every turn.
   addColumn(database, 'loan_watches', 'last_attempt_at TEXT');
+  /* When a trading wallet's checks went bad, and when its subscriber was told (`coverageNotice`). */
+  addColumn(database, 'trading_alerts', 'coverage_bad_since TEXT');
+  addColumn(database, 'trading_alerts', 'coverage_warned_at TEXT');
   return database;
 }
 
@@ -894,9 +897,13 @@ export async function notifyTradingAlerts(input: {
   flowsAfter: (wallet: string, block: number) => Array<{ txHash: string; block: number; at: string; verdict: string; note: string; sent: Array<{ symbol: string; amount: string; to: string }> }>;
   gapsAfter: (wallet: string, atIso: string) => Array<{ fromBlock: number; toBlock: number; at: string }>;
   revokeHelp: (wallet: string) => string | null;
+  /** The wallet's coverage state (`coverage.ts`); only `current` counts as checked. */
+  coverageOf: (wallet: string) => string;
+  now?: number;
 }): Promise<{ checked: number; sent: number }> {
-  const rows = db().prepare(`SELECT id,email,wallet_address,created_at,alerted_through_block,gaps_seen_through FROM trading_alerts
-    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as Array<{ id: string; email: string; wallet_address: string; created_at: string; alerted_through_block: number | null; gaps_seen_through: string | null }>;
+  const now = input.now ?? Date.now();
+  const rows = db().prepare(`SELECT id,email,wallet_address,created_at,alerted_through_block,gaps_seen_through,coverage_bad_since,coverage_warned_at FROM trading_alerts
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as Array<{ id: string; email: string; wallet_address: string; created_at: string; alerted_through_block: number | null; gaps_seen_through: string | null; coverage_bad_since: string | null; coverage_warned_at: string | null }>;
   let sent = 0;
   for (const row of rows) {
     const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
@@ -938,6 +945,31 @@ export async function notifyTradingAlerts(input: {
       } catch {
         /* Tried again next sweep. */
       }
+    }
+
+    /* Silence is not safety: say when the checks themselves have stopped, and when they resume. */
+    const notice = coverageNotice({ state: input.coverageOf(row.wallet_address), now, badSince: row.coverage_bad_since, warnedAt: row.coverage_warned_at });
+    if (notice.send) {
+      const stopped = notice.send === 'not-checked';
+      try {
+        await sendEmail({
+          to: row.email,
+          subject: stopped ? `Pokter cannot check your trading wallet right now (${short})` : `Pokter is checking your trading wallet again (${short})`,
+          idempotencyKey: `trading-${row.id}-coverage-${notice.send}-${notice.warnedAt ?? row.coverage_warned_at}`,
+          html: emailShell(
+            stopped
+              ? `<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet alert</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Your wallet is not being checked</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0 0 16px">For the last ${Math.round((now - Date.parse(notice.badSince ?? new Date(now).toISOString())) / 60_000)} minutes Pokter has not been able to check ${escapeHtml(short)}, or has fallen behind it. Until you hear that checks have resumed, no email does not mean nothing happened. Look at the wallet on the explorer yourself.</p><div>${emailButton(`https://bscscan.com/address/${row.wallet_address}`, 'Open the explorer')}</div>${footer}`
+              : `<p style="margin:0 0 10px;color:#2f6b3c;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Checks have resumed</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0 0 16px">Pokter is checking ${escapeHtml(short)} again. Anything it could not reach meanwhile is listed on the wallet's page as unchecked.</p><div>${emailButton(pageUrl, 'See the wallet')}</div>${footer}`,
+            stopped ? 'Pokter cannot check your trading wallet right now.' : 'Pokter is checking your trading wallet again.',
+          ),
+        });
+        sent += 1;
+      } catch {
+        continue; // Nothing recorded: the same notice is tried next sweep.
+      }
+    }
+    if (notice.badSince !== row.coverage_bad_since || notice.warnedAt !== row.coverage_warned_at) {
+      db().prepare('UPDATE trading_alerts SET coverage_bad_since=?, coverage_warned_at=? WHERE id=?').run(notice.badSince, notice.warnedAt, row.id);
     }
   }
   return { checked: rows.length, sent };

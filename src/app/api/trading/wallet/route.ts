@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress } from 'viem';
 
+import { coverage } from '@/lib/trading/coverage';
 import { readHoldings, WATCHED_TOKENS } from '@/lib/trading/read';
 import { getTradingStore } from '@/lib/trading/store';
 import { tradingAlertCount } from '@/lib/notifications/server';
@@ -19,7 +20,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const holdings = await readHoldings({ wallet: getAddress(raw) });
     return NextResponse.json(
-      { holdings, watched, flows: watched ? store.flows(raw) : [], gaps: watched ? store.gaps(raw) : [], checkedTokens: WATCHED_TOKENS.map((t) => t.symbol), alertsOn: watched ? tradingAlertCount(raw) > 0 : false },
+      { holdings, watched: watched ? { addedAt: watched.addedAt, lastScanAt: watched.lastScanAt, owners: watched.owners, ownersSignedAt: watched.ownersSignedAt } : null, coverage: coverage(watched, Date.now(), Number(holdings.head)), flows: watched ? store.flows(raw) : [], gaps: watched ? store.gaps(raw) : [], checkedTokens: WATCHED_TOKENS.map((t) => t.symbol), alertsOn: watched ? tradingAlertCount(raw) > 0 : false },
       { headers: { 'cache-control': 'no-store' } },
     );
   } catch (error) {

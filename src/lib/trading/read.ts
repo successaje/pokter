@@ -4,6 +4,7 @@ import { createPublicClient, fallback, getAddress, http, parseAbi, type Address,
 import { bsc } from 'viem/chains';
 
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { boundToCap } from './bound';
 import { classifyTx, COLLECT_TOPIC, poolCandidates, TRANSFER_TOPIC, type FlowVerdict, type RawLog } from './flows';
 import { getTradingStore, type StoredFlow } from './store';
 
@@ -18,6 +19,10 @@ const LOG_CHUNK = 2000n;
 export const REACHABLE_BLOCKS = 6000n;
 /** A first scan looks back this far, so a newly watched wallet shows something at once. */
 const FIRST_LOOK_BLOCKS = 6000n;
+/** Transactions one scan reads (`bound.ts`). About a second each on public RPC. */
+const MAX_TX_PER_SCAN = 25;
+/** The trading step's share of a sweep: it stops starting wallets after this (a wallet already started can run about 17s more, measured on a wallet with 700 trades in 6000 blocks), and the rest wait for the next run, least recently scanned first. */
+export const TRADING_SCAN_BUDGET_MS = 15_000;
 
 /**
  * The tokens whose transfers are read. Public RPC answers a log query only
@@ -163,12 +168,13 @@ export async function readHoldings(input: { wallet: Address }): Promise<TradingH
 }
 
 /**
- * Every transaction in [fromBlock, toBlock] in which a watched token left
- * the wallet, judged whole (flows.ts). Throws if any part of the range
- * cannot be read, so a caller never records a range as clean that was not
- * read.
+ * Every transaction from fromBlock in which value left the wallet, judged
+ * whole (flows.ts), up to `coveredTo`: toBlock, or earlier when the range
+ * held more transactions than one scan reads (`bound.ts`). Throws if any
+ * part cannot be read, so a caller never records a range as clean that
+ * was not read.
  */
-export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toBlock: bigint; tokens: readonly Address[]; ownedPositions: ReadonlySet<string>; ownerAddresses: readonly string[] }): Promise<StoredFlow[]> {
+export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toBlock: bigint; tokens: readonly Address[]; ownedPositions: ReadonlySet<string>; ownerAddresses: readonly string[]; cap?: number }): Promise<{ flows: StoredFlow[]; coveredTo: bigint }> {
   const c = client();
   const info = tokenInfo(c);
   const wallet = getAddress(input.wallet);
@@ -196,7 +202,8 @@ export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toB
   for (const log of chunks.flat()) byTx.set(log.transactionHash, BigInt(log.blockNumber));
   const isPool = poolCheck(c);
   const knownTokens = new Set(input.tokens.map((t) => t.toLowerCase()));
-  const flows = await mapWithConcurrency([...byTx.entries()], 3, async ([hash, block]) => {
+  const { read, coveredTo } = boundToCap([...byTx.entries()].map(([hash, block]) => ({ hash, block })), input.cap ?? MAX_TX_PER_SCAN, input.toBlock);
+  const flows = await mapWithConcurrency(read, 3, async ({ hash, block }) => {
     const receipt = await c.getTransactionReceipt({ hash });
     const logs = receipt.logs as unknown as RawLog[];
     const pools = new Map<string, readonly [string, string]>();
@@ -215,7 +222,7 @@ export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toB
     );
     return { txHash: hash as string, wallet: wallet.toLowerCase(), block: Number(block), at: new Date(Number(blk.timestamp) * 1000).toISOString(), verdict: f.verdict as FlowVerdict, note: f.note, sent } satisfies StoredFlow;
   });
-  return flows.filter((f): f is StoredFlow => f !== null);
+  return { flows: flows.filter((f): f is StoredFlow => f !== null), coveredTo };
 }
 
 /**
@@ -241,8 +248,8 @@ export async function scanWatchedWallet(wallet: string): Promise<{ flows: number
       return { flows: 0, notReturned: 0, gap: Boolean(gap) };
     }
     const tokens = [...new Set([...WATCHED_TOKENS.map((t) => t.address.toLowerCase()), ...holdings.positions.flatMap((p) => p.tokens.map((t) => t.toLowerCase()))])] as Address[];
-    const flows = await scanFlows({ wallet: getAddress(wallet), fromBlock: from, toBlock: head, tokens, ownedPositions: new Set(holdings.positions.map((p) => p.tokenId)), ownerAddresses: watched.owners });
-    store.recordScan({ wallet, scannedTo: Number(head), error: null, flows, gap });
+    const { flows, coveredTo } = await scanFlows({ wallet: getAddress(wallet), fromBlock: from, toBlock: head, tokens, ownedPositions: new Set(holdings.positions.map((p) => p.tokenId)), ownerAddresses: watched.owners });
+    store.recordScan({ wallet, scannedTo: Number(coveredTo), error: null, flows, gap });
     return { flows: flows.length, notReturned: flows.filter((f) => f.verdict === 'not-returned').length, gap: Boolean(gap) };
   } catch (error) {
     store.recordScan({ wallet, scannedTo: null, error: (error as Error).message.slice(0, 200), flows: [], gap: null });
@@ -250,9 +257,14 @@ export async function scanWatchedWallet(wallet: string): Promise<{ flows: number
   }
 }
 
-/** The sweep's pass: every watched trading wallet, least recently scanned first. */
-export async function scanTradingWallets(max = 20): Promise<{ scanned: number; flows: number; notReturned: number; gaps: number }> {
+/**
+ * The sweep's pass: watched trading wallets, least recently scanned first,
+ * for at most `budgetMs`. A wallet not started in time waits for the next
+ * run, first in line; one that falls behind shows as behind on its page.
+ */
+export async function scanTradingWallets(max = 20, budgetMs = TRADING_SCAN_BUDGET_MS): Promise<{ scanned: number; deferred: number; flows: number; notReturned: number; gaps: number }> {
   const due = getTradingStore().due(max);
-  const results = await mapWithConcurrency(due, 2, (w) => scanWatchedWallet(w.wallet));
-  return { scanned: results.length, flows: results.reduce((n, r) => n + r.flows, 0), notReturned: results.reduce((n, r) => n + r.notReturned, 0), gaps: results.filter((r) => r.gap).length };
+  const deadline = Date.now() + budgetMs;
+  const results = (await mapWithConcurrency(due, 2, (w) => (Date.now() < deadline ? scanWatchedWallet(w.wallet) : Promise.resolve(null)))).filter((r) => r !== null);
+  return { scanned: results.length, deferred: due.length - results.length, flows: results.reduce((n, r) => n + r.flows, 0), notReturned: results.reduce((n, r) => n + r.notReturned, 0), gaps: results.filter((r) => r.gap).length };
 }

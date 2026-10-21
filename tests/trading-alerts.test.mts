@@ -64,3 +64,26 @@ test('every outflow the classifier used to miss now sends an alert', async () =>
     assert.equal(r.alert.length, 1, `${name} should alert (verdict ${verdict})`);
   }
 });
+
+test('a subscriber hears once when their wallet stops being checked, and once when it resumes', async () => {
+  const { coverageNotice, COVERAGE_GRACE_MS } = await import('../src/lib/trading/alerts');
+  const t0 = Date.parse('2026-10-21T12:00:00Z');
+  // First failed sweep: noted, not emailed.
+  let s = coverageNotice({ state: 'failing', now: t0, badSince: null, warnedAt: null });
+  assert.equal(s.send, null);
+  assert.equal(s.badSince, new Date(t0).toISOString());
+  // Still failing inside the grace period: nothing.
+  s = coverageNotice({ state: 'stale', now: t0 + COVERAGE_GRACE_MS - 1, badSince: s.badSince, warnedAt: null });
+  assert.equal(s.send, null);
+  // Past it: one email.
+  s = coverageNotice({ state: 'failing', now: t0 + COVERAGE_GRACE_MS, badSince: s.badSince, warnedAt: null });
+  assert.equal(s.send, 'not-checked');
+  // And not again while it lasts.
+  s = coverageNotice({ state: 'behind', now: t0 + 3 * COVERAGE_GRACE_MS, badSince: s.badSince, warnedAt: s.warnedAt });
+  assert.equal(s.send, null);
+  // Checked again: one email, and the slate is clean.
+  s = coverageNotice({ state: 'current', now: t0 + 4 * COVERAGE_GRACE_MS, badSince: s.badSince, warnedAt: s.warnedAt });
+  assert.deepEqual(s, { badSince: null, warnedAt: null, send: 'checking-again' });
+  // A failure that clears inside the grace period never emails at all.
+  assert.equal(coverageNotice({ state: 'current', now: t0, badSince: new Date(t0 - 60_000).toISOString(), warnedAt: null }).send, null);
+});

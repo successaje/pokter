@@ -27,7 +27,7 @@ export default async function TradingPage({ searchParams }: { searchParams: Prom
         </span>
         <h1 className="t-h1">{trader ? `Watch your ${trader.operator} ${trader.product} wallet` : 'Watch a trading wallet'}</h1>
         <p className="t-lede">
-          An agent that trades from your wallet is limited in how much it can spend and which contracts it can call, not in where a swap’s output goes. Pokter checks that part for you: every token that leaves the wallet has to come back in the same transaction.
+          An agent that trades from your wallet is limited in how much it can spend and which contracts it can call, not in where a swap’s output goes. Pokter checks that part for you: everything that leaves the wallet has to go to an address you signed for, or come back in the same transaction.
         </p>
       </header>
       <div className="mt-8">
