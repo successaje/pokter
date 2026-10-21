@@ -4,7 +4,7 @@ import { createPublicClient, fallback, getAddress, http, parseAbi, type Address,
 import { bsc } from 'viem/chains';
 
 import { mapWithConcurrency } from '@/lib/concurrency';
-import { classifyTx, TRANSFER_TOPIC, type FlowVerdict, type RawLog } from './flows';
+import { classifyTx, COLLECT_TOPIC, poolCandidates, TRANSFER_TOPIC, type FlowVerdict, type RawLog } from './flows';
 import { getTradingStore, type StoredFlow } from './store';
 
 /** PancakeSwap V3's NonfungiblePositionManager on BNB Chain. */
@@ -42,6 +42,11 @@ const PM_ABI = parseAbi([
   'function factory() view returns (address)',
 ]);
 const FACTORY_ABI = parseAbi(['function getPool(address, address, uint24) view returns (address)']);
+const V2_FACTORY_ABI = parseAbi(['function getPair(address, address) view returns (address)']);
+const POOL_ID_ABI = parseAbi(['function factory() view returns (address)', 'function token0() view returns (address)', 'function token1() view returns (address)', 'function fee() view returns (uint24)']);
+/** Read from chain on 21 October 2026: the position manager's own factory, and the factory of the WBNB/USDT V2 pair. */
+const V3_FACTORY = '0x0bfbcf9fa4f9c56b0f40a671ad40e0805a091865';
+const V2_FACTORY = '0xca143ce32fe78f1f7019d7d551a6402fc5350c73';
 const POOL_ABI = parseAbi(['function slot0() view returns (uint160, int24, uint16, uint16, uint16, uint32, bool)']);
 const ERC20_ABI = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function balanceOf(address) view returns (uint256)']);
 
@@ -97,6 +102,35 @@ function tokenInfo(c: Client) {
   };
 }
 
+/**
+ * Whether an address is a real PancakeSwap pool, V3 or V2, and its two tokens.
+ *
+ * Asked of the factory, not of the address: any contract can answer
+ * `factory()` with PancakeSwap's, so the pool's own tokens (and fee) are
+ * read and the factory is asked which pool it made for them. Only its own
+ * answer counts. Anything that fails to answer is not a pool, which makes
+ * an outflow to it an alert rather than a pass.
+ */
+function poolCheck(c: Client) {
+  const cache = new Map<string, Promise<readonly [string, string] | null>>();
+  const check = async (address: Address): Promise<readonly [string, string] | null> => {
+    const read = <T,>(functionName: 'factory' | 'token0' | 'token1' | 'fee') => c.readContract({ address, abi: POOL_ID_ABI, functionName }) as Promise<T>;
+    const factory = (await read<Address>('factory').catch(() => null))?.toLowerCase();
+    if (factory !== V3_FACTORY && factory !== V2_FACTORY) return null;
+    const [token0, token1] = await Promise.all([read<Address>('token0'), read<Address>('token1')]);
+    const made =
+      factory === V3_FACTORY
+        ? await c.readContract({ address: V3_FACTORY as Address, abi: FACTORY_ABI, functionName: 'getPool', args: [token0, token1, await read<number>('fee')] })
+        : await c.readContract({ address: V2_FACTORY as Address, abi: V2_FACTORY_ABI, functionName: 'getPair', args: [token0, token1] });
+    return made.toLowerCase() === address.toLowerCase() ? ([token0.toLowerCase(), token1.toLowerCase()] as const) : null;
+  };
+  return (address: string) => {
+    const key = address.toLowerCase();
+    if (!cache.has(key)) cache.set(key, check(key as Address).catch(() => null));
+    return cache.get(key)!;
+  };
+}
+
 /** What the wallet holds now: BNB, the watched tokens it has, and its PancakeSwap V3 positions. */
 export async function readHoldings(input: { wallet: Address }): Promise<TradingHoldings> {
   const c = client();
@@ -141,17 +175,43 @@ export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toB
   const starts: bigint[] = [];
   for (let s = input.fromBlock; s <= input.toBlock; s += LOG_CHUNK) starts.push(s);
   const walletTopic = `0x${'0'.repeat(24)}${wallet.slice(2).toLowerCase()}` as Hex;
-  const chunks = await mapWithConcurrency(starts, 3, (start) =>
-    c.request({ method: 'eth_getLogs', params: [{ address: [...input.tokens], fromBlock: `0x${start.toString(16)}`, toBlock: `0x${(start + LOG_CHUNK - 1n < input.toBlock ? start + LOG_CHUNK - 1n : input.toBlock).toString(16)}`, topics: [TRANSFER_TOPIC as Hex, walletTopic] }] }) as Promise<Array<{ transactionHash: Hex; blockNumber: Hex }>>,
-  );
+  const range = (start: bigint) => ({ fromBlock: `0x${start.toString(16)}` as Hex, toBlock: `0x${(start + LOG_CHUNK - 1n < input.toBlock ? start + LOG_CHUNK - 1n : input.toBlock).toString(16)}` as Hex });
+  const positionTopics = [...input.ownedPositions].map((id) => `0x${BigInt(id).toString(16).padStart(64, '0')}` as Hex);
+  type Found = Array<{ transactionHash: Hex; blockNumber: Hex }>;
+  const chunks = await mapWithConcurrency(starts, 3, async (start) => {
+    /*
+     * Transfers out of the wallet, of watched tokens and of position NFTs
+     * (the position manager is a Transfer emitter too). And collects from
+     * the wallet's positions, which pay a recipient straight from the pool
+     * and so move nothing out of the wallet's own balance: without asking
+     * for them, a collect to somebody else was never even read.
+     */
+    const [transfers, collects] = await Promise.all([
+      c.request({ method: 'eth_getLogs', params: [{ address: [...input.tokens, POSITION_MANAGER], ...range(start), topics: [TRANSFER_TOPIC as Hex, walletTopic] }] }) as Promise<Found>,
+      positionTopics.length ? (c.request({ method: 'eth_getLogs', params: [{ address: POSITION_MANAGER, ...range(start), topics: [COLLECT_TOPIC as Hex, positionTopics] }] }) as Promise<Found>) : Promise.resolve([] as Found),
+    ]);
+    return [...transfers, ...collects];
+  });
   const byTx = new Map<Hex, bigint>();
   for (const log of chunks.flat()) byTx.set(log.transactionHash, BigInt(log.blockNumber));
+  const isPool = poolCheck(c);
+  const knownTokens = new Set(input.tokens.map((t) => t.toLowerCase()));
   const flows = await mapWithConcurrency([...byTx.entries()], 3, async ([hash, block]) => {
     const receipt = await c.getTransactionReceipt({ hash });
-    const f = classifyTx({ wallet, logs: receipt.logs as unknown as RawLog[], positionManager: POSITION_MANAGER, ownedPositions: input.ownedPositions, ownerAddresses: input.ownerAddresses });
+    const logs = receipt.logs as unknown as RawLog[];
+    const pools = new Map<string, readonly [string, string]>();
+    await Promise.all(poolCandidates(wallet, logs).map(async (a) => { const tokens = await isPool(a); if (tokens) pools.set(a, tokens); }));
+    const f = classifyTx({ wallet, logs, positionManager: POSITION_MANAGER, ownedPositions: input.ownedPositions, ownerAddresses: input.ownerAddresses, knownTokens, pools });
     if (!f.verdict) return null;
     const blk = await c.getBlock({ blockNumber: block });
-    const sent = await Promise.all(f.outs.map(async (o) => { const t = await info(o.token); return { symbol: t.symbol, amount: fmt(o.amount, t.decimals), to: o.to }; }));
+    const sent = await Promise.all(
+      f.outs.map(async (o) => {
+        if (o.kind === 'position') return { symbol: 'Position', amount: `#${o.positionId}`, to: o.to };
+        if (o.kind === 'collect') return { symbol: `Position #${o.positionId}`, amount: 'collected', to: o.to };
+        const t = await info(o.token);
+        return { symbol: t.symbol, amount: fmt(o.amount, t.decimals), to: o.to };
+      }),
+    );
     return { txHash: hash as string, wallet: wallet.toLowerCase(), block: Number(block), at: new Date(Number(blk.timestamp) * 1000).toISOString(), verdict: f.verdict as FlowVerdict, note: f.note, sent } satisfies StoredFlow;
   });
   return flows.filter((f): f is StoredFlow => f !== null);
