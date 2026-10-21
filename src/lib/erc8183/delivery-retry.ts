@@ -41,7 +41,9 @@ export interface DeliveryRetryOutcome {
   reason?: string;
 }
 
-export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
+export async function retryStuckDeliveries(
+  { deadlineAt }: { deadlineAt?: number } = {},
+): Promise<DeliveryRetryOutcome[]> {
   const candidates = getJobStore()
     .all()
     .filter(
@@ -52,6 +54,17 @@ export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
 
   for (const job of candidates) {
     if (results.filter((r) => r.action !== 'skipped').length >= MAX_PER_RUN) break;
+    /*
+     * Stop starting new ones when the caller's time is nearly up.
+     *
+     * The work below submits a transaction. The sweep's budget bounds how
+     * long it will *wait* for this step, not what the step has set in
+     * motion, so a delivery begun with a second left is one nobody is
+     * watching land. Checked at the top of the loop rather than mid-item: a
+     * delivery already submitted is finished by the chain, and what must be
+     * avoided is starting another.
+     */
+    if (deadlineAt !== undefined && Date.now() >= deadlineAt) break;
 
     try {
       /*

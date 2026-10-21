@@ -44,7 +44,7 @@ import { getProbeStore } from '@/lib/history/store';
 import { SWEEP_BUDGET_MS, SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS, SWEEP_RUN_BUDGET_MS, sweepRecent } from '@/lib/history/schedule';
 import { getMaintenanceStore } from '@/lib/history/maintenance-store';
 import { persistStageOutcomes } from '@/lib/history/stage-outcomes';
-import { RECONCILE_DEADLINE_SLACK_MS, afterAttempt, dueForReconcile } from '@/lib/history/reconcile-schedule';
+import { CRITICAL_LOOP_SLACK_MS, RECONCILE_DEADLINE_SLACK_MS, afterAttempt, classifyAttempt, dueForReconcile } from '@/lib/history/reconcile-schedule';
 
 export const dynamic = 'force-dynamic';
 /** The platform's ceiling. The run's own budget is below it, deliberately. */
@@ -243,7 +243,6 @@ export async function POST(request: Request): Promise<NextResponse> {
      * cheap once the batch is bounded.
      */
     const reconcileAttempts = getMaintenanceStore().jobAttempts();
-    const reconcileStartedAt = new Date().toISOString();
     const reconcileDeadline = Date.now() + Math.max(0, budget.spendable() - RECONCILE_DEADLINE_SLACK_MS);
     const reconcileBatch = dueForReconcile(
       getJobStore().all().filter((job) => job.chainId === 56 || job.chainId === 97),
@@ -256,7 +255,35 @@ export async function POST(request: Request): Promise<NextResponse> {
         reconcileBatch,
         4,
         async (job) => {
+          /*
+           * Nothing started after the deadline. Returning null rather than a
+           * result is what tells the caller this job was never attempted, so
+           * it keeps its place at the front of the queue.
+           */
           if (Date.now() >= reconcileDeadline) return null;
+          const jobKey = `${job.chainId}:${job.jobId}`;
+          /*
+           * The attempt is recorded by the worker, as soon as this job
+           * settles — not after the batch.
+           *
+           * Recording afterwards loses everything when the batch times out:
+           * `budget.step` returns null, the results array is gone, and the
+           * jobs that genuinely reconciled before the deadline look
+           * untouched. They would be attempted again next run while the jobs
+           * behind them keep waiting, which is the starvation this change
+           * exists to remove, reintroduced one level down.
+           */
+          const record = (result: Parameters<typeof classifyAttempt>[0]) => {
+            const outcome = classifyAttempt(result);
+            if (outcome === 'not-attempted') return;
+            try {
+              getMaintenanceStore().noteJobAttempt(jobKey, afterAttempt(reconcileAttempts.get(jobKey), outcome, new Date().toISOString()));
+            } catch (error) {
+              /* A lost bookkeeping row costs this job a turn's memory, never
+                 the reconciliation it just did. */
+              console.warn(`[sweep] could not record reconcile attempt for ${jobKey}: ${(error as Error).message}`);
+            }
+          };
           /*
            * The escrow read, caught here rather than by the caller.
            *
@@ -288,10 +315,9 @@ export async function POST(request: Request): Promise<NextResponse> {
             // slug instead of a token id. Their ERC-8183 state is still valid and
             // must be reconciled, but there is no registry owner to notify.
             if (!/^\d+$/.test(job.agentTokenId)) {
-              return {
-                sent: 0, reconciled: true,
-                notificationSkipped: true, notificationFailed: false,
-              };
+              const demo = { sent: 0, reconciled: true, notificationSkipped: true, notificationFailed: false };
+              record(demo);
+              return demo;
             }
 
             try {
@@ -300,23 +326,22 @@ export async function POST(request: Request): Promise<NextResponse> {
                 owner: agent.owner_address, chainId: job.chainId, jobId: job.jobId,
                 agentName: job.agentName, status: onchain.statusName, expiredAt: onchain.expiredAt,
               });
-              return { sent: email.sent, reconciled: true, notificationSkipped: false, notificationFailed: false };
+              const done = { sent: email.sent, reconciled: true, notificationSkipped: false, notificationFailed: false };
+              record(done);
+              return done;
             } catch {
               // A temporary registry or mail-path failure must never roll back a
               // successful read of the canonical ERC-8183 job state.
-              return {
-                sent: 0, reconciled: true,
-                notificationSkipped: false, notificationFailed: true,
-              };
+              const partial = { sent: 0, reconciled: true, notificationSkipped: false, notificationFailed: true };
+              record(partial);
+              return partial;
             }
           } catch {
             // Could not read the job at all: nothing was reconciled, and the
             // run says so rather than counting it as repaired.
-            return {
-              sent: 0, reconciled: false,
-              notificationSkipped: false, notificationFailed: false,
-              unreadable: true,
-            };
+            const unreadable = { sent: 0, reconciled: false, notificationSkipped: false, notificationFailed: false, unreadable: true };
+            record(unreadable);
+            return unreadable;
           }
         },
       ),
@@ -328,14 +353,6 @@ export async function POST(request: Request): Promise<NextResponse> {
      * keeps its place at the front of the queue for next time.
      */
     const reconcileResults = (builderResults ?? []).filter((result): result is NonNullable<typeof result> => result !== null);
-    (builderResults ?? []).forEach((result, index) => {
-      if (result === null) return;
-      const job = reconcileBatch[index];
-      if (!job) return;
-      const key = `${job.chainId}:${job.jobId}`;
-      const outcome = 'unreadable' in result && result.unreadable ? 'failed' : 'ok';
-      getMaintenanceStore().noteJobAttempt(key, afterAttempt(reconcileAttempts.get(key), outcome, reconcileStartedAt));
-    });
     const builderEmails = reconcileResults.reduce((sum, result) => sum + (result?.sent ?? 0), 0);
     /*
      * Hire watching rides the sweep because the sweep is already scheduled,
@@ -353,7 +370,11 @@ export async function POST(request: Request): Promise<NextResponse> {
      * just refreshed, and caught like the watcher because a retry failing
      * must not cost us the measurement the sweep already did.
      */
-    const deliveryRetries = await budget.step('deliveryRetries', () => retryStuckDeliveries(), { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS });
+    const deliveryRetries = await budget.step(
+      'deliveryRetries',
+      () => retryStuckDeliveries({ deadlineAt: Date.now() + SWEEP_CRITICAL_STEP_MS - CRITICAL_LOOP_SLACK_MS }),
+      { critical: true, maxMs: SWEEP_CRITICAL_STEP_MS },
+    );
 
     /*
      * Outside sellers, on every escrow chain: tell any that were never told
@@ -604,7 +625,15 @@ export async function POST(request: Request): Promise<NextResponse> {
        * keeps the last attempt and the last *success* apart, so a stage that
        * has been failing for a day cannot look recent.
        */
-      budget: persistStageOutcomes(budget.report()),
+      /*
+       * Written down as well as returned, and classified before it is.
+       * The report dies with the response and the log line holds minutes; on
+       * 21 October that meant eighteen skipped steps left no trace. The
+       * classification matters as much: a stage whose every delivery retry
+       * failed returns normally, and recording that as a success would be
+       * the same false green one level down.
+       */
+      budget: persistStageOutcomes(budget.report(), { deliveryRetries }),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,

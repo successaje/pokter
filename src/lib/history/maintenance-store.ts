@@ -44,7 +44,7 @@ const SCHEMA = `
 `;
 
 /** How a stage ended, in the vocabulary the run budget already reports. */
-export type StageOutcome = 'ok' | 'failed' | 'timed-out' | 'skipped';
+export type StageOutcome = 'ok' | 'partial' | 'failed' | 'timed-out' | 'skipped';
 
 export interface StageRun {
   label: string;

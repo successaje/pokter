@@ -63,6 +63,13 @@ export const RECONCILE_PER_RUN = 40;
  */
 export const RECONCILE_DEADLINE_SLACK_MS = 5_000;
 
+/**
+ * Stop starting new side-effecting work this far before a critical step's
+ * cap, for the same reason as the reconcile slack: a delivery submitted with
+ * a second left is a transaction nobody is watching land.
+ */
+export const CRITICAL_LOOP_SLACK_MS = 2_000;
+
 /** The first retry waits one sweep interval; the longest waits six hours. */
 export const RETRY_BASE_MS = 10 * 60_000;
 export const RETRY_CEILING_MS = 6 * 60 * 60_000;
@@ -118,19 +125,75 @@ export function dueForReconcile<T>(
 }
 
 /**
+ * How a job's reconciliation ended, read from what the work returned.
+ *
+ *  - `ok`      the escrow state was read and everything owed was done.
+ *  - `partial` the state was read, and something after it was not. The
+ *              reconciliation worked; a notification did not.
+ *  - `failed`  the state could not be read, so nothing was reconciled.
+ */
+export type AttemptOutcome = 'ok' | 'partial' | 'failed';
+
+/**
+ * What the work returned, in the shape the route's reconcile task produces.
+ *
+ * Deliberately loose. The point is to read a result honestly rather than to
+ * assume one: a missing field is not a success, and a counter that came back
+ * null is not a count of zero that proves anything.
+ */
+export interface ReconcileResultish {
+  reconciled?: boolean;
+  unreadable?: boolean;
+  notificationFailed?: boolean;
+  notificationSkipped?: boolean;
+  sent?: number | null;
+}
+
+/**
+ * Classify before recording, because the two failures look alike from here.
+ *
+ * The first version of this read `unreadable ? 'failed' : 'ok'`, which made
+ * `{ reconciled: true, notificationFailed: true }` a full success and
+ * advanced `lastSucceededAt`. That row's escrow state *was* reconciled and
+ * its builder was *not* told, so calling it a success is the same class of
+ * mistake as a run reporting 200 while skipping the steps that notify
+ * people: true about the part that is easy to check, false about the job.
+ *
+ * `null` is its own answer. A task that returned nothing was not attempted —
+ * the run reached its deadline first — and the caller must not record an
+ * attempt for it at all, which is why this refuses to classify it.
+ */
+export function classifyAttempt(result: ReconcileResultish | null | undefined): AttemptOutcome | 'not-attempted' {
+  if (result === null || result === undefined) return 'not-attempted';
+  if (result.unreadable === true) return 'failed';
+  if (result.reconciled !== true) return 'failed';
+  if (result.notificationFailed === true) return 'partial';
+  return 'ok';
+}
+
+/**
  * The attempt record after a run tried a job.
  *
- * A failure advances `lastAttemptedAt` and leaves `lastSucceededAt` alone,
- * which is the whole point: the turn is spent, and nothing claims the job
- * reconciled. A success resets the failure count, so one bad hour does not
- * leave a healthy job in a long backoff.
+ * Only `ok` advances `lastSucceededAt`. A failure advances the attempt and
+ * leaves the success alone, which is the whole point: the turn is spent and
+ * nothing claims the job reconciled.
+ *
+ * `partial` advances the attempt and not the success either, and — unlike a
+ * failure — does not count towards backoff. The distinction is deliberate:
+ * backoff exists to stop a row whose escrow cannot be read from consuming
+ * turns, and a row that reconciles fine while its builder's mail bounces is
+ * not that row. Slowing it down would delay reconciliation to punish a
+ * notification.
  */
 export function afterAttempt(
   previous: JobAttempt | undefined,
-  outcome: 'ok' | 'failed',
+  outcome: AttemptOutcome,
   at: string,
 ): JobAttempt {
-  const failures = outcome === 'ok' ? 0 : (previous?.failures ?? 0) + 1;
+  const failures =
+    outcome === 'ok' ? 0
+    : outcome === 'partial' ? (previous?.failures ?? 0)
+    : (previous?.failures ?? 0) + 1;
   return {
     lastAttemptedAt: at,
     lastSucceededAt: outcome === 'ok' ? at : (previous?.lastSucceededAt ?? null),
