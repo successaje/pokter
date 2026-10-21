@@ -74,6 +74,7 @@ test('a failing step is a gap in the report, never a failed run', async () => {
   const report = budget.report();
   assert.deepEqual(report.timedOut, [], 'a failure is not a timeout');
   assert.deepEqual(report.skipped, [], 'nor a skip — it ran and did not work');
+  assert.deepEqual(report.failed, ['throws', 'rejects'], 'and it is named, not silent');
 });
 
 test('the report says what the run spent against what it was given', async () => {
@@ -81,7 +82,7 @@ test('the report says what the run spent against what it was given', async () =>
   const budget = runBudget(5_000, clock.now);
   await budget.step('work', () => { clock.advance(1_200); });
 
-  assert.deepEqual(budget.report(), { skipped: [], timedOut: [], usedMs: 1_200, budgetMs: 5_000 });
+  assert.deepEqual(budget.report(), { skipped: [], timedOut: [], failed: [], steps: [{ label: 'work', ms: 1_200, outcome: 'ok' }], usedMs: 1_200, budgetMs: 5_000 });
 });
 
 test('a step that returns null is not mistaken for one that was skipped', async () => {
@@ -90,4 +91,28 @@ test('a step that returns null is not mistaken for one that was skipped', async 
   const budget = runBudget(1_000);
   assert.equal(await budget.step('legitimately-null', () => null), null);
   assert.deepEqual(budget.report().skipped, []);
+});
+
+test('every step that started reports how long it took and how it ended, in run order', async () => {
+  const clock = fakeClock();
+  const budget = runBudget(10_000, clock.now);
+  await budget.step('listings', () => { clock.advance(4_000); return []; });
+  await budget.step('broken', () => { clock.advance(500); throw new Error('rpc refused'); });
+  await budget.step('quick', () => 1);
+  clock.advance(5_500);
+  await budget.step('never', () => 1);
+  const { steps, skipped } = budget.report();
+  assert.deepEqual(steps, [
+    { label: 'listings', ms: 4_000, outcome: 'ok' },
+    { label: 'broken', ms: 500, outcome: 'failed' },
+    { label: 'quick', ms: 0, outcome: 'ok' },
+  ]);
+  assert.deepEqual(skipped, ['never'], 'a skipped step has no duration, only a name');
+});
+
+test('the scheduler line names the slowest steps, and only ones that took a second', async () => {
+  const { slowest } = await import('../src/lib/history/budget');
+  assert.equal(slowest([{ label: 'a', ms: 900 }, { label: 'listings', ms: 81_400 }, { label: 'categoryChecks', ms: 40_000 }]), ' · slowest listings 81s, categoryChecks 40s');
+  assert.equal(slowest([{ label: 'a', ms: 10 }]), '');
+  assert.equal(slowest(undefined), '');
 });

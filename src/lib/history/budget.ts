@@ -54,6 +54,17 @@ export interface RunBudgetReport {
   skipped: string[];
   /** Steps that started and were still waiting when the run ran out. */
   timedOut: string[];
+  /**
+   * Steps that threw. Their result was null like a skipped step's, so the
+   * work silently did not happen and nothing said so.
+   */
+  failed: string[];
+  /**
+   * Every step that started, with how long it took, in run order. The run's
+   * total said the sweep used 236s of 240s and the measurement 18s of it;
+   * where the other 218s went could not be read from anything.
+   */
+  steps: Array<{ label: string; ms: number; outcome: 'ok' | 'failed' | 'timed-out' }>;
   /** How long the run actually took, against the budget it was given. */
   usedMs: number;
   budgetMs: number;
@@ -63,6 +74,8 @@ export function runBudget(totalMs: number, clock: () => number = Date.now): RunB
   const startedAt = clock();
   const skipped: string[] = [];
   const timedOut: string[] = [];
+  const failed: string[] = [];
+  const steps: RunBudgetReport['steps'] = [];
   const remaining = () => Math.max(0, totalMs - (clock() - startedAt));
 
   return {
@@ -76,12 +89,17 @@ export function runBudget(totalMs: number, clock: () => number = Date.now): RunB
         return null;
       }
 
+      const started = clock();
       try {
         /* An async wrapper, so a step that throws synchronously is caught
            here rather than escaping the budget and failing the run. */
-        return await withTimeout((async () => work())(), label, left);
+        const result = await withTimeout((async () => work())(), label, left);
+        steps.push({ label, ms: clock() - started, outcome: 'ok' });
+        return result;
       } catch (error) {
-        if (error instanceof TimedOut) timedOut.push(label);
+        const outcome = error instanceof TimedOut ? 'timed-out' : 'failed';
+        (outcome === 'timed-out' ? timedOut : failed).push(label);
+        steps.push({ label, ms: clock() - started, outcome });
         return null;
       }
     },
@@ -89,8 +107,20 @@ export function runBudget(totalMs: number, clock: () => number = Date.now): RunB
     report: () => ({
       skipped: [...skipped],
       timedOut: [...timedOut],
+      failed: [...failed],
+      steps: steps.map((s) => ({ ...s })),
       usedMs: clock() - startedAt,
       budgetMs: totalMs,
     }),
   };
+}
+
+/**
+ * The few steps that took most of a run, for the scheduler's one log line:
+ * " · slowest listings 81s, categoryChecks 40s, walletActivity 22s".
+ * Only steps over a second, because the point is where the time went.
+ */
+export function slowest(steps: Array<{ label: string; ms: number }> | undefined, count = 5): string {
+  const top = (steps ?? []).filter((s) => s.ms >= 1000).sort((a, b) => b.ms - a.ms).slice(0, count);
+  return top.length ? ` · slowest ${top.map((s) => `${s.label} ${Math.round(s.ms / 1000)}s`).join(', ')}` : '';
 }
