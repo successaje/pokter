@@ -6,7 +6,7 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
 import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME, networkOf } from '@/lib/mcp/agent-card';
-import { formatAmount } from '@/lib/network/tokens';
+import { formatQuoted } from '@/lib/network/tokens';
 import { agentIdentityKey } from '@/lib/agents/distinct';
 import { escrowChainForHire } from '@/lib/network/escrow';
 import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
@@ -103,12 +103,14 @@ function tools(request: Request): McpTool[] {
     const until = expiresAt ? Date.parse(expiresAt) : Number.NaN;
     return {
       /*
-       * The currency this function has always been given and never used.
-       * `formatAmount` returns null when the token is not one Pokter has
+       * The currency this function has always been given and never used,
+       * read on the chain it belongs to whether or not that escrow is
+       * enabled: the label is about the money, `network` about where a hire
+       * can settle. `formatQuoted` returns null when the token is not one Pokter has
        * verified, and the price then says the raw amount and names no money,
        * because naming the wrong money is the worse failure.
        */
-      price: (escrowChain === null ? null : formatAmount(escrowChain, currency, priceRaw)?.label) ?? `${priceRaw} raw units (no verified token for ${currency ?? 'an unstated currency'})`,
+      price: formatQuoted(currency, priceRaw)?.label ?? `${priceRaw} raw units (no verified token for ${currency ?? 'an unstated currency'})`,
       network: network?.label ?? 'No escrow Pokter enables settles this token',
       money: network?.money ?? null,
       validUntil: Number.isFinite(until) ? new Date(until).toISOString() : null,

@@ -1,4 +1,4 @@
-import { formatAmount } from '@/lib/network/tokens';
+import { formatQuoted } from '@/lib/network/tokens';
 
 /**
  * The agent card an MCP host shows inline (MCP Apps, `ui://`), and the
@@ -72,14 +72,15 @@ export function buildAgentCard(
      * fresh quote used to call its own price "not current".
      */
     price: quote
-      ? { label: formatAmount(chainId, quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signed: true, current: true }
+      /* Read on the chain the currency settles on, never the one the agent is registered on (`settlementChainOf`). */
+      ? { label: formatQuoted(quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signed: true, current: true }
       : price ? { label: `${price.amountU} $U`, signed: true, current: Boolean(price.current) } : null,
     network: (() => {
       const network = networkOf(escrow);
       return network ? { label: network.label, money: network.money, real: network.real } : null;
     })(),
     blocker: detail.hireBlocker?.reason ? { reason: detail.hireBlocker.reason, fix: detail.hireBlocker.fix ?? `${origin}/build/integration` } : null,
-    quote: quote ? { price: formatAmount(chainId, quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signer: short(quote.signer), termsBound: quote.termsBound } : null,
+    quote: quote ? { price: formatQuoted(quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signer: short(quote.signer), termsBound: quote.termsBound } : null,
     brief,
     hireUrl: hire.href,
     pageUrl: detail.links?.html ?? `${origin}/agents/${chainId}/${tokenId}`,

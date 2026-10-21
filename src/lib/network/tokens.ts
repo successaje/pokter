@@ -199,6 +199,37 @@ export function formatAmount(
   return { amount, symbol, label: `${amount} ${symbol}` };
 }
 
+/**
+ * The chain a quoted price settles on, from its currency's address.
+ *
+ * Not the agent's registration chain. Most of the catalogue is registered
+ * on one network and paid on another, so formatting a quote against the
+ * registration chain looked its currency up in the wrong registry: a
+ * testnet-registered agent quoting mainnet $U printed "(unverified
+ * token)" for a real price. An address is a token on one chain only in
+ * this registry; if that ever stopped being true this returns null rather
+ * than pick one.
+ */
+export function settlementChainOf(currency: string | null | undefined): number | null {
+  if (!currency) return null;
+  let address: string;
+  try {
+    address = getAddress(currency);
+  } catch {
+    return null;
+  }
+  const chains = [...new Set(TOKENS.filter((t) => t.address === address).map((t) => t.chainId))];
+  return chains.length === 1 ? chains[0] : null;
+}
+
+/** A quoted price in words, read on the chain its currency belongs to (`settlementChainOf`), or null for a token Pokter has not verified. */
+export function formatQuoted(currency: string | null | undefined, raw: string | bigint): { amount: string; symbol: string; label: string; chainId: number } | null {
+  const chainId = settlementChainOf(currency);
+  if (chainId === null) return null;
+  const formatted = formatAmount(chainId, currency, raw);
+  return formatted ? { ...formatted, chainId } : null;
+}
+
 /*
  * Integer-only, so an amount never passes through a float.
  *
