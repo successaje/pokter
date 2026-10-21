@@ -37,6 +37,14 @@ export interface QuoteFailure {
   detail?: string;
   /** When this agent last signed a price for Pokter, if recently: a refusal now then reads as a passing block, not a closed door. */
   signedRecentlyAt?: string;
+  /**
+   * How long before the refusal that was, in minutes, worked out by
+   * `withRecentQuote` on the same clock that judged it recent. The message
+   * reads this rather than the clock again, so "40 minutes ago" is the age
+   * the decision was made on, not whatever the clock says when the text is
+   * built.
+   */
+  signedMinutesAgo?: number;
 }
 
 /** How recent a signed price has to be for a 401/403 to read as temporary. */
@@ -57,7 +65,7 @@ export function withRecentQuote(failure: QuoteFailure, lastQuotedAt: string | nu
   if (failure.code !== 'auth-required' || !lastQuotedAt) return failure;
   const at = Date.parse(lastQuotedAt);
   if (!Number.isFinite(at) || nowMs - at > RECENT_QUOTE_MS) return failure;
-  return { ...failure, retryable: true, signedRecentlyAt: lastQuotedAt };
+  return { ...failure, retryable: true, signedRecentlyAt: lastQuotedAt, signedMinutesAgo: Math.max(1, Math.round((nowMs - at) / 60_000)) };
 }
 
 /** Every code, in the order the integration kit lists them. */
@@ -116,8 +124,8 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
     case 'no-price-skill':
       return { status: 409, message: `${agentName} does not offer a priced job (its card has no negotiate skill), so it cannot be hired through escrow.` };
     case 'auth-required':
-      if (failure.signedRecentlyAt) {
-        const ago = Math.max(1, Math.round((Date.now() - Date.parse(failure.signedRecentlyAt)) / 60_000));
+      if (failure.signedRecentlyAt && failure.signedMinutesAgo !== undefined) {
+        const ago = failure.signedMinutesAgo;
         return {
           status: 503,
           message: `${agentName} refused this request${failure.detail ? ` (${failure.detail})` : ''}, though it signed a price for Pokter ${ago < 90 ? `${ago} minutes` : `${Math.round(ago / 60)} hours`} ago, so this looks like a temporary block on its side. Try again in a minute; nothing has been paid.`,

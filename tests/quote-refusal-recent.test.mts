@@ -11,7 +11,8 @@ test('a 403 from an agent that signed a price within the day reads as temporary 
   assert.equal(f.retryable, true);
   const { message, status } = describeQuoteFailure(f, 'Mandate Guard-1');
   assert.equal(status, 503);
-  assert.match(message, /refused this request \(HTTP 403\), though it signed a price for Pokter \d+ minutes ago/);
+  // The age is the one the decision was made on, so it is exact whatever the machine's clock says.
+  assert.match(message, /refused this request \(HTTP 403\), though it signed a price for Pokter 40 minutes ago/);
   assert.doesNotMatch(message, /cannot be hired/);
 });
 
@@ -26,4 +27,14 @@ test('with no recent signed price, a 403 still says the endpoint needs credentia
 test('other failures are left alone', () => {
   const declined = quoteFailure('seller-declined');
   assert.equal(withRecentQuote(declined, new Date(now).toISOString(), now), declined);
+});
+
+test('the minutes in the message come from the clock that judged the quote recent, not the machine’s', () => {
+  // A fixed "now" years away from the real clock: before, the message read Date.now() and said thousands of hours.
+  const longAgo = Date.parse('2020-01-01T12:00:00Z');
+  const f = withRecentQuote(forbidden, new Date(longAgo - 5 * 60_000).toISOString(), longAgo);
+  assert.equal(f.signedMinutesAgo, 5);
+  assert.match(describeQuoteFailure(f, 'Mandate Guard-1').message, /signed a price for Pokter 5 minutes ago/);
+  const later = withRecentQuote(forbidden, new Date(longAgo - 3 * 3_600_000).toISOString(), longAgo);
+  assert.match(describeQuoteFailure(later, 'Mandate Guard-1').message, /signed a price for Pokter 3 hours ago/);
 });
