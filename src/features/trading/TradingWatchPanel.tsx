@@ -201,9 +201,9 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
           <h2 id="checks-title" className="text-[15px] font-semibold">
             What Pokter checks
           </h2>
-          <p className="text-ink-2">In every transaction where a token leaves this wallet, something has to come back to it: tokens, a position, or liquidity in a position it holds.</p>
+          <p className="text-ink-2">Every token or position that leaves this wallet has to go to an address you listed, or to a real PancakeSwap pool that pays the wallet back in the same transaction: tokens, a position, or liquidity in a position it holds. Collecting a position’s tokens to anyone else counts as leaving.</p>
           <p className="text-ink-3">
-            Tokens checked: {(view?.checkedTokens ?? ['WBNB', 'USDT', 'USDC', 'BTCB', 'ETH', 'CAKE', 'FDUSD', 'U']).join(', ')}, and the tokens of its positions. Not checked: BNB sent directly, and whether a price was fair.
+            Tokens checked: {(view?.checkedTokens ?? ['WBNB', 'USDT', 'USDC', 'BTCB', 'ETH', 'CAKE', 'FDUSD', 'U']).join(', ')}, and the tokens of its positions. Not checked: BNB sent directly, and whether a price was fair. A trade on another exchange is flagged, because its pool cannot be confirmed.
           </p>
           <p className="text-ink-3">
             <span className="font-medium text-ink-2">Session limits:</span> not shown yet. Pokter cannot yet read a session’s caps and expiry from chain on its own, so it does not repeat the operator’s figures as checked.
