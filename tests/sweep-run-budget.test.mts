@@ -82,7 +82,15 @@ test('the report says what the run spent against what it was given', async () =>
   const budget = runBudget(5_000, clock.now);
   await budget.step('work', () => { clock.advance(1_200); });
 
-  assert.deepEqual(budget.report(), { skipped: [], timedOut: [], failed: [], steps: [{ label: 'work', ms: 1_200, outcome: 'ok' }], usedMs: 1_200, budgetMs: 5_000 });
+  // Exhaustive on purpose, so a new report field lands here and is noticed.
+  // `reservedMs` is 0 because this budget was built without a reservation,
+  // which is still a valid budget: every step is ordinary and the whole run
+  // is spendable.
+  assert.deepEqual(budget.report(), {
+    skipped: [], timedOut: [], failed: [], criticalMissed: [],
+    steps: [{ label: 'work', ms: 1_200, outcome: 'ok' }],
+    usedMs: 1_200, budgetMs: 5_000, reservedMs: 0,
+  });
 });
 
 test('a step that returns null is not mistaken for one that was skipped', async () => {
