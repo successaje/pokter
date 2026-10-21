@@ -15,7 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Check the server sweeps on its own
+        # This backup cannot keep the evidence current on its own (GitHub's cron
+        # drifts by hours), so a server whose scheduler is off fails here, where
+        # the failure is emailed, instead of going quiet as it did on 20 October.
+        run: |
+          scheduler=$(curl -sS --max-time 20 https://pokter.xyz/api/health | grep -o '"scheduler":"[a-z-]*"' | cut -d'"' -f4)
+          if [ "$scheduler" != "on" ]; then
+            echo "::error::The server's sweep scheduler is ${scheduler:-not reported}. Check for a SWEEP_SCHEDULER Fly secret overriding fly.toml."
+            exit 1
+          fi
+
       - name: Trigger sweep
+        if: always()
         run: |
           # The server sweeps on its own schedule now; this is the backup.
           # A manual run forces a sweep; a scheduled one stands down when

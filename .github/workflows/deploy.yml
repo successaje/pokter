@@ -137,6 +137,14 @@ jobs:
           if echo "$response" | grep -q '"status":"saturated"'; then
             echo "::warning::Released, but the machine reports saturated serving: $response"
           fi
+          # The sweep runs probes, notifications, reminders and liquidation alerts.
+          # On 20 October a Fly secret switched its scheduler off and it stayed off
+          # for about twenty hours with every check here passing.
+          scheduler=$(echo "$response" | grep -o '"scheduler":"[a-z-]*"' | cut -d'"' -f4)
+          if [ "$scheduler" != "on" ]; then
+            echo "::error::The sweep scheduler is ${scheduler:-not reported} on production. A Fly secret named SWEEP_SCHEDULER overrides fly.toml; unset it."
+            exit 1
+          fi
 
       - name: Verify critical public journeys
         run: |
