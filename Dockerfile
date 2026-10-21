@@ -69,6 +69,7 @@ ENV FEEDBACK_DB_PATH=/data/feedback.db
 ENV BRIEF_DB_PATH=/data/briefs.db
 ENV PROFILE_DB_PATH=/data/profiles.db
 ENV SATURATION_DB_PATH=/data/saturation.db
+ENV TRADING_DB_PATH=/data/trading.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs

@@ -45,6 +45,7 @@ export const STORES: readonly StoreDescriptor[] = [
   { name: 'briefs', variable: 'BRIEF_DB_PATH', fallback: './data/briefs.db' },
   { name: 'profiles', variable: 'PROFILE_DB_PATH', fallback: './data/profiles.db' },
   { name: 'saturation', variable: 'SATURATION_DB_PATH', fallback: './data/saturation.db' },
+  { name: 'trading', variable: 'TRADING_DB_PATH', fallback: './data/trading.db' },
 ];
 
 /** Where a store will actually be written, given the current environment. */

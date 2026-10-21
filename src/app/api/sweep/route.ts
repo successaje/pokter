@@ -21,6 +21,7 @@ import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
+import { scanTradingWallets } from '@/lib/trading/read';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -346,6 +347,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       }),
     );
 
+    /* Watched trading wallets: the blocks since the last sweep, every token that left judged by whether it came back. Public RPC serves about an hour of logs, so this cannot be caught up later. */
+    const tradingScan = await budget.step('tradingScan', () => scanTradingWallets());
+
     const campaignReminders = await budget.step('campaignReminders', () =>
       isCampaignLive()
         ? notifyCampaignReminders({
@@ -563,6 +567,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       jobOwners,
       campaignReminders,
       loanWatches,
+      tradingScan,
       relayTests,
       funders,
       healthFactorChecks,
