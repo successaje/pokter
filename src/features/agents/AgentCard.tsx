@@ -268,10 +268,14 @@ export function AgentCard({
             catalogue, in the loudest treatment on it, competing with the
             name for a fact that is not why anyone is reading.
           */}
-          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
-            <span className="truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
+          {/* Wraps rather than clips. On one line, a 390px card cut the
+              category to "Grid Tra…" and the token ID to "#302…" whenever
+              the on-chain tag was there too, and a truncated ID is not an
+              ID anybody can look up. */}
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3">
+            <span className="max-w-full truncate rounded-full border border-rule bg-sunken px-2 py-0.5 text-ink-2">{row.categoryLabel}</span>
             <OnChainTag row={row} />
-            <span className="t-readout truncate">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="truncate">· Run by Pokter</span> : null}
+            <span className="t-readout shrink-0">#{row.tokenId}</span>{isHouseAgent({ owner_address: row.owner }) ? <span className="shrink-0">· Run by Pokter</span> : null}
           </span>
         </div>
         {/* The footer that used to hold this went with "View evidence";
@@ -354,7 +358,11 @@ export function AgentCard({
       {/* Price, where it settles and where the identity lives, against the
           one action: the facts a buyer needs in the order they need them,
           on the same line as the button they lead to. */}
-      <div className="relative z-10 mt-auto flex items-end justify-between gap-3 border-t border-rule pt-4">
+      {/* The space above the price, never less than 16px. `mt-auto` gave
+          the tallest card in a grid row none at all, and the rule landed
+          on the evidence readouts above it. */}
+      <div aria-hidden className="min-h-4 flex-1" />
+      <div className="relative z-10 flex items-end justify-between gap-3 border-t border-rule pt-4">
         <div className="flex min-w-0 flex-col">
           <PriceText row={row} className="text-[1.45rem] font-medium leading-none tracking-[-0.02em]" />
           <span className="mt-1.5 flex flex-col gap-0.5">
