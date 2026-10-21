@@ -8,7 +8,8 @@ import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { ownRegistration } from '@/lib/agents/own-registration';
-import { relayRefusal } from '@/lib/erc8183/relay-refusal';
+import { relayStatus, type RelayStatus } from '@/lib/erc8183/relay-refusal';
+import { probeRelay } from '@/lib/erc8183/relay-probe';
 import { onChainSummary, type OnChainKind } from '@/lib/capability/match';
 import { getCapabilityStore } from '@/lib/capability/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -159,6 +160,8 @@ export interface AgentProfile {
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
   readiness: ReadinessRow[];
   hireable: boolean;
+  /** Why testnet is not offered through Pokter's relay, when it is not: not confirmed yet, or refused. Null when it is offered or does not apply. */
+  testnetRelay: { status: 'unknown' | 'refused'; note: string } | null;
   /** What its own wallet was seen doing on chain, the same reading as the catalogue's tag. Null when nothing has been read. */
   onChain: { kind: OnChainKind; text: string } | null;
   trialAvailable: boolean;
@@ -194,15 +197,21 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   // why it cannot be hired at that price).
   const offered: number[] = escrowOptionsForHire(d.quote?.currency);
   /*
-   * Testnet for an agent registered elsewhere is a relayed hire. When the
-   * agent is known to refuse a carried brief, the relay is not offered: a
-   * buyer funded it and waited for a job that could not be delivered. The
+   * Testnet for an agent registered elsewhere is a relayed hire. The relay
+   * is offered only once Pokter has seen the agent answer a carried brief
+   * (relay-refusal.ts): an agent known to refuse one, or never asked, is
+   * not offered, because a buyer funded it and waited for a job that could
+   * not be delivered. The
    * agent's own testnet registration, if it has one, is hired instead
    * (HireContents redirects there), so testnet stays on offer for it.
    */
-  const relayRefused = agent.chain_id !== 97 && offered.includes(97) ? await relayRefusal(agent.chain_id, agent.token_id).catch(() => null) : null;
-  const ownTestnet = relayRefused ? await ownRegistration(97, agent.owner_address, agent.name ?? '', agent.chain_id, agent.token_id).catch(() => null) : null;
-  const escrowOptions: number[] = relayRefused && !ownTestnet ? offered.filter((chain) => chain !== 97) : offered;
+  const relay: RelayStatus | null = offered.includes(97) ? await relayStatus(agent.chain_id, agent.token_id).catch(() => ({ status: 'unknown' as const, note: null })) : null;
+  /* Nothing known yet: test it now, in the background, so the next visit can offer testnet. A buyer is never the test. */
+  if (relay?.status === 'unknown') void probeRelay({ chainId: agent.chain_id, tokenId: agent.token_id, category }).catch(() => null);
+  const relayRefused = relay && relay.status !== 'ok' ? (relay.note ?? 'Testnet is not offered for this agent.') : null;
+  /* A testnet-registered agent keeps testnet: it may deliver from its own wallet, and the relay choice below is what is withheld. */
+  const ownTestnet = relayRefused && agent.chain_id !== 97 ? await ownRegistration(97, agent.owner_address, agent.name ?? '', agent.chain_id, agent.token_id).catch(() => null) : null;
+  const escrowOptions: number[] = relayRefused && agent.chain_id !== 97 && !ownTestnet ? offered.filter((chain) => chain !== 97) : offered;
   const escrowChain =
     requestedEscrow !== null && escrowOptions.includes(requestedEscrow)
       ? requestedEscrow
@@ -392,7 +401,9 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     services,
     repositoryUrl: httpsOnly(services.find((s) => s.name.toLowerCase() === 'repository')?.endpoint),
     warnings,
-    hireable: providers.length > 0,
+    /* Nothing left to hire on when testnet was the only network and the relay cannot reach the agent. */
+    hireable: providers.length > 0 && !(relayRefused && escrowOptions.length === 0),
+    testnetRelay: relay && relay.status !== 'ok' && !escrowOptions.includes(97) ? { status: relay.status, note: relayRefused ?? '' } : null,
     onChain: onChainSummary({
       category,
       description: agent.description,

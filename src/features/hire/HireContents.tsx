@@ -63,7 +63,9 @@ export async function HireContents({
           </>
         }
       >
-        No provider wallet that can receive an escrowed job was found for it. Pokter does not take payment for a job nobody can deliver.
+        {p.testnetRelay && p.escrowOptions.length === 0
+          ? `${p.testnetRelay.note} Pokter does not take payment for a job nobody can deliver.`
+          : 'No provider wallet that can receive an escrowed job was found for it. Pokter does not take payment for a job nobody can deliver.'}
       </EmptyState>
     );
   }
