@@ -6,9 +6,9 @@ import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
 import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME, networkOf } from '@/lib/mcp/agent-card';
+import { formatAmount } from '@/lib/network/tokens';
 import { agentIdentityKey } from '@/lib/agents/distinct';
 import { escrowChainForHire } from '@/lib/network/escrow';
-import { formatUnits } from 'viem';
 import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
 import { discover } from '@/features/discover/search';
 import { parseDiscoverParams } from '@/features/discover/params';
@@ -89,10 +89,26 @@ function tools(request: Request): McpTool[] {
   };
   /** A signed price in words: amount, money, network and how long it holds. */
   const termsOf = (priceRaw: string, currency: string | undefined, expiresAt: string | undefined) => {
-    const network = networkOf(escrowChainForHire(currency));
+    /*
+     * The escrow chain comes from the currency, and that inference is sound
+     * because it matches on **address**, not symbol: each token has a
+     * different contract on each chain, so $U on 56 and $U on 97 are already
+     * distinct keys, as are USDT's two deployments. It would break only if
+     * one address were a payment token on two chains, which no deployment
+     * does. Symbol-based inference would break immediately, which is why the
+     * registry is keyed by the pair and never by the symbol.
+     */
+    const escrowChain = escrowChainForHire(currency);
+    const network = networkOf(escrowChain);
     const until = expiresAt ? Date.parse(expiresAt) : Number.NaN;
     return {
-      price: `${formatUnits(BigInt(priceRaw), 18)} $U`,
+      /*
+       * The currency this function has always been given and never used.
+       * `formatAmount` returns null when the token is not one Pokter has
+       * verified, and the price then says the raw amount and names no money,
+       * because naming the wrong money is the worse failure.
+       */
+      price: (escrowChain === null ? null : formatAmount(escrowChain, currency, priceRaw)?.label) ?? `${priceRaw} raw units (no verified token for ${currency ?? 'an unstated currency'})`,
       network: network?.label ?? 'No escrow Pokter enables settles this token',
       money: network?.money ?? null,
       validUntil: Number.isFinite(until) ? new Date(until).toISOString() : null,
@@ -197,7 +213,7 @@ function tools(request: Request): McpTool[] {
         const terms = priceRaw && /^\d+$/.test(priceRaw) ? { ...termsOf(priceRaw, quoted.receipt?.response?.terms?.currency, quoted.receipt?.quote_expires_at), signedByAgentWallet: Boolean(quoted.verifiedSigner), boundToThisBrief: Boolean(quoted.termsBound) } : null;
         const record = await detail(c, t);
         const card = record
-          ? buildAgentCard(record, { origin, brief: args.task, quote: quoted.receipt?.response?.terms?.price && quoted.verifiedSigner ? { priceRaw: quoted.receipt.response.terms.price, signer: quoted.verifiedSigner, termsBound: Boolean(quoted.termsBound) } : null })
+          ? buildAgentCard(record, { origin, brief: args.task, quote: quoted.receipt?.response?.terms?.price && quoted.verifiedSigner ? { priceRaw: quoted.receipt.response.terms.price, currency: quoted.receipt?.response?.terms?.currency ?? null, signer: quoted.verifiedSigner, termsBound: Boolean(quoted.termsBound) } : null })
           : null;
         return { data: { ...(terms ? { terms } : {}), ...(answered.data as object), ...(card ? { card } : {}) } };
       },

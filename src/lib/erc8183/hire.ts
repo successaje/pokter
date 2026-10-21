@@ -14,6 +14,7 @@ import type { Address } from 'viem';
 import { correctedErc8183Addresses } from './addresses';
 
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
+import { formatAmount, requireDecimals } from '@/lib/network/tokens';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
@@ -139,7 +140,7 @@ export async function paymentTokenBalance(wallet: Address): Promise<string> {
     functionName: 'balanceOf',
     args: [wallet],
   });
-  return formatUnits(balance, 18);
+  return formatUnits(balance, requireDecimals(ALTANA_NETWORK.chainId, paymentToken));
 }
 
 /**
@@ -154,10 +155,23 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
   const signer = adminSigner('legacy-hire');
   const wallet = await client.createWallet({ signer });
 
-  const budget = parseUnits(String(input.budgetU), 18);
+  /*
+   * Scale from the token, not from a literal.
+   *
+   * Every token either escrow currently settles in has eighteen decimals, so
+   * this computes the same amount it did before. It stops being the same the
+   * first time an amount is denominated in something else: testnet USDC has
+   * six, and a literal 18 against it would approve and transfer an amount
+   * 10^12 too large. `requireDecimals` throws on a token Pokter has not
+   * verified rather than falling back, because there is no safe default
+   * scale for money.
+   */
+  const { paymentToken: hireToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  const decimals = requireDecimals(ALTANA_NETWORK.chainId, hireToken);
+  const budget = parseUnits(String(input.budgetU), decimals);
   const held = await paymentTokenBalance(wallet.address);
 
-  if (parseUnits(held, 18) < budget) {
+  if (parseUnits(held, decimals) < budget) {
     throw new InsufficientPaymentTokenError(held, String(input.budgetU));
   }
 
@@ -328,8 +342,22 @@ export function listJobs(): HiredJob[] {
   return getJobStore().all();
 }
 
+/**
+ * A job's budget, in the money it was funded in.
+ *
+ * Every job on record was created through `createJob`, which funds in the
+ * escrow's default token, so the chain's default is the right token for all
+ * of them. That holds for existing rows under the current deployment and
+ * default token; it is not a guarantee about an upgradeable contract, and it
+ * stops holding the moment a hire is placed with `createJobWithToken`. When
+ * that happens the job needs its token recorded — see the note in
+ * `lib/network/tokens` — and this function needs to read it rather than
+ * infer it.
+ */
 export function formatBudget(job: HiredJob): string {
-  return `${formatUnits(BigInt(job.budgetRaw), 18)} $U`;
+  const { paymentToken } = correctedErc8183Addresses(job.chainId);
+  return formatAmount(job.chainId, paymentToken, job.budgetRaw)?.label
+    ?? `${job.budgetRaw} raw units`;
 }
 
 /**
@@ -390,5 +418,5 @@ export async function reclaimJob(jobId: string): Promise<{ jobId: string; transa
     });
   }
 
-  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, 18) };
+  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, requireDecimals(ALTANA_NETWORK.chainId, correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken)) };
 }
