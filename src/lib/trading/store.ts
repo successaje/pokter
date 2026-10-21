@@ -116,6 +116,18 @@ class TradingStore {
     return rows.map((r) => ({ txHash: r.tx_hash, wallet: r.wallet, block: r.block, at: r.at, verdict: r.verdict, note: r.note, sent: JSON.parse(r.sent) }));
   }
 
+  /** Flows Pokter found after a given block, oldest first, for alerting. */
+  flowsAfter(wallet: string, block: number): StoredFlow[] {
+    const rows = this.db.prepare('SELECT * FROM trading_flows WHERE wallet = ? AND block > ? ORDER BY block ASC LIMIT 50').all(wallet.toLowerCase(), block) as Array<{ tx_hash: string; wallet: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: string }>;
+    return rows.map((r) => ({ txHash: r.tx_hash, wallet: r.wallet, block: r.block, at: r.at, verdict: r.verdict, note: r.note, sent: JSON.parse(r.sent) }));
+  }
+
+  /** Coverage gaps recorded after a given time. */
+  gapsAfter(wallet: string, atIso: string): CoverageGap[] {
+    const rows = this.db.prepare('SELECT * FROM trading_gaps WHERE wallet = ? AND at > ? ORDER BY at ASC').all(wallet.toLowerCase(), atIso) as Array<{ wallet: string; from_block: number; to_block: number; at: string }>;
+    return rows.map((r) => ({ wallet: r.wallet, fromBlock: r.from_block, toBlock: r.to_block, at: r.at }));
+  }
+
   gaps(wallet: string): CoverageGap[] {
     const rows = this.db.prepare('SELECT * FROM trading_gaps WHERE wallet = ? ORDER BY from_block DESC LIMIT 20').all(wallet.toLowerCase()) as Array<{ wallet: string; from_block: number; to_block: number; at: string }>;
     return rows.map((r) => ({ wallet: r.wallet, fromBlock: r.from_block, toBlock: r.to_block, at: r.at }));

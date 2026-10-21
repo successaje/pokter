@@ -24,6 +24,7 @@ interface WalletView {
   flows: Array<{ txHash: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: Array<{ symbol: string; amount: string; to: string }> }>;
   gaps: Array<{ fromBlock: number; toBlock: number }>;
   checkedTokens: string[];
+  alertsOn: boolean;
 }
 
 const VERDICT: Record<FlowVerdict, { label: string; className: string }> = {
@@ -195,6 +196,7 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
       </div>
 
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
+        {view?.watched && <AlertSignup wallet={view.holdings.wallet} on={view.alertsOn} />}
         <section aria-labelledby="checks-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
           <h2 id="checks-title" className="text-[15px] font-semibold">
             What Pokter checks
@@ -236,5 +238,58 @@ export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initial
         {!view && !error && initialWallet && <Skeleton className="h-40 w-full" />}
       </aside>
     </div>
+  );
+}
+
+/** Email alerts for this wallet: confirmed by email first, stoppable from every email. */
+function AlertSignup({ wallet, on }: { wallet: string; on: boolean }) {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  // Where a confirm or unsubscribe link landed (?email=verified|unsubscribed). Client-only component.
+  const [linkState] = useState(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('email')));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setState('sending');
+    try {
+      const r = await fetch('/api/trading/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, wallet }) });
+      const body = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
+      setState('sent');
+    } catch (caught) {
+      setError((caught as Error).message);
+      setState('idle');
+    }
+  };
+
+  return (
+    <section aria-labelledby="alerts-title" className="flex flex-col gap-3 rounded-[18px] border border-rule bg-raised p-5 text-[13px]">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-8 place-items-center rounded-full bg-sunken text-ink-2">
+          <Icon.Bell size={15} aria-hidden />
+        </span>
+        <h2 id="alerts-title" className="text-[15px] font-semibold">
+          Email me
+        </h2>
+        {on && <span className="ml-auto rounded-full bg-ok-wash px-2 py-0.5 text-[11.5px] font-medium text-ok">On</span>}
+      </div>
+      {linkState === 'verified' && <Notice tone="ok" title="Alerts are on">Each email has a link to stop them.</Notice>}
+      {linkState === 'unsubscribed' && <Notice title="Alerts are off">You will not hear about this wallet again.</Notice>}
+      {state === 'sent' ? (
+        <p className="text-ink-2">We sent a link to {email}. Nothing is sent until you confirm it.</p>
+      ) : (
+        <form onSubmit={submit} className="flex flex-col gap-2.5">
+          <p className="text-ink-2">When tokens leave this wallet and nothing comes back, or when Pokter could not check a stretch of blocks.</p>
+          <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" aria-label="Email address" autoComplete="email" />
+          {error && <p className="text-[12.5px] text-bad">{error}</p>}
+          <Button type="submit" busy={state === 'sending'}>
+            Turn on alerts
+          </Button>
+          <p className="text-[11.5px] text-ink-3">Checked about every ten minutes. Email can be delayed: a second pair of eyes, not the only one.</p>
+        </form>
+      )}
+    </section>
   );
 }

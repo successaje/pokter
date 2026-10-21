@@ -19,9 +19,11 @@ import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, notifyTradingAlerts, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
 import { scanTradingWallets } from '@/lib/trading/read';
+import { getTradingStore } from '@/lib/trading/store';
+import { DELEGATED_TRADERS } from '@/lib/trading/agents';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -349,6 +351,17 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     /* Watched trading wallets: the blocks since the last sweep, every token that left judged by whether it came back. Public RPC serves about an hour of logs, so this cannot be caught up later. */
     const tradingScan = await budget.step('tradingScan', () => scanTradingWallets());
+    /* Then the alerts on what it found: a transaction where nothing came back, or blocks it could not check. */
+    const tradingAlerts = await budget.step('tradingAlerts', () =>
+      notifyTradingAlerts({
+        flowsAfter: (wallet, block) => getTradingStore().flowsAfter(wallet, block),
+        gapsAfter: (wallet, at) => getTradingStore().gapsAfter(wallet, at),
+        revokeHelp: (wallet) => {
+          const key = getTradingStore().get(wallet)?.agentKey;
+          return key ? (DELEGATED_TRADERS[key]?.controls.revoke ?? null) : null;
+        },
+      }),
+    );
 
     const campaignReminders = await budget.step('campaignReminders', () =>
       isCampaignLive()
@@ -568,6 +581,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       campaignReminders,
       loanWatches,
       tradingScan,
+      tradingAlerts,
       relayTests,
       funders,
       healthFactorChecks,
