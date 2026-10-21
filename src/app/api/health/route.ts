@@ -36,6 +36,12 @@ export const dynamic = 'force-dynamic';
  */
 
 
+/** The scheduler's switch as this process sees it: on, off, or on without the secret it needs (which is off in practice). */
+function schedulerState(): 'on' | 'off' | 'no-secret' {
+  if (process.env.SWEEP_SCHEDULER !== 'on') return 'off';
+  return process.env.SWEEP_SECRET ? 'on' : 'no-secret';
+}
+
 export function GET(): NextResponse {
   /*
    * Every store, from the one list there is.
@@ -118,6 +124,16 @@ export function GET(): NextResponse {
        */
       lastSaturation: lastSaturation(),
       sweep: {
+        /*
+         * Whether this machine sweeps on its own clock at all. Read from the
+         * environment, no I/O. On 20 October the scheduler was switched off
+         * by a Fly secret overriding fly.toml during an outage and stayed off
+         * for about twenty hours, and nothing said so: the stale-sweep alert
+         * lives inside the scheduler it was meant to watch, and the two times
+         * below reset with every restart. The deploy and the backup sweep
+         * both fail on "off" now.
+         */
+        scheduler: schedulerState(),
         lastStartedAt: vitals.lastRunStartedAt,
         lastFinishedAt: vitals.lastSweepFinishedAt,
         gates: false,

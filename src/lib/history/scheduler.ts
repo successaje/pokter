@@ -85,7 +85,28 @@ let lastRunStartedAt: string | null = null;
  * dev server must never sweep production agents on its own.
  */
 export function startSweepScheduler(): void {
-  if (started || process.env.SWEEP_SCHEDULER !== 'on' || !process.env.SWEEP_SECRET) return;
+  if (started) return;
+  if (process.env.SWEEP_SCHEDULER !== 'on' || !process.env.SWEEP_SECRET) {
+    /*
+     * Off is said, loudly and once per boot. It was silent: switched off by
+     * a Fly secret during the 20 October outage, it stayed off for about
+     * twenty hours, and the stale-sweep alert below could not fire because
+     * it runs inside this scheduler. Probes, notifications, reminders and
+     * liquidation alerts all stop with it.
+     */
+    started = true;
+    const why = process.env.SWEEP_SCHEDULER !== 'on' ? `SWEEP_SCHEDULER is ${process.env.SWEEP_SCHEDULER ? `"${process.env.SWEEP_SCHEDULER}"` : 'unset'}` : 'SWEEP_SECRET is not set';
+    console.error(`[sweep-scheduler] off: ${why}. Nothing sweeps on this machine's clock.`);
+    if (process.env.NODE_ENV === 'production') {
+      void sendOperatorAlert({
+        subject: 'Pokter: the sweep scheduler is off',
+        body:
+          `This machine booted with the sweep scheduler off (${why}). Probes, job notifications, reconciliation, Set and Earn reminders and liquidation alerts do not run until it is on.\n\n` +
+          'fly.toml sets SWEEP_SCHEDULER = on; a Fly secret of the same name overrides it. If one is set, `fly secrets unset SWEEP_SCHEDULER` restores the file\'s value.',
+      }).catch(() => undefined);
+    }
+    return;
+  }
   started = true;
   const port = process.env.PORT ?? '8080';
 
