@@ -155,6 +155,8 @@ function db(): DatabaseSync {
   `);
   // Added after launch; existing rows keep the default (preview only).
   addColumn(database, 'notification_subscriptions', 'include_answer INTEGER NOT NULL DEFAULT 0');
+  // When a watched wallet was last tried, read or not: the rotation key, so wallets that fail cannot take every turn.
+  addColumn(database, 'loan_watches', 'last_attempt_at TEXT');
   return database;
 }
 
@@ -756,11 +758,20 @@ export async function notifyLoanWatches(input: {
   read: (wallet: string) => Promise<{ healthFactor: number | null; borrowUsd: number; block: bigint }>;
   maxWallets?: number;
 }): Promise<{ watched: number; readOk: number; readFailed: number; alerts: number }> {
+  /*
+   * Least recently tried first, whether or not that try succeeded. Ordering
+   * by last success put every wallet that had never been read at the front
+   * of every run, so enough unreadable wallets would take every turn and the
+   * rest would never be read at all.
+   */
   const rows = db().prepare(`SELECT id,email,wallet_address,threshold,created_at,level,last_hf,last_ok_at,last_alert_at,stale_sent FROM loan_watches
-    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL ORDER BY last_ok_at IS NOT NULL, last_ok_at`).all() as Array<{ id: string; email: string; wallet_address: string; threshold: number; created_at: string; level: string | null; last_hf: number | null; last_ok_at: string | null; last_alert_at: string | null; stale_sent: number }>;
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL ORDER BY last_attempt_at IS NOT NULL, last_attempt_at, created_at`).all() as Array<{ id: string; email: string; wallet_address: string; threshold: number; created_at: string; level: string | null; last_hf: number | null; last_ok_at: string | null; last_alert_at: string | null; stale_sent: number }>;
   const wallets = [...new Set(rows.map((r) => r.wallet_address))].slice(0, input.maxWallets ?? 60);
   const readings = new Map<string, Awaited<ReturnType<typeof input.read>> | null>();
-  for (const wallet of wallets) readings.set(wallet, await input.read(wallet).catch(() => null));
+  for (const wallet of wallets) {
+    readings.set(wallet, await input.read(wallet).catch(() => null));
+    db().prepare('UPDATE loan_watches SET last_attempt_at=? WHERE wallet_address=?').run(new Date(input.nowMs).toISOString(), wallet);
+  }
   let alerts = 0;
   const nowIso = new Date(input.nowMs).toISOString();
   for (const row of rows) {
