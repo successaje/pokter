@@ -4,6 +4,7 @@ import { Agent } from 'undici';
 
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getProbeStore, type SweepRecord } from '@/lib/history/store';
+import { slowest } from '@/lib/history/budget';
 import {
   SWEEP_FIRST_TICK_MS,
   SWEEP_INTERVAL_MS,
@@ -168,7 +169,7 @@ export function startSweepScheduler(): void {
       const body = (await response.json().catch(() => ({}))) as {
         probes?: number; answered?: number; agents?: number; rosterSize?: number;
         cutShort?: boolean; standDown?: string; error?: string;
-        budget?: { skipped?: string[]; timedOut?: string[]; usedMs?: number; budgetMs?: number };
+        budget?: { skipped?: string[]; timedOut?: string[]; failed?: string[]; usedMs?: number; budgetMs?: number; steps?: Array<{ label: string; ms: number }> };
       };
       // Coverage per run matters now that a run is a batch: `agents of
       // rosterSize` is how to see the roster being worked through, and
@@ -183,7 +184,9 @@ export function startSweepScheduler(): void {
       const tail = b
         ? ` · ${Math.round((b.usedMs ?? 0) / 1000)}s of ${Math.round((b.budgetMs ?? 0) / 1000)}s` +
           (b.skipped?.length ? ` · skipped ${b.skipped.join(', ')}` : '') +
-          (b.timedOut?.length ? ` · timed out ${b.timedOut.join(', ')}` : '')
+          (b.timedOut?.length ? ` · timed out ${b.timedOut.join(', ')}` : '') +
+          (b.failed?.length ? ` · failed ${b.failed.join(', ')}` : '') +
+          slowest(b.steps)
         : '';
       console.log(`[sweep-scheduler] ${response.status} ${body.standDown ? `stood down (${body.standDown})` : (body.error ?? measured) + tail}`);
     } catch (error) {
