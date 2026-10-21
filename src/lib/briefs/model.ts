@@ -191,6 +191,20 @@ export function acceptsProposals(brief: Pick<Brief, 'state' | 'closesAt'>, now: 
   return !brief.closesAt || Date.parse(brief.closesAt) > now;
 }
 
+/**
+ * Where a request stands, in the words its card and its page both use.
+ * One function, so the board can never call a request open that its own
+ * page calls closed. `hired` is whether the chosen proposal became a
+ * funded job (`hireForProposal`).
+ */
+export function requestStatus(brief: Pick<Brief, 'state' | 'closesAt'> & { hired?: boolean }, now: number = Date.now()): { label: string; tone: 'open' | 'chosen' | 'ended' } {
+  if (brief.state === 'cancelled') return { label: 'Withdrawn', tone: 'ended' };
+  if (brief.hired) return { label: 'Agent hired', tone: 'chosen' };
+  if (brief.state === 'awarded') return { label: 'Agent chosen', tone: 'chosen' };
+  if (!acceptsProposals(brief, now)) return { label: 'Proposals closed', tone: 'ended' };
+  return { label: 'Taking proposals', tone: 'open' };
+}
+
 /** A chosen proposal, carried into the hire so its price can be held against the agent's quote. */
 export interface ProposalForHire {
   requestId: string;

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { requestCategoryLabel, type BriefContent } from '@/lib/briefs/model';
+import { requestCategoryLabel, requestStatus, type BriefContent } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { cn } from '@/lib/ui/cn';
 import { avatarUrl } from '@/lib/ui/avatar-art';
@@ -15,7 +15,15 @@ export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | '
   postedAt: string;
   proposals: number;
   state: 'open' | 'awarded' | 'cancelled';
+  /** The chosen proposal became a funded job. */
+  hired?: boolean;
 }
+
+const STATUS_TONE = {
+  open: 'border-ok/30 bg-ok-wash text-ok',
+  chosen: 'border-ok/30 text-ok',
+  ended: 'border-rule-strong text-ink-3',
+} as const;
 
 /**
  * One request as the board lists it: who asked, what, how much, and how
@@ -26,12 +34,13 @@ export interface RequestRowData extends Pick<BriefContent, 'title' | 'brief' | '
  */
 export function RequestRow({ request, now, preview = false }: { request: RequestRowData; now: number; preview?: boolean }) {
   const category = requestCategoryLabel(request.category);
-  const closing = request.closesAt ? closesIn(request.closesAt, now) : null;
+  const status = requestStatus(request, now);
   const testnet = request.chainId === 97;
+  /* The state is the pill; the meta line keeps only the deadline, and only while it still matters. */
   const meta = [
     `${preview ? 'Posted just now' : `Posted ${ago(request.postedAt, now)}`}${request.posterIdentity ? ` by ${request.posterIdentity.name}` : ''}`,
     request.proposals === 1 ? '1 proposal' : `${request.proposals} proposals`,
-    request.state === 'awarded' ? 'Agent chosen' : request.state === 'cancelled' ? 'Withdrawn' : closing,
+    status.tone === 'open' && request.closesAt ? closesIn(request.closesAt, now) : null,
   ].filter(Boolean);
 
   const body = (
@@ -44,11 +53,20 @@ export function RequestRow({ request, now, preview = false }: { request: Request
         className="mt-0.5 hidden rounded-full @lg:block"
       />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className={cn('min-w-0 break-words text-[16px] font-semibold tracking-[-0.015em]', !request.title && 'text-ink-3')}>
-            {request.title || 'Your title'}
+        {/*
+          Whether it is still worth proposing, before anything else. It was
+          the last grey phrase on the meta line, and an open request with
+          no closing date said nothing at all.
+        */}
+        <span className="mb-1 flex flex-wrap items-center gap-2">
+          <span className={cn('inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium', STATUS_TONE[status.tone])}>
+            {status.tone === 'open' ? <span aria-hidden className="size-1.5 rounded-full bg-ok" /> : status.tone === 'chosen' ? <Icon.Check size={12} aria-hidden /> : null}
+            {status.label}
           </span>
           {category && <span className="inline-flex h-6 items-center rounded-full border border-rule-strong px-2.5 text-[12px] font-medium text-ink-2">{category}</span>}
+        </span>
+        <span className={cn('min-w-0 break-words text-[16px] font-semibold tracking-[-0.015em]', !request.title && 'text-ink-3')}>
+          {request.title || 'Your title'}
         </span>
         <span className={cn('line-clamp-1 break-words text-[13.5px]', request.brief ? 'text-ink-2' : 'text-ink-3')}>
           {summary(request.brief) || 'What you need, in a sentence.'}
@@ -62,7 +80,7 @@ export function RequestRow({ request, now, preview = false }: { request: Request
           ))}
         </span>
       </span>
-      <span className="flex shrink-0 flex-row items-baseline justify-between gap-1 border-t border-rule pt-3 @lg:flex-col @lg:items-end @lg:border-0 @lg:pt-0">
+      <span className="mt-auto flex shrink-0 flex-row items-baseline justify-between gap-1 border-t border-rule pt-3 @lg:mt-0 @lg:flex-col @lg:items-end @lg:border-0 @lg:pt-0">
         <span className="hidden text-[11.5px] text-ink-3 @lg:block">Proposed budget</span>
         <span className="t-readout text-[19px] text-ink">{request.budgetU > 0 ? formatQuotedPrice(request.budgetU) : '— $U'}</span>
         {/* Test money never sits next to a real-looking number unmarked. */}
@@ -71,7 +89,7 @@ export function RequestRow({ request, now, preview = false }: { request: Request
     </>
   );
 
-  const shell = 'flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:p-5';
+  const shell = 'flex h-full flex-col gap-3 rounded-[14px] border border-rule bg-raised p-4 @lg:flex-row @lg:items-start @lg:gap-4 @lg:p-5';
   /* Laid out by the width it is given, not the window's: the same row sits in the board and in the form's narrow side column. */
   if (preview) {
     return (
@@ -81,7 +99,7 @@ export function RequestRow({ request, now, preview = false }: { request: Request
     );
   }
   return (
-    <div className="@container">
+    <div className="@container h-full">
       <Link href={`/requests/${request.id}`} className={cn(shell, 'group transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift')}>
         {body}
         <Icon.Arrow size={15} className="hidden shrink-0 self-center text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink @lg:block" />

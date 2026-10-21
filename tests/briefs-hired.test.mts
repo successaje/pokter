@@ -45,3 +45,15 @@ test('the newest match wins, and a refunded one is reported so the card can offe
   assert.equal(hireForProposal([job({ status: 'REJECTED' })], want)?.returned, true);
   assert.equal(hireForProposal([job({ status: 'COMPLETED' })], want)?.returned, false);
 });
+
+test('a request card and its page say the same status, in this order of precedence', async () => {
+  const { requestStatus } = await import('../src/lib/briefs/model');
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  const at = (state: 'open' | 'awarded' | 'cancelled', closesAt: string | null = null, hired = false) => requestStatus({ state, closesAt, hired }, now);
+  assert.deepEqual(at('open'), { label: 'Taking proposals', tone: 'open' });
+  assert.deepEqual(at('open', '2026-10-28T00:00:00Z'), { label: 'Taking proposals', tone: 'open' });
+  assert.deepEqual(at('open', '2026-10-15T00:00:00Z'), { label: 'Proposals closed', tone: 'ended' });
+  assert.deepEqual(at('awarded'), { label: 'Agent chosen', tone: 'chosen' });
+  assert.deepEqual(at('awarded', null, true), { label: 'Agent hired', tone: 'chosen' });
+  assert.deepEqual(at('cancelled', null, true), { label: 'Withdrawn', tone: 'ended' });
+});

@@ -11,7 +11,7 @@ import { ProposalList } from '@/features/briefs/ProposalList';
 import { closingDate, RequestTerms } from '@/features/briefs/RequestTerms';
 import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
-import { acceptsProposals } from '@/lib/briefs/model';
+import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { hireForProposal } from '@/lib/briefs/hired';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -48,16 +48,8 @@ export default async function BriefPage({
     ? hireForProposal(getJobStore().byClient(brief.poster), { poster: brief.poster, chainId: brief.chainId, agentChainId: chosenBid.agentChainId, agentTokenId: chosenBid.agentTokenId, placedAt: chosenBid.placedAt })
     : null;
   const hired = hire && !hire.returned ? hire : null;
-  const status =
-    hired
-      ? { label: 'Agent hired', tone: 'border-ok/30 bg-ok-wash text-ok' }
-      : brief.state === 'awarded'
-      ? { label: 'Agent chosen', tone: 'border-ok/30 bg-ok-wash text-ok' }
-      : brief.state === 'cancelled'
-        ? { label: 'Withdrawn', tone: 'border-rule-strong text-ink-3' }
-        : taking
-          ? { label: 'Taking proposals', tone: 'border-ok/30 bg-ok-wash text-ok' }
-          : { label: 'Proposals closed', tone: 'border-rule-strong text-ink-3' };
+  const said = requestStatus({ ...brief, hired: Boolean(hired) });
+  const status = { label: said.label, tone: said.tone === 'ended' ? 'border-rule-strong text-ink-3' : 'border-ok/30 bg-ok-wash text-ok' };
 
   return (
     <div className="frame pb-24 pt-8 sm:pt-12">

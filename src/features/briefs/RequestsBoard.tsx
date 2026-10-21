@@ -62,7 +62,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="@container flex min-w-0 flex-col gap-4">
       <div className={cn('grid grid-cols-2 gap-3', networks.length > 1 ? 'sm:grid-cols-[minmax(0,1fr)_auto_auto]' : 'sm:grid-cols-[minmax(0,1fr)_auto]')}>
         <label className="relative col-span-2 sm:col-span-1">
           <span className="sr-only">Search requests</span>
@@ -118,7 +118,8 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
       </div>
 
       {open.length > 0 ? (
-        <ul className="flex flex-col gap-3">
+        /* A grid when the column has room for two cards, keyed to the column and not the window: beside the posting card a 1024px window leaves it 600px. */
+        <ul className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
           {open.map((r) => (
             <li key={r.id}>
               <RequestRow request={r} now={now} />
@@ -151,7 +152,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
             <Icon.ChevronDown size={14} className={cn('transition-transform', showClosed && 'rotate-180')} />
           </button>
           {showClosed && (
-            <ul className="flex flex-col gap-3 opacity-80">
+            <ul className="grid grid-cols-1 gap-3 opacity-80 @2xl:grid-cols-2">
               {closed.map((r) => (
                 <li key={r.id}>
                   <RequestRow request={r} now={now} />
