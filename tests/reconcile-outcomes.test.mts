@@ -246,3 +246,60 @@ test('the critical list and the steps marked critical cannot drift apart', async
   const marked = [...route.matchAll(/budget\.step\(\s*'([a-zA-Z]+)'[\s\S]{0,200}?critical: true/g)].map((m) => m[1]);
   assert.deepEqual([...marked].sort(), [...CRITICAL_STAGES].sort());
 });
+
+test('a partial clears the read-failure streak and restores the normal cadence', async () => {
+  /*
+   * The streak backs off a row whose *escrow read* fails. A partial proves
+   * the read now works — the state was fetched and only the notification
+   * after it failed — so carrying the streak forward would keep a row that
+   * had failed ten times waiting six hours for a read that has started
+   * succeeding, delaying reconciliation to punish a bounced email.
+   *
+   * Leaving the count untouched is the obvious implementation and the wrong
+   * one; this is the regression that catches it.
+   */
+  const { backoffMs, isDue, RETRY_BASE_MS, RETRY_CEILING_MS } = await import('../src/lib/history/reconcile-schedule');
+
+  // Ten consecutive unreadable attempts: fully backed off.
+  const stuck = { lastAttemptedAt: '2026-10-21T06:00:00.000Z', lastSucceededAt: '2026-10-19T08:00:00.000Z', failures: 10 };
+  assert.equal(backoffMs(stuck.failures), RETRY_CEILING_MS, 'six hours before the chain read started working');
+
+  // Now the chain read succeeds and the notification fails.
+  const after = afterAttempt(stuck, 'partial', '2026-10-21T12:00:00.000Z');
+
+  assert.equal(after.failures, 0, 'the read-failure streak is cleared');
+  assert.equal(backoffMs(after.failures), 0, 'and with it the six-hour wait');
+  assert.equal(
+    after.lastSucceededAt,
+    '2026-10-19T08:00:00.000Z',
+    'while nothing claims the job succeeded — the builder still was not told',
+  );
+  assert.equal(after.lastAttemptedAt, '2026-10-21T12:00:00.000Z', 'and the turn was spent');
+
+  // Back to the ordinary cadence: eligible on the next run rather than in six
+  // hours. A sweep ten minutes later may pick it up.
+  const tenMinutesOn = Date.parse('2026-10-21T12:10:00.000Z');
+  assert.equal(isDue(after, tenMinutesOn), true, 'due again on the next sweep');
+  /*
+   * The counterfactual, stated as one: the same row at the same moment, had
+   * the streak been carried forward instead of cleared. Comparing against
+   * the original `stuck` would prove nothing — its last attempt was 06:00,
+   * so by 12:10 its six hours had elapsed anyway.
+   */
+  const keptStreak = { ...after, failures: 10 };
+  assert.equal(isDue(keptStreak, tenMinutesOn), false, 'had the streak been kept, it would still be waiting');
+
+  // And a further read failure starts the streak from one, not from eleven.
+  const relapsed = afterAttempt(after, 'failed', '2026-10-21T12:10:00.000Z');
+  assert.equal(relapsed.failures, 1);
+  assert.equal(backoffMs(relapsed.failures), RETRY_BASE_MS, 'ten minutes, not six hours');
+});
+
+test('only an unreadable escrow increments the streak', async () => {
+  // The invariant behind the test above, stated once: anything that read the
+  // chain resets, and only a failure to read it counts.
+  const ten = { lastAttemptedAt: '2026-10-21T06:00:00.000Z', lastSucceededAt: null, failures: 10 };
+  assert.equal(afterAttempt(ten, 'ok', '2026-10-21T12:00:00.000Z').failures, 0);
+  assert.equal(afterAttempt(ten, 'partial', '2026-10-21T12:00:00.000Z').failures, 0);
+  assert.equal(afterAttempt(ten, 'failed', '2026-10-21T12:00:00.000Z').failures, 11);
+});

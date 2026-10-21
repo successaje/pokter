@@ -178,22 +178,25 @@ export function classifyAttempt(result: ReconcileResultish | null | undefined): 
  * leaves the success alone, which is the whole point: the turn is spent and
  * nothing claims the job reconciled.
  *
- * `partial` advances the attempt and not the success either, and — unlike a
- * failure — does not count towards backoff. The distinction is deliberate:
- * backoff exists to stop a row whose escrow cannot be read from consuming
- * turns, and a row that reconciles fine while its builder's mail bounces is
- * not that row. Slowing it down would delay reconciliation to punish a
- * notification.
+ * `partial` advances the attempt, leaves the success alone, and **clears**
+ * the failure streak. The first two follow from the job not being finished.
+ * The third is the part worth stating, because the obvious implementation —
+ * leaving the streak as it was — is wrong.
+ *
+ * The streak exists to back off a row whose *escrow read* fails, so that one
+ * unreadable job stops consuming a turn every run. A partial is proof that
+ * the read now works: the state was fetched and only the notification after
+ * it failed. Carrying the streak forward would keep a row that had failed
+ * ten times on a six-hour backoff for a read that has started succeeding,
+ * delaying its reconciliation to punish a bounced email. So only `failed`
+ * increments, and anything that read the chain resets.
  */
 export function afterAttempt(
   previous: JobAttempt | undefined,
   outcome: AttemptOutcome,
   at: string,
 ): JobAttempt {
-  const failures =
-    outcome === 'ok' ? 0
-    : outcome === 'partial' ? (previous?.failures ?? 0)
-    : (previous?.failures ?? 0) + 1;
+  const failures = outcome === 'failed' ? (previous?.failures ?? 0) + 1 : 0;
   return {
     lastAttemptedAt: at,
     lastSucceededAt: outcome === 'ok' ? at : (previous?.lastSucceededAt ?? null),
