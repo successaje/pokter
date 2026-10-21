@@ -30,11 +30,20 @@ const Missing = ({ children }: { children: ReactNode }) => <p className="text-in
  * with nothing behind it says so rather than being left out, so a reader
  * can tell "not published" from "not shown".
  */
-export function StructuredProfile({ s, sampleAnchor }: { s: Structured; sampleAnchor: string }) {
+export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured; sampleAnchor: string; onChain?: { kind: 'acts' | 'claims' | 'advises'; text: string } | null }) {
   return (
     <div className="overflow-hidden rounded-[12px] border border-rule bg-raised">
       <Row label="What it does" by={s.does.text ? BY.operator : undefined}>
         {s.does.text ? <p className="whitespace-pre-line break-words text-ink-2">{s.does.text}</p> : <Missing>The operator has not published a description.</Missing>}
+      </Row>
+
+      {/* Whether it does the work or only advises on it: read from its own wallet, not taken from its description. */}
+      <Row label="On chain" by={onChain ? BY.pokter : undefined}>
+        {onChain ? (
+          <p className={onChain.kind === 'acts' ? 'text-ok' : onChain.kind === 'claims' ? 'text-watch' : 'text-ink-2'}>{onChain.text}.</p>
+        ) : (
+          <Missing>Its wallet has not been read yet, so Pokter cannot say whether it acts on chain or only advises.</Missing>
+        )}
       </Row>
 
       <Row label="What to send">

@@ -29,6 +29,8 @@ export interface SearchableAgent {
   history?: AgentEconomicHistory;
   /** Latest category-specific correctness suite passed in full. */
   tested?: boolean;
+  /** What its own wallet was seen doing on chain (capability/match.ts `onChainSummary`). */
+  onChain?: { kind: 'acts' | 'claims' | 'advises'; text: string } | null;
 }
 
 function uptime(record: TrackRecord): number | null {

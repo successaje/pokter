@@ -17,7 +17,8 @@ import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
+import { readLoan } from '@/lib/loan-watch/read';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -332,6 +333,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jobOwners = await budget.step('jobOwners', () => attributeRecentJobs());
 
     /* Set and Earn reminders: deadline emails as they come due, and a note when a watched wallet hires another agent. */
+    /* Venus liquidation alerts: every confirmed watch read once per sweep, emailed only when the alert policy says so. */
+    const loanWatches = await budget.step('loanWatches', () =>
+      notifyLoanWatches({
+        nowMs: Date.now(),
+        read: async (wallet) => {
+          const r = await readLoan(wallet as `0x${string}`);
+          return { healthFactor: r.healthFactor, borrowUsd: r.borrowUsd, block: r.block };
+        },
+      }),
+    );
+
     const campaignReminders = await budget.step('campaignReminders', () =>
       isCampaignLive()
         ? notifyCampaignReminders({
@@ -536,6 +548,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       stuckJobs,
       jobOwners,
       campaignReminders,
+      loanWatches,
       funders,
       healthFactorChecks,
       categoryChecks,

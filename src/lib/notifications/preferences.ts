@@ -1,7 +1,7 @@
 /**
  * What Pokter is allowed to put in somebody's inbox, and on whose say-so.
  *
- * Every send has to name the consent that permits it. Four exist, and
+ * Every send has to name the consent that permits it. Five exist, and
  * none of them is a licence for the others:
  *
  * - **job** — "tell me about job #1502". Given per job, and it covers that
@@ -12,6 +12,8 @@
  * - **campaign** — "remind me about Set and Earn". Given per inbox: deadline
  *   reminders, and, only if asked, a note when the one wallet it named
  *   hires another agent. It ends when the campaign does.
+ * - **loan-watch** — "tell me before this Venus position is liquidated".
+ *   Given per inbox and wallet, at a threshold the person chose.
  *
  * There is no other consent that means "send me things", and that absence
  * is the point: a marketplace with one proven address per wallet is one
@@ -19,7 +21,7 @@
  * two is that no stored row can be read as agreement to a broadcast.
  */
 
-export type MailClass = 'job' | 'agent-watch' | 'builder' | 'campaign' | 'confirmation';
+export type MailClass = 'job' | 'agent-watch' | 'builder' | 'campaign' | 'loan-watch' | 'confirmation';
 
 /**
  * The classes that need no stored consent.

@@ -11,6 +11,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
       { href: '/discover', label: 'Discover agents' },
       { href: '/requests', label: 'Requests' },
       { href: '/compare', label: 'Compare' },
+      { href: '/watch', label: 'Venus liquidation alerts' },
       { href: '/proof', label: 'Production proof' },
       { href: '/rankings', label: 'Outcome rankings' },
       { href: '/workspace', label: 'Workspace' },

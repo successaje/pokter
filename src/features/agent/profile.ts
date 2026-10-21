@@ -9,6 +9,8 @@ import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire, isEscrowChain } from '@/lib/network/escrow';
 import { ownRegistration } from '@/lib/agents/own-registration';
 import { relayRefusal } from '@/lib/erc8183/relay-refusal';
+import { onChainSummary, type OnChainKind } from '@/lib/capability/match';
+import { getCapabilityStore } from '@/lib/capability/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import type { AgentEconomicHistory } from '@/lib/erc8183/economic-history';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
@@ -157,6 +159,8 @@ export interface AgentProfile {
   /** Each observation on its own, with its scope and age (see `readinessRows`). */
   readiness: ReadinessRow[];
   hireable: boolean;
+  /** What its own wallet was seen doing on chain, the same reading as the catalogue's tag. Null when nothing has been read. */
+  onChain: { kind: OnChainKind; text: string } | null;
   trialAvailable: boolean;
   alternatives: Array<{ key: string; chainId: number; tokenId: string; name: string; imageUrl: string | null; verdict: Verdict; answered: number; probes: number }>;
 }
@@ -389,6 +393,13 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     repositoryUrl: httpsOnly(services.find((s) => s.name.toLowerCase() === 'repository')?.endpoint),
     warnings,
     hireable: providers.length > 0,
+    onChain: onChainSummary({
+      category,
+      description: agent.description,
+      wallet: agent.agent_wallet,
+      reads: agent.agent_wallet ? getCapabilityStore().reads(agent.agent_wallet) : [],
+      chainLabel: (chainId) => (chainId === 56 ? 'BNB Chain' : 'BNB Testnet'),
+    }),
     trialAvailable: live.protocol === 'a2a' && answeredNow,
     alternatives: alternatives.map((alt, i) => ({
       key: `${alt.listing.agent.chain_id}:${alt.listing.agent.token_id}`,

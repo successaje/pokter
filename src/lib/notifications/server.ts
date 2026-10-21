@@ -25,6 +25,7 @@ import { agentChanges, type FollowedAgentState } from './agent-changes';
 import { siteUrl } from '@/lib/site';
 import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { dueDeadlineReminder, hireProgressNews, settledWith } from '@/lib/campaign/reminders';
+import { alertFor, dropToLiquidation, levelOf, REPEAT_MS, staleDue, type Level } from '@/lib/loan-watch/rules';
 
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
@@ -125,6 +126,31 @@ function db(): DatabaseSync {
       created_at TEXT NOT NULL,
       sent TEXT NOT NULL DEFAULT '',
       last_agents INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS loan_watches (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      threshold REAL NOT NULL,
+      verification_hash TEXT NOT NULL,
+      verified_at TEXT,
+      unsubscribed_at TEXT,
+      created_at TEXT NOT NULL,
+      level TEXT,
+      last_hf REAL,
+      last_ok_at TEXT,
+      last_alert_at TEXT,
+      stale_sent INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(email, wallet_address)
+    );
+
+    CREATE TABLE IF NOT EXISTS loan_watch_runs (
+      at TEXT NOT NULL,
+      watched INTEGER NOT NULL,
+      read_ok INTEGER NOT NULL,
+      read_failed INTEGER NOT NULL,
+      alerts INTEGER NOT NULL
     );
   `);
   // Added after launch; existing rows keep the default (preview only).
@@ -343,7 +369,7 @@ export async function createBuilderSubscription(input: { email: string; owner: s
 }
 
 export type EmailLinkTarget =
-  | { kind: 'buyer' | 'builder' | 'campaign' }
+  | { kind: 'buyer' | 'builder' | 'campaign' | 'loan-watch' }
   | { kind: 'follow'; chainId: number; tokenId: string };
 
 /** Confirm an address. A follow also says which agent, so the link can return to it. */
@@ -359,6 +385,9 @@ export function verifySubscription(token: string): EmailLinkTarget | null {
   const campaign = db().prepare(`UPDATE campaign_reminders SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
   if (campaign.changes > 0) return { kind: 'campaign' };
+  const loan = db().prepare(`UPDATE loan_watches SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  if (loan.changes > 0) return { kind: 'loan-watch' };
   const follow = db().prepare(`SELECT id, chain_id, token_id FROM agent_follows WHERE verification_hash=? AND verified_at IS NULL`).get(tokenHash) as
     | { id: string; chain_id: number; token_id: string }
     | undefined;
@@ -394,6 +423,8 @@ export function unsubscribe(token: string): EmailLinkTarget | null {
   if (builder.changes > 0) return { kind: 'builder' };
   const campaign = db().prepare('UPDATE campaign_reminders SET unsubscribed_at=? WHERE id=?').run(now, id);
   if (campaign.changes > 0) return { kind: 'campaign' };
+  const loan = db().prepare('UPDATE loan_watches SET unsubscribed_at=? WHERE id=?').run(now, id);
+  if (loan.changes > 0) return { kind: 'loan-watch' };
   const follow = db().prepare('SELECT chain_id, token_id FROM agent_follows WHERE id=?').get(id) as { chain_id: number; token_id: string } | undefined;
   if (!follow) return null;
   db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
@@ -679,6 +710,127 @@ export async function notifyCampaignReminders(input: {
     }
   }
   return { checked: rows.length, sent };
+}
+
+/* ---------------------------------------------------------------------- *
+ * Venus liquidation alerts
+ *
+ * One row per inbox and wallet. The position is public on chain, so a
+ * watch proves the inbox, not the wallet: anyone may be told about any
+ * position, exactly as anyone may read it. Nothing is sent until the inbox
+ * is confirmed, and every email can stop the watch in one click.
+ * ---------------------------------------------------------------------- */
+
+export async function createLoanWatch(input: { email: string; wallet: string; threshold: number }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const wallet = input.wallet.toLowerCase();
+  const token = randomBytes(32).toString('base64url');
+  db().prepare(`INSERT INTO loan_watches (id,email,wallet_address,threshold,verification_hash,created_at)
+    VALUES (?,?,?,?,?,?)
+    ON CONFLICT(email,wallet_address) DO UPDATE SET
+      threshold=excluded.threshold,
+      verification_hash=excluded.verification_hash,
+      verified_at=NULL,
+      unsubscribed_at=NULL,
+      level=NULL,
+      last_alert_at=NULL,
+      stale_sent=0,
+      created_at=excluded.created_at`).run(randomUUID(), email, wallet, input.threshold, hash(token), new Date().toISOString());
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  await sendEmail({
+    to: email,
+    subject: 'Confirm your Venus liquidation alerts',
+    idempotencyKey: `loan-verify-${hash(`${email}:${wallet}:${token}`).slice(0, 48)}`,
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Venus liquidation alerts</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Confirm your alerts</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Pokter will read this Venus Core Pool position about every ten minutes and email you when its health factor falls below ${input.threshold.toFixed(2)}, again if it gets worse, and once it recovers.</p>${emailContext([['Wallet', `${input.wallet.slice(0, 6)}…${input.wallet.slice(-4)}`], ['Alert below', input.threshold.toFixed(2)]])}<div>${emailButton(verifyUrl, 'Confirm alerts')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only turns on alerts. It grants no wallet permission, and Pokter never moves funds. If you did not ask for this, ignore this email.</p>`, 'Confirm your Venus liquidation alerts on Pokter.'),
+  });
+}
+
+/**
+ * The sweep's pass over confirmed watches: read each position, email when
+ * the alert policy (loan-watch/rules.ts) calls for it, warn once when a
+ * position has gone unread too long, and record the run so the page can say
+ * how reliable this has been. Reads are shared per wallet.
+ */
+export async function notifyLoanWatches(input: {
+  nowMs: number;
+  read: (wallet: string) => Promise<{ healthFactor: number | null; borrowUsd: number; block: bigint }>;
+  maxWallets?: number;
+}): Promise<{ watched: number; readOk: number; readFailed: number; alerts: number }> {
+  const rows = db().prepare(`SELECT id,email,wallet_address,threshold,created_at,level,last_hf,last_ok_at,last_alert_at,stale_sent FROM loan_watches
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL ORDER BY last_ok_at IS NOT NULL, last_ok_at`).all() as Array<{ id: string; email: string; wallet_address: string; threshold: number; created_at: string; level: string | null; last_hf: number | null; last_ok_at: string | null; last_alert_at: string | null; stale_sent: number }>;
+  const wallets = [...new Set(rows.map((r) => r.wallet_address))].slice(0, input.maxWallets ?? 60);
+  const readings = new Map<string, Awaited<ReturnType<typeof input.read>> | null>();
+  for (const wallet of wallets) readings.set(wallet, await input.read(wallet).catch(() => null));
+  let alerts = 0;
+  const nowIso = new Date(input.nowMs).toISOString();
+  for (const row of rows) {
+    if (!readings.has(row.wallet_address)) continue; // not read this run (over the cap): next run
+    const reading = readings.get(row.wallet_address) ?? null;
+    const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    const pageUrl = `${appUrl()}/watch?wallet=${row.wallet_address}`;
+    const short = `${row.wallet_address.slice(0, 6)}…${row.wallet_address.slice(-4)}`;
+    const footer = `<p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">Read by Pokter from Venus's own accounting. Email can be delayed; do not rely on it alone. Pokter never moves funds. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop watching this position</a>.</p>`;
+    if (!reading) {
+      if (staleDue({ lastOkAtMs: row.last_ok_at ? Date.parse(row.last_ok_at) : null, createdAtMs: Date.parse(row.created_at), nowMs: input.nowMs, staleSent: row.stale_sent === 1 })) {
+        try {
+          await sendEmail({
+            to: row.email,
+            subject: `Pokter cannot read your Venus position (${short})`,
+            idempotencyKey: `loan-${row.id}-stale-${row.last_ok_at ?? 'never'}`,
+            html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Venus liquidation alerts</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">We cannot see this position right now</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">For two hours Pokter has not been able to read it from BNB Chain, so an alert could be missed. Check it yourself until this clears; we will say nothing more about it unless the position changes.</p>${emailContext([['Wallet', short], ['Last good reading', row.last_ok_at ? new Date(row.last_ok_at).toUTCString().replace(' GMT', ' UTC') : 'None yet']])}<div>${emailButton(pageUrl, 'Check it now')}</div>${footer}`, 'Pokter cannot read your Venus position right now.'),
+          });
+          db().prepare('UPDATE loan_watches SET stale_sent=1 WHERE id=?').run(row.id);
+          alerts += 1;
+        } catch {
+          /* Tried again next run. */
+        }
+      }
+      continue;
+    }
+    const previous = (row.level as Level | null) ?? null;
+    const next = levelOf(reading.healthFactor, row.threshold, previous);
+    const alert = alertFor({ previous, next, lastAlertAtMs: row.last_alert_at ? Date.parse(row.last_alert_at) : null, nowMs: input.nowMs });
+    let alertedAt = row.last_alert_at;
+    if (alert) {
+      const hf = reading.healthFactor;
+      const drop = dropToLiquidation(hf);
+      const headline =
+        alert === 'recovered'
+          ? `Back above ${row.threshold.toFixed(2)}`
+          : next === 'liquidatable'
+            ? 'This position can be liquidated now'
+            : next === 'danger'
+              ? 'Close to liquidation'
+              : `Below your ${row.threshold.toFixed(2)} threshold`;
+      try {
+        await sendEmail({
+          to: row.email,
+          subject: `${headline}: health factor ${hf?.toFixed(3) ?? '—'} (${short})`,
+          idempotencyKey: `loan-${row.id}-${alert}-${next}-${Math.floor(input.nowMs / REPEAT_MS)}`,
+          html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Venus liquidation alerts</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(headline)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${alert === 'recovered' ? 'The health factor has recovered. We will email again if it falls back under your threshold.' : drop !== null && drop > 0 ? `Liquidation if all collateral falls about ${(drop * 100).toFixed(1)}% together. Repaying debt or adding collateral raises it.` : 'Venus reports a shortfall: the position can be liquidated.'}</p>${emailContext([['Health factor', hf?.toFixed(3) ?? 'No debt'], ['Your threshold', row.threshold.toFixed(2)], ['Debt', `$${reading.borrowUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}`], ['Block', String(reading.block)]])}<div>${emailButton(pageUrl, 'See the position')}</div>${footer}`, `${headline}: health factor ${hf?.toFixed(3) ?? '—'}.`),
+        });
+        alerts += 1;
+        alertedAt = nowIso;
+      } catch {
+        continue; // Keep the old level, so this is sent next run.
+      }
+    }
+    db().prepare('UPDATE loan_watches SET level=?, last_hf=?, last_ok_at=?, last_alert_at=?, stale_sent=0 WHERE id=?').run(next, reading.healthFactor, nowIso, alertedAt, row.id);
+  }
+  const readOk = [...readings.values()].filter(Boolean).length;
+  const result = { watched: rows.length, readOk, readFailed: readings.size - readOk, alerts };
+  db().prepare('INSERT INTO loan_watch_runs (at,watched,read_ok,read_failed,alerts) VALUES (?,?,?,?,?)').run(nowIso, result.watched, result.readOk, result.readFailed, result.alerts);
+  db().prepare("DELETE FROM loan_watch_runs WHERE at < ?").run(new Date(input.nowMs - 7 * 86_400_000).toISOString());
+  return result;
+}
+
+/** What the page says about how reliable the alerts have been: the last run, and the past day's reads. */
+export function loanWatchReliability(nowMs: number): { lastRunAt: string | null; runs: number; readOk: number; readFailed: number; alerts: number; watching: number } {
+  const since = new Date(nowMs - 86_400_000).toISOString();
+  const day = db().prepare('SELECT COUNT(*) runs, COALESCE(SUM(read_ok),0) ok, COALESCE(SUM(read_failed),0) failed, COALESCE(SUM(alerts),0) alerts, MAX(at) last FROM loan_watch_runs WHERE at >= ?').get(since) as { runs: number; ok: number; failed: number; alerts: number; last: string | null };
+  const last = (db().prepare('SELECT MAX(at) last FROM loan_watch_runs').get() as { last: string | null }).last;
+  const watching = (db().prepare('SELECT COUNT(DISTINCT wallet_address) n FROM loan_watches WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL').get() as { n: number }).n;
+  return { lastRunAt: last, runs: day.runs, readOk: day.ok, readFailed: day.failed, alerts: day.alerts, watching };
 }
 
 /* ---------------------------------------------------------------------- *

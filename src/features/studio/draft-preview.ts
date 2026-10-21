@@ -22,6 +22,7 @@ export function draftPreviewRow(draft: { name: string; description: string; cate
     imageUrl: /^https:\/\//i.test(draft.image) ? draft.image : null,
     category,
     categoryLabel: category === 'unclassified' ? 'No category' : (CATEGORY_BY_ID.get(category)?.label ?? 'No category'),
+    onChain: null,
     description: draft.description.trim(),
     verdict: 'unproven',
     rate: null,
