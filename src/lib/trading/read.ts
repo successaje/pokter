@@ -206,8 +206,9 @@ export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toB
     const blk = await c.getBlock({ blockNumber: block });
     const sent = await Promise.all(
       f.outs.map(async (o) => {
-        if (o.kind === 'position') return { symbol: 'Position', amount: `#${o.positionId}`, to: o.to };
-        if (o.kind === 'collect') return { symbol: `Position #${o.positionId}`, amount: 'collected', to: o.to };
+        // Read as "<amount> <symbol>" on the page and in the alert: "Position #7", "Tokens from position #7".
+        if (o.kind === 'position') return { amount: 'Position', symbol: `#${o.positionId}`, to: o.to };
+        if (o.kind === 'collect') return { amount: 'Tokens from', symbol: `position #${o.positionId}`, to: o.to };
         const t = await info(o.token);
         return { symbol: t.symbol, amount: fmt(o.amount, t.decimals), to: o.to };
       }),
