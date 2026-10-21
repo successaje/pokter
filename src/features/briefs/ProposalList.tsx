@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
+import { jobHref } from '@/lib/jobs/href';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { AgentAvatar, ProbeStrip } from '@/ui/Agent';
@@ -27,10 +28,13 @@ export function ProposalList({
   cards,
   request,
   now,
+  hire = null,
 }: {
   cards: ProposalCard[];
   request: { id: string; poster: string; chainId: number; deliverDays: number; budgetU: number; state: 'open' | 'awarded' | 'cancelled'; awardedBidId: string | null };
   now: number;
+  /** The job the chosen proposal became, when the poster has hired it (`hireForProposal`). */
+  hire?: { jobId: string; chainId: number; returned: boolean } | null;
 }) {
   const unit = request.chainId === 97 ? 'test $U' : '$U';
   /* Laid out by the room the list has, not the window: the proposal panel beside it may be open or closed. */
@@ -60,7 +64,7 @@ export function ProposalList({
                 </div>
                 {chosen && (
                   <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-ok">
-                    <Icon.Check size={13} aria-hidden /> Chosen
+                    <Icon.Check size={13} aria-hidden /> {hire && !hire.returned ? 'Hired' : 'Chosen'}
                   </span>
                 )}
               </div>
@@ -129,11 +133,19 @@ export function ProposalList({
                   By {bidder?.name ?? shortAddress(bid.bidder)} · {ago(bid.placedAt, now)}
                   {saving > 0.004 ? ` · ${saving.toFixed(2)} ${unit} under budget` : ''}
                 </span>
-                {chosen ? (
-                  /* Choosing picked who; this is still the ordinary hire, funded by the buyer's own wallet, with this proposal's price carried in. */
-                  <LinkButton size="s" href={`/hire/${bid.agentChainId}/${bid.agentTokenId}?escrow=${request.chainId}&proposal=${bid.id}`} className="justify-center">
-                    Hire and fund
+                {chosen && hire && !hire.returned ? (
+                  /* Hired already: the job is the next place to look, and a second "Hire and fund" would fund it twice. */
+                  <LinkButton size="s" intent="secondary" href={jobHref(hire)} className="justify-center">
+                    View job #{hire.jobId}
                   </LinkButton>
+                ) : chosen ? (
+                  /* Choosing picked who; this is still the ordinary hire, funded by the buyer's own wallet, with this proposal's price carried in. */
+                  <>
+                    {hire?.returned && <span className="text-[12px] text-ink-3">Job #{hire.jobId} was refunded, so nobody was paid for it.</span>}
+                    <LinkButton size="s" href={`/hire/${bid.agentChainId}/${bid.agentTokenId}?escrow=${request.chainId}&proposal=${bid.id}`} className="justify-center">
+                      {hire?.returned ? 'Hire again' : 'Hire and fund'}
+                    </LinkButton>
+                  </>
                 ) : (
                   request.state === 'open' && <AwardBid briefId={request.id} bid={bid} poster={request.poster} chainId={request.chainId} />
                 )}
