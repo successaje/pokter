@@ -95,6 +95,16 @@ export interface JobStore {
   jobsOwnedAtFunding(owner: string): string[];
   /** When the first proven owner was recorded: jobs before it were never attributed. */
   ownerRecordsBegan(): string | null;
+  /** The latest relay test of an agent: whether a brief carried the way the relay carries one was answered (relay-probe.ts). */
+  recordRelayProbe(input: { chainId: number; tokenId: string; outcome: RelayProbeOutcome; detail: string }): void;
+  relayProbe(chainId: number, tokenId: string): RelayProbe | null;
+}
+
+export type RelayProbeOutcome = 'answers' | 'paid-only' | 'not-askable' | 'no-answer';
+export interface RelayProbe {
+  outcome: RelayProbeOutcome;
+  detail: string;
+  at: string;
 }
 
 /** How an owner at funding was established. Only `no-transfer-since-funding` is shown; `unknown` settles a job as unattributed. */
@@ -170,6 +180,15 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_job_owners_owner ON job_owners (owner);
+
+  CREATE TABLE IF NOT EXISTS relay_probes (
+    chain_id INTEGER NOT NULL,
+    token_id TEXT NOT NULL,
+    outcome  TEXT NOT NULL,
+    detail   TEXT NOT NULL,
+    at       TEXT NOT NULL,
+    PRIMARY KEY (chain_id, token_id)
+  );
 `;
 
 interface NoticeRow {
@@ -437,6 +456,20 @@ class SqliteJobStore implements JobStore {
   ownerRecordsBegan(): string | null {
     const row = this.db.prepare("SELECT MIN(recorded_at) AS began FROM job_owners WHERE proof = 'no-transfer-since-funding'").get() as { began: string | null } | undefined;
     return row?.began ?? null;
+  }
+
+  recordRelayProbe(input: { chainId: number; tokenId: string; outcome: RelayProbeOutcome; detail: string }): void {
+    this.db
+      .prepare(`INSERT INTO relay_probes (chain_id, token_id, outcome, detail, at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (chain_id, token_id) DO UPDATE SET outcome = excluded.outcome, detail = excluded.detail, at = excluded.at`)
+      .run(input.chainId, input.tokenId, input.outcome, input.detail.slice(0, 300), new Date().toISOString());
+  }
+
+  relayProbe(chainId: number, tokenId: string): RelayProbe | null {
+    const row = this.db.prepare('SELECT outcome, detail, at FROM relay_probes WHERE chain_id = ? AND token_id = ?').get(chainId, tokenId) as
+      | { outcome: RelayProbeOutcome; detail: string; at: string }
+      | undefined;
+    return row ?? null;
   }
 
   byId(id: string): HiredJob | null {

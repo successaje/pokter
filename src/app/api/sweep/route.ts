@@ -12,6 +12,8 @@ import { noticeUnansweredJobs } from '@/lib/erc8183/notice-sweep';
 import { checkAnsweredTasks } from '@/lib/agent/answered-tasks-sweep';
 import { alertStuckJobs } from '@/lib/erc8183/stuck-alert';
 import { attributeRecentJobs } from '@/lib/erc8183/attribute-owners';
+import { probeUnknownRelays } from '@/lib/erc8183/relay-probe';
+import { relayStatus } from '@/lib/erc8183/relay-refusal';
 import { CAMPAIGN_ENDS_AT, isCampaignLive } from '@/lib/campaign/window';
 import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
@@ -489,6 +491,14 @@ export async function POST(request: Request): Promise<NextResponse> {
      * shape the wording; the wallet is the evidence. Daily per wallet,
      * bounded per pass, and off without NODEREAL_API_KEY.
      */
+    /* Relay tests: a few untested mainnet agents per run, so testnet is offered only where the relay is known to reach the agent. */
+    const relayTests = await budget.step('relayTests', () =>
+      probeUnknownRelays(
+        (listings ?? []).map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id, category: classify(l.agent) })),
+        relayStatus,
+      ),
+    );
+
     const onChainJobs = new Set((listings ?? []).filter((l) => JOB_ACTIONS[classify(l.agent)]).map((l) => `${l.agent.chain_id}:${l.agent.token_id}`));
     const capability = onChainJobs.size
       ? await budget.step('capability', () =>
@@ -549,6 +559,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       jobOwners,
       campaignReminders,
       loanWatches,
+      relayTests,
       funders,
       healthFactorChecks,
       categoryChecks,

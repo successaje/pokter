@@ -99,7 +99,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
             Hire {profile.name.length > 22 ? 'this agent' : profile.name}
           </LinkButton>
         ) : (
-          <p className="text-[13px] text-ink-2">Pokter cannot route a paid job to this agent: no reachable provider wallet was found.</p>
+          <p className="text-[13px] text-ink-2">{profile.testnetRelay && profile.escrowOptions.length === 0 ? profile.testnetRelay.note : 'Pokter cannot route a paid job to this agent: no reachable provider wallet was found.'}</p>
         )}
         {profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
           blocked ? (
@@ -111,6 +111,11 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
               Or hire free on testnet
             </a>
           )
+        )}
+        {profile.testnetRelay && profile.escrowOptions.length > 0 && (
+          <p className="text-center text-[12px] leading-snug text-ink-3">
+            {profile.testnetRelay.status === 'unknown' ? 'Testnet: Pokter is checking that this agent answers relayed briefs. Try again in a minute.' : 'Not offered on testnet: it does not answer a brief Pokter relays to it.'}
+          </p>
         )}
         {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
         {profile.trialAvailable && (
