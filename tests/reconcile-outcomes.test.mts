@@ -144,3 +144,105 @@ test('completed progress survives a batch that times out around it', async () =>
   assert.equal(recorded.get('56:3')!.failures, 1);
   assert.equal(recorded.get('56:4'), undefined, 'and the job never reached keeps its place');
 });
+
+test('an attempt is identified by when it started, so a late settle loses', () => {
+  /*
+   * The hole the previous version left, and the reason its stale-write test
+   * was misleading: it hand-passed an old timestamp, while the real worker
+   * stamped `new Date()` at completion.
+   *
+   * Run A starts a job at 12:00 and hangs. Run B attempts the same job at
+   * 12:10 and records it. Run A settles at 12:15. Stamped at completion its
+   * write is 12:15 — newer than 12:10 — so the store's monotonic guard
+   * accepts it and the stale result wins. Stamped at start it is 12:00, and
+   * the guard does what it was written for.
+   */
+  const runAStarted = '2026-10-21T12:00:00.000Z';
+  const runASettled = '2026-10-21T12:15:00.000Z';
+  const runBAttempt = '2026-10-21T12:10:00.000Z';
+
+  const stampedAtCompletion = afterAttempt(undefined, 'ok', runASettled);
+  assert.ok(stampedAtCompletion.lastAttemptedAt! > runBAttempt, 'would beat the newer run');
+
+  const stampedAtStart = afterAttempt(undefined, 'ok', runAStarted);
+  assert.ok(stampedAtStart.lastAttemptedAt! < runBAttempt, 'and is correctly older');
+});
+
+test('a slow read cannot smuggle a side effect past the deadline', async () => {
+  /*
+   * The exact sequence: the loop checks the clock, then awaits a chain read
+   * that returns after the deadline, then submits. A check at the top of the
+   * loop says nothing about the moment before the write, which is why the
+   * loop asks twice.
+   */
+  const { mayStartSideEffect } = await import('../src/lib/history/budget');
+  const deadline = 10_000;
+
+  assert.equal(mayStartSideEffect(deadline, 9_000), true, 'top of the loop: time to start');
+  // ... the escrow read takes two seconds and returns past the deadline ...
+  assert.equal(mayStartSideEffect(deadline, 11_000), false, 'before submitting: no longer');
+
+  // Exactly at the deadline is not "still time".
+  assert.equal(mayStartSideEffect(deadline, 10_000), false);
+  // And no deadline keeps the behaviour every existing caller had.
+  assert.equal(mayStartSideEffect(undefined, Number.MAX_SAFE_INTEGER), true);
+});
+
+test('a hire watch that could not read the counter is not a success', async () => {
+  /*
+   * `HireWatchResult.counter` is documented as "null when the counter could
+   * not be read; never zero as a stand-in". A run that cannot see how many
+   * jobs exist cannot have detected a new hire, yet it returns without
+   * throwing and was recorded as `ok`.
+   */
+  assert.equal(classifyStageResult('hireWatch', { counter: null, sightings: [], alerted: false }), 'failed');
+  assert.equal(classifyStageResult('hireWatch', { counter: '1412', sightings: [], alerted: false }), null);
+});
+
+test('the log and the store report the same lost stage', async () => {
+  /*
+   * They did not. `persistStageOutcomes` refined a stage from its result and
+   * returned the budget's report untouched, so a stage whose every delivery
+   * failed was stored as `failed` and left out of `criticalMissed` — and
+   * `MAINTENANCE INCOMPLETE`, which reads that field, stayed silent about
+   * what the store had just recorded.
+   */
+  const { withClassifiedOutcomes } = await import('../src/lib/history/stage-classify');
+  const { CRITICAL_STAGES } = await import('../src/lib/history/schedule');
+
+  const report = {
+    steps: [
+      { label: 'deliveryRetries', ms: 400, outcome: 'ok' as const },
+      { label: 'hireWatch', ms: 90, outcome: 'ok' as const },
+      { label: 'listings', ms: 50, outcome: 'ok' as const },
+    ],
+    skipped: [], timedOut: [], failed: [], criticalMissed: [],
+    usedMs: 1_000, budgetMs: 240_000, reservedMs: 40_000,
+  };
+
+  const classified = withClassifiedOutcomes(report, {
+    deliveryRetries: [{ jobId: '1', action: 'failed', reason: 'relay refused' }],
+    hireWatch: { counter: null },
+    listings: [],
+  }, CRITICAL_STAGES);
+
+  assert.deepEqual(classified.criticalMissed.sort(), ['deliveryRetries', 'hireWatch'], 'both named for the log');
+  assert.ok(classified.failed.includes('deliveryRetries'));
+  assert.ok(classified.failed.includes('hireWatch'));
+  assert.ok(!classified.criticalMissed.includes('listings'), 'an ordinary stage is not maintenance');
+  // A clean run stays clean, so the signal does not cry wolf.
+  assert.deepEqual(withClassifiedOutcomes(report, { deliveryRetries: [{ action: 'delivered' }], hireWatch: { counter: '9' } }, CRITICAL_STAGES).criticalMissed, []);
+});
+
+test('the critical list and the steps marked critical cannot drift apart', async () => {
+  /*
+   * Two lists would drift, and a stage quietly ceasing to be critical is the
+   * failure this whole change is about. Read from the route's source, the
+   * way the data-paths test reads the Dockerfile.
+   */
+  const { readFileSync } = await import('node:fs');
+  const { CRITICAL_STAGES } = await import('../src/lib/history/schedule');
+  const route = readFileSync('src/app/api/sweep/route.ts', 'utf8');
+  const marked = [...route.matchAll(/budget\.step\(\s*'([a-zA-Z]+)'[\s\S]{0,200}?critical: true/g)].map((m) => m[1]);
+  assert.deepEqual([...marked].sort(), [...CRITICAL_STAGES].sort());
+});

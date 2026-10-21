@@ -263,6 +263,18 @@ export async function POST(request: Request): Promise<NextResponse> {
           if (Date.now() >= reconcileDeadline) return null;
           const jobKey = `${job.chainId}:${job.jobId}`;
           /*
+           * Stamped before the first await, not when the work settles.
+           *
+           * The store rejects a write older than the one already recorded,
+           * which is what stops an abandoned worker from clobbering a later
+           * run. Stamping at completion defeats exactly that: a run that
+           * started at 12:00 and settles at 12:15 writes 12:15, which is
+           * newer than the 12:10 attempt the next run recorded, so the stale
+           * result wins and the job loses its place. The attempt's identity
+           * is when it began.
+           */
+          const attemptedAt = new Date().toISOString();
+          /*
            * The attempt is recorded by the worker, as soon as this job
            * settles — not after the batch.
            *
@@ -277,7 +289,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             const outcome = classifyAttempt(result);
             if (outcome === 'not-attempted') return;
             try {
-              getMaintenanceStore().noteJobAttempt(jobKey, afterAttempt(reconcileAttempts.get(jobKey), outcome, new Date().toISOString()));
+              getMaintenanceStore().noteJobAttempt(jobKey, afterAttempt(reconcileAttempts.get(jobKey), outcome, attemptedAt));
             } catch (error) {
               /* A lost bookkeeping row costs this job a turn's memory, never
                  the reconciliation it just did. */
@@ -633,7 +645,7 @@ export async function POST(request: Request): Promise<NextResponse> {
        * failed returns normally, and recording that as a success would be
        * the same false green one level down.
        */
-      budget: persistStageOutcomes(budget.report(), { deliveryRetries }),
+      budget: persistStageOutcomes(budget.report(), { deliveryRetries, hireWatch }),
       notifications, notificationFailures,
       hireWatch,
       deliveryRetries,

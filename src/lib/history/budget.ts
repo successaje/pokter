@@ -100,6 +100,22 @@ export interface RunBudgetReport {
   reservedMs: number;
 }
 
+/**
+ * Whether there is still time to start something with a side effect.
+ *
+ * Pure and separate so it can be tested, because the sequence that matters
+ * is not testable through the loop that uses it: check the clock, make a
+ * network call that returns after the deadline, then submit a transaction
+ * anyway. A check at the top of a loop says nothing about the moment before
+ * the write, so the loop asks twice and this is what it asks.
+ *
+ * No deadline means no limit, which is the behaviour every existing caller
+ * had before this existed.
+ */
+export function mayStartSideEffect(deadlineAt: number | undefined, now: number = Date.now()): boolean {
+  return deadlineAt === undefined || now < deadlineAt;
+}
+
 export function runBudget(totalMs: number, clock: () => number = Date.now, reserveMs = 0): RunBudget {
   const startedAt = clock();
   const skipped: string[] = [];

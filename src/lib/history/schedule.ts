@@ -125,6 +125,16 @@ export const SWEEP_CRITICAL_RESERVE_MS = 40_000;
  */
 export const SWEEP_CRITICAL_STEP_MS = SWEEP_CRITICAL_RESERVE_MS / 4;
 
+/**
+ * The steps whose loss means the run did not do its job.
+ *
+ * One list, read both where the steps are marked and where a lost step is
+ * reported, because two lists would drift and the drift would be silent —
+ * a stage quietly stopping being critical is exactly the failure this whole
+ * change is about.
+ */
+export const CRITICAL_STAGES = ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs'] as const;
+
 /*
  * What bounds a single sweep. Here rather than beside `runSweep` because
  * `./sweep` is `server-only` and these numbers only mean anything in relation

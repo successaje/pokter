@@ -1,4 +1,5 @@
 import 'server-only';
+import { mayStartSideEffect } from '@/lib/history/budget';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -64,7 +65,7 @@ export async function retryStuckDeliveries(
      * delivery already submitted is finished by the chain, and what must be
      * avoided is starting another.
      */
-    if (deadlineAt !== undefined && Date.now() >= deadlineAt) break;
+    if (!mayStartSideEffect(deadlineAt)) break;
 
     try {
       /*
@@ -89,6 +90,20 @@ export async function retryStuckDeliveries(
           reason: decision.reason,
         });
         continue;
+      }
+
+      /*
+       * Rechecked here, against the clock as it is now.
+       *
+       * The check at the top of the loop was passed before the escrow read
+       * above, and that read is a network call: it can return well after the
+       * deadline, and submitting then starts a transaction with no time left
+       * to see it land. The reads are the slow part, so the only check that
+       * means anything is the one immediately before the write.
+       */
+      if (!mayStartSideEffect(deadlineAt)) {
+        results.push({ jobId: job.jobId, action: 'skipped', reason: 'out of time before submitting' });
+        break;
       }
 
       await submitDemoDeliverable(job.jobId);

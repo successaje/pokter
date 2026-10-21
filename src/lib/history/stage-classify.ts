@@ -52,6 +52,47 @@ export function classifyStageResult(label: string, value: unknown): StageOutcome
     const delivered = attempted.filter((r) => r.action === 'delivered').length;
     return delivered > 0 ? 'partial' : 'failed';
   }
+  if (label === 'hireWatch' && typeof value === 'object' && value !== null && 'counter' in value) {
+    /*
+     * `HireWatchResult.counter` is documented as "null when the counter
+     * could not be read; never zero as a stand-in". So a null counter means
+     * the watch could not see how many jobs exist, and a run that cannot
+     * read the counter cannot have detected a new hire — it returns without
+     * throwing and was being recorded as a success.
+     */
+    if ((value as { counter: unknown }).counter === null) return 'failed';
+  }
   return null;
+}
+
+/**
+ * The report as it should be read, once results have been classified.
+ *
+ * The outcome written to the store and the outcome the scheduler logs have
+ * to be the same one. They were not: `persistStageOutcomes` refined a stage
+ * from its result and then returned the budget's report untouched, so a
+ * stage whose every delivery failed was stored as `failed` and omitted from
+ * `criticalMissed` — and `MAINTENANCE INCOMPLETE`, which reads that field,
+ * stayed silent about the thing the store had just recorded.
+ */
+export function withClassifiedOutcomes(
+  report: RunBudgetReport,
+  results: Record<string, unknown>,
+  critical: readonly string[],
+): RunBudgetReport {
+  const refined = new Map<string, StageOutcome>();
+  for (const { label, outcome } of stageOutcomes(report)) {
+    const classified = outcome === 'ok' ? classifyStageResult(label, results[label]) : null;
+    refined.set(label, classified ?? outcome);
+  }
+
+  const lost = [...refined.entries()].filter(([, outcome]) => outcome !== 'ok');
+  const failed = [...new Set([...report.failed, ...lost.filter(([, o]) => o === 'failed' || o === 'partial').map(([label]) => label)])];
+  const criticalMissed = [...new Set([
+    ...report.criticalMissed,
+    ...lost.filter(([label]) => critical.includes(label)).map(([label]) => label),
+  ])];
+
+  return { ...report, failed, criticalMissed };
 }
 
