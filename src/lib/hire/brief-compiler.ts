@@ -356,7 +356,20 @@ export function compileBrief(input: {
   answers?: BriefAnswers;
 }): CompiledBrief {
   const intent = input.intent.trim();
-  const answers = input.answers ?? {};
+  /*
+   * Looked up with no prototype behind it, because the key being looked up
+   * is a field name out of an agent's card.
+   *
+   * `answers[field.key]` on a plain object answers from
+   * `Object.prototype` for a card that declares a field called
+   * `toString`, `constructor`, `valueOf` — any of them. The value is a
+   * function, which is not nullish, so `?? ''` does not catch it and
+   * `.trim()` throws: a TypeError out of `compileBrief`, which
+   * `hire-preflight` does not catch, which takes `/api/hire/quote` and
+   * `/api/hire` to a 500. A field name on a third-party card must not be
+   * able to decide that.
+   */
+  const answers: Record<string, string> = Object.assign(Object.create(null) as Record<string, string>, input.answers ?? {});
   const skill = resolveSkill(input.skills, { skillId: input.skillId, category: input.category });
 
   if (!skill) {

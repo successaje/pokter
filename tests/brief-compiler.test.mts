@@ -702,6 +702,60 @@ test('a card cannot write over the instructions Pokter sends with every brief', 
   assert.equal(instructive.payload, `{"wallet":"${MY_ACCOUNT}"}`, 'nothing from the card but its keys and types');
 });
 
+test('a card field named after an Object.prototype member is an ordinary field, not a crash and not a value', () => {
+  /*
+   * A field name is the one thing an operator writes that Pokter looks up
+   * by. Two separate lookups used it as a key into an object with a
+   * prototype behind it, and both answered from `Object.prototype`:
+   *
+   *  - `answers[field.key]` returned the inherited *function*, which is not
+   *    nullish, so `?? ''` did not catch it and `.trim()` threw. A TypeError
+   *    out of `compileBrief` is not caught by `hire-preflight`, so a card
+   *    declaring `{"toString": …}` took `/api/hire/quote` and `/api/hire` to
+   *    a 500 and made `/api/hire/compile` report a readable card as one
+   *    whose inputs could not be established.
+   *  - `field.key in values` is true of every object, so reading the buyer's
+   *    task back against the card's layout carried
+   *    "function toString() { [native code] }" into the composed request as
+   *    that field's value — a string neither the buyer nor the operator
+   *    wrote, chosen by an operator picking a key.
+   *
+   * The second was hidden behind the first, so fixing either alone made
+   * things worse. Both are asserted here, together, for that reason.
+   */
+  for (const key of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', '__proto__', '__defineGetter__']) {
+    const skills = [{ id: 'work', name: 'Work', examples: [`{"${key}":"<fill me>","wallet":"0x0000000000000000000000000000000000000000"}`] }];
+
+    // No answers: the field is asked for, like any other unfilled one.
+    const asked = compileBrief({ intent: `Check ${MY_ACCOUNT}`, skills, category: 'defi' });
+    assert.equal(asked.contract, 'structured', key);
+    assert.equal(asked.ok, false, `${key}: an unfilled field blocks the hire`);
+    assert.equal(asked.payload, null, key);
+    assert.ok(
+      asked.missing.some((m) => m.key === key),
+      `${key}: asked for by name, rather than filled from the prototype`,
+    );
+
+    // A JSON brief that does not mention it leaves it empty, not inherited.
+    const fromJson = compileBrief({ intent: `{"wallet":"${MY_ACCOUNT}"}`, skills, category: 'defi' });
+    assert.equal(fromJson.ok, false, `${key}: still missing`);
+    assert.ok(
+      !JSON.stringify(fromJson).includes('native code'),
+      `${key}: no prototype function reached the reading`,
+    );
+
+    // Answered, it is used as given — the buyer's own value and nothing else.
+    const answered = compileBrief({
+      intent: 'Check it',
+      skills,
+      category: 'defi',
+      answers: { [key]: 'given', wallet: MY_ACCOUNT },
+    });
+    assert.equal(answered.ok, true, `${key}: answerable like any other field`);
+    assert.equal(answered.payload, `{"${key}":"given","wallet":"${MY_ACCOUNT}"}`, key);
+  }
+});
+
 // ── 5. Downstream execution receives the same approved request ──
 
 test('the payload the buyer confirmed is byte for byte the payload the courier sends', () => {

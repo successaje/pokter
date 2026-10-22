@@ -74,7 +74,17 @@ export function taskFields(task: string): TaskField[] | null {
 
 /** The JSON the agent receives, with each value back in the example's type. */
 export function composeTask(fields: TaskField[]): string {
-  const out: Record<string, unknown> = {};
+  /*
+   * No prototype, so that assigning a field named `__proto__` sets a
+   * property instead of reaching the inherited setter.
+   *
+   * On a plain object `out['__proto__'] = 'x'` with a string value is a
+   * silent no-op, so a card declaring that field compiled to a request with
+   * it missing while the reading still said the request was complete — the
+   * confirmation screen listed a value the agent would not receive, which
+   * is the one thing that screen must never do.
+   */
+  const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const field of fields) {
     const value = field.value.trim();
     if (field.kind === 'number') {
@@ -133,7 +143,15 @@ export function fieldsWithValues(schema: TaskField[], task: string): TaskField[]
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const values = parsed as Record<string, unknown>;
   return schema.map((field) => {
-    if (!(field.key in values)) return { ...field, value: '' };
+    /*
+     * Own properties only. `'toString' in values` is true of every object,
+     * so a card declaring a field by that name — or `constructor`,
+     * `valueOf`, `hasOwnProperty` — read `Object.prototype`'s function off
+     * the buyer's task and carried "function toString() { [native code] }"
+     * into the composed request as that field's value. A string neither the
+     * buyer nor the operator wrote, from a key an operator chose.
+     */
+    if (!Object.hasOwn(values, field.key)) return { ...field, value: '' };
     const raw = values[field.key];
     const value = field.kind === 'json' ? (typeof raw === 'string' ? raw : JSON.stringify(raw)) : raw === null || raw === undefined ? '' : String(raw);
     return { ...field, value };
