@@ -86,11 +86,12 @@ export const PREPARE_HIRE: AssistantToolSpec = {
   description:
     'Ask the agent for a signed price for this exact brief and write the hire down in full, UNSIGNED, for a human owner to approve and fund in their own wallet. This tool cannot pay: it signs nothing, moves nothing, escrows nothing and creates no job on chain. ' +
     'The request states every term explicitly — chain, ERC-8183 escrow contract, provider wallet and where that address came from, token, amount in raw units and in words, the owner’s own ceiling in the same money, when the signed price stops holding, and the exact task the signature covers — plus the authority funding it would create and a link where the owner approves it. Show the owner those terms; only they can complete the hire. ' +
+    'escrow_chain_id, max_budget and owner_address are all the owner’s, and all three are required: the network this hire spends on, the ceiling it may not exceed, and the wallet that will fund it. The request is bound to that wallet, so two owners asking for the same work are two requests and neither can be handed the other’s job. ' +
     'escrow_chain_id and max_budget are both the owner’s and both required. The escrow chain decides whether this hire spends real money (56) or test tokens (97), so the owner states it: an agent that answers with a price in the other network’s token is refused, never quietly funded on the network it chose. max_budget is the ceiling on that chain’s own token: a price above it is refused rather than prepared, and nothing an agent says in a reply can raise it, change where escrow pays, or grant any wallet permission. ' +
     'Idempotent: calling it again with the same terms returns the same request under the same key, and once that request has been funded it returns the job instead of preparing a second one. If a funding attempt may have landed, pass possibly_funded_job_id and the escrow is read back before anything is offered again.',
   inputSchema: {
     type: 'object',
-    required: ['chain_id', 'token_id', 'task', 'escrow_chain_id', 'max_budget'],
+    required: ['chain_id', 'token_id', 'task', 'escrow_chain_id', 'max_budget', 'owner_address'],
     properties: {
       ...agentArgs,
       task: { type: 'string', minLength: 1, maxLength: 2000, description: 'The brief. Use the payload prepare_brief returned, where it returned one.' },
@@ -124,7 +125,8 @@ export const PREPARE_HIRE: AssistantToolSpec = {
       owner_address: {
         type: 'string',
         pattern: '^0x[0-9a-fA-F]{40}$',
-        description: 'The owner’s own wallet address, when known, so the prepared request names who is expected to approve it. Public address only; never a key.',
+        description:
+          'The wallet that will fund this hire: the OWNER’s own public address. Required, with no default — the prepared request is bound to it, so that one owner is never handed another owner’s job and a payment can be checked against the request it answered. If you do not know it, ask the owner; it is not something Pokter can pick. Public address only, never a key or a seed.',
       },
     },
   },

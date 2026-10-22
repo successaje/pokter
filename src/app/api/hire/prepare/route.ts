@@ -142,7 +142,35 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  /*
+   * The wallet that will fund this hire, required and never defaulted.
+   *
+   * It was optional, and optional made the whole owner binding opt-in by a
+   * field a caller may simply not pass. Omitted, both the key and the
+   * attach gate lose the owner, and the behaviour is the finding this was
+   * built to close: two owners asking for the same work collide on one key
+   * and the second is handed the first one's job — a job they cannot
+   * release, dispute or read. The index backstop is holed in exactly that
+   * case too, because it also compares on the owner. A protection that is
+   * skipped by omission is not a protection.
+   *
+   * Pokter cannot supply it: whose wallet is going to pay is a question for
+   * the owner, and any value chosen here would be a wallet nobody named.
+   * Public address only — a key or a seed has no business on this path, and
+   * nothing on it ever asks for one.
+   */
   const ownerAddress = typeof body.owner === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.owner) ? body.owner : null;
+  if (!ownerAddress) {
+    return NextResponse.json(
+      {
+        error:
+          'owner is required: the public address of the wallet that will fund this hire. The prepared request is bound to it, so one owner is never handed another owner’s job and a payment can be checked against the request it answered. Ask the owner for it; Pokter cannot choose a wallet on their behalf. Never send a private key or seed phrase.',
+        layer: 'input',
+        code: 'no-owner-address',
+      },
+      { status: 400 },
+    );
+  }
   const mandateKey = typeof body.requestId === 'string' ? body.requestId.slice(0, 64) : null;
   const uncertainJobId = typeof body.possiblyFundedJobId === 'string' && /^\d{1,18}$/.test(body.possiblyFundedJobId) ? body.possiblyFundedJobId : null;
 
@@ -305,16 +333,13 @@ export async function POST(request: Request): Promise<NextResponse> {
    */
   let reconciled: ReturnType<typeof reconcileUncertainHire> | null = null;
   if (uncertainJobId) {
-    if (!ownerAddress) {
-      return NextResponse.json(
-        {
-          error: 'To check whether a funding landed, the owner’s own wallet address is needed: the job on chain is theirs or it is somebody else’s, and that is the field that says which.',
-          layer: 'input',
-          code: 'owner-address-required',
-        },
-        { status: 400 },
-      );
-    }
+    /*
+     * The owner is known here because the route will not proceed without
+     * one: whose job the id holds is the field that decides whether this
+     * payment is the owner's at all, and it used to be refused separately
+     * at this point for a request prepared anonymously. There is no such
+     * request now.
+     */
     const onchain = await getErc8183Job(altanaNetworkFor(escrowChainId), BigInt(uncertainJobId)).catch(() => null);
     reconciled = reconcileUncertainHire({
       onchain: onchain

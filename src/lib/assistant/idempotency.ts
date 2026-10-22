@@ -27,9 +27,15 @@ import { describeFundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hi
  *    compiled payload is deterministic, so this is ordinary rather than
  *    exotic. Without the owner in the key, the second of them was handed
  *    the first one's job: a job they cannot release, dispute or read, and a
- *    hire they could never prepare. An owner Pokter has not been told is
- *    its own key, and learning who they are mid-flow therefore makes a
- *    second one. That is the safe direction: a prepared request is
+ *    hire they could never prepare.
+ *
+ *    `/api/hire/prepare` therefore requires the owner and will not prepare
+ *    anything without one — optional made the binding opt-in by a field a
+ *    caller may simply not pass, which is no protection at all. A null
+ *    owner remains part of this function's contract, because it is what a
+ *    caller with nothing to compare must get: its own key, rather than a
+ *    key that silently shares a stranger's. Learning the owner then makes a
+ *    second key, which is the safe direction — a prepared request is
  *    unsigned, so the cost is a duplicate prompt, where being handed
  *    somebody else's job is the worse failure by a long way.
  *  - **Not** the negotiation hash. A quote expires in minutes, so a retry
@@ -236,6 +242,9 @@ export function indexedJobForTerms(
   /** The owner this request would be prepared for, where they said. */
   owner?: string | null,
 ): { jobId: string; chainId: number } | null {
+  /* The first match, which is the newest: every caller reads this list from
+     the store's `hired_at DESC`, and the newest job for one brief is the
+     intended pick — the same rule `claimed-ids` reasons with. */
   const found = jobs.find(
     (job) =>
       job.chainId === terms.chainId &&

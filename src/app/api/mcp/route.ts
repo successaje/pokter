@@ -295,6 +295,16 @@ function tools(request: Request): McpTool[] {
         if (typeof args.max_budget !== 'number') {
           return { data: { error: `max_budget is required and must be a number: the most the owner has authorised for this job, in whole $U on chain ${escrow}. Ask the owner; Pokter sets no budget of its own.` }, isError: true };
         }
+        /*
+         * And whose hire it is. Optional, this was opt-in protection: the
+         * request and the funding check both bind to the owner, and a
+         * caller that omitted it put two owners on one key — the failure
+         * the binding exists to prevent. A wallet is not something Pokter
+         * can choose, so it is asked for rather than defaulted.
+         */
+        if (typeof args.owner_address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(args.owner_address)) {
+          return { data: { error: 'owner_address is required: the public address of the wallet that will fund this hire, which the prepared request is bound to. Ask the owner for it — never for a private key or seed phrase.' }, isError: true };
+        }
         const answers = args.answers && typeof args.answers === 'object' && !Array.isArray(args.answers) ? args.answers : undefined;
         return read(
           await prepareHire(
@@ -310,7 +320,7 @@ function tools(request: Request): McpTool[] {
                 maxBudget: args.max_budget,
                 ...(typeof args.request_id === 'string' ? { requestId: args.request_id } : {}),
                 ...(typeof args.possibly_funded_job_id === 'string' ? { possiblyFundedJobId: args.possibly_funded_job_id } : {}),
-                ...(typeof args.owner_address === 'string' ? { owner: args.owner_address } : {}),
+                owner: args.owner_address,
               }),
             }),
           ),

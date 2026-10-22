@@ -218,6 +218,16 @@ export function agentNote(text: unknown, limit = 500): string | null {
  *    with its `0x` left off and still forty characters a reader will treat
  *    as a wallet. Forty exactly, because that is an address's length; a
  *    shorter hex run in a name is a name.
+ *
+ * One spelling is known to get through: an address broken by a zero-width
+ * space or another invisible character, which `sanitizeForClaim` keeps and
+ * a reader's eye closes up again. It is left because the fix belongs in
+ * that function, which the negotiation path shares — stripping invisibles
+ * there changes what a signature is checked against, and that is a change
+ * to make deliberately and on its own rather than inside a display helper.
+ * What this does guarantee is that no *term* in a prepared request comes
+ * from a name: the addresses an owner acts on are the registry's and the
+ * escrow's.
  */
 export function displayName(text: unknown, fallback: string, limit = 80): string {
   const noted = agentNote(text, limit);

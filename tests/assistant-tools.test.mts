@@ -71,6 +71,21 @@ test('the owner’s budget is required, with no default anywhere near it', () =>
   assert.ok(schema.required.includes('max_budget'), 'a hire cannot be prepared without the owner’s ceiling');
   assert.match(schema.properties.max_budget.description, /OWNER has authorised/);
   assert.match(schema.properties.max_budget.description, /no default budget/);
+  /*
+   * All three of the owner's own inputs are required, and none may be
+   * optional. `owner_address` was, and optional made the whole owner
+   * binding opt-in by a field a caller may simply not pass: omitted, both
+   * the key and the funding check lose the owner, which is the collision
+   * the binding exists to prevent. A protection skipped by omission is not
+   * a protection.
+   */
+  for (const field of ['escrow_chain_id', 'max_budget', 'owner_address']) {
+    assert.ok(schema.required.includes(field), `${field} is the owner's and is required`);
+  }
+  assert.match(schema.properties.owner_address.description, /Required, with no default/);
+  assert.match(schema.properties.owner_address.description, /ask the owner/i);
+  /* And it asks for an address, never a secret. */
+  assert.match(schema.properties.owner_address.description, /never a key or a seed/);
   for (const [name, property] of Object.entries(schema.properties)) {
     assert.ok(!('default' in property), `${name} must not carry a default a caller could miss`);
   }
@@ -395,9 +410,17 @@ test('the key, the record and the reconciliation all run before anything is hand
   const adopt = route.indexOf("decision.action === 'adopt'");
   assert.ok(adopt > 0 && adopt < build);
   assert.match(route, /state: decision\.action === 'adopt' \? 'funded' : 'unresolved'/);
-  /* The uncertain case needs the owner's address, because whose job it is
-     is the field that decides it. */
-  assert.match(route, /owner-address-required/);
+  /*
+   * And the owner is required up front, so the request, the funding check
+   * and the attach gate all bind to the same wallet. It was optional, with
+   * a separate refusal inside the uncertain branch; that branch is gone
+   * because there is no anonymous request to refuse.
+   */
+  assert.match(route, /code: 'no-owner-address'/);
+  assert.ok(!route.includes('owner-address-required'), 'the late refusal is dead code now');
+  const ownerGate = route.indexOf("code: 'no-owner-address'");
+  assert.ok(ownerGate > 0 && ownerGate < route.indexOf('hireRequestKey('), 'required before a key is derived');
+  assert.match(route, /Never send a private key or seed phrase\./, 'and it asks for an address, never a secret');
   assert.match(route, /if \(reconciled\.outcome === 'funded'\) store\.attachPreparedHireJob\(/);
 });
 

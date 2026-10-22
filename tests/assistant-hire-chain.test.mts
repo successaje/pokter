@@ -533,6 +533,77 @@ test('a purchase is somebody’s: two owners with one brief are two requests', (
   assert.equal(hireRequestKey({ ...TERMS, owner: null }), anonymous);
 });
 
+test('a database written before the owner column keeps its rows and gains it', (t) => {
+  /*
+   * `ensurePreparedHires` runs in the job store's constructor, so a
+   * migration that throws takes the store down — and with it every route
+   * that reads a job. Nothing exercised an old database, so a regression
+   * here would have shipped silently and broken far more than this
+   * feature.
+   *
+   * The previous schema is written out by hand rather than fetched from
+   * git: the point is to run the migration against a table that really
+   * lacks the column, which is what a developer who ran the earlier build
+   * has on disk.
+   */
+  const directory = mkdtempSync(join(tmpdir(), 'pokter-prepared-hires-legacy-'));
+  const path = join(directory, 'jobs.db');
+  const before = new DatabaseSync(path);
+  before.exec(`
+    CREATE TABLE prepared_hires (
+      key            TEXT PRIMARY KEY,
+      agent_chain_id INTEGER NOT NULL,
+      agent_token_id TEXT NOT NULL,
+      chain_id       INTEGER NOT NULL,
+      escrow         TEXT NOT NULL,
+      provider       TEXT NOT NULL,
+      token          TEXT NOT NULL,
+      amount_raw     TEXT NOT NULL,
+      task           TEXT NOT NULL,
+      request        TEXT NOT NULL,
+      job_id         TEXT,
+      prepared_at    TEXT NOT NULL,
+      last_seen_at   TEXT NOT NULL
+    );
+  `);
+  before.exec('CREATE UNIQUE INDEX idx_prepared_hires_job ON prepared_hires (chain_id, job_id)');
+  before
+    .prepare(
+      `INSERT INTO prepared_hires
+         (key, agent_chain_id, agent_token_id, chain_id, escrow, provider, token, amount_raw, task, request, job_id, prepared_at, last_seen_at)
+       VALUES ('phr_legacy', 56, '367904', 56, ?, ?, ?, ?, ?, '{}', NULL, ?, ?)`,
+    )
+    .run(COMMERCE_56.toLowerCase(), AGENT_WALLET.toLowerCase(), U_56.toLowerCase(), PRICE, TERMS.task, iso(-60_000), iso(-60_000));
+  before.close();
+
+  const db = new DatabaseSync(path);
+  t.after(() => {
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  /* The migration runs, and runs again on every reopen without complaint. */
+  ensurePreparedHires(db);
+  ensurePreparedHires(db);
+  ensurePreparedHires(db);
+
+  const legacy = readPreparedHire(db, 'phr_legacy');
+  assert.ok(legacy, 'the row written before the column is still there');
+  assert.equal(legacy?.owner, null, 'and reads as an owner nobody recorded');
+  assert.equal(legacy?.task, TERMS.task, 'with everything else intact');
+  assert.equal(legacy?.state, 'awaiting-owner-approval');
+
+  /* The column is usable, not merely present. */
+  const key = hireRequestKey({ ...TERMS, owner: OWNER });
+  assert.equal(recordPreparedHire(db, { ...write(key, iso(0)), owner: OWNER }), 'recorded');
+  assert.equal(readPreparedHire(db, key)?.owner, OWNER.toLowerCase());
+
+  /* And the unique index survived the migration, so one job still answers
+     one request. */
+  assert.equal(attachPreparedHireJob(db, 'phr_legacy', '1601'), 'attached');
+  assert.equal(attachPreparedHireJob(db, key, '1601'), 'claimed-by-another-request');
+});
+
 test('a funded job answers one prepared request, and only if it is that request’s', (t) => {
   /*
    * The key travels to the owner's wallet in the approval link and comes
@@ -759,11 +830,19 @@ test('a funding at a price nobody quoted is still this hire, and is reported at 
   /* Exactly at the ceiling is inside it. */
   assert.equal(reconcileUncertainHire({ onchain: onchain({ budget: BigInt(CEILING) }), expect }).outcome, 'funded');
 
-  /* A job that exists and holds nothing is money that did not move. */
+  /*
+   * A job that exists and holds nothing is money that did not move, and it
+   * gets its own sentence: the shared one says "no job was created", and
+   * here one was — it carries the owner's brief, and an agent may act on
+   * it. Telling an owner no job exists would send them looking for nothing
+   * while somebody works on something.
+   */
   const empty = reconcileUncertainHire({ onchain: onchain({ budget: 0n }), expect });
   assert.equal(empty.outcome, 'not-funded');
   assert.equal(empty.retrySafe, true);
-  assert.match(empty.message, /holds nothing/);
+  assert.match(empty.message, /holds no money/);
+  assert.match(empty.message, /The job itself is still there and carries the brief/);
+  assert.doesNotMatch(empty.message, /no job was created/, 'the shared sentence is false here');
 
   /* And a ceiling that is not a number compares with nothing. */
   const unusable = reconcileUncertainHire({ onchain: onchain(), expect: { ...expect, ceilingRaw: '0.05 $U' } });

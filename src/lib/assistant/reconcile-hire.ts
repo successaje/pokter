@@ -132,11 +132,20 @@ export function reconcileUncertainHire(input: UncertainHire): Reconciled {
       };
     }
     if (funded === null || funded <= 0n) {
+      /*
+       * Its own sentence rather than `describeFundingOutcome('not-funded')`,
+       * which says "no job was created". Here one was: it holds no money,
+       * so a retry is safe and nothing was taken — but it carries the
+       * owner's brief on chain, and the agent may act on it. Telling an
+       * owner no job exists when one does would send them looking for
+       * nothing while an agent works on something.
+       */
       return {
         outcome: 'not-funded',
         retrySafe: true,
         fundedAmountRaw: amount,
-        message: `${describeFundingOutcome('not-funded')} The job exists but holds nothing.`,
+        message:
+          'The job exists on chain but holds no money: nothing was taken from the wallet, so this request can be approved again. The job itself is still there and carries the brief, so an agent may yet act on it — reclaim or ignore it once the hire is settled.',
       };
     }
     return {

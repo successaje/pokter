@@ -190,8 +190,13 @@ export function recordPreparedHire(db: DatabaseSync, write: PreparedHireWrite): 
  * Whether a funded job really is this prepared request's, or why not.
  *
  * The key travels to the owner's wallet in the approval link and comes back
- * from the browser that funded it, so it arrives as a claim. What makes the
- * claim safe is this: the job has to be the one the request describes —
+ * from the browser that funded it, so it arrives as a claim. It is only ever
+ * a claim and never a capability: it is a hash of the terms, so anyone who
+ * knows them can derive it, and nothing is granted by holding one. All of
+ * the weight is carried here, deliberately.
+ *
+ * What makes the claim safe is this: the job has to be the one the request
+ * describes —
  * same escrow chain, same agent registration, same provider, the exact
  * brief, and funded by the owner the request was prepared for where it
  * named one. A key paired with somebody else's job matches nothing and
