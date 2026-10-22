@@ -24,6 +24,7 @@ import { historyClient } from '@/lib/erc8183/history-client';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
+import { scanTradingWallets, TRADING_SCAN_BUDGET_MS } from '@/lib/trading/read';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -441,6 +442,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       }),
     );
 
+    /* Watched trading wallets: the blocks since the last sweep, every token that left judged by whether it came back. Public RPC serves about an hour of logs, so this cannot be caught up later. Capped at 15s of the run (about 32s worst case with wallets in flight), and 25 transactions a wallet (lib/trading/bound.ts), so a busy wallet cannot starve the maintenance below. */
+    const tradingScan = await budget.step('tradingScan', () => scanTradingWallets(20, Math.min(TRADING_SCAN_BUDGET_MS, budget.remaining())));
+
     const campaignReminders = await budget.step('campaignReminders', () =>
       isCampaignLive()
         ? notifyCampaignReminders({
@@ -673,6 +677,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       jobOwners,
       campaignReminders,
       loanWatches,
+      tradingScan,
       relayTests,
       funders,
       healthFactorChecks,

@@ -36,6 +36,7 @@ import { BackToResults } from '@/features/discover/ReturnToResults';
 import { agentJsonLd } from '@/lib/seo/agent-jsonld';
 import { siteUrl } from '@/lib/site';
 import { StructuredProfile } from '@/features/agent/StructuredProfile';
+import { TradesForYouCard } from '@/features/trading/TradesForYouCard';
 import { structuredProfile } from '@/features/agent/structured';
 
 export const dynamic = 'force-dynamic';
@@ -960,11 +961,13 @@ export default async function AgentPage({ params, searchParams }: { params: Para
         <div className="hidden lg:block">
           <div className="sticky top-32">
             <HirePanel profile={p} />
+            <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
           </div>
         </div>
       </div>
       <div className="frame mt-12 lg:hidden">
         <HirePanel profile={p} />
+        <TradesForYouCard chainId={p.chainId} tokenId={p.tokenId} />
       </div>
       <MobileHireBar profile={p} />
       {/*
