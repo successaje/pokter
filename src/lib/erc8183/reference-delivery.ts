@@ -41,7 +41,7 @@ export type ReferenceDeliveryVerdict =
       ok: true;
       /** Established from Pokter's index and confirmed against the registry. */
       identity: { chainId: number; tokenId: string; name?: string };
-      /** Classified from the registry record, never from the description. */
+      /** Classified from the registry record, never from the description. Empty means no skill preference. */
       category: string;
       task: string;
     }
@@ -59,7 +59,6 @@ export type ReferenceRefusal =
   | 'quote-not-valid-at-funding'
   | 'attribution-missing'
   | 'attribution-conflict'
-  | 'category-unknown'
   | 'job-not-deliverable';
 
 export interface ReferenceDeliveryInput {
@@ -176,17 +175,28 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
   }
 
   /*
-   * The category decides which of the agent's skills the brief is sent to
-   * (`pickWorkSkill`), so it has to come from somewhere trustworthy. The
-   * caller classifies the registry record; the description's own words are
-   * not consulted, because an attacker-supplied category would choose the
-   * skill. No category means no way to address the agent, and refusing is
-   * better than guessing which skill was meant.
+   * The category is a preference, not a credential.
+   *
+   * `pickWorkSkill(skills, category?)` uses it to choose among an agent's
+   * work skills and falls back to the first when it is absent — it takes the
+   * argument as optional, and the envelope path has always passed
+   * 'Uncategorised' when a hire did not supply one, which is not a key in
+   * `CATEGORY_WORDS` and therefore already means "no preference". An agent
+   * with no askable skill fails later in `prepareAgent`, which is the right
+   * place and says so plainly.
+   *
+   * An earlier version of this refused when classification produced nothing,
+   * and that was wrong twice over: stricter than the mechanism needs, and
+   * stricter than the envelope path for the same operation. It refused job
+   * 1585 — which passes every check above — because `classify` could not
+   * place "Pokter Evidence" among the five categories.
+   *
+   * What matters is kept: the category never comes from the description.
+   * Only the registry record is consulted, so nobody who writes a
+   * description can choose which skill receives the brief. Empty means no
+   * preference, exactly as `pickWorkSkill` reads it.
    */
   const category = input.registryAgent?.category?.trim() ?? '';
-  if (category === '') {
-    return refuse('category-unknown', `No category could be established for agent ${chainId}/${tokenId} from its registry record.`);
-  }
 
   /* Live state last, from the kernel: the contract will refuse anything else. */
   if (input.job.statusName !== 'FUNDED') {
