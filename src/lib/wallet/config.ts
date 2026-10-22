@@ -1,4 +1,4 @@
-import { createConfig, http } from 'wagmi';
+import { createConfig, fallback, http } from 'wagmi';
 import { bsc, bscTestnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors/injected';
 import { walletConnect } from 'wagmi/connectors/walletConnect';
@@ -65,9 +65,15 @@ export const wagmiConfig = createConfig({
         ]
       : []),
   ],
+  /*
+   * Two nodes per chain. The public node sometimes refuses a receipt seconds
+   * old as "archive" data ("Invalid parameters were provided to the RPC
+   * method"), which failed a buyer's review publish after the transaction
+   * had already gone through; BNB Chain's own node answers receipts.
+   */
   transports: {
-    [bscTestnet.id]: http('https://bsc-testnet-rpc.publicnode.com'),
-    [bsc.id]: http('https://bsc-rpc.publicnode.com'),
+    [bscTestnet.id]: fallback([http('https://bsc-testnet-rpc.publicnode.com'), http('https://data-seed-prebsc-1-s1.bnbchain.org:8545')]),
+    [bsc.id]: fallback([http('https://bsc-rpc.publicnode.com'), http('https://bsc-dataseed.bnbchain.org')]),
   },
   ssr: true,
 });
