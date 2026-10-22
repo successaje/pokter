@@ -9,6 +9,7 @@ import {
   refreshJob,
   settleJob,
   InsufficientPaymentTokenError,
+  BriefNotDeliverableError,
 } from '@/lib/erc8183/hire';
 import { AltanaNotConfiguredError, IS_TESTNET } from '@/lib/altana/client';
 import { requireDemoWriteAccess } from '@/lib/security/demo-write';
@@ -117,6 +118,21 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json({ job });
   } catch (error) {
+    if (error instanceof BriefNotDeliverableError) {
+      /* The brief is the thing to fix, so it is an input refusal and not a
+         gateway failure — the same shape the quote route returns. */
+      return NextResponse.json(
+        {
+          error: error.message,
+          layer: 'input',
+          code: error.code,
+          retryable: false,
+          skill: error.skill,
+          ...(error.candidates.length > 0 ? { candidates: error.candidates } : {}),
+        },
+        { status: 400 },
+      );
+    }
     if (error instanceof InsufficientPaymentTokenError) {
       return NextResponse.json(
         { error: error.message, held: error.held, required: error.required },

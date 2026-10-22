@@ -6,6 +6,7 @@ import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
 import { BRIEF_MIN, briefAcceptable, declaredBriefs } from '@/lib/hire/brief';
 import { declaredTaskProblems } from '@/lib/hire/task-fields';
+import { preflightHireBrief } from '@/lib/erc8183/hire-preflight';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -90,6 +91,32 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 400 },
       );
     }
+  }
+
+  /*
+   * The structured request Pokter will send, settled before the escrow is
+   * funded rather than at delivery.
+   *
+   * Job 1585 was quoted here, signed, funded, and then failed delivery for
+   * a day because `agent_evidence` reads its subject from `data.agent` and
+   * nothing filled it. The same `skillRequestData` the courier uses decides
+   * it now, so a brief that cannot be turned into a request costs the buyer
+   * a message instead of a deadline. An agent whose skills Pokter cannot
+   * read is not refused — see `hire-preflight`.
+   */
+  const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
+  if (!preflight.ok) {
+    return NextResponse.json(
+      {
+        error: preflight.message,
+        layer: 'input',
+        code: preflight.code,
+        retryable: false,
+        skill: preflight.skill,
+        ...(preflight.candidates.length > 0 ? { candidates: preflight.candidates } : {}),
+      },
+      { status: 400 },
+    );
   }
 
   let refusal: string | null = null;
@@ -211,6 +238,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     escrowChainId,
     /* The exact text the signature covers, so the caller funds that and not a variant. */
     task,
+    /*
+     * What Pokter will ask, beyond the brief itself: the skill it resolved
+     * and the subject it read out of the brief. Shown to the buyer so the
+     * request they are funding is the request they can see.
+     */
+    request: { skill: preflight.skill, subject: preflight.subject },
     observedAt: new Date().toISOString(),
   });
 }
