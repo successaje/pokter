@@ -1,10 +1,10 @@
 import 'server-only';
-import { subjectFromBrief, subjectKeyForSkill } from '@/lib/erc8183/brief-subject';
 
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { subjectFromBrief, subjectKeyForSkill } from './brief-subject';
 import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
