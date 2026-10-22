@@ -4,6 +4,7 @@ import { readAgentCard } from '@/lib/agents/agent-card';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { subjectFromBrief, subjectKeyForSkill } from './brief-subject';
 import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
@@ -160,5 +161,36 @@ export async function askAgentByIdentity(
   options: { timeoutMs?: number } = {},
 ): Promise<CourierResult> {
   const agent = await prepareAgent({ chainId: brief.chainId, tokenId: brief.tokenId, category: brief.category });
-  return sendPreparedBrief(agent, { text: brief.task, data: { protocol: 'pokter-job', job_id: Number(jobId) } }, options);
+  const data: Record<string, unknown> = { protocol: 'pokter-job', job_id: Number(jobId) };
+
+  /*
+   * A skill that needs its subject named gets it from the brief.
+   *
+   * Pokter's evidence agent publishes its contract — "Give it an agent
+   * reference", `examples: ["56/303779", "eip155:97:2554"]` — and reads it
+   * from `data.agent`. Sending prose alone made it fall back to parsing the
+   * whole task description as a reference, and answer 400: job 1585 failed
+   * that way on every run for a day with its escrow funded.
+   *
+   * The subject is read, not inferred. `subjectFromBrief` takes it from the
+   * signed brief where the brief names it outright, and refuses when there
+   * is no chain-qualified reference or more than one distinct agent — so a
+   * brief that does not say gets a refusal rather than a choice made on the
+   * buyer's behalf. The full brief still travels as `task` and
+   * `task_description`; this adds a field, it does not replace anything.
+   */
+  const subjectKey = subjectKeyForSkill(agent.skill.id);
+  if (subjectKey) {
+    const subject = subjectFromBrief(brief.task);
+    if (!subject.ok) {
+      throw new NotAskableError(
+        subject.code === 'ambiguous'
+          ? `The brief names more than one agent (${subject.candidates.join(', ')}), and "${agent.skill.id}" reports on one. Pokter will not choose between them.`
+          : `"${agent.skill.id}" needs the agent named as a reference such as 97/2618, and the brief names none.`,
+      );
+    }
+    data[subjectKey] = subject.agent;
+  }
+
+  return sendPreparedBrief(agent, { text: brief.task, data }, options);
 }
