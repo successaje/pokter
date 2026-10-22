@@ -475,9 +475,15 @@ function halfLastPlace(decimals: number): number {
   return 0.5 * 10 ** -decimals;
 }
 
+/*
+ * Written for a buyer, so no backticks and no code voice. The contract
+ * calls are named because they are how a reader checks this for
+ * themselves, not as a developer note; the first draft wrapped them in
+ * backticks and the page rendered the punctuation.
+ */
 const METHOD = [
-  'Venus’s own accounting is the authority, not a re-implementation of it. `getAccountLiquidity(account)` on the Core Pool Comptroller returns the account’s spare borrowing capacity or its shortfall in USD, already weighted by each market’s liquidation threshold and priced by Venus’s oracle.',
-  'With D the debt in USD, summed over the markets the account is in (`getAccountSnapshot` × `getUnderlyingPrice`): weighted collateral W = D + liquidity − shortfall, and health factor = W / D.',
+  'Venus’s own accounting is the authority here, not a re-implementation of it. The Core Pool Comptroller’s getAccountLiquidity returns the account’s spare borrowing capacity, or its shortfall, in USD — already weighted by each market’s liquidation threshold and priced by Venus’s oracle.',
+  'The debt in USD is summed over the markets the account is in, from each vToken’s getAccountSnapshot at the oracle’s getUnderlyingPrice. Then weighted collateral = debt + liquidity − shortfall, and the health factor is weighted collateral divided by debt.',
   'That is below 1 exactly when Venus reports a shortfall, which is the condition under which the position can be liquidated — so the liquidation flag is read from the shortfall rather than inferred from the ratio.',
   'Every call is made at the block the report names, read-only, with no transaction of any kind.',
 ];
