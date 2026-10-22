@@ -165,11 +165,67 @@ test('the review step shows the subject from the quote, so a brief edit clears i
    * describing a request Pokter would no longer make.
    */
   const flow = src('features/hire/HireFlow.tsx');
-  assert.match(flow, /hire\.reviewQuote\?\.request\.subject/);
+  assert.match(flow, /hire\.reviewRequest\?\.subject/);
   assert.match(flow, /What \{props\.agent\.name\} will be asked/);
   assert.match(flow, /Your brief is sent whole alongside it/);
 
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const request: SkillRequestPreview = payload\.request/);
-  assert.match(hook, /^\s*request,$/m, 'carried on the quote the review step reads');
+  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === task/);
+  assert.match(hook, /^\s*reviewRequest,$/m, 'exposed to the screen that reads it');
+});
+
+test('the hire with no quote is checked too, by the same preflight', () => {
+  /*
+   * `needsQuote` is false when Pokter's seller carries the brief, so
+   * `negotiateForHire` never runs and nothing checked the brief before the
+   * escrow was funded. `/api/hire/preflight` answers the same question for
+   * that path, through the same `preflightHireBrief` and the same refusal
+   * body as the other two surfaces.
+   */
+  const route = code('app/api/hire/preflight/route.ts');
+  assert.match(route, /preflightHireBrief\(\{/);
+  assert.match(route, /briefRefusalBody\(\{/);
+  // Read-only: it reads the agent and its card and writes nothing.
+  for (const write of ['recordQuoteIntent', 'hireAgent', 'buildHireCalls', 'requireDemoWriteAccess']) {
+    assert.ok(!route.includes(write), `the check does not ${write}`);
+  }
+  assert.match(route, /consumeRateLimit\(/, 'a public read is rate limited like the quote route');
+});
+
+test('all three hire surfaces refuse through one preflight and one body', () => {
+  const surfaces = ['app/api/hire/quote/route.ts', 'app/api/hire/preflight/route.ts', 'lib/erc8183/hire.ts'];
+  for (const path of surfaces) assert.match(code(path), /preflightHireBrief/, path);
+  for (const path of ['app/api/hire/quote/route.ts', 'app/api/hire/preflight/route.ts', 'app/api/hire/route.ts']) {
+    assert.match(code(path), /briefRefusalBody/, path);
+  }
+});
+
+test('the no-quote path is refused before a wallet is touched', () => {
+  /*
+   * Order again. `prepareQuote` stops the buyer reaching Review, and
+   * `commission` stops any other caller reaching a wallet: the check runs
+   * in the branch for hires without a quote, above both funding routes.
+   */
+  const hook = code('lib/hire/useHire.ts');
+  const inPrepare = hook.indexOf('await preflightBrief(agent.chainId, agent.tokenId, task)');
+  assert.ok(inPrepare > 0, 'prepareQuote checks the brief');
+
+  const gate = hook.lastIndexOf('await preflightBrief(agent.chainId, agent.tokenId, task)');
+  assert.ok(gate > inPrepare, 'and commission checks it again for any other caller');
+  for (const fund of ['hireFromExternalWallet(', "active.mode === 'external'"]) {
+    const at = hook.indexOf(fund);
+    assert.ok(at > 0 && gate < at, `the check runs before ${fund}`);
+  }
+});
+
+test('a brief edit clears the resolved request on both paths', () => {
+  /*
+   * One state, set by the quote path and the no-quote path alike, and read
+   * back only while the task and provider it was resolved for are still the
+   * ones in the form.
+   */
+  const hook = code('lib/hire/useHire.ts');
+  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === task && preRequest\.provider === providerAddress/);
+  assert.match(hook, /setPreRequest\(\{ request: quote\.request, task, provider: providerAddress, escrowChainId \}\)/);
+  assert.match(hook, /setPreRequest\(null\)/, 'cleared when the check refuses');
 });

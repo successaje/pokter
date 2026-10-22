@@ -628,18 +628,20 @@ export function HireFlow(props: HireFlowProps) {
             is refused before this step — so what is left to say is which
             agent the report will be about, while the brief can still change.
 
-            Carried on the quote, so it disappears the moment the brief is
-            edited rather than describing a request Pokter would no longer
-            make.
+            Resolved for the brief as written, on both hire paths — the
+            quote carries it where there is one, and `/api/hire/preflight`
+            answers it where Pokter's seller carries the brief instead. Any
+            edit to the brief clears it rather than leaving it describing a
+            request Pokter would no longer make.
           */}
-          {hire.reviewQuote?.request.subject && (
+          {hire.reviewRequest?.subject && (
             <p className="text-[13px] text-ink-2">
               <span className="font-medium text-ink">What {props.agent.name} will be asked: </span>
               a report on agent{' '}
-              <span className="font-mono text-ink">{hire.reviewQuote.request.subject.value}</span>
-              {hire.reviewQuote.request.skill ? (
+              <span className="font-mono text-ink">{hire.reviewRequest.subject.value}</span>
+              {hire.reviewRequest.skill ? (
                 <>
-                  , through the <span className="font-mono text-ink">{hire.reviewQuote.request.skill}</span> skill it
+                  , through the <span className="font-mono text-ink">{hire.reviewRequest.skill}</span> skill it
                   publishes
                 </>
               ) : null}

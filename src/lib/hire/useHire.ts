@@ -194,6 +194,39 @@ async function negotiateForHire(
   };
 }
 
+/**
+ * Whether the brief can be turned into a request, where there is no quote
+ * to carry the answer.
+ *
+ * A hire whose provider is Pokter's seller never asks the agent to sign,
+ * so `negotiateForHire` does not run and nothing checked the brief before
+ * the escrow was funded. Asked here instead, with the same refusal shape,
+ * so the buyer reads the same sentence whichever path they are on.
+ */
+async function preflightBrief(
+  chainId: number,
+  tokenId: string,
+  task: string,
+): Promise<SkillRequestPreview> {
+  const response = await fetch('/api/hire/preflight', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chainId, tokenId, task }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { request?: SkillRequestPreview; error?: string; layer?: FailureLayer; code?: string; retryable?: boolean }
+    | null;
+  if (!response.ok) {
+    throw new HireFailure(
+      payload?.error ?? 'Pokter could not check this brief against the agent.',
+      payload?.layer ?? (response.status === 400 ? 'input' : 'network'),
+      payload?.code,
+      payload?.retryable ?? response.status >= 500,
+    );
+  }
+  return payload?.request ?? { skill: null, subject: null };
+}
+
 export function useHire({
   agent,
   providers,
@@ -316,6 +349,15 @@ export function useHire({
    * network does not reuse it.
    */
   const [preQuote, setPreQuote] = useState<{ quote: Awaited<ReturnType<typeof negotiateForHire>>; task: string; provider: string; escrowChainId: number } | null>(null);
+  /*
+   * What Pokter will ask, for the brief as written.
+   *
+   * Separate from `preQuote` because a hire Pokter's seller carries has no
+   * quote to hang it on, and the review screen must say the same thing on
+   * both paths. Validated the same way: it is only read back while the task
+   * and provider it was resolved for are still the ones in the form.
+   */
+  const [preRequest, setPreRequest] = useState<{ request: SkillRequestPreview; task: string; provider: string; escrowChainId: number } | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteFailure, setQuoteFailure] = useState<{ message: string; layer: FailureLayer | null } | null>(null);
 
@@ -593,16 +635,34 @@ export function useHire({
    */
   const prepareQuote = async (): Promise<boolean> => {
     setQuoteFailure(null);
-    if (!needsQuote) return true;
     setQuoting(true);
     try {
-      const quote = await negotiateForHire(agent.chainId, agent.tokenId, task);
-      setPreQuote({ quote, task, provider: providerAddress, escrowChainId });
+      if (needsQuote) {
+        const quote = await negotiateForHire(agent.chainId, agent.tokenId, task);
+        setPreQuote({ quote, task, provider: providerAddress, escrowChainId });
+        setPreRequest({ request: quote.request, task, provider: providerAddress, escrowChainId });
+      } else {
+        /*
+         * No quote on this path, so the brief is checked on its own. Before
+         * Review rather than at funding, because this is the last screen
+         * where the brief can still be edited.
+         */
+        const request = await preflightBrief(agent.chainId, agent.tokenId, task);
+        setPreRequest({ request, task, provider: providerAddress, escrowChainId });
+      }
       return true;
     } catch (caught) {
       setPreQuote(null);
+      setPreRequest(null);
       const failure = caught instanceof HireFailure ? caught : null;
-      setQuoteFailure({ message: (caught as Error).message || 'The agent did not return a signed quote for this brief.', layer: failure?.layer ?? null });
+      setQuoteFailure({
+        message:
+          (caught as Error).message ||
+          (needsQuote
+            ? 'The agent did not return a signed quote for this brief.'
+            : 'Pokter could not check this brief against the agent.'),
+        layer: failure?.layer ?? null,
+      });
       return false;
     } finally {
       setQuoting(false);
@@ -611,6 +671,9 @@ export function useHire({
 
   /** The early quote, while it still covers this hire: same brief, provider and network, and at least a minute left. */
   const reviewQuote = preQuote && preQuote.task === task && preQuote.provider === providerAddress && preQuote.escrowChainId === escrowChainId ? preQuote.quote : null;
+  /* Cleared by any edit to the brief or the provider, so the review screen
+     never describes a request Pokter would no longer make. */
+  const reviewRequest = preRequest && preRequest.task === task && preRequest.provider === providerAddress && preRequest.escrowChainId === escrowChainId ? preRequest.request : null;
   const quoteLive = (quote: Awaited<ReturnType<typeof negotiateForHire>> | null) => Boolean(quote && (!quote.expiresAt || quote.expiresAt * 1000 > Date.now() + 60_000));
 
   const commission = async () => {
@@ -668,6 +731,16 @@ export function useHire({
           { provider: providerAddress as string, task, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
         );
         if (!check.ok) throw new Error(check.reason);
+      } else {
+        /*
+         * The same question the quote route answers for a registry agent,
+         * asked here for the hires it does not cover. In `commission` and
+         * not only in `prepareQuote` because any caller of this function
+         * gets the same refusal before a wallet is touched — the rule the
+         * guards above already follow.
+         */
+        const request = reviewRequest ?? (await preflightBrief(agent.chainId, agent.tokenId, task));
+        setPreRequest({ request, task, provider: providerAddress, escrowChainId });
       }
 
       if (active.mode === 'external') {
@@ -912,6 +985,7 @@ export function useHire({
     quoting,
     quoteFailure,
     reviewQuote,
+    reviewRequest,
     riskWarnings,
     taskTemplates,
     taskReady,
