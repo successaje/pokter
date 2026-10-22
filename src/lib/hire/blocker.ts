@@ -49,6 +49,10 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
       return { code: input.code, reason: 'Its signed hash does not cover the terms it returned, so the price cannot be shown as signed.', fix: at('quote', 'The signed quote'), transient: false };
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
+      /* The card answers and names nowhere to send a brief: listed, but no running agent behind it (56:300282). */
+      if (input.detail === 'card-without-interface') {
+        return { code: input.code, reason: 'Its agent card answers but names no service to send a brief to: the operator has listed it without connecting a running agent.', fix: at('transports', 'Transports'), transient: false };
+      }
       return mcpOnly
         ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }
         : { code: input.code, reason: 'Its agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls to price and hire it.', fix: at('transports', 'Transports'), transient: false };

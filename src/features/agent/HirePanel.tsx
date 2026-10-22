@@ -32,6 +32,14 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
   // The escrow this agent is hired on, chosen from its signed price.
   const testnet = profile.escrow.chainId === 97;
   const blocked = mainnetHireBlocked(profile);
+  /*
+   * Nowhere to send a brief at all: no endpoint, or a card naming no
+   * interface. Neither a paid hire nor a testnet trial can reach it, since
+   * the trial carries the brief to the same place, so no button leads
+   * there. A missing negotiate skill is not this: a trial can still reach
+   * a card that offers other skills.
+   */
+  const unreachable = profile.hireBlocker?.code === 'no-endpoint' && !profile.hireBlocker.transient;
   return (
     <aside aria-label="Hire this agent" className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
       <div className="flex flex-col gap-1 px-5 pb-4 pt-5">
@@ -91,7 +99,9 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         </details>
       )}
       <div className="flex flex-col gap-2 border-t border-rule p-5">
-        {profile.hireable && blocked ? (
+        {unreachable ? (
+          <p className="text-[13px] text-ink-2">Nothing can be sent to this agent, so a hire cannot complete, paid or as a free trial. It becomes hireable when its operator connects a running agent.</p>
+        ) : profile.hireable && blocked ? (
           /* A known reason the hire cannot complete: no purchase button that leads to it. */
           <p className="text-[13px] text-ink-2">A paid job on {chainLabel(56)} cannot complete until the reason above is fixed, because the escrow needs the agent&rsquo;s signed price.</p>
         ) : profile.hireable ? (
@@ -101,7 +111,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         ) : (
           <p className="text-[13px] text-ink-2">{profile.testnetRelay && profile.escrowOptions.length === 0 ? profile.testnetRelay.note : 'Pokter cannot route a paid job to this agent: no reachable provider wallet was found.'}</p>
         )}
-        {profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
+        {!unreachable && profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
           blocked ? (
             <LinkButton href={`${hireHref}?escrow=97`} intent="secondary" className="w-full">
               Try free on testnet instead
@@ -118,7 +128,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           </p>
         )}
         {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
-        {profile.trialAvailable && (
+        {!unreachable && profile.trialAvailable && (
           <a href="#try" className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
             Try it free first
           </a>

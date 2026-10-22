@@ -3,6 +3,7 @@ import 'server-only';
 import { a2aCardFallback } from '@/lib/proof/card-access';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { declaredCapabilities, type DeclaredSkill } from './capabilities';
+import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { isAgentCard } from '@/lib/a2a/card';
 
 /**
@@ -68,13 +69,39 @@ export async function fetchDeclaredCapabilities(
   endpoint: string | null | undefined,
   tokenId: string,
 ): Promise<DeclaredSkill[]> {
-  if (!endpoint) return [];
-  const resolved = endpoint.replace('{agentId}', tokenId);
+  return (await readCardForPage(endpoint, tokenId)).skills;
+}
 
+/**
+ * What an agent's card says about whether it can be hired, as a permanent
+ * fact or not at all.
+ *
+ * The sweep stores a hire blocker for the agents it reaches, which is the
+ * DeFi categories and the top of the registry. Every other agent's page
+ * showed no blocker and offered a hire at the default budget, and the
+ * reason only appeared when a buyer tried: hwayongjin.agent (56:300282),
+ * whose card answers with no service to send a brief to. The page already
+ * reads the card, once per view, for its skills; this is the same read,
+ * now also saying what it found.
+ *
+ * Only facts that do not change by asking again become a problem: no A2A
+ * endpoint registered, a card that names no interface, a card with no
+ * negotiate skill. A card that did not answer this time is not a problem
+ * here (it may be a passing outage), so it never blocks a hire on one read.
+ */
+export type CardProblem = 'no-endpoint' | 'card-without-interface' | 'no-price-skill';
+
+export async function readCardForPage(
+  endpoint: string | null | undefined,
+  tokenId: string,
+): Promise<{ skills: DeclaredSkill[]; problem: CardProblem | null }> {
+  if (!endpoint) return { skills: [], problem: 'no-endpoint' };
+  const resolved = endpoint.replace('{agentId}', tokenId);
   try {
     const card = await readAgentCard(resolved, { timeoutMs: 2_500 });
-    return declaredCapabilities(card.skills);
-  } catch {
-    return [];
+    const skills = Array.isArray(card.skills) ? card.skills : [];
+    return { skills: declaredCapabilities(card.skills), problem: negotiationSkillOf(skills) ? null : 'no-price-skill' };
+  } catch (error) {
+    return { skills: [], problem: /answered, but not with an agent card/i.test((error as Error)?.message ?? '') ? 'card-without-interface' : null };
   }
 }
