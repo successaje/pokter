@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createPublicClient, http, isHash, type Hex } from 'viem';
+import { createPublicClient, fallback, http, isHash, type Hex } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
 import { matchesFeedback } from '@/lib/reviews/onchain';
@@ -11,8 +11,9 @@ import { logAndPublic } from '@/lib/api/public-error';
 export const dynamic = 'force-dynamic';
 
 const CHAINS = {
-  56: { chain: bsc, rpc: 'https://bsc-rpc.publicnode.com' },
-  97: { chain: bscTestnet, rpc: 'https://bsc-testnet-rpc.publicnode.com' },
+  /* Two nodes each: the public node sometimes refuses a fresh receipt as "archive" data. */
+  56: { chain: bsc, rpc: ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org'] },
+  97: { chain: bscTestnet, rpc: ['https://bsc-testnet-rpc.publicnode.com', 'https://data-seed-prebsc-1-s1.bnbchain.org:8545'] },
 } as const;
 
 /**
@@ -41,7 +42,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!network) return NextResponse.json({ error: 'The agent is registered on a chain Pokter does not read.' }, { status: 409 });
 
   try {
-    const client = createPublicClient({ chain: network.chain, transport: http(network.rpc) });
+    const client = createPublicClient({ chain: network.chain, transport: fallback(network.rpc.map((url) => http(url))) });
     const [receipt, tx] = await Promise.all([
       client.getTransactionReceipt({ hash: hash as Hex }),
       client.getTransaction({ hash: hash as Hex }),
