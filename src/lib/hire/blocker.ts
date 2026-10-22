@@ -47,8 +47,37 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
       return { code: input.code, reason: `Its quote is not signed by its registered agent wallet (${short(input.agentWallet)}), so Pokter will not fund against it.`, fix: at('quote', 'The signed quote'), transient: false };
     case 'terms-mismatch':
       return { code: input.code, reason: 'Its signed hash does not cover the terms it returned, so the price cannot be shown as signed.', fix: at('quote', 'The signed quote'), transient: false };
+    /*
+     * The card itself did not answer, so nothing here is a finding about the
+     * agent. Kept apart from `no-endpoint` because the two make different
+     * claims and only one of them is permanent: a transient card lookup used
+     * to arrive as "names no service to send a brief to", which told a
+     * builder to reconnect an agent that was already connected and told the
+     * buyer, at 409, not to try again.
+     */
+    case 'card-unreadable':
+      return { code: input.code, reason: `Its agent card did not answer this read${input.detail ? ` (${input.detail})` : ''}, so whether it can be priced is unchecked rather than ruled out. Pokter asks again on the next view.`, fix: at('transports', 'Transports'), transient: true };
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
+      /*
+       * Nothing Pokter read named an interface (56:300282, whose platform
+       * reports UNBOUND, offline, endpoint null).
+       *
+       * Worded for what was read and nothing else, because four reads
+       * arrive under this detail and no stronger sentence is true of all
+       * four. "Its card answers but names no service" is false where every
+       * location answered with no card at all. "Neither location returns a
+       * card naming an interface" is false where one of them timed out
+       * after the other had already settled it — a negative about a place
+       * that never answered. And "the operator has listed it without
+       * connecting a running agent" is false of an agent serving its card
+       * somewhere other than the well-known path.
+       *
+       * So: what Pokter read, and what it did not find in it.
+       */
+      if (input.detail === 'card-without-interface') {
+        return { code: input.code, reason: 'Nothing Pokter read at its registered endpoint or the card path under it names an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
+      }
       return mcpOnly
         ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }
         : { code: input.code, reason: 'Its agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls to price and hire it.', fix: at('transports', 'Transports'), transient: false };
