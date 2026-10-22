@@ -97,8 +97,18 @@ export interface VenusReading {
 
 const usd = (raw: bigint) => Number((raw * 100n) / 10n ** 18n) / 100;
 
-export async function readVenusPosition(client: Client, account: Address): Promise<VenusReading> {
-  const block = await settledBlockNumber(client);
+/**
+ * `atBlock` pins every call below to one block instead of taking the
+ * settled head.
+ *
+ * Added for delivery verification (`lib/delivery/venus-report-check.ts`),
+ * which checks a report against the block the report itself names. Without
+ * it the only way to get a reading at a stated block was to copy this
+ * function, and two readings of Venus that could drift apart is exactly the
+ * thing a correctness check must not have.
+ */
+export async function readVenusPosition(client: Client, account: Address, { atBlock }: { atBlock?: bigint } = {}): Promise<VenusReading> {
+  const block = atBlock ?? (await settledBlockNumber(client));
   const [oracle, assets, liquidityTuple] = await Promise.all([
     client.readContract({ address: VENUS_COMPTROLLER, abi: COMPTROLLER_ABI, functionName: 'oracle', blockNumber: block }),
     client.readContract({ address: VENUS_COMPTROLLER, abi: COMPTROLLER_ABI, functionName: 'getAssetsIn', args: [account], blockNumber: block }),
