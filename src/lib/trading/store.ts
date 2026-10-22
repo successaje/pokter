@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import type { FlowVerdict } from './flows';
+import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerListWrite } from './owner-list';
 
 export interface WatchedTradingWallet {
   wallet: string;
@@ -52,16 +53,11 @@ class TradingStore {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL');
+    /* The watched-wallet row and its owner list are created and migrated in
+       `./owner-list`, which is not `server-only` so that a test can run that
+       SQL for real against a temp file. */
+    ensureWatchedWallets(this.db);
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS trading_wallets (
-        wallet       TEXT PRIMARY KEY,
-        agent_key    TEXT,
-        owners       TEXT NOT NULL DEFAULT '[]',
-        added_at     TEXT NOT NULL,
-        scanned_to   INTEGER,
-        last_scan_at TEXT,
-        last_error   TEXT
-      );
       CREATE TABLE IF NOT EXISTS trading_flows (
         tx_hash TEXT NOT NULL,
         wallet  TEXT NOT NULL,
@@ -80,9 +76,6 @@ class TradingStore {
         at         TEXT NOT NULL
       );
     `);
-    /* Added with signed owner lists; a wallet watched before has none signed. */
-    const columns = (this.db.prepare('PRAGMA table_info(trading_wallets)').all() as Array<{ name: string }>).map((c) => c.name);
-    if (!columns.includes('owners_signed_at')) this.db.exec('ALTER TABLE trading_wallets ADD COLUMN owners_signed_at TEXT');
   }
 
   /**
@@ -91,17 +84,26 @@ class TradingStore {
    * may change it.
    */
   watch(input: { wallet: string; agentKey: string | null }): void {
-    this.db
-      .prepare(`INSERT INTO trading_wallets (wallet, agent_key, owners, added_at) VALUES (?, ?, '[]', ?)
-        ON CONFLICT (wallet) DO UPDATE SET agent_key = COALESCE(excluded.agent_key, trading_wallets.agent_key)`)
-      .run(input.wallet.toLowerCase(), input.agentKey, new Date().toISOString());
+    watchWallet(this.db, { ...input, addedAt: new Date().toISOString() });
   }
 
-  /** Replace the owner list with one the wallet signed at `signedAt` (checked by the caller: `ownersSignatureProblem`, `signedByWallet`). */
-  setOwners(wallet: string, owners: readonly string[], signedAt: string): void {
-    this.db
-      .prepare('UPDATE trading_wallets SET owners = ?, owners_signed_at = ? WHERE wallet = ?')
-      .run(JSON.stringify(owners.map((o) => o.toLowerCase())), signedAt, wallet.toLowerCase());
+  /**
+   * Replace the owner list with one the wallet signed at `signedAt`, if that
+   * is still the newest signed list when the write happens.
+   *
+   * The caller verifies the signature first (`ownersSignatureProblem`, then
+   * `signedByWallet`); this says whether the verified list was also the
+   * newest, and the caller has to read the answer. An older request that
+   * finished later used to overwrite a newer accepted list from here, so the
+   * decision is now inside the write — see `./owner-list`.
+   */
+  setOwners(wallet: string, owners: readonly string[], signedAt: string): OwnerListWrite {
+    return recordSignedOwners(this.db, { wallet, owners, signedAt });
+  }
+
+  /** The list as recorded now, for saying what won a race the caller lost. */
+  owners(wallet: string): string[] {
+    return readOwnerList(this.db, wallet)?.owners ?? [];
   }
 
   count(): number {
