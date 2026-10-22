@@ -148,18 +148,27 @@ export function outboundParts(
  * different things. `layer: 'input'` is what `useHire` reads to say the
  * brief is the thing to fix, rather than the seller or the network.
  */
+export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined';
+
 export function briefRefusalBody(input: {
   message: string;
-  code: 'subject-missing' | 'subject-ambiguous';
-  skill: string;
-  candidates: string[];
+  code: BriefRefusalCode;
+  skill: string | null;
+  candidates?: string[];
 }): Record<string, unknown> {
+  const candidates = input.candidates ?? [];
   return {
     error: input.message,
-    layer: 'input',
+    /*
+     * Which layer refused, as `useHire` reads it. Pokter failing to turn the
+     * brief into a request is the brief's shape; the agent declining it is
+     * the agent's own judgement of the work, and saying "input" for that
+     * would blame the buyer's wording for someone else's decision.
+     */
+    layer: input.code === 'brief-declined' ? 'seller' : 'input',
     code: input.code,
     retryable: false,
     skill: input.skill,
-    ...(input.candidates.length > 0 ? { candidates: input.candidates } : {}),
+    ...(candidates.length > 0 ? { candidates } : {}),
   };
 }
