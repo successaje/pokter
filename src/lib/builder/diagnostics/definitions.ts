@@ -109,7 +109,21 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
  */
 export const UNMEASURED: readonly string[] = [
   'Asks refused for a brief over the 2,000-character limit. That check runs before the agent is loaded, so there is no agent to attribute the refusal to, and moving a pure-input check behind a network call would be a worse trade than leaving this gap. Shorter briefs refused by the length floor ARE recorded, so the two input refusals are deliberately asymmetric.',
-  'How many buyers got a price and then did not fund. Pokter records the prices it signs and the jobs that get funded, but cannot join the two: a signed quote carries no buyer, and the only thing linking one to a job is a negotiation hash written into the job’s description on chain, which Pokter does not read back. Subtracting one count from the other was tried and removed — over a fixed window it counts jobs funded from prices signed before it, so it answered a question nobody asked.',
+  /*
+   * The reason here has to be the one that is true, because the wrong one
+   * invites the work that would not help. Pokter *does* read negotiation
+   * hashes back off chain — `jobIdentity` does it for every job in the
+   * reference format, and it is how such a job is attributed to an agent at
+   * all. So "Pokter does not read it back" was both false today and an
+   * invitation to go and build the thing that already exists.
+   *
+   * What makes the gap unmeasurable is that the hash is written into a job
+   * description, and a job description exists only once somebody has funded
+   * one. The join is therefore available for exactly the prices that were
+   * funded and impossible for exactly the prices this figure would have
+   * been about. That is a fact about the escrow, not a gap in Pokter.
+   */
+  'How many buyers got a price and then did not fund. Pokter records the prices it signs and the jobs that get funded, but cannot join the two where it would matter. A signed quote carries no buyer, and the only thing tying one to a job is the negotiation hash in that job’s description on chain — which exists only once the job has been funded. Pokter reads that hash back for the jobs that exist, and that is how each one is attributed to an agent; for a price nobody funded there is no job, so there is nothing to read. Subtracting one count from the other was tried and removed — over a fixed window it counts jobs funded from prices signed before it, so it answered a question nobody asked.',
   'Whether an ask came from Pokter itself. Scheduled checks and free trials are excluded by the path they arrive on, and funded jobs by the wallet that paid — but a person at Pokter opening the hire page is indistinguishable from any other buyer, because no wallet or identity is attached to an ask. Treat a handful of asks with that in mind.',
   'Who the buyers were. No wallet, address or identifier is attached to a price request, so there is no count of distinct buyers before funding — only of asks.',
   'Why a buyer left before asking for a price. Pokter records that the hire page was opened, not what was read or where attention went.',

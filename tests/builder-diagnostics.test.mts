@@ -350,10 +350,30 @@ test('the quote-to-funding stage is reported as unmeasured, not estimated', () =
     d.unmeasured.some((line) => /got a price and then did not fund/.test(line)),
     'cutting the figure must not make the gap disappear',
   );
-  assert.ok(
-    d.unmeasured.some((line) => /negotiation hash/.test(line)),
-    'and it should say why Pokter cannot join the two',
+  const why = d.unmeasured.find((line) => /got a price and then did not fund/.test(line)) ?? '';
+  assert.match(why, /negotiation hash/, 'and it should say why Pokter cannot join the two');
+
+  /*
+   * The reason has to be the true one. Pokter *does* read negotiation
+   * hashes back off chain: `jobIdentity` decodes one out of a job's
+   * description and looks it up in the quote-intent store, and that is how
+   * a reference-format job is attributed to an agent at all — reached from
+   * `/api/notify-funded`, `/api/jobs/index`, `reconcile` and the house
+   * courier. So "Pokter does not read it back" was false the day it was
+   * written, and it pointed a reader at work that is already done.
+   *
+   * What makes the gap unmeasurable is that the hash lives in a job
+   * description, and a job description exists only once somebody funded
+   * one — so the join is available for exactly the prices that were funded
+   * and impossible for exactly the prices this figure was about. That is a
+   * fact about the escrow and cannot date.
+   */
+  assert.doesNotMatch(
+    why,
+    /does not read (?:it |that |the hash )?back|never reads/i,
+    'Pokter does read the hash back; the gap is that an unfunded price has no job to read it from',
   );
+  assert.match(why, /only once the job has been funded|no job, so there is nothing to read/);
   /* The one input refusal that is deliberately not recorded is disclosed
      rather than left as an unexplained asymmetry. */
   assert.ok(d.unmeasured.some((line) => /2,000-character/.test(line)));
