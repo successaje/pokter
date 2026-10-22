@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 
@@ -8,7 +9,7 @@ import { cn } from '@/lib/ui/cn';
 import { Spinner } from '@/ui/Button';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
-import { discoverHref, type DiscoverParams } from './params';
+import { discoverHref, requestHrefFor, type DiscoverParams } from './params';
 
 /** The query box on Discover: keeps the filters, replaces the words. */
 export function DiscoverSearch({ params }: { params: DiscoverParams }) {
@@ -37,9 +38,10 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
         event.preventDefault();
         start(() => router.push(discoverHref({ q: value.trim() }, params)));
       }}
-      className="flex flex-col gap-2.5 sm:flex-row"
+      /* One row from `sm`; on a phone the box takes the width and the two actions share the line under it. */
+      className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-row"
     >
-      <div className="flex min-h-14 flex-1 items-center gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--signal)_24%,transparent)] sm:min-h-16 sm:rounded-[16px]">
+      <div className="col-span-2 flex min-h-13 flex-1 items-center gap-3 rounded-[12px] border border-rule-strong bg-raised px-4 transition-[border-color,box-shadow] focus-within:border-ink focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--signal)_24%,transparent)] sm:min-h-14 sm:rounded-[14px]">
         {pending ? <Spinner size={18} className="text-ink-3" /> : <Icon.Search size={18} className="shrink-0 text-ink-3" />}
         <label htmlFor="discover-q" className="sr-only">
           What outcome do you need?
@@ -72,11 +74,23 @@ export function DiscoverSearch({ params }: { params: DiscoverParams }) {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-ink px-6 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:h-16 sm:rounded-[16px]"
+        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-ink px-6 text-[13.5px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:h-14 sm:rounded-[14px]"
       >
         Find an agent
         <Icon.Arrow size={14} />
       </button>
+      {/*
+        The other way to get a job done, beside the first. Requests had no
+        way in from where people start looking; whatever is typed here goes
+        with it, as the request's title.
+      */}
+      <Link
+        href={requestHrefFor(value)}
+        className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] border border-rule-strong px-6 text-[13.5px] font-semibold text-ink transition-colors hover:border-ink sm:h-14 sm:rounded-[14px]"
+      >
+        <Icon.Plus size={15} aria-hidden />
+        Post a request
+      </Link>
     </form>
   );
 }

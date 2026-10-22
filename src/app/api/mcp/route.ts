@@ -156,7 +156,7 @@ function tools(request: Request): McpTool[] {
               why: row.reason,
               page: `${origin}/agents/${row.chainId}/${row.tokenId}`,
             })),
-            ...(found.total === 0 && found.suggestions ? { suggestions: [...found.suggestions.close, ...found.suggestions.active].slice(0, 5).map((row) => ({ chainId: row.chainId, tokenId: row.tokenId, name: row.name })) } : {}),
+            ...(found.total === 0 && found.suggestions ? { suggestions: found.suggestions.close.slice(0, 5).map((row) => ({ chainId: row.chainId, tokenId: row.tokenId, name: row.name })) } : {}),
           },
         };
       },
