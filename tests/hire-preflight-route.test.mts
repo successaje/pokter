@@ -170,7 +170,18 @@ test('the review step shows the subject from the quote, so a brief edit clears i
   assert.match(flow, /Your brief is sent whole alongside it/);
 
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === task/);
+  /*
+   * Keyed on the text that will be sent, not on the text that was typed.
+   *
+   * They were the same string until the brief compiler: where an agent
+   * publishes a request format, the task the seller signs over is the
+   * compiled payload the buyer confirmed, and keying the screen on the prose
+   * it was compiled from would leave a resolved request on screen for a
+   * payload that had been replaced. `outboundTask` falls back to the typed
+   * brief when nothing was compiled, so an edit still clears this.
+   */
+  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === outboundTask/);
+  assert.match(hook, /const outboundTask = approvedRequest\?\.payload \?\? task;/);
   assert.match(hook, /^\s*reviewRequest,$/m, 'exposed to the screen that reads it');
 });
 
@@ -207,10 +218,13 @@ test('the no-quote path is refused before a wallet is touched', () => {
    * in the branch for hires without a quote, above both funding routes.
    */
   const hook = code('lib/hire/useHire.ts');
-  const inPrepare = hook.indexOf('await preflightBrief(agent.chainId, agent.tokenId, task)');
+  /* `sending` is `outboundTask`: the payload the buyer confirmed, or the
+     brief as typed when there was nothing to compile. The check has to run
+     against the text that will actually travel, not the text it came from. */
+  const inPrepare = hook.indexOf('await preflightBrief(agent.chainId, agent.tokenId, sending)');
   assert.ok(inPrepare > 0, 'prepareQuote checks the brief');
 
-  const gate = hook.lastIndexOf('await preflightBrief(agent.chainId, agent.tokenId, task)');
+  const gate = hook.lastIndexOf('await preflightBrief(agent.chainId, agent.tokenId, sending)');
   assert.ok(gate > inPrepare, 'and commission checks it again for any other caller');
   for (const fund of ['hireFromExternalWallet(', "active.mode === 'external'"]) {
     const at = hook.indexOf(fund);
@@ -225,9 +239,12 @@ test('a brief edit clears the resolved request on both paths', () => {
    * ones in the form.
    */
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === task && preRequest\.provider === providerAddress/);
-  assert.match(hook, /setPreRequest\(\{ request: quote\.request, task, provider: providerAddress, escrowChainId \}\)/);
+  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === outboundTask && preRequest\.provider === providerAddress/);
+  assert.match(hook, /setPreRequest\(\{ request: quote\.request, task: sending, provider: providerAddress, escrowChainId \}\)/);
   assert.match(hook, /setPreRequest\(null\)/, 'cleared when the check refuses');
+  /* And an approval of a compiled request drops the quote taken for the one
+     it replaces: a price signed over the old payload buys the old work. */
+  assert.match(hook, /const approveRequest = \(\) => \{[\s\S]{0,600}setPreQuote\(null\);/);
 });
 
 test('a refusal body says which layer refused, and never blames the wrong one', () => {

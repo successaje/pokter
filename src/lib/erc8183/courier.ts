@@ -34,6 +34,17 @@ export interface PreparedAgent {
   name: string | null;
   serviceUrl: string;
   skill: SkillChoice;
+  /**
+   * Every skill the card declared, as declared.
+   *
+   * Carried out of the one card read this function already does, so the
+   * pre-funding compiler (`brief-compiler`) can read the chosen skill's
+   * published input format without fetching the card a second time. A
+   * second read is not just slower: an operator can change their card
+   * between the two, and then the format a buyer approved against is not
+   * the format the brief was resolved against.
+   */
+  skills: ReadonlyArray<{ id?: string; name: string; description?: string | null; examples: readonly string[] }>;
 }
 
 /**
@@ -54,7 +65,41 @@ export async function prepareAgent(target: { chainId: number; tokenId: string; c
   const serviceUrl = jsonRpcEndpoint(card);
   if (!skill) throw new NotAskableError('The agent card declares no skill a brief can be sent to.');
   if (!serviceUrl) throw new NotAskableError('The agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls.');
-  return { ...target, name: agent.name ?? null, serviceUrl, skill };
+  return { ...target, name: agent.name ?? null, serviceUrl, skill, skills: declaredSkillsOf(card) };
+}
+
+/**
+ * The card's `skills`, read for their shape and nothing else.
+ *
+ * A card is a document an operator controls, so this takes four fields of
+ * known types and ignores everything around them. No string from here is
+ * ever executed, interpolated into an instruction, or allowed to decide what
+ * a hire may do — see `RESERVED` in `brief-compiler`, which drops a declared
+ * field name that would overwrite Pokter's own `read_only` and `constraints`.
+ */
+function declaredSkillsOf(card: Record<string, unknown> | null): PreparedAgent['skills'] {
+  const skills = card?.skills;
+  if (!Array.isArray(skills)) return [];
+  const read: Array<{ id?: string; name: string; description?: string | null; examples: string[] }> = [];
+  for (const entry of skills.slice(0, 24)) {
+    const skill = object(entry);
+    const id = typeof skill?.id === 'string' ? skill.id : undefined;
+    const name = typeof skill?.name === 'string' ? skill.name : (id ?? '');
+    if (!name) continue;
+    read.push({
+      id,
+      name,
+      description: typeof skill?.description === 'string' ? skill.description : null,
+      /* Capped the same way `declaredCapabilities` caps them: an example is
+         a short request, and a card is not a place Pokter accepts bulk from. */
+      examples: (Array.isArray(skill?.examples) ? skill.examples : [])
+        .filter((example): example is string => typeof example === 'string')
+        .map((example) => example.trim())
+        .filter((example) => example.length > 0 && example.length <= 400)
+        .slice(0, 8),
+    });
+  }
+  return read;
 }
 
 /**

@@ -148,15 +148,33 @@ export function outboundParts(
  * different things. `layer: 'input'` is what `useHire` reads to say the
  * brief is the thing to fix, rather than the seller or the network.
  */
-export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined';
+/**
+ * `inputs-missing` is the general case the other two are special cases of:
+ * the skill's published input format names something the brief does not
+ * supply. Kept as its own code rather than reported as `subject-missing`,
+ * because the buyer's fix is different — a subject refusal names one field
+ * and this one carries a list of questions — and because `useHire` routes
+ * the two to different screens.
+ */
+export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined' | 'inputs-missing';
 
 export function briefRefusalBody(input: {
   message: string;
   code: BriefRefusalCode;
   skill: string | null;
   candidates?: string[];
+  /**
+   * What is still needed, one question per input.
+   *
+   * Carried beside the sentence so the hire form can put the questions
+   * where the brief is written rather than printing one long refusal. A
+   * refusal a buyer has to re-read to find the fix is a refusal that loses
+   * the hire — which is what "actionable" has to mean here.
+   */
+  questions?: Array<{ key: string; label: string; question: string; hint: string | null; suggestion: string | null }>;
 }): Record<string, unknown> {
   const candidates = input.candidates ?? [];
+  const questions = input.questions ?? [];
   return {
     error: input.message,
     /*
@@ -170,5 +188,6 @@ export function briefRefusalBody(input: {
     retryable: false,
     skill: input.skill,
     ...(candidates.length > 0 ? { candidates } : {}),
+    ...(questions.length > 0 ? { questions } : {}),
   };
 }

@@ -24,6 +24,7 @@ import { Checkbox } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 import { JobUpdates } from '@/features/workspace/JobUpdates';
 import { TaskEditor } from './TaskEditor';
+import { RequestReview } from './RequestReview';
 import { BriefSourceNotice } from './BriefSource';
 import { GuidedBrief } from './GuidedBrief';
 import { recipeById } from '@/lib/hire/brief-recipes';
@@ -39,9 +40,19 @@ import { exampleLabels, withWalletPlaceholder } from '@/lib/hire/example-chips';
 import { WALLET_PLACEHOLDER } from '@/lib/hire/example-wallet';
 import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
-type Step = 'describe' | 'review' | 'pay';
+type Step = 'describe' | 'request' | 'review' | 'pay';
+/*
+ * Four steps, not three.
+ *
+ * "Check the request" was added between writing the brief and seeing the
+ * price, because that is the last moment the request is still the buyer's
+ * to change and the first moment Pokter knows what it is. Job 1585 was
+ * quoted, signed and funded without anyone seeing what would be sent; the
+ * step exists so that cannot happen again.
+ */
 const STEPS: Array<{ id: Step; label: string }> = [
   { id: 'describe', label: 'Describe the job' },
+  { id: 'request', label: 'Check the request' },
   { id: 'review', label: 'Review terms' },
   { id: 'pay', label: 'Fund escrow' },
 ];
@@ -65,7 +76,7 @@ export interface HireFlowProps {
    * The agent's declared skills, so its own examples can be offered as
    * the task rather than a template picked by category.
    */
-  declaredSkills?: { name: string; kind?: string; description?: string | null; examples: string[] }[];
+  declaredSkills?: { id?: string; name: string; kind?: string; description?: string | null; examples: string[] }[];
   /** Tasks this agent has delivered real answers to, from public escrow jobs. */
   answeredTasks?: AnsweredTask[];
   /** A brief to start from, from the link (`?task=`). */
@@ -525,6 +536,11 @@ export function HireFlow(props: HireFlowProps) {
               {hire.quoteFailure.message} Your brief is kept as you wrote it.
             </Notice>
           )}
+          {hire.compileFailure && (
+            <Notice tone="watch" title="Pokter could not read this agent's request format">
+              {hire.compileFailure} Your brief is kept as you wrote it.
+            </Notice>
+          )}
           {/*
             The escrow will not let a seller deliver to itself, and Pokter
             knew both addresses the whole time. Two mainnet jobs were funded
@@ -572,13 +588,58 @@ export function HireFlow(props: HireFlowProps) {
             <Button
               size="l"
               onClick={async () => {
-                if (await hire.prepareQuote()) setStep('review');
+                /* Compiled before any price is asked for: the buyer sees the
+                   request, and the seller is only troubled once. */
+                if (await hire.compileRequest()) setStep('request');
               }}
-              busy={hire.quoting}
+              busy={hire.compiling}
               disabled={!hire.taskReady || taskIssues.length > 0 || !hire.providerCanDeliver || hire.selfHire || hire.exampleCheck.exampleWallets.length > 0 || hire.exampleCheck.placeholder}
               trailing={<Icon.Arrow size={16} />}
             >
-              {hire.quoting ? 'Asking the agent for a signed price' : 'Review terms'}
+              {hire.compiling ? 'Working out what the agent will be asked' : 'Check the request'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'request' && hire.compiled && (
+        <RequestReview
+          brief={hire.compiled}
+          agentName={props.agent.name}
+          approved={Boolean(hire.approvedRequest)}
+          changed={hire.requestChanged}
+          onAnswer={(missing, answer) => void hire.answerMissingInput(missing, answer)}
+          busy={hire.compiling}
+          onEditBrief={() => setStep('describe')}
+          confirming={hire.quoting}
+          failure={hire.quoteFailure?.message ?? null}
+          onConfirm={async () => {
+            /*
+              Confirm, then ask for the price — in that order, and bound
+              together. `approveRequest` freezes this payload and drops any
+              quote taken for an earlier one, so the signature that comes
+              back covers the request on screen and no other.
+            */
+            hire.approveRequest();
+            if (await hire.prepareQuote()) setStep('review');
+          }}
+        />
+      )}
+
+      {/*
+        A compilation the brief has outrun: the buyer edited and came back,
+        or arrived here on a stale step. Asked again rather than guessed at.
+      */}
+      {step === 'request' && !hire.compiled && (
+        <div className="anim-fade flex flex-col gap-4">
+          <h1 className="t-h2">Check the request</h1>
+          <p className="text-sm text-ink-2">Your brief changed, so what the agent will be asked has to be worked out again.</p>
+          <div className="flex gap-3">
+            <Button intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={16} />}>
+              Back to the brief
+            </Button>
+            <Button busy={hire.compiling} onClick={() => void hire.compileRequest()}>
+              Work it out again
             </Button>
           </div>
         </div>
@@ -647,6 +708,49 @@ export function HireFlow(props: HireFlowProps) {
               ) : null}
               . Your brief is sent whole alongside it.
             </p>
+          )}
+
+          {/*
+            The request they confirmed, carried onto the screen where the
+            money is agreed.
+
+            Restated rather than left behind on the previous step: the price,
+            the deadline and the request are one decision, and a buyer asked
+            to approve a number for work described two screens ago is being
+            asked to remember instead of to read. Collapsed, because they
+            have already checked it once.
+          */}
+          {hire.approvedRequest && (
+            <Details summary={`The request you confirmed${hire.approvedRequest.brief.skill ? ` · ${hire.approvedRequest.brief.skill.id}` : ''}`}>
+              <div className="flex flex-col gap-2 text-[13px] text-ink-2">
+                <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-[10px] border border-rule bg-paper px-3 py-2 text-[12.5px] leading-relaxed">
+                  {hire.approvedRequest.payload}
+                </pre>
+                <Button size="s" intent="ghost" className="self-start" onClick={() => setStep('request')}>
+                  Change the request
+                </Button>
+              </div>
+            </Details>
+          )}
+
+          {/*
+            Edited after confirming, and the quote no longer covers it. The
+            price on this screen was signed over the old text, so continuing
+            would be paying for work nobody asked for.
+          */}
+          {hire.requestChanged.length > 0 && (
+            <Notice
+              tone="watch"
+              title="The request changed after you confirmed it"
+              action={
+                <Button size="s" intent="secondary" onClick={() => setStep('request')}>
+                  Check it again
+                </Button>
+              }
+            >
+              {hire.requestChanged.join(' and ')} {hire.requestChanged.length === 1 ? 'is' : 'are'} different now, so {props.agent.name}&rsquo;s
+              signed price no longer covers it. Confirm the request again to be quoted for what you are actually asking.
+            </Notice>
           )}
 
           {/*
@@ -814,10 +918,17 @@ export function HireFlow(props: HireFlowProps) {
           )}
 
           <div className={cn('flex items-center justify-between gap-3', actionRow)}>
-            <Button intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={16} />}>
+            <Button intent="ghost" onClick={() => setStep(hire.compiled ? 'request' : 'describe')} icon={<Icon.ChevronLeft size={16} />}>
               Back
             </Button>
-            <Button size="l" onClick={() => setStep('pay')} disabled={Boolean(budgetError) || !hire.riskAccepted} trailing={<Icon.Arrow size={16} />}>
+            {/* An edited request is not payable at the old price: the button
+                says so rather than carrying a stale quote to the wallet. */}
+            <Button
+              size="l"
+              onClick={() => setStep('pay')}
+              disabled={Boolean(budgetError) || !hire.riskAccepted || hire.requestChanged.length > 0}
+              trailing={<Icon.Arrow size={16} />}
+            >
               Continue to payment
             </Button>
           </div>

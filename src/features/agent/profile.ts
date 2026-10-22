@@ -314,6 +314,9 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
       .map((p) => ({ at: p.probedAt, ms: p.latencyMs as number })),
     skillSource,
     skills: declared.slice(0, 12).map((s) => ({
+      /* The skill the hire page compiles the brief against has to be the
+         one the courier delivers to, and `pickWorkSkill` chooses by id. */
+      id: clean(s.id, 80),
       name: clean(s.name, 80),
       kind: s.kind,
       description: s.description ? clean(s.description, 900) : null,

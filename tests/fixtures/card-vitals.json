@@ -1,0 +1,64 @@
+{
+ "name": "Vitals",
+ "url": "https://vitals.43-165-190-110.sslip.io/a2a",
+ "skills": [
+  {
+   "id": "venus-health-factor",
+   "name": "Venus health factor report",
+   "description": "Health factor (3 dp), per-market collateral factor and liquidation threshold, per-asset liquidation price, primary collateral, and the exact USD repayment that restores a target health factor, read from the Venus Comptroller at a given block (default latest). Send text naming the account (and optionally 'Block: N' and a target) or a data part {\"address\", \"blockNumber\", \"targetHealthFactor\"}. The answer is a JSON object in a text part (and the same object in a data part).",
+   "tags": [
+    "health_factor",
+    "health factor",
+    "liquidation price",
+    "liquidation risk",
+    "venus",
+    "lending",
+    "bnb-chain"
+   ],
+   "examples": [
+    "{\"address\": \"0x60AA3AEE06E2345A17E4d4B12c53E046F4F63CAf\", \"targetHealthFactor\": 2.5}",
+    "Account: 0x60AA3AEE06E2345A17E4d4B12c53E046F4F63CAf. Report its Venus health factor and the USD of debt to repay to restore a health factor of 2.5."
+   ]
+  },
+  {
+   "id": "negotiate-erc8183-job",
+   "name": "Negotiate an ERC-8183 health-factor job",
+   "description": "Send a data part {\"skill\": \"negotiate-erc8183-job\", \"task_description\": \"<text or JSON naming a 0x Venus account>\", \"terms\": {\"deliverables\": \"...\", \"quality_standards\": \"...\"}} and receive the bnbagent-SDK NegotiationResult: a quote signed (EIP-191) by the agent wallet 0x15A97307cAA68C24E4b5a0b83D331A6AA1EA195F, 10000000000000000 base units of U (0xcE24439F2D9C6a2289F741120FE202248B666666) on BNB Smart Chain, valid 900 s, bound to chain 56 and AgenticCommerce 0xea4daa3100a767e86fded867729ae7446476eba6. Fund within 15 minutes of the quote. Put the description built from it into createJob (evaluator = hook = EvaluatorRouter), register the OptimisticPolicy, setBudget, fund: Vitals delivers automatically.",
+   "tags": [
+    "erc8183",
+    "negotiation",
+    "bnb-chain",
+    "health_factor"
+   ],
+   "examples": [
+    "{\"skill\": \"negotiate-erc8183-job\", \"task_description\": \"{\\\"address\\\": \\\"0x60AA3AEE06E2345A17E4d4B12c53E046F4F63CAf\\\", \\\"targetHealthFactor\\\": 2.5}\", \"terms\": {\"deliverables\": \"Venus health factor report as JSON\", \"quality_standards\": \"Read on chain, reconciles with getAccountLiquidity\"}}"
+   ]
+  },
+  {
+   "id": "negotiate",
+   "name": "Negotiate (short name)",
+   "description": "The same as negotiate-erc8183-job.",
+   "tags": [
+    "erc8183"
+   ]
+  },
+  {
+   "id": "notify_funded",
+   "name": "Notify that a job is funded",
+   "description": "Optional: after funding, send {\"skill\": \"notify_funded\", \"job_id\": <int>}. Vitals also watches the chain, so a funded job is delivered without this. Replies at once with {\"status\": \"accepted\"|\"rejected\", \"job_id\"}; the deliverable URL rides in the submit transaction.",
+   "tags": [
+    "erc8183",
+    "delivery"
+   ]
+  },
+  {
+   "id": "erc8183-job-status",
+   "name": "ERC-8183 job status",
+   "description": "Send {\"skill\": \"erc8183-job-status\", \"job_id\": <int>} for the on-chain state of a job and its deliverable.",
+   "tags": [
+    "erc8183",
+    "status"
+   ]
+  }
+ ]
+}

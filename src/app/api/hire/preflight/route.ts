@@ -65,6 +65,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         code: preflight.code,
         skill: preflight.skill,
         candidates: preflight.candidates,
+        questions: preflight.brief?.missing,
       }),
       { status: 400 },
     );
@@ -100,6 +101,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   return NextResponse.json({
     request: { skill: preflight.skill, subject: preflight.subject },
+    /* The same compiled request the quote route returns, from the same
+       `preflightHireBrief`, so the review screen reads one shape whichever
+       path the hire is on. */
+    brief: preflight.brief,
     /* Whether the agent answered, and why not when it did not: a brief the
        agent signed for is a different fact from one nobody could ask about,
        and collapsing them would report an unchecked brief as checked. */

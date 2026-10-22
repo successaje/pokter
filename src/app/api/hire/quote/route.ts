@@ -109,7 +109,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
   if (!preflight.ok) {
     return NextResponse.json(
-      briefRefusalBody({ message: preflight.message, code: preflight.code, skill: preflight.skill, candidates: preflight.candidates }),
+      briefRefusalBody({
+        message: preflight.message,
+        code: preflight.code,
+        skill: preflight.skill,
+        candidates: preflight.candidates,
+        questions: preflight.brief?.missing,
+      }),
       { status: 400 },
     );
   }
@@ -239,6 +245,17 @@ export async function POST(request: Request): Promise<NextResponse> {
      * request they are funding is the request they can see.
      */
     request: { skill: preflight.skill, subject: preflight.subject },
+    /*
+     * And the whole compiled request, for the buyer to read against their
+     * own words before they confirm it.
+     *
+     * `brief.payload` is the text this signature covers and the text the
+     * courier will send. Returned rather than recomputed in the browser so
+     * there is one authority for it: a payload the page composed itself
+     * could differ from the server's by a space and still be quoted,
+     * funded, and then refused by the agent.
+     */
+    brief: preflight.brief,
     observedAt: new Date().toISOString(),
   });
 }

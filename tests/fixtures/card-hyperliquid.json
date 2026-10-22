@@ -1,0 +1,38 @@
+{
+ "name": "HyperliquidVault",
+ "url": "https://hyperliquidvault.space/a2a",
+ "skills": [
+  {
+   "id": "list_vaults",
+   "name": "List Hyperliquid vaults",
+   "description": "Discover Hyperliquid vaults: filter by open/closed and relationship (normal / parent / child), sort by TVL, APR or creation time, and cap the count. Each row has vault address, name, leader, TVL, APR, closed flag, relationship and creation time. Send a data part {\"skill\": \"list_vaults\", ...input fields}. Input: include_closed (boolean): Include closed vaults. Default false; limit (integer): Max rows to return, 1-999. Default 20; relationship (string): Filter: any (default), normal, parent, or child; sort_by (string): Sort order: tvl (default), apr, or created (newest first). Price: 0.01 U per call (x402).",
+   "tags": [
+    "hyperliquid",
+    "vaults",
+    "tvl",
+    "apr",
+    "perpetuals",
+    "list_vaults"
+   ],
+   "examples": [
+    "{\"skill\":\"list_vaults\"}"
+   ]
+  },
+  {
+   "id": "vault_overview",
+   "name": "Hyperliquid vault overview",
+   "description": "Review one Hyperliquid vault by address: leader, strategy description, APR, TVL, follower count, distributable and withdrawable capacity, leader commission and fraction, closed flag and deposit availability. Send a data part {\"skill\": \"vault_overview\", ...input fields}. Input: vault_address (string, required): 0x-prefixed Hyperliquid vault address (40 hex chars). Price: 0.01 U per call (x402).",
+   "tags": [
+    "hyperliquid",
+    "vaults",
+    "tvl",
+    "apr",
+    "perpetuals",
+    "vault_overview"
+   ],
+   "examples": [
+    "{\"skill\":\"vault_overview\",\"vault_address\":\"...\"}"
+   ]
+  }
+ ]
+}
