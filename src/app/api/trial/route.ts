@@ -8,7 +8,8 @@ import {
   requestClientKey,
 } from '@/lib/security/rate-limit';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
-import { describeQuoteFailure, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
+import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { getProbeStore } from '@/lib/history/store';
 import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +101,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     });
     if (!quote) {
-      const known = (failure as QuoteFailure | null) ?? quoteFailure('no-quote');
+      const known = withRecentQuote((failure as QuoteFailure | null) ?? quoteFailure('no-quote'), getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
       const { message, status } = describeQuoteFailure(refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
       return NextResponse.json({ error: message.replace(/ ?(?:Try again shortly; )?[Nn]othing has been paid\./, ''), layer: known.layer, code: known.code, retryable: known.retryable }, { status });
     }

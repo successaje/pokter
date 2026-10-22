@@ -13,7 +13,8 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { describeQuoteFailure, type QuoteFailure } from '@/lib/hire/failure';
+import { describeQuoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { getProbeStore } from '@/lib/history/store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -127,7 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   });
   if (!quote && failure) {
     // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
-    const known = failure as QuoteFailure;
+    const known = withRecentQuote(failure as QuoteFailure, getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
     const { message, status } = describeQuoteFailure(known.code === 'seller-declined' && refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
     return NextResponse.json({ error: message, layer: known.layer, code: known.code, retryable: known.retryable }, { status });
   }
