@@ -6,6 +6,7 @@ import { HashTabBar, HashTabHintStyle, HashTabPanel } from '@/ui/HashTabs';
 
 const STUDIO_TABS = [
   { id: 'health', label: 'Health' },
+  { id: 'diagnostics', label: 'Why hires fail' },
   { id: 'operations', label: 'Operations' },
   { id: 'jobs', label: 'Customer jobs' },
   { id: 'profile', label: 'Public profile' },
