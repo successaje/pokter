@@ -119,3 +119,19 @@ test('the eip155 form is accepted as the card describes it', () => {
   assert.equal(subject.ok, true);
   if (subject.ok) assert.equal(subject.agent, '97/2554');
 });
+
+test('the caller names the chains, and a narrower list is honoured', () => {
+  /*
+   * Pokter indexes two chains today and the evidence skill serves both, so
+   * the default accepts 97. A caller that serves fewer must not have the
+   * index's list used in place of its own: this is the one-chain assumption
+   * that broke chain 97 after listing and chain 56 after mainnet escrow,
+   * asked here before it can break a third time.
+   */
+  const brief = 'Report on agent 97/2618 (Brinkwatch on BNB Testnet).';
+  assert.equal(subjectFromBrief(brief).ok, true);
+
+  const mainnetOnly = subjectFromBrief(brief, [EVIDENCE_CHAINS[0]!]);
+  assert.equal(mainnetOnly.ok, false, 'a chain the caller does not serve is not a subject');
+  if (!mainnetOnly.ok) assert.equal(mainnetOnly.code, 'none');
+});

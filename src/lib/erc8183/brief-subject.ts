@@ -25,9 +25,11 @@ import type { ChainId } from '@/lib/scan/types';
  *  - **ambiguous** — two or more distinct agents named. Picking the first
  *    would be choosing a subject on the buyer's behalf.
  *  - a reference naming a chain the skill does not serve is dropped rather
- *    than retargeted, which is `parseAgentRef`'s own rule and the reason it
- *    is reused here instead of a second parser: what Pokter extracts and what
- *    the agent accepts are then the same thing by construction.
+ *    than retargeted, which is `parseAgentRef`'s own rule for chains Pokter
+ *    does not index, and asked again here for the narrower set a caller
+ *    names. Reusing that parser rather than writing a second one is what
+ *    makes what Pokter extracts and what the agent accepts the same thing by
+ *    construction.
  */
 export type BriefSubject =
   | { ok: true; agent: string; chainId: ChainId; tokenId: string }
@@ -51,6 +53,14 @@ export function subjectFromBrief(task: string, chains: readonly ChainId[] = EVID
     const candidate = match[0].replace(/\s+/g, '');
     const ref = parseAgentRef(candidate, fallback);
     if (!ref) continue;
+    /*
+     * And one of the chains this skill serves. `parseAgentRef` refuses
+     * chains Pokter does not index at all; this is the narrower question,
+     * asked here because the answer belongs to the caller. A chain added
+     * to the evidence index for another purpose must not quietly become a
+     * chain this skill is asked to report on.
+     */
+    if (!chains.includes(ref.chainId)) continue;
     seen.set(`${ref.chainId}:${ref.tokenId}`, { ...ref, text: candidate });
   }
 
