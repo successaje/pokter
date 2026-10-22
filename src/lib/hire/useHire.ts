@@ -38,6 +38,7 @@ import { briefSourceFor, commissionTaskTemplates, templatesFromSkills, type Comm
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
+import type { SkillRequestPreview } from '@/lib/erc8183/skill-request';
 import { taskFields } from '@/lib/hire/task-fields';
 import { withWalletPlaceholder } from './example-chips';
 
@@ -126,14 +127,14 @@ async function negotiateForHire(
   chainId: number,
   tokenId: string,
   task: string,
-): Promise<PokterJobQuote & { priceU: number; intent: Omit<PurchaseIntent, 'provider'> }> {
+): Promise<PokterJobQuote & { priceU: number; intent: Omit<PurchaseIntent, 'provider'>; request: SkillRequestPreview }> {
   const response = await fetch('/api/hire/quote', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chainId, tokenId, task }),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string; layer?: FailureLayer; code?: string; retryable?: boolean }
+    | { quote?: Record<string, unknown>; error?: string; escrowChainId?: number; task?: string; layer?: FailureLayer; code?: string; retryable?: boolean; request?: SkillRequestPreview }
     | null;
   if (!response.ok || !payload?.quote) {
     // The route says which layer refused: the brief, the seller, the protocol or the network.
@@ -155,8 +156,18 @@ async function negotiateForHire(
     currency: string;
   };
   const expiresAt = q.expiresAt ? Math.floor(Date.parse(q.expiresAt) / 1000) : undefined;
+  /*
+   * What Pokter will ask beyond the brief, as the route resolved it.
+   *
+   * Carried on the quote rather than held separately, so it is invalidated
+   * with the quote the moment the brief changes: `reviewQuote` only returns
+   * a quote taken for the task as written. A subject shown for a brief the
+   * buyer has since edited would be the wrong subject.
+   */
+  const request: SkillRequestPreview = payload.request ?? { skill: null, subject: null };
   /* The envelope records the expiry in epoch seconds, as the seller sent it. */
   return {
+    request,
     negotiationHash: q.negotiationHash,
     providerSignature: q.providerSignature,
     anchor: q.anchor ?? undefined,

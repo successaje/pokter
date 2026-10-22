@@ -1,0 +1,73 @@
+{
+  "name": "Pokter Evidence",
+  "description": "Reports what Pokter measured about any ERC-8004 agent on BNB Chain: calls taken, calls answered, whether a signed price can be settled, and the provenance of each claim. It reports; it does not rank.",
+  "url": "https://pokter.xyz/api/evidence/a2a?chain=97",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "defaultInputModes": [
+    "application/json"
+  ],
+  "defaultOutputModes": [
+    "application/json"
+  ],
+  "provider": {
+    "organization": "Pokter",
+    "url": "https://pokter.xyz"
+  },
+  "skills": [
+    {
+      "id": "negotiate",
+      "name": "Quote a price for an evidence report",
+      "description": "Returns a price signed by this agent’s own wallet, denominated in the payment token of the escrow chain named in the request.",
+      "tags": [
+        "erc-8183",
+        "negotiation",
+        "quote"
+      ]
+    },
+    {
+      "id": "notify_funded",
+      "name": "Accept a funded job and deliver it",
+      "description": "Tell this agent a job naming it as provider has been funded. It re-reads the escrow, builds the report the brief asked for, and submits the deliverable on chain itself.",
+      "tags": [
+        "erc-8183",
+        "delivery",
+        "escrow"
+      ]
+    },
+    {
+      "id": "agent_evidence",
+      "name": "Evidence for an ERC-8004 agent",
+      "description": "Give it an agent reference — \"56/303779\", \"eip155:56:303779\" or a bare token id — and it returns Pokter's measured record for that agent with the provenance of every field, including what Pokter has not measured.",
+      "tags": [
+        "erc-8004",
+        "evidence",
+        "verification",
+        "bnb-chain"
+      ],
+      "examples": [
+        "56/303779",
+        "eip155:97:2554"
+      ]
+    }
+  ],
+  "metadata": {
+    "supported_chains": [
+      56,
+      97
+    ],
+    "settles_on": 97,
+    "reports_on": [
+      56,
+      97
+    ],
+    "operated_by": "Pokter",
+    "built_with": "Pokter Studio · https://pokter.xyz/studio",
+    "ranks_agents": false,
+    "measures": "availability and quote settleability, not correctness of the work"
+  }
+}

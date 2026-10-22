@@ -18,6 +18,9 @@ import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/alt
 import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
 import { isThisHire } from './hire-confirm';
+import { preflightHireBrief } from './hire-preflight';
+import { getAgent } from '@/lib/scan/client';
+import type { ChainId } from '@/lib/scan/types';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -103,6 +106,19 @@ export class InsufficientPaymentTokenError extends Error {
   }
 }
 
+/** A brief the resolved skill cannot read, refused before the escrow is funded. */
+export class BriefNotDeliverableError extends Error {
+  constructor(
+    readonly code: 'subject-missing' | 'subject-ambiguous',
+    readonly skill: string,
+    message: string,
+    readonly candidates: string[],
+  ) {
+    super(message);
+    this.name = 'BriefNotDeliverableError';
+  }
+}
+
 function publicClient() {
   return createPublicClient({
     chain: ALTANA_NETWORK.chain,
@@ -150,6 +166,28 @@ export async function paymentTokenBalance(wallet: Address): Promise<string> {
  * fact we can establish cheaply beforehand.
  */
 export async function hireAgent(input: HireInput): Promise<HiredJob> {
+  /*
+   * Asked before anything is spent.
+   *
+   * This is the path that funded job 1585: a brief `agent_evidence` could
+   * not read, escrowed for a day and delivered only once the courier
+   * started filling the field the skill reads. The same decision is made
+   * here, by the same code, while the money is still the buyer's.
+   *
+   * Only when the registry chain is known, because the agent cannot be read
+   * without it and `agentChainId` is deliberately never defaulted to the
+   * escrow chain (see `HireInput`). An agent Pokter cannot read is a hire it
+   * cannot judge, not a hire to refuse.
+   */
+  if (input.agentChainId !== undefined) {
+    const chainId = input.agentChainId as ChainId;
+    const agent = await getAgent(chainId, input.agentTokenId).catch(() => null);
+    const preflight = await preflightHireBrief({ chainId, tokenId: input.agentTokenId, task: input.task, agent });
+    if (!preflight.ok) {
+      throw new BriefNotDeliverableError(preflight.code, preflight.skill, preflight.message, preflight.candidates);
+    }
+  }
+
   const client = altanaClient();
   const signer = adminSigner('legacy-hire');
   const wallet = await client.createWallet({ signer });
