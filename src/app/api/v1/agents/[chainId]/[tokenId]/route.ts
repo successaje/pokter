@@ -7,7 +7,7 @@ import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
-import { currentHireBlocker } from '@/lib/hire/blocker-live';
+import { currentHireBlockerWithCard } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +56,11 @@ export async function GET(
   // The same delivery rule the agent page and catalogue apply.
   const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const origin = originOf(request);
+  /*
+   * Reads the agent's card only when the sweep has no verdict on it, which
+   * is the one case this endpoint used to answer with no blocker at all.
+   */
+  const blocker = await currentHireBlockerWithCard(agent, quote, payable, agent.services?.a2a?.endpoint);
 
   return apiJson({
     version: API_VERSION,
@@ -106,16 +111,28 @@ export async function GET(
      * goes, and the two answer different questions.
      */
     /*
-     * Why it cannot be priced or hired right now, from the latest sweep's
-     * price request, in words its owner can act on. Null when it has a
-     * signed price an escrow can pay, or was never asked.
+     * Why it cannot be priced or hired right now, in words its owner can
+     * act on. Null when it has a signed price an escrow can pay, or when
+     * nothing Pokter holds or can read says otherwise.
+     *
+     * `source` says which it is, because the two are not equally strong: a
+     * sweep result is a measured price request, and a card read is this
+     * request looking at what the agent publishes.
      */
-    hireBlocker: (() => {
-      const blocker = currentHireBlocker(agent, quote, payable);
-      return blocker
-        ? { code: blocker.code, reason: blocker.reason, transient: blocker.transient, fix: `https://pokter.xyz${blocker.fix.href}`, observedAt: blocker.observedAt, provenance: 'pokter-measured', source: 'The latest sweep’s read-only price request to the agent.' }
-        : null;
-    })(),
+    hireBlocker: blocker
+      ? {
+          code: blocker.code,
+          reason: blocker.reason,
+          transient: blocker.transient,
+          fix: `https://pokter.xyz${blocker.fix.href}`,
+          observedAt: blocker.observedAt,
+          provenance: 'pokter-measured',
+          source:
+            blocker.from === 'card'
+              ? 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.'
+              : 'The latest sweep’s read-only price request to the agent.',
+        }
+      : null,
 
     ladder: {
       current: maturity.current,

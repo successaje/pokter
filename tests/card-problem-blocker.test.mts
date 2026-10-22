@@ -207,10 +207,23 @@ test('only a problem Pokter established blocks a hire; an unread card is transie
 test('the builder reads two different claims, not one claim twice', () => {
   const missing = blockerFor('card-without-interface')?.reason ?? '';
   const unread = blockerFor('card-unreadable')?.reason ?? '';
-  assert.match(missing, /names no service to send a brief to/);
-  assert.match(missing, /without connecting a running agent/);
+  assert.match(missing, /nowhere to send a brief/);
+  assert.match(missing, /Neither its registered endpoint nor the well-known card path/);
   assert.match(unread, /did not answer this read/);
-  assert.doesNotMatch(unread, /names no service|without connecting|no HTTPS JSON-RPC/);
+  assert.doesNotMatch(unread, /nowhere to send a brief|no HTTPS JSON-RPC/);
+});
+
+test('the missing-interface sentence claims only what the two reads establish', () => {
+  /*
+   * Two reads arrive under this detail: a card that was read and declares
+   * no interface, and every location answering with no card at all. The
+   * wording has to be true of both, so it may not say a card answered, and
+   * it may not say nothing is running — an agent serving its card off the
+   * well-known path is running and reachable there.
+   */
+  const missing = blockerFor('card-without-interface')?.reason ?? '';
+  assert.doesNotMatch(missing, /card answers/i);
+  assert.doesNotMatch(missing, /without connecting a running agent/i);
 });
 
 test('the other no-endpoint cases keep their own words', () => {
@@ -235,6 +248,25 @@ test('the page read no longer guesses the problem from the thrown sentence', () 
     src,
     /test\(\(error as Error\)|not with an agent card/,
     'matching the message is what made a timed-out lookup a permanent verdict',
+  );
+});
+
+test('the public agent endpoint reports the card read, and only pays for it when the store is silent', () => {
+  /*
+   * MCP `get_agent` forwards to this route, and so does the agent-to-agent
+   * path, so an agent the sweep never reached said nothing there while its
+   * own page said why. The route and the helper are `server-only`, so the
+   * call, its gating and its provenance are pinned as source facts.
+   */
+  const route = withoutComments(source('app/api/v1/agents/[chainId]/[tokenId]/route.ts'));
+  assert.match(route, /currentHireBlockerWithCard\(/);
+  assert.doesNotMatch(route, /currentHireBlocker\(agent, quote, payable\)/, 'the bare call is the one that reported nothing');
+  assert.match(route, /blocker\.from === 'card'/, 'provenance is told, never guessed from the code');
+
+  const live = withoutComments(source('lib/hire/blocker-live.ts'));
+  assert.ok(
+    live.indexOf('if (onRecord)') < live.indexOf('await readCardForPage('),
+    'a public endpoint calls the agent only when nothing on record answers',
   );
 });
 

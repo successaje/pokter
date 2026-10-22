@@ -59,9 +59,20 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
       return { code: input.code, reason: `Its agent card did not answer this read${input.detail ? ` (${input.detail})` : ''}, so whether it can be priced is unchecked rather than ruled out. Pokter asks again on the next view.`, fix: at('transports', 'Transports'), transient: true };
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
-      /* The card answers and names nowhere to send a brief: listed, but no running agent behind it (56:300282). */
+      /*
+       * Both places Pokter looks answered, and neither named an interface
+       * (56:300282, whose platform reports UNBOUND, offline, endpoint null).
+       *
+       * Worded for what those two reads establish and nothing beyond it.
+       * One of the cases behind this detail is a card that was read and
+       * declares no interface; the other is every location answering with
+       * no card at all. "Its card answers but names no service" is false of
+       * the second, and so is "the operator has listed it without
+       * connecting a running agent" — an agent serving its card somewhere
+       * other than the well-known path is running and reachable there.
+       */
       if (input.detail === 'card-without-interface') {
-        return { code: input.code, reason: 'Its agent card answers but names no service to send a brief to: the operator has listed it without connecting a running agent.', fix: at('transports', 'Transports'), transient: false };
+        return { code: input.code, reason: 'Neither its registered endpoint nor the well-known card path under it returns a card naming an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
       }
       return mcpOnly
         ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }

@@ -104,6 +104,7 @@ export async function readCardForPage(
   if (!read.ok) {
     return { skills: [], problem: read.problem === 'no-interface' ? 'card-without-interface' : 'card-unreadable' };
   }
+  /* One list, read once: `isAgentCard` already required an array here. */
   const skills = Array.isArray(read.card.skills) ? read.card.skills : [];
-  return { skills: declaredCapabilities(read.card.skills), problem: negotiationSkillOf(skills) ? null : 'no-price-skill' };
+  return { skills: declaredCapabilities(skills), problem: negotiationSkillOf(skills) ? null : 'no-price-skill' };
 }

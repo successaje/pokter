@@ -109,7 +109,14 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
       )}
       <div className="flex flex-col gap-2 border-t border-rule p-5">
         {unreachable ? (
-          <p className="text-[13px] text-ink-2">Nothing can be sent to this agent, so a hire cannot complete, paid or as a free trial. It becomes hireable when its operator connects a running agent.</p>
+          /*
+           * Said for all three `no-endpoint` cases, so it claims only what
+           * they share. An MCP-only agent is one of them: it was told
+           * "nothing can be sent to this agent" and that it becomes hireable
+           * "when its operator connects a running agent", while Pokter was
+           * probing it over MCP and this same page was listing its MCP tools.
+           */
+          <p className="text-[13px] text-ink-2">Both a paid hire and the free trial carry the brief over A2A, and there is nowhere to send it, so neither can complete. The reason above is what has to change.</p>
         ) : profile.hireable && blocked ? (
           /* A known reason the hire cannot complete: no purchase button that leads to it. */
           <p className="text-[13px] text-ink-2">A paid job on {chainLabel(56)} cannot complete until the reason above is fixed, because the escrow needs the agent&rsquo;s signed price.</p>
