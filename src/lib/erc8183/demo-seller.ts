@@ -7,11 +7,16 @@ import {
   submitErc8183Deliverable,
   type Erc8183DeliverableManifest,
 } from '@altananetwork/sdk';
-import { keccak256, stringToHex, type Address, type Hex } from 'viem';
+import { createPublicClient, http, keccak256, stringToHex, type Address, type Hex } from 'viem';
 
 import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from './job-envelope';
-import { askAgent } from './courier';
+import { askAgentByIdentity } from './courier';
+import { verifyReferenceDelivery } from './reference-delivery';
+import { getJobStore } from '@/lib/erc8183/store';
+import { getAgent } from '@/lib/scan/client';
+import { classify } from '@/lib/agents/categories';
+import type { ChainId } from '@/lib/scan/types';
 import { assertTestnetOnly } from '@/lib/erc8183/demo-guard';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import {
@@ -131,11 +136,30 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
    * seller used to submit a receipt with no assessment in it, and a buyer
    * cannot review what was never produced.
    */
+  /*
+   * Two description formats, both of Pokter's own making.
+   *
+   * The envelope names its agent and is unchanged below. The reference
+   * format — the seller's signed quote alone — names none, and
+   * `job-envelope` has always said so: "The second names no agent; that
+   * comes from Pokter's index." This path read only the first, so every
+   * reference-format job failed here, 44 runs in a row, and three testnet
+   * jobs expired FUNDED with nothing ever submitted.
+   *
+   * The second format is verified harder, not more loosely, because an
+   * envelope asserts its agent while a quote has to have one established:
+   * the hash must cover this task and these terms, the signature must be the
+   * live provider's, the quote must bind to this escrow, token and amount,
+   * it must have been live at the funding block, and the index's attribution
+   * must agree with the registry. Any gap refuses.
+   */
   const envelope = decodePokterJobEnvelope(job.description);
-  if (!envelope) throw new Error('The job carries no Pokter envelope naming an agent to ask.');
-  const carried = await askAgent(envelope, jobId);
+  const brief = envelope
+    ? { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category, task: envelope.task }
+    : await referenceBrief(jobId, job);
+  const carried = await askAgentByIdentity(brief, jobId);
   const content = JSON.stringify({
-    title: `${carried.answeredBy.name ?? `Agent #${envelope.identity.tokenId}`}: answer to your brief`,
+    title: `${carried.answeredBy.name ?? `Agent #${brief.tokenId}`}: answer to your brief`,
     task: job.description,
     answer: carried.answer.text && carried.answer.data ? { text: carried.answer.text, ...carried.answer.data } : (carried.answer.data ?? carried.answer.text),
     answered_by: {
@@ -170,7 +194,7 @@ async function performDelivery(jobId: string): Promise<DemoDeliveryResult> {
     metadata: {
       producer: 'Pokter delivery agent (courier)',
       ...builtWithPokter,
-      answered_by: `${envelope.identity.chainId}:${envelope.identity.tokenId}`,
+      answered_by: `${brief.chainId}:${brief.tokenId}`,
       generated_at: new Date().toISOString(),
       proof: 'ERC-8183 funded job re-read before submission; brief carried to the named agent over A2A',
     },
@@ -213,4 +237,67 @@ export function submitDemoDeliverable(
   );
   inFlight.set(jobId, operation);
   return operation;
+}
+
+/**
+ * The brief for a reference-format job, or a throw naming what was missing.
+ *
+ * Everything it needs is read rather than assumed: the job from the kernel,
+ * the attribution from Pokter's index, the wallet and category from the
+ * registry, and the funding time from the funding transaction's block —
+ * which is the only authoritative record of when the buyer funded. An
+ * indexed `hiredAt` is Pokter's own clock and is not used for that.
+ */
+async function referenceBrief(
+  jobId: string,
+  job: { provider: Address; budget: bigint; expiredAt: bigint; statusName: string; description: string },
+): Promise<{ chainId: number; tokenId: string; category: string; task: string }> {
+  const chainId = ALTANA_NETWORK.chainId;
+  const indexed = getJobStore().byId(`${chainId}:${jobId}`);
+  const addresses = correctedErc8183Addresses(chainId);
+
+  const registryAgent = indexed?.agentChainId && indexed.agentTokenId
+    ? await getAgent(indexed.agentChainId as ChainId, indexed.agentTokenId)
+        /* `classify` returns the category or 'unclassified'. The latter is
+           not a category: it means Pokter could not tell from the registry
+           record which of the five this agent is, and picking a skill on
+           that basis is guessing. Passed on as empty so the verifier
+           refuses rather than addressing the wrong skill. */
+        .then((agent) => {
+          const classified = classify(agent);
+          return { wallet: agent.agent_wallet, category: classified === 'unclassified' ? '' : classified };
+        })
+        .catch(() => null)
+    : null;
+
+  const verdict = await verifyReferenceDelivery({
+    description: job.description,
+    job: { provider: job.provider, budget: job.budget, expiredAt: job.expiredAt, statusName: job.statusName },
+    escrow: { chainId, commerce: addresses.commerce, paymentToken: addresses.paymentToken },
+    fundedAtMs: await fundingBlockTimestampMs(indexed?.hireTxHash ?? null),
+    indexed: indexed
+      ? { agentChainId: indexed.agentChainId ?? null, agentTokenId: indexed.agentTokenId ?? null, agentName: indexed.agentName }
+      : null,
+    registryAgent,
+    nowMs: Date.now(),
+  });
+
+  if (!verdict.ok) {
+    throw new Error(`This job cannot be delivered (${verdict.code}): ${verdict.reason}`);
+  }
+  return { chainId: verdict.identity.chainId, tokenId: verdict.identity.tokenId, category: verdict.category, task: verdict.task };
+}
+
+/** When the funding transaction was mined, from its block. Null when unreadable. */
+async function fundingBlockTimestampMs(hash: string | null): Promise<number | null> {
+  if (!hash || !/^0x[0-9a-fA-F]{64}$/.test(hash)) return null;
+  try {
+    const client = createPublicClient({ chain: ALTANA_NETWORK.chain, transport: http(ALTANA_NETWORK.publicRpcUrl) });
+    const receipt = await client.getTransactionReceipt({ hash: hash as `0x${string}` });
+    if (receipt.status !== 'success') return null;
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    return Number(block.timestamp) * 1000;
+  } catch {
+    return null;
+  }
 }

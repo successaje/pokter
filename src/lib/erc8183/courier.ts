@@ -138,6 +138,27 @@ export async function sendPreparedBrief(
  * the buyer reclaims, which is the honest outcome.
  */
 export async function askAgent(envelope: PokterJobEnvelope, jobId: string, options: { timeoutMs?: number } = {}): Promise<CourierResult> {
-  const agent = await prepareAgent({ chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category });
-  return sendPreparedBrief(agent, { text: envelope.task, data: { protocol: 'pokter-job', job_id: Number(jobId) } }, options);
+  return askAgentByIdentity(
+    { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category, task: envelope.task },
+    jobId,
+    options,
+  );
+}
+
+/**
+ * The same ask, addressed by identity rather than by an envelope.
+ *
+ * A reference-format job carries no envelope — that is the whole of its
+ * difference — and its identity is established from Pokter's index and the
+ * registry instead. Synthesising an envelope to pass through here would mean
+ * building the one structure whose absence is the thing being handled, so
+ * the four fields `askAgent` actually used are taken directly.
+ */
+export async function askAgentByIdentity(
+  brief: { chainId: number; tokenId: string; category: string; task: string },
+  jobId: string,
+  options: { timeoutMs?: number } = {},
+): Promise<CourierResult> {
+  const agent = await prepareAgent({ chainId: brief.chainId, tokenId: brief.tokenId, category: brief.category });
+  return sendPreparedBrief(agent, { text: brief.task, data: { protocol: 'pokter-job', job_id: Number(jobId) } }, options);
 }
