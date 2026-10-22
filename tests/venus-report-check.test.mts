@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import { brinkwatchReport } from '../src/lib/house/agents/brinkwatch-report';
 import { manifestMatch } from '../src/lib/erc8183/manifest-match';
-import { venusReadRefusal } from '../src/lib/delivery/venus-facts';
+import { readVenusFactsAt, venusReadRefusal } from '../src/lib/delivery/venus-facts';
 import {
   CHECK_DOES_NOT_MEAN,
   CHECK_MEANS,
@@ -343,6 +343,61 @@ test('3g. a block the chain has not reached, nothing delivered, and an unreadabl
   const prose = await check(JSON.stringify({ response: { content: 'The health factor is about 1.12 and looks fine.' } }), available());
   assert.equal(prose.verification.verdict, 'unverified');
   assert.match(prose.verification.detail, /does not say which block/);
+});
+
+test('3g2. the head is checked before the state is, so an invented block is not reported as a pruned one', async () => {
+  /*
+   * 3g proves the verdict for a `block-ahead-of-head` packet. This proves
+   * the packet: nothing else decides that a block is ahead of the head, and
+   * without it a future block arrives as whatever the node says for state
+   * it does not have — on BSC "missing trie node", which `venusReadRefusal`
+   * classifies as `no-history`. The buyer would then be told the node no
+   * longer keeps that block, when the truth is the chain never reached it.
+   *
+   * Stubbed rather than networked: `getBlockNumber` is the only call a
+   * future block ever gets to make, so a position read attempted here is
+   * itself the failure.
+   */
+  const stub = (head: bigint) => {
+    const calls: string[] = [];
+    const client = {
+      getBlockNumber: async () => {
+        calls.push('getBlockNumber');
+        return head;
+      },
+      readContract: async () => {
+        calls.push('readContract');
+        throw new Error('missing trie node');
+      },
+      getBlock: async () => {
+        calls.push('getBlock');
+        throw new Error('header not found');
+      },
+    } as unknown as Parameters<typeof readVenusFactsAt>[0];
+    return { client, calls };
+  };
+
+  const head = BigInt(real.block);
+  const { client, calls } = stub(head);
+  const ahead = await readVenusFactsAt(client, { account: real.account, block: head + 1n });
+  assert.equal(ahead.available, false);
+  if (ahead.available) return;
+  assert.equal(ahead.code, 'block-ahead-of-head');
+  assert.match(ahead.detail, new RegExp(`the chain is at block ${head}`));
+  // Not a pruning refusal, which is what this would otherwise be read as.
+  assert.notEqual(ahead.code, 'no-history');
+  assert.deepEqual(calls, ['getBlockNumber'], 'no state is read for a block the chain has not reached');
+
+  // And a head read that fails is Pokter's failure to see, not a finding.
+  const dead = {
+    getBlockNumber: async () => {
+      throw new Error('fetch failed');
+    },
+  } as unknown as Parameters<typeof readVenusFactsAt>[0];
+  const unreadable = await readVenusFactsAt(dead, { account: real.account, block: head });
+  assert.equal(unreadable.available, false);
+  if (unreadable.available) return;
+  assert.equal(unreadable.code, 'read-failed');
 });
 
 test('3i. a lifecycle receipt is not a report that forgot its figures', async () => {
