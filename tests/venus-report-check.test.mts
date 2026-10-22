@@ -513,6 +513,53 @@ test('4d. a report that says it read another chain cannot pass', async () => {
   assert.match(v.detail, /read chain 97/);
 });
 
+test('4d2. a chain Pokter cannot resolve is never certified as matching BNB Chain', async () => {
+  /*
+   * The false-claim class, found by an outside review. `readChain` used to
+   * return null for anything it could not map, null meant "not compared",
+   * and a report declaring Ethereum collected "Matches checked facts"
+   * against BNB Chain figures with its own claim never mentioned.
+   *
+   * Three outcomes, and the only one that may be silent is the one where
+   * the report has claimed nothing.
+   */
+  const withChain = (chain: unknown) =>
+    manifest({ account: real.account, protocol: 'Venus Core Pool', chain, as_of: { block: real.block }, health_factor: real.healthFactor, liquidatable: false });
+
+  // Named unmistakably: a disagreement the report earned.
+  for (const named of ['Ethereum', 'ethereum mainnet', 'Arbitrum One', 'Polygon PoS']) {
+    const { verification: v, asked } = await check(withChain(named), available());
+    assert.equal(v.verdict, 'differs', named);
+    assert.match(v.detail, new RegExp(named.split(' ')[0], 'i'));
+    assert.deepEqual(asked, [], 'a wrong chain is settled before any chain read');
+  }
+
+  // Named, and Pokter cannot tell what it is: not a match, and not a finding.
+  for (const named of ['Hyperliquid', 'our internal fork', 'chain-42161-beta']) {
+    const { verification: v } = await check(withChain(named), available());
+    assert.equal(v.verdict, 'unverified', named);
+    assert.match(v.detail, /cannot tell whether that is the BNB Chain/);
+    assert.equal(v.values.find((row) => row.label === 'Chain')?.agrees, null);
+  }
+
+  // A generic deployment qualifier is not a chain claim, and must not cost a match.
+  for (const named of ['mainnet', 'Mainnet', 'production', 'live', 'BNB Smart Chain mainnet', 'BSC']) {
+    assert.equal((await check(withChain(named), available())).verification.verdict, 'matches', named);
+  }
+
+  // A non-numeric `chain_id` is still an explicit claim and is classified the same way.
+  const explicit = manifest({ account: real.account, chain_id: 'ethereum', as_of: { block: real.block }, health_factor: real.healthFactor, liquidatable: false });
+  assert.equal((await check(explicit, available())).verification.verdict, 'differs');
+
+  // And naming no chain at all stays a match: the request decided the chain.
+  const silent = manifest({ account: real.account, protocol: 'Venus Core Pool', as_of: { block: real.block }, health_factor: real.healthFactor, liquidatable: false });
+  const quiet = await check(silent, available());
+  assert.equal(quiet.verification.verdict, 'matches');
+  const parsed = readVenusReportClaim(silent);
+  assert.ok(parsed.ok);
+  assert.deepEqual(parsed.claim.chain, { kind: 'none' }, 'naming no chain is not the same as naming an unreadable one');
+});
+
 test('4e. the check only ever asks for the block the report named', async () => {
   const stray = BLOCK - 5_000n;
   const report = manifest({ account: real.account, protocol: 'Venus Core Pool', as_of: { block: stray.toString() }, health_factor: real.healthFactor, liquidatable: false });

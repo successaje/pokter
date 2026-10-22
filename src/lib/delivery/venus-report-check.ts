@@ -84,14 +84,33 @@ export const VENUS_CHAIN_ID = 56;
  *    truncates at several points (1e18-scaled integer division per leg),
  *    and a report that sums USD legs in floating point and divides once
  *    can differ in the fourth significant figure. 0.5% covers that with
- *    room to spare and is still far too tight to hide the error this check
- *    exists to find — answering the borrowing-limit ratio on collateral
- *    factors instead of the liquidation-threshold one, which on a real
- *    Venus position is tens of percent out.
+ *    room to spare.
  *
  * The allowance is the larger of the two, so it never falls below 0.005 on
  * a position near liquidation and never becomes absurdly tight on a health
  * factor of 40.
+ *
+ * What this tolerance does NOT reliably catch, stated because an earlier
+ * version of this comment claimed the opposite and an outside review
+ * disproved it on Pokter's own captured fixture:
+ *
+ * Answering the borrowing-limit ratio on collateral factors instead of the
+ * liquidation-threshold one is the error `borrow-limit` below exists to
+ * name, and it is only visible where the two ratios actually differ. They
+ * differ only on markets whose liquidation threshold exceeds their
+ * collateral factor, and 32 of Venus Core's 55 markets set the two equal —
+ * on those the two ratios are identical by construction and no tolerance,
+ * however tight, can tell them apart. Even with exposure to one of the
+ * other 23, the position needs roughly 0.5% to 7.5% of its collateral
+ * there before the spread clears 0.5%. The captured fixture is the
+ * demonstration: 99.94% of that account's collateral is BNB, where the
+ * factor and the threshold are both 0.8, so its health factor (1.122279)
+ * and its borrowing-limit ratio (1.122152) sit 1.27e-4 apart — forty-five
+ * times inside the allowance — and a report giving either one matches.
+ *
+ * That is a limit on detection, not a false pass: where the two ratios
+ * coincide, the number reported genuinely is the health factor Venus
+ * implies, which is exactly what a match claims and no more.
  */
 export const HF_ABSOLUTE_TOLERANCE = 0.005;
 export const HF_RELATIVE_TOLERANCE = 0.005;
@@ -119,6 +138,16 @@ export const USD_RELATIVE_TOLERANCE = 0.01;
  * one significant figure collect a verdict it never earned, and would make
  * "always answer 1.0" a passing strategy. It is neither: it is a report too
  * coarse to check, which is `unverified` with that said plainly.
+ *
+ * Two conditions, not one, and the second is what keeps the first from
+ * being an escape hatch. The guard fires only when the report stated fewer
+ * than two decimals AND the disagreement is still inside the band its own
+ * rounding claims. "1.0" against a Venus figure of 1.0412 is unverifiable,
+ * because 1.0 is a true statement about 1.0412 to one decimal place; "1.0"
+ * against 1.63 is a mismatch, because no rounding of 1.63 produces it. So
+ * answering the same coarse number to everything does not buy a pass — it
+ * buys "could not verify" on the few positions it is nearly right about,
+ * and "differs from checked facts" on the rest.
  *
  * It only ever fires below two decimal places. At two or more, half of the
  * last place is already inside `HF_ABSOLUTE_TOLERANCE`.
@@ -157,8 +186,8 @@ export interface VenusHealthSubject {
 export interface VenusReportClaim {
   /** The account the report says it is about, when it names one. */
   account: string | null;
-  /** The chain, when the report names one unambiguously. */
-  chainId: number | null;
+  /** What the report says about which chain it read (see `ChainClaim`). */
+  chain: ChainClaim;
   /** Venus pools the report's own identifying fields name, deduped. */
   pools: string[];
   /** The block the report names. The check is bound to it. */
@@ -364,28 +393,69 @@ function poolsNamedIn(record: Record<string, unknown>): string[] {
 }
 
 /**
- * The chain the report names, and only when it is not a guess.
+ * What the report says about which chain it read.
  *
- * A numeric chain id, or a name that maps to one of the two BNB chains
- * without interpretation. Anything else stays null and the chain simply is
- * not one of the checked values — inferring a chain from prose and then
- * publishing "differs from checked facts" on the strength of it would be
- * the verifier inventing the disagreement.
+ * Four answers, not two, because "names no chain" and "names a chain
+ * Pokter cannot interpret" are different facts and collapsing them lets a
+ * false claim through. An outside review found exactly that: this returned
+ * null for anything it could not map, null meant "not compared", and a
+ * report declaring `"chain": "ethereum"` collected "Matches checked facts"
+ * against BNB Chain figures with its own claim never mentioned. Certifying
+ * a report that says it read another chain is the one failure this feature
+ * cannot ship with.
+ *
+ *  - `none` — no chain named, or only a generic qualifier like "mainnet",
+ *    which says nothing about which chain. The subject's chain stands and
+ *    the chain is simply not one of the checked values.
+ *  - `id` — a numeric id, or a name that resolves to one of the two BNB
+ *    chains without interpretation.
+ *  - `other` — a chain this check does not read, named unmistakably. That
+ *    is a disagreement the report earned, not a gap in Pokter.
+ *  - `unreadable` — it named something Pokter cannot resolve either way.
+ *    Not a disagreement, and not nothing: it cannot be a match.
  */
-function readChainId(record: Record<string, unknown>): number | null {
+export type ChainClaim = { kind: 'none' } | { kind: 'id'; chainId: number } | { kind: 'other'; named: string } | { kind: 'unreadable'; named: string };
+
+/*
+ * Qualifiers that describe a deployment rather than name a chain. A report
+ * saying `"network": "mainnet"` has not claimed a chain, and treating that
+ * as unreadable would make an ordinary report unverifiable.
+ */
+const CHAIN_QUALIFIER = /^\s*(?:main\s*-?\s*net|main|production|prod|live|l1|layer\s*1)\s*$/i;
+
+/*
+ * Chains that cannot be confused with BNB Chain. Deliberately short: a name
+ * only belongs here when reading it as "another chain" is safe, because the
+ * consequence is "differs from checked facts" with that name printed. Venus
+ * runs an isolated pool called Tron, so "tron" is left out — in a chain
+ * field it is more likely a muddle than a claim about the Tron network, and
+ * a muddle must resolve to "could not verify" rather than to a finding.
+ */
+const OTHER_CHAINS = /\b(?:ethereum|polygon|matic|arbitrum|optimism|avalanche|avax|fantom|base|linea|scroll|zksync|celo|gnosis|moonbeam|cronos|solana|bitcoin)\b/i;
+
+function readChain(record: Record<string, unknown>): ChainClaim {
   for (const key of ['chain_id', 'chainId']) {
     const value = record[key];
-    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
-    if (typeof value === 'string' && /^\d{1,7}$/.test(value.trim())) return Number(value.trim());
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return { kind: 'id', chainId: value };
+    if (typeof value === 'string' && /^\d{1,7}$/.test(value.trim())) return { kind: 'id', chainId: Number(value.trim()) };
+    // A `chain_id` that is not a number is still an explicit chain claim.
+    if (typeof value === 'string' && value.trim()) return classifyChainName(value.trim());
   }
   for (const key of ['chain', 'network']) {
     const value = record[key];
-    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
-    if (typeof value !== 'string') continue;
-    if (/testnet|chapel/i.test(value)) return 97;
-    if (/\b(?:bnb|bsc|binance)\b/i.test(value)) return 56;
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return { kind: 'id', chainId: value };
+    if (typeof value !== 'string' || !value.trim()) continue;
+    return classifyChainName(value.trim());
   }
-  return null;
+  return { kind: 'none' };
+}
+
+function classifyChainName(named: string): ChainClaim {
+  if (CHAIN_QUALIFIER.test(named)) return { kind: 'none' };
+  if (/testnet|chapel/i.test(named)) return { kind: 'id', chainId: 97 };
+  if (/\b(?:bnb|bsc|binance)\b/i.test(named)) return { kind: 'id', chainId: 56 };
+  if (OTHER_CHAINS.test(named)) return { kind: 'other', named };
+  return { kind: 'unreadable', named };
 }
 
 /**
@@ -478,7 +548,7 @@ export function readVenusReportClaim(manifestText: string): ClaimResult {
     ok: true,
     claim: {
       account: answerAccount(reportAnswer),
-      chainId: readChainId(report),
+      chain: readChain(report),
       pools: poolsNamedIn(report),
       block,
       healthFactor,
@@ -492,6 +562,18 @@ export function readVenusReportClaim(manifestText: string): ClaimResult {
 }
 
 /* ---------- the verdict ---------- */
+
+/*
+ * The chain as a buyer names it. `lib/network/presentation` has the same
+ * map, and is deliberately not imported: it reads NEXT_PUBLIC_ environment
+ * variables at module load, which would make this module unusable from a
+ * plain test and from any caller that has not booted the app.
+ */
+function chainName(chainId: number): string {
+  if (chainId === 56) return 'BNB Chain';
+  if (chainId === 97) return 'BNB Testnet';
+  return `chain ${chainId}`;
+}
 
 const num = (value: number, places = 4) => String(Number(value.toFixed(places)));
 const usd = (value: number) => `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
@@ -692,15 +774,42 @@ export function preEvidenceVerdict(input: PreEvidenceInput): VenusReportVerifica
       values: [{ label: 'Account', reported: claim.account, checked: subject.account, agrees: false }],
     };
   }
-  if (claim.chainId !== null && claim.chainId !== subject.chainId) {
+  /*
+   * The chain the report claims, in the three ways it can go wrong.
+   *
+   * A report that names another chain is wrong; a report that names
+   * something Pokter cannot resolve is unverifiable. Neither may reach a
+   * match. The second case used to: anything unmappable read as "not
+   * compared", so `"chain": "ethereum"` was certified against BNB Chain
+   * figures and its own claim went unmentioned (found by an outside review
+   * of this feature, reproduced in tests/venus-report-check.test.mts).
+   */
+  if (claim.chain.kind === 'id' && claim.chain.chainId !== subject.chainId) {
     const built = base(claim.block, null, null);
     return {
       ...built,
       verdict: 'differs',
       headline: 'Differs from checked facts',
-      detail: `The report says it read chain ${claim.chainId}; this job asked about chain ${subject.chainId}. A health factor on one chain is not a fact about the other.`,
-      values: [{ label: 'Chain', reported: String(claim.chainId), checked: String(subject.chainId), agrees: false }],
+      detail: `The report says it read chain ${claim.chain.chainId}; this job asked about chain ${subject.chainId}. A health factor on one chain is not a fact about the other.`,
+      values: [{ label: 'Chain', reported: String(claim.chain.chainId), checked: String(subject.chainId), agrees: false }],
     };
+  }
+  if (claim.chain.kind === 'other') {
+    const built = base(claim.block, null, null);
+    return {
+      ...built,
+      verdict: 'differs',
+      headline: 'Differs from checked facts',
+      detail: `The report says it read ${claim.chain.named}; this job asked about a Venus Core Pool position on ${chainName(subject.chainId)}. A health factor on one chain is not a fact about the other.`,
+      values: [{ label: 'Chain', reported: claim.chain.named, checked: chainName(subject.chainId), agrees: false }],
+    };
+  }
+  if (claim.chain.kind === 'unreadable') {
+    return unverified(
+      'Could not verify',
+      `The report says it read “${claim.chain.named}”, and Pokter cannot tell whether that is the ${chainName(subject.chainId)} it checks. Its figures might agree with Venus here and still be a report about somewhere else, so no verdict is given on them.`,
+      { block: claim.block, values: [{ label: 'Chain', reported: claim.chain.named, checked: chainName(subject.chainId), agrees: null, note: 'Pokter could not resolve the chain the report names, so nothing below could be attributed to it.' }] },
+    );
   }
 
   /*
