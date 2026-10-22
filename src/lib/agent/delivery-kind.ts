@@ -36,28 +36,45 @@ export interface DeliveredManifest {
  * absence of evidence rather than as a default.
  */
 export function readDeliveredManifest(manifestText: string): DeliveredManifest | null {
-  let parsed: {
-    response?: { content?: unknown };
-    metadata?: { producer?: unknown; answered_by?: unknown };
-  };
+  let raw: unknown;
   try {
-    parsed = JSON.parse(manifestText);
+    raw = JSON.parse(manifestText);
   } catch {
     return null;
   }
-  const producer = typeof parsed.metadata?.producer === 'string' ? parsed.metadata.producer : null;
-  const raw = parsed.response?.content;
-  let content: unknown = raw;
-  if (typeof raw === 'string') {
+  /*
+   * Valid JSON that is not an object is not a manifest.
+   *
+   * The catch above covers text that will not parse, and nothing covered
+   * text that parses into something with no fields to read: `null` parses
+   * perfectly and then throws on the first property access, which is a
+   * crash rather than the absence of evidence every caller is written to
+   * expect. `readDeliverable` returns whatever was stored, and a stored
+   * `null` — or a number, or an array — reaches here.
+   */
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const parsed = raw as {
+    response?: { content?: unknown };
+    metadata?: { producer?: unknown; answered_by?: unknown };
+  };
+  /* `?.` guards a missing `metadata`; these guard one that is a string or
+     a number, where a property read is undefined rather than a throw but a
+     `typeof` check is still the only thing that makes the value usable. */
+  const metadata = parsed.metadata && typeof parsed.metadata === 'object' ? parsed.metadata : null;
+  const response = parsed.response && typeof parsed.response === 'object' ? parsed.response : null;
+  const producer = typeof metadata?.producer === 'string' ? metadata.producer : null;
+  const stored = response?.content;
+  let content: unknown = stored;
+  if (typeof stored === 'string') {
     try {
-      content = JSON.parse(raw);
+      content = JSON.parse(stored);
     } catch {
       content = null;
     }
   }
   return {
     kind: deliveryKind(producer, content),
-    answeredBy: typeof parsed.metadata?.answered_by === 'string' ? parsed.metadata.answered_by : null,
+    answeredBy: typeof metadata?.answered_by === 'string' ? metadata.answered_by : null,
   };
 }
 
