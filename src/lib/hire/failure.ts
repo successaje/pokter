@@ -76,6 +76,14 @@ export function classifyQuoteError(error: unknown): QuoteFailure {
   if (status === '401' || status === '403') return quoteFailure('auth-required', { detail: `HTTP ${status}` });
   if (status === '429') return quoteFailure('rate-limited', { detail: 'HTTP 429' });
   if (status) return quoteFailure('http-error', { detail: `HTTP ${status}` });
+  /*
+   * The card answered and names nowhere to send a brief: no A2A interface,
+   * so `readAgentCard` refuses it. That is the agent's listing, not the
+   * network, and asking again changes nothing. It fell through to
+   * "could not be reached, try again shortly" for hwayongjin.agent
+   * (56:300282), whose platform card says UNBOUND, offline, endpoint null.
+   */
+  if (/answered, but not with an agent card/i.test(message)) return quoteFailure('no-endpoint', { detail: 'card-without-interface' });
   if (/timeout|aborted/i.test(message)) return quoteFailure('timeout');
   if (/signature|signer|recover/i.test(message)) return quoteFailure('bad-signature', { detail: message.slice(0, 160) });
   return quoteFailure('unreachable', { detail: message.slice(0, 160) });
@@ -89,6 +97,9 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
     case 'seller-not-ready':
       return { status: 409, message: `${agentName} accepted the request but has not produced a price yet. Try again shortly; nothing has been paid.` };
     case 'no-endpoint':
+      if (failure.detail === 'card-without-interface') {
+        return { status: 409, message: `${agentName}'s agent card answers but names no service to send a brief to, so it cannot quote a price. Its operator has listed it without connecting a running agent; nothing has been paid.` };
+      }
       return { status: 409, message: `${agentName} publishes no agent card Pokter can reach, so it cannot quote a price.` };
     case 'no-price-skill':
       return { status: 409, message: `${agentName} does not offer a priced job (its card has no negotiate skill), so it cannot be hired through escrow.` };
