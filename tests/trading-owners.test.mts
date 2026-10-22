@@ -123,6 +123,16 @@ test('the owners route answers its own retry with the list, not a conflict', () 
   assert.match(ownersRoute, /lastSignedAt: retry \? null : watched\.ownersSignedAt/);
   const recognises = ownersRoute.lastIndexOf('ownersAlreadyRecorded(');
   assert.ok(recognises > ownersRoute.indexOf('store.setOwners('), 'the retry is only answered after the write has had its say');
+  /* And answered from a fresh read, not from `watched`. Asking after the write
+     but against the snapshot taken before it is the whole defect again: a
+     resend whose state was overwritten in the awaits would be told `ok` for a
+     list that is not in force. The read is the line that tells the retry and
+     the lost race apart, so it is pinned here. */
+  assert.match(ownersRoute, /const recorded = store\.ownerList\(wallet\)/, 'the retry is judged against a fresh read of the row');
+  assert.ok(
+    ownersRoute.indexOf('store.ownerList(wallet)') > ownersRoute.indexOf('store.setOwners('),
+    'and that read happens after the write, not before it',
+  );
 });
 
 test('the trading routes name the chain they verify on', () => {
