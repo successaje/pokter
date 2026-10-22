@@ -268,6 +268,17 @@ test('the public agent endpoint reports the card read, and only pays for it when
     live.indexOf('if (onRecord)') < live.indexOf('await readCardForPage('),
     'a public endpoint calls the agent only when nothing on record answers',
   );
+  /*
+   * `if (onRecord)` is not the whole gate. A quote an escrow can pay makes
+   * `currentHireBlocker` answer null — the same answer it gives when the
+   * store holds nothing — so the agents that can be hired fell through to
+   * the read, and the same quote then made the second decision null too:
+   * one outbound request per call, discarded.
+   */
+  assert.ok(
+    live.indexOf('if (quote && payable !== false) return null;') < live.indexOf('await readCardForPage('),
+    'a quote an escrow can pay must answer without calling the agent',
+  );
 });
 
 test('the live blocker maps a card problem through the one mapping', () => {

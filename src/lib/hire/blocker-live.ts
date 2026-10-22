@@ -62,6 +62,19 @@ export async function currentHireBlockerWithCard(
   /** The agent's registered A2A endpoint, from its registry record. */
   endpoint: string | null | undefined,
 ): Promise<(HireBlocker & { observedAt: string | null; from: 'sweep' | 'card' }) | null> {
+  /*
+   * A quote an escrow can pay settles it, so no card is read.
+   *
+   * Checked before the read and not after it, because the blocker alone
+   * cannot say which happened: `currentHireBlocker` answers null both for
+   * "nothing on record" and for "on record, and nothing is wrong", and only
+   * the first is a reason to call the agent. Without this the agents that
+   * can be hired — the ones an assistant looks up precisely because it is
+   * about to hire them — each cost an outbound request on this public
+   * endpoint, whose result is then discarded, since the same quote makes
+   * the second decision null too.
+   */
+  if (quote && payable !== false) return null;
   const onRecord = currentHireBlocker(agent, quote, payable);
   /*
    * `from` travels with it because the two are not equally strong evidence
