@@ -208,19 +208,23 @@ test('a description that is neither format is refused', async () => {
   }
 });
 
-test('an agent with no establishable category is refused', async () => {
+test('an unclassified agent still delivers, with no skill preference', async () => {
   /*
-   * The category chooses which of the agent's skills the brief is sent to
-   * (`pickWorkSkill`). It is classified from the registry record, never read
-   * from the description, because a description-supplied category would let
-   * whoever wrote it choose the skill. `classify` returning 'unclassified'
-   * is not a category — it means Pokter could not tell — and addressing a
-   * skill on that basis is guessing.
+   * `pickWorkSkill` takes the category as optional and falls back to the
+   * first work skill, and the envelope path has always passed
+   * 'Uncategorised' when a hire supplied none. Refusing here was stricter
+   * than the mechanism needs and stricter than the envelope path for the
+   * same operation — it blocked job 1585, which passes every check that
+   * matters, because `classify` could not place "Pokter Evidence" among the
+   * five categories.
+   *
+   * An agent with no askable skill fails in `prepareAgent`, which is the
+   * right place for it.
    */
   for (const category of [null, '', '   ']) {
     const v = await verifyReferenceDelivery({ ...base(), registryAgent: { wallet: f.registryWallet, category } });
-    assert.equal(v.ok, false);
-    if (!v.ok) assert.equal(v.code, 'category-unknown');
+    assert.equal(v.ok, true, v.ok ? '' : `refused: ${v.code}`);
+    if (v.ok) assert.equal(v.category, '', 'no preference, rather than a guess');
   }
 });
 
