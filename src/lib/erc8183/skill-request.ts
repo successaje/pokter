@@ -155,8 +155,18 @@ export function briefRefusalBody(input: {
   code: BriefRefusalCode;
   skill: string | null;
   candidates?: string[];
+  /**
+   * What is still needed, one question per input.
+   *
+   * Carried beside the sentence so the hire form can put the questions
+   * where the brief is written rather than printing one long refusal. A
+   * refusal a buyer has to re-read to find the fix is a refusal that loses
+   * the hire — which is what "actionable" has to mean here.
+   */
+  questions?: Array<{ key: string; label: string; question: string; hint: string | null; suggestion: string | null }>;
 }): Record<string, unknown> {
   const candidates = input.candidates ?? [];
+  const questions = input.questions ?? [];
   return {
     error: input.message,
     /*
@@ -170,5 +180,6 @@ export function briefRefusalBody(input: {
     retryable: false,
     skill: input.skill,
     ...(candidates.length > 0 ? { candidates } : {}),
+    ...(questions.length > 0 ? { questions } : {}),
   };
 }

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { classify, type ClassifiableAgent } from '@/lib/agents/categories';
+import { compileBrief, type CompiledBrief } from '@/lib/hire/brief-compiler';
 import type { ChainId } from '@/lib/scan/types';
 import { NotAskableError, prepareAgent } from './courier';
 import { skillRequestData, type ResolvedSubject } from './skill-request';
@@ -18,9 +19,25 @@ import { skillRequestData, type ResolvedSubject } from './skill-request';
  * Two things it deliberately does not do:
  *
  *  - It does not invent requirements. Only skills Pokter has an adapter for
- *    are checked, and only against what their own card says they read. An
- *    agent's published `examples` show how to ask; they are not a schema,
+ *    are *refused* on, and only against what their own card says they read.
+ *    An agent's published `examples` show how to ask; they are not a schema,
  *    and enforcing them as one would refuse briefs agents accept today.
+ *
+ *    That last clause is not a hypothetical, which is why this gate was
+ *    narrowed back to it after briefly refusing on any unfilled declared
+ *    field. Vitals (56/367904) publishes two examples on one skill — a JSON
+ *    object and a sentence — and its own description says to send "text
+ *    naming the account ... or a data part". Refusing its prose because its
+ *    JSON example has an unfilled key would reject the agent's own
+ *    documented way of being asked. Every mainnet agent that publishes a
+ *    JSON example was blocked that way for prose briefs.
+ *
+ *    `compileBrief` still runs, and what it could not fill is still carried
+ *    back on `brief.missing` — the hire form asks those questions before it
+ *    lets anyone confirm. The difference is where the answer is binding: in
+ *    the form, which is guidance, and not on this route, which is a gate.
+ *    Whether a prose brief is good enough is the agent's judgement, and
+ *    `askIfAgentTakesBrief` already puts it to the agent.
  *  - It does not block a hire it cannot judge. An agent with no reachable
  *    card, no A2A endpoint or no skill Pokter recognises returns
  *    `skill: null` and the hire proceeds exactly as before. Quoting is how
@@ -28,13 +45,28 @@ import { skillRequestData, type ResolvedSubject } from './skill-request';
  *    agent it cannot read would stop more hires than it saves.
  */
 export type HirePreflight =
-  | { ok: true; skill: string | null; subject: ResolvedSubject | null }
+  | {
+      ok: true;
+      skill: string | null;
+      subject: ResolvedSubject | null;
+      /**
+       * The compiled request, for the buyer to read and confirm.
+       *
+       * Null only where no card could be read at all, which is the one case
+       * there is nothing to compile against. Everywhere else it is present
+       * and says what it could and could not establish — including
+       * "nothing", which is a reading, not a failure.
+       */
+      brief: CompiledBrief | null;
+    }
   | {
       ok: false;
       code: 'subject-missing' | 'subject-ambiguous';
       skill: string;
       message: string;
       candidates: string[];
+      /** The compilation that refused, so the surface can ask the questions it names. */
+      brief: CompiledBrief | null;
     };
 
 export async function preflightHireBrief(input: {
@@ -54,9 +86,13 @@ export async function preflightHireBrief(input: {
   const category = classified === 'unclassified' ? '' : classified;
 
   let skillId: string;
+  let declared: Awaited<ReturnType<typeof prepareAgent>>['skills'] = [];
+  let skillName = '';
   try {
     const prepared = await prepareAgent({ chainId: input.chainId, tokenId: input.tokenId, category });
     skillId = prepared.skill.id;
+    skillName = prepared.skill.name;
+    declared = prepared.skills;
   } catch (error) {
     /*
      * An agent Pokter cannot address is a hire Pokter cannot judge, not a
@@ -68,17 +104,40 @@ export async function preflightHireBrief(input: {
     if (!(error instanceof NotAskableError) && process.env.NODE_ENV !== 'test') {
       console.info(`[hire-preflight] ${input.chainId}/${input.tokenId}: could not read the agent's skills (${(error as Error).name})`);
     }
-    return { ok: true, skill: null, subject: null };
+    return { ok: true, skill: null, subject: null, brief: null };
   }
 
+  /*
+   * What the buyer is funding, compiled against what this skill publishes.
+   *
+   * Through `compileBrief`, which the review screen also calls, so the
+   * request a buyer confirms is the request this decides. It refuses only
+   * when the skill's own published format names an input the brief does not
+   * supply; an agent that publishes no format is reported as that and not
+   * blocked, for the reason given above.
+   */
+  const brief = compileBrief({
+    intent: input.task,
+    skills: declared.length > 0 ? declared : [{ id: skillId, name: skillName || skillId, examples: [] }],
+    skillId,
+    category,
+  });
+  /*
+   * The subject, still read through `skillRequestData`, because that is the
+   * object the courier will build and nothing else may decide it. The
+   * compilation above agrees with it by construction — it calls the same
+   * function — and is carried alongside for what it adds: the fields, the
+   * questions and the payload the buyer confirms.
+   */
   const request = skillRequestData({ skillId, task: input.task });
   return request.ok
-    ? { ok: true, skill: skillId, subject: request.subject }
+    ? { ok: true, skill: skillId, subject: request.subject, brief }
     : {
         ok: false,
         code: request.code,
         skill: skillId,
         message: request.message,
         candidates: request.candidates,
+        brief,
       };
 }

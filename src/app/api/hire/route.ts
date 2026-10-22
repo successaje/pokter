@@ -134,7 +134,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       /* The brief is the thing to fix, so it is an input refusal and not a
          gateway failure — the same shape the quote route returns. */
       return NextResponse.json(
-        briefRefusalBody({ message: error.message, code: error.code, skill: error.skill, candidates: error.candidates }),
+        briefRefusalBody({ message: error.message, code: error.code, skill: error.skill, candidates: error.candidates, questions: error.questions }),
         { status: 400 },
       );
     }
