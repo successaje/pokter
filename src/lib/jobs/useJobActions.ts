@@ -18,6 +18,7 @@ import { updateRememberedJob } from '@/lib/wallet/activity';
 import { walletActionError } from '@/lib/wallet/errors';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { reclaimFromExternalWallet, settleFromExternalWallet } from '@/lib/wallet/external';
+import { releaseAllowed } from './release';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 const POLL_MS = 30_000;
@@ -203,7 +204,15 @@ export function useJobActions(initial: HiredJob) {
     }
   }
 
-  const act = async (action: Exclude<JobAction, 'verify'>) => {
+  /**
+   * `reviewClosed`: the escrow's review window has closed with no dispute.
+   * Under the optimistic policy the delivery is then accepted and anyone may
+   * settle, so the receipt check stops being a condition of releasing: it
+   * protects nothing at that point, and a check Pokter cannot run (public
+   * nodes refuse logs a week old; job 56:57001) would otherwise stop the
+   * buyer paying an agent the escrow has already decided to pay.
+   */
+  const act = async (action: Exclude<JobAction, 'verify'>, { reviewClosed = false }: { reviewClosed?: boolean } = {}) => {
     generation.current += 1;
     setBusy(action);
     setError(null);
@@ -222,8 +231,11 @@ export function useJobActions(initial: HiredJob) {
 
       if (action === 'approve' || action === 'dispute') {
         // A disputed job's settlement is decided by the vote, not by this review, so the review gates apply only to releasing payment.
-        if (action === 'approve' && !job.disputeTxHash && !receiptVerified) throw new Error('Verify the receipt against its on-chain hash first.');
-        if (action === 'approve' && !job.disputeTxHash && !reviewed) throw new Error('Review the deliverable before releasing payment.');
+        if (action === 'approve') {
+          const release = releaseAllowed({ reviewOpen: reviewClosed ? false : null, receiptVerified, disputed: Boolean(job.disputeTxHash) });
+          if (!release.allowed) throw new Error(release.reason ?? 'This payment cannot be released yet.');
+        }
+        /* The "I have reviewed" box is a note to the buyer, not a financial control (JobDetail says so beside it), so it no longer gates the release. */
         if (action === 'dispute' && !disputeConfirmed) throw new Error('Confirm that you intend to contest this delivery.');
         let transactionHash: `0x${string}` | null = null;
         if (activeWallet.mode === 'external') {

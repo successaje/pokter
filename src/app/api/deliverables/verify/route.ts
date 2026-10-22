@@ -15,7 +15,7 @@ import { logAndPublic } from '@/lib/api/public-error';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
-import { questClient } from '@/lib/quest/indexer';
+import { historyClient } from '@/lib/erc8183/history-client';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
 
 export const dynamic = 'force-dynamic';
@@ -121,6 +121,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         })()
       : undefined;
 
+    let lookupFailed = false;
     const value =
       indexed ??
       derived ??
@@ -139,11 +140,29 @@ export async function GET(request: Request): Promise<NextResponse> {
        * maxWindows doubles so the reach is unchanged.
        */
       // Near the submit block first: a few dozen reads, and it does not age out.
-      (await findDeliverableUrl(questClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, id, job.submittedAt).catch(() => undefined)) ??
+      (await findDeliverableUrl(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, id, job.submittedAt).catch(() => {
+        lookupFailed = true;
+        return undefined;
+      })) ??
       (await getErc8183DeliverableUrl(network, id, {
         scanWindow: 2_500n,
         maxWindows: 600,
+      }).catch(() => {
+        lookupFailed = true;
+        return undefined;
       }));
+    /*
+     * A read Pokter could not make is not an agent that published nothing.
+     * Public nodes refuse logs older than about an hour, and the node's own
+     * words ("Invalid parameters were provided to the RPC method") reached
+     * the buyer of job 56:57001 as if they were about the delivery.
+     */
+    if (!value && lookupFailed) {
+      return NextResponse.json(
+        { error: 'Pokter could not read this job’s submission from the chain just now: the node it uses cannot reach that far back. The delivery itself is not in question. Try again later.' },
+        { status: 503 },
+      );
+    }
     if (!value) {
       return NextResponse.json(
         { error: 'The on-chain submission contains no deliverable URL.' },
