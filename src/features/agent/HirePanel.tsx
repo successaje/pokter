@@ -32,6 +32,16 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
   // The escrow this agent is hired on, chosen from its signed price.
   const testnet = profile.escrow.chainId === 97;
   const blocked = mainnetHireBlocked(profile);
+  /*
+   * Nowhere to send a brief at all: no endpoint, or a card naming no
+   * interface. Neither a paid hire nor a testnet trial can reach it, since
+   * the trial carries the brief to the same place, so no button leads
+   * there. A missing negotiate skill is not this: a trial can still reach
+   * a card that offers other skills. Nor is a card Pokter could not read
+   * (`card-unreadable`), which is a failed check and not a fact about the
+   * agent — withdrawing the buttons over one would hide a working agent.
+   */
+  const unreachable = profile.hireBlocker?.code === 'no-endpoint' && !profile.hireBlocker.transient;
   return (
     <aside aria-label="Hire this agent" className="flex flex-col overflow-hidden rounded-[16px] border border-rule bg-raised shadow-lift">
       <div className="flex flex-col gap-1 px-5 pb-4 pt-5">
@@ -63,7 +73,14 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
       */}
       {profile.hireBlocker && (
         <div className="border-t border-rule px-5 py-3.5">
-          <p className="mb-1 text-[13px] font-semibold text-ink">{profile.hireBlocker.transient ? 'Could not be priced at the last check' : 'Why it cannot be priced'}</p>
+          {/* A check that did not run is not a price that failed, so it is not headed as one. */}
+          <p className="mb-1 text-[13px] font-semibold text-ink">
+            {profile.hireBlocker.code === 'card-unreadable'
+              ? 'Pokter could not check this one'
+              : profile.hireBlocker.transient
+                ? 'Could not be priced at the last check'
+                : 'Why it cannot be priced'}
+          </p>
           <p className="text-[12.5px] leading-snug text-ink-2">{profile.hireBlocker.reason}</p>
           <p className="mt-1.5 text-[12px] text-ink-3">
             Is this your agent? <Link href={profile.hireBlocker.fix.href} className="link">{profile.hireBlocker.fix.label}</Link> explains the fix.
@@ -91,7 +108,16 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         </details>
       )}
       <div className="flex flex-col gap-2 border-t border-rule p-5">
-        {profile.hireable && blocked ? (
+        {unreachable ? (
+          /*
+           * Said for all three `no-endpoint` cases, so it claims only what
+           * they share. An MCP-only agent is one of them: it was told
+           * "nothing can be sent to this agent" and that it becomes hireable
+           * "when its operator connects a running agent", while Pokter was
+           * probing it over MCP and this same page was listing its MCP tools.
+           */
+          <p className="text-[13px] text-ink-2">Both a paid hire and the free trial carry the brief over A2A, and there is nowhere to send it, so neither can complete. The reason above is what has to change.</p>
+        ) : profile.hireable && blocked ? (
           /* A known reason the hire cannot complete: no purchase button that leads to it. */
           <p className="text-[13px] text-ink-2">A paid job on {chainLabel(56)} cannot complete until the reason above is fixed, because the escrow needs the agent&rsquo;s signed price.</p>
         ) : profile.hireable ? (
@@ -101,7 +127,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
         ) : (
           <p className="text-[13px] text-ink-2">{profile.testnetRelay && profile.escrowOptions.length === 0 ? profile.testnetRelay.note : 'Pokter cannot route a paid job to this agent: no reachable provider wallet was found.'}</p>
         )}
-        {profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
+        {!unreachable && profile.escrowOptions.length > 1 && profile.escrowOptions.includes(97) && profile.escrow.chainId !== 97 && (
           blocked ? (
             <LinkButton href={`${hireHref}?escrow=97`} intent="secondary" className="w-full">
               Try free on testnet instead
@@ -118,7 +144,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           </p>
         )}
         {/* A plain anchor: native hash navigation fires hashchange, which the tabs listen for. */}
-        {profile.trialAvailable && (
+        {!unreachable && profile.trialAvailable && (
           <a href="#try" className="text-center text-[13px] font-medium text-ink-2 hover:text-ink">
             Try it free first
           </a>
