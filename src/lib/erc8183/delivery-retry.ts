@@ -119,9 +119,11 @@ export async function retryStuckDeliveries(
       }
 
       phase = 'submit';
-      await submitDemoDeliverable(job.jobId);
+      const delivered = await submitDemoDeliverable(job.jobId);
+      /* The hash comes from the transaction result, never from parsing an
+         error: see the note on `txHash` in `delivery-diagnostics`. */
       console.info(deliveryDiagnosticLine({
-        chainId: job.chainId, jobId: job.jobId, phase, action: 'delivered', at: runAt,
+        chainId: job.chainId, jobId: job.jobId, phase, action: 'delivered', txHash: delivered.submitTxHash, at: runAt,
       }));
       results.push({ jobId: job.jobId, action: 'delivered' });
     } catch (error) {
