@@ -88,7 +88,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       briefRefusalBody({
         /* The seller's own words, attributed: this is its judgement of the
            work, not Pokter's assessment of the brief. */
-        message: `${agent.name || `Agent #${tokenId}`} declined this brief: \u201c${accepted.reason}\u201d`,
+        message: accepted.reason
+          ? `${agent.name || `Agent #${tokenId}`} declined this brief: \u201c${accepted.reason}\u201d`
+          : `${agent.name || `Agent #${tokenId}`} declined this brief without saying why. Try one of the examples on its page, or a brief closer to what it describes.`,
         code: 'brief-declined',
         skill: preflight.skill,
       }),
