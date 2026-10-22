@@ -191,6 +191,24 @@ test('a wallet watched before the ordering key existed is still ordered', (t) =>
   assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [REMOVED], signedAt: iso(-10_000) }), 'applied');
 });
 
+test('an ordering key left behind by a rollback is brought back to the list it sits beside', (t) => {
+  const db = openStore(t);
+  assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [REMOVED], signedAt: iso(-300_000) }), 'applied');
+
+  /* What a build without the column does: it writes the list and its signed
+     time and leaves the key on the older value. Ordered by that key, the
+     replay below would beat the list actually saved. */
+  db.prepare('UPDATE trading_wallets SET owners = ?, owners_signed_at = ? WHERE wallet = ?').run(
+    JSON.stringify([KEPT]),
+    iso(-60_000),
+    WALLET,
+  );
+
+  ensureWatchedWallets(db);
+  assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [REMOVED], signedAt: iso(-120_000) }), 'not-newer');
+  assert.deepEqual(readOwnerList(db, WALLET)!.owners, [KEPT]);
+});
+
 test('an unreadable signed time never wins and never clears the ordering key', (t) => {
   const db = openStore(t);
   assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [KEPT], signedAt: iso(-60_000) }), 'applied');
