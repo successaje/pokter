@@ -116,6 +116,15 @@ export class BriefNotDeliverableError extends Error {
     readonly skill: string | null,
     message: string,
     readonly candidates: string[],
+    /**
+     * What is still needed, one question per input.
+     *
+     * The operator path refused with a sentence and nothing to act on, so a
+     * caller hiring through `/api/hire` learned that the brief was short of
+     * something without learning of what. Carried so the route can return
+     * the same questions the browser gets.
+     */
+    readonly questions: Array<{ key: string; label: string; question: string; hint: string | null; suggestion: string | null }> = [],
   ) {
     super(message);
     this.name = 'BriefNotDeliverableError';
@@ -187,7 +196,7 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     const agent = await getAgent(chainId, input.agentTokenId).catch(() => null);
     const preflight = await preflightHireBrief({ chainId, tokenId: input.agentTokenId, task: input.task, agent });
     if (!preflight.ok) {
-      throw new BriefNotDeliverableError(preflight.code, preflight.skill, preflight.message, preflight.candidates);
+      throw new BriefNotDeliverableError(preflight.code, preflight.skill, preflight.message, preflight.candidates, preflight.brief?.missing ?? []);
     }
 
     /*

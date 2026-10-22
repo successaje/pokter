@@ -57,6 +57,18 @@ const PLUMBING_NAME = /^(negotiate\b|erc-?8183\b|job funded$|notify)/i;
 export type SkillKind = 'capability' | 'paid' | 'preview';
 
 export interface DeclaredSkill {
+  /**
+   * The card's own skill id, as declared.
+   *
+   * Carried because the hire page compiles the buyer's brief against this
+   * skill and the courier delivers to it, and the two have to be the same
+   * skill. Matching on `name` nearly worked: `pickWorkSkill` chooses by id,
+   * and an operator whose id and name differ — `venus-health-factor` named
+   * "Venus health factor report" — would have the page compile against one
+   * skill and the delivery go to another. Empty when the card omits it, in
+   * which case the name is the id, exactly as `pickWorkSkill` reads it.
+   */
+  id: string;
   name: string;
   kind: SkillKind;
   description: string | null;
@@ -137,7 +149,8 @@ export function declaredCapabilities(
   for (const entry of skills) {
     if (typeof entry !== 'object' || entry === null) continue;
     const skill = entry as Record<string, unknown>;
-    const id = text(skill.id).toLowerCase();
+    const declaredId = text(skill.id);
+    const id = declaredId.toLowerCase();
     const name = text(skill.name);
 
     if (!name) continue;
@@ -151,6 +164,9 @@ export function declaredCapabilities(
     const description = text(skill.description);
     const listed = Array.isArray(skill.examples) ? skill.examples.map((example) => text(example)) : [];
     kept.push({
+      /* As declared, not lowercased: `pickWorkSkill` compares the raw id
+         and a skill whose id was folded would stop matching its own card. */
+      id: declaredId || name,
       name,
       kind,
       description: description ? readableDescription(description) : null,
@@ -218,6 +234,8 @@ export function mcpCapabilities(tools: unknown, limit = 4): DeclaredSkill[] {
 
     const description = text(tool.description);
     kept.push({
+      // A tool name is the whole identifier over MCP; there is no separate id.
+      id: name,
       name,
       kind: 'capability',
       description: description ? readableDescription(description) : null,

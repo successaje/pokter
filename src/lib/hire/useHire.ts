@@ -39,6 +39,7 @@ import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import type { SkillRequestPreview } from '@/lib/erc8183/skill-request';
+import { materialBriefChange, type BriefAnswers, type CompiledBrief, type MissingInput } from '@/lib/hire/brief-compiler';
 import { taskFields } from '@/lib/hire/task-fields';
 import { withWalletPlaceholder } from './example-chips';
 
@@ -203,6 +204,32 @@ async function negotiateForHire(
  * the escrow was funded. Asked here instead, with the same refusal shape,
  * so the buyer reads the same sentence whichever path they are on.
  */
+/**
+ * What the agent will be asked, compiled from what the buyer wrote.
+ *
+ * Asked before any price, because this is the last point at which the
+ * request is still the buyer's to change. It reaches no seller: the
+ * route reads the agent's card and returns a reading, so editing a brief
+ * costs nobody a round trip.
+ */
+async function compileRequestFor(chainId: number, tokenId: string, task: string, answers: BriefAnswers): Promise<CompiledBrief> {
+  const response = await fetch('/api/hire/compile', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ chainId, tokenId, task, answers }),
+  });
+  const payload = (await response.json().catch(() => null)) as { brief?: CompiledBrief; error?: string } | null;
+  if (!response.ok || !payload?.brief) {
+    throw new HireFailure(
+      payload?.error ?? 'Pokter could not work out what this agent will be asked.',
+      response.status === 400 ? 'input' : 'network',
+      undefined,
+      response.status >= 500,
+    );
+  }
+  return payload.brief;
+}
+
 async function preflightBrief(
   chainId: number,
   tokenId: string,
@@ -272,7 +299,7 @@ export function useHire({
   /** The price of a proposal chosen on a request, which the budget starts at. */
   proposalU?: number | null;
   /** The agent's own skills, whose examples beat a category guess. */
-  declaredSkills?: readonly { name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
+  declaredSkills?: readonly { id?: string; name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
 }) {
   const { wallet } = usePasskeyWallet();
   const signer = usePasskeySigner();
@@ -360,6 +387,36 @@ export function useHire({
   const [preRequest, setPreRequest] = useState<{ request: SkillRequestPreview; task: string; provider: string; escrowChainId: number } | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteFailure, setQuoteFailure] = useState<{ message: string; layer: FailureLayer | null } | null>(null);
+
+  /*
+   * The compiled request, and the one the buyer signed off on.
+   *
+   * Two states on purpose. `compiledFor` is the reading of the brief as it
+   * stands now and moves with every edit; `approved` is frozen at the
+   * moment the buyer confirmed it, and is what the quote is taken for and
+   * what gets funded. Holding only the live one would mean the screen could
+   * not say what changed since they agreed — and "your price was for a
+   * different account" is the sentence this feature exists to be able to
+   * say.
+   */
+  const [compiledFor, setCompiledFor] = useState<{ brief: CompiledBrief; task: string } | null>(null);
+  /*
+   * The buyer's answers to the compiler's questions, by field key.
+   *
+   * Held beside the brief rather than written into it. They used to be
+   * appended as prose lines and read back out, which only worked for two of
+   * the seven field shapes a live card declares — a `text`, `boolean` or
+   * `json` field could never be read back, so the question was asked again
+   * and the brief grew a duplicate line every time. Keyed by the field they
+   * answer, there is nothing to read back and nothing to guess.
+   *
+   * Dropped with the brief they were given for: an answer to "which
+   * account?" on one brief is not an answer on the next one.
+   */
+  const [answersFor, setAnswersFor] = useState<{ answers: Record<string, string>; task: string } | null>(null);
+  const [approved, setApproved] = useState<{ brief: CompiledBrief; payload: string; task: string; provider: string; escrowChainId: number } | null>(null);
+  const [compiling, setCompiling] = useState(false);
+  const [compileFailure, setCompileFailure] = useState<string | null>(null);
 
   const [stage, setStage] = useState<'sponsoring' | 'swapping' | 'hiring'>('hiring');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -628,27 +685,138 @@ export function useHire({
   /** Whether the agent itself signs a price for this hire (not Pokter's delivery agent). */
   const needsQuote = provider?.relationship === 'registry-agent';
 
+  /*
+   * The compiled reading of the brief as it stands, and the buyer's
+   * approval of it, each only while it still describes this hire.
+   *
+   * Derived rather than cleared on edit, the way `reviewQuote` is: a
+   * cleanup that has to be remembered at every call site is a cleanup that
+   * gets forgotten at one of them, and the one that gets forgotten here
+   * would leave a confirmed payload bound to a brief the buyer has since
+   * rewritten.
+   */
+  const compiled = compiledFor && compiledFor.task === task ? compiledFor.brief : null;
+  const answers = answersFor && answersFor.task === task ? answersFor.answers : {};
+  const approvedRequest =
+    approved && approved.task === task && approved.provider === providerAddress && approved.escrowChainId === escrowChainId ? approved : null;
+  /**
+   * The text that is quoted, written on chain and delivered.
+   *
+   * The buyer's approved payload when there is one, and what they typed
+   * when there is not. For every contract but `structured` these are the
+   * same string — the brief travels verbatim — so this only ever differs
+   * where the agent publishes a format and the buyer confirmed the request
+   * built in it.
+   */
+  const outboundTask = approvedRequest?.payload ?? task;
+  /**
+   * What the buyer agreed to that is no longer what would be sent.
+   *
+   * Named, not counted. A buyer told "your quote is stale" has to go and
+   * find out why; a buyer told "account to report on changed" already knows.
+   */
+  const requestChanged = approved && compiled ? materialBriefChange(approved.brief, compiled) : [];
+
+  /**
+   * Compile the brief into the request the agent will read. False with
+   * `compileFailure` set.
+   *
+   * `text` is passed explicitly where the caller has just changed the brief,
+   * because the state it set is not readable in the same tick — reading
+   * `task` from the closure compiled the brief as it was *before* the
+   * answer, and stored the result under the old text, so the screen
+   * immediately disowned it.
+   */
+  const compileRequest = async (text: string = task, given: Record<string, string> = answers): Promise<boolean> => {
+    setCompileFailure(null);
+    setCompiling(true);
+    try {
+      const brief = await compileRequestFor(agent.chainId, agent.tokenId, text, given);
+      setCompiledFor({ brief, task: text });
+      setAnswersFor({ answers: given, task: text });
+      return true;
+    } catch (caught) {
+      setCompiledFor(null);
+      setCompileFailure((caught as Error).message);
+      return false;
+    } finally {
+      setCompiling(false);
+    }
+  };
+
+  /**
+   * Answer one of the questions the compiler asked.
+   *
+   * The value is recorded against the field it answers and the request is
+   * compiled again with it. Nothing is written into the brief: the buyer's
+   * own words stay their own words, and the answer is visible where it
+   * matters — in the payload and in the summary rows, which are what the
+   * agent receives and what goes on chain.
+   */
+  const answerMissingInput = async (missing: MissingInput, answer: string): Promise<boolean> => {
+    const next = { ...answers, [missing.key]: answer.trim() };
+    setAnswersFor({ answers: next, task });
+    return compileRequest(task, next);
+  };
+
+  /**
+   * Bind the compiled request: this payload, for this provider, on this
+   * escrow. Returns the payload it bound, or null when there was none.
+   *
+   * Returned rather than only stored, because the caller asks for a price in
+   * the same tick and `approved` is not readable until the next render. It
+   * was not returned at first, and the consequence was the whole feature
+   * quietly not working: the buyer answered "which account?", confirmed, and
+   * the quote was taken for the brief as it stood *before* the answer.
+   * Brinkwatch declined it with "The brief names no wallet address" — the
+   * agent refusing a brief the buyer had already fixed. It failed safe and
+   * it failed completely.
+   */
+  const approveRequest = (): string | null => {
+    if (!compiled?.payload) return null;
+    setApproved({ brief: compiled, payload: compiled.payload, task, provider: providerAddress, escrowChainId });
+    /*
+     * A new approval cannot inherit the old one's price. The quote is signed
+     * over the payload, so a price taken for the request the buyer has just
+     * replaced governs work nobody is buying.
+     */
+    setPreQuote(null);
+    setPreRequest(null);
+    return compiled.payload;
+  };
+
+
   /**
    * Ask the agent to sign a quote for the brief as written. True when the
    * buyer can go on to Review: either the agent accepted, or no quote is
    * needed. False with `quoteFailure` set, and the brief left as it was.
    */
-  const prepareQuote = async (): Promise<boolean> => {
+  const prepareQuote = async (text: string = outboundTask): Promise<boolean> => {
     setQuoteFailure(null);
     setQuoting(true);
     try {
+      /*
+       * Quoted for the payload the buyer approved, not for what they typed.
+       *
+       * The seller signs over the task text, so the signature has to cover
+       * the string that will be delivered. Where the agent publishes a
+       * format, that string is the compiled request and not the prose it
+       * was compiled from — quoting the prose would hand the buyer a
+       * signature for a brief the courier never sends.
+       */
+      const sending = text;
       if (needsQuote) {
-        const quote = await negotiateForHire(agent.chainId, agent.tokenId, task);
-        setPreQuote({ quote, task, provider: providerAddress, escrowChainId });
-        setPreRequest({ request: quote.request, task, provider: providerAddress, escrowChainId });
+        const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending);
+        setPreQuote({ quote, task: sending, provider: providerAddress, escrowChainId });
+        setPreRequest({ request: quote.request, task: sending, provider: providerAddress, escrowChainId });
       } else {
         /*
          * No quote on this path, so the brief is checked on its own. Before
          * Review rather than at funding, because this is the last screen
          * where the brief can still be edited.
          */
-        const request = await preflightBrief(agent.chainId, agent.tokenId, task);
-        setPreRequest({ request, task, provider: providerAddress, escrowChainId });
+        const request = await preflightBrief(agent.chainId, agent.tokenId, sending);
+        setPreRequest({ request, task: sending, provider: providerAddress, escrowChainId });
       }
       return true;
     } catch (caught) {
@@ -670,10 +838,10 @@ export function useHire({
   };
 
   /** The early quote, while it still covers this hire: same brief, provider and network, and at least a minute left. */
-  const reviewQuote = preQuote && preQuote.task === task && preQuote.provider === providerAddress && preQuote.escrowChainId === escrowChainId ? preQuote.quote : null;
+  const reviewQuote = preQuote && preQuote.task === outboundTask && preQuote.provider === providerAddress && preQuote.escrowChainId === escrowChainId ? preQuote.quote : null;
   /* Cleared by any edit to the brief or the provider, so the review screen
      never describes a request Pokter would no longer make. */
-  const reviewRequest = preRequest && preRequest.task === task && preRequest.provider === providerAddress && preRequest.escrowChainId === escrowChainId ? preRequest.request : null;
+  const reviewRequest = preRequest && preRequest.task === outboundTask && preRequest.provider === providerAddress && preRequest.escrowChainId === escrowChainId ? preRequest.request : null;
   const quoteLive = (quote: Awaited<ReturnType<typeof negotiateForHire>> | null) => Boolean(quote && (!quote.expiresAt || quote.expiresAt * 1000 > Date.now() + 60_000));
 
   const commission = async () => {
@@ -695,6 +863,35 @@ export function useHire({
       if (!providerCanDeliver) {
         throw new Error('Choose a provider that is live on the escrow chain and publishes a delivery endpoint.');
       }
+      /*
+       * A request the buyer never confirmed is never funded.
+       *
+       * Only bites where Pokter compiles something: for a prose or
+       * unpublished contract the payload is the brief, so an approval adds
+       * nothing and its absence blocks nothing. Where the agent publishes a
+       * format, the text that gets signed is not the text the buyer typed,
+       * and funding that without their sign-off is Pokter putting words in
+       * their job. Here rather than only in the UI, because every caller of
+       * `commission()` gets the same refusal before a wallet is touched.
+       */
+      if (compiled?.contract === 'structured' && !approvedRequest) {
+        throw new HireFailure(
+          `${agent.name} publishes a request format, and this brief has been rewritten into it. Go back and confirm the request before funding.`,
+          'input',
+          'request-unconfirmed',
+          false,
+        );
+      }
+      if (requestChanged.length > 0) {
+        throw new HireFailure(
+          `You changed ${requestChanged.join(' and ')} after confirming the request. Confirm it again before funding.`,
+          'input',
+          'request-changed',
+          false,
+        );
+      }
+      /* The one string this hire is about: quoted, written on chain, delivered. */
+      const sending = outboundTask;
 
       /*
        * Negotiated before the branch, so both signing routes commit the same
@@ -704,7 +901,7 @@ export function useHire({
       let signedQuote: Awaited<ReturnType<typeof negotiateForHire>> | null = null;
       if (provider?.relationship === 'registry-agent') {
         // The quote shown on Review, if it still covers this hire; otherwise a fresh one.
-        signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, task);
+        signedQuote = reviewQuote && quoteLive(reviewQuote) ? reviewQuote : await negotiateForHire(agent.chainId, agent.tokenId, sending);
         /*
          * Price was the only thing compared, and it is not the only thing
          * signed: a replacement can hold the number and change what the
@@ -712,7 +909,7 @@ export function useHire({
          */
         const changed = reviewQuote && signedQuote !== reviewQuote ? materialQuoteChange(reviewQuote, signedQuote) : null;
         if (reviewQuote && changed) {
-          setPreQuote({ quote: signedQuote, task, provider: providerAddress, escrowChainId });
+          setPreQuote({ quote: signedQuote, task: sending, provider: providerAddress, escrowChainId });
           throw new HireFailure(
             `${agent.name}'s quote expired and ${changed.what}. Check the terms again before paying.`,
             'terms',
@@ -728,7 +925,7 @@ export function useHire({
         const funding = correctedErc8183Addresses(escrowChainId);
         const check = checkPurchaseIntent(
           { ...signedQuote.intent, provider: providerAddress as `0x${string}` },
-          { provider: providerAddress as string, task, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
+          { provider: providerAddress as string, task: sending, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
         );
         if (!check.ok) throw new Error(check.reason);
       } else {
@@ -739,8 +936,8 @@ export function useHire({
          * gets the same refusal before a wallet is touched — the rule the
          * guards above already follow.
          */
-        const request = reviewRequest ?? (await preflightBrief(agent.chainId, agent.tokenId, task));
-        setPreRequest({ request, task, provider: providerAddress, escrowChainId });
+        const request = reviewRequest ?? (await preflightBrief(agent.chainId, agent.tokenId, sending));
+        setPreRequest({ request, task: sending, provider: providerAddress, escrowChainId });
       }
 
       if (active.mode === 'external') {
@@ -753,7 +950,7 @@ export function useHire({
           category: agent.category,
           provider: providerAddress as `0x${string}`,
           providerLabel: provider?.label,
-          task,
+          task: sending,
           quote: signedQuote ?? undefined,
           intent: signedQuote ? { ...signedQuote.intent, provider: providerAddress as `0x${string}` } : undefined,
           budgetU: budget,
@@ -776,7 +973,7 @@ export function useHire({
           agentName: agent.name,
           providerLabel: provider?.label,
           provider: providerAddress as `0x${string}`,
-          task,
+          task: sending,
           budgetRaw: parseUnits(String(budget), 18).toString(),
           // As written on chain: delivery time plus the escrow's dispute window.
           expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
@@ -811,7 +1008,7 @@ export function useHire({
         category: agent.category,
         provider: providerAddress as `0x${string}`,
         providerLabel: provider?.label,
-        task,
+        task: sending,
         quote: signedQuote ?? undefined,
       });
 
@@ -909,7 +1106,7 @@ export function useHire({
         agentName: agent.name,
         providerLabel: provider?.label,
         provider: outcome.provider,
-        task,
+        task: sending,
         budgetRaw: outcome.budget.toString(),
         expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
         hiredAt: now,
@@ -986,6 +1183,21 @@ export function useHire({
     quoteFailure,
     reviewQuote,
     reviewRequest,
+    /*
+     * The compiler, as the request step reads it: the live compilation, the
+     * approval bound to it, what changed since, and the text that will
+     * actually be sent.
+     */
+    compiled,
+    answers,
+    compiling,
+    compileFailure,
+    compileRequest,
+    answerMissingInput,
+    approveRequest,
+    approvedRequest,
+    requestChanged,
+    outboundTask,
     riskWarnings,
     taskTemplates,
     taskReady,
