@@ -73,3 +73,32 @@ test('an unreadable manifest is the absence of evidence, not a default', () => {
   assert.equal(readDeliveredManifest('not json'), null);
   assert.equal(carriesRelayedAnswerFor(null, { chainId: 97, tokenId: '2599' }), false);
 });
+
+/*
+ * The courier's own producer string, pinned against the pattern that reads
+ * it.
+ *
+ * Withholding delivery credit now rests on this match rather than on the
+ * courier's wallet appearing in `TEAM_WALLETS`, so a rename in either
+ * place would quietly hand agents credit for Pokter's deliveries — the
+ * failure the address list already had. Read from source rather than
+ * copied, so the two cannot drift apart without this failing.
+ */
+const producerIn = (path: string) =>
+  readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8').match(/producer: '([^']+)'/)?.[1] ?? null;
+
+test('the courier’s producer string is one `deliveryKind` recognises', () => {
+  const courier = producerIn('lib/erc8183/demo-seller.ts');
+  assert.equal(courier, 'Pokter delivery agent (courier)', 'the courier still names itself as the ladder expects');
+  assert.equal(deliveryKind(courier, { answer: {}, answered_by: {} }), 'relayed');
+  assert.equal(deliveryKind(courier, { escrow_verified: true }), 'lifecycle');
+});
+
+test('a delivery Pokter merely hosts is still the builder’s own work', () => {
+  // Studio and the house engine deliver from the builder's own wallet.
+  assert.equal(producerIn('app/api/builders/deliveries/route.ts'), 'Pokter verified provider');
+  assert.equal(deliveryKind('Pokter verified provider', { answer: {}, answered_by: {} }), 'agent');
+  // The evidence agent submits its own work from its own wallet.
+  assert.equal(producerIn('lib/evidence/deliver.ts'), 'Pokter Evidence');
+  assert.equal(deliveryKind('Pokter Evidence', { answer: {}, answered_by: {} }), 'agent');
+});

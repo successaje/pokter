@@ -159,12 +159,68 @@ test('a courier delivery carrying the agent’s answer is counted apart from a b
   assert.ok(history.relayedDelivered <= history.operatorDelivered, 'a refinement of the split, not a redrawing of it');
 });
 
-test('a relayed delivery the agent itself submitted is not possible, and is not counted as one', () => {
-  // Only a Pokter wallet can relay; a predicate that said otherwise is ignored.
+test('a courier delivery from an undeclared wallet is still not the agent’s own', () => {
+  /*
+   * The gap the first pass left. Withholding credit rested entirely on the
+   * courier's wallet being in `TEAM_WALLETS`, which it is today only
+   * because the courier signs with the operator key. Signing from a wallet
+   * nobody had listed read as the agent delivering from its own wallet —
+   * full credit, and the `delivered` milestone, for Pokter's work.
+   *
+   * The manifest settles it without the list.
+   */
   const history = summariseEconomicHistory([owed('COMPLETED', AGENT)], Date.now(), {
     isRelayedDelivery: () => true,
   });
-  assert.equal(history.selfDelivered, 1);
+  assert.equal(history.selfDelivered, 0, 'no credit for a delivery the manifest shows Pokter carried');
+  assert.equal(history.operatorDelivered, 1, 'and it is counted against Pokter instead');
+  assert.equal(history.relayedDelivered, 1);
+});
+
+test('a courier delivery with no recorded provider is Pokter’s, not nobody’s', () => {
+  /*
+   * An unknown address is no evidence either way, but the manifest is
+   * positive evidence of a courier, so it decides on its own.
+   */
+  const unknown = { ...job('COMPLETED'), provider: undefined as unknown as HiredJob['provider'] };
+  const history = summariseEconomicHistory([unknown], Date.now(), { isRelayedDelivery: () => true });
+  assert.equal(history.selfDelivered, 0);
+  assert.equal(history.operatorDelivered, 1);
+  assert.equal(history.relayedDelivered, 1);
+});
+
+test('the two tests for a delivery are independent, and the agent must pass both', () => {
+  const cases = [
+    { provider: AGENT, relayed: false, selfDelivered: 1, operatorDelivered: 0 },
+    { provider: AGENT, relayed: true, selfDelivered: 0, operatorDelivered: 1 },
+    { provider: POKTER, relayed: false, selfDelivered: 0, operatorDelivered: 1 },
+    { provider: POKTER, relayed: true, selfDelivered: 0, operatorDelivered: 1 },
+  ];
+  for (const { provider, relayed, ...expected } of cases) {
+    const where = `${provider === AGENT ? 'agent' : 'Pokter'} wallet, relayed=${relayed}`;
+    const history = summariseEconomicHistory([owed('COMPLETED', provider)], Date.now(), {
+      isRelayedDelivery: () => relayed,
+    });
+    assert.deepEqual(
+      { selfDelivered: history.selfDelivered, operatorDelivered: history.operatorDelivered },
+      expected,
+      where,
+    );
+    assert.equal(history.relayedDelivered, relayed ? 1 : 0, where);
+  }
+});
+
+test('an undelivered job is never relayed, so the miss split is untouched', () => {
+  /*
+   * `relayedDelivery` is consulted only for deliveries, and a manifest
+   * exists only once something was submitted — so blame for a lapsed job
+   * still turns on the provider alone.
+   */
+  const history = summariseEconomicHistory([owed('EXPIRED', AGENT), owed('EXPIRED', POKTER)], Date.now(), {
+    isRelayedDelivery: () => true,
+  });
+  assert.equal(history.missed, 1, 'the agent still owns its own lapse');
+  assert.equal(history.operatorMissed, 1);
   assert.equal(history.relayedDelivered, 0);
 });
 
