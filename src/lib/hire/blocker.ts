@@ -60,19 +60,23 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
       /*
-       * Both places Pokter looks answered, and neither named an interface
-       * (56:300282, whose platform reports UNBOUND, offline, endpoint null).
+       * Nothing Pokter read named an interface (56:300282, whose platform
+       * reports UNBOUND, offline, endpoint null).
        *
-       * Worded for what those two reads establish and nothing beyond it.
-       * One of the cases behind this detail is a card that was read and
-       * declares no interface; the other is every location answering with
-       * no card at all. "Its card answers but names no service" is false of
-       * the second, and so is "the operator has listed it without
-       * connecting a running agent" — an agent serving its card somewhere
-       * other than the well-known path is running and reachable there.
+       * Worded for what was read and nothing else, because four reads
+       * arrive under this detail and no stronger sentence is true of all
+       * four. "Its card answers but names no service" is false where every
+       * location answered with no card at all. "Neither location returns a
+       * card naming an interface" is false where one of them timed out
+       * after the other had already settled it — a negative about a place
+       * that never answered. And "the operator has listed it without
+       * connecting a running agent" is false of an agent serving its card
+       * somewhere other than the well-known path.
+       *
+       * So: what Pokter read, and what it did not find in it.
        */
       if (input.detail === 'card-without-interface') {
-        return { code: input.code, reason: 'Neither its registered endpoint nor the well-known card path under it returns a card naming an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
+        return { code: input.code, reason: 'Nothing Pokter read at its registered endpoint or the card path under it names an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
       }
       return mcpOnly
         ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }

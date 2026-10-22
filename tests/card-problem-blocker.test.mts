@@ -208,22 +208,26 @@ test('the builder reads two different claims, not one claim twice', () => {
   const missing = blockerFor('card-without-interface')?.reason ?? '';
   const unread = blockerFor('card-unreadable')?.reason ?? '';
   assert.match(missing, /nowhere to send a brief/);
-  assert.match(missing, /Neither its registered endpoint nor the well-known card path/);
+  assert.match(missing, /Nothing Pokter read/);
   assert.match(unread, /did not answer this read/);
   assert.doesNotMatch(unread, /nowhere to send a brief|no HTTPS JSON-RPC/);
 });
 
-test('the missing-interface sentence claims only what the two reads establish', () => {
+test('the missing-interface sentence claims only what was read', () => {
   /*
-   * Two reads arrive under this detail: a card that was read and declares
-   * no interface, and every location answering with no card at all. The
-   * wording has to be true of both, so it may not say a card answered, and
-   * it may not say nothing is running — an agent serving its card off the
-   * well-known path is running and reachable there.
+   * Four reads arrive under this detail, and the sentence has to be true of
+   * all four: a card read at the endpoint, a card read at the well-known
+   * path, every location answering with no card, and a card read at one
+   * place while the other timed out. That last one is why the sentence may
+   * not say what a location "returns" — it never answered — and the third
+   * is why it may not say a card answered. Neither may it say nothing is
+   * running: an agent serving its card off the well-known path is running
+   * and reachable there.
    */
   const missing = blockerFor('card-without-interface')?.reason ?? '';
   assert.doesNotMatch(missing, /card answers/i);
   assert.doesNotMatch(missing, /without connecting a running agent/i);
+  assert.doesNotMatch(missing, /Neither|nor the/i, 'a negative about a location that may never have answered');
 });
 
 test('the other no-endpoint cases keep their own words', () => {
@@ -279,6 +283,32 @@ test('the public agent endpoint reports the card read, and only pays for it when
     live.indexOf('if (quote && payable !== false) return null;') < live.indexOf('await readCardForPage('),
     'a quote an escrow can pay must answer without calling the agent',
   );
+  /*
+   * The wrapper must not assign provenance. Labelling everything that is
+   * not the card read as the sweep was already false once the decision grew
+   * a third source: a quote recorded for a buyer's own brief carries a
+   * buyer's timestamp, and the route was reporting it as "the latest
+   * sweep's read-only price request to the agent".
+   */
+  assert.doesNotMatch(live, /from: 'sweep'[^;]*\}\s*;?\s*$/m);
+  assert.doesNotMatch(live, /\.\.\.onRecord, from:/, 'the branch that produced it names it');
+});
+
+test('a route that calls the agent is bounded, and does not promise a cacheable answer', () => {
+  /*
+   * Two promises this response could not keep once it started reading the
+   * card. It had no `maxDuration` while every other outbound-calling route
+   * has one, and the card read's own 2.5s budget starts after the DNS
+   * lookup inside `assertPublicEndpoint`, so that phase was unbounded. And
+   * `apiJson`'s shared 30s/150s cache is justified by data that "moves on a
+   * sweep cycle, not per request" — untrue of a fresh `observedAt` and a
+   * transient "could not check", which could be re-served for 150s after
+   * the agent started answering again.
+   */
+  const route = withoutComments(source('app/api/v1/agents/[chainId]/[tokenId]/route.ts'));
+  assert.match(route, /export const maxDuration = \d+;/);
+  assert.match(route, /perRequest: blocker\?\.from === 'card'/);
+  assert.match(withoutComments(source('lib/api/respond.ts')), /perRequest \? 'private, no-store'/);
 });
 
 test('the live blocker maps a card problem through the one mapping', () => {

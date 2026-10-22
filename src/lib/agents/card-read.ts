@@ -58,15 +58,23 @@ type Attempt = { answered: true; status: number; body: unknown } | { answered: f
  * connection, a timeout, 429, 5xx — is the lookup failing, which is not an
  * answer about the agent's interface.
  *
- * `why` says what happened and never where. `classifyQuoteError` matches
- * patterns against the whole message, and this URL is the agent's own: its
- * host, or the `agentCard` path its index names. A card at
- * `signer.example.com`, or at `/signatures/card.json`, refusing a
- * connection would otherwise match `/signature|signer|recover/` and tell
- * the buyer the agent "returned a price that is not signed by its
- * registered wallet" — permanent, 409, and about a wallet nobody read.
- * The card's location is derivable from the endpoint (`a2aCardFallback`),
- * so nothing a builder needs is lost by leaving it out.
+ * `why` leaves the URL out. `classifyQuoteError` matches patterns against
+ * the whole message, and this URL is the agent's own: its host, or the
+ * `agentCard` path its index names. A card at `signer.example.com`, or at
+ * `/signatures/card.json`, refusing a connection matched
+ * `/signature|signer|recover/` and told the buyer the agent "returned a
+ * price that is not signed by its registered wallet" — permanent, 409, and
+ * about a wallet nobody read. The card's location is derivable from the
+ * endpoint (`a2aCardFallback`), so nothing a builder needs is lost.
+ *
+ * It does not follow that the message carries no agent-controlled text, and
+ * nothing here should be built on that: a DNS failure says its own
+ * hostname, so `getaddrinfo ENOTFOUND signer.example.invalid` still reaches
+ * those patterns through `describe`. That is the same hole `readAgentCard`
+ * has always had, since it lets the first read's error through unwrapped,
+ * and closing it properly means throwing an error that carries this
+ * result's discriminant and having `classifyQuoteError` prefer it over the
+ * regexes. Worth doing, and deliberately not done here.
  */
 async function attempt(url: string, fetchJson: CardFetch): Promise<Attempt> {
   let answer: { status: number; body: unknown };
@@ -83,9 +91,11 @@ async function attempt(url: string, fetchJson: CardFetch): Promise<Attempt> {
 /**
  * The card at an endpoint, or which kind of nothing came back.
  *
- * The first read's own failure is thrown rather than classified: the error
- * from the endpoint Pokter was told to call is the most informative thing
- * there is, and every caller already reads it.
+ * The first read's own failure is thrown rather than classified, which is
+ * what `readAgentCard` has always done and what every caller already
+ * reads. Note that it travels unwrapped, so `classifyQuoteError` sees
+ * whatever the fetch stack said — including a hostname, for a DNS failure.
+ * See `attempt` for why that is not relied on anywhere.
  */
 export async function readCardThrough(endpoint: string, fetchJson: CardFetch): Promise<CardRead> {
   const first = await fetchJson(endpoint);

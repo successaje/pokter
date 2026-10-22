@@ -6,6 +6,16 @@ import { blockerCodeForCardProblem, type CardProblem } from '@/lib/agents/card-r
 import { hireBlocker, type HireBlocker } from './blocker';
 
 /**
+ * Which evidence produced a blocker, named by the branch that produced it.
+ *
+ * Returned rather than worked out afterwards: a caller that reports
+ * provenance — `/api/v1/agents/:chain/:token` does, in a field whose whole
+ * purpose is to say where a claim came from — cannot recover this from the
+ * blocker, because the same code arrives from more than one source.
+ */
+export type BlockerSource = 'sweep' | 'card';
+
+/**
  * The agent's current hire blocker: none when it has a signed price an
  * escrow can pay; the payment problem when its price cannot be paid;
  * otherwise why the latest sweep's price request failed, if it did.
@@ -20,22 +30,25 @@ export function currentHireBlocker(
    * a stored failure is the measured one and wins.
    */
   card?: { problem: CardProblem | null; readAt: string } | null,
-): (HireBlocker & { observedAt: string | null }) | null {
+): (HireBlocker & { observedAt: string | null; from: BlockerSource }) | null {
+  const dated = (blocker: HireBlocker | null, observedAt: string | null, from: BlockerSource) =>
+    blocker ? { ...blocker, observedAt, from } : null;
+
   if (quote && payable !== false) return null;
-  if (quote && payable === false) {
-    const blocker = hireBlocker({ code: 'payment-incompatible' });
-    return blocker ? { ...blocker, observedAt: quote.quotedAt } : null;
-  }
+  if (quote && payable === false) return dated(hireBlocker({ code: 'payment-incompatible' }), quote.quotedAt, 'sweep');
+
   const failed = getProbeStore().quoteFailureFor(agent.chain_id, agent.token_id);
   if (!failed) {
     if (!card?.problem) return null;
     /* Which code each read implies, including the one that must stay transient. */
     const { code, detail } = blockerCodeForCardProblem(card.problem);
-    const blocker = hireBlocker({ code, detail, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) });
-    return blocker ? { ...blocker, observedAt: card.readAt } : null;
+    return dated(hireBlocker({ code, detail, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) }), card.readAt, 'card');
   }
-  const blocker = hireBlocker({ code: failed.code, detail: failed.detail, sellerReason: failed.sellerReason, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) });
-  return blocker ? { ...blocker, observedAt: failed.observedAt } : null;
+  return dated(
+    hireBlocker({ code: failed.code, detail: failed.detail, sellerReason: failed.sellerReason, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) }),
+    failed.observedAt,
+    'sweep',
+  );
 }
 
 /**
@@ -61,7 +74,7 @@ export async function currentHireBlockerWithCard(
   payable: boolean | null,
   /** The agent's registered A2A endpoint, from its registry record. */
   endpoint: string | null | undefined,
-): Promise<(HireBlocker & { observedAt: string | null; from: 'sweep' | 'card' }) | null> {
+): Promise<(HireBlocker & { observedAt: string | null; from: BlockerSource }) | null> {
   /*
    * A quote an escrow can pay settles it, so no card is read.
    *
@@ -75,16 +88,15 @@ export async function currentHireBlockerWithCard(
    * the second decision null too.
    */
   if (quote && payable !== false) return null;
-  const onRecord = currentHireBlocker(agent, quote, payable);
   /*
-   * `from` travels with it because the two are not equally strong evidence
-   * and the code alone cannot tell them apart: `no-endpoint` and
-   * `no-price-skill` arrive from either. A caller that reports provenance
-   * has to be told, not left to guess from the code.
+   * `from` comes back with the blocker rather than being assigned here. A
+   * wrapper labelling everything that is not the card read as the sweep
+   * would be guessing, and would be wrong as soon as the decision grows a
+   * third source.
    */
-  if (onRecord) return { ...onRecord, from: 'sweep' };
+  const onRecord = currentHireBlocker(agent, quote, payable);
+  if (onRecord) return onRecord;
   const readAt = new Date().toISOString();
   const card = await readCardForPage(endpoint, agent.token_id).catch(() => null);
-  const fromCard = currentHireBlocker(agent, quote, payable, card ? { problem: card.problem, readAt } : null);
-  return fromCard ? { ...fromCard, from: 'card' } : null;
+  return currentHireBlocker(agent, quote, payable, card ? { problem: card.problem, readAt } : null);
 }

@@ -10,6 +10,14 @@ import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api
 import { currentHireBlockerWithCard } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
+/*
+ * This route calls the agent when no sweep has priced it (see
+ * `currentHireBlockerWithCard`), so it carries a bound like every other
+ * route that talks to a third party. The card read's own 2.5s budget does
+ * not cover the DNS lookup that precedes it, which is why the ceiling is
+ * here and not left implicit.
+ */
+export const maxDuration = 20;
 
 export function OPTIONS() {
   return apiOptions();
@@ -220,5 +228,14 @@ export async function GET(
       methodology: `${origin}/methodology`,
     },
     observedAt: new Date().toISOString(),
-  });
+  },
+  200,
+  /*
+   * A blocker from this request's own card read is not sweep-cycle data:
+   * it is dated to this request and may be a transient "could not check".
+   * The shared 30s/150s cache would re-serve one of those long after the
+   * agent started answering again.
+   */
+  { perRequest: blocker?.from === 'card' },
+  );
 }
