@@ -34,6 +34,7 @@ import { ReviewForm } from './ReviewForm';
 import { UsefulnessQuestion } from './UsefulnessQuestion';
 import { JobUpdates } from './JobUpdates';
 import { localMoment } from '@/lib/time/local-moment';
+import { releaseAllowed } from '@/lib/jobs/release';
 
 /**
  * Finds the job in this device's memory, or rebuilds it from chain. A job
@@ -350,13 +351,15 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
                   financial control.
                 */}
                 <span className="flex flex-col gap-1.5">
-                  <Button intent="primary" onClick={() => void a.act('approve')} busy={a.busy === 'approve'} disabled={!a.receiptVerified || review?.open === true}>
+                  <Button intent="primary" onClick={() => void a.act('approve', { reviewClosed: review?.open === false })} busy={a.busy === 'approve'} disabled={!releaseAllowed({ reviewOpen: review ? review.open : null, receiptVerified: a.receiptVerified, disputed: false }).allowed}>
                     {review?.open ? `Release opens ${review.closes}` : `Release ${escrowedAmount(job)} to ${job.agentName}`}
                   </Button>
                   <span className="max-w-xs text-[12px] leading-snug text-ink-3">
                     {review?.open
                       ? `The escrow will not release before then. Local time: ${localMoment(review.closesAt)}.`
-                      : 'This pays the agent from escrow now. It cannot be undone, and the delivery can no longer be disputed.'}
+                      : !a.receiptVerified && review?.open === false
+                        ? 'The receipt could not be checked just now, but the review window has closed with no dispute, so the escrow already accepts this delivery. This pays the agent now and cannot be undone.'
+                        : 'This pays the agent from escrow now. It cannot be undone, and the delivery can no longer be disputed.'}
                   </span>
                 </span>
                 <div className="flex flex-col gap-2 sm:items-end">

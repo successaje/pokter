@@ -93,6 +93,48 @@ export const RECENT_SWEEP_MS = 6 * 60 * 1000;
  */
 export const SWEEP_RUN_BUDGET_MS = 240_000;
 
+/**
+ * Held back from the run for the steps that must not be skipped.
+ *
+ * On 21 October a run reported `200` having spent 240s of 240s, timed out on
+ * `reconcileJobs`, and skipped the eighteen steps after it — among them
+ * `hireWatch`, `deliveryRetries`, `sellerNotices` and `stuckJobs`. A hire
+ * went undetected and a stuck delivery went unretried because an earlier
+ * step was handed the whole remainder and used it.
+ *
+ * The budget sheds work from the bottom, and its own note argues that is
+ * right because the route puts optional work last. That was true when
+ * written and stopped being true as maintenance accumulated below the cut
+ * line. Those four steps have consequences outside this process; none is
+ * sheddable.
+ *
+ * 40s of 240s, leaving 200s for everything ordinary. Runs were finishing in
+ * 185–193s, so the reservation costs nothing in the normal case and bites
+ * only when a run is already overrunning — which is when the critical steps
+ * were being lost.
+ */
+export const SWEEP_CRITICAL_RESERVE_MS = 40_000;
+
+/**
+ * The most any one critical step may spend.
+ *
+ * The reservation is shared, so without a cap the first critical step to
+ * hang consumes all 40s and starves the other three — the same fault with
+ * the victims narrowed from eighteen to three. A quarter each, so one
+ * hanging step costs its own turn and nobody else's.
+ */
+export const SWEEP_CRITICAL_STEP_MS = SWEEP_CRITICAL_RESERVE_MS / 4;
+
+/**
+ * The steps whose loss means the run did not do its job.
+ *
+ * One list, read both where the steps are marked and where a lost step is
+ * reported, because two lists would drift and the drift would be silent —
+ * a stage quietly stopping being critical is exactly the failure this whole
+ * change is about.
+ */
+export const CRITICAL_STAGES = ['hireWatch', 'deliveryRetries', 'sellerNotices', 'stuckJobs'] as const;
+
 /*
  * What bounds a single sweep. Here rather than beside `runSweep` because
  * `./sweep` is `server-only` and these numbers only mean anything in relation

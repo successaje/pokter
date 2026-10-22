@@ -1,4 +1,6 @@
 import 'server-only';
+import { mayStartSideEffect } from '@/lib/history/budget';
+import { mayAdvanceHireCursor } from '@/lib/alerts/hire-cursor';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 import { createPublicClient, http, type Address } from 'viem';
@@ -84,7 +86,9 @@ export interface HireWatchResult {
  * that already exists predates the watcher, and starting with a burst of
  * historical alerts is how an alerting channel gets muted on day one.
  */
-export async function checkForNewHires(): Promise<HireWatchResult> {
+export async function checkForNewHires(
+  { deadlineAt }: { deadlineAt?: number } = {},
+): Promise<HireWatchResult> {
   const store = getJobStore();
   const client = createPublicClient({
     chain: ALTANA_NETWORK.chain,
@@ -190,18 +194,36 @@ export async function checkForNewHires(): Promise<HireWatchResult> {
           `${explorerBaseFor(ALTANA_NETWORK.chainId)}/address/${s.client}`,
       )
       .join('\n\n');
-    const delivery = await sendOperatorAlert({
+    /*
+     * Not started without time to see it through. The caller's cap bounds
+     * how long it waits for this step, not what the step has set in motion,
+     * so an alert begun with no time left is one nobody watches land. Left
+     * unsent reads as `alerted: false`, which the sweep now classifies as
+     * maintenance that did not complete rather than as a success.
+     */
+    const delivery = mayStartSideEffect(deadlineAt)
+      ? await sendOperatorAlert({
       subject: `Pokter: ${outside.length} job${outside.length === 1 ? '' : 's'} from outside the team`,
       body:
         `${lines}\n\n` +
         'Each carries Pokter\'s job envelope and none of these clients is a ' +
         'declared team wallet, so these are hires made through Pokter by ' +
         'somebody else.',
-    });
+        })
+      : { telegram: 'skipped' as const, email: 'skipped' as const };
     alerted = delivery.telegram === 'sent' || delivery.email === 'sent';
   }
 
-  store.writeCursor(CURSOR, last.toString());
+  /*
+   * Only past hires somebody has been told about.
+   *
+   * Advancing regardless is what made the deadline guard above a data loss
+   * rather than a delay: the alert was skipped, the cursor moved, and those
+   * outside hires were never read again. See `mayAdvanceHireCursor`.
+   */
+  if (mayAdvanceHireCursor({ outsiders: outside.length, alerted })) {
+    store.writeCursor(CURSOR, last.toString());
+  }
 
   return {
     counter: counter.toString(),

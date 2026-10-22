@@ -1,4 +1,4 @@
-import { formatUnits } from 'viem';
+import { formatQuoted } from '@/lib/network/tokens';
 
 /**
  * The agent card an MCP host shows inline (MCP Apps, `ui://`), and the
@@ -17,9 +17,9 @@ export interface AgentCardData {
   name: string;
   chainId: number;
   tokenId: string;
-  /** The evidence step reached, e.g. "Delivered", and which steps are earned. */
+  /** The evidence step reached, e.g. "Delivered", and how far each step got. */
   step: string | null;
-  steps: Array<{ label: string; earned: boolean }>;
+  steps: Array<{ label: string; earned: boolean; partial?: boolean }>;
   price: { label: string; signed: boolean; current: boolean } | null;
   network: { label: string; money: string; real: boolean } | null;
   blocker: { reason: string; fix: string } | null;
@@ -34,7 +34,7 @@ type Detail = {
   name?: string;
   chainId?: number;
   tokenId?: string;
-  ladder?: { label?: string; steps?: Array<{ label?: string; earned?: boolean }> } | null;
+  ladder?: { label?: string; steps?: Array<{ label?: string; earned?: boolean; state?: string }> } | null;
   price?: { amountU?: number; current?: boolean; payable?: boolean | null } | null;
   hire?: { escrowChainId?: number | null } | null;
   hireBlocker?: { reason?: string; fix?: string } | null;
@@ -52,7 +52,7 @@ const short = (address: string) => (address.length > 12 ? `${address.slice(0, 6)
 
 export function buildAgentCard(
   detail: Detail,
-  { origin, brief = null, quote = null }: { origin: string; brief?: string | null; quote?: { priceRaw: string; signer: string; termsBound: boolean } | null },
+  { origin, brief = null, quote = null }: { origin: string; brief?: string | null; quote?: { priceRaw: string; currency?: string | null; signer: string; termsBound: boolean } | null },
 ): AgentCardData {
   const chainId = Number(detail.chainId);
   const tokenId = String(detail.tokenId ?? '');
@@ -65,21 +65,27 @@ export function buildAgentCard(
     chainId,
     tokenId,
     step: detail.ladder?.label ?? null,
-    steps: (detail.ladder?.steps ?? []).map((s) => ({ label: String(s.label ?? ''), earned: Boolean(s.earned) })),
+    /* A partial step is drawn as neither earned nor absent; see `agent-card-html`. */
+    steps: (detail.ladder?.steps ?? []).map((s) => ({
+      label: String(s.label ?? ''),
+      earned: Boolean(s.earned),
+      ...(s.state === 'partial' ? { partial: true } : {}),
+    })),
     /*
      * A quote fetched for this card is the price that holds now. The record's
      * stored price is older and has usually expired, so a card beside a
      * fresh quote used to call its own price "not current".
      */
     price: quote
-      ? { label: `${formatUnits(BigInt(quote.priceRaw), 18)} $U`, signed: true, current: true }
+      /* Read on the chain the currency settles on, never the one the agent is registered on (`settlementChainOf`). */
+      ? { label: formatQuoted(quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signed: true, current: true }
       : price ? { label: `${price.amountU} $U`, signed: true, current: Boolean(price.current) } : null,
     network: (() => {
       const network = networkOf(escrow);
       return network ? { label: network.label, money: network.money, real: network.real } : null;
     })(),
     blocker: detail.hireBlocker?.reason ? { reason: detail.hireBlocker.reason, fix: detail.hireBlocker.fix ?? `${origin}/build/integration` } : null,
-    quote: quote ? { price: `${formatUnits(BigInt(quote.priceRaw), 18)} $U`, signer: short(quote.signer), termsBound: quote.termsBound } : null,
+    quote: quote ? { price: formatQuoted(quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signer: short(quote.signer), termsBound: quote.termsBound } : null,
     brief,
     hireUrl: hire.href,
     pageUrl: detail.links?.html ?? `${origin}/agents/${chainId}/${tokenId}`,

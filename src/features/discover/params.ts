@@ -66,3 +66,14 @@ export function discoverHref(params: Partial<DiscoverParams>, base: DiscoverPara
   const s = sp.toString();
   return s ? `/discover?${s}` : '/discover';
 }
+
+/**
+ * The request form, with a search's words as the request's title: what
+ * Discover offers when nothing listed does the job. Trimmed to what a
+ * title holds; the form refuses nothing on its own account here.
+ */
+export function requestHrefFor(q: string): string {
+  const title = q.trim().slice(0, 120);
+  return title ? `/workspace/requests/new?title=${encodeURIComponent(title)}` : '/workspace/requests/new';
+}
+

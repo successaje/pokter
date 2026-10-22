@@ -634,7 +634,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                     <div key={row.id} className="flex flex-col gap-1 bg-raised px-4 py-3">
                       <dt className="text-[12px] text-ink-3">{row.label}</dt>
                       <dd className="flex flex-col gap-0.5">
-                        <span className={`text-[14px] font-medium ${row.tone === 'ok' ? 'text-ok' : row.tone === 'bad' ? 'text-bad' : 'text-ink'}`}>{row.value}</span>
+                        <span className={`text-[14px] font-medium ${row.tone === 'ok' ? 'text-ok' : row.tone === 'watch' ? 'text-watch' : row.tone === 'bad' ? 'text-bad' : 'text-ink'}`}>{row.value}</span>
                         <span className="text-[12.5px] leading-snug text-ink-3">{row.detail}</span>
                       </dd>
                     </div>

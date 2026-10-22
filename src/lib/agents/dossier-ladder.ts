@@ -44,6 +44,7 @@ export function dossierLadder(d: AgentDossier, escrowChain: number, { liveAnswer
     hired: history.jobs > 0,
     delivered: history.selfDelivered > 0,
     deliveredByOperator: history.operatorDelivered > 0,
+    deliveredViaPokter: history.relayedDelivered > 0,
     outsideTeam: history.outsideTeam,
     probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
     observedDays: record.observedDays,

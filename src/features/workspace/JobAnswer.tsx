@@ -173,6 +173,11 @@ export function JobAnswer({
               The agent hashed this record with its keys in sorted order, so the hash above (of the file as served) differs from the one on chain. Sorted the same way, it matches: the content is what the agent committed.
             </span>
           )}
+          {data.readable && data.matchedBy === 'canonical' && (
+            <span className="text-[12.5px] text-ink-3">
+              The agent hashed this record in the standard canonical form (keys sorted, accented and other non-ASCII characters escaped), so the hash above (of the file as served) differs from the one on chain. In that form it matches: the content is what the agent committed.
+            </span>
+          )}
           <span className="text-[12.5px] text-ink-3">The hash covers the bytes of the delivered record, not any file it links to, and says nothing about whether the answer is right.</span>
           <Button size="s" intent={verify.verified ? 'ghost' : 'secondary'} onClick={verify.run} busy={verify.busy} disabled={verify.verified} className="self-start">
             {verify.verified ? 'Checked: matches' : 'Check it against the chain'}

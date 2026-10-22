@@ -6,12 +6,15 @@ import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
 import { BRIEF_MIN, briefAcceptable, declaredBriefs } from '@/lib/hire/brief';
 import { declaredTaskProblems } from '@/lib/hire/task-fields';
+import { preflightHireBrief } from '@/lib/erc8183/hire-preflight';
+import { briefRefusalBody } from '@/lib/erc8183/skill-request';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { describeQuoteFailure, type QuoteFailure } from '@/lib/hire/failure';
+import { describeQuoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { getProbeStore } from '@/lib/history/store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -92,6 +95,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
   }
 
+  /*
+   * The structured request Pokter will send, settled before the escrow is
+   * funded rather than at delivery.
+   *
+   * Job 1585 was quoted here, signed, funded, and then failed delivery for
+   * a day because `agent_evidence` reads its subject from `data.agent` and
+   * nothing filled it. The same `skillRequestData` the courier uses decides
+   * it now, so a brief that cannot be turned into a request costs the buyer
+   * a message instead of a deadline. An agent whose skills Pokter cannot
+   * read is not refused — see `hire-preflight`.
+   */
+  const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
+  if (!preflight.ok) {
+    return NextResponse.json(
+      briefRefusalBody({ message: preflight.message, code: preflight.code, skill: preflight.skill, candidates: preflight.candidates }),
+      { status: 400 },
+    );
+  }
+
   let refusal: string | null = null;
   let failure: QuoteFailure | null = null;
   const quote = await requestQuote(agent, {
@@ -106,7 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   });
   if (!quote && failure) {
     // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
-    const known = failure as QuoteFailure;
+    const known = withRecentQuote(failure as QuoteFailure, getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
     const { message, status } = describeQuoteFailure(known.code === 'seller-declined' && refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
     return NextResponse.json({ error: message, layer: known.layer, code: known.code, retryable: known.retryable }, { status });
   }
@@ -211,6 +233,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     escrowChainId,
     /* The exact text the signature covers, so the caller funds that and not a variant. */
     task,
+    /*
+     * What Pokter will ask, beyond the brief itself: the skill it resolved
+     * and the subject it read out of the brief. Shown to the buyer so the
+     * request they are funding is the request they can see.
+     */
+    request: { skill: preflight.skill, subject: preflight.subject },
     observedAt: new Date().toISOString(),
   });
 }

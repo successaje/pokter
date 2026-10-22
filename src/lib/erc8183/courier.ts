@@ -4,6 +4,7 @@ import { readAgentCard } from '@/lib/agents/agent-card';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
+import { outboundBriefData, outboundParts, skillRequestData } from './skill-request';
 import type { PokterJobEnvelope } from './job-envelope';
 import { extractAnswer, isPaidOnlyRefusal, isQuoteReply, pickWorkSkill, type AgentAnswer, type SkillChoice } from './courier-parse';
 import { notAnAnswer, readA2AReply } from '@/lib/a2a/reply';
@@ -66,15 +67,13 @@ export async function sendPreparedBrief(
   brief: { text: string; data?: Record<string, unknown> },
   { timeoutMs = 20_000, dataOnly = false }: { timeoutMs?: number; dataOnly?: boolean } = {},
 ): Promise<CourierResult> {
-  const briefData = {
-    skill: agent.skill.id,
-    task: brief.text,
-    task_description: brief.text,
+  /* Assembled in `skill-request` so the body a test asserts is this body. */
+  const briefData = outboundBriefData({
+    skillId: agent.skill.id,
     category: agent.category,
-    read_only: true,
-    constraints: 'Read-only analysis. Execute no transaction and move no funds.',
-    ...brief.data,
-  };
+    task: brief.text,
+    data: brief.data,
+  });
   const askedAt = new Date().toISOString();
   const started = Date.now();
   const rpcId = crypto.randomUUID();
@@ -90,8 +89,7 @@ export async function sendPreparedBrief(
           message: {
             role: 'user',
             messageId: crypto.randomUUID(),
-            // Some agents accept exactly one structured part; dataOnly sends that.
-            parts: dataOnly ? [{ kind: 'data', data: briefData }] : [{ kind: 'text', text: brief.text }, { kind: 'data', data: briefData }],
+            parts: outboundParts({ task: brief.text, briefData }, { dataOnly }),
           },
           configuration: { acceptedOutputModes: ['application/json', 'text/plain'], blocking: true },
         },
@@ -138,6 +136,42 @@ export async function sendPreparedBrief(
  * the buyer reclaims, which is the honest outcome.
  */
 export async function askAgent(envelope: PokterJobEnvelope, jobId: string, options: { timeoutMs?: number } = {}): Promise<CourierResult> {
-  const agent = await prepareAgent({ chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category });
-  return sendPreparedBrief(agent, { text: envelope.task, data: { protocol: 'pokter-job', job_id: Number(jobId) } }, options);
+  return askAgentByIdentity(
+    { chainId: envelope.identity.chainId, tokenId: envelope.identity.tokenId, category: envelope.category, task: envelope.task },
+    jobId,
+    options,
+  );
+}
+
+/**
+ * The same ask, addressed by identity rather than by an envelope.
+ *
+ * A reference-format job carries no envelope — that is the whole of its
+ * difference — and its identity is established from Pokter's index and the
+ * registry instead. Synthesising an envelope to pass through here would mean
+ * building the one structure whose absence is the thing being handled, so
+ * the four fields `askAgent` actually used are taken directly.
+ */
+export async function askAgentByIdentity(
+  brief: { chainId: number; tokenId: string; category: string; task: string },
+  jobId: string,
+  options: { timeoutMs?: number } = {},
+): Promise<CourierResult> {
+  const agent = await prepareAgent({ chainId: brief.chainId, tokenId: brief.tokenId, category: brief.category });
+  /*
+   * The structured request this skill is actually sent, decided by the same
+   * code the quote route runs before the escrow is funded.
+   *
+   * `agent_evidence` reads its subject from `data.agent`. Sending prose
+   * alone made it fall back to parsing the whole task description as a
+   * reference and answer 400: job 1585 failed that way on every run for a
+   * day with its escrow funded. The subject is read from the signed brief,
+   * which names it outright, and a brief that names none or names two is
+   * refused rather than chosen between on the buyer's behalf. The full
+   * brief still travels as `task` and `task_description`.
+   */
+  const request = skillRequestData({ skillId: agent.skill.id, task: brief.task, jobId });
+  if (!request.ok) throw new NotAskableError(request.message);
+
+  return sendPreparedBrief(agent, { text: brief.task, data: request.data }, options);
 }

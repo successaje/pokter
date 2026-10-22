@@ -14,10 +14,16 @@ import type { Address } from 'viem';
 import { correctedErc8183Addresses } from './addresses';
 
 import { DELIVERY_WINDOW_SECONDS, jobLifetimeSeconds } from './deadline';
+import { formatAmount, requireDecimals } from '@/lib/network/tokens';
 import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/altana/client';
 import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
 import { isThisHire } from './hire-confirm';
+import { askIfAgentTakesBrief } from './brief-acceptance';
+import { preflightHireBrief } from './hire-preflight';
+import { getAgent } from '@/lib/scan/client';
+import type { BriefRefusalCode } from './skill-request';
+import type { ChainId } from '@/lib/scan/types';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -103,6 +109,19 @@ export class InsufficientPaymentTokenError extends Error {
   }
 }
 
+/** A brief the resolved skill cannot read, refused before the escrow is funded. */
+export class BriefNotDeliverableError extends Error {
+  constructor(
+    readonly code: BriefRefusalCode,
+    readonly skill: string | null,
+    message: string,
+    readonly candidates: string[],
+  ) {
+    super(message);
+    this.name = 'BriefNotDeliverableError';
+  }
+}
+
 function publicClient() {
   return createPublicClient({
     chain: ALTANA_NETWORK.chain,
@@ -139,7 +158,7 @@ export async function paymentTokenBalance(wallet: Address): Promise<string> {
     functionName: 'balanceOf',
     args: [wallet],
   });
-  return formatUnits(balance, 18);
+  return formatUnits(balance, requireDecimals(ALTANA_NETWORK.chainId, paymentToken));
 }
 
 /**
@@ -150,14 +169,72 @@ export async function paymentTokenBalance(wallet: Address): Promise<string> {
  * fact we can establish cheaply beforehand.
  */
 export async function hireAgent(input: HireInput): Promise<HiredJob> {
+  /*
+   * Asked before anything is spent.
+   *
+   * This is the path that funded job 1585: a brief `agent_evidence` could
+   * not read, escrowed for a day and delivered only once the courier
+   * started filling the field the skill reads. The same decision is made
+   * here, by the same code, while the money is still the buyer's.
+   *
+   * Only when the registry chain is known, because the agent cannot be read
+   * without it and `agentChainId` is deliberately never defaulted to the
+   * escrow chain (see `HireInput`). An agent Pokter cannot read is a hire it
+   * cannot judge, not a hire to refuse.
+   */
+  if (input.agentChainId !== undefined) {
+    const chainId = input.agentChainId as ChainId;
+    const agent = await getAgent(chainId, input.agentTokenId).catch(() => null);
+    const preflight = await preflightHireBrief({ chainId, tokenId: input.agentTokenId, task: input.task, agent });
+    if (!preflight.ok) {
+      throw new BriefNotDeliverableError(preflight.code, preflight.skill, preflight.message, preflight.candidates);
+    }
+
+    /*
+     * And the agent's own answer on whether it will take the brief.
+     *
+     * The check above speaks only for skills Pokter has an adapter for.
+     * Nothing in the catalogue publishes an input contract to check the
+     * rest against — so the question goes to the agent, over its own
+     * `negotiate` skill, with the text about to be committed on chain. It
+     * fails open on everything but an explicit decline.
+     */
+    if (agent) {
+      const accepted = await askIfAgentTakesBrief(agent, input.task);
+      if (!accepted.ok) {
+        throw new BriefNotDeliverableError(
+          'brief-declined',
+          preflight.skill,
+          accepted.reason
+            ? `${agent.name || `Agent #${input.agentTokenId}`} declined this brief: \u201c${accepted.reason}\u201d`
+            : `${agent.name || `Agent #${input.agentTokenId}`} declined this brief without saying why.`,
+          [],
+        );
+      }
+    }
+  }
+
   const client = altanaClient();
   const signer = adminSigner('legacy-hire');
   const wallet = await client.createWallet({ signer });
 
-  const budget = parseUnits(String(input.budgetU), 18);
+  /*
+   * Scale from the token, not from a literal.
+   *
+   * Every token either escrow currently settles in has eighteen decimals, so
+   * this computes the same amount it did before. It stops being the same the
+   * first time an amount is denominated in something else: testnet USDC has
+   * six, and a literal 18 against it would approve and transfer an amount
+   * 10^12 too large. `requireDecimals` throws on a token Pokter has not
+   * verified rather than falling back, because there is no safe default
+   * scale for money.
+   */
+  const { paymentToken: hireToken } = correctedErc8183Addresses(ALTANA_NETWORK.chainId);
+  const decimals = requireDecimals(ALTANA_NETWORK.chainId, hireToken);
+  const budget = parseUnits(String(input.budgetU), decimals);
   const held = await paymentTokenBalance(wallet.address);
 
-  if (parseUnits(held, 18) < budget) {
+  if (parseUnits(held, decimals) < budget) {
     throw new InsufficientPaymentTokenError(held, String(input.budgetU));
   }
 
@@ -328,8 +405,22 @@ export function listJobs(): HiredJob[] {
   return getJobStore().all();
 }
 
+/**
+ * A job's budget, in the money it was funded in.
+ *
+ * Every job on record was created through `createJob`, which funds in the
+ * escrow's default token, so the chain's default is the right token for all
+ * of them. That holds for existing rows under the current deployment and
+ * default token; it is not a guarantee about an upgradeable contract, and it
+ * stops holding the moment a hire is placed with `createJobWithToken`. When
+ * that happens the job needs its token recorded — see the note in
+ * `lib/network/tokens` — and this function needs to read it rather than
+ * infer it.
+ */
 export function formatBudget(job: HiredJob): string {
-  return `${formatUnits(BigInt(job.budgetRaw), 18)} $U`;
+  const { paymentToken } = correctedErc8183Addresses(job.chainId);
+  return formatAmount(job.chainId, paymentToken, job.budgetRaw)?.label
+    ?? `${job.budgetRaw} raw units`;
 }
 
 /**
@@ -390,5 +481,5 @@ export async function reclaimJob(jobId: string): Promise<{ jobId: string; transa
     });
   }
 
-  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, 18) };
+  return { jobId, transactionHash: result.transactionHash ?? null, budget: formatUnits(onchain.budget, requireDecimals(ALTANA_NETWORK.chainId, correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken)) };
 }

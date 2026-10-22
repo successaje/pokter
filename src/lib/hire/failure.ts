@@ -35,6 +35,37 @@ export interface QuoteFailure {
   /** The seller's own words, when it gave any. */
   sellerReason?: string;
   detail?: string;
+  /** When this agent last signed a price for Pokter, if recently: a refusal now then reads as a passing block, not a closed door. */
+  signedRecentlyAt?: string;
+  /**
+   * How long before the refusal that was, in minutes, worked out by
+   * `withRecentQuote` on the same clock that judged it recent. The message
+   * reads this rather than the clock again, so "40 minutes ago" is the age
+   * the decision was made on, not whatever the clock says when the text is
+   * built.
+   */
+  signedMinutesAgo?: number;
+}
+
+/** How recent a signed price has to be for a 401/403 to read as temporary. */
+export const RECENT_QUOTE_MS = 24 * 3_600_000;
+
+/**
+ * A credential refusal from an agent that signed a price for Pokter within
+ * the last day is not taken at its word.
+ *
+ * Mandate Guard-1 answered a buyer's brief with HTTP 403 on 21 October, and
+ * the hire page said its endpoint requires credentials and it cannot be
+ * hired through Pokter, while the sweep had a signed price from it forty
+ * minutes earlier and a quote minutes later worked. A firewall or rate
+ * limit in front of an open endpoint answers 403 too; the message has to
+ * leave room for that and let the buyer try again.
+ */
+export function withRecentQuote(failure: QuoteFailure, lastQuotedAt: string | null | undefined, nowMs = Date.now()): QuoteFailure {
+  if (failure.code !== 'auth-required' || !lastQuotedAt) return failure;
+  const at = Date.parse(lastQuotedAt);
+  if (!Number.isFinite(at) || nowMs - at > RECENT_QUOTE_MS) return failure;
+  return { ...failure, retryable: true, signedRecentlyAt: lastQuotedAt, signedMinutesAgo: Math.max(1, Math.round((nowMs - at) / 60_000)) };
 }
 
 /** Every code, in the order the integration kit lists them. */
@@ -76,6 +107,14 @@ export function classifyQuoteError(error: unknown): QuoteFailure {
   if (status === '401' || status === '403') return quoteFailure('auth-required', { detail: `HTTP ${status}` });
   if (status === '429') return quoteFailure('rate-limited', { detail: 'HTTP 429' });
   if (status) return quoteFailure('http-error', { detail: `HTTP ${status}` });
+  /*
+   * The card answered and names nowhere to send a brief: no A2A interface,
+   * so `readAgentCard` refuses it. That is the agent's listing, not the
+   * network, and asking again changes nothing. It fell through to
+   * "could not be reached, try again shortly" for hwayongjin.agent
+   * (56:300282), whose platform card says UNBOUND, offline, endpoint null.
+   */
+  if (/answered, but not with an agent card/i.test(message)) return quoteFailure('no-endpoint', { detail: 'card-without-interface' });
   if (/timeout|aborted/i.test(message)) return quoteFailure('timeout');
   if (/signature|signer|recover/i.test(message)) return quoteFailure('bad-signature', { detail: message.slice(0, 160) });
   return quoteFailure('unreachable', { detail: message.slice(0, 160) });
@@ -89,10 +128,20 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
     case 'seller-not-ready':
       return { status: 409, message: `${agentName} accepted the request but has not produced a price yet. Try again shortly; nothing has been paid.` };
     case 'no-endpoint':
+      if (failure.detail === 'card-without-interface') {
+        return { status: 409, message: `${agentName}'s agent card answers but names no service to send a brief to, so it cannot quote a price. Its operator has listed it without connecting a running agent; nothing has been paid.` };
+      }
       return { status: 409, message: `${agentName} publishes no agent card Pokter can reach, so it cannot quote a price.` };
     case 'no-price-skill':
       return { status: 409, message: `${agentName} does not offer a priced job (its card has no negotiate skill), so it cannot be hired through escrow.` };
     case 'auth-required':
+      if (failure.signedRecentlyAt && failure.signedMinutesAgo !== undefined) {
+        const ago = failure.signedMinutesAgo;
+        return {
+          status: 503,
+          message: `${agentName} refused this request${failure.detail ? ` (${failure.detail})` : ''}, though it signed a price for Pokter ${ago < 90 ? `${ago} minutes` : `${Math.round(ago / 60)} hours`} ago, so this looks like a temporary block on its side. Try again in a minute; nothing has been paid.`,
+        };
+      }
       return { status: 409, message: `${agentName}'s endpoint requires credentials Pokter does not hold${failure.detail ? ` (${failure.detail})` : ''}. It cannot be hired through Pokter.` };
     case 'rate-limited':
       return { status: 503, message: `${agentName} is limiting requests right now. Try again in a minute; nothing has been paid.` };

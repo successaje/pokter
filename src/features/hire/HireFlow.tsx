@@ -618,6 +618,38 @@ export function HireFlow(props: HireFlowProps) {
           )}
 
           {/*
+            What Pokter will ask, beside the brief itself.
+
+            One agent's skill reads its subject from a structured field
+            rather than from the prose, and job 1585 was funded with a brief
+            that named its subject only in words: nothing filled the field,
+            the agent could not read the request, and the escrow sat for a
+            day. The field is filled now and a brief that names no subject
+            is refused before this step — so what is left to say is which
+            agent the report will be about, while the brief can still change.
+
+            Resolved for the brief as written, on both hire paths — the
+            quote carries it where there is one, and `/api/hire/preflight`
+            answers it where Pokter's seller carries the brief instead. Any
+            edit to the brief clears it rather than leaving it describing a
+            request Pokter would no longer make.
+          */}
+          {hire.reviewRequest?.subject && (
+            <p className="text-[13px] text-ink-2">
+              <span className="font-medium text-ink">What {props.agent.name} will be asked: </span>
+              a report on agent{' '}
+              <span className="font-mono text-ink">{hire.reviewRequest.subject.value}</span>
+              {hire.reviewRequest.skill ? (
+                <>
+                  , through the <span className="font-mono text-ink">{hire.reviewRequest.skill}</span> skill it
+                  publishes
+                </>
+              ) : null}
+              . Your brief is sent whole alongside it.
+            </p>
+          )}
+
+          {/*
             Said before the first signature, not discovered at it.
 
             When the wallet is short on $U the hire now buys the shortfall

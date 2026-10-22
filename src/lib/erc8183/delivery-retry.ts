@@ -1,4 +1,6 @@
 import 'server-only';
+import { mayStartSideEffect } from '@/lib/history/budget';
+import { deliveryDiagnosticLine, type DeliveryPhase } from '@/lib/erc8183/delivery-diagnostics';
 
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -41,18 +43,38 @@ export interface DeliveryRetryOutcome {
   reason?: string;
 }
 
-export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
+export async function retryStuckDeliveries(
+  { deadlineAt }: { deadlineAt?: number } = {},
+): Promise<DeliveryRetryOutcome[]> {
   const candidates = getJobStore()
     .all()
     .filter(
       (job) => job.chainId === ALTANA_NETWORK.chainId && job.status === 'FUNDED',
     );
 
+  const runAt = new Date().toISOString();
   const results: DeliveryRetryOutcome[] = [];
 
   for (const job of candidates) {
     if (results.filter((r) => r.action !== 'skipped').length >= MAX_PER_RUN) break;
+    /*
+     * Stop starting new ones when the caller's time is nearly up.
+     *
+     * The work below submits a transaction. The sweep's budget bounds how
+     * long it will *wait* for this step, not what the step has set in
+     * motion, so a delivery begun with a second left is one nobody is
+     * watching land. Checked at the top of the loop rather than mid-item: a
+     * delivery already submitted is finished by the chain, and what must be
+     * avoided is starting another.
+     */
+    if (!mayStartSideEffect(deadlineAt)) break;
 
+    /*
+     * How far this attempt got, for the diagnostic line below. It advances
+     * and is never read by the retry logic, so the behaviour above and below
+     * is exactly what it was.
+     */
+    let phase: DeliveryPhase = 'read';
     try {
       /*
        * Re-read from chain rather than trusting the index. The index is
@@ -60,6 +82,7 @@ export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
        * thing about to happen writes a transaction.
        */
       const onchain = await getErc8183Job(ALTANA_NETWORK, BigInt(job.jobId));
+      phase = 'eligibility';
 
       const decision = shouldRetryDelivery(
         {
@@ -70,6 +93,9 @@ export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
         Date.now(),
       );
       if (!decision.retry) {
+        console.info(deliveryDiagnosticLine({
+          chainId: job.chainId, jobId: job.jobId, phase, action: 'skipped', reason: decision.reason, at: runAt,
+        }));
         results.push({
           jobId: job.jobId,
           action: 'skipped',
@@ -78,13 +104,42 @@ export async function retryStuckDeliveries(): Promise<DeliveryRetryOutcome[]> {
         continue;
       }
 
-      await submitDemoDeliverable(job.jobId);
+      /*
+       * Rechecked here, against the clock as it is now.
+       *
+       * The check at the top of the loop was passed before the escrow read
+       * above, and that read is a network call: it can return well after the
+       * deadline, and submitting then starts a transaction with no time left
+       * to see it land. The reads are the slow part, so the only check that
+       * means anything is the one immediately before the write.
+       */
+      if (!mayStartSideEffect(deadlineAt)) {
+        results.push({ jobId: job.jobId, action: 'skipped', reason: 'out of time before submitting' });
+        break;
+      }
+
+      phase = 'submit';
+      const delivered = await submitDemoDeliverable(job.jobId);
+      /* The hash comes from the transaction result, never from parsing an
+         error: see the note on `txHash` in `delivery-diagnostics`. */
+      console.info(deliveryDiagnosticLine({
+        chainId: job.chainId, jobId: job.jobId, phase, action: 'delivered', txHash: delivered.submitTxHash, at: runAt,
+      }));
       results.push({ jobId: job.jobId, action: 'delivered' });
     } catch (error) {
       /*
        * A failure here is reported and left for the next sweep. The job is
        * still funded and still in range; nothing has been lost by trying.
        */
+      /*
+       * The line this whole change exists for. The reason was already
+       * captured here and then discarded with the results array; now it is
+       * said once, with the phase that reached it, redacted by
+       * `sanitiseFailureReason`.
+       */
+      console.error(deliveryDiagnosticLine({
+        chainId: job.chainId, jobId: job.jobId, phase, action: 'failed', reason: error, at: runAt,
+      }));
       results.push({
         jobId: job.jobId,
         action: 'failed',

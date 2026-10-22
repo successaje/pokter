@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { summariseEconomicHistory } from '../src/lib/erc8183/economic-history.js';
 import type { HiredJob } from '../src/lib/erc8183/types.js';
+import { carriesRelayedAnswerFor, readDeliveredManifest } from '../src/lib/agent/delivery-kind.js';
 
 function job(status: HiredJob['status'], budgetRaw = '100000000000000000', client?: HiredJob['client']): HiredJob {
   return {
@@ -138,4 +139,128 @@ test('a mix is split by who owed each job, and nothing is dropped', () => {
   assert.equal(history.missed, 2);
   assert.equal(history.operatorMissed, 1);
   assert.equal(history.missed + history.operatorMissed, history.expired, 'every expired job lands in exactly one of the two');
+});
+
+test('a courier delivery carrying the agent’s answer is counted apart from a bare operator one', () => {
+  /*
+   * Job 97/1585: Pokter Evidence answered over A2A and the courier
+   * submitted the manifest. Both jobs below have a Pokter wallet as
+   * provider, so the provider address alone cannot tell them apart — the
+   * manifest can, and `relayedDelivered` is the half it identifies.
+   */
+  const carried = { ...owed('COMPLETED', POKTER), jobId: '1585' };
+  const bare = { ...owed('COMPLETED', POKTER), jobId: '1586' };
+  const history = summariseEconomicHistory([carried, bare], Date.now(), {
+    isRelayedDelivery: (j) => j.jobId === '1585',
+  });
+
+  assert.equal(history.operatorDelivered, 2, 'both were submitted by a Pokter wallet');
+  assert.equal(history.relayedDelivered, 1, 'one of them carried the agent’s own answer');
+  assert.equal(history.selfDelivered, 0, 'and neither is the agent submitting for itself');
+  assert.ok(history.relayedDelivered <= history.operatorDelivered, 'a refinement of the split, not a redrawing of it');
+});
+
+test('a courier delivery from an undeclared wallet is still not the agent’s own', () => {
+  /*
+   * The gap the first pass left. Withholding credit rested entirely on the
+   * courier's wallet being in `TEAM_WALLETS`, which it is today only
+   * because the courier signs with the operator key. Signing from a wallet
+   * nobody had listed read as the agent delivering from its own wallet —
+   * full credit, and the `delivered` milestone, for Pokter's work.
+   *
+   * The manifest settles it without the list.
+   */
+  const history = summariseEconomicHistory([owed('COMPLETED', AGENT)], Date.now(), {
+    isRelayedDelivery: () => true,
+  });
+  assert.equal(history.selfDelivered, 0, 'no credit for a delivery the manifest shows Pokter carried');
+  assert.equal(history.operatorDelivered, 1, 'and it is counted against Pokter instead');
+  assert.equal(history.relayedDelivered, 1);
+});
+
+test('a courier delivery with no recorded provider is Pokter’s, not nobody’s', () => {
+  /*
+   * An unknown address is no evidence either way, but the manifest is
+   * positive evidence of a courier, so it decides on its own.
+   */
+  const unknown = { ...job('COMPLETED'), provider: undefined as unknown as HiredJob['provider'] };
+  const history = summariseEconomicHistory([unknown], Date.now(), { isRelayedDelivery: () => true });
+  assert.equal(history.selfDelivered, 0);
+  assert.equal(history.operatorDelivered, 1);
+  assert.equal(history.relayedDelivered, 1);
+});
+
+test('the two tests for a delivery are independent, and the agent must pass both', () => {
+  const cases = [
+    { provider: AGENT, relayed: false, selfDelivered: 1, operatorDelivered: 0 },
+    { provider: AGENT, relayed: true, selfDelivered: 0, operatorDelivered: 1 },
+    { provider: POKTER, relayed: false, selfDelivered: 0, operatorDelivered: 1 },
+    { provider: POKTER, relayed: true, selfDelivered: 0, operatorDelivered: 1 },
+  ];
+  for (const { provider, relayed, ...expected } of cases) {
+    const where = `${provider === AGENT ? 'agent' : 'Pokter'} wallet, relayed=${relayed}`;
+    const history = summariseEconomicHistory([owed('COMPLETED', provider)], Date.now(), {
+      isRelayedDelivery: () => relayed,
+    });
+    assert.deepEqual(
+      { selfDelivered: history.selfDelivered, operatorDelivered: history.operatorDelivered },
+      expected,
+      where,
+    );
+    assert.equal(history.relayedDelivered, relayed ? 1 : 0, where);
+  }
+});
+
+test('an undelivered job is never relayed, so the miss split is untouched', () => {
+  /*
+   * `relayedDelivery` is consulted only for deliveries, and a manifest
+   * exists only once something was submitted — so blame for a lapsed job
+   * still turns on the provider alone.
+   */
+  const history = summariseEconomicHistory([owed('EXPIRED', AGENT), owed('EXPIRED', POKTER)], Date.now(), {
+    isRelayedDelivery: () => true,
+  });
+  assert.equal(history.missed, 1, 'the agent still owns its own lapse');
+  assert.equal(history.operatorMissed, 1);
+  assert.equal(history.relayedDelivered, 0);
+});
+
+test('without the manifest predicate nothing is assumed to be relayed', () => {
+  const history = summariseEconomicHistory([owed('COMPLETED', POKTER)]);
+  assert.equal(history.operatorDelivered, 1);
+  assert.equal(history.relayedDelivered, 0, 'an unread manifest is not evidence of a carried answer');
+});
+
+test('a stored manifest that is not an object does not break an agent’s record', () => {
+  /*
+   * The regression, through the path that reads it rather than through the
+   * parser alone. `credited-history` builds these two predicates from
+   * `readDeliveredManifest` and hands them to this summary; every agent
+   * page and API reports its record through it. A stored `null` threw on
+   * the first property read, so one unreadable manifest took out the whole
+   * record rather than counting as nothing known about that job.
+   */
+  const stored = new Map<string, string>([
+    ['a', 'null'],
+    ['b', '[]'],
+    ['c', '"a string"'],
+    ['d', JSON.stringify({ metadata: { producer: 'Pokter delivery agent (courier)', answered_by: '56:1' }, response: { content: JSON.stringify({ answer: {}, answered_by: {} }) } })],
+  ]);
+  const jobs = [...stored.keys()].map((key) => ({ ...job('COMPLETED'), jobId: key }));
+  const manifestOf = (id: string) => {
+    const text = stored.get(id);
+    return text === undefined ? null : readDeliveredManifest(text);
+  };
+
+  const history = summariseEconomicHistory(jobs, Date.now(), {
+    isLifecycleDemo: (j) => manifestOf(j.jobId)?.kind === 'lifecycle',
+    isRelayedDelivery: (j) =>
+      carriesRelayedAnswerFor(manifestOf(j.jobId), { chainId: j.agentChainId, tokenId: j.agentTokenId }),
+  });
+
+  assert.equal(history.jobs, 4, 'every job is still counted');
+  assert.equal(history.delivered, 4);
+  /* Only the readable one is credited as a carried answer; the three
+     unreadable manifests are nothing known, not a default either way. */
+  assert.equal(history.relayedDelivered, 1);
 });
