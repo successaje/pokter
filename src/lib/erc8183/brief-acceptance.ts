@@ -44,7 +44,8 @@ export type BriefAcceptance =
    * failure code rather than as an acceptance.
    */
   | { ok: true; answered: boolean; failure: string | null }
-  | { ok: false; reason: string };
+  /** The seller's own words, when it gave any. A decline is a decline either way. */
+  | { ok: false; reason: string | null };
 
 export async function askIfAgentTakesBrief(
   agent: ScanAgentDetail,
@@ -72,12 +73,18 @@ export async function askIfAgentTakesBrief(
 
   /*
    * A decline that arrived as a failure rather than through `onRefused`
-   * still carries the seller's words, and still means the agent said no.
-   * Every other failure code is Pokter being unable to ask.
+   * still means the agent said no. Every other failure code is Pokter being
+   * unable to ask.
+   *
+   * Whether words came with it changes what the buyer is told, not whether
+   * the hire proceeds. Requiring a reason let a mainnet agent decline and be
+   * funded anyway — 56/269228 answered `seller-declined` with nothing
+   * readable attached, and the brief went through the check it had just
+   * failed. A silent no is still a no.
    */
   const reported = failure as QuoteFailure | null;
-  if (reported?.code === 'seller-declined' && reported.sellerReason) {
-    return { ok: false, reason: reported.sellerReason };
+  if (reported?.code === 'seller-declined') {
+    return { ok: false, reason: reported.sellerReason ?? null };
   }
 
   return { ok: true, answered: quote !== null, failure: quote === null ? (reported?.code ?? 'no-answer') : null };

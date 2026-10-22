@@ -205,7 +205,9 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
         throw new BriefNotDeliverableError(
           'brief-declined',
           preflight.skill,
-          `${agent.name || `Agent #${input.agentTokenId}`} declined this brief: \u201c${accepted.reason}\u201d`,
+          accepted.reason
+            ? `${agent.name || `Agent #${input.agentTokenId}`} declined this brief: \u201c${accepted.reason}\u201d`
+            : `${agent.name || `Agent #${input.agentTokenId}`} declined this brief without saying why.`,
           [],
         );
       }

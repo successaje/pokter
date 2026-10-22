@@ -292,11 +292,33 @@ test('only an explicit decline blocks a hire', () => {
    */
   const acceptance = code('lib/erc8183/brief-acceptance.ts');
   assert.match(acceptance, /if \(refusal\) return \{ ok: false/);
-  assert.match(acceptance, /code === 'seller-declined' && reported\.sellerReason/);
+  assert.match(acceptance, /code === 'seller-declined'/);
   assert.match(acceptance, /return \{ ok: true, answered: quote !== null/);
   // "answered" and "could not be asked" stay separate facts, so an unchecked
   // brief is never reported as a checked one.
   assert.match(acceptance, /failure: quote === null \? \(reported\?\.code \?\? 'no-answer'\)/);
   // The price is an acceptance signal here, not a payment: it is not returned.
   assert.ok(!/priceU|priceRaw|negotiationHash/.test(acceptance), 'no price is carried out of the check');
+});
+
+test('a decline with no reason attached is still a decline', () => {
+  /*
+   * Found on mainnet rather than reasoned about: 56/269228 answered
+   * `seller-declined` with nothing readable attached, and the brief passed
+   * the check it had just failed, because the refusal was conditional on
+   * the seller's words being present. Words change what the buyer is told,
+   * not whether the hire proceeds.
+   */
+  const acceptance = code('lib/erc8183/brief-acceptance.ts');
+  assert.match(acceptance, /if \(reported\?\.code === 'seller-declined'\) \{\s*return \{ ok: false, reason: reported\.sellerReason \?\? null \};/);
+  assert.ok(
+    !/seller-declined' && reported\.sellerReason/.test(acceptance),
+    'the refusal is not conditional on a reason being given',
+  );
+
+  // And both surfaces word the silent case rather than quoting an empty string.
+  for (const path of ['app/api/hire/preflight/route.ts', 'lib/erc8183/hire.ts']) {
+    assert.match(code(path), /declined this brief without saying why/, path);
+    assert.match(code(path), /accepted\.reason\s*\n?\s*\?/, `${path} chooses by whether there are words`);
+  }
 });
