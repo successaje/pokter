@@ -13,6 +13,8 @@ import {
 } from '@/lib/erc8183/hire';
 import { AltanaNotConfiguredError, IS_TESTNET } from '@/lib/altana/client';
 import { requireDemoWriteAccess } from '@/lib/security/demo-write';
+import { registryIdentityFrom } from '@/lib/hire/registry-identity';
+import { briefRefusalBody } from '@/lib/erc8183/skill-request';
 
 export const dynamic = 'force-dynamic';
 /** Hiring batches five contract calls through the relay and waits for FUNDED. */
@@ -78,12 +80,12 @@ export async function POST(request: Request): Promise<NextResponse> {
    * The raw fallback stays for exactly that seller — the unregistered
    * reference one, hired with a non-numeric token id.
    */
-  const identityChainId = Number(body.identityChainId ?? 0);
+  const identity = registryIdentityFrom(body);
   let description: string | undefined;
-  if (/^\d+$/.test(agentTokenId) && Number.isSafeInteger(identityChainId) && identityChainId > 0) {
+  if (identity) {
     try {
       description = encodePokterJobEnvelope({
-        identityChainId,
+        identityChainId: identity.identityChainId,
         agentTokenId,
         agentName: agentName || undefined,
         category: String(body.category ?? '').trim() || 'Uncategorised',
@@ -115,6 +117,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       agentName: agentName || 'Unnamed agent',
       agentTokenId: agentTokenId || 'unknown',
       budgetU,
+      /*
+       * The registration the envelope was written for, passed on.
+       *
+       * Without it the row stores a NULL registry chain — the defect
+       * `HireInput` documents — and `hireAgent` cannot read the agent's
+       * skills, so the brief preflight could not run on the very path that
+       * funded job 1585. The same `identity` both uses, so the envelope's
+       * registration and the preflight's are one registration.
+       */
+      ...(identity ? { agentChainId: identity.identityChainId } : {}),
     });
     return NextResponse.json({ job });
   } catch (error) {
@@ -122,14 +134,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       /* The brief is the thing to fix, so it is an input refusal and not a
          gateway failure — the same shape the quote route returns. */
       return NextResponse.json(
-        {
-          error: error.message,
-          layer: 'input',
-          code: error.code,
-          retryable: false,
-          skill: error.skill,
-          ...(error.candidates.length > 0 ? { candidates: error.candidates } : {}),
-        },
+        briefRefusalBody({ message: error.message, code: error.code, skill: error.skill, candidates: error.candidates }),
         { status: 400 },
       );
     }

@@ -7,6 +7,7 @@ import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
 import { BRIEF_MIN, briefAcceptable, declaredBriefs } from '@/lib/hire/brief';
 import { declaredTaskProblems } from '@/lib/hire/task-fields';
 import { preflightHireBrief } from '@/lib/erc8183/hire-preflight';
+import { briefRefusalBody } from '@/lib/erc8183/skill-request';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -107,14 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
   if (!preflight.ok) {
     return NextResponse.json(
-      {
-        error: preflight.message,
-        layer: 'input',
-        code: preflight.code,
-        retryable: false,
-        skill: preflight.skill,
-        ...(preflight.candidates.length > 0 ? { candidates: preflight.candidates } : {}),
-      },
+      briefRefusalBody({ message: preflight.message, code: preflight.code, skill: preflight.skill, candidates: preflight.candidates }),
       { status: 400 },
     );
   }

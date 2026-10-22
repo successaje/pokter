@@ -31,6 +31,18 @@ export interface ResolvedSubject {
   tokenId: string;
 }
 
+/**
+ * The resolved request, as the quote route hands it to the buyer.
+ *
+ * `skill: null` is an agent whose skills Pokter could not read, which is not
+ * a refusal — see `hire-preflight`. `subject: null` is a skill that asks for
+ * no subject, which is every skill but one.
+ */
+export interface SkillRequestPreview {
+  skill: string | null;
+  subject: ResolvedSubject | null;
+}
+
 export type SkillRequest =
   | { ok: true; data: Record<string, unknown>; subject: ResolvedSubject | null }
   | {
@@ -126,4 +138,28 @@ export function outboundParts(
   return dataOnly
     ? [{ kind: 'data', data: input.briefData }]
     : [{ kind: 'text', text: input.task }, { kind: 'data', data: input.briefData }];
+}
+
+/**
+ * The refusal, as both hire surfaces return it.
+ *
+ * `/api/hire/quote` and `/api/hire` refuse the same brief for the same
+ * reason, and a buyer who hits one and then the other must not be told two
+ * different things. `layer: 'input'` is what `useHire` reads to say the
+ * brief is the thing to fix, rather than the seller or the network.
+ */
+export function briefRefusalBody(input: {
+  message: string;
+  code: 'subject-missing' | 'subject-ambiguous';
+  skill: string;
+  candidates: string[];
+}): Record<string, unknown> {
+  return {
+    error: input.message,
+    layer: 'input',
+    code: input.code,
+    retryable: false,
+    skill: input.skill,
+    ...(input.candidates.length > 0 ? { candidates: input.candidates } : {}),
+  };
 }
