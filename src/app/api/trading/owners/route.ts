@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress, isHex, type Hex } from 'viem';
 
-import { normaliseOwners, ownersMessage, ownersSignatureProblem } from '@/lib/trading/owners';
+import { TRADING_CHAIN_ID } from '@/lib/trading/chain';
+import { normaliseOwners, ownersAlreadyRecorded, ownersMessage, ownersSignatureProblem } from '@/lib/trading/owners';
 import { getTradingStore } from '@/lib/trading/store';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { signedByWallet, walletCanBeChecked } from '@/lib/wallet/signed-by';
@@ -38,18 +39,23 @@ export async function POST(request: Request): Promise<NextResponse> {
   const store = getTradingStore();
   const watched = store.get(wallet);
   if (!watched) return NextResponse.json({ error: 'Watch this wallet first.' }, { status: 409 });
+  /* A retry of the request that is already saved is not a stale list, so
+     only the staleness refusal is lifted for it — an expired or future-dated
+     signature is still refused here, and it is still verified below before
+     being told anything was saved. */
+  const retry = ownersAlreadyRecorded({ owners: watched.owners, signedAt: watched.ownersSignedAt }, { owners, issuedAt });
   /* Cheap refusals first, so an expired or replayed signature costs no RPC
-     call. It cannot stand in for the guard on the write: it reads the list
+     call. They cannot stand in for the guard on the write: they read the list
      as it was before the two awaits below. */
-  const problem = ownersSignatureProblem({ issuedAt, now: Date.now(), lastSignedAt: watched.ownersSignedAt });
+  const problem = ownersSignatureProblem({ issuedAt, now: Date.now(), lastSignedAt: retry ? null : watched.ownersSignedAt });
   if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
   const address = getAddress(wallet);
   const message = ownersMessage({ wallet, owners, issuedAt });
-  if (!(await walletCanBeChecked(56, address, signature as Hex))) {
+  if (!(await walletCanBeChecked(TRADING_CHAIN_ID, address, signature as Hex))) {
     return NextResponse.json({ error: 'This wallet has not been used on BNB Chain yet, so its signature cannot be checked.' }, { status: 409 });
   }
-  if (!(await signedByWallet(56, address, message, signature as Hex))) {
+  if (!(await signedByWallet(TRADING_CHAIN_ID, address, message, signature as Hex))) {
     return NextResponse.json({ error: 'That signature is not from the trading wallet.' }, { status: 403 });
   }
 
@@ -60,10 +66,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   const written = store.setOwners(wallet, owners, issuedAt);
   if (written === 'not-watched') return NextResponse.json({ error: 'Watch this wallet first.' }, { status: 409 });
   if (written === 'not-newer') {
-    /* A conflict found at the write rather than on arrival, so the saved
-       list goes back with it: the page asked to set one and needs to know
-       which one it actually has. */
-    return NextResponse.json({ error: 'A newer list of owner addresses is already saved.', owners: store.owners(wallet) }, { status: 409 });
+    const recorded = store.ownerList(wallet);
+    /* Read back rather than trusting the snapshot, because the two cases
+       part here. This request asking for exactly what is saved is the same
+       request arriving twice, and the state it wanted is the state there is,
+       so it is success. Anything else is a newer list that won while this
+       one was being verified, and that goes back with the conflict: the page
+       asked to set a list and needs to know which one it actually has. */
+    if (ownersAlreadyRecorded(recorded, { owners, issuedAt })) return NextResponse.json({ ok: true, owners });
+    return NextResponse.json({ error: 'A newer list of owner addresses is already saved.', owners: recorded?.owners ?? [] }, { status: 409 });
   }
   return NextResponse.json({ ok: true, owners });
 }

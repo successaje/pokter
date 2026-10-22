@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import { alertableFlows } from '../src/lib/trading/alerts';
 
@@ -53,6 +54,37 @@ test('a backlog bigger than one window does not strand the subscriber', () => {
   }
   // The one flow after the subscription, and none of the backlog before it.
   assert.deepEqual(alerted, [9_999]);
+});
+
+/*
+ * `coverageNotice` is tested below for the `behind` state, but the sweep
+ * never produced it: `coverageOf` called `coverage()` with no chain head,
+ * and without a head `coverage()` cannot answer `behind` at all. So a wallet
+ * the capped scan had not caught up with read as `current`, nothing looked
+ * wrong, and the one subscriber whose alerts were genuinely running late was
+ * the one never told. `bound.ts` caps a scan at 25 transactions a wallet, so
+ * a busy wallet is *expected* to sit behind — and busy wallets are the ones
+ * people put a watch on.
+ */
+test('without a chain head nothing can be called behind', async () => {
+  const { coverage, BEHIND_BLOCKS } = await import('../src/lib/trading/coverage');
+  const scanned = { lastScanAt: new Date().toISOString(), lastError: null, scannedTo: 1_000 };
+  assert.equal(coverage(scanned, Date.now()).state, 'current', 'no head given, so it cannot know');
+  assert.equal(coverage(scanned, Date.now(), 1_000 + BEHIND_BLOCKS + 1).state, 'behind');
+});
+
+test('the sweep gives the coverage check a head, from the scan that already read one', () => {
+  /* The route is `server-only`, so the wiring is held here as a source fact.
+     The head has to come from the scan: the alert step reads the store and
+     sends mail, and a chain call per subscriber would change that. */
+  const sweep = readFileSync(new URL('../src/app/api/sweep/route.ts', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const wiring = sweep.split('\n').find((line) => line.includes('coverageOf:'));
+  assert.ok(wiring, 'the alert step must still be given a coverage check');
+  assert.match(wiring, /head/, 'without a head the check can never report behind');
+  assert.match(wiring, /tradingScan/, 'and it must be the head the scan already read');
+
+  const read = readFileSync(new URL('../src/lib/trading/read.ts', import.meta.url), 'utf8');
+  assert.match(read, /scanTradingWallets\([\s\S]*?head: number \| null/, 'so the scan has to report one');
 });
 
 test('a trading alert link lands on the trading page', async () => {

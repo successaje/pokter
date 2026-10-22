@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerListWrite } from '../src/lib/trading/owner-list';
-import { ownersSignatureProblem, ownersSignedAtMs, ownersUpdateSupersedes } from '../src/lib/trading/owners';
+import { ownersAlreadyRecorded, ownersSignatureProblem, ownersSignedAtMs, ownersUpdateSupersedes } from '../src/lib/trading/owners';
 
 /*
  * The owner list is the one address set money may leave for without an
@@ -106,6 +106,15 @@ test('the same request twice writes once and leaves the list alone', async (t) =
      carries the same signed time, so it is not newer and does nothing. */
   assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [REMOVED], signedAt: issuedAt }), 'not-newer');
   assert.deepEqual(readOwnerList(db, WALLET)!.owners, [KEPT]);
+
+  /* A retry of the *same* list, though, is the caller asking for what is
+     already there. The write still drops it — an equal time is not newer —
+     and what the route says is decided by reading back: the state asked for
+     is the state there is, so the honest answer is success, not a conflict. */
+  assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [KEPT], signedAt: issuedAt }), 'not-newer');
+  assert.equal(ownersAlreadyRecorded(readOwnerList(db, WALLET), { owners: [KEPT], issuedAt }), true);
+  // The lost race is the other case, and it must not read as success.
+  assert.equal(ownersAlreadyRecorded(readOwnerList(db, WALLET), { owners: [REMOVED], issuedAt }), false);
 });
 
 test('a replayed older signature is dropped by the write as well as on arrival', async (t) => {

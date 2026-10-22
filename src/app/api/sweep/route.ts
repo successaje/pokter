@@ -456,7 +456,14 @@ export async function POST(request: Request): Promise<NextResponse> {
           const key = getTradingStore().get(wallet)?.agentKey;
           return key ? (DELEGATED_TRADERS[key]?.controls.revoke ?? null) : null;
         },
-        coverageOf: (wallet) => coverage(getTradingStore().get(wallet), Date.now()).state,
+        /* The head from the scan above, not a fresh call: `coverage` can only
+           answer 'behind' when it is given one, and without it this passed
+           'current' for a wallet the capped scan had not caught up with. A
+           busy wallet is exactly what `bound.ts` caps and exactly what people
+           watch, so "not being checked" never reached the subscriber whose
+           alerts were running late. Null when no scan read a height this run,
+           and then nothing is called behind on a guess. */
+        coverageOf: (wallet) => coverage(getTradingStore().get(wallet), Date.now(), tradingScan?.head ?? undefined).state,
       }),
     );
 

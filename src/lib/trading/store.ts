@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import type { FlowVerdict } from './flows';
-import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerListWrite } from './owner-list';
+import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerList, type OwnerListWrite } from './owner-list';
 
 export interface WatchedTradingWallet {
   wallet: string;
@@ -101,9 +101,9 @@ class TradingStore {
     return recordSignedOwners(this.db, { wallet, owners, signedAt });
   }
 
-  /** The list as recorded now, for saying what won a race the caller lost. */
-  owners(wallet: string): string[] {
-    return readOwnerList(this.db, wallet)?.owners ?? [];
+  /** The list as recorded now, for saying what won a race the caller lost — or that the caller's own retry is already saved. */
+  ownerList(wallet: string): OwnerList | null {
+    return readOwnerList(this.db, wallet);
   }
 
   count(): number {

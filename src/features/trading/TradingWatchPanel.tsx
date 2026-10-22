@@ -300,8 +300,15 @@ function OwnerAddresses({ wallet, owners, onSaved }: { wallet: string; owners: s
       const issuedAt = new Date().toISOString();
       const signature = await signMessageAsync({ message: ownersMessage({ wallet, owners: list, issuedAt }) });
       const r = await fetch('/api/trading/owners', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, owners: list, issuedAt, signature }) });
-      const body = (await r.json().catch(() => ({}))) as { error?: string };
-      if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
+      const body = (await r.json().catch(() => ({}))) as { error?: string; owners?: string[] };
+      if (!r.ok) {
+        /* A refusal that names a list means another signed list got there
+           first, so the addresses on screen are no longer the ones in force.
+           Reload them, and keep the draft: the change was not saved, and the
+           person may well want to sign it again over what is there now. */
+        if (body.owners) onSaved();
+        throw new Error(body.error ?? 'That did not go through.');
+      }
       setDraft(null);
       onSaved();
     } catch (caught) {
