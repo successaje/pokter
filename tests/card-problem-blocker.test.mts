@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 
 import { blockerCodeForCardProblem, readCardThrough, type CardProblem } from '../src/lib/agents/card-read';
 import { classifyQuoteError } from '../src/lib/hire/failure';
-import { hireBlocker } from '../src/lib/hire/blocker';
+import { decideHireBlocker, hireBlocker } from '../src/lib/hire/blocker';
 
 /*
  * hwayongjin.agent (56:300282): never in the sweep's roster, so its page had
@@ -265,7 +265,8 @@ test('the public agent endpoint reports the card read, and only pays for it when
   const route = withoutComments(source('app/api/v1/agents/[chainId]/[tokenId]/route.ts'));
   assert.match(route, /currentHireBlockerWithCard\(/);
   assert.doesNotMatch(route, /currentHireBlocker\(agent, quote, payable\)/, 'the bare call is the one that reported nothing');
-  assert.match(route, /blocker\.from === 'card'/, 'provenance is told, never guessed from the code');
+  assert.match(route, /blocker\??\.from/, 'provenance is told, never guessed');
+  assert.doesNotMatch(route, /blocker\.code ===/, 'the same code arrives from more than one source');
 
   const live = withoutComments(source('lib/hire/blocker-live.ts'));
   assert.ok(
@@ -312,5 +313,20 @@ test('a route that calls the agent is bounded, and does not promise a cacheable 
 });
 
 test('the live blocker maps a card problem through the one mapping', () => {
-  assert.match(withoutComments(source('lib/hire/blocker-live.ts')), /blockerCodeForCardProblem\(card\.problem\)/);
+  // `currentHireBlocker` is `server-only` and does nothing but read the
+  // store; the decision it hands the facts to is pure, so exercise that.
+  assert.match(withoutComments(source('lib/hire/blocker-live.ts')), /decideHireBlocker\(/);
+  const at = '2026-10-22T12:00:00Z';
+  const blocker = decideHireBlocker({
+    quote: null,
+    payable: null,
+    failed: null,
+    brief: null,
+    card: { problem: 'card-unreadable', readAt: at },
+    now: Date.parse(at),
+    protocols: ['a2a'],
+  });
+  assert.equal(blocker?.code, 'card-unreadable');
+  assert.equal(blocker?.transient, true);
+  assert.equal(blocker?.observedAt, at);
 });

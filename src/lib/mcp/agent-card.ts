@@ -1,4 +1,5 @@
 import { formatQuoted } from '@/lib/network/tokens';
+import { escrowChainForCurrency } from '@/lib/network/escrow';
 
 /**
  * The agent card an MCP host shows inline (MCP Apps, `ui://`), and the
@@ -58,7 +59,22 @@ export function buildAgentCard(
   const tokenId = String(detail.tokenId ?? '');
   const hire = new URL(`/hire/${chainId}/${tokenId}`, origin);
   if (brief) hire.searchParams.set('task', brief.slice(0, 2000));
-  const escrow = detail.hire?.escrowChainId ?? null;
+  /*
+   * Beside a fresh quote, the escrow that can actually settle its currency:
+   * the stored record can still name the testnet fallback for an agent that
+   * had no price (Vitals, 56:367904, shown "Testnet" beside a mainnet quote).
+   *
+   * `escrowChainForCurrency`, not `settlementChainOf`. The second answers
+   * which chain's token this address is and knows nothing about
+   * `enabledEscrowChains()`, so with mainnet escrow off — the unset default,
+   * and local development — it labelled a mainnet-$U quote "BNB Chain ·
+   * Mainnet · Real funds" while `/api/hire/quote` refused that same quote
+   * 409 `payment-incompatible`. Production only hid it because `fly.toml`
+   * carries '97,56'. A currency no enabled escrow settles falls back to the
+   * record rather than naming money this deployment cannot move.
+   */
+  const settles = quote?.currency ? escrowChainForCurrency(quote.currency) : null;
+  const escrow = settles ?? detail.hire?.escrowChainId ?? null;
   const price = detail.price && typeof detail.price.amountU === 'number' ? detail.price : null;
   return {
     name: detail.name || `Agent #${tokenId}`,
@@ -84,6 +100,17 @@ export function buildAgentCard(
       const network = networkOf(escrow);
       return network ? { label: network.label, money: network.money, real: network.real } : null;
     })(),
+    /*
+     * The record's own blocker, whatever quote sits beside it.
+     *
+     * A fresh signed quote does prove the agent can be priced, and that is
+     * already settled where it belongs: `get_quote` reads this record after
+     * the quote is recorded, and `currentHireBlocker` drops the one failure
+     * a signed brief quote disproves. Dropping it here instead dropped all
+     * of them — a gated endpoint, a wrong signer, a token no escrow settles
+     * — and the worst of those is the quote's own: an agent that signs in
+     * unpayable money looked hireable precisely because it had signed.
+     */
     blocker: detail.hireBlocker?.reason ? { reason: detail.hireBlocker.reason, fix: detail.hireBlocker.fix ?? `${origin}/build/integration` } : null,
     quote: quote ? { price: formatQuoted(quote.currency, quote.priceRaw)?.label ?? `${quote.priceRaw} (unverified token)`, signer: short(quote.signer), termsBound: quote.termsBound } : null,
     brief,

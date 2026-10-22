@@ -2,23 +2,20 @@ import 'server-only';
 
 import { getProbeStore } from '@/lib/history/store';
 import { readCardForPage } from '@/lib/agents/agent-card';
-import { blockerCodeForCardProblem, type CardProblem } from '@/lib/agents/card-read';
-import { hireBlocker, type HireBlocker } from './blocker';
+import type { CardProblem } from '@/lib/agents/card-read';
+import { decideHireBlocker, type BlockerSource, type HireBlocker } from './blocker';
 
-/**
- * Which evidence produced a blocker, named by the branch that produced it.
- *
- * Returned rather than worked out afterwards: a caller that reports
- * provenance — `/api/v1/agents/:chain/:token` does, in a field whose whole
- * purpose is to say where a claim came from — cannot recover this from the
- * blocker, because the same code arrives from more than one source.
- */
-export type BlockerSource = 'sweep' | 'card';
+export type { BlockerSource } from './blocker';
 
 /**
  * The agent's current hire blocker: none when it has a signed price an
  * escrow can pay; the payment problem when its price cannot be paid;
  * otherwise why the latest sweep's price request failed, if it did.
+ *
+ * The store reads live here and the decision lives in `decideHireBlocker`,
+ * which is pure: the order of precedence between a stored failure, a buyer's
+ * own signed quote and the page's card read is the part worth testing, and a
+ * `server-only` module cannot be imported by a test.
  */
 export function currentHireBlocker(
   agent: { chain_id: number; token_id: string; agent_wallet?: string | null; services?: Record<string, unknown> | null },
@@ -30,25 +27,19 @@ export function currentHireBlocker(
    * a stored failure is the measured one and wins.
    */
   card?: { problem: CardProblem | null; readAt: string } | null,
+  now = Date.now(),
 ): (HireBlocker & { observedAt: string | null; from: BlockerSource }) | null {
-  const dated = (blocker: HireBlocker | null, observedAt: string | null, from: BlockerSource) =>
-    blocker ? { ...blocker, observedAt, from } : null;
-
-  if (quote && payable !== false) return null;
-  if (quote && payable === false) return dated(hireBlocker({ code: 'payment-incompatible' }), quote.quotedAt, 'sweep');
-
-  const failed = getProbeStore().quoteFailureFor(agent.chain_id, agent.token_id);
-  if (!failed) {
-    if (!card?.problem) return null;
-    /* Which code each read implies, including the one that must stay transient. */
-    const { code, detail } = blockerCodeForCardProblem(card.problem);
-    return dated(hireBlocker({ code, detail, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) }), card.readAt, 'card');
-  }
-  return dated(
-    hireBlocker({ code: failed.code, detail: failed.detail, sellerReason: failed.sellerReason, agentWallet: agent.agent_wallet, protocols: Object.keys(agent.services ?? {}) }),
-    failed.observedAt,
-    'sweep',
-  );
+  const store = getProbeStore();
+  return decideHireBlocker({
+    agentWallet: agent.agent_wallet,
+    protocols: Object.keys(agent.services ?? {}),
+    quote,
+    payable,
+    failed: store.quoteFailureFor(agent.chain_id, agent.token_id),
+    brief: store.briefQuote(agent.chain_id, agent.token_id),
+    card: card ?? null,
+    now,
+  });
 }
 
 /**
