@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
 import { coverage, STALE_AFTER_MS } from '../src/lib/trading/coverage';
-import { normaliseOwners, ownersMessage, ownersSignatureProblem, OWNERS_SIGNATURE_TTL_MS } from '../src/lib/trading/owners';
+import {
+  normaliseOwners,
+  ownersMessage,
+  ownersSignatureProblem,
+  ownersSignedAtMs,
+  ownersUpdateSupersedes,
+  OWNERS_SIGNATURE_TTL_MS,
+} from '../src/lib/trading/owners';
 
 const trader = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
 const stranger = privateKeyToAccount('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
@@ -37,6 +45,59 @@ test('a signature must be recent, not from the future, and newer than the saved 
   assert.match(ownersSignatureProblem({ issuedAt: iso(now + 5 * 60_000), now, lastSignedAt: null })!, /future/);
   assert.match(ownersSignatureProblem({ issuedAt: iso(now - 120_000), now, lastSignedAt: iso(now - 60_000) })!, /newer/);
   assert.match(ownersSignatureProblem({ issuedAt: 'yesterday', now, lastSignedAt: null })!, /time/);
+});
+
+test('signed lists are ordered by the instant, not by the text', () => {
+  /* The client sends whatever its device produces. `Date.parse` reads the
+     offset, so these two are half an hour apart in the order the text does
+     not give: 13:00+01:00 is 12:00Z. */
+  assert.ok(ownersSignedAtMs('2026-10-21T13:00:00+01:00')! < ownersSignedAtMs('2026-10-21T12:30:00Z')!);
+  assert.ok('2026-10-21T13:00:00+01:00' > '2026-10-21T12:30:00Z', 'as text it sorts the other way, which is the trap');
+  assert.equal(ownersSignedAtMs('yesterday'), null);
+  assert.equal(ownersSignedAtMs(null), null);
+  assert.equal(ownersSignedAtMs(''), null);
+});
+
+test('a list replaces one recorded earlier, and nothing else', () => {
+  assert.equal(ownersUpdateSupersedes(now, null), true, 'nothing recorded, so anything the wallet signed wins');
+  assert.equal(ownersUpdateSupersedes(now, now - 1), true);
+  // Equal is a request arriving twice, not a newer list.
+  assert.equal(ownersUpdateSupersedes(now, now), false);
+  assert.equal(ownersUpdateSupersedes(now - 1, now), false);
+});
+
+/*
+ * The route cannot be imported — it is `server-only` — and the fault was
+ * its order: it checked, then verified, then wrote without asking again.
+ * `tests/trading-owner-list.test.mts` runs the guard for real; these hold
+ * the route to using it, because a passing guard nobody reads is no guard.
+ */
+const ownersRoute = readFileSync(new URL('../src/app/api/trading/owners/route.ts', import.meta.url), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  '',
+);
+
+test('the owners route verifies the signature before it writes', () => {
+  const verifies = ownersRoute.indexOf('signedByWallet(');
+  const writes = ownersRoute.indexOf('setOwners(');
+  assert.ok(verifies > 0 && writes > 0, 'both steps must still be in the route');
+  assert.ok(verifies < writes, 'a list must never be applied and then checked');
+});
+
+test('the owners route reads the answer the write gives it', () => {
+  // `store.setOwners(...)` on its own line was the defect: the write's
+  // verdict was thrown away, so a dropped list looked like a saved one.
+  assert.doesNotMatch(ownersRoute, /^\s*store\.setOwners\(/m);
+  assert.match(ownersRoute, /=\s*store\.setOwners\(/);
+  assert.match(ownersRoute, /'not-newer'/);
+  assert.match(ownersRoute, /'not-watched'/);
+});
+
+test('the owner list is only ever written through the guard', () => {
+  const ownerList = readFileSync(new URL('../src/lib/trading/owner-list.ts', import.meta.url), 'utf8');
+  assert.match(ownerList, /owners_signed_ms IS NULL OR owners_signed_ms < :signedMs/, 'the guard belongs inside the UPDATE');
+  const store = readFileSync(new URL('../src/lib/trading/store.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(store, /UPDATE trading_wallets SET owners\b/, 'the store must not write the list past the guard');
 });
 
 test('only a recent, successful scan may say nothing was found', () => {

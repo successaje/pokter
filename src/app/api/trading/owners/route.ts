@@ -16,6 +16,12 @@ export const dynamic = 'force-dynamic';
  * whoever controls the wallet may name them. A list signed earlier than
  * the one saved is refused, so a captured signature cannot restore an
  * address the owner has since removed.
+ *
+ * The signature is verified before anything is written, and the write
+ * itself decides again whether this list is still the newest. Checking
+ * once here was not enough: verifying takes two round trips, a second
+ * accepted request can finish inside them, and both requests would then
+ * have been checked against the same stale snapshot. See `owner-list.ts`.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`trading-owners:${requestClientKey(request)}`, { limit: 5, windowMs: 60_000 });
@@ -32,6 +38,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   const store = getTradingStore();
   const watched = store.get(wallet);
   if (!watched) return NextResponse.json({ error: 'Watch this wallet first.' }, { status: 409 });
+  /* Cheap refusals first, so an expired or replayed signature costs no RPC
+     call. It cannot stand in for the guard on the write: it reads the list
+     as it was before the two awaits below. */
   const problem = ownersSignatureProblem({ issuedAt, now: Date.now(), lastSignedAt: watched.ownersSignedAt });
   if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
@@ -43,6 +52,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!(await signedByWallet(56, address, message, signature as Hex))) {
     return NextResponse.json({ error: 'That signature is not from the trading wallet.' }, { status: 403 });
   }
-  store.setOwners(wallet, owners, issuedAt);
+
+  /* Verified, so it may be written — and only now is it asked whether it is
+     still the newest. The write drops a list older than the one recorded,
+     which is what keeps a request that overlapped this one from losing the
+     newer list the owner actually asked for. */
+  const written = store.setOwners(wallet, owners, issuedAt);
+  if (written === 'not-watched') return NextResponse.json({ error: 'Watch this wallet first.' }, { status: 409 });
+  if (written === 'not-newer') {
+    /* A conflict found at the write rather than on arrival, so the saved
+       list goes back with it: the page asked to set one and needs to know
+       which one it actually has. */
+    return NextResponse.json({ error: 'A newer list of owner addresses is already saved.', owners: store.owners(wallet) }, { status: 409 });
+  }
   return NextResponse.json({ ok: true, owners });
 }
