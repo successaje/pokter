@@ -66,3 +66,16 @@ export async function findDeliverableUrl(client: Reader, policy: `0x${string}`, 
   const logs = await client.getLogs({ address: policy, event: JOB_INITIALISED, args: { jobId }, fromBlock, toBlock: block + SPAN });
   return deliverableUrlFrom(logs[0]?.args.optParams);
 }
+
+/**
+ * A job's deliverable URL for the index: the stored one if there is one,
+ * since a submission's URL never changes, otherwise a lookup, and only for
+ * a job that has been delivered. The reconcile pass runs this for every job
+ * in its batch, every run, so the lookup must not run when it cannot help.
+ */
+export async function deliverableUrlForIndex(input: { stored: string | null | undefined; status: string; lookup: () => Promise<string | undefined> }): Promise<string | undefined> {
+  if (input.stored) return input.stored;
+  if (input.status !== 'SUBMITTED' && input.status !== 'COMPLETED') return undefined;
+  return input.lookup().catch(() => undefined);
+}
+

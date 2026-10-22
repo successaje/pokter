@@ -17,7 +17,9 @@ import { relayStatus } from '@/lib/erc8183/relay-refusal';
 import { CAMPAIGN_ENDS_AT, isCampaignLive } from '@/lib/campaign/window';
 import { campaignHires } from '@/lib/campaign/progress-server';
 import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
-import { getErc8183DeliverableUrl, getErc8183Job } from '@altananetwork/sdk';
+import { getErc8183Job } from '@altananetwork/sdk';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { deliverableUrlForIndex, findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
@@ -32,7 +34,7 @@ import { gradeDuePaidChecks, gradeDuePaidHfChecks, gradeDuePaidV3Checks } from '
 import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
-import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
+import { indexEscrowJobs, questClient, refreshAgentWallets } from '@/lib/quest/indexer';
 import { getQuestStore } from '@/lib/quest/store';
 import { refreshWalletActivity } from '@/lib/activity/store';
 import { refreshCapability } from '@/lib/capability/store';
@@ -306,9 +308,25 @@ export async function POST(request: Request): Promise<NextResponse> {
           try {
             const network = altanaNetworkFor(job.chainId);
             const onchain = await getErc8183Job(network, BigInt(job.jobId));
-            const deliverableUrl = ['SUBMITTED', 'COMPLETED'].includes(onchain.statusName)
-              ? await getErc8183DeliverableUrl(network, BigInt(job.jobId)).catch(() => undefined)
-              : undefined;
+            /*
+             * Looked up once, near the block it was submitted in.
+             *
+             * This was `getErc8183DeliverableUrl` with its default reach, for
+             * every delivered job in the batch, every run: a backward scan of
+             * up to 200 windows from the chain head. Measured on 21 October,
+             * 74s for a job delivered the day before (and nothing found, it
+             * was out of reach), 9s for one delivered that afternoon. With
+             * four jobs at a time, one such scan held the step for its whole
+             * length, which is the 86s reconcileJobs took in every run. A
+             * submission's URL never changes, so a stored one is kept; an
+             * unknown one is found where the verify route finds it, about a
+             * second either way.
+             */
+            const deliverableUrl = await deliverableUrlForIndex({
+              stored: job.deliverableUrl,
+              status: onchain.statusName,
+              lookup: () => findDeliverableUrl(questClient(job.chainId === 56 ? 56 : 97), correctedErc8183Addresses(job.chainId).policy, BigInt(job.jobId), onchain.submittedAt),
+            });
             // The local row is only an index. Repair it from ERC-8183 during every
             // sweep so Activity and Builder never depend on somebody opening a
             // card to refresh a stale status.
