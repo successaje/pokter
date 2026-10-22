@@ -48,6 +48,7 @@ export function draftPreviewRow(draft: { name: string; description: string; cate
       hired: false,
       delivered: false,
       deliveredByOperator: false,
+      deliveredViaPokter: false,
       outsideTeam: { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
       probeRate: null,
       observedDays: 0,

@@ -139,3 +139,37 @@ test('a mix is split by who owed each job, and nothing is dropped', () => {
   assert.equal(history.operatorMissed, 1);
   assert.equal(history.missed + history.operatorMissed, history.expired, 'every expired job lands in exactly one of the two');
 });
+
+test('a courier delivery carrying the agent’s answer is counted apart from a bare operator one', () => {
+  /*
+   * Job 97/1585: Pokter Evidence answered over A2A and the courier
+   * submitted the manifest. Both jobs below have a Pokter wallet as
+   * provider, so the provider address alone cannot tell them apart — the
+   * manifest can, and `relayedDelivered` is the half it identifies.
+   */
+  const carried = { ...owed('COMPLETED', POKTER), jobId: '1585' };
+  const bare = { ...owed('COMPLETED', POKTER), jobId: '1586' };
+  const history = summariseEconomicHistory([carried, bare], Date.now(), {
+    isRelayedDelivery: (j) => j.jobId === '1585',
+  });
+
+  assert.equal(history.operatorDelivered, 2, 'both were submitted by a Pokter wallet');
+  assert.equal(history.relayedDelivered, 1, 'one of them carried the agent’s own answer');
+  assert.equal(history.selfDelivered, 0, 'and neither is the agent submitting for itself');
+  assert.ok(history.relayedDelivered <= history.operatorDelivered, 'a refinement of the split, not a redrawing of it');
+});
+
+test('a relayed delivery the agent itself submitted is not possible, and is not counted as one', () => {
+  // Only a Pokter wallet can relay; a predicate that said otherwise is ignored.
+  const history = summariseEconomicHistory([owed('COMPLETED', AGENT)], Date.now(), {
+    isRelayedDelivery: () => true,
+  });
+  assert.equal(history.selfDelivered, 1);
+  assert.equal(history.relayedDelivered, 0);
+});
+
+test('without the manifest predicate nothing is assumed to be relayed', () => {
+  const history = summariseEconomicHistory([owed('COMPLETED', POKTER)]);
+  assert.equal(history.operatorDelivered, 1);
+  assert.equal(history.relayedDelivered, 0, 'an unread manifest is not evidence of a carried answer');
+});

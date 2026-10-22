@@ -9,7 +9,13 @@
  * how much of it there is, so no row borrows another's authority.
  */
 
-export type ReadinessTone = 'ok' | 'bad' | 'unknown';
+/**
+ * `watch` is evidence that is real but short of the row's claim — the
+ * courier delivery the ladder calls `partial`. Without it such a row had
+ * to choose between the green of a delivery the agent made itself and the
+ * red of no delivery at all, and both misreport it.
+ */
+export type ReadinessTone = 'ok' | 'watch' | 'bad' | 'unknown';
 
 export interface ReadinessRow {
   id: 'live' | 'history' | 'price' | 'payment' | 'delivery' | 'correctness';
@@ -25,7 +31,7 @@ export interface ReadinessInput {
   record: { totalProbes: number; totalAnswered: number; observedDays: number; lastSeen: string | null };
   quote: { quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
   escrowLabel: string;
-  history: { jobs: number; selfDelivered: number; operatorDelivered: number };
+  history: { jobs: number; selfDelivered: number; operatorDelivered: number; relayedDelivered: number };
   categoryCheck: { name: string; run: { status: string; passed: number; total: number; ranAt: string } | null } | null;
 }
 
@@ -84,19 +90,32 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
         : 'The quoted token is not one this escrow settles in.',
   });
 
+  /*
+   * The same three states the ladder's third step carries, said in a row.
+   * "None yet" and the bad tone were being shown for an agent whose own
+   * answer had reached a paying buyer through Pokter's courier, which
+   * reads as a failure to deliver rather than as what happened.
+   */
+  const relayed = history.selfDelivered === 0 && history.relayedDelivered > 0;
   rows.push({
     id: 'delivery',
     label: 'Paid delivery',
-    value: history.selfDelivered > 0 ? `${history.selfDelivered} delivered` : history.jobs > 0 ? 'None yet' : 'Never hired',
-    tone: history.selfDelivered > 0 ? 'ok' : history.jobs > 0 ? 'bad' : 'unknown',
+    value: history.selfDelivered > 0
+      ? `${history.selfDelivered} delivered`
+      : relayed
+        ? `${history.relayedDelivered} via Pokter`
+        : history.jobs > 0 ? 'None yet' : 'Never hired',
+    tone: history.selfDelivered > 0 ? 'ok' : relayed ? 'watch' : history.jobs > 0 ? 'bad' : 'unknown',
     detail:
       history.selfDelivered > 0
         ? `Delivered from its own wallet, across ${history.jobs} escrow job${history.jobs === 1 ? '' : 's'}.`
-        : history.operatorDelivered > 0
-          ? 'A delivery reached escrow, but a Pokter wallet submitted it, so it does not count for the agent.'
-          : history.jobs > 0
-            ? `Hired ${history.jobs} time${history.jobs === 1 ? '' : 's'} with no delivery from its own wallet.`
-            : 'No escrow job has been funded for it.',
+        : relayed
+          ? `The agent answered and Pokter’s courier submitted it to escrow, on ${history.relayedDelivered} job${history.relayedDelivered === 1 ? '' : 's'}. Nothing submitted from the agent’s own wallet.`
+          : history.operatorDelivered > 0
+            ? 'A delivery reached escrow, but a Pokter wallet submitted it, so it does not count for the agent.'
+            : history.jobs > 0
+              ? `Hired ${history.jobs} time${history.jobs === 1 ? '' : 's'} with no delivery from its own wallet.`
+              : 'No escrow job has been funded for it.',
   });
 
   rows.push({

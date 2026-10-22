@@ -17,9 +17,9 @@ export interface AgentCardData {
   name: string;
   chainId: number;
   tokenId: string;
-  /** The evidence step reached, e.g. "Delivered", and which steps are earned. */
+  /** The evidence step reached, e.g. "Delivered", and how far each step got. */
   step: string | null;
-  steps: Array<{ label: string; earned: boolean }>;
+  steps: Array<{ label: string; earned: boolean; partial?: boolean }>;
   price: { label: string; signed: boolean; current: boolean } | null;
   network: { label: string; money: string; real: boolean } | null;
   blocker: { reason: string; fix: string } | null;
@@ -34,7 +34,7 @@ type Detail = {
   name?: string;
   chainId?: number;
   tokenId?: string;
-  ladder?: { label?: string; steps?: Array<{ label?: string; earned?: boolean }> } | null;
+  ladder?: { label?: string; steps?: Array<{ label?: string; earned?: boolean; state?: string }> } | null;
   price?: { amountU?: number; current?: boolean; payable?: boolean | null } | null;
   hire?: { escrowChainId?: number | null } | null;
   hireBlocker?: { reason?: string; fix?: string } | null;
@@ -65,7 +65,12 @@ export function buildAgentCard(
     chainId,
     tokenId,
     step: detail.ladder?.label ?? null,
-    steps: (detail.ladder?.steps ?? []).map((s) => ({ label: String(s.label ?? ''), earned: Boolean(s.earned) })),
+    /* A partial step is drawn as neither earned nor absent; see `agent-card-html`. */
+    steps: (detail.ladder?.steps ?? []).map((s) => ({
+      label: String(s.label ?? ''),
+      earned: Boolean(s.earned),
+      ...(s.state === 'partial' ? { partial: true } : {}),
+    })),
     /*
      * A quote fetched for this card is the price that holds now. The record's
      * stored price is older and has usually expired, so a card beside a

@@ -29,6 +29,26 @@ export interface AgentEconomicHistory {
   selfDelivered: number;
   /** Deliveries a declared Pokter wallet submitted. Kept, and labelled. */
   operatorDelivered: number;
+  /**
+   * Of those, the ones whose manifest carries this agent's own answer:
+   * Pokter's courier submitted the transaction, the agent produced what it
+   * submitted.
+   *
+   * The provider address alone cannot tell these apart from a Pokter wallet
+   * standing in for an agent that did nothing, because the courier submits
+   * from a Pokter wallet either way. The manifest can, and already does:
+   * it names the endpoint and skill the answer came from and the agent it
+   * belongs to. Job 97/1585 is the case — Pokter Evidence answered over
+   * A2A, the courier submitted the manifest, the escrow completed — and
+   * reporting it only as `operatorDelivered` said a delivery had reached
+   * escrow without saying whose answer was in it.
+   *
+   * A subset of `operatorDelivered` rather than a count of its own, so it
+   * refines the existing split instead of redrawing it. The two are the
+   * same set today: a relayed manifest means the courier submitted, and
+   * the courier signs with the operator key, which is declared.
+   */
+  relayedDelivered: number;
   completed: number;
   rejected: number;
   expired: number;
@@ -101,8 +121,13 @@ export function summariseEconomicHistory(
   now = Date.now(),
   {
     isLifecycleDemo,
+    isRelayedDelivery,
     refusedAtNotice,
-  }: { isLifecycleDemo?: (job: HiredJob) => boolean; refusedAtNotice?: (job: HiredJob) => boolean } = {},
+  }: {
+    isLifecycleDemo?: (job: HiredJob) => boolean;
+    isRelayedDelivery?: (job: HiredJob) => boolean;
+    refusedAtNotice?: (job: HiredJob) => boolean;
+  } = {},
 ): AgentEconomicHistory {
   // Entry into this store is itself chain-verified. Some relayed/batched hires
   // do not expose a transaction hash to the SDK even though the kernel reads
@@ -137,6 +162,9 @@ export function summariseEconomicHistory(
     delivered: deliveries.length,
     selfDelivered: deliveries.filter(bySelf).length,
     operatorDelivered: deliveries.filter(byOperator).length,
+    relayedDelivered: isRelayedDelivery
+      ? deliveries.filter((job) => byOperator(job) && isRelayedDelivery(job)).length
+      : 0,
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
