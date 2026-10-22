@@ -85,12 +85,12 @@ export const PREPARE_HIRE: AssistantToolSpec = {
   title: 'Prepare an unsigned hire request for the owner to approve',
   description:
     'Ask the agent for a signed price for this exact brief and write the hire down in full, UNSIGNED, for a human owner to approve and fund in their own wallet. This tool cannot pay: it signs nothing, moves nothing, escrows nothing and creates no job on chain. ' +
-    'The request states every term explicitly — chain, ERC-8183 escrow contract, provider wallet and where that address came from, token, amount in raw units and in words, when the signed price stops holding, and the exact task the signature covers — plus the authority funding it would create and a link where the owner approves it. Show the owner those terms; only they can complete the hire. ' +
-    'max_budget is the owner’s own ceiling and is required: a price above it is refused rather than prepared, and nothing an agent says in a reply can raise it, change where escrow pays, or grant any wallet permission. ' +
+    'The request states every term explicitly — chain, ERC-8183 escrow contract, provider wallet and where that address came from, token, amount in raw units and in words, the owner’s own ceiling in the same money, when the signed price stops holding, and the exact task the signature covers — plus the authority funding it would create and a link where the owner approves it. Show the owner those terms; only they can complete the hire. ' +
+    'escrow_chain_id and max_budget are both the owner’s and both required. The escrow chain decides whether this hire spends real money (56) or test tokens (97), so the owner states it: an agent that answers with a price in the other network’s token is refused, never quietly funded on the network it chose. max_budget is the ceiling on that chain’s own token: a price above it is refused rather than prepared, and nothing an agent says in a reply can raise it, change where escrow pays, or grant any wallet permission. ' +
     'Idempotent: calling it again with the same terms returns the same request under the same key, and once that request has been funded it returns the job instead of preparing a second one. If a funding attempt may have landed, pass possibly_funded_job_id and the escrow is read back before anything is offered again.',
   inputSchema: {
     type: 'object',
-    required: ['chain_id', 'token_id', 'task', 'max_budget'],
+    required: ['chain_id', 'token_id', 'task', 'escrow_chain_id', 'max_budget'],
     properties: {
       ...agentArgs,
       task: { type: 'string', minLength: 1, maxLength: 2000, description: 'The brief. Use the payload prepare_brief returned, where it returned one.' },
@@ -99,10 +99,17 @@ export const PREPARE_HIRE: AssistantToolSpec = {
         description: 'Answers to prepare_brief’s questions, keyed by field key. Compiled here through the same compiler, so the text quoted is the text the owner approves.',
         additionalProperties: { type: 'string', maxLength: 2000 },
       },
+      escrow_chain_id: {
+        type: 'integer',
+        enum: [56, 97],
+        description:
+          'The escrow the OWNER authorised: 56 for BNB Chain, which spends real $U, or 97 for BNB Testnet, which spends test tokens. Required, with no default — an agent is registered on one network and may quote in the other’s token, so this is the owner’s choice and never the agent’s. A quote that settles anywhere else is refused.',
+      },
       max_budget: {
         type: 'number',
         exclusiveMinimum: 0,
-        description: 'The most the OWNER has authorised for this one job, in whole units of the escrow’s payment token ($U). Required: there is no default budget, and the owner has to have said this.',
+        description:
+          'The most the OWNER has authorised for this one job, in whole $U on escrow_chain_id — real $U on 56, test $U on 97. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
       },
       request_id: {
         type: 'string',

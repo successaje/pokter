@@ -169,16 +169,41 @@ test('a tool may state its own hints, and the listing carries them', async () =>
 
 const PREPARE = 'app/api/hire/prepare/route.ts';
 
-test('the prepare route holds no payment engine, and cannot reach one', () => {
+test('the prepare route calls no spending function, and imports no binding that can spend', () => {
   /*
-   * The whole constraint, as absence. `hireAgent` and `buildHireCalls` are
-   * how Pokter spends; `altanaClient`/`adminSigner` are the relay session
-   * and the operator key. None of them is reachable from this route, so
-   * there is no path from an assistant's call to a transaction.
+   * Named for what it checks. It used to say the route "cannot reach" a
+   * payment engine, which is a claim about the whole transitive import
+   * graph and a substring search cannot see one step of it. Two things
+   * here are checkable by reading this file, and they are the two that
+   * matter at this layer: the route calls nothing that spends, and from
+   * the modules that *can* spend it imports only read bindings. (The
+   * transitive property was established separately, by walking the graph.)
    */
   const route = code(PREPARE);
   for (const spend of ['hireAgent', 'buildHireCalls', 'altanaClient', 'adminSigner', 'client.execute', 'settleJob', 'reclaimJob', 'paymentTokenBalance']) {
-    assert.ok(!route.includes(spend), `the prepare route does not reach ${spend}`);
+    assert.ok(!route.includes(spend), `the prepare route does not call ${spend}`);
+  }
+
+  /*
+   * And the bindings it does take from spend-capable modules. `altana/client`
+   * exports `adminSigner` beside `altanaNetworkFor`, and the SDK exports
+   * `buildHireCalls` beside `getErc8183Job`, so "imports no spending
+   * module" is not the available property — "imports no spending binding"
+   * is, and an added import shows up here rather than in a review.
+   */
+  const imported = new Map<string, string[]>();
+  for (const [, names, from] of route.matchAll(/import\s*\{([^}]+)\}\s*from\s*'([^']+)'/g)) {
+    imported.set(from, names.split(',').map((name) => name.replace(/\s+as\s+\w+/, '').replace('type ', '').trim()));
+  }
+  const allowed: Record<string, string[]> = {
+    '@altananetwork/sdk': ['getErc8183Job'],
+    '@/lib/altana/client': ['altanaNetworkFor'],
+    '@/lib/erc8183/addresses': ['correctedErc8183Addresses'],
+    '@/lib/erc8183/store': ['getJobStore'],
+    viem: ['parseUnits'],
+  };
+  for (const [from, names] of Object.entries(allowed)) {
+    assert.deepEqual(imported.get(from), names, `only read bindings from ${from}`);
   }
   /* Nor does it write a job, or hold the operator write gate that the one
      spending route has. */
@@ -222,16 +247,88 @@ test('the provider comes from the registry, and never from the request body', ()
    * owner approves — the name its owner wrote — is bounded and stripped on
    * the way in, not trusted because it is "only a name".
    */
-  assert.match(route, /const name = agentNote\(agent\.name, 80\)/);
+  assert.match(route, /const name = displayName\(agent\.name, `Agent #\$\{tokenId\}`\)/);
   assert.match(route, /agentSaid: null/, 'and no agent prose is passed off as a term');
 });
 
-test('the owner’s ceiling is required, and bounded by what a hire accepts', () => {
+test('the owner’s ceiling is required, a number, and bounded by what a hire accepts', () => {
   const route = code(PREPARE);
   assert.match(route, /maxBudget < BUDGET_MIN \|\| maxBudget > BUDGET_MAX/);
   assert.match(route, /maxBudget is required/);
   assert.match(route, /Pokter sets no budget of its own/);
   assert.ok(!route.includes('budgetDefault'), 'the form’s default budget has no place on a path with no human reading it');
+  /*
+   * Read as a number only when it arrived as one. `Number(["5"])` is 5 and
+   * `Number(true)` is 1, so coercing whatever shape a caller sent would
+   * accept a budget the owner never said — and the MCP tool guarded this
+   * while the route it posts to did not.
+   */
+  assert.match(route, /typeof body\.maxBudget === 'number' \? body\.maxBudget : Number\.NaN/);
+});
+
+test('the escrow chain is the owner’s input, and a quote that settles elsewhere is refused', () => {
+  /*
+   * The finding this closes: with no chain input, the route built the
+   * mandate out of the quote and then compared the quote against it, so an
+   * owner asking about a testnet agent could be handed a prepared request
+   * for real money on chain 56 because the agent chose its currency — and
+   * no mandate refusal was reachable from a route-shaped call.
+   */
+  const route = code(PREPARE);
+  assert.match(route, /const escrowChain = Number\(body\.escrowChainId\)/);
+  assert.match(route, /if \(escrowChain !== 56 && escrowChain !== 97\)/, 'required, with no default');
+  assert.match(route, /code: 'no-owner-chain'/);
+  /* And the refusal when the agent answers in the other network's money. */
+  assert.match(route, /if \(quotedBody\.escrowChainId !== escrowChain\)/);
+  assert.match(route, /code: 'chain-not-in-mandate'/);
+  /* The check sits above the key, so the counterparty cannot move it by
+     re-quoting in the other token. */
+  const gate = route.indexOf('quotedBody.escrowChainId !== escrowChain');
+  assert.ok(gate > 0 && gate < route.indexOf('hireRequestKey('), 'refused before a key is derived');
+  assert.match(route, /const escrowChainId = escrowChain;/, 'and everything downstream uses the owner’s chain');
+  /* The token in the key is Pokter's own for that chain, not the agent's
+     echo of it. */
+  assert.match(route, /token: addresses\.paymentToken,/);
+});
+
+test('the request key reaches the wallet, and the funding reports it back', () => {
+  /*
+   * Without this the row never learns it was funded: an assistant cannot
+   * watch an owner approve anything, so `prepare_hire` would go on
+   * offering a purchase already paid for. Everything the suite proves
+   * about `adopt` was unreachable in the normal flow.
+   */
+  assert.match(code(PREPARE), /approvalUrl\.searchParams\.set\('request', requestKey\)/);
+  assert.match(code(PREPARE), /approvalUrl\.searchParams\.set\('escrow', String\(escrowChainId\)\)/);
+  assert.match(code(PREPARE), /owner: ownerAddress,/, 'and the owner is kept so the funding can be checked against it');
+
+  /* The browser reports it where it already reports the funding. */
+  const hook = code('lib/hire/useHire.ts');
+  assert.match(hook, /function preparedRequestKey\(\)/);
+  assert.match(hook, /\^phr_\[0-9a-f\]\{32\}\$/, 'matched to its exact shape, so nothing else is forwarded as one');
+  const key = hook.indexOf('requestKey: preparedRequestKey()');
+  const index = hook.indexOf("fetch('/api/jobs/index'");
+  assert.ok(key > 0 && index > key, 'it travels with the index call');
+
+  /* And the route trusts none of it: the claim is checked against the job
+     it names before it is kept. */
+  const indexRoute = code('app/api/jobs/index/route.ts');
+  assert.match(indexRoute, /preparedHireMismatch\(prepared, \{/);
+  const verify = indexRoute.indexOf('preparedHireMismatch(');
+  const attach = indexRoute.indexOf('attachPreparedHireJob(');
+  assert.ok(verify > 0 && attach > verify, 'verified before attached');
+  /* Never fatal: a funded job is indexed either way. */
+  assert.ok(indexRoute.indexOf('getJobStore().record(indexed)') < verify, 'the job is recorded first');
+});
+
+test('the money-duplication guard is a function, not a condition at the call site', () => {
+  /*
+   * Mutating `adopt || stop || reconcile` to `adopt` alone survived the
+   * whole suite. The three outcomes that must prepare nothing are one
+   * tested answer now, and the route asks for it.
+   */
+  assert.match(code(PREPARE), /if \(!handsOverRequest\(decision\.action\)\)/);
+  assert.ok(!code(PREPARE).includes("decision.action === 'stop'"), 'the outcomes are not re-listed here to drift');
 });
 
 test('the key, the record and the reconciliation all run before anything is handed over', () => {

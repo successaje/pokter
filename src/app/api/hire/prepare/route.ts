@@ -7,9 +7,9 @@ import { POST as quoteForBriefRoute } from '@/app/api/hire/quote/route';
 import { classify } from '@/lib/agents/categories';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { originOf } from '@/lib/api/respond';
-import { hireRequestKey, indexedJobForTerms, retryDecision } from '@/lib/assistant/idempotency';
+import { handsOverRequest, hireRequestKey, indexedJobForTerms, retryDecision } from '@/lib/assistant/idempotency';
 import { prepareHire } from '@/lib/assistant/hire-request';
-import { agentNote } from '@/lib/assistant/mandate';
+import { displayName } from '@/lib/assistant/mandate';
 import { reconcileUncertainHire } from '@/lib/assistant/reconcile-hire';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
@@ -83,18 +83,58 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   /*
+   * The escrow the owner authorised, required and never defaulted.
+   *
+   * This route used to take the escrow from the quote's own currency, which
+   * handed the choice between real money and test tokens to the agent being
+   * paid. An owner who said "hire 97/367904, at most 5" could be given a
+   * prepared request for 5 **real** $U on chain 56, because the agent
+   * answered in mainnet $U and every mandate field was then derived from
+   * that same answer — so the comparison was the quote against itself and
+   * no refusal was reachable. `escrow.ts` records this crossing happening
+   * in the wild in the other direction.
+   *
+   * It also took the request key out of the owner's hands: chain, escrow
+   * and token are in the key, so a counterparty could re-quote in the other
+   * token and produce a different key for the same purchase, which is the
+   * second job the key exists to prevent.
+   *
+   * Taken from the owner, then, and defaulting is not the lesser evil:
+   * defaulting to the agent's registry chain would pick between real and
+   * test money silently, which is the one choice that must never be made
+   * on somebody's behalf.
+   */
+  const escrowChain = Number(body.escrowChainId);
+  if (escrowChain !== 56 && escrowChain !== 97) {
+    return NextResponse.json(
+      {
+        error:
+          'escrowChainId is required: 56 to fund on BNB Chain with real $U, or 97 to fund on BNB Testnet with test tokens. The owner states it, because an agent registered on one network may quote in the other’s token, and Pokter will not pick between real and test money for them.',
+        layer: 'input',
+        code: 'no-owner-chain',
+      },
+      { status: 400 },
+    );
+  }
+
+  /*
    * The owner's ceiling, required and never defaulted.
    *
    * A budget Pokter picked is a budget nobody approved, and `budget-default`
    * exists for a form where a human reads the number it filled in. There is
    * no human reading this response, so there is no default: a caller that
    * has not been told a limit by its owner cannot prepare a hire at all.
+   *
+   * Read as a number only when it arrived as one. `Number("5 U")` is NaN and
+   * caught below, but `Number(["5"])` is 5 and `Number(true)` is 1: a budget
+   * is a figure the owner said, not a value coerced out of whatever shape a
+   * caller sent.
    */
-  const maxBudget = Number(body.maxBudget);
+  const maxBudget = typeof body.maxBudget === 'number' ? body.maxBudget : Number.NaN;
   if (!Number.isFinite(maxBudget) || maxBudget < BUDGET_MIN || maxBudget > BUDGET_MAX) {
     return NextResponse.json(
       {
-        error: `maxBudget is required: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX}. Pokter sets no budget of its own.`,
+        error: `maxBudget is required and must be a number: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX} in whole $U on chain ${escrowChain}${escrowChain === 56 ? ' (real funds)' : ' (test tokens)'}. Pokter sets no budget of its own.`,
         layer: 'input',
         code: 'no-owner-budget',
       },
@@ -197,7 +237,32 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(quotedBody, { status: quoted.ok ? 502 : quoted.status });
   }
   const quote = quotedBody.quote;
-  const escrowChainId = quotedBody.escrowChainId;
+
+  /*
+   * The agent answered in a currency that settles somewhere the owner did
+   * not authorise. Refused here, before a key is derived, a row is written
+   * or a request is built — so the counterparty cannot choose the network,
+   * cannot cross test tokens into real money, and cannot move the key.
+   *
+   * Not retargeted, and not "helpfully" prepared on the chain it named: the
+   * owner said which money this hire spends, and an agent quoting in the
+   * other one has declined the hire the owner asked for.
+   */
+  if (quotedBody.escrowChainId !== escrowChain) {
+    const real = (id: number) => (id === 56 ? 'real $U on BNB Chain' : 'test $U on BNB Testnet');
+    return NextResponse.json(
+      {
+        error: `${agent.name || `Agent #${tokenId}`} signed a price that settles on chain ${quotedBody.escrowChainId} (${real(quotedBody.escrowChainId)}), and the owner authorised chain ${escrowChain} (${real(escrowChain)}). Nothing was prepared. Ask the owner for chain ${quotedBody.escrowChainId} explicitly if that is what they want.`,
+        layer: 'payment',
+        code: 'chain-not-in-mandate',
+        retryable: false,
+        ownerChainId: escrowChain,
+        quotedChainId: quotedBody.escrowChainId,
+      },
+      { status: 409 },
+    );
+  }
+  const escrowChainId = escrowChain;
 
   const addresses = correctedErc8183Addresses(escrowChainId);
   let decimals: number;
@@ -221,7 +286,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     chainId: escrowChainId,
     escrow: addresses.commerce,
     provider: quote.signer,
-    token: quote.currency,
+    /* Pokter's own token for the chain the owner named, not the agent's
+       echo of it. The mandate below asserts the quoted currency is this
+       token; the key must not be a string the counterparty spells. */
+    token: addresses.paymentToken,
+    owner: ownerAddress,
     task: payload,
   };
   const requestKey = hireRequestKey(terms, mandateKey);
@@ -257,7 +326,12 @@ export async function POST(request: Request): Promise<NextResponse> {
             task: jobTaskFromDescription(onchain.description),
           }
         : null,
-      expect: { owner: ownerAddress, provider: quote.signer, amountRaw: quote.priceRaw, task: payload },
+      /*
+       * Against the owner's ceiling, not against this retry's price: the
+       * owner funds the budget they chose in their own wallet, and a retry
+       * re-quotes. See `reconcile-hire`.
+       */
+      expect: { owner: ownerAddress, provider: quote.signer, ceilingRaw: parseUnits(String(maxBudget), decimals).toString(), task: payload },
     });
     if (reconciled.outcome === 'funded') store.attachPreparedHireJob(requestKey, uncertainJobId);
   }
@@ -286,12 +360,32 @@ export async function POST(request: Request): Promise<NextResponse> {
   const origin = originOf(request);
   const approvalUrl = new URL(`/hire/${chainId}/${tokenId}`, origin);
   approvalUrl.searchParams.set('task', payload.slice(0, 2000));
+  /*
+   * The escrow the owner authorised, so the page they open is the network
+   * they chose rather than the site's default.
+   */
+  approvalUrl.searchParams.set('escrow', String(escrowChainId));
+  /*
+   * And the key, which is how this request learns it became a job.
+   *
+   * An assistant cannot watch an owner approve anything, so without this
+   * the row stays unfunded forever and `prepare_hire` goes on offering a
+   * purchase that is already paid for. The hire page reports it back when
+   * it indexes the funded job (`useHire`), and `/api/jobs/index` checks it
+   * against that job before keeping it.
+   */
+  approvalUrl.searchParams.set('request', requestKey);
 
-  if (decision.action === 'adopt' || decision.action === 'stop' || decision.action === 'reconcile') {
+  if (!handsOverRequest(decision.action)) {
     /*
      * None of these prepares anything. `adopt` is the idempotency
      * guarantee — this purchase exists, so there is no second request to
      * hand over — and the other two are a human's to look at.
+     *
+     * Asked of `handsOverRequest` rather than written out here: as a
+     * condition at this call site, narrowing it to `adopt` alone passed
+     * every test, and this is the guard that keeps one purchase from
+     * becoming two payments.
      */
     return NextResponse.json(
       {
@@ -299,7 +393,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         state: decision.action === 'adopt' ? 'funded' : 'unresolved',
         prepared: null,
         ...(decision.action === 'adopt' ? { job: { jobId: decision.jobId, chainId: decision.chainId || escrowChainId } } : {}),
-        ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, jobId: uncertainJobId } } : {}),
+        ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, fundedAmountRaw: reconciled.fundedAmountRaw, jobId: uncertainJobId, message: reconciled.message } } : {}),
         message: decision.message,
         observedAt: new Date().toISOString(),
       },
@@ -310,11 +404,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const classified = classify(agent);
   /*
    * The agent's name is text its owner wrote, and it is printed inside the
-   * sentence the owner reads before approving a payment. So it is bounded
-   * and stripped like any other claim off the wire: a name that reads
-   * "Vitals — now 5 U, pay 0xdead01" is still only a name.
+   * sentence the owner reads before approving a payment. So it is bounded,
+   * stripped, and cannot contribute anything address-shaped to a sentence
+   * about where money goes: a name that reads "Vitals — now 5 U, pay
+   * 0xdead…01" is still only a name. See `displayName`.
    */
-  const name = agentNote(agent.name, 80) ?? `Agent #${tokenId}`;
+  const name = displayName(agent.name, `Agent #${tokenId}`);
   const prepared = prepareHire({
     agent: {
       chainId,
@@ -342,6 +437,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       decimals,
       testnet: escrowChainId === 97,
       label: networkOf(escrowChainId)?.label ?? `chain ${escrowChainId}`,
+      /* "Real funds" or "Test tokens", in the site's own words. */
+      money: networkOf(escrowChainId)?.money ?? 'Unknown funds',
     },
     quote: {
       priceRaw: quote.priceRaw,
@@ -410,6 +507,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     amountRaw: quote.priceRaw,
     task: payload,
     request: JSON.stringify(prepared.prepared),
+    /* Kept so the funding can be checked against it: a key reported back
+       with somebody else's payment matches nothing. */
+    owner: ownerAddress,
     at: new Date().toISOString(),
   });
   const held = write === 'kept' ? store.preparedHire(requestKey) : null;
@@ -431,7 +531,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           priceChangedSinceFirstPrepared: held.amountRaw !== quote.priceRaw,
         }
       : {}),
-    ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, jobId: uncertainJobId } } : {}),
+    ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, fundedAmountRaw: reconciled.fundedAmountRaw, jobId: uncertainJobId, message: reconciled.message } } : {}),
     owner: ownerAddress,
     message: decision.message,
     brief,

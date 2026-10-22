@@ -7,12 +7,13 @@ import { test } from 'node:test';
 
 import { compileBrief } from '../src/lib/hire/brief-compiler';
 import { prepareHire } from '../src/lib/assistant/hire-request';
-import { agentNote, AGENT_TEXT_CANNOT, termsWithinMandate, type OwnerMandate } from '../src/lib/assistant/mandate';
-import { hireRequestKey, indexedJobForTerms, retryDecision } from '../src/lib/assistant/idempotency';
+import { agentNote, AGENT_TEXT_CANNOT, displayName, termsWithinMandate, type OwnerMandate } from '../src/lib/assistant/mandate';
+import { handsOverRequest, hireRequestKey, indexedJobForTerms, retryDecision } from '../src/lib/assistant/idempotency';
 import { reconcileUncertainHire } from '../src/lib/assistant/reconcile-hire';
 import {
   attachPreparedHireJob,
   ensurePreparedHires,
+  preparedHireMismatch,
   readPreparedHire,
   recordPreparedHire,
 } from '../src/lib/assistant/prepared-store';
@@ -111,6 +112,7 @@ function prepared(over: Partial<Parameters<typeof prepareHire>[0]> = {}) {
       decimals: 18,
       testnet: false,
       label: 'BNB Chain · Mainnet',
+      money: 'Real funds',
     },
     quote: {
       priceRaw: PRICE,
@@ -183,6 +185,20 @@ test('the prepared hire states every term, and is unsigned', () => {
   assert.equal(hire.terms.chain.id, 56);
   assert.equal(hire.terms.chain.label, 'BNB Chain · Mainnet');
   assert.equal(hire.terms.chain.testnet, false);
+  /*
+   * Whose choice the network was, and what money it is. The agent used to
+   * decide both by choosing the currency it quoted in, so an owner asking
+   * about a testnet agent could be handed a real-money hire; the chain is
+   * now the owner's input and is labelled as theirs.
+   */
+  assert.equal(hire.terms.chain.money, 'Real funds');
+  assert.equal(hire.terms.chain.statedBy, 'the owner');
+  assert.match(hire.approval.toDo, /Real funds/, 'the sentence a human reads names the money');
+  /* And the ceiling, in the same money as the price, so "5" is never a
+     number whose network has to be guessed. */
+  assert.equal(hire.terms.ceiling.raw, CEILING);
+  assert.equal(hire.terms.ceiling.display, '0.05 $U');
+  assert.equal(hire.terms.ceiling.statedBy, 'the owner');
   assert.equal(hire.terms.escrow.standard, 'ERC-8183');
   assert.equal(hire.terms.escrow.contract, COMMERCE_56);
   assert.equal(hire.terms.provider.address, AGENT_WALLET);
@@ -316,6 +332,18 @@ test('an agent’s own name is a name, and not an instruction inside the approva
   assert.ok(!named.includes('[') && !named.includes(']'), 'brackets are neutralised, as in a negotiation claim');
   assert.ok(!named.includes('\u0007'), 'control characters are dropped');
   assert.ok(named.length <= 81, 'and it cannot run to any length');
+
+  /*
+   * And a name may not contribute anything address-shaped to the sentence
+   * an owner reads before paying. Eighty characters of name is room for a
+   * complete rogue address beside the real one, in the one place a reader
+   * is skimming for a wallet.
+   */
+  const shown = displayName(hostile, 'Agent #367904');
+  assert.ok(!/0x[0-9a-fA-F]{6,}/.test(shown), `address-shaped runs are replaced: ${shown}`);
+  assert.ok(shown.includes('0x…'), 'and visibly so, rather than silently deleted');
+  assert.equal(displayName('   ', 'Agent #1'), 'Agent #1', 'a blank name falls back');
+  assert.equal(displayName(ELSEWHERE, 'Agent #1'), 'Agent #1', 'a name that is only an address is no name at all');
 
   const result = prepared({ agent: { chainId: 56, tokenId: '367904', name: named, category: 'health-factor' }, providerLabel: named });
   assert.equal(result.ok, true);
@@ -460,6 +488,61 @@ test('the key is the purchase, so a retry answered at a different price is still
   assert.equal(hireRequestKey(TERMS, ''), key, 'an empty key is no key');
 });
 
+test('a purchase is somebody’s: two owners with one brief are two requests', () => {
+  /*
+   * The fields above identify work, and two owners can send one brief byte
+   * for byte — `briefAcceptable` admits an agent's own published examples,
+   * and a compiled payload is deterministic. With the owner out of the key,
+   * the second of them was handed the first one's job: a job they cannot
+   * release, dispute or read.
+   */
+  const mine = hireRequestKey({ ...TERMS, owner: OWNER });
+  const theirs = hireRequestKey({ ...TERMS, owner: ELSEWHERE });
+  assert.notEqual(mine, theirs, 'one brief, two owners, two purchases');
+  assert.equal(hireRequestKey({ ...TERMS, owner: OWNER.toLowerCase() }), mine, 'and one owner is one purchase');
+
+  /*
+   * An owner Pokter has not been told is its own key, so learning who they
+   * are mid-flow makes a second request. That is the safe direction: a
+   * prepared request is unsigned, so the cost is a duplicate prompt, where
+   * being handed somebody else's job is the worse failure by a long way.
+   */
+  const anonymous = hireRequestKey(TERMS);
+  assert.notEqual(anonymous, mine);
+  assert.equal(hireRequestKey({ ...TERMS, owner: null }), anonymous);
+});
+
+test('a funded job answers one prepared request, and only if it is that request’s', (t) => {
+  /*
+   * The key travels to the owner's wallet in the approval link and comes
+   * back from the browser that funded the hire, so it arrives as a claim.
+   * What makes it safe is that the job has to be the one the request
+   * describes. Without this step the row never learns it was funded at all,
+   * and `prepare_hire` goes on offering a purchase already paid for.
+   */
+  const db = openStore(t);
+  const key = hireRequestKey({ ...TERMS, owner: OWNER });
+  recordPreparedHire(db, { ...write(key, iso(0)), owner: OWNER });
+  const record = readPreparedHire(db, key) as NonNullable<ReturnType<typeof readPreparedHire>>;
+  assert.equal(record.owner, OWNER.toLowerCase(), 'the owner is kept so the funding can be checked against it');
+
+  const funded = { chainId: 56, agentChainId: 56, agentTokenId: '367904', provider: AGENT_WALLET, task: TERMS.task, client: OWNER };
+  assert.equal(preparedHireMismatch(record, funded), null, 'the owner’s own funding of this work is this request');
+
+  /* Every way a key can be paired with a job that is not its own. */
+  assert.match(String(preparedHireMismatch(record, { ...funded, chainId: 97 })), /escrow chain/);
+  assert.match(String(preparedHireMismatch(record, { ...funded, agentTokenId: '2618' })), /agent 56\/367904/);
+  assert.match(String(preparedHireMismatch(record, { ...funded, provider: ELSEWHERE })), /different provider/);
+  assert.match(String(preparedHireMismatch(record, { ...funded, task: 'other work' })), /different brief/);
+  assert.match(String(preparedHireMismatch(record, { ...funded, client: ELSEWHERE })), /different wallet/);
+
+  /* A request prepared without an owner cannot be compared with one, and is
+     matched on the work alone — the same rule the index keeps. */
+  const unowned = hireRequestKey(TERMS);
+  recordPreparedHire(db, write(unowned, iso(1_000)));
+  assert.equal(preparedHireMismatch(readPreparedHire(db, unowned)!, { ...funded, client: ELSEWHERE }), null);
+});
+
 function openStore(t: { after: (fn: () => void) => void }): DatabaseSync {
   const directory = mkdtempSync(join(tmpdir(), 'pokter-prepared-hires-'));
   const db = new DatabaseSync(join(directory, 'jobs.db'));
@@ -577,7 +660,7 @@ test('one owner is never handed another owner’s job out of the shared index', 
 
 // ── 5. An uncertain payment is read from the chain before anything is retried ──
 
-const expect = { owner: OWNER, provider: AGENT_WALLET, amountRaw: PRICE, task: TERMS.task };
+const expect = { owner: OWNER, provider: AGENT_WALLET, ceilingRaw: CEILING, task: TERMS.task };
 const onchain = (over: Partial<{ client: string; provider: string; budget: bigint; statusName: string; task: string | null }> = {}) => ({
   client: OWNER,
   provider: AGENT_WALLET,
@@ -613,10 +696,11 @@ test('an uncertain funding is reconciled, and only “not funded” may be retri
   assert.equal(taken.retrySafe, false);
   assert.match(taken.message, /could pay twice/);
 
-  /* Ours, and funded for a different amount or a different brief. */
-  const wrongAmount = reconcileUncertainHire({ onchain: onchain({ budget: BigInt('60000000000000000') }), expect });
-  assert.equal(wrongAmount.outcome, 'mismatch');
-  assert.equal(wrongAmount.retrySafe, false);
+  /* Ours, and funded above what the owner authorised. */
+  const overCeiling = reconcileUncertainHire({ onchain: onchain({ budget: BigInt('60000000000000000') }), expect });
+  assert.equal(overCeiling.outcome, 'mismatch');
+  assert.equal(overCeiling.retrySafe, false);
+  assert.match(overCeiling.message, /the owner authorised at most/);
 
   const wrongBrief = reconcileUncertainHire({ onchain: onchain({ task: 'a brief nobody approved' }), expect });
   assert.equal(wrongBrief.outcome, 'mismatch');
@@ -625,6 +709,65 @@ test('an uncertain funding is reconciled, and only “not funded” may be retri
   const unreadable = reconcileUncertainHire({ onchain: onchain({ task: null }), expect });
   assert.equal(unreadable.outcome, 'mismatch');
   assert.match(unreadable.message, /not a Pokter job envelope/);
+});
+
+test('a funding at a price nobody quoted is still this hire, and is reported at what it holds', () => {
+  /*
+   * The amount is compared against the owner's ceiling, not against this
+   * retry's quote, and both of the commonest cases depended on it.
+   *
+   * A retry re-quotes — that is exactly what the key is built to tolerate —
+   * so demanding the funded budget equal the fresh price reported
+   * `mismatch` for a hire that went through perfectly. And the owner funds
+   * `budgetU` in their own wallet, a figure they can edit, so the amount on
+   * chain is frequently their number rather than the agent's. Calling
+   * either a mismatch tells an owner their own completed payment went
+   * somewhere it should not have.
+   */
+  const reQuoted = reconcileUncertainHire({ onchain: onchain({ budget: BigInt('40000000000000000') }), expect });
+  assert.equal(reQuoted.outcome, 'funded', 'a re-quote is not a mismatch');
+  assert.equal(reQuoted.retrySafe, false);
+  assert.equal(reQuoted.fundedAmountRaw, '40000000000000000', 'and the assistant is told what it actually holds');
+  assert.match(reQuoted.message, /within the 50000000000000000 the owner authorised/);
+
+  /* The owner's own smaller budget, likewise. */
+  const underQuoted = reconcileUncertainHire({ onchain: onchain({ budget: BigInt('5000000000000000') }), expect });
+  assert.equal(underQuoted.outcome, 'funded');
+  assert.equal(underQuoted.fundedAmountRaw, '5000000000000000');
+
+  /* Exactly at the ceiling is inside it. */
+  assert.equal(reconcileUncertainHire({ onchain: onchain({ budget: BigInt(CEILING) }), expect }).outcome, 'funded');
+
+  /* A job that exists and holds nothing is money that did not move. */
+  const empty = reconcileUncertainHire({ onchain: onchain({ budget: 0n }), expect });
+  assert.equal(empty.outcome, 'not-funded');
+  assert.equal(empty.retrySafe, true);
+  assert.match(empty.message, /holds nothing/);
+
+  /* And a ceiling that is not a number compares with nothing. */
+  const unusable = reconcileUncertainHire({ onchain: onchain(), expect: { ...expect, ceilingRaw: '0.05 $U' } });
+  assert.equal(unusable.outcome, 'mismatch');
+  assert.equal(unusable.retrySafe, false);
+});
+
+test('only a decision with nothing already funded hands over a request', () => {
+  /*
+   * The guard that keeps one purchase from becoming two payments. It was a
+   * condition written out at the call site — `adopt || stop || reconcile`
+   * — and a mutation narrowing it to `adopt` alone passed the entire
+   * suite: the two outcomes where a payment may already have happened were
+   * held together by an expression no test could reach.
+   */
+  assert.equal(handsOverRequest('prepare'), true);
+  assert.equal(handsOverRequest('reuse'), true);
+  assert.equal(handsOverRequest('adopt'), false, 'a funded purchase gets no second request');
+  assert.equal(handsOverRequest('stop'), false, 'an unaccounted payment gets no second request');
+  assert.equal(handsOverRequest('reconcile'), false, 'and neither does one the chain has not answered for');
+
+  /* Every action the decision can return is covered, so a new one cannot
+     default into handing over a request unnoticed. */
+  const actions: Array<ReturnType<typeof retryDecision>['action']> = ['prepare', 'reuse', 'adopt', 'stop', 'reconcile'];
+  for (const action of actions) assert.equal(typeof handsOverRequest(action), 'boolean', action);
 });
 
 test('a caller that cannot account for a payment is sent to the chain, never to a resubmission', () => {

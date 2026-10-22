@@ -35,6 +35,8 @@ export interface PreparedHireRecord {
   token: string;
   amountRaw: string;
   task: string;
+  /** The wallet expected to approve it, where the owner said who they are. */
+  owner: string | null;
   /** The prepared request, exactly as it was first returned. */
   request: string;
   /** The job it became, once the owner funded it. */
@@ -54,6 +56,7 @@ export interface PreparedHireWrite {
   amountRaw: string;
   task: string;
   request: string;
+  owner?: string | null;
   at: string;
 }
 
@@ -70,11 +73,21 @@ export function ensurePreparedHires(db: DatabaseSync): void {
       amount_raw     TEXT NOT NULL,
       task           TEXT NOT NULL,
       request        TEXT NOT NULL,
+      owner          TEXT,
       job_id         TEXT,
       prepared_at    TEXT NOT NULL,
       last_seen_at   TEXT NOT NULL
     );
   `);
+  /* `CREATE TABLE IF NOT EXISTS` adds no column to a table that already
+     exists, so a database written by an earlier build of this branch keeps
+     its rows and gains the column. The same migration shape the job store
+     uses, and tolerant of having already run. */
+  try {
+    db.exec('ALTER TABLE prepared_hires ADD COLUMN owner TEXT');
+  } catch (error) {
+    if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+  }
   /*
    * One key per job. SQLite allows any number of NULLs in a unique index,
    * so every request still awaiting approval coexists, and the first key to
@@ -95,6 +108,7 @@ interface Row {
   amount_raw: string;
   task: string;
   request: string;
+  owner: string | null;
   job_id: string | null;
   prepared_at: string;
   last_seen_at: string;
@@ -113,6 +127,7 @@ function toRecord(row: Row): PreparedHireRecord {
     amountRaw: row.amount_raw,
     task: row.task,
     request: row.request,
+    owner: row.owner ?? null,
     jobId: row.job_id,
     preparedAt: row.prepared_at,
     lastSeenAt: row.last_seen_at,
@@ -146,8 +161,8 @@ export function recordPreparedHire(db: DatabaseSync, write: PreparedHireWrite): 
   const inserted = db
     .prepare(
       `INSERT OR IGNORE INTO prepared_hires
-         (key, agent_chain_id, agent_token_id, chain_id, escrow, provider, token, amount_raw, task, request, job_id, prepared_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+         (key, agent_chain_id, agent_token_id, chain_id, escrow, provider, token, amount_raw, task, request, owner, job_id, prepared_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
     )
     .run(
       write.key,
@@ -160,6 +175,7 @@ export function recordPreparedHire(db: DatabaseSync, write: PreparedHireWrite): 
       write.amountRaw,
       write.task,
       write.request,
+      write.owner ? write.owner.toLowerCase() : null,
       write.at,
       write.at,
     );
@@ -168,6 +184,37 @@ export function recordPreparedHire(db: DatabaseSync, write: PreparedHireWrite): 
      this records only that it was asked for again. */
   db.prepare('UPDATE prepared_hires SET last_seen_at = ? WHERE key = ?').run(write.at, write.key);
   return 'kept';
+}
+
+/**
+ * Whether a funded job really is this prepared request's, or why not.
+ *
+ * The key travels to the owner's wallet in the approval link and comes back
+ * from the browser that funded it, so it arrives as a claim. What makes the
+ * claim safe is this: the job has to be the one the request describes —
+ * same escrow chain, same agent registration, same provider, the exact
+ * brief, and funded by the owner the request was prepared for where it
+ * named one. A key paired with somebody else's job matches nothing and
+ * attaches nothing.
+ *
+ * Pure, and returns the reason rather than a boolean, because "this job is
+ * not that request's" is something an operator reading a log needs told.
+ */
+export function preparedHireMismatch(
+  record: PreparedHireRecord,
+  job: { chainId: number; agentChainId: number; agentTokenId: string; provider: string; task: string; client: string },
+): string | null {
+  if (record.chainId !== job.chainId) return `the request is for escrow chain ${record.chainId} and the job is on ${job.chainId}`;
+  if (record.agentChainId !== job.agentChainId || record.agentTokenId !== job.agentTokenId) {
+    return `the request is for agent ${record.agentChainId}/${record.agentTokenId} and the job is for ${job.agentChainId}/${job.agentTokenId}`;
+  }
+  if (record.provider.toLowerCase() !== job.provider.toLowerCase()) return 'the job pays a different provider';
+  if (record.task !== job.task) return 'the job was funded with a different brief';
+  /* Where the request named an owner, only that owner's funding is it. A
+     request prepared without one cannot be compared and is matched on the
+     work alone, as the index is. */
+  if (record.owner && record.owner.toLowerCase() !== job.client.toLowerCase()) return 'the job was funded by a different wallet';
+  return null;
 }
 
 export type JobAttachment = 'attached' | 'already-attached' | 'claimed-by-another-request' | 'no-such-request';

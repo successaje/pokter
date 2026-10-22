@@ -188,3 +188,30 @@ export function agentNote(text: unknown, limit = 500): string | null {
   if (!clean) return null;
   return clean.length > limit ? `${clean.slice(0, limit)}…` : clean;
 }
+
+/**
+ * A name to print, with nothing in it that can be read as an address.
+ *
+ * `agentNote` is right for prose: an agent explaining that it needs a token
+ * address may legitimately quote one, and a human reading a quotation can
+ * see it is a quotation. A **name** is different. It is printed inside the
+ * sentence an owner reads before approving a payment — "Fund escrow … for
+ * <name>" — and eighty characters of name is room for a complete rogue
+ * address sitting beside the real one, in the one place a reader is
+ * skimming for a wallet.
+ *
+ * So anything address-shaped is replaced rather than carried. The name is
+ * still the owner's own words; it simply cannot contribute a hex string to
+ * a sentence about where money goes. The addresses in a prepared request
+ * come from the registry and the escrow, and those are the only ones the
+ * owner should find there.
+ */
+export function displayName(text: unknown, fallback: string, limit = 80): string {
+  const noted = agentNote(text, limit);
+  if (!noted) return fallback;
+  const withoutAddresses = noted.replace(/0x[0-9a-fA-F]{6,}/g, '0x…').trim();
+  /* A "name" that was only an address is not a name. What is left would be
+     a placeholder and punctuation, so the registration's own number is a
+     truer label than that. */
+  return withoutAddresses.replaceAll('0x…', '').replace(/[\s\p{P}\p{S}]+/gu, '') ? withoutAddresses : fallback;
+}

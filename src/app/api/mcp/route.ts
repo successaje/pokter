@@ -281,8 +281,19 @@ function tools(request: Request): McpTool[] {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
+        /*
+         * Both of the owner's own inputs, refused here rather than
+         * defaulted down to the route. The escrow chain decides whether
+         * this hire spends real money, and an agent registered on one
+         * network may quote in the other's token — so it is the owner's
+         * choice and never the agent's.
+         */
+        const escrow = chain(args.escrow_chain_id);
+        if (!escrow) {
+          return { data: { error: 'escrow_chain_id is required: 56 to fund with real $U on BNB Chain, or 97 for test tokens on BNB Testnet. Ask the owner which; Pokter will not choose between real and test money for them.' }, isError: true };
+        }
         if (typeof args.max_budget !== 'number') {
-          return { data: { error: 'max_budget is required: the most the owner has authorised for this job, in whole $U. Ask the owner; Pokter sets no budget of its own.' }, isError: true };
+          return { data: { error: `max_budget is required and must be a number: the most the owner has authorised for this job, in whole $U on chain ${escrow}. Ask the owner; Pokter sets no budget of its own.` }, isError: true };
         }
         const answers = args.answers && typeof args.answers === 'object' && !Array.isArray(args.answers) ? args.answers : undefined;
         return read(
@@ -295,6 +306,7 @@ function tools(request: Request): McpTool[] {
                 tokenId: t,
                 task: args.task,
                 answers,
+                escrowChainId: escrow,
                 maxBudget: args.max_budget,
                 ...(typeof args.request_id === 'string' ? { requestId: args.request_id } : {}),
                 ...(typeof args.possibly_funded_job_id === 'string' ? { possiblyFundedJobId: args.possibly_funded_job_id } : {}),
@@ -343,7 +355,15 @@ function tools(request: Request): McpTool[] {
             verification: check.data,
             settles: 'Nothing. This is advisory: it releases no escrow, pays nobody and raises no dispute. Only the owner can release or dispute, in their own wallet.',
           },
-          isError: state.isError,
+          /*
+           * Either half failing is a failed call. This read only the job,
+           * so a verification that came back 502 was handed to the
+           * assistant as a successful answer with an error inside it —
+           * which is how "Pokter could not check this" gets reported as
+           * "Pokter checked this". A job the check does not apply to is a
+           * different thing: that answers 200 and says so.
+           */
+          isError: state.isError || check.isError,
         };
       },
     },

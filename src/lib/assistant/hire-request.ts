@@ -66,6 +66,8 @@ export interface PrepareHireInput {
     decimals: number;
     testnet: boolean;
     label: string;
+    /** "Real funds" or "Test tokens", as `networkOf` words it. */
+    money: string;
   };
   quote: PreparedQuote;
   brief: PreparedBrief;
@@ -78,11 +80,22 @@ export interface PrepareHireInput {
 }
 
 export interface PreparedHireTerms {
-  chain: { id: number; label: string; testnet: boolean };
+  /** Which network, and whether approving this spends real money. */
+  chain: { id: number; label: string; testnet: boolean; money: string; statedBy: 'the owner' };
   escrow: { standard: 'ERC-8183'; contract: string; releases: string };
   provider: { address: string; label: string | null; source: 'erc8004-registry' };
   token: { address: string; symbol: string; decimals: number };
   amount: { raw: string; display: string };
+  /**
+   * The owner's own ceiling, in the same money as the amount.
+   *
+   * Stated beside the price because a bare number is ambiguous about the
+   * one thing that matters most: "5" is five real $U on chain 56 and five
+   * test $U on chain 97, and the agent used to choose which by choosing its
+   * currency. The owner now states the chain, and the ceiling is printed in
+   * that chain's money so the figure they approve is the figure they set.
+   */
+  ceiling: { raw: string; display: string; statedBy: 'the owner' };
   quote: {
     negotiationHash: string;
     signedBy: string;
@@ -217,7 +230,9 @@ export function prepareHire(input: PrepareHireInput): PrepareHireResult {
       required: true,
       by: 'the wallet owner, in their own wallet',
       where: input.approvalUrl,
-      toDo: `Fund ERC-8183 escrow ${input.escrow.commerce} on chain ${input.escrow.chainId} (${input.escrow.label}) with ${amountDisplay} for ${name}, against the exact task in this request.`,
+      /* The money named, not only the amount: "0.01 $U" reads the same on
+         both networks and means real funds on one of them. */
+      toDo: `Fund ERC-8183 escrow ${input.escrow.commerce} on chain ${input.escrow.chainId} (${input.escrow.label}, ${input.escrow.money}) with ${amountDisplay} for ${name}, against the exact task in this request.`,
       pokterHas: [
         'Read the agent’s registry record and resolved the wallet escrow would pay',
         'Compiled the brief and established what the agent’s skill accepts',
@@ -234,7 +249,7 @@ export function prepareHire(input: PrepareHireInput): PrepareHireResult {
     },
     agent: input.agent,
     terms: {
-      chain: { id: input.escrow.chainId, label: input.escrow.label, testnet: input.escrow.testnet },
+      chain: { id: input.escrow.chainId, label: input.escrow.label, testnet: input.escrow.testnet, money: input.escrow.money, statedBy: 'the owner' },
       escrow: {
         standard: 'ERC-8183',
         contract: input.escrow.commerce,
@@ -247,6 +262,13 @@ export function prepareHire(input: PrepareHireInput): PrepareHireResult {
       },
       token: { address: input.quote.currency, symbol, decimals: input.escrow.decimals },
       amount: { raw: input.quote.priceRaw, display: amountDisplay },
+      ceiling: {
+        raw: input.mandate.maxAmountRaw,
+        display:
+          formatAmount(input.escrow.chainId, input.escrow.paymentToken, input.mandate.maxAmountRaw)?.label ??
+          `${input.mandate.maxAmountRaw} raw units of ${input.escrow.paymentToken}`,
+        statedBy: 'the owner',
+      },
       quote: {
         negotiationHash: input.quote.negotiationHash,
         signedBy: input.quote.signer,

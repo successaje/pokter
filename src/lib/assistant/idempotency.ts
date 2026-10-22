@@ -19,8 +19,19 @@ import { describeFundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hi
  * rather than what Pokter happened to compute:
  *
  *  - The agent, the escrow chain, the escrow contract, the provider, the
- *    token and the exact task. Change any of them and it is a different
- *    purchase.
+ *    token, the owner and the exact task. Change any of them and it is a
+ *    different purchase.
+ *  - **The owner**, because a purchase is somebody's. The fields above
+ *    identify work, and two owners can send one brief byte for byte —
+ *    `briefAcceptable` admits an agent's own published examples, and a
+ *    compiled payload is deterministic, so this is ordinary rather than
+ *    exotic. Without the owner in the key, the second of them was handed
+ *    the first one's job: a job they cannot release, dispute or read, and a
+ *    hire they could never prepare. An owner Pokter has not been told is
+ *    its own key, and learning who they are mid-flow therefore makes a
+ *    second one. That is the safe direction: a prepared request is
+ *    unsigned, so the cost is a duplicate prompt, where being handed
+ *    somebody else's job is the worse failure by a long way.
  *  - **Not** the negotiation hash. A quote expires in minutes, so a retry
  *    normally carries a fresh signature over identical terms. Keying on the
  *    hash would make every re-quote a new purchase, which is exactly the
@@ -43,11 +54,13 @@ import { describeFundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hi
 export interface HireRequestTerms {
   agentChainId: number;
   agentTokenId: string;
-  /** The escrow chain. */
+  /** The escrow chain, as the owner stated it. */
   chainId: number;
   escrow: string;
   provider: string;
   token: string;
+  /** The wallet expected to approve it, where the owner said. */
+  owner?: string | null;
   task: string;
 }
 
@@ -65,6 +78,7 @@ export function hireRequestKey(terms: HireRequestTerms, mandateKey?: string | nu
     escrow: terms.escrow.toLowerCase(),
     provider: terms.provider.toLowerCase(),
     token: terms.token.toLowerCase(),
+    owner: terms.owner ? terms.owner.toLowerCase() : null,
     task: terms.task,
     /* Absent and empty are the same thing: a caller that sends no key, and
        one that sends "", are both asking for the terms-derived key. */
@@ -88,6 +102,25 @@ export type HireRetry =
   | { action: 'adopt'; jobId: string; chainId: number; message: string }
   | { action: 'reconcile'; message: string }
   | { action: 'stop'; message: string };
+
+/**
+ * Whether this decision hands the owner a request to approve.
+ *
+ * The guard that stops one purchase becoming two payments, as a function
+ * rather than a condition written out at the call site. It was the latter,
+ * and a mutation narrowing it from "adopt, stop or reconcile" to "adopt"
+ * alone passed the whole suite — the three outcomes that must prepare
+ * nothing were held together by a boolean expression no test could reach.
+ * Here they are one answer, and wrong is a failing test.
+ *
+ * `adopt` already has a job. `stop` is a payment nobody can account for,
+ * where offering a fresh request is how somebody pays twice. `reconcile`
+ * has not asked the chain yet, and absence of a record is not evidence
+ * that nothing was funded.
+ */
+export function handsOverRequest(action: HireRetry['action']): boolean {
+  return action === 'prepare' || action === 'reuse';
+}
 
 /**
  * Decided from what is recorded, what is on chain, and nothing else.

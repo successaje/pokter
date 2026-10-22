@@ -10,6 +10,7 @@ import {
 } from 'viem';
 
 import { ALTANA_NETWORK, altanaNetworkFor } from '@/lib/altana/client';
+import { preparedHireMismatch, type JobAttachment } from '@/lib/assistant/prepared-store';
 import { isEscrowChain } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { jobIdentity } from '@/lib/erc8183/job-identity';
@@ -143,7 +144,45 @@ export async function POST(request: Request): Promise<NextResponse> {
     getJobStore().record(indexed);
     // Who owns the agent now is who took the job on, read while that is still true; the sweep retries a miss.
     void attributeJob(indexed).catch(() => false);
-    return NextResponse.json({ indexed: true, jobId: jobIdText, status: onchain.statusName });
+
+    /*
+     * And, where the hire came from a prepared request, which request it
+     * was. This is the step that closes the loop an assistant cannot
+     * otherwise close: it hands the owner an unsigned request, the owner
+     * funds it in their own wallet, and nothing told Pokter which request
+     * that payment answered — so `prepare_hire` could offer the same
+     * purchase again. The key rides in the approval link and comes back
+     * here, at the one moment that already proves a job is funded and
+     * Pokter's.
+     *
+     * It is a claim from a browser, so it is checked against this job
+     * before it is kept (`preparedHireMismatch`), and the unique index
+     * means one job can answer one request. Never fatal: the job is
+     * indexed either way, because the record of a funded job is worth more
+     * than the bookkeeping that points at it.
+     */
+    let request: { key: string; attached: JobAttachment | 'not-this-request'; reason?: string } | null = null;
+    const requestKey = typeof body.requestKey === 'string' && /^phr_[0-9a-f]{32}$/.test(body.requestKey) ? body.requestKey : null;
+    if (requestKey) {
+      const prepared = getJobStore().preparedHire(requestKey);
+      if (!prepared) {
+        request = { key: requestKey, attached: 'no-such-request' };
+      } else {
+        const mismatch = preparedHireMismatch(prepared, {
+          chainId,
+          agentChainId: identity.agentChainId,
+          agentTokenId: identity.agentTokenId,
+          provider: onchain.provider,
+          task: identity.task,
+          client: onchain.client,
+        });
+        request = mismatch
+          ? { key: requestKey, attached: 'not-this-request', reason: mismatch }
+          : { key: requestKey, attached: getJobStore().attachPreparedHireJob(requestKey, jobIdText) };
+      }
+    }
+
+    return NextResponse.json({ indexed: true, jobId: jobIdText, status: onchain.statusName, ...(request ? { request } : {}) });
   } catch (error) {
     return NextResponse.json({ error: `Job indexing failed: ${(error as Error).message}` }, { status: 502 });
   }
