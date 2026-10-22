@@ -36,6 +36,7 @@ const SENDERS: { fn: string; mailClass: MailClass; table?: string }[] = [
   { fn: 'createLoanWatch', mailClass: 'confirmation' },
   { fn: 'createTradingAlert', mailClass: 'confirmation' },
   { fn: 'notifyJobEvent', mailClass: 'job', table: 'notification_subscriptions' },
+  { fn: 'notifyReleaseReminder', mailClass: 'job', table: 'notification_subscriptions' },
   { fn: 'notifyBuilderJobEvent', mailClass: 'builder', table: 'builder_notification_subscriptions' },
   { fn: 'notifyFollowers', mailClass: 'agent-watch', table: 'agent_follows' },
   { fn: 'notifyCampaignReminders', mailClass: 'campaign', table: 'campaign_reminders' },
