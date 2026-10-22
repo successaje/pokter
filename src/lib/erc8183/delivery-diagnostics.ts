@@ -73,13 +73,62 @@ function hostOnly(candidate: string): string {
  * they are not key-shaped, and an error naming no address is much harder to
  * act on.
  */
-export function sanitiseFailureReason(raw: unknown): string {
+const SECRET_LABEL = '(?:api[-_]?key|secret|token|password|passphrase|authorization|mnemonic|seed[-_]?phrase|private[-_]?key|key)';
+
+/**
+ * A reason that cannot be made safe, and so is not logged at all.
+ *
+ * Two shapes defeat any bounded rule. A secret label whose value is on a
+ * later line — `private key:` then a PEM block — leaves the value untouched
+ * by a rule that stops at the newline, which every rule here does. And a
+ * `-----BEGIN` block is a multi-line value with no closing delimiter this
+ * can rely on.
+ *
+ * In both cases the honest answer is to say nothing about the message. The
+ * line still carries the phase, chain, job and category, which is what makes
+ * it useful; the free text is the part that cannot be trusted.
+ */
+function unboundable(text: string): boolean {
+  if (/-----BEGIN/i.test(text)) return true;
+  const labelThenNewline = new RegExp(`\\b${SECRET_LABEL}\\b\\s*[:=]\\s*$`, 'im');
+  return labelThenNewline.test(text) && /\n/.test(text);
+}
+
+/**
+ * Strip anything that could carry a credential, or give up and return null.
+ *
+ * Applied in order, because each rule can expose what the next must catch —
+ * a URL path may itself hold a token, so URLs go first.
+ *
+ *  1. Unboundable shapes abort: see `unboundable`. Null, not a partial.
+ *  2. URLs become their hostname, or `[url]` when unparseable.
+ *  3. A quoted JSON secret loses its value and keeps the rest of the object.
+ *     Quotes bound it exactly, so this is the one case where precision is
+ *     available and the surrounding fields — a job id, a status — survive.
+ *  4. `Bearer <token>` loses the whole token.
+ *  5. A labelled secret loses everything to the end of its line.
+ *  6. A run of twelve or more short lowercase words goes: twelve is the
+ *     shortest BIP-39 phrase.
+ *  7. Any 32-byte hex value goes, `0x`-prefixed included. A private key and a
+ *     transaction hash are the same shape, so neither survives; the hash
+ *     worth keeping arrives through `txHash`, from a transaction result.
+ *
+ * Addresses — 20 bytes — are left alone. They are public, not key-shaped,
+ * and an error naming no address is much harder to act on.
+ */
+export function sanitiseFailureReason(raw: unknown): string | null {
   const text = raw instanceof Error ? raw.message : typeof raw === 'string' ? raw : String(raw ?? '');
+  if (text === '') return '';
+  if (unboundable(text)) return null;
 
   let out = text.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, (match) => hostOnly(match));
+  out = out.replace(
+    new RegExp(`"${SECRET_LABEL}"\\s*:\\s*"(?:[^"\\\\]|\\\\.)*"`, 'gi'),
+    (match) => `${match.slice(0, match.indexOf('"', 1) + 1)}:"[redacted]"`,
+  );
   out = out.replace(/\bbearer\s+\S+/gi, 'Bearer [redacted]');
   out = out.replace(
-    /\b(api[-_]?key|secret|token|password|passphrase|authorization|mnemonic|seed[-_]?phrase|private[-_]?key|key)\b\s*[:=]\s*.*/gi,
+    new RegExp(`\\b(${SECRET_LABEL})\\b\\s*[:=]\\s*.*`, 'gi'),
     (_m, label: string) => `${label}=[redacted]`,
   );
   out = out.replace(
@@ -89,7 +138,29 @@ export function sanitiseFailureReason(raw: unknown): string {
   out = out.replace(/\b(?:0x)?[0-9a-f]{64}\b/gi, '[redacted]');
 
   const collapsed = out.replace(/\s+/g, ' ').trim();
-  return collapsed.length > MAX_REASON ? `${collapsed.slice(0, MAX_REASON)}…` : collapsed;
+  return collapsed.length > MAX_REASON ? `${collapsed.slice(0, MAX_REASON)}\u2026` : collapsed;
+}
+
+/**
+ * A fixed label for what went wrong, safe because it is never the message.
+ *
+ * The reason can be withheld — an unboundable secret, or a message that
+ * sanitises to nothing useful — and a line with no indication of the failure
+ * is barely worth printing. This returns one of a closed set, chosen by
+ * matching the message and never quoting it, so a diagnostic stays useful
+ * even when the text cannot be shown.
+ */
+export type ErrorCategory = 'timeout' | 'reverted' | 'rejected' | 'unauthorised' | 'network' | 'not-found' | 'unknown';
+
+export function errorCategory(raw: unknown): ErrorCategory {
+  const text = (raw instanceof Error ? `${raw.name} ${raw.message}` : String(raw ?? '')).toLowerCase();
+  if (/timeout|timed out|abort/.test(text)) return 'timeout';
+  if (/revert|execution failed|out of gas/.test(text)) return 'reverted';
+  if (/unauthor|forbidden|401|403|signature|denied/.test(text)) return 'unauthorised';
+  if (/rejected|refused/.test(text)) return 'rejected';
+  if (/econn|enotfound|dns|socket|network|fetch failed|502|503|504/.test(text)) return 'network';
+  if (/not found|404|does not exist/.test(text)) return 'not-found';
+  return 'unknown';
 }
 
 /** Where in a retry the failure happened, which narrows the cause at a glance. */
@@ -115,7 +186,18 @@ export function deliveryDiagnosticLine(input: {
   txHash?: `0x${string}` | null;
   at: string;
 }): string {
-  const reason = input.reason === undefined ? '' : ` reason="${sanitiseFailureReason(input.reason)}"`;
+  const base = `[delivery-retry] chain=${input.chainId} job=${input.jobId} phase=${input.phase} action=${input.action}`;
   const tx = input.txHash ? ` tx=${input.txHash}` : '';
-  return `[delivery-retry] chain=${input.chainId} job=${input.jobId} phase=${input.phase} action=${input.action}${reason}${tx} at=${input.at}`;
+  if (input.reason === undefined) return `${base}${tx} at=${input.at}`;
+
+  /*
+   * Category always, reason only when it can be shown. A line that withholds
+   * the message still says where the attempt got to and what kind of failure
+   * it was, which is the part that narrows a cause; the free text is the part
+   * that cannot be trusted.
+   */
+  const category = ` category=${errorCategory(input.reason)}`;
+  const safe = sanitiseFailureReason(input.reason);
+  const reason = safe === null ? ' reason=[withheld: could not be bounded]' : safe === '' ? '' : ` reason="${safe}"`;
+  return `${base}${category}${reason}${tx} at=${input.at}`;
 }
