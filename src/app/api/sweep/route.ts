@@ -20,6 +20,7 @@ import { POKTER_MARKETPLACE } from '@/lib/quest/progress';
 import { getErc8183Job } from '@altananetwork/sdk';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableUrlForIndex, findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
+import { historyClient } from '@/lib/erc8183/history-client';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
@@ -34,7 +35,7 @@ import { gradeDuePaidChecks, gradeDuePaidHfChecks, gradeDuePaidV3Checks } from '
 import { captureFixtureDeliverables } from '@/lib/assay/capture';
 import { reconcileJobIndex } from '@/lib/erc8183/reconcile';
 import { publishSeal } from '@/lib/seals/run';
-import { indexEscrowJobs, questClient, refreshAgentWallets } from '@/lib/quest/indexer';
+import { indexEscrowJobs, refreshAgentWallets } from '@/lib/quest/indexer';
 import { getQuestStore } from '@/lib/quest/store';
 import { refreshWalletActivity } from '@/lib/activity/store';
 import { refreshCapability } from '@/lib/capability/store';
@@ -325,7 +326,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             const deliverableUrl = await deliverableUrlForIndex({
               stored: job.deliverableUrl,
               status: onchain.statusName,
-              lookup: () => findDeliverableUrl(questClient(job.chainId === 56 ? 56 : 97), correctedErc8183Addresses(job.chainId).policy, BigInt(job.jobId), onchain.submittedAt),
+              lookup: () => findDeliverableUrl(historyClient(job.chainId === 56 ? 56 : 97), correctedErc8183Addresses(job.chainId).policy, BigInt(job.jobId), onchain.submittedAt),
             });
             // The local row is only an index. Repair it from ERC-8183 during every
             // sweep so Activity and Builder never depend on somebody opening a

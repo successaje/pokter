@@ -8,8 +8,8 @@ import { readDeliveredAnswer } from '@/lib/delivery/answer';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
+import { historyClient } from '@/lib/erc8183/history-client';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
-import { questClient } from '@/lib/quest/indexer';
 import { getJobStore } from '@/lib/erc8183/store';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
@@ -56,7 +56,7 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
       const lookup: Lookup = indexed?.deliverableUrl
         ? { url: indexed.deliverableUrl }
         : await Promise.race([
-            findDeliverableUrl(questClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
+            findDeliverableUrl(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
               .then((found): Lookup => (found ? { url: found } : { url: null, whose: 'theirs' }))
               .catch((): Lookup => ({ url: null, whose: 'ours' })),
             new Promise<Lookup>((resolve) => setTimeout(() => resolve({ url: null, whose: 'ours' }), 12_000)),
