@@ -57,17 +57,27 @@ type Attempt = { answered: true; status: number; body: unknown } | { answered: f
  * and asking again will not put it there. Everything else — a refused
  * connection, a timeout, 429, 5xx — is the lookup failing, which is not an
  * answer about the agent's interface.
+ *
+ * `why` says what happened and never where. `classifyQuoteError` matches
+ * patterns against the whole message, and this URL is the agent's own: its
+ * host, or the `agentCard` path its index names. A card at
+ * `signer.example.com`, or at `/signatures/card.json`, refusing a
+ * connection would otherwise match `/signature|signer|recover/` and tell
+ * the buyer the agent "returned a price that is not signed by its
+ * registered wallet" — permanent, 409, and about a wallet nobody read.
+ * The card's location is derivable from the endpoint (`a2aCardFallback`),
+ * so nothing a builder needs is lost by leaving it out.
  */
 async function attempt(url: string, fetchJson: CardFetch): Promise<Attempt> {
   let answer: { status: number; body: unknown };
   try {
     answer = await fetchJson(url);
   } catch (error) {
-    return { answered: false, why: `${url} could not be read: ${describe(error)}` };
+    return { answered: false, why: `could not be read: ${describe(error)}` };
   }
   if (answer.status >= 200 && answer.status < 300) return { answered: true, ...answer };
   if (answer.status === 404 || answer.status === 410) return { answered: true, status: answer.status, body: null };
-  return { answered: false, why: `${url} answered ${answer.status}.` };
+  return { answered: false, why: `answered ${answer.status}.` };
 }
 
 /**
@@ -106,7 +116,7 @@ export async function readCardThrough(endpoint: string, fetchJson: CardFetch): P
    * is the read that used to be reported as "no interface".
    */
   if (second && !second.answered) {
-    return { ok: false, problem: 'unreadable', message: `The agent card at ${second.why}` };
+    return { ok: false, problem: 'unreadable', message: `The agent card ${second.why}` };
   }
 
   /* Looked everywhere Pokter looks, and every look answered. */

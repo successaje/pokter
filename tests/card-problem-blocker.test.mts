@@ -88,6 +88,35 @@ for (const [what, route] of [['503s', status(503)], ['never answers', silence]] 
   });
 }
 
+/*
+ * The card's location is the agent's own — its host, or the `agentCard`
+ * path its index names — and `classifyQuoteError` matches patterns against
+ * the whole message. A card host of `signer.example.com` refusing a
+ * connection must not arrive as "not signed by its registered wallet":
+ * that is permanent, answers 409, and is about a wallet nobody read.
+ */
+test('a card URL the agent chose cannot decide the buyer’s failure code', async () => {
+  const refuse = (): never => {
+    throw new TypeError('fetch failed');
+  };
+  for (const pointer of ['/signatures/card.json', '/recover/card.json', '/signer-card.json']) {
+    const server = await serve({ '/': json({ name: 'Honeyglass', agentCard: pointer, rpc: 'POST / (JSON-RPC 2.0)' }) });
+    try {
+      const read = await readCardThrough(`${server.origin}/`, async (url) =>
+        url.endsWith(pointer) ? refuse() : fetchJson(url),
+      );
+      assert.equal(read.ok === false && read.problem, 'unreadable');
+      const message = read.ok === false ? read.message : '';
+      assert.ok(!message.includes(pointer), `the message still carries the agent's own path: ${message}`);
+      const failure = classifyQuoteError(new Error(message));
+      assert.equal(failure.code, 'unreachable', `a refused connection read as ${failure.code}`);
+      assert.equal(failure.retryable, true);
+    } finally {
+      await server.close();
+    }
+  }
+});
+
 test('a card Pokter actually read that names no interface is a missing interface, permanently', async () => {
   const server = await serve({
     '/': json(INDEX),
