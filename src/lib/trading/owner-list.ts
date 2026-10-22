@@ -51,9 +51,13 @@ export interface OwnerList {
  * older list win. `owners_signed_at` is kept beside it, unchanged, because
  * that is the string the wallet actually signed.
  *
- * Existing rows are backfilled rather than left null: a row with a list but
- * no ordering key would accept the next signature however old it was, which
- * is the defect this file exists to close.
+ * The key is reconciled with the text on every open rather than only
+ * backfilled where it is null. A row whose list was last written by a build
+ * without this column keeps whatever key it held before, and would then be
+ * ordered by a time earlier than the list it actually holds — so a signature
+ * older than that list could win. That is the defect this file exists to
+ * close, arriving by way of a rollback instead of a race. The pilot caps the
+ * watch at fifty wallets, so reconciling costs nothing worth saving.
  */
 export function ensureWatchedWallets(db: DatabaseSync): void {
   db.exec(`
@@ -72,13 +76,14 @@ export function ensureWatchedWallets(db: DatabaseSync): void {
   if (!columns.includes('owners_signed_at')) db.exec('ALTER TABLE trading_wallets ADD COLUMN owners_signed_at TEXT');
   if (!columns.includes('owners_signed_ms')) db.exec('ALTER TABLE trading_wallets ADD COLUMN owners_signed_ms INTEGER');
 
-  const unordered = db
-    .prepare('SELECT wallet, owners_signed_at FROM trading_wallets WHERE owners_signed_at IS NOT NULL AND owners_signed_ms IS NULL')
-    .all() as Array<{ wallet: string; owners_signed_at: string }>;
+  const signed = db
+    .prepare('SELECT wallet, owners_signed_at, owners_signed_ms FROM trading_wallets WHERE owners_signed_at IS NOT NULL')
+    .all() as Array<{ wallet: string; owners_signed_at: string; owners_signed_ms: number | bigint | null }>;
   const setMs = db.prepare('UPDATE trading_wallets SET owners_signed_ms = ? WHERE wallet = ?');
-  for (const row of unordered) {
+  for (const row of signed) {
     const ms = ownersSignedAtMs(row.owners_signed_at);
-    if (ms !== null) setMs.run(ms, row.wallet);
+    const recorded = row.owners_signed_ms === null ? null : Number(row.owners_signed_ms);
+    if (ms !== null && ms !== recorded) setMs.run(ms, row.wallet);
   }
 }
 
