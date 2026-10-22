@@ -4,7 +4,7 @@ import { authoriseAgentOwner, type OwnershipRefusal } from '@/lib/builder/diagno
 import { collectBuilderDiagnostics } from '@/lib/builder/diagnostics/collect';
 import type { BuilderDiagnostics } from '@/lib/builder/diagnostics/report';
 import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
-import { registryClient, registryOwner } from '@/lib/registry/onchain';
+import { registryOwnerRead } from '@/lib/registry/onchain';
 import { studioOwner } from './data';
 
 export type DiagnosticsResult =
@@ -37,17 +37,20 @@ export async function loadBuilderDiagnostics(chainId: number, rawTokenId: string
     };
   }
   const session = await studioOwner();
-  const owner = session ? await registryOwner(chainId, tokenId).catch(() => null) : null;
-  /* Only to tell "no such agent" from "the chain did not answer"; see the
-     same read in the route. Unproven stays unproven, and refuses. */
-  const registryReachable =
-    session && !owner
-      ? await (registryClient(chainId)
-          ?.getBlockNumber()
-          .then(() => true)
-          .catch(() => false) ?? Promise.resolve(false))
-      : false;
-  const decision = authoriseAgentOwner({ sessionOwner: session, registryOwner: owner, registryReachable, chainId, tokenId });
+  /* One read, which says whether the chain answered when it found nothing:
+     `ownerOf` reverts on an unminted id. See the same read in the route for
+     why a second, cheaper question cannot stand in for it. Unproven stays
+     unproven, and refuses. */
+  const read = session
+    ? await registryOwnerRead(chainId, tokenId).catch(() => ({ owner: null, answered: false }))
+    : { owner: null, answered: false };
+  const decision = authoriseAgentOwner({
+    sessionOwner: session,
+    registryOwner: read.owner,
+    registryReachable: read.answered,
+    chainId,
+    tokenId,
+  });
   if (!decision.ok) return { ...decision, kind: 'refused' };
 
   try {

@@ -4,7 +4,7 @@ import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
 import { authoriseAgentOwner } from '@/lib/builder/diagnostics/authorise';
 import { collectBuilderDiagnostics } from '@/lib/builder/diagnostics/collect';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
-import { registryClient, registryOwner } from '@/lib/registry/onchain';
+import { registryOwnerRead } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -69,26 +69,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const session = builderSessionOwner(request.cookies.get(BUILDER_SESSION_COOKIE)?.value);
-  const owner = session ? await registryOwner(chainId, tokenId).catch(() => null) : null;
   /*
-   * Asked only when the owner read came back empty, and only to tell the
-   * two empties apart: a chain that answered and holds no such identity,
-   * from one that could not be reached. A builder who mistyped a registry
-   * number was told the lookup had failed and to try again shortly, which
-   * is advice to retry forever. Anything short of a clean answer here
-   * leaves it unproven, and unproven keeps the 503 that grants nothing.
+   * One read, which says whether the chain answered when it found nothing.
+   *
+   * A builder who mistyped a registry number was told the lookup had failed
+   * and to try again shortly, which is advice to retry forever — so the two
+   * empties have to be told apart. They are told apart by the read itself:
+   * `ownerOf` on an unminted id reverts, and a revert is the node saying it
+   * ran the call. Asking a second, cheaper question instead does not work,
+   * because the method that fails is `eth_call`, and an endpoint whose
+   * eth_call is rate limited or pruned still answers `eth_blockNumber` from
+   * cache — which reports a reachable chain and a missing agent, and tells
+   * the owner of a real agent that it does not exist.
+   *
+   * Anything that is not a clean answer leaves it unproven, and unproven
+   * keeps the 503 that grants nothing.
    */
-  const registryReachable =
-    session && !owner
-      ? await (registryClient(chainId)
-          ?.getBlockNumber()
-          .then(() => true)
-          .catch(() => false) ?? Promise.resolve(false))
-      : false;
+  const read = session
+    ? await registryOwnerRead(chainId, tokenId).catch(() => ({ owner: null, answered: false }))
+    : { owner: null, answered: false };
   const decision = authoriseAgentOwner({
     sessionOwner: session,
-    registryOwner: owner,
-    registryReachable,
+    registryOwner: read.owner,
+    registryReachable: read.answered,
     chainId,
     tokenId,
   });

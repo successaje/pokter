@@ -143,7 +143,7 @@ test('the diagnostics route decides ownership before it reads anything', () => {
 
   assert.match(route, /consumeRateLimit\(/, 'a public endpoint that fans out needs the brake');
   assert.match(route, /builderSessionOwner\(/, 'the session must come from the signed-challenge cookie');
-  assert.match(route, /registryOwner\(/, 'ownership is the registry’s answer now');
+  assert.match(route, /registryOwnerRead\(/, 'ownership is the registry’s answer now');
   assert.match(route, /authoriseAgentOwner\(/);
   assert.doesNotMatch(route, /listAgents|loadFleet|getAgent\(/, 'the indexer can be minutes behind a transfer; it cannot decide this');
 
@@ -153,7 +153,7 @@ test('the diagnostics route decides ownership before it reads anything', () => {
   assert.ok(decided > 0 && refused > decided, 'the refusal has to follow the decision');
   assert.ok(collected > refused, 'nothing is read until the refusal has had its chance to return');
   assert.ok(
-    route.indexOf('builderSessionOwner(') < decided && route.indexOf('registryOwner(') < decided,
+    route.indexOf('builderSessionOwner(') < decided && route.indexOf('registryOwnerRead(') < decided,
     'both halves of the decision are read before it is made',
   );
   assert.match(route, /collectBuilderDiagnostics\(decision\.proof\)/, 'and only through the proof the decision returned');
@@ -168,7 +168,8 @@ test('the builder page’s panel goes through the same gate as the route', () =>
    * the one surface where the private data is.
    */
   const loader = code('features/studio/diagnostics-data.ts');
-  assert.match(loader, /registryOwner\(/);
+  assert.match(loader, /registryOwnerRead\(/);
+  assert.doesNotMatch(loader, /getBlockNumber\(/, 'the same single read as the route, for the same reason');
   assert.match(loader, /authoriseAgentOwner\(/);
   assert.match(loader, /collectBuilderDiagnostics\(decision\.proof\)/);
   assert.doesNotMatch(loader, /loadFleet\(/, 'the indexer’s list is not an ownership proof');
@@ -192,6 +193,24 @@ test('the recorder keeps the brief and the caller out of the store', () => {
   const columns = sql.match(/INSERT INTO hire_attempts\s*\n?\s*\(([^)]*)\)/)?.[1] ?? '';
   assert.ok(columns.includes('fingerprint'), 'the opaque key is the identity');
   assert.doesNotMatch(columns, /brief|client/i);
+
+  /*
+   * Both wrappers canonicalise, pinned here because neither can be called
+   * from a test: `store.ts` is server-only, so the executable tests reach
+   * the SQL layer directly and would still pass with the canonical step
+   * removed from the write or the read. That step is the whole fix — a
+   * buyer at `?tokenId=045422` recorded attempts under a key the panel
+   * never asked for — and it only works if both sides do it.
+   */
+  assert.match(store, /const tokenId = canonicalTokenId\(input\.tokenId\)/, 'the write canonicalises');
+  assert.match(store, /if \(tokenId === null\) return;/, 'and refuses rather than guessing');
+  assert.match(store, /const key = canonicalTokenId\(tokenId\)/, 'the read asks under the same key');
+  assert.match(store, /if \(key === null\) return \[\];/);
+  assert.doesNotMatch(
+    store,
+    /tokenId: input\.tokenId/,
+    'the raw spelling must not reach the row: that was the split',
+  );
 
   /* Both quote paths record, and they record different sources: a trial has
      no wallet behind it and must never read as demand. */
@@ -267,13 +286,20 @@ test('the route canonicalises the registry number before it reads anything', () 
   assert.match(route, /canonicalTokenId\(/);
   assert.doesNotMatch(route, /\\d\{1,12\}/, 'the narrow cap refused ids the writer had accepted');
   const canonical = route.indexOf('canonicalTokenId(');
-  assert.ok(canonical > 0 && canonical < route.indexOf('registryOwner('), 'canonical before the ownership read');
+  assert.ok(canonical > 0 && canonical < route.indexOf('registryOwnerRead('), 'canonical before the ownership read');
   assert.ok(canonical < route.indexOf('collectBuilderDiagnostics('), 'and before anything is read');
 
-  /* Reachability is only consulted to tell a typo from an outage, and the
-     unproven case stays the refusal that grants nothing. */
-  assert.match(route, /registryClient\(chainId\)/);
-  assert.match(route, /registryReachable/);
+  /*
+   * Reachability comes from the ownership read itself, not from a second,
+   * cheaper question. The method that fails is `eth_call`, and an endpoint
+   * whose eth_call is rate limited or pruned still answers
+   * `eth_blockNumber` from cache — so a `getBlockNumber` probe reported a
+   * reachable chain and a missing agent, and told the owner of a real
+   * agent that it did not exist. The unproven case stays the refusal that
+   * grants nothing.
+   */
+  assert.match(route, /registryReachable: read\.answered/);
+  assert.doesNotMatch(route, /getBlockNumber\(/, 'a cached cheap call cannot vouch for an eth_call that failed');
 
   /* Every answer private, refusals included. */
   const privateHeaders = route.match(/headers: (?:PRIVATE|\{ \.\.\.PRIVATE)/g) ?? [];
@@ -297,4 +323,73 @@ test('a buyer refused before the agent was called is recorded, not dropped', () 
   assert.match(quote, /noted\('stopped', \{ code: 'brief-too-short', layer: 'input' \}\)/);
   assert.match(quote, /noted\('stopped', \{ code: 'invalid-task', layer: 'input' \}\)/);
   assert.match(quote, /noted\('stopped', \{ code: preflight\.code, layer: 'input' \}\)/);
+});
+
+test('a half-broken node is an outage, not a missing agent', async () => {
+  /*
+   * Run against a JSON-RPC server rather than asserted about, because the
+   * thing being decided is which viem error shape arrives — and only the
+   * node can produce it.
+   *
+   * The case that matters is the realistic partial failure of a public
+   * endpoint: `eth_call` rate limited, pruned, or proxied to a backend with
+   * no state, while `eth_blockNumber` still answers from cache. A probe
+   * that asks the cheap question reads that as a reachable chain holding no
+   * such identity, and tells the owner of a real agent it does not exist —
+   * which is the 503's whole reason for existing, reached from the other
+   * side. `ownerOf` reverting is the only answer that proves the call ran.
+   */
+  const { createServer } = await import('node:http');
+  const state = { call: 'owner' as 'owner' | 'revert' | 'fail' };
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += String(c)));
+    req.on('end', () => {
+      const { id, method } = JSON.parse(body || '{}') as { id?: number; method?: string };
+      const send = (payload: Record<string, unknown>) => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id, ...payload }));
+      };
+      if (method === 'eth_blockNumber') return send({ result: '0x2f4d1c1' });
+      if (method === 'eth_chainId') return send({ result: '0x38' });
+      if (method !== 'eth_call') return send({ result: '0x' });
+      if (state.call === 'fail') return send({ error: { code: -32000, message: 'missing trie node' } });
+      if (state.call === 'revert') return send({ error: { code: 3, message: 'execution reverted', data: '0x7e273289' } });
+      return send({ result: `0x000000000000000000000000${OWNER.slice(2).toLowerCase()}` });
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as { port: number };
+  process.env.BSC_MAINNET_RPC_URL = `http://127.0.0.1:${port}`;
+
+  try {
+    const { registryOwnerRead } = await import('../src/lib/registry/onchain');
+    const status = async () => {
+      const read = await registryOwnerRead(56, '45422').catch(() => ({ owner: null, answered: false }));
+      const decision = authoriseAgentOwner({
+        sessionOwner: OWNER,
+        registryOwner: read.owner,
+        registryReachable: read.answered,
+        chainId: 56,
+        tokenId: '45422',
+      });
+      return decision.ok ? 200 : decision.status;
+    };
+
+    state.call = 'owner';
+    assert.equal(await status(), 200, 'the owner of a live agent is granted');
+
+    state.call = 'revert';
+    assert.equal(await status(), 404, 'an unminted id reverts, which proves the call ran');
+
+    state.call = 'fail';
+    assert.equal(
+      await status(),
+      503,
+      'eth_call failing while eth_blockNumber answers is an outage, and must never read as a missing agent',
+    );
+  } finally {
+    server.close();
+    delete process.env.BSC_MAINNET_RPC_URL;
+  }
 });
