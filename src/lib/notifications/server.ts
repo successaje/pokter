@@ -506,7 +506,7 @@ export async function notifyJobEvent(input: {
   const network = input.chainId === 97 ? 'BNB Smart Chain Testnet' : chainLabel(input.chainId);
   const copy: Record<string, { subject: string; title: string; body: string }> = {
     FUNDED: { subject: `Job #${input.jobId} is funded`, title: 'Your job is funded', body: `${agent} has been asked to do the work. You will hear when it delivers.` },
-    SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. Payment is released after the review window unless you dispute it.' },
+    SUBMITTED: { subject: `${agent} delivered job #${input.jobId}`, title: `${agent} delivered`, body: 'The answer is ready to review. You can dispute it while the review window is open. After it closes, release the payment before the job’s deadline: a job nobody releases expires, the escrow returns to you and the agent is not paid. You will get a reminder when release opens.' },
     COMPLETED: { subject: `Job #${input.jobId} is complete`, title: 'Job complete', body: 'The escrow was released to the agent.' },
     REJECTED: { subject: `Job #${input.jobId} was rejected`, title: 'Delivery rejected', body: 'The escrow policy’s voters rejected the delivery and the job was settled, which refunded your escrow to the wallet that funded it. The agent was not paid.' },
     EXPIRED: { subject: `Job #${input.jobId} expired`, title: 'Escrow reclaimed', body: 'The deadline passed with the job unsettled, and the escrow was reclaimed to the wallet that funded it.' },
@@ -539,6 +539,49 @@ export async function notifyJobEvent(input: {
       sent += 1;
     } catch (error) {
       db().prepare('UPDATE notification_outbox SET last_error=? WHERE id=?').run(String((error as Error).message).slice(0, 500), outboxId);
+    }
+  }
+  return { attempted: rows.length, sent };
+}
+
+/**
+ * Remind a job's subscribers that its payment can be released, or must be
+ * before the deadline (`releaseReminderDue`). One email per subscriber per
+ * reminder, through the same outbox as every other job email, so a sweep
+ * that runs twice inside the window sends it once.
+ */
+export async function notifyReleaseReminder(input: {
+  chainId: number; jobId: string; event: 'RELEASE_OPEN' | 'RELEASE_CLOSING'; closesAt: number; agentName?: string;
+}): Promise<{ attempted: number; sent: number }> {
+  const rows = db().prepare(`SELECT id,email FROM notification_subscriptions
+    WHERE chain_id=? AND job_id=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all(input.chainId, input.jobId) as { id: string; email: string }[];
+  if (rows.length === 0) return { attempted: 0, sent: 0 };
+  const agent = input.agentName?.trim() || 'Your agent';
+  const jobUrl = `${appUrl()}${jobHref({ jobId: encodeURIComponent(input.jobId), chainId: input.chainId })}`;
+  const deadline = `${new Date(input.closesAt).toUTCString().slice(5, 22)} UTC`;
+  const closing = input.event === 'RELEASE_CLOSING';
+  const text = closing
+    ? { subject: `Release job #${input.jobId} before ${deadline}`, title: 'Release closes soon', body: `${agent} delivered job #${input.jobId} and the review window has closed with no dispute, but nobody has released the payment. If it is still unreleased at ${deadline}, the job expires: the escrow returns to you and the agent is not paid for its work.` }
+    : { subject: `You can release job #${input.jobId} now`, title: 'Release is open', body: `The review window for job #${input.jobId} has closed with no dispute. Release the payment to ${agent} from the job page before ${deadline}. After that the job expires, the escrow returns to you and the agent is not paid.` };
+  let sent = 0;
+  for (const row of rows) {
+    db().prepare(`INSERT OR IGNORE INTO notification_outbox
+      (id,subscription_id,event,created_at) VALUES (?,?,?,?)`).run(randomUUID(), row.id, input.event, new Date().toISOString());
+    const pending = db().prepare(`SELECT id,sent_at FROM notification_outbox
+      WHERE subscription_id=? AND event=?`).get(row.id, input.event) as { id: string; sent_at: string | null };
+    if (pending.sent_at) continue;
+    try {
+      const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+      const providerId = await sendEmail({
+        to: row.email,
+        subject: text.subject,
+        idempotencyKey: `job-${input.chainId}-${input.jobId}-${input.event}-${row.id}`.slice(0, 256),
+        html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Job update</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${escapeHtml(text.title)}</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">${escapeHtml(text.body)}</p>${emailContext([['Agent', agent], ['Job', `#${input.jobId}`], ['Release by', deadline]])}<div>${emailButton(jobUrl, 'Open the job and release')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">Releasing pays the agent from escrow and cannot be undone. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop updates for this job</a>.</p>`, `${text.title} · job #${input.jobId}.`),
+      });
+      db().prepare('UPDATE notification_outbox SET provider_id=?,sent_at=? WHERE id=?').run(providerId, new Date().toISOString(), pending.id);
+      sent += 1;
+    } catch (error) {
+      db().prepare('UPDATE notification_outbox SET last_error=? WHERE id=?').run(String((error as Error).message).slice(0, 500), pending.id);
     }
   }
   return { attempted: rows.length, sent };
