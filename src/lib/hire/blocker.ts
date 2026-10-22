@@ -47,6 +47,16 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
       return { code: input.code, reason: `Its quote is not signed by its registered agent wallet (${short(input.agentWallet)}), so Pokter will not fund against it.`, fix: at('quote', 'The signed quote'), transient: false };
     case 'terms-mismatch':
       return { code: input.code, reason: 'Its signed hash does not cover the terms it returned, so the price cannot be shown as signed.', fix: at('quote', 'The signed quote'), transient: false };
+    /*
+     * The card itself did not answer, so nothing here is a finding about the
+     * agent. Kept apart from `no-endpoint` because the two make different
+     * claims and only one of them is permanent: a transient card lookup used
+     * to arrive as "names no service to send a brief to", which told a
+     * builder to reconnect an agent that was already connected and told the
+     * buyer, at 409, not to try again.
+     */
+    case 'card-unreadable':
+      return { code: input.code, reason: `Its agent card did not answer this read${input.detail ? ` (${input.detail})` : ''}, so whether it can be priced is unchecked rather than ruled out. Pokter asks again on the next view.`, fix: at('transports', 'Transports'), transient: true };
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
       /* The card answers and names nowhere to send a brief: listed, but no running agent behind it (56:300282). */

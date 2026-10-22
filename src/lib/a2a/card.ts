@@ -66,3 +66,19 @@ export function isAgentCard(body: unknown): body is Record<string, unknown> {
   const c = object(body);
   return Boolean(c && typeof c.name === 'string' && Array.isArray(c.skills) && a2aInterfaces(c).length > 0);
 }
+
+/**
+ * A card in every respect except a callable interface: `isAgentCard` minus
+ * the one thing it also requires.
+ *
+ * This is the only shape that proves an agent names nowhere to send a brief,
+ * as opposed to Pokter failing to find out. `isAgentCard` returns false for
+ * both — for this and for a timeout — and a caller that reads the one as the
+ * other tells a builder their agent is unconnected because a lookup was slow.
+ * A service index is not this: `{ name, agentCard: '/…' }` carries a name and
+ * no skills, so the two stay apart.
+ */
+export function cardWithoutInterface(body: unknown): boolean {
+  const c = object(body);
+  return Boolean(c && typeof c.name === 'string' && Array.isArray(c.skills) && a2aInterfaces(c).length === 0);
+}

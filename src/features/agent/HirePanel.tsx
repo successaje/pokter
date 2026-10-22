@@ -37,7 +37,9 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
    * interface. Neither a paid hire nor a testnet trial can reach it, since
    * the trial carries the brief to the same place, so no button leads
    * there. A missing negotiate skill is not this: a trial can still reach
-   * a card that offers other skills.
+   * a card that offers other skills. Nor is a card Pokter could not read
+   * (`card-unreadable`), which is a failed check and not a fact about the
+   * agent — withdrawing the buttons over one would hide a working agent.
    */
   const unreachable = profile.hireBlocker?.code === 'no-endpoint' && !profile.hireBlocker.transient;
   return (
@@ -71,7 +73,14 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
       */}
       {profile.hireBlocker && (
         <div className="border-t border-rule px-5 py-3.5">
-          <p className="mb-1 text-[13px] font-semibold text-ink">{profile.hireBlocker.transient ? 'Could not be priced at the last check' : 'Why it cannot be priced'}</p>
+          {/* A check that did not run is not a price that failed, so it is not headed as one. */}
+          <p className="mb-1 text-[13px] font-semibold text-ink">
+            {profile.hireBlocker.code === 'card-unreadable'
+              ? 'Pokter could not check this one'
+              : profile.hireBlocker.transient
+                ? 'Could not be priced at the last check'
+                : 'Why it cannot be priced'}
+          </p>
           <p className="text-[12.5px] leading-snug text-ink-2">{profile.hireBlocker.reason}</p>
           <p className="mt-1.5 text-[12px] text-ink-3">
             Is this your agent? <Link href={profile.hireBlocker.fix.href} className="link">{profile.hireBlocker.fix.label}</Link> explains the fix.
