@@ -7,7 +7,7 @@ import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
-import { currentHireBlockerWithCard } from '@/lib/hire/blocker-live';
+import { currentHireBlockerWithCard, type BlockerSource } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
 /*
@@ -22,6 +22,20 @@ export const maxDuration = 20;
 export function OPTIONS() {
   return apiOptions();
 }
+
+/**
+ * Where a hire blocker came from, in the caller's words.
+ *
+ * One sentence per `BlockerSource`, keyed so a source added later cannot
+ * fall through to another's sentence. This is the endpoint that explains
+ * the evidence behind every claim, and it spent a revision asserting a
+ * sweep price request for a quote a buyer had asked for minutes earlier.
+ */
+const BLOCKER_SOURCE: Record<BlockerSource, string> = {
+  sweep: 'The latest sweep’s read-only price request to the agent.',
+  brief: 'A signed quote Pokter got for a buyer’s own brief, which no enabled escrow settles.',
+  card: 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.',
+};
 
 /**
  * One agent, with the evidence behind every claim.
@@ -135,10 +149,7 @@ export async function GET(
           fix: `https://pokter.xyz${blocker.fix.href}`,
           observedAt: blocker.observedAt,
           provenance: 'pokter-measured',
-          source:
-            blocker.from === 'card'
-              ? 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.'
-              : 'The latest sweep’s read-only price request to the agent.',
+          source: BLOCKER_SOURCE[blocker.from],
         }
       : null,
 
