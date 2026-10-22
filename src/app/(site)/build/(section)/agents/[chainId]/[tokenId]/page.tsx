@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { isCampaignLive } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
 import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
 import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
+import { Diagnostics, DiagnosticsSkeleton } from '@/features/studio/Diagnostics';
 import { ProfileEditor } from '@/features/studio/ProfileEditor';
 import { StudioTabBar, StudioTabHint, StudioTabPanel } from '@/features/studio/StudioTabs';
 import { ImportAgent, NoSession } from '@/features/studio/StudioClient';
@@ -237,6 +239,25 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
           </section>
         </aside>
           </div>
+        </StudioTabPanel>
+        <StudioTabPanel id="diagnostics">
+          <section aria-labelledby="diagnostics-title" className="flex flex-col gap-5">
+            <div>
+              <h2 id="diagnostics-title" className="t-label">
+                Why hires fail
+              </h2>
+              <p className="mt-1 max-w-2xl text-[12.5px] leading-relaxed text-ink-3">
+                Real buyer attempts on this agent, what stopped them, and the fix for each. Pokter&rsquo;s own scheduled
+                checks, free trials, team-funded tests and lifecycle demonstrations are all excluded and counted
+                separately.
+              </p>
+            </div>
+            {/* Suspended on its own: the ownership read is an RPC call to the
+                registry, and the rest of the page has no reason to wait for it. */}
+            <Suspense fallback={<DiagnosticsSkeleton />}>
+              <Diagnostics chainId={agent.chainId} tokenId={agent.tokenId} />
+            </Suspense>
+          </section>
         </StudioTabPanel>
         <StudioTabPanel id="operations">
           <section aria-labelledby="ops-title" className="flex flex-col gap-5">

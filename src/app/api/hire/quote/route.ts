@@ -13,8 +13,10 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { describeQuoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
+import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
+import { canonicalTokenId, type AttemptCode } from '@/lib/builder/diagnostics/attempt';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -53,9 +55,20 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const chainId = Number(body.chainId) as ChainId;
-  const tokenId = String(body.tokenId ?? '');
   const task = String(body.task ?? '').trim();
-  if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
+  /*
+   * One spelling, settled before anything is read or written.
+   *
+   * This route accepts any run of digits, and three stores key off what it
+   * passes down — brief quotes, quote intents and hire attempts. A caller
+   * at `tokenId=045422` wrote rows under the padded key that neither the
+   * public agent card nor a builder's diagnostics ever asks for, because
+   * both look up the spelling the registry uses. Canonicalising here is
+   * what makes those three agree; doing it inside each store would be
+   * three chances to forget.
+   */
+  const tokenId = canonicalTokenId(String(body.tokenId ?? ''));
+  if ((chainId !== 56 && chainId !== 97) || tokenId === null) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
   if (task.length > 2000) {
@@ -71,10 +84,48 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   /*
+   * Every outcome from here on is recorded for the agent's builder before
+   * it is returned, because this route is the only place a buyer's own
+   * attempt can be seen. The sweep asks the same question on a schedule and
+   * writes `quote_failures`, and a builder reading that row cannot tell
+   * Pokter's traffic from a customer's — which is the gap builder
+   * diagnostics exists to close, so what it records has to come from the
+   * buyer's path and nowhere else.
+   *
+   * Declared here rather than beside the seller's refusals, which is where
+   * it used to sit: eight returns stood in front of it, two of them
+   * classified failures with a code and a layer, and both were dropped on
+   * the floor. A buyer bounced at 400 for a brief their agent's own card
+   * could not be matched against is the builder's problem more than any
+   * timeout is — and while it was happening the panel printed "every buyer
+   * who asked got a signed price".
+   *
+   * Never the brief and never the caller: `recordHireAttempt` hashes both
+   * with a per-database salt to collapse retries and keeps neither.
+   */
+  const noted = (
+    outcome: 'quoted' | 'stopped',
+    at: { code?: AttemptCode | null; layer?: FailureLayer | null; sellerReason?: string | null; escrowChainId?: number | null } = {},
+  ) =>
+    recordHireAttempt({
+      request,
+      chainId,
+      tokenId,
+      brief: task,
+      source: 'buyer',
+      outcome,
+      escrowChainId: at.escrowChainId ?? null,
+      code: at.code ?? null,
+      layer: at.layer ?? null,
+      sellerReason: at.sellerReason ?? null,
+    });
+
+  /*
    * The length floor steps aside for a brief the agent published.
    * Checked after the agent is loaded, because deciding needs its card.
    */
   if (!(await briefAcceptable(task, agent))) {
+    noted('stopped', { code: 'brief-too-short', layer: 'input' });
     return NextResponse.json(
       { error: `The brief must be at least ${BRIEF_MIN} characters, or one of the examples this agent publishes on its card.` },
       { status: 400 },
@@ -88,6 +139,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (/^[[{]/.test(task)) {
     const problems = declaredTaskProblems(task, await declaredBriefs(agent));
     if (problems.length > 0) {
+      noted('stopped', { code: 'invalid-task', layer: 'input' });
       return NextResponse.json(
         { error: `The brief does not match what ${agent.name || `Agent #${tokenId}`} declares: ${problems.join('; ')}.`, layer: 'input', code: 'invalid-task', problems },
         { status: 400 },
@@ -108,6 +160,10 @@ export async function POST(request: Request): Promise<NextResponse> {
    */
   const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
   if (!preflight.ok) {
+    /* Pokter's own refusal, under the code it already classified it with:
+       the brief could not be turned into a request for any skill the card
+       declares, so no agent was called and nothing was paid. */
+    noted('stopped', { code: preflight.code, layer: 'input' });
     return NextResponse.json(
       briefRefusalBody({
         message: preflight.message,
@@ -136,6 +192,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
     const known = withRecentQuote(failure as QuoteFailure, getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
     const { message, status } = describeQuoteFailure(known.code === 'seller-declined' && refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
+    noted('stopped', { code: known.code, layer: known.layer, sellerReason: refusal ?? known.sellerReason ?? null });
     return NextResponse.json({ error: message, layer: known.layer, code: known.code, retryable: known.retryable }, { status });
   }
   if (!quote) {
@@ -145,6 +202,8 @@ export async function POST(request: Request): Promise<NextResponse> {
      * reads as a broken agent and loses the hire. Attributed, because these
      * are the seller's words and not Pokter's assessment.
      */
+    const fallback = quoteFailure(refusal ? 'seller-declined' : 'no-quote');
+    noted('stopped', { code: fallback.code, layer: fallback.layer, sellerReason: refusal });
     return NextResponse.json(
       {
         error: refusal
@@ -186,6 +245,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     /* Nothing to do: the quote stands. */
   }
   if (escrowChainId === null) {
+    noted('stopped', { code: 'payment-incompatible', layer: 'payment' });
     return NextResponse.json(
       {
         error: unpayablePriceNote(quote.currency, !isEscrowChain(56)),
@@ -212,6 +272,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     correctedErc8183Addresses(escrowChainId).commerce,
   );
   if (!usable.usable) {
+    noted('stopped', {
+      code: usable.code === 'expired' ? 'quote-expired' : 'payment-incompatible',
+      layer: usable.code === 'expired' ? 'protocol' : 'payment',
+      escrowChainId,
+    });
     return NextResponse.json(
       {
         error: usable.reason,
@@ -242,6 +307,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     /* A record that cannot be written costs recovery, not the quote. */
   }
+
+  noted('quoted', { escrowChainId });
 
   return NextResponse.json({
     quote: {
