@@ -21,6 +21,8 @@ export const AGENT_CARD_HTML = `<!doctype html>
   .steps { display:flex; flex-wrap:wrap; gap:6px; padding:0 16px 12px; }
   .chip { font-size:11.5px; padding:2px 8px; border-radius:999px; border:1px solid var(--rule); color:var(--ink3); }
   .chip.on { color:var(--ok); border-color:currentColor; }
+  /* Real evidence, short of what the step certifies: a courier delivery. */
+  .chip.part { color:var(--watch); border-color:currentColor; }
   .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid var(--rule); }
   .label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); }
   .price { font:600 20px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; }
@@ -56,7 +58,7 @@ export const AGENT_CARD_HTML = `<!doctype html>
     var who = el('div'); who.appendChild(el('div', 'name', card.name));
     who.appendChild(el('div', 'meta', 'ERC-8004 #' + card.tokenId + ' · ' + (card.chainId === 56 ? 'BNB Chain' : 'BNB Testnet') + (card.step ? ' · ' + card.step : '')));
     head.appendChild(who); root.appendChild(head);
-    if (card.steps && card.steps.length) { var steps = el('div', 'steps'); card.steps.forEach(function (s) { steps.appendChild(el('span', 'chip' + (s.earned ? ' on' : ''), (s.earned ? '✓ ' : '') + s.label)); }); root.appendChild(steps); }
+    if (card.steps && card.steps.length) { var steps = el('div', 'steps'); card.steps.forEach(function (s) { var cls = s.earned ? ' on' : s.partial ? ' part' : ''; var mark = s.earned ? '\u2713 ' : s.partial ? '\u00b7 ' : ''; steps.appendChild(el('span', 'chip' + cls, mark + s.label)); }); root.appendChild(steps); }
 
     var priceRow = el('div', 'row'); var p = el('div'); p.appendChild(el('div', 'label', card.quote ? 'Signed for this brief' : 'Price per job'));
     p.appendChild(el('div', 'price', card.quote ? card.quote.price : card.price ? card.price.label : 'No signed price'));

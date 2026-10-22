@@ -1,4 +1,4 @@
-import type { AgentMaturity } from '@/lib/agents/maturity';
+import type { AgentMaturity, MaturityStep } from '@/lib/agents/maturity';
 import { cn } from '@/lib/ui/cn';
 
 /*
@@ -30,20 +30,36 @@ export function MaturityLabel({ maturity, className, concise = false }: { maturi
   );
 }
 
+/*
+ * Three marks for three states. A partial step used to share the blank
+ * circle with a step nothing had happened on, so a courier delivery of the
+ * agent's own answer was drawn as an absence — the one thing it is not.
+ * It gets the watch tone rather than the green: something real happened,
+ * and it is not what the step certifies.
+ */
+const MARK: Record<MaturityStep['state'], { ring: string; glyph: string; text: string; said: string }> = {
+  earned: { ring: 'border-ok bg-ok text-white', glyph: '✓', text: 'text-ink', said: 'seen' },
+  partial: { ring: 'border-watch text-watch', glyph: '·', text: 'text-ink-2', said: 'partly seen' },
+  unmet: { ring: 'border-rule-strong', glyph: '', text: 'text-ink-3', said: 'not yet' },
+};
+
 export function MaturityLadder({ maturity, compact = false }: { maturity: AgentMaturity; compact?: boolean }) {
   return (
     <ol className={cn('grid gap-px overflow-hidden rounded-[12px] border border-rule bg-rule', compact ? 'grid-cols-1 sm:grid-cols-5' : 'grid-cols-1 sm:grid-cols-3 lg:grid-cols-5')}>
-      {maturity.steps.map((step) => (
-        <li key={step.id} aria-label={`${step.label}: ${step.earned ? 'seen' : 'not yet'}`} className={cn('bg-raised p-3.5', step.earned ? 'text-ink' : 'text-ink-3')}>
-          <span className="flex items-center gap-2 text-[12.5px] font-medium">
-            <span className={cn('grid size-4 shrink-0 place-items-center rounded-full border text-[9px]', step.earned ? 'border-ok bg-ok text-white' : 'border-rule-strong')} aria-hidden>
-              {step.earned ? '✓' : ''}
+      {maturity.steps.map((step) => {
+        const mark = MARK[step.state];
+        return (
+          <li key={step.id} aria-label={`${step.label}: ${mark.said}`} className={cn('bg-raised p-3.5', mark.text)}>
+            <span className="flex items-center gap-2 text-[12.5px] font-medium">
+              <span className={cn('grid size-4 shrink-0 place-items-center rounded-full border text-[9px] leading-none', mark.ring)} aria-hidden>
+                {mark.glyph}
+              </span>
+              {step.label}
             </span>
-            {step.label}
-          </span>
-          {!compact && <span className="mt-1.5 block text-[11.5px] leading-relaxed text-ink-3">{step.detail}</span>}
-        </li>
-      ))}
+            {!compact && <span className="mt-1.5 block text-[11.5px] leading-relaxed text-ink-3">{step.detail}</span>}
+          </li>
+        );
+      })}
     </ol>
   );
 }

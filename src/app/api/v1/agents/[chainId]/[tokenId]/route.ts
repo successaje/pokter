@@ -121,7 +121,14 @@ export async function GET(
       current: maturity.current,
       label: maturity.label,
       sustained: maturity.sustained,
-      steps: maturity.steps.map(({ id, label, earned, detail }) => ({ id, label, earned, detail })),
+      /*
+       * `state` beside `earned`, not instead of it. A reader that only
+       * knows `earned` keeps the answer it always had, and one that reads
+       * `state` can tell "nothing happened" from "something happened that
+       * this step does not certify" — the courier delivery, which the
+       * label and detail name in full.
+       */
+      steps: maturity.steps.map(({ id, label, earned, state, detail }) => ({ id, label, earned, state, detail })),
     },
 
     /*

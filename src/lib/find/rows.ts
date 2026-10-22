@@ -99,6 +99,7 @@ export function toFindRow(
     hired: (history?.jobs ?? 0) > 0,
     delivered: (history?.selfDelivered ?? 0) > 0,
     deliveredByOperator: (history?.operatorDelivered ?? 0) > 0,
+    deliveredViaPokter: (history?.relayedDelivered ?? 0) > 0,
     outsideTeam: history?.outsideTeam ?? { jobs: 0, completed: 0, terminal: 0, uniqueBuyers: 0, completionRate: null },
     probeRate: record.totalProbes > 0 ? record.totalAnswered / record.totalProbes : null,
     observedDays: record.observedDays,
