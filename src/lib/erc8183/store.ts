@@ -74,6 +74,17 @@ export interface JobStore {
   recordNotice(input: { chainId: number; jobId: string; status: SellerNoticeStatus; reason: string | null }): SellerNotice;
   recordQuoteIntent(intent: QuoteIntent): void;
   quoteIntent(negotiationHash: string): QuoteIntent | null;
+  /**
+   * How many signed prices Pokter carried towards a funding call for one
+   * agent since `since`.
+   *
+   * A count, not the rows: the negotiation hash identifies a buyer's exact
+   * brief and terms, and a builder's dashboard has no business holding it.
+   * Compared against funded jobs it answers "did buyers get a price and
+   * walk away", which is the one stage between quoting and funding that
+   * leaves any trace on Pokter's side at all.
+   */
+  quoteIntentsSince(agentChainId: number, agentTokenId: string, since: string): number;
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
   /**
@@ -407,6 +418,22 @@ class SqliteJobStore implements JobStore {
     return row
       ? { negotiationHash: row.negotiation_hash, escrowChainId: row.escrow_chain_id, provider: row.provider, agentChainId: row.agent_chain_id, agentTokenId: row.agent_token_id, agentName: row.agent_name }
       : null;
+  }
+
+  quoteIntentsSince(agentChainId: number, agentTokenId: string, since: string): number {
+    /*
+     * `agent_chain_id` is NOT NULL on this table — every row was written by
+     * the quote route, which always knows the registry it read the agent
+     * from — so this needs none of the `IS NULL OR = 56` fallback the jobs
+     * table carries for rows predating its own column.
+     */
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM quote_intents
+          WHERE agent_chain_id = ? AND agent_token_id = ? AND created_at >= ?`,
+      )
+      .get(agentChainId, agentTokenId, since) as { n: number } | undefined;
+    return Number(row?.n ?? 0);
   }
 
   noticeFor(chainId: number, jobId: string): SellerNotice | null {

@@ -13,8 +13,9 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { describeQuoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
+import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -126,10 +127,40 @@ export async function POST(request: Request): Promise<NextResponse> {
       failure = reason;
     },
   });
+  /*
+   * Every outcome below is recorded for the agent's builder before it is
+   * returned, because this route is the only place a buyer's own attempt
+   * can be seen. The sweep asks the same question on a schedule and writes
+   * `quote_failures`, and a builder reading that row cannot tell Pokter's
+   * traffic from a customer's — which is the gap builder diagnostics
+   * exists to close, so what it records has to come from the buyer's path
+   * and nowhere else.
+   *
+   * Never the brief and never the caller: `recordHireAttempt` hashes both
+   * with a per-database salt to collapse retries and keeps neither.
+   */
+  const noted = (
+    outcome: 'quoted' | 'stopped',
+    at: { code?: QuoteFailure['code'] | null; layer?: QuoteFailure['layer'] | null; sellerReason?: string | null; escrowChainId?: number | null } = {},
+  ) =>
+    recordHireAttempt({
+      request,
+      chainId,
+      tokenId,
+      brief: task,
+      source: 'buyer',
+      outcome,
+      escrowChainId: at.escrowChainId ?? null,
+      code: at.code ?? null,
+      layer: at.layer ?? null,
+      sellerReason: at.sellerReason ?? null,
+    });
+
   if (!quote && failure) {
     // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
     const known = withRecentQuote(failure as QuoteFailure, getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
     const { message, status } = describeQuoteFailure(known.code === 'seller-declined' && refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
+    noted('stopped', { code: known.code, layer: known.layer, sellerReason: refusal ?? known.sellerReason ?? null });
     return NextResponse.json({ error: message, layer: known.layer, code: known.code, retryable: known.retryable }, { status });
   }
   if (!quote) {
@@ -139,6 +170,8 @@ export async function POST(request: Request): Promise<NextResponse> {
      * reads as a broken agent and loses the hire. Attributed, because these
      * are the seller's words and not Pokter's assessment.
      */
+    const fallback = quoteFailure(refusal ? 'seller-declined' : 'no-quote');
+    noted('stopped', { code: fallback.code, layer: fallback.layer, sellerReason: refusal });
     return NextResponse.json(
       {
         error: refusal
@@ -160,6 +193,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // when it is not.
   const escrowChainId = escrowChainForCurrency(quote.currency);
   if (escrowChainId === null) {
+    noted('stopped', { code: 'payment-incompatible', layer: 'payment' });
     return NextResponse.json(
       {
         error: unpayablePriceNote(quote.currency, !isEscrowChain(56)),
@@ -186,6 +220,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     correctedErc8183Addresses(escrowChainId).commerce,
   );
   if (!usable.usable) {
+    noted('stopped', {
+      code: usable.code === 'expired' ? 'quote-expired' : 'payment-incompatible',
+      layer: usable.code === 'expired' ? 'protocol' : 'payment',
+      escrowChainId,
+    });
     return NextResponse.json(
       {
         error: usable.reason,
@@ -216,6 +255,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     /* A record that cannot be written costs recovery, not the quote. */
   }
+
+  noted('quoted', { escrowChainId });
 
   return NextResponse.json({
     quote: {

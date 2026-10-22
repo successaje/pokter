@@ -10,6 +10,7 @@ import {
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
+import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
 import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
@@ -100,11 +101,41 @@ export async function POST(request: Request): Promise<NextResponse> {
         failure = reason;
       },
     });
+    /*
+     * Recorded for the agent's builder as a **trial**, never as demand.
+     *
+     * This route has no wallet behind it and two very different callers: a
+     * builder testing their own agent, and an assistant calling get_quote
+     * on somebody's behalf. The second may well be a real buyer, so
+     * excluding trials from demand undercounts it — which is the direction
+     * to be wrong in. A builder able to raise their own demand figure by
+     * pressing a test button is the direction that is not.
+     */
+    const note = (
+      outcome: 'quoted' | 'stopped',
+      at: { code?: QuoteFailure['code'] | null; layer?: QuoteFailure['layer'] | null; sellerReason?: string | null } = {},
+    ) =>
+      recordHireAttempt({
+        request,
+        chainId,
+        tokenId,
+        brief: task,
+        source: 'trial',
+        outcome,
+        escrowChainId: null,
+        code: at.code ?? null,
+        layer: at.layer ?? null,
+        sellerReason: at.sellerReason ?? null,
+      });
+
     if (!quote) {
       const known = withRecentQuote((failure as QuoteFailure | null) ?? quoteFailure('no-quote'), getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
       const { message, status } = describeQuoteFailure(refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
+      note('stopped', { code: known.code, layer: known.layer, sellerReason: refusal ?? known.sellerReason ?? null });
       return NextResponse.json({ error: message.replace(/ ?(?:Try again shortly; )?[Nn]othing has been paid\./, ''), layer: known.layer, code: known.code, retryable: known.retryable }, { status });
     }
+
+    note('quoted');
 
     return NextResponse.json({
       // The fields the trial panel reads, from the verified quote.
