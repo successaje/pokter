@@ -29,6 +29,31 @@ test('a quoted JSON secret loses its value and the object survives', () => {
   assert.equal(safe('{"secret":"a\\"b","jobId":"7"}'), '{"secret":"[redacted]","jobId":"7"}');
 });
 
+test('a value that starts after the colon and runs onto the next line is withheld', () => {
+  /*
+   * The shape that defeated the earlier check, which only looked for a label
+   * followed immediately by a newline. Here the label has a value on its own
+   * line, so the to-end-of-line rule redacted that much and the continuation
+   * survived — the leak being the part of the value nobody had bounded.
+   *
+   * Bounding a multi-line value means parsing one, so the rule is blunt
+   * instead: a secret label anywhere in a multi-line message withholds all
+   * of it.
+   */
+  assert.equal(sanitiseFailureReason('login failed\npassword: hunter2-starts-here\nand-continues-here'), null);
+  assert.equal(sanitiseFailureReason('password: short\nAND_THE_REST_OF_IT'), null);
+  // A label with no newline anywhere is still bounded, and still useful.
+  assert.equal(sanitiseFailureReason('login failed password: hunter2'), 'login failed password=[redacted]');
+});
+
+test('any secret label in a multiline message withholds all of it', () => {
+  // Wherever the label sits, and whatever the value looks like.
+  assert.equal(sanitiseFailureReason('line one\nline two mentions a token here\nline three'), null);
+  assert.equal(sanitiseFailureReason('apiKey appears first\nthen more lines follow'), null);
+  // No secret label, so an ordinary multi-line error is still readable.
+  assert.equal(sanitiseFailureReason('submit failed\n  at step two'), 'submit failed at step two');
+});
+
 test('a secret whose value is on a later line is withheld entirely', () => {
   /*
    * The leak that every bounded rule here shares: they stop at a newline.

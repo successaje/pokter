@@ -78,20 +78,30 @@ const SECRET_LABEL = '(?:api[-_]?key|secret|token|password|passphrase|authorizat
 /**
  * A reason that cannot be made safe, and so is not logged at all.
  *
- * Two shapes defeat any bounded rule. A secret label whose value is on a
- * later line — `private key:` then a PEM block — leaves the value untouched
- * by a rule that stops at the newline, which every rule here does. And a
- * `-----BEGIN` block is a multi-line value with no closing delimiter this
- * can rely on.
+ * Every redacting rule here ends at a newline, because that is where a line
+ * ends and none of them parses structure. So in a multi-line message, a
+ * secret's value can continue past the point any of them stops — and the
+ * earlier version of this only noticed when the label was followed
+ * *immediately* by the newline. `password: hunter2\ncontinues-here` defeated
+ * it: the label had a value on its own line, so the to-end-of-line rule
+ * redacted that much and the continuation survived.
  *
- * In both cases the honest answer is to say nothing about the message. The
- * line still carries the phase, chain, job and category, which is what makes
- * it useful; the free text is the part that cannot be trusted.
+ * Bounding a multi-line value properly means parsing one, and a parser is
+ * the thing most likely to be subtly wrong. So the rule is blunt instead: a
+ * recognised secret label **anywhere** in a message that has more than one
+ * line withholds the whole message. A `-----BEGIN` block goes the same way,
+ * on its own, since it may carry no label at all.
+ *
+ * A single-line message stays bounded by the rules above, and safely: there
+ * is no next line for a value to continue onto.
+ *
+ * What is lost is some readable text in a rare shape. What is kept is the
+ * phase, chain, job and category — which is what narrows a cause.
  */
 function unboundable(text: string): boolean {
   if (/-----BEGIN/i.test(text)) return true;
-  const labelThenNewline = new RegExp(`\\b${SECRET_LABEL}\\b\\s*[:=]\\s*$`, 'im');
-  return labelThenNewline.test(text) && /\n/.test(text);
+  if (!/\r?\n/.test(text)) return false;
+  return new RegExp(`\\b${SECRET_LABEL}\\b`, 'i').test(text);
 }
 
 /**
@@ -100,7 +110,8 @@ function unboundable(text: string): boolean {
  * Applied in order, because each rule can expose what the next must catch —
  * a URL path may itself hold a token, so URLs go first.
  *
- *  1. Unboundable shapes abort: see `unboundable`. Null, not a partial.
+ *  1. A multi-line message naming any secret label aborts, as does a PEM
+ *     block: see `unboundable`. Null, not a partial.
  *  2. URLs become their hostname, or `[url]` when unparseable.
  *  3. A quoted JSON secret loses its value and keeps the rest of the object.
  *     Quotes bound it exactly, so this is the one case where precision is
