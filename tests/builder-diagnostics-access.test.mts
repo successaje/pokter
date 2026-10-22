@@ -48,7 +48,7 @@ test('a registry that did not answer is reported as that, never as “not yours�
    * it fails closed — 503 grants nothing.
    */
   for (const registry of [null, undefined, '', '0xnot-an-address']) {
-    const decision = authoriseAgentOwner({ sessionOwner: OWNER, registryOwner: registry, chainId: 56, tokenId: '1' });
+    const decision = authoriseAgentOwner({ sessionOwner: OWNER, registryOwner: registry, registryReachable: false, chainId: 56, tokenId: '1' });
     assert.equal(decision.ok, false);
     if (decision.ok) throw new Error('unreachable');
     assert.equal(decision.status, 503);
@@ -103,6 +103,7 @@ test('the report refuses to assemble without a proof the gate minted', () => {
     hireFlowOpens: 0,
     signedPrices: 0,
     fundedInWindow: 0,
+    fundedAllInWindow: 0,
     teamFunded: 0,
     history: summariseEconomicHistory([], Date.parse('2026-10-22T12:00:00.000Z')),
     deliveryFailures: [],
@@ -198,4 +199,102 @@ test('the recorder keeps the brief and the caller out of the store', () => {
   assert.match(quote, /source: 'buyer'/);
   assert.match(code('app/api/trial/route.ts'), /source: 'trial'/);
   assert.doesNotMatch(quote, /source: 'trial'/);
+});
+
+
+test('a registry number that does not exist is a typo, not an outage', () => {
+  /*
+   * Both were one refusal, and it said the outage's words: a builder who
+   * mistyped a registry number was told the lookup had failed and to try
+   * again shortly, which is advice to retry forever. Reachability is what
+   * separates them, and only a positive answer counts.
+   */
+  const missing = authoriseAgentOwner({
+    sessionOwner: OWNER,
+    registryOwner: null,
+    registryReachable: true,
+    chainId: 56,
+    tokenId: '99999999',
+  });
+  assert.equal(missing.ok, false);
+  if (missing.ok) throw new Error('unreachable');
+  assert.equal(missing.status, 404);
+  assert.equal(missing.reason, 'no-such-agent');
+  assert.match(missing.message, /no agent #99999999 on BNB Chain/);
+  assert.doesNotMatch(missing.message, /try again shortly/i, 'retrying will never find it');
+
+  /* The chain is named, because the number may be right and the network wrong. */
+  const testnet = authoriseAgentOwner({ sessionOwner: OWNER, registryOwner: null, registryReachable: true, chainId: 97, tokenId: '7' });
+  if (testnet.ok) throw new Error('unreachable');
+  assert.match(testnet.message, /BNB Testnet/);
+
+  /* Unproven reachability keeps the 503 that grants nothing — the default
+     where nothing is known must never be the more confident answer. */
+  for (const unknown of [undefined, false]) {
+    const decision = authoriseAgentOwner({ sessionOwner: OWNER, registryOwner: null, registryReachable: unknown, chainId: 56, tokenId: '1' });
+    if (decision.ok) throw new Error('unreachable');
+    assert.equal(decision.status, 503, `reachable=${String(unknown)} must not become a 404`);
+  }
+});
+
+test('a granted proof cannot be re-aimed at another agent', () => {
+  /*
+   * `readonly` is a compile-time claim and this object is the key rows are
+   * read by, so `proof.tokenId = '999'` succeeded at runtime and turned one
+   * builder's granted proof into a read of somebody else's agent.
+   */
+  const granted = authoriseAgentOwner({ sessionOwner: OWNER, registryOwner: OWNER, chainId: 56, tokenId: '45422' });
+  if (!granted.ok) throw new Error('unreachable');
+  assert.equal(Object.isFrozen(granted.proof), true);
+
+  const target = granted.proof as unknown as Record<string, unknown>;
+  assert.throws(() => {
+    'use strict';
+    target.tokenId = '999';
+  }, TypeError);
+  assert.equal(granted.proof.tokenId, '45422');
+  assert.equal(granted.proof.owner, OWNER);
+});
+
+test('the route canonicalises the registry number before it reads anything', () => {
+  const route = code('app/api/builders/diagnostics/route.ts');
+  /*
+   * `/api/hire/quote` accepts any run of digits, so a buyer at
+   * `?tokenId=045422` recorded attempts under that literal key while this
+   * route asked for `45422`. The 12-digit cap was the other half: a longer
+   * id could be recorded and then refused by the reader.
+   */
+  assert.match(route, /canonicalTokenId\(/);
+  assert.doesNotMatch(route, /\\d\{1,12\}/, 'the narrow cap refused ids the writer had accepted');
+  const canonical = route.indexOf('canonicalTokenId(');
+  assert.ok(canonical > 0 && canonical < route.indexOf('registryOwner('), 'canonical before the ownership read');
+  assert.ok(canonical < route.indexOf('collectBuilderDiagnostics('), 'and before anything is read');
+
+  /* Reachability is only consulted to tell a typo from an outage, and the
+     unproven case stays the refusal that grants nothing. */
+  assert.match(route, /registryClient\(chainId\)/);
+  assert.match(route, /registryReachable/);
+
+  /* Every answer private, refusals included. */
+  const privateHeaders = route.match(/headers: (?:PRIVATE|\{ \.\.\.PRIVATE)/g) ?? [];
+  assert.ok(privateHeaders.length >= 5, `every response must be no-store, found ${privateHeaders.length}`);
+  assert.doesNotMatch(route, /\{ status: 400 \}/, 'the 400 carried no cache header');
+});
+
+test('a buyer refused before the agent was called is recorded, not dropped', () => {
+  const quote = code('app/api/hire/quote/route.ts');
+  /*
+   * Eight returns stood in front of the recorder. Three were refusals
+   * Pokter issues itself, already classified, and all three were dropped —
+   * so the panel printed "every buyer who asked got a signed price" while
+   * buyers were being bounced at 400.
+   */
+  const declared = quote.indexOf('const noted =');
+  assert.ok(declared > 0);
+  for (const marker of ['briefAcceptable(task, agent)', 'declaredTaskProblems(', 'preflightHireBrief(']) {
+    assert.ok(quote.indexOf(marker) > declared, `${marker} must be able to record, so it comes after the recorder`);
+  }
+  assert.match(quote, /noted\('stopped', \{ code: 'brief-too-short', layer: 'input' \}\)/);
+  assert.match(quote, /noted\('stopped', \{ code: 'invalid-task', layer: 'input' \}\)/);
+  assert.match(quote, /noted\('stopped', \{ code: preflight\.code, layer: 'input' \}\)/);
 });

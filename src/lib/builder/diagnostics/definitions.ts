@@ -70,10 +70,19 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     id: 'signed-prices',
     label: 'Prices carried to funding',
     counts:
-      'Signed quotes Pokter recorded for this agent on the way to a funding call — one per negotiation hash, so a buyer who edits and re-asks records another.',
+      'Signed quotes Pokter recorded for this agent on the way to a funding call — one per negotiation hash, so somebody who edits the brief and asks again records another. This is the one figure here that is NOT filtered to outside demand, and cannot be: a quote is signed before anyone funds, so who was asking is learned only from a funding transaction and never at all for the prices that were never funded. Pokter’s own test hires are in it.',
     window: WINDOW,
     denominator: null,
     source: 'The quote intents Pokter writes before a buyer funds.',
+  },
+  {
+    id: 'priced-not-funded',
+    label: 'Priced and not funded',
+    counts:
+      'Prices carried to funding, minus every job funded in the same window — Pokter’s own hires included on both sides, because the prices cannot be attributed and subtracting a filtered count from an unfiltered one reported Pokter’s test hires as buyers who walked away. An upper bound, not a count of people: one person editing a brief and asking again appears twice.',
+    window: WINDOW,
+    denominator: null,
+    source: 'Quote intents against the job index, over the same days.',
   },
   {
     id: 'funded-jobs',
@@ -85,12 +94,26 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     source: 'Pokter’s job index, read back from the escrow contract.',
   },
   {
-    id: 'delivery-outcomes',
-    label: 'Delivery outcomes',
-    counts:
-      'Outside-funded jobs that reached an end state: delivered and settled, refused when notified, disputed, or left to lapse past the deadline.',
+    id: 'delivered-and-settled',
+    label: 'Delivered and settled',
+    counts: 'Outside-funded jobs that were delivered and settled.',
     window: ALL_TIME,
     denominator: 'Outside-funded jobs that reached an end state.',
+    source: 'Job statuses read back from the escrow contract.',
+  },
+  {
+    id: 'deliveries-that-failed',
+    label: 'Deliveries that failed',
+    counts:
+      'Funded jobs this agent owed and did not deliver: left to lapse past the deadline, refused when notified, or disputed and refunded. Counted over EVERY funded job, Pokter’s own test hires included — a funded job an agent let lapse is a fact about the agent whoever paid for it. Jobs a Pokter wallet was the provider for are excluded, because Pokter owed those deliveries.',
+    window: ALL_TIME,
+    /*
+     * Deliberately not a share of the row above. The two have different
+     * populations — one outside-funded, one all-funded — and stating a
+     * single denominator over both printed "Delivered and settled: 0 of 0"
+     * beside a lapsed job.
+     */
+    denominator: null,
     source: 'Job statuses from the escrow, plus what the seller said when told a job was funded.',
   },
 ];
@@ -103,6 +126,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
  * reads as a zero, and a zero is a claim.
  */
 export const UNMEASURED: readonly string[] = [
+  'Whether an ask came from Pokter itself. Scheduled checks and free trials are excluded by the path they arrive on, and funded jobs by the wallet that paid — but a person at Pokter opening the hire page is indistinguishable from any other buyer, because no wallet or identity is attached to an ask. Treat a handful of asks with that in mind.',
   'Who the buyers were. No wallet, address or identifier is attached to a price request, so there is no count of distinct buyers before funding — only of asks.',
   'Why a buyer left before asking for a price. Pokter records that the hire page was opened, not what was read or where attention went.',
   'What happened inside the buyer’s wallet. A rejection, a missing balance or a failed transaction is signed on the buyer’s device and never reaches Pokter, so a price that was never funded cannot be split into "they changed their mind" and "they could not pay".',

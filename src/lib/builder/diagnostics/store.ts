@@ -6,12 +6,14 @@ import { dirname } from 'node:path';
 
 import { sanitiseFailureReason } from '@/lib/erc8183/delivery-diagnostics';
 import { requestClientKey } from '@/lib/security/rate-limit';
-import type { FailureLayer, QuoteFailureCode } from '@/lib/hire/failure';
+import type { FailureLayer } from '@/lib/hire/failure';
 import {
   ATTEMPT_RETENTION_DAYS,
   ATTEMPT_WINDOW_DAYS,
   attemptDay,
   attemptFingerprint,
+  canonicalTokenId,
+  type AttemptCode,
   type AttemptOutcome,
   type AttemptSource,
   type HireAttemptRow,
@@ -75,7 +77,7 @@ export function recordHireAttempt(input: {
   escrowChainId: number | null;
   source: AttemptSource;
   outcome: AttemptOutcome;
-  code?: QuoteFailureCode | null;
+  code?: AttemptCode | null;
   layer?: FailureLayer | null;
   /** The seller's words, raw. Sanitised here so no caller can forget to. */
   sellerReason?: string | null;
@@ -83,12 +85,20 @@ export function recordHireAttempt(input: {
 }): void {
   try {
     const now = input.now ?? new Date();
+    /*
+     * One spelling, or no row. `045422` and `45422` are the same identity,
+     * and the quote route accepts both: writing the literal string put
+     * attempts under a key the panel never asks for, and the builder saw a
+     * quiet month that was not quiet.
+     */
+    const tokenId = canonicalTokenId(input.tokenId);
+    if (tokenId === null) return;
     const handle = db();
     const fingerprint = attemptFingerprint({
       salt: attemptSaltIn(handle),
       clientKey: requestClientKey(input.request),
       chainId: input.chainId,
-      tokenId: input.tokenId,
+      tokenId,
       brief: input.brief,
       day: attemptDay(now),
     });
@@ -102,7 +112,7 @@ export function recordHireAttempt(input: {
     const safe = input.sellerReason ? sanitiseFailureReason(input.sellerReason) : null;
     recordHireAttemptIn(handle, {
       chainId: input.chainId,
-      tokenId: input.tokenId,
+      tokenId,
       escrowChainId: input.escrowChainId,
       source: input.source,
       outcome: input.outcome,
@@ -126,9 +136,12 @@ export function readHireAttempts(
   now = new Date(),
 ): HireAttemptRow[] {
   try {
+    /* The same canonical key the recorder wrote under, or nothing. */
+    const key = canonicalTokenId(tokenId);
+    if (key === null) return [];
     return readHireAttemptsIn(db(), {
       chainId,
-      tokenId,
+      tokenId: key,
       since: new Date(now.getTime() - windowDays * DAY_MS).toISOString(),
     });
   } catch {

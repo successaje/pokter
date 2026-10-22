@@ -1,4 +1,5 @@
 import { hireBlocker, type HireBlocker } from '@/lib/hire/blocker';
+import type { InputRefusalCode } from './attempt';
 
 /**
  * What a builder should change, for the failures that happen after a price
@@ -29,10 +30,53 @@ export type DiagnosticStage = 'quote' | 'funding' | 'delivery';
 /** Same shape as a hire blocker, so one renderer draws all three stages. */
 export type Remediation = HireBlocker;
 
+/**
+ * Refusals Pokter issues before the agent is ever called.
+ *
+ * Every one of these is a buyer who wrote something, pressed the button,
+ * and was turned away at 400 — and every one is the builder's to fix, even
+ * though the brief is the buyer's: what a brief has to contain is decided
+ * by the skills and examples the card declares. The panel used to print
+ * "every buyer who asked got a signed price" while this was happening,
+ * which is why they are recorded rather than noted as unmeasured.
+ */
+const INPUT: Record<InputRefusalCode, Omit<Remediation, 'code'>> = {
+  'brief-too-short': {
+    reason:
+      'A buyer wrote a brief shorter than Pokter accepts and was turned away before your agent saw it. The floor steps aside for any brief your card publishes as an example, so publishing the briefs you actually take removes it — and tells buyers what to write instead of making them guess.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
+  'invalid-task': {
+    reason:
+      'A buyer sent a structured brief that did not match the examples your card declares, so Pokter refused it before your agent saw it. Either the examples are missing fields your agent needs, or they ask for fields it does not — both read to a buyer as the agent being broken.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
+  'subject-missing': {
+    reason:
+      'Pokter could not find, in the buyer’s brief, the subject your declared skill needs — the pool, the position, the address it acts on. The brief reached no agent. Declaring the input by name, with an example that contains it, is what lets Pokter ask the buyer for the one missing thing instead of refusing them.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
+  'subject-ambiguous': {
+    reason:
+      'The buyer’s brief named more than one thing your declared skill could act on, and Pokter will not guess which. An example brief showing one subject per request tells buyers to send one.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
+  'brief-declined': {
+    reason:
+      'Pokter could not turn the buyer’s brief into a request for any skill your card declares, so nothing was sent. This is a card that does not describe what the agent sells in terms a brief can be matched against.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
+};
+
 const AFTER_QUOTE: Record<FundingStopCode | DeliveryStopCode, Omit<Remediation, 'code'>> = {
   'priced-not-funded': {
     reason:
-      'Buyers got a signed price from it and did not fund the job. A price a buyer has to re-read is usually one that expired while they were deciding, or one far from what the brief looked like it was worth.',
+      'Prices were signed for this agent and no job was funded against them. A price somebody has to go back and re-read is usually one that expired while they were deciding, or one far from what the brief looked like it was worth. Pokter cannot say who was asking: a quote is signed before anyone funds, so some of these may be Pokter’s own test hires rather than buyers.',
     fix: { label: 'The signed quote', href: `${KIT}#quote` },
     transient: false,
   },
@@ -87,7 +131,18 @@ export function quoteRemediation(input: {
   buyerBrief?: boolean;
 }): Remediation | null {
   const blocker = hireBlocker(input);
-  if (!blocker || !input.buyerBrief || input.code !== 'seller-declined') return blocker;
+  if (!blocker) {
+    /*
+     * Not a seller refusal: one Pokter issued itself, before the agent was
+     * called. `hireBlocker` has no case for these and never should — it
+     * speaks for a public listing — but a builder reading "Pokter has no
+     * specific fix recorded" about the thing turning their buyers away at
+     * 400 is the worst answer available.
+     */
+    const own = INPUT[input.code as InputRefusalCode];
+    return own ? { code: input.code, ...own } : null;
+  }
+  if (!input.buyerBrief || input.code !== 'seller-declined') return blocker;
   return { ...blocker, reason: declinedBuyerBrief(input.sellerReason) };
 }
 

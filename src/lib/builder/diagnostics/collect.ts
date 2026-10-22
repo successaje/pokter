@@ -80,6 +80,10 @@ export async function collectBuilderDiagnostics(
      figure uses, including a job with no recorded funder — those are the
      operator-signed demo hires from before buyers signed their own. */
   const teamFunded = funded.filter((job) => fundedByTeam(job, team)).length;
+  /* Unfiltered, as the counterpart to `signedPrices`, which cannot be
+     filtered at all: a quote intent is written before anyone funds and so
+     carries no buyer. See `fundedAllInWindow` in report.ts. */
+  const fundedAllInWindow = funded.filter((job) => Date.parse(job.hiredAt) >= since.getTime()).length;
 
   const deliveryFailures = deliveryFailuresFrom({
     jobs,
@@ -149,6 +153,7 @@ export async function collectBuilderDiagnostics(
     hireFlowOpens,
     signedPrices,
     fundedInWindow,
+    fundedAllInWindow,
     teamFunded,
     history,
     deliveryFailures,

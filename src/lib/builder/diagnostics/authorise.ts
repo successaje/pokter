@@ -22,6 +22,12 @@ import { getAddress } from 'viem';
  *    that and never as "not yours" — the same rule `ownedJob` follows, and
  *    for the same reason: telling a builder their own agent is not theirs
  *    because an RPC timed out sends them looking for a theft.
+ *  - **404**, the registry answered and holds no such identity. Separated
+ *    from the 503 because they were one refusal and said the 503's words:
+ *    a builder who mistyped a registry number was told the lookup had
+ *    failed and to try again shortly, which is advice to retry forever.
+ *    The caller has to show the chain was reachable for this one, so the
+ *    default where nothing is known stays 503.
  *  - **403**, the session's wallet is not the owner.
  *
  * Fail closed in every direction: anything that is not a readable match
@@ -41,10 +47,19 @@ import { getAddress } from 'viem';
  * and fails under test is bad; the reverse is dangerous, and there is no way
  * to tell which way round it will land.
  *
- * The registry key keeps the property that matters. Nothing reaches the
- * report by forgetting the gate: a caller would have to write this exact
- * string out, which is a decision somebody made rather than a step somebody
- * missed.
+ * What this buys is therefore a **tripwire, not a capability**, and the
+ * difference matters enough to say plainly: `Symbol.for` reads from a
+ * registry any code in the process can reach, so anything that wants to
+ * forge a proof can, in one line. It is not a security boundary and must
+ * never be argued as one.
+ *
+ * What it does catch is the realistic failure — a new call site that
+ * assembles a report without going through the gate, because its author
+ * did not know the gate existed. That is a step somebody missed; writing
+ * this exact string out is a decision somebody made. The boundary itself
+ * is the route: session cookie, then the registry read, then this
+ * decision, before anything is read. The tests pin that ordering as source
+ * facts, and that is what the security rests on.
  */
 const PROVEN: unique symbol = Symbol.for('pokter.builder-diagnostics.ownership-proven') as never;
 
@@ -55,11 +70,11 @@ export interface AgentOwnershipProof {
   readonly tokenId: string;
 }
 
-export type OwnershipRefusalReason = 'no-session' | 'registry-unavailable' | 'not-owner';
+export type OwnershipRefusalReason = 'no-session' | 'registry-unavailable' | 'no-such-agent' | 'not-owner';
 
 export interface OwnershipRefusal {
   ok: false;
-  status: 401 | 403 | 503;
+  status: 401 | 403 | 404 | 503;
   reason: OwnershipRefusalReason;
   /** Shown to the caller. Never names the real owner: that is not theirs to learn. */
   message: string;
@@ -81,6 +96,14 @@ export function authoriseAgentOwner(input: {
   sessionOwner: string | null | undefined;
   /** `registryOwner()`'s answer: an address, or null when the read failed. */
   registryOwner: string | null | undefined;
+  /**
+   * Whether the registry itself answered, when `registryOwner` is null.
+   *
+   * Only `true` tells the two nulls apart — a chain that answered and holds
+   * no such identity, from one that could not be reached. Left out, it is
+   * `false`, so an unproven claim refuses with the 503 that grants nothing.
+   */
+  registryReachable?: boolean;
   chainId: number;
   tokenId: string;
 }): OwnershipDecision {
@@ -96,6 +119,16 @@ export function authoriseAgentOwner(input: {
 
   const registry = normalised(input.registryOwner);
   if (!registry) {
+    /* The registry answered and holds nothing here: a number to correct,
+       not an outage to wait out. Retrying will never change it. */
+    if (input.registryReachable === true) {
+      return {
+        ok: false,
+        status: 404,
+        reason: 'no-such-agent',
+        message: `The registry has no agent #${input.tokenId} on ${input.chainId === 56 ? 'BNB Chain' : 'BNB Testnet'}. Check the number, or the network.`,
+      };
+    }
     return {
       ok: false,
       status: 503,
@@ -114,20 +147,28 @@ export function authoriseAgentOwner(input: {
     };
   }
 
+  /*
+   * Frozen, because `readonly` is a compile-time claim and this object is
+   * the key rows are read by: `proof.tokenId = '999'` succeeded at runtime
+   * and would have re-aimed a granted proof at another agent.
+   */
   return {
     ok: true,
-    proof: { [PROVEN]: true, owner: registry, chainId: input.chainId, tokenId: input.tokenId },
+    proof: Object.freeze<AgentOwnershipProof>({ [PROVEN]: true, owner: registry, chainId: input.chainId, tokenId: input.tokenId }),
   };
 }
 
 /**
  * Whether a value is a proof this module minted.
  *
- * The report builder asks before it reads a single row. A caller that
+ * The report builder asks before it reads a single row, so a caller that
  * forgets the gate, or hands along something that merely looks like a
- * proof, gets an exception instead of somebody else's private diagnostics —
- * so the gate cannot be skipped by a new call site that did not know about
- * it, only by editing this file.
+ * proof, gets an exception instead of somebody else's private diagnostics.
+ *
+ * This stops a mistake, not an attacker: the brand is `Symbol.for`, which
+ * anything in the process can mint. See the note on `PROVEN`. The gate
+ * that actually decides who reads what is in the route, ahead of every
+ * read.
  */
 export function isOwnershipProof(value: unknown): value is AgentOwnershipProof {
   return (

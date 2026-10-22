@@ -3,7 +3,8 @@ import 'server-only';
 import { authoriseAgentOwner, type OwnershipRefusal } from '@/lib/builder/diagnostics/authorise';
 import { collectBuilderDiagnostics } from '@/lib/builder/diagnostics/collect';
 import type { BuilderDiagnostics } from '@/lib/builder/diagnostics/report';
-import { registryOwner } from '@/lib/registry/onchain';
+import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
+import { registryClient, registryOwner } from '@/lib/registry/onchain';
 import { studioOwner } from './data';
 
 export type DiagnosticsResult =
@@ -22,10 +23,31 @@ export type DiagnosticsResult =
  * panel is the registry's answer now, and a registry that cannot be read
  * grants nothing.
  */
-export async function loadBuilderDiagnostics(chainId: number, tokenId: string): Promise<DiagnosticsResult> {
+export async function loadBuilderDiagnostics(chainId: number, rawTokenId: string): Promise<DiagnosticsResult> {
+  /* The same canonical key the recorder writes under, so the panel asks
+     for the rows a buyer at `?tokenId=045422` actually created. */
+  const tokenId = canonicalTokenId(rawTokenId);
+  if (tokenId === null) {
+    return {
+      kind: 'refused',
+      ok: false,
+      status: 404,
+      reason: 'no-such-agent',
+      message: 'That is not a registry number, so there is no agent to report on.',
+    };
+  }
   const session = await studioOwner();
   const owner = session ? await registryOwner(chainId, tokenId).catch(() => null) : null;
-  const decision = authoriseAgentOwner({ sessionOwner: session, registryOwner: owner, chainId, tokenId });
+  /* Only to tell "no such agent" from "the chain did not answer"; see the
+     same read in the route. Unproven stays unproven, and refuses. */
+  const registryReachable =
+    session && !owner
+      ? await (registryClient(chainId)
+          ?.getBlockNumber()
+          .then(() => true)
+          .catch(() => false) ?? Promise.resolve(false))
+      : false;
+  const decision = authoriseAgentOwner({ sessionOwner: session, registryOwner: owner, registryReachable, chainId, tokenId });
   if (!decision.ok) return { ...decision, kind: 'refused' };
 
   try {

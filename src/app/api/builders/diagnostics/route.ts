@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
 import { authoriseAgentOwner } from '@/lib/builder/diagnostics/authorise';
 import { collectBuilderDiagnostics } from '@/lib/builder/diagnostics/collect';
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
-import { registryOwner } from '@/lib/registry/onchain';
+import { registryClient, registryOwner } from '@/lib/registry/onchain';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 20;
+
+/* On every answer, refusals included. Whether an agent is being asked about
+   at all, and how often, is as much the owner's business as the figures
+   are; the 200 was already marked private and the 400 and 429 were not. */
+const PRIVATE = { 'Cache-Control': 'private, no-store' } as const;
 
 /**
  * One agent's hire diagnostics, for the wallet that owns it.
@@ -40,34 +46,66 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!rate.allowed) {
     return NextResponse.json(
       { error: 'Too many diagnostics requests just now. Try again shortly.' },
-      { status: 429, headers: { 'retry-after': String(rate.retryAfterSeconds) } },
+      { status: 429, headers: { ...PRIVATE, 'retry-after': String(rate.retryAfterSeconds) } },
     );
   }
 
   const params = new URL(request.url).searchParams;
   const chainId = Number(params.get('chainId'));
-  const tokenId = params.get('tokenId') ?? '';
-  if ((chainId !== 56 && chainId !== 97) || !/^\d{1,12}$/.test(tokenId)) {
-    return NextResponse.json({ error: 'Give the network and the agent’s registry number.' }, { status: 400 });
+  /*
+   * Canonical, and to the width of a uint256 rather than the twelve digits
+   * the other builder routes happen to cap at. Both halves of that were
+   * losing rows: `/api/hire/quote` accepts any run of digits, so a buyer
+   * arriving at `tokenId=045422` recorded attempts under a key this panel
+   * never asked for, and a 13-digit id could be recorded and then refused
+   * by the reader.
+   */
+  const tokenId = canonicalTokenId(params.get('tokenId'));
+  if ((chainId !== 56 && chainId !== 97) || tokenId === null) {
+    return NextResponse.json(
+      { error: 'Give the network and the agent’s registry number.' },
+      { status: 400, headers: PRIVATE },
+    );
   }
 
   const session = builderSessionOwner(request.cookies.get(BUILDER_SESSION_COOKIE)?.value);
   const owner = session ? await registryOwner(chainId, tokenId).catch(() => null) : null;
-  const decision = authoriseAgentOwner({ sessionOwner: session, registryOwner: owner, chainId, tokenId });
+  /*
+   * Asked only when the owner read came back empty, and only to tell the
+   * two empties apart: a chain that answered and holds no such identity,
+   * from one that could not be reached. A builder who mistyped a registry
+   * number was told the lookup had failed and to try again shortly, which
+   * is advice to retry forever. Anything short of a clean answer here
+   * leaves it unproven, and unproven keeps the 503 that grants nothing.
+   */
+  const registryReachable =
+    session && !owner
+      ? await (registryClient(chainId)
+          ?.getBlockNumber()
+          .then(() => true)
+          .catch(() => false) ?? Promise.resolve(false))
+      : false;
+  const decision = authoriseAgentOwner({
+    sessionOwner: session,
+    registryOwner: owner,
+    registryReachable,
+    chainId,
+    tokenId,
+  });
   if (!decision.ok) {
     return NextResponse.json(
       { error: decision.message, reason: decision.reason },
-      { status: decision.status, headers: { 'Cache-Control': 'private, no-store' } },
+      { status: decision.status, headers: PRIVATE },
     );
   }
 
   try {
     const diagnostics = await collectBuilderDiagnostics(decision.proof);
-    return NextResponse.json(diagnostics, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.json(diagnostics, { headers: PRIVATE });
   } catch (error) {
     return NextResponse.json(
       { error: `Diagnostics could not be assembled: ${logAndPublic('builders/diagnostics', error)}` },
-      { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+      { status: 502, headers: PRIVATE },
     );
   }
 }

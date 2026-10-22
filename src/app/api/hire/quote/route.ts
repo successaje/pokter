@@ -13,9 +13,10 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
 import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
+import type { AttemptCode } from '@/lib/builder/diagnostics/attempt';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -72,10 +73,48 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   /*
+   * Every outcome from here on is recorded for the agent's builder before
+   * it is returned, because this route is the only place a buyer's own
+   * attempt can be seen. The sweep asks the same question on a schedule and
+   * writes `quote_failures`, and a builder reading that row cannot tell
+   * Pokter's traffic from a customer's — which is the gap builder
+   * diagnostics exists to close, so what it records has to come from the
+   * buyer's path and nowhere else.
+   *
+   * Declared here rather than beside the seller's refusals, which is where
+   * it used to sit: eight returns stood in front of it, two of them
+   * classified failures with a code and a layer, and both were dropped on
+   * the floor. A buyer bounced at 400 for a brief their agent's own card
+   * could not be matched against is the builder's problem more than any
+   * timeout is — and while it was happening the panel printed "every buyer
+   * who asked got a signed price".
+   *
+   * Never the brief and never the caller: `recordHireAttempt` hashes both
+   * with a per-database salt to collapse retries and keeps neither.
+   */
+  const noted = (
+    outcome: 'quoted' | 'stopped',
+    at: { code?: AttemptCode | null; layer?: FailureLayer | null; sellerReason?: string | null; escrowChainId?: number | null } = {},
+  ) =>
+    recordHireAttempt({
+      request,
+      chainId,
+      tokenId,
+      brief: task,
+      source: 'buyer',
+      outcome,
+      escrowChainId: at.escrowChainId ?? null,
+      code: at.code ?? null,
+      layer: at.layer ?? null,
+      sellerReason: at.sellerReason ?? null,
+    });
+
+  /*
    * The length floor steps aside for a brief the agent published.
    * Checked after the agent is loaded, because deciding needs its card.
    */
   if (!(await briefAcceptable(task, agent))) {
+    noted('stopped', { code: 'brief-too-short', layer: 'input' });
     return NextResponse.json(
       { error: `The brief must be at least ${BRIEF_MIN} characters, or one of the examples this agent publishes on its card.` },
       { status: 400 },
@@ -89,6 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (/^[[{]/.test(task)) {
     const problems = declaredTaskProblems(task, await declaredBriefs(agent));
     if (problems.length > 0) {
+      noted('stopped', { code: 'invalid-task', layer: 'input' });
       return NextResponse.json(
         { error: `The brief does not match what ${agent.name || `Agent #${tokenId}`} declares: ${problems.join('; ')}.`, layer: 'input', code: 'invalid-task', problems },
         { status: 400 },
@@ -109,6 +149,10 @@ export async function POST(request: Request): Promise<NextResponse> {
    */
   const preflight = await preflightHireBrief({ chainId, tokenId, task, agent });
   if (!preflight.ok) {
+    /* Pokter's own refusal, under the code it already classified it with:
+       the brief could not be turned into a request for any skill the card
+       declares, so no agent was called and nothing was paid. */
+    noted('stopped', { code: preflight.code, layer: 'input' });
     return NextResponse.json(
       briefRefusalBody({
         message: preflight.message,
@@ -133,35 +177,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       failure = reason;
     },
   });
-  /*
-   * Every outcome below is recorded for the agent's builder before it is
-   * returned, because this route is the only place a buyer's own attempt
-   * can be seen. The sweep asks the same question on a schedule and writes
-   * `quote_failures`, and a builder reading that row cannot tell Pokter's
-   * traffic from a customer's — which is the gap builder diagnostics
-   * exists to close, so what it records has to come from the buyer's path
-   * and nowhere else.
-   *
-   * Never the brief and never the caller: `recordHireAttempt` hashes both
-   * with a per-database salt to collapse retries and keeps neither.
-   */
-  const noted = (
-    outcome: 'quoted' | 'stopped',
-    at: { code?: QuoteFailure['code'] | null; layer?: QuoteFailure['layer'] | null; sellerReason?: string | null; escrowChainId?: number | null } = {},
-  ) =>
-    recordHireAttempt({
-      request,
-      chainId,
-      tokenId,
-      brief: task,
-      source: 'buyer',
-      outcome,
-      escrowChainId: at.escrowChainId ?? null,
-      code: at.code ?? null,
-      layer: at.layer ?? null,
-      sellerReason: at.sellerReason ?? null,
-    });
-
   if (!quote && failure) {
     // Said by layer, with the status that fits it: a seller declining is not a gateway failure.
     const known = withRecentQuote(failure as QuoteFailure, getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);

@@ -63,6 +63,26 @@ export interface DiagnosticsInput {
   /** Outside-funded jobs whose hire landed inside the window. */
   fundedInWindow: number;
   /**
+   * **Every** funded job in the window, Pokter's own test hires included.
+   *
+   * The counterpart to `signedPrices`, and the reason it exists. A quote
+   * intent is written before anyone funds, so it carries no buyer: who was
+   * holding the tab is a fact Pokter only ever learns from a funding
+   * transaction, and never learns at all for exactly the prices that were
+   * never funded. So `signedPrices` cannot be filtered to outside demand —
+   * not imperfectly, not at all.
+   *
+   * Subtracting the outside-only funded count from it was therefore
+   * apples from oranges: Pokter's own test hires sat in the numerator and
+   * were removed from the subtrahend, and three team hires and no outside
+   * ones produced "3 signed prices reached a buyer and none was funded".
+   * They reached Pokter. Both sides of the subtraction are unfiltered now,
+   * which makes the gap a true statement about the quote-to-funding step
+   * and not a claim about demand; `fundedInWindow` stays beside it as the
+   * demand figure, filtered and labelled as such.
+   */
+  fundedAllInWindow: number;
+  /**
    * Jobs a declared Pokter wallet funded, counted where the jobs are.
    *
    * Not derived from `history.jobs - outsideTeam.jobs - selfHire`: a job
@@ -161,8 +181,16 @@ export interface BuilderDiagnostics {
   };
   funding: {
     signedPrices: number;
+    /** Outside-funded only: the demand figure. */
     fundedInWindow: number;
-    /** An upper bound: a buyer who edits and re-asks records a second price. */
+    /** Every funded job in the window, team hires included. */
+    fundedAllInWindow: number;
+    /**
+     * An upper bound, and not a demand figure. Counted across all funding,
+     * because the prices it is counted from cannot be attributed to a buyer
+     * at all — see `fundedAllInWindow`. A buyer who edits and re-asks
+     * records a second price, so some of this gap is one person deciding.
+     */
     pricedNotFunded: number;
     remediation: Remediation | null;
   };
@@ -278,10 +306,16 @@ function headline(
     };
   }
 
-  if (funding.pricedNotFunded > 0 && funding.fundedInWindow === 0) {
+  /*
+   * `fundedAllInWindow`, not `fundedInWindow`: a window whose only hires
+   * were Pokter's own test ones is not a window in which nobody funded.
+   * And the title does not say "reached a buyer", because a quote intent
+   * carries no buyer and some of these reached Pokter.
+   */
+  if (funding.pricedNotFunded > 0 && funding.fundedAllInWindow === 0) {
     return {
       id: 'priced-not-funded',
-      title: `${funding.pricedNotFunded} signed price${funding.pricedNotFunded === 1 ? '' : 's'} reached a buyer and none was funded`,
+      title: `${funding.pricedNotFunded} signed price${funding.pricedNotFunded === 1 ? '' : 's'} went out and no job was funded against any of them`,
       body: afterQuoteRemediation('priced-not-funded').reason,
       remediation: afterQuoteRemediation('priced-not-funded'),
     };
@@ -343,11 +377,15 @@ export function buildBuilderDiagnostics(
     stoppedByCode: group(stopped, buyers.length, input),
   };
 
+  /* Both sides unfiltered: see `fundedAllInWindow`. Filtering one and not
+     the other reported Pokter's own test hires as buyers who walked away. */
+  const pricedNotFunded = Math.max(0, input.signedPrices - input.fundedAllInWindow);
   const funding: BuilderDiagnostics['funding'] = {
     signedPrices: input.signedPrices,
     fundedInWindow: input.fundedInWindow,
-    pricedNotFunded: Math.max(0, input.signedPrices - input.fundedInWindow),
-    remediation: input.signedPrices > input.fundedInWindow ? afterQuoteRemediation('priced-not-funded') : null,
+    fundedAllInWindow: input.fundedAllInWindow,
+    pricedNotFunded,
+    remediation: pricedNotFunded > 0 ? afterQuoteRemediation('priced-not-funded') : null,
   };
 
   const lapsed = input.deliveryFailures.filter((f) => f.kind === 'lapsed').length;

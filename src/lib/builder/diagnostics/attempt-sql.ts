@@ -1,8 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-import type { AttemptOutcome, AttemptSource, HireAttemptInput, HireAttemptRow } from './attempt';
+import type { AttemptCode, AttemptOutcome, AttemptSource, HireAttemptInput, HireAttemptRow } from './attempt';
 import { newAttemptSalt } from './attempt';
-import type { FailureLayer, QuoteFailureCode } from '@/lib/hire/failure';
+import type { FailureLayer } from '@/lib/hire/failure';
 
 /*
  * The SQL lives apart from the store that opens the file, so the statements
@@ -131,7 +131,7 @@ function toRow(row: AttemptSqlRow): HireAttemptRow {
     escrowChainId: row.escrow_chain_id,
     source: row.source as AttemptSource,
     outcome: row.outcome as AttemptOutcome,
-    code: (row.code as QuoteFailureCode | null) ?? null,
+    code: (row.code as AttemptCode | null) ?? null,
     layer: (row.layer as FailureLayer | null) ?? null,
     sellerReason: row.seller_reason,
     tries: Number(row.tries),
