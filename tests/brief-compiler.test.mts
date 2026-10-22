@@ -3,9 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  answerMissing,
   briefIsVerbatim,
-  briefPayloadMatches,
   briefSummary,
   compileBrief,
   materialBriefChange,
@@ -23,14 +21,28 @@ import { outboundBriefData, outboundParts, skillRequestData } from '../src/lib/e
  * whether Pokter can turn a sentence into a request these agents accept —
  * a card written to suit the compiler would prove nothing about that.
  *
- * What the survey found, and what this suite is therefore built around: of
- * 96 live agents (every one that is hirable, has answered a probe, or
- * carries a signed price), five publish an example on their work skill that
- * parses as JSON, nineteen publish examples in prose, and seventy-two
- * publish nothing usable — 24 with no readable card, 23 with nothing but
- * escrow plumbing on it, 25 with a work skill that documents no example. So
- * "compile against the published schema" is the rare case, and the three
- * weaker readings are the common ones. All four are exercised below.
+ * What the survey found, and what this suite is therefore built around. Of
+ * the 96 agents the catalogue listed on 22 October 2026 as hirable, having
+ * answered a probe, or carrying a signed price: five publish an example on
+ * their work skill that parses as JSON, nineteen publish examples in prose,
+ * and seventy-two publish nothing usable — 24 with no readable card, 23
+ * with nothing but escrow plumbing on it, 25 with a work skill that
+ * documents no example.
+ *
+ * The denominator is what one listing returned, not a census: that endpoint
+ * rate-limits, so a page that times out is an agent that was never counted,
+ * and a sixth structured agent cannot be ruled out. The five are each
+ * confirmed against their live card, which is the claim this suite rests
+ * on; the ratio is only there to say which reading is the common one.
+ *
+ * It is easy to survey this and get zero, and the earlier count did. Reading
+ * `examples` off the card and asking whether any parses as JSON says yes for
+ * most of the catalogue, because `negotiate` and `notify_funded` publish
+ * JSON payloads and tell a buyer nothing; asking the hire page what it shows
+ * says no, because `exampleLabel` truncates a JSON example to 26 characters
+ * and it reads as noise. The question that matters is narrower than either:
+ * does the skill `pickWorkSkill` would actually deliver to publish an
+ * example Pokter can compile against. All four readings are exercised below.
  *
  * `server-only` keeps the route handlers and `hire-preflight` out of a test
  * process, so the decisions they make are exercised through the pure module
@@ -277,15 +289,37 @@ test('a value Pokter cannot pair with a field is asked for, not guessed at', () 
 
 test('an unanswered question cannot reach a quote, a wallet or the chain', () => {
   /*
-   * Order, pinned at the three places money starts moving. The compilation
-   * runs inside `preflightHireBrief`, which every server hire surface calls
-   * before it spends, and `commission` refuses a structured request the
-   * buyer never confirmed before any wallet is touched.
+   * Where the gate is, and deliberately where it is not.
+   *
+   * It is in the hire form: the confirm button is disabled while anything
+   * is missing, and `commission` refuses a compiled request the buyer never
+   * confirmed before any wallet is touched. Both run before money moves.
+   *
+   * It is **not** on `/api/hire/quote` or `/api/hire/preflight`, and that is
+   * a correction rather than an omission. Those routes briefly refused any
+   * brief that left a declared field unfilled, which reads as the safer rule
+   * and is not: Vitals (56/367904) publishes two examples on one skill — a
+   * JSON object and a sentence — and its own description says to send "text
+   * naming the account ... or a data part". Enforcing its JSON example as a
+   * schema rejected the agent's own documented way of being asked, and did
+   * so for every mainnet agent that publishes one. Whether prose is good
+   * enough is the agent's judgement, and `askIfAgentTakesBrief` puts it to
+   * the agent.
    */
   const preflight = code('lib/erc8183/hire-preflight.ts');
-  assert.match(preflight, /compileBrief\(\{/);
-  assert.match(preflight, /if \(!brief\.ok\) \{/);
-  assert.match(preflight, /code: brief\.contract === 'adapter' \?/, 'a subject refusal keeps its own code');
+  assert.match(preflight, /compileBrief\(\{/, 'it still compiles, to carry the questions back');
+  assert.ok(!preflight.includes('if (!brief.ok)'), 'but a published example is not a gate here');
+  assert.match(preflight, /return request\.ok\s*\?\s*\{ ok: true/, 'the adapter subject is still refused on');
+  /* And the question the published example cannot settle is still put to the
+     party that can, on both paths that have no price to ask for. */
+  for (const path of ['app/api/hire/preflight/route.ts', 'lib/erc8183/hire.ts']) {
+    assert.match(code(path), /askIfAgentTakesBrief\(/, path);
+  }
+
+  // The adapter keeps its own refusal, on every surface, with its own words.
+  for (const path of ['app/api/hire/quote/route.ts', 'app/api/hire/preflight/route.ts', 'lib/erc8183/hire.ts']) {
+    assert.match(code(path), /preflightHireBrief/, path);
+  }
 
   const hire = code('lib/erc8183/hire.ts');
   const gate = hire.indexOf('preflightHireBrief');
@@ -300,41 +334,209 @@ test('an unanswered question cannot reach a quote, a wallet or the chain', () =>
     assert.ok(guard < hook.indexOf(fund), `refused before ${fund}`);
   }
 
-  // And the quote route refuses with the questions, not just a sentence.
-  for (const path of ['app/api/hire/quote/route.ts', 'app/api/hire/preflight/route.ts', 'app/api/hire/route.ts']) {
-    assert.match(code(path), /questions: /, path);
+  // And the form will not let a buyer confirm while anything is missing.
+  const screen = src('features/hire/RequestReview.tsx');
+  assert.match(screen, /const ready = brief\.ok && brief\.payload !== null;/);
+  assert.match(screen, /disabled=\{!ready\}/);
+});
+
+/**
+ * Every field kind a live card can declare, answered the way the screen
+ * answers it: take the first question, record the value against its key,
+ * compile again. It settles or it is a bug.
+ */
+function walkTheQuestions(
+  skills: readonly { id?: string; name: string; description?: string | null; examples: readonly string[] }[],
+  intent: string,
+  reply: Readonly<Record<string, string>>,
+  category?: string,
+): { rounds: number; payload: string | null } {
+  let answers: Record<string, string> = {};
+  for (let rounds = 0; rounds <= 8; rounds++) {
+    const compiled = compileBrief({ intent, skills, category, answers });
+    if (compiled.ok) return { rounds, payload: compiled.payload };
+    const next = compiled.missing[0];
+    assert.ok(next, 'a refusal always names something to answer');
+    assert.ok(reply[next.key] !== undefined, `the walk has no answer for ${next.key}`);
+    answers = { ...answers, [next.key]: reply[next.key] };
+  }
+  return { rounds: Number.POSITIVE_INFINITY, payload: null };
+}
+
+test('every field kind the compiler asks about can actually be answered', () => {
+  /*
+   * The defect this replaces, and the reason answers are keyed rather than
+   * written back into the brief as prose.
+   *
+   * An answer used to be appended to the brief as "<label>: <value>", and
+   * the structured branch could read a value back only three ways: the whole
+   * brief parsing as JSON, one address where exactly one address field
+   * wanted one, or a number written beside the field's own name. So a
+   * `text`, `boolean` or `json` field could never be answered, a card
+   * declaring two address fields disabled the address route, and a second
+   * number in the brief made the adjacency rule ambiguous and return
+   * nothing. Five of the six shapes below asked the same question forever,
+   * each round appending another duplicate line to a brief with a
+   * 2000-character ceiling, with the hire blocked behind it.
+   *
+   * Reading those lines back more cleverly was the other way out, and it is
+   * the wrong one: telling "size usdt 2500" from "levels 7" is Pokter
+   * deciding which number is which field, which is the failure this feature
+   * exists to prevent. A value bound to the key it was asked for cannot be
+   * guessed wrong.
+   */
+  const cases: Array<{
+    what: string;
+    skills: Parameters<typeof walkTheQuestions>[0];
+    intent: string;
+    reply: Record<string, string>;
+    category?: string;
+    payload: string;
+  }> = [
+    {
+      what: 'three nested JSON fields',
+      skills: HEALTHMON,
+      intent: 'Work out my lending health factor.',
+      reply: { collateral: '{"BNB":{"amount":5,"liqThreshold":0.8}}', debt: '{"USDT":1000}', prices: '{"BNB":600,"USDT":1}' },
+      category: 'health-factor',
+      payload: '{"collateral":{"BNB":{"amount":5,"liqThreshold":0.8}},"debt":{"USDT":1000},"prices":{"BNB":600,"USDT":1}}',
+    },
+    {
+      what: 'an address and a number',
+      skills: VITALS,
+      intent: 'Is my Venus position safe?',
+      reply: { address: MY_ACCOUNT, targetHealthFactor: '1.5' },
+      category: 'health-factor',
+      payload: `{"address":"${MY_ACCOUNT}","targetHealthFactor":1.5}`,
+    },
+    {
+      what: 'two address fields, so neither can be inferred',
+      skills: [{ id: 'pair', name: 'Pair check', examples: ['{"token_a":"0x0000000000000000000000000000000000000000","token_b":"0x0000000000000000000000000000000000000000"}'] }],
+      intent: 'Check this pair.',
+      reply: { token_a: MY_ACCOUNT, token_b: MY_WALLET },
+      payload: `{"token_a":"${MY_ACCOUNT}","token_b":"${MY_WALLET}"}`,
+    },
+    {
+      what: 'a plain text field, which nothing reads out of prose',
+      skills: [{ id: 'sym', name: 'Symbol check', examples: ['{"symbol":"<symbol>"}'] }],
+      intent: 'Look up a token.',
+      reply: { symbol: 'BNB' },
+      payload: '{"symbol":"BNB"}',
+    },
+    {
+      what: 'a boolean, which nothing reads out of prose',
+      skills: [{ id: 'vaults', name: 'Vault list', examples: ['{"include_closed":true,"limit":5}'] }],
+      intent: 'List the vaults.',
+      reply: { include_closed: 'true', limit: '10' },
+      payload: '{"include_closed":true,"limit":10}',
+    },
+    {
+      what: 'two numbers, which made the adjacency rule ambiguous',
+      skills: [{ id: 'grid', name: 'Grid plan', examples: ['{"budgetUsd":1000,"levels":5}'] }],
+      intent: 'Plan a grid on BNB.',
+      reply: { budgetUsd: '2500', levels: '7' },
+      payload: '{"budgetUsd":2500,"levels":7}',
+    },
+  ];
+
+  for (const { what, skills, intent, reply, category, payload } of cases) {
+    const walked = walkTheQuestions(skills, intent, reply, category);
+    assert.ok(Number.isFinite(walked.rounds), `${what}: the questions never stopped`);
+    assert.equal(walked.payload, payload, what);
+    assert.equal(walked.rounds, Object.keys(reply).length, `${what}: one answer per question, no repeats`);
   }
 });
 
-test('answering a question fills the field, and stays visible in the brief', () => {
+test('a prose request takes its answer too, written where it can be read', () => {
   /*
-   * Written into the brief rather than into hidden state: the brief is what
-   * goes on chain, and a value that only exists inside Pokter is a value
-   * the buyer cannot check against the job they funded.
+   * A prose contract has no fields, so an answer goes into the text — the
+   * one place it can, and safe here for exactly the reason it was unsafe
+   * for a structured card: nothing has to read it back out and decide which
+   * field it was. The check is whether the brief names an account at all.
+   *
+   * Without this the prose path regressed when the prose round trip was
+   * removed: Brinkwatch's question was answered, recorded, and ignored.
    */
-  const first = compileBrief({ intent: 'Check my Venus position. Target health factor 1.5', skills: VITALS, category: 'health-factor', wallet: MY_WALLET });
-  assert.equal(first.ok, false);
-  const answered = answerMissing(first.intent, first.missing[0], MY_ACCOUNT);
-  assert.ok(answered.includes(MY_ACCOUNT), 'the answer is in the brief the buyer can read');
-  assert.ok(answered.startsWith(first.intent), 'and what they wrote is still there, unedited');
+  const asked = compileBrief({ intent: 'How close am I to liquidation on Venus?', skills: BRINKWATCH, category: 'health-factor', wallet: MY_WALLET });
+  assert.equal(asked.ok, false);
+  assert.deepEqual(asked.missing.map((m) => m.key), ['account']);
 
-  const second = compileBrief({ intent: answered, skills: VITALS, category: 'health-factor', wallet: MY_WALLET });
-  assert.equal(second.ok, true);
-  assert.equal(second.payload, `{"address":"${MY_ACCOUNT}","targetHealthFactor":1.5}`);
+  const answered = compileBrief({
+    intent: 'How close am I to liquidation on Venus?',
+    skills: BRINKWATCH,
+    category: 'health-factor',
+    answers: { account: MY_ACCOUNT },
+  });
+  assert.equal(answered.ok, true);
+  assert.equal(answered.payload, `How close am I to liquidation on Venus?\nAccount: ${MY_ACCOUNT}`);
+  assert.equal(answered.intent, 'How close am I to liquidation on Venus?', 'their own words are not edited');
+  /* Appended, so the buyer reads the added line in the request shown before
+     they confirm it rather than finding it on chain afterwards. */
+  assert.ok(answered.payload!.startsWith(answered.intent));
 
+  // And a mistyped account is reported rather than written into a brief that goes on chain.
+  const typo = compileBrief({
+    intent: 'How close am I to liquidation on Venus?',
+    skills: BRINKWATCH,
+    category: 'health-factor',
+    answers: { account: 'my main wallet' },
+  });
+  assert.equal(typo.ok, false);
+  assert.equal(typo.payload, null);
+  assert.ok(typo.notes.some((note) => /0x address/.test(note)));
+  assert.ok(!JSON.stringify(typo).includes('Account: my main wallet'));
+});
+
+test('an answer is held to its field’s type, not sent because it was typed', () => {
   /*
-   * And the answer is taken on the spot. Editing the brief is what
-   * invalidates a compilation, so answering a question invalidated the very
-   * screen that asked it: the buyer supplied the address and was shown
-   * "your brief changed, work it out again" instead of their answer landing.
-   * The brief text has to be handed to the recompile explicitly, because
-   * the state just set is not readable in the same tick.
+   * An answer settles which field a value belongs to and nothing else.
+   * "ten" in a number box is a typing mistake, and sending it because the
+   * buyer typed it would be as wrong as inventing a value.
+   */
+  const compiled = compileBrief({
+    intent: 'Is my Venus position safe?',
+    skills: VITALS,
+    category: 'health-factor',
+    answers: { address: MY_ACCOUNT, targetHealthFactor: 'ten' },
+  });
+  assert.equal(compiled.ok, false);
+  assert.equal(compiled.payload, null);
+  assert.deepEqual(compiled.notes, ['targetHealthFactor must be a number']);
+
+  // A zero-address answer is refused the way the editor refuses one.
+  const zero = compileBrief({
+    intent: 'Is my Venus position safe?',
+    skills: VITALS,
+    category: 'health-factor',
+    answers: { address: `0x${'0'.repeat(40)}`, targetHealthFactor: '1.5' },
+  });
+  assert.equal(zero.ok, false);
+  assert.ok(zero.notes.some((note) => /real address/.test(note)));
+});
+
+test('an answer belongs to the brief it was given for, and to no other', () => {
+  /*
+   * The hook drops the answers with the compilation when the brief changes.
+   * An answer to "which account?" on one brief is not an answer on the next,
+   * and carrying it over would put a value into a request the buyer never
+   * saw it in.
    */
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const compileRequest = async \(text: string = task\)/);
-  assert.match(hook, /compileRequestFor\(agent\.chainId, agent\.tokenId, text\)/);
-  assert.match(hook, /setCompiledFor\(\{ brief, task: text \}\)/);
-  assert.match(hook, /const answerMissingInput = async[\s\S]{0,400}return compileRequest\(next\);/);
+  assert.match(hook, /const answers = answersFor && answersFor\.task === task \? answersFor\.answers : \{\};/);
+  assert.match(hook, /const compileRequest = async \(text: string = task, given: Record<string, string> = answers\)/);
+  assert.match(hook, /compileRequestFor\(agent\.chainId, agent\.tokenId, text, given\)/);
+  assert.match(hook, /setAnswersFor\(\{ answers: given, task: text \}\)/);
+  /* And the answer is taken on the spot: the value and the brief are handed
+     to the recompile explicitly, because state just set is not readable in
+     the same tick. */
+  assert.match(hook, /const answerMissingInput = async[\s\S]{0,500}return compileRequest\(task, next\);/);
+  assert.ok(!hook.includes('answerMissing('), 'the prose round trip is gone');
+
+  // The route takes them as data, bounded, and never as text to parse.
+  const route = code('app/api/hire/compile/route.ts');
+  assert.match(route, /body\.answers/);
+  assert.match(route, /typeof value === 'string' && value\.length <= 2000/);
+  assert.match(route, /answers: answers as BriefAnswers/);
 });
 
 test('a prose agent whose every example names an account asks for one', () => {
@@ -397,7 +599,7 @@ test('the hire invalidates the quote it was given for the request it replaces', 
    * a wallet.
    */
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const approveRequest = \(\) => \{[\s\S]{0,700}setPreQuote\(null\);/);
+  assert.match(hook, /const approveRequest = \(\): string \| null => \{[\s\S]{0,900}setPreQuote\(null\);/);
   assert.match(hook, /const reviewQuote = preQuote && preQuote\.task === outboundTask/);
   assert.match(hook, /const requestChanged = approved && compiled \? materialBriefChange\(approved\.brief, compiled\) : \[\];/);
   assert.match(hook, /if \(requestChanged\.length > 0\) \{[\s\S]{0,400}Confirm it again before funding/);
@@ -519,7 +721,6 @@ test('the payload the buyer confirmed is byte for byte the payload the courier s
     category: 'health-factor',
   });
   const approvedPayload = compiled.payload!;
-  assert.ok(briefPayloadMatches(approvedPayload, approvedPayload));
 
   const beforeFunding = skillRequestData({ skillId: compiled.skill!.id, task: approvedPayload });
   const atDelivery = skillRequestData({ skillId: compiled.skill!.id, task: approvedPayload, jobId: '1585' });
@@ -564,6 +765,38 @@ test('a compiled payload recompiles to itself, so the server can check what it w
     // A third pass, because an unstable rule can be stable for one round.
     assert.equal(compileBrief({ intent: twice.payload!, skills: VITALS, category: 'health-factor' }).payload, once.payload);
   }
+});
+
+test('the price is asked for the payload just approved, not the one before it', () => {
+  /*
+   * The defect that made the whole feature a no-op, caught in a browser and
+   * not by any of the tests above.
+   *
+   * Confirming binds the payload and then asks the agent to sign for it, in
+   * one handler. `approveRequest` only wrote the payload to state, which is
+   * not readable until the next render, so `prepareQuote` read the brief as
+   * it stood *before* the answer and the seller signed over that. On a live
+   * testnet hire Brinkwatch declined with "The brief names no wallet
+   * address" — refusing a brief the buyer had just fixed on screen.
+   *
+   * So the payload is handed along, not looked up: `approveRequest` returns
+   * what it bound and the caller passes it straight to `prepareQuote`. The
+   * same rule `compileRequest` already follows for the same reason.
+   */
+  const hook = code('lib/hire/useHire.ts');
+  assert.match(hook, /const approveRequest = \(\): string \| null => \{/);
+  assert.match(hook, /if \(!compiled\?\.payload\) return null;/);
+  assert.match(hook, /return compiled\.payload;\s*\};/, 'it hands back what it bound');
+  assert.match(hook, /const prepareQuote = async \(text: string = outboundTask\): Promise<boolean> => \{/);
+  assert.match(hook, /const sending = text;/, 'the quote is taken for the text it was given');
+
+  const flow = src('features/hire/HireFlow.tsx');
+  assert.match(
+    flow,
+    /const payload = hire\.approveRequest\(\);\s*\n\s*if \(payload && \(await hire\.prepareQuote\(payload\)\)\) setStep\('review'\);/,
+    'the confirm handler passes the payload it just bound',
+  );
+  assert.ok(!/hire\.prepareQuote\(\)/.test(flow), 'nothing quotes the text it has not been handed');
 });
 
 test('the hire funds, records and delivers the one text the buyer approved', () => {
@@ -643,7 +876,7 @@ test('the buyer is shown both their own words and every value that will be sent'
   assert.match(screen, /Confirm this request/);
   const flow = src('features/hire/HireFlow.tsx');
   assert.match(flow, /\{ id: 'request', label: 'Check the request' \}/);
-  assert.match(flow, /hire\.approveRequest\(\);\n\s*if \(await hire\.prepareQuote\(\)\) setStep\('review'\)/);
+  assert.match(flow, /const payload = hire\.approveRequest\(\);\n\s*if \(payload && \(await hire\.prepareQuote\(payload\)\)\) setStep\('review'\)/);
 });
 
 // ── The same preparation on every path ──

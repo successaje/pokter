@@ -32,7 +32,20 @@ import { Icon } from '@/ui/icons';
  */
 
 /** What Pokter knows about this skill's input, said plainly. */
-function contractNote(brief: CompiledBrief, agentName: string): { tone: 'ok' | 'neutral' | 'watch'; title: string; body: string } {
+function contractNote(brief: CompiledBrief, agentName: string, verbatim: boolean): { tone: 'ok' | 'neutral' | 'watch'; title: string; body: string } {
+  /*
+   * A prose brief that took an answer is no longer word for word what the
+   * buyer wrote: an "Account: 0x…" line was added from what they gave. The
+   * note said "nothing has been rewritten" over the top of the added line,
+   * which is the one kind of inaccuracy this screen exists to prevent.
+   */
+  if (brief.contract === 'prose' && !verbatim) {
+    return {
+      tone: 'ok',
+      title: 'Your words, with the account you gave',
+      body: `${agentName} publishes example requests in words rather than a format Pokter can check against, so your brief is not rewritten. The account you answered with is added on its own line, and the whole thing is below exactly as it will be sent.`,
+    };
+  }
   switch (brief.contract) {
     case 'adapter':
       return {
@@ -67,6 +80,7 @@ export function RequestReview({
   approved,
   changed,
   onAnswer,
+  answers,
   busy,
   onEditBrief,
   onConfirm,
@@ -80,6 +94,8 @@ export function RequestReview({
   /** Material inputs edited since the confirmation, by label. */
   changed: string[];
   onAnswer: (missing: MissingInput, answer: string) => void;
+  /** Answers already given, by field key, so a rejected one comes back as typed. */
+  answers: Readonly<Record<string, string>>;
   /** A compilation is in flight: an answer is being taken. */
   busy: boolean;
   onEditBrief: () => void;
@@ -87,8 +103,12 @@ export function RequestReview({
   confirming: boolean;
   failure: string | null;
 }) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const note = contractNote(brief, agentName);
+  /* What is in the boxes right now. Seeded from the answers already given,
+     so a value rejected for its type comes back as the buyer typed it
+     rather than as an empty box beside the same question. */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const valueFor = (key: string) => typed[key] ?? answers[key] ?? '';
+
   const rows = briefSummary(brief);
   const ready = brief.ok && brief.payload !== null;
   /* Where the brief travels unchanged, the two halves of this screen are the
@@ -97,6 +117,7 @@ export function RequestReview({
      not already read above. */
   const verbatim = briefIsVerbatim(brief);
   const shown = rows.filter((row) => !verbatim || row.declared);
+  const note = contractNote(brief, agentName, verbatim);
 
   return (
     <div className="anim-fade flex flex-col gap-6">
@@ -211,15 +232,15 @@ export function RequestReview({
                   <Input
                     {...field}
                     className="max-w-[26rem] flex-1"
-                    value={answers[missing.key] ?? ''}
-                    onChange={(e) => setAnswers((prior) => ({ ...prior, [missing.key]: e.target.value }))}
+                    value={valueFor(missing.key)}
+                    onChange={(e) => setTyped((prior) => ({ ...prior, [missing.key]: e.target.value }))}
                     placeholder={missing.hint ?? ''}
                   />
                   <Button
                     size="s"
                     busy={busy}
-                    disabled={!(answers[missing.key] ?? '').trim()}
-                    onClick={() => onAnswer(missing, answers[missing.key] ?? '')}
+                    disabled={!valueFor(missing.key).trim()}
+                    onClick={() => onAnswer(missing, valueFor(missing.key))}
                   >
                     Add
                   </Button>
@@ -237,13 +258,34 @@ export function RequestReview({
         </section>
       )}
 
-      {brief.notes.length > 0 && brief.missing.length === 0 && (
-        <ul className="flex flex-col gap-1.5 text-[12.5px] text-ink-3">
-          {brief.notes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
-      )}
+      {/*
+        Notes, and whether they are the reason nothing can be confirmed.
+
+        A value that does not fit its field — "ten" where the card declares
+        a number, "my main wallet" where it declares an account — is why
+        nothing can be confirmed, so it is said as the blocker rather than
+        printed in grey beside a dead control. Shown whether or not anything
+        is still missing: a rejected answer leaves its own question standing,
+        and the buyer was being shown that question again with no hint that
+        what they had just typed was the problem.
+      */}
+      {brief.notes.length > 0 &&
+        (ready ? (
+          <ul className="flex flex-col gap-1.5 text-[12.5px] text-ink-3">
+            {brief.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : (
+          <Notice tone="bad" title={brief.notes.length === 1 ? 'One value does not fit what the agent asked for' : 'Some values do not fit what the agent asked for'}>
+            <ul className="flex list-disc flex-col gap-1 pl-5">
+              {brief.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+            <span className="mt-2 block">Go back to the brief and correct it, or change the value you gave.</span>
+          </Notice>
+        ))}
 
       {/*
         A confirmation that no longer covers what would be sent.
@@ -281,7 +323,9 @@ export function RequestReview({
             : approved && changed.length === 0
               ? 'Continue'
               : brief.missing.length > 0
-                ? 'Answer what is missing'
+              ? 'Answer what is missing'
+              : !ready
+                ? 'Correct the values first'
                 : 'Confirm this request'}
         </Button>
       </div>

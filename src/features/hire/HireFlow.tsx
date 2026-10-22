@@ -609,6 +609,7 @@ export function HireFlow(props: HireFlowProps) {
           approved={Boolean(hire.approvedRequest)}
           changed={hire.requestChanged}
           onAnswer={(missing, answer) => void hire.answerMissingInput(missing, answer)}
+          answers={hire.answers}
           busy={hire.compiling}
           onEditBrief={() => setStep('describe')}
           confirming={hire.quoting}
@@ -620,8 +621,8 @@ export function HireFlow(props: HireFlowProps) {
               quote taken for an earlier one, so the signature that comes
               back covers the request on screen and no other.
             */
-            hire.approveRequest();
-            if (await hire.prepareQuote()) setStep('review');
+            const payload = hire.approveRequest();
+            if (payload && (await hire.prepareQuote(payload))) setStep('review');
           }}
         />
       )}

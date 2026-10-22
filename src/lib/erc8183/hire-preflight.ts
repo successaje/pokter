@@ -19,9 +19,25 @@ import { skillRequestData, type ResolvedSubject } from './skill-request';
  * Two things it deliberately does not do:
  *
  *  - It does not invent requirements. Only skills Pokter has an adapter for
- *    are checked, and only against what their own card says they read. An
- *    agent's published `examples` show how to ask; they are not a schema,
+ *    are *refused* on, and only against what their own card says they read.
+ *    An agent's published `examples` show how to ask; they are not a schema,
  *    and enforcing them as one would refuse briefs agents accept today.
+ *
+ *    That last clause is not a hypothetical, which is why this gate was
+ *    narrowed back to it after briefly refusing on any unfilled declared
+ *    field. Vitals (56/367904) publishes two examples on one skill — a JSON
+ *    object and a sentence — and its own description says to send "text
+ *    naming the account ... or a data part". Refusing its prose because its
+ *    JSON example has an unfilled key would reject the agent's own
+ *    documented way of being asked. Every mainnet agent that publishes a
+ *    JSON example was blocked that way for prose briefs.
+ *
+ *    `compileBrief` still runs, and what it could not fill is still carried
+ *    back on `brief.missing` — the hire form asks those questions before it
+ *    lets anyone confirm. The difference is where the answer is binding: in
+ *    the form, which is guidance, and not on this route, which is a gate.
+ *    Whether a prose brief is good enough is the agent's judgement, and
+ *    `askIfAgentTakesBrief` already puts it to the agent.
  *  - It does not block a hire it cannot judge. An agent with no reachable
  *    card, no A2A endpoint or no skill Pokter recognises returns
  *    `skill: null` and the hire proceeds exactly as before. Quoting is how
@@ -45,7 +61,7 @@ export type HirePreflight =
     }
   | {
       ok: false;
-      code: 'subject-missing' | 'subject-ambiguous' | 'inputs-missing';
+      code: 'subject-missing' | 'subject-ambiguous';
       skill: string;
       message: string;
       candidates: string[];
@@ -106,24 +122,6 @@ export async function preflightHireBrief(input: {
     skillId,
     category,
   });
-  if (!brief.ok) {
-    const questions = brief.missing.map((m) => m.question);
-    return {
-      ok: false,
-      /* A subject refusal keeps its own code and its own wording: the
-         adapter says it better than a generic list would, and three
-         surfaces already quote that sentence. */
-      code: brief.contract === 'adapter' ? (questions.length > 1 ? 'subject-ambiguous' : 'subject-missing') : 'inputs-missing',
-      skill: skillId,
-      message:
-        brief.contract === 'adapter'
-          ? (questions[0] ?? 'The brief does not name what this skill reports on.')
-          : `${brief.skill?.name ?? skillId} needs more than this brief supplies. ${questions.join(' ')}`,
-      candidates: [],
-      brief,
-    };
-  }
-
   /*
    * The subject, still read through `skillRequestData`, because that is the
    * object the courier will build and nothing else may decide it. The

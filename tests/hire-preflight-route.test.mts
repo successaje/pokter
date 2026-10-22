@@ -244,7 +244,7 @@ test('a brief edit clears the resolved request on both paths', () => {
   assert.match(hook, /setPreRequest\(null\)/, 'cleared when the check refuses');
   /* And an approval of a compiled request drops the quote taken for the one
      it replaces: a price signed over the old payload buys the old work. */
-  assert.match(hook, /const approveRequest = \(\) => \{[\s\S]{0,600}setPreQuote\(null\);/);
+  assert.match(hook, /const approveRequest = \(\): string \| null => \{[\s\S]{0,900}setPreQuote\(null\);/);
 });
 
 test('a refusal body says which layer refused, and never blames the wrong one', () => {

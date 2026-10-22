@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { classify } from '@/lib/agents/categories';
-import { compileBrief } from '@/lib/hire/brief-compiler';
+import { compileBrief, type BriefAnswers } from '@/lib/hire/brief-compiler';
 import { NotAskableError, prepareAgent } from '@/lib/erc8183/courier';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
@@ -59,6 +59,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'The brief must be 2000 characters or fewer.' }, { status: 400 });
   }
 
+  /*
+   * The buyer's answers to this compiler's own questions, by field key.
+   *
+   * Read defensively because it arrives over the wire: string keys to
+   * string values, and bounded, so a client cannot hand the compiler an
+   * unbounded object or a nested one. A key that is not a field of the
+   * resolved skill is simply never looked up.
+   */
+  const answers: Record<string, string> = {};
+  const given = body.answers;
+  if (given && typeof given === 'object' && !Array.isArray(given)) {
+    for (const [key, value] of Object.entries(given as Record<string, unknown>).slice(0, 24)) {
+      if (typeof key === 'string' && key.length <= 64 && typeof value === 'string' && value.length <= 2000) {
+        answers[key] = value;
+      }
+    }
+  }
+
   const agent = await getAgent(chainId, tokenId).catch(() => null);
   if (!agent) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
 
@@ -79,6 +97,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         skills: prepared.skills.length > 0 ? prepared.skills : [{ id: prepared.skill.id, name: prepared.skill.name, examples: [] }],
         skillId: prepared.skill.id,
         category,
+        answers: answers as BriefAnswers,
       }),
       observedAt: new Date().toISOString(),
     });
@@ -97,7 +116,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       console.info(`[hire-compile] ${chainId}/${tokenId}: could not read the agent's skills (${(error as Error).name})`);
     }
     return NextResponse.json({
-      brief: compileBrief({ intent: task, skills: [], category }),
+      brief: compileBrief({ intent: task, skills: [], category, answers: answers as BriefAnswers }),
       observedAt: new Date().toISOString(),
     });
   }

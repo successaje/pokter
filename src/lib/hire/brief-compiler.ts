@@ -135,7 +135,11 @@ export interface CompiledBrief {
    * input is still missing.
    *
    * This string is what gets quoted, written on chain and delivered. It is
-   * the whole point of the binding: see `briefPayloadMatches`.
+   * The binding itself is asserted where it is actually held: `outboundTask`
+   * is this payload, the quote is signed over it, and the courier reads it
+   * back. A helper that merely compared the string to itself was removed —
+   * it was labelled as the invariant and caught nothing, because every
+   * caller already had the same string on both sides.
    */
   payload: string | null;
   inputs: CompiledInput[];
@@ -300,6 +304,29 @@ function structuredExample(examples: readonly string[]): { example: string; fiel
   return null;
 }
 
+/**
+ * An example that is plainly structured but that Pokter cannot read as
+ * fields: more than the twelve keys `taskFields` compiles, nested as an
+ * array, or not an object at all.
+ *
+ * Asked separately so the reading can say the true reason. Such a card used
+ * to come back as `prose` — "publishes example requests in words", which is
+ * a statement about the operator that is simply false, and the buyer has no
+ * way to tell a card Pokter chose not to read from one it could not.
+ */
+function hasUnreadableJsonExample(examples: readonly string[]): boolean {
+  return examples.some((example) => {
+    const trimmed = example.trim();
+    if (!/^[[{]/.test(trimmed)) return false;
+    try {
+      JSON.parse(trimmed);
+    } catch {
+      return false;
+    }
+    return taskFields(trimmed) === null;
+  });
+}
+
 function summarySkill(skill: { id: string; name: string } | null): { id: string; name: string } | null {
   return skill ? { id: skill.id, name: skill.name } : null;
 }
@@ -322,8 +349,14 @@ export function compileBrief(input: {
   wallet?: string | null;
   /** The chains an adapter skill serves, for reading a subject out of the brief. */
   chains?: readonly ChainId[];
+  /**
+   * Values the buyer gave in answer to this compiler's own questions, by
+   * field key. Used as given, for the key they were given for.
+   */
+  answers?: BriefAnswers;
 }): CompiledBrief {
   const intent = input.intent.trim();
+  const answers = input.answers ?? {};
   const skill = resolveSkill(input.skills, { skillId: input.skillId, category: input.category });
 
   if (!skill) {
@@ -436,9 +469,16 @@ export function compileBrief(input: {
         continue;
       }
 
+      /*
+       * The buyer's own answer to this field's own question wins over
+       * anything read out of the brief. It is not a better guess, it is not
+       * a guess: they were asked about this key and typed into its box.
+       */
+      const answered = (answers[field.key] ?? '').trim();
       const supplied = already?.find((f) => f.key === field.key)?.value.trim();
       const read =
-        supplied
+        answered ||
+        (supplied
           ? supplied
           : field.wallet && accountFields === 1 && accounts.length === 1
             ? accounts[0]
@@ -446,7 +486,7 @@ export function compileBrief(input: {
               ? addresses[0]
               : field.kind === 'number'
                 ? numberNamedBy(intent, field.key)
-                : null;
+                : null);
 
       if (read) {
         inputs.push({ key: field.key, label: readable(field.key), value: read, kind: field.kind, source: 'buyer', material: true });
@@ -489,7 +529,14 @@ export function compileBrief(input: {
       filled.push({ ...field, value: '' });
     }
 
+    /*
+     * An answer is still checked against the field it answers. "ten" in a
+     * number box, or a word where the card declares JSON, is the buyer
+     * having made a typing mistake — reporting it as a problem and asking
+     * again is right, and sending it because they typed it is not.
+     */
     const problems = missing.length === 0 ? taskFieldProblems(filled) : [];
+    for (const problem of problems) notes.push(problem);
     /*
      * Every field dropped leaves `{}`, which is not a request however
      * cleanly it compiled. Only reachable from a card whose example holds
@@ -517,7 +564,7 @@ export function compileBrief(input: {
       inputs,
       missing,
       statement: null,
-      notes: [...notes, ...problems],
+      notes,
       ok,
     };
   }
@@ -534,12 +581,46 @@ export function compileBrief(input: {
    * escrow is funded. Asked only when *every* example names one, so a
    * skill that sometimes takes an account is never made to require it.
    */
+  if (skill.examples.length > 0 && hasUnreadableJsonExample(skill.examples)) {
+    /*
+     * Structured, and beyond what Pokter compiles. Reported as not
+     * established, with the reason, rather than as prose: the brief still
+     * travels as written, which is the same outcome, but the sentence the
+     * buyer reads is now true of the card in front of them.
+     */
+    return {
+      intent,
+      skill: named,
+      contract: 'unpublished',
+      established: false,
+      payload: intent,
+      inputs: [{ key: 'brief', label: 'your brief', value: intent, kind: 'text', source: 'buyer', material: true }],
+      missing: [],
+      statement: `${skill.name} publishes a structured example request that Pokter cannot read as fields — it declares more than the twelve Pokter compiles, or is not a flat object. Your brief is sent exactly as you wrote it, and nothing about its shape has been checked.`,
+      notes: [],
+      ok: true,
+    };
+  }
+
   if (skill.examples.length > 0) {
     const everyExampleNamesAnAccount =
       skill.examples.length > 0 &&
       skill.examples.every((example) => accountsIn(example).length > 0 || /0x(?:…|\.{2,})/.test(example));
+    /*
+     * A prose request has no fields, so an answer here is written into the
+     * text — which is the one place it *can* go, and is safe for exactly the
+     * reason it was unsafe for a structured card: nothing has to read it
+     * back out and decide which field it was. The check is whether the brief
+     * names an account at all, and after this line it does.
+     *
+     * Appended rather than merged into the sentence: the buyer's own words
+     * are not edited, and the line is visible in the request shown before
+     * they confirm it.
+     */
+    const answeredAccount = (answers.account ?? '').trim();
+    const text = answeredAccount ? `${intent}\nAccount: ${answeredAccount}` : intent;
     const missing: MissingInput[] =
-      everyExampleNamesAnAccount && accountsIn(intent).length === 0
+      everyExampleNamesAnAccount && accountsIn(text).length === 0
         ? [
             {
               key: 'account',
@@ -550,17 +631,21 @@ export function compileBrief(input: {
             },
           ]
         : [];
+    /* An answer that is not an address is a typing mistake, reported rather
+       than appended to a brief that goes on chain. */
+    const badAnswer = answeredAccount && !/^0x[0-9a-fA-F]{40}$/.test(answeredAccount);
+    const ok = missing.length === 0 && !badAnswer;
     return {
       intent,
       skill: named,
       contract: 'prose',
       established: true,
-      payload: missing.length === 0 ? intent : null,
-      inputs: missing.length === 0 ? [{ key: 'brief', label: 'your brief', value: intent, kind: 'text', source: 'buyer', material: true }] : [],
+      payload: ok ? text : null,
+      inputs: ok ? [{ key: 'brief', label: 'your brief', value: text, kind: 'text', source: 'buyer', material: true }] : [],
       missing,
       statement: `${skill.name} publishes example requests in words rather than a format Pokter can check, so your brief is sent as you wrote it and its wording is the agent's to judge.`,
-      notes: [],
-      ok: missing.length === 0,
+      notes: badAnswer ? ['The account must be a 0x address, 42 characters long.'] : [],
+      ok,
     };
   }
 
@@ -579,21 +664,31 @@ export function compileBrief(input: {
 }
 
 /**
- * The compiled request with a missing input answered.
+ * An answer the buyer typed into the box beside one of the questions.
  *
- * Recompiled rather than patched: an answer that fills one field can fill
- * another — one address can satisfy both an account and a token field —
- * and a payload assembled by two different routes is a payload that can
- * disagree with itself. The answer is written into the brief as a line the
- * buyer can read and edit afterwards, so what is sent stays something they
- * wrote.
+ * Keyed by the field it answers, because that is how it was collected: the
+ * buyer was shown "what target health factor should it use?" and typed into
+ * that field's own input. Pokter reads nothing and infers nothing here — it
+ * is told which value belongs to which key.
+ *
+ * This replaces writing the answer back into the brief as a line of prose.
+ * That round trip only converged for two of the seven field shapes a live
+ * card can declare: the structured branch could read a value back out of
+ * prose in three ways — the whole brief parsing as JSON, one address where
+ * exactly one address field wanted one, or a number written beside the
+ * field's own name — so a `text`, `boolean` or `json` field, a card with two
+ * address fields, or a brief with a second number in it could never be
+ * answered at all. Every attempt appended another line and asked the same
+ * question again, which is the loop the buyer was left in with the hire
+ * blocked behind it.
+ *
+ * Reading those lines back more cleverly was the other way out, and it is
+ * the wrong one: disambiguating "size usdt 2500" from "levels 7" is Pokter
+ * guessing which number is which field, which is the failure this whole
+ * feature exists to prevent. An answer that is bound to its key cannot be
+ * guessed wrong.
  */
-export function answerMissing(intent: string, missing: MissingInput, answer: string): string {
-  const value = answer.trim();
-  if (!value) return intent;
-  const line = `${missing.label}: ${value}`;
-  return intent.trim() === '' ? line : `${intent.trim()}\n${line}`;
-}
+export type BriefAnswers = Readonly<Record<string, string>>;
 
 /**
  * Which material inputs differ between the request a buyer approved and the
@@ -615,7 +710,15 @@ export function materialBriefChange(approved: CompiledBrief, current: CompiledBr
     else if (was !== value) changed.push(current.inputs.find((i) => i.key === key)?.label ?? key);
   }
   for (const [key] of before) {
-    if (!after.has(key)) changed.push(`${approved.inputs.find((i) => i.key === key)?.label ?? key} was removed`);
+    if (after.has(key)) continue;
+    const label = approved.inputs.find((i) => i.key === key)?.label ?? key;
+    /*
+     * "was removed" was wrong whenever the edit simply stopped resolving:
+     * the field is still declared and still required, it just has nothing
+     * in it now. A buyer told a field was removed goes looking for the one
+     * they deleted.
+     */
+    changed.push(current.ok ? `${label} was removed` : `${label} is no longer filled`);
   }
   if (changed.length === 0 && approved.payload !== current.payload) {
     /* The payload moved with no material field to point at: a prose brief
@@ -624,19 +727,6 @@ export function materialBriefChange(approved: CompiledBrief, current: CompiledBr
     changed.push('the request itself');
   }
   return changed;
-}
-
-/**
- * Whether what gets sent is what was approved.
- *
- * The one invariant this feature exists to hold. A buyer confirms a payload;
- * the quote is signed over it; the envelope writes it on chain; the courier
- * reads it back and sends it. Compared as bytes, because "equivalent JSON"
- * is how a field order or a number formatted differently becomes a brief the
- * agent refuses — and because a signature is over bytes, not over meaning.
- */
-export function briefPayloadMatches(approved: string | null, sending: string): boolean {
-  return approved !== null && approved === sending;
 }
 
 /**

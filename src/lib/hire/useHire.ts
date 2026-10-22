@@ -39,7 +39,7 @@ import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
 import type { SkillRequestPreview } from '@/lib/erc8183/skill-request';
-import { answerMissing, materialBriefChange, type CompiledBrief, type MissingInput } from '@/lib/hire/brief-compiler';
+import { materialBriefChange, type BriefAnswers, type CompiledBrief, type MissingInput } from '@/lib/hire/brief-compiler';
 import { taskFields } from '@/lib/hire/task-fields';
 import { withWalletPlaceholder } from './example-chips';
 
@@ -212,11 +212,11 @@ async function negotiateForHire(
  * route reads the agent's card and returns a reading, so editing a brief
  * costs nobody a round trip.
  */
-async function compileRequestFor(chainId: number, tokenId: string, task: string): Promise<CompiledBrief> {
+async function compileRequestFor(chainId: number, tokenId: string, task: string, answers: BriefAnswers): Promise<CompiledBrief> {
   const response = await fetch('/api/hire/compile', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chainId, tokenId, task }),
+    body: JSON.stringify({ chainId, tokenId, task, answers }),
   });
   const payload = (await response.json().catch(() => null)) as { brief?: CompiledBrief; error?: string } | null;
   if (!response.ok || !payload?.brief) {
@@ -400,6 +400,20 @@ export function useHire({
    * say.
    */
   const [compiledFor, setCompiledFor] = useState<{ brief: CompiledBrief; task: string } | null>(null);
+  /*
+   * The buyer's answers to the compiler's questions, by field key.
+   *
+   * Held beside the brief rather than written into it. They used to be
+   * appended as prose lines and read back out, which only worked for two of
+   * the seven field shapes a live card declares — a `text`, `boolean` or
+   * `json` field could never be read back, so the question was asked again
+   * and the brief grew a duplicate line every time. Keyed by the field they
+   * answer, there is nothing to read back and nothing to guess.
+   *
+   * Dropped with the brief they were given for: an answer to "which
+   * account?" on one brief is not an answer on the next one.
+   */
+  const [answersFor, setAnswersFor] = useState<{ answers: Record<string, string>; task: string } | null>(null);
   const [approved, setApproved] = useState<{ brief: CompiledBrief; payload: string; task: string; provider: string; escrowChainId: number } | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [compileFailure, setCompileFailure] = useState<string | null>(null);
@@ -682,6 +696,7 @@ export function useHire({
    * rewritten.
    */
   const compiled = compiledFor && compiledFor.task === task ? compiledFor.brief : null;
+  const answers = answersFor && answersFor.task === task ? answersFor.answers : {};
   const approvedRequest =
     approved && approved.task === task && approved.provider === providerAddress && approved.escrowChainId === escrowChainId ? approved : null;
   /**
@@ -712,12 +727,13 @@ export function useHire({
    * answer, and stored the result under the old text, so the screen
    * immediately disowned it.
    */
-  const compileRequest = async (text: string = task): Promise<boolean> => {
+  const compileRequest = async (text: string = task, given: Record<string, string> = answers): Promise<boolean> => {
     setCompileFailure(null);
     setCompiling(true);
     try {
-      const brief = await compileRequestFor(agent.chainId, agent.tokenId, text);
+      const brief = await compileRequestFor(agent.chainId, agent.tokenId, text, given);
       setCompiledFor({ brief, task: text });
+      setAnswersFor({ answers: given, task: text });
       return true;
     } catch (caught) {
       setCompiledFor(null);
@@ -731,25 +747,33 @@ export function useHire({
   /**
    * Answer one of the questions the compiler asked.
    *
-   * Written into the brief as a line the buyer can see and edit afterwards,
-   * rather than into a hidden field. A value that only exists inside
-   * Pokter's own state is a value the buyer cannot check against the brief
-   * their job will carry on chain.
-   *
-   * And recompiled at once. Editing the brief is what invalidates a
-   * compilation, so answering a question used to invalidate the very screen
-   * that asked it: the buyer supplied the address and was shown "your brief
-   * changed, work it out again" instead of their answer being taken.
+   * The value is recorded against the field it answers and the request is
+   * compiled again with it. Nothing is written into the brief: the buyer's
+   * own words stay their own words, and the answer is visible where it
+   * matters — in the payload and in the summary rows, which are what the
+   * agent receives and what goes on chain.
    */
   const answerMissingInput = async (missing: MissingInput, answer: string): Promise<boolean> => {
-    const next = answerMissing(task, missing, answer);
-    setTaskKeepingFormat(next);
-    return compileRequest(next);
+    const next = { ...answers, [missing.key]: answer.trim() };
+    setAnswersFor({ answers: next, task });
+    return compileRequest(task, next);
   };
 
-  /** Bind the compiled request: this payload, for this provider, on this escrow. */
-  const approveRequest = () => {
-    if (!compiled?.payload) return;
+  /**
+   * Bind the compiled request: this payload, for this provider, on this
+   * escrow. Returns the payload it bound, or null when there was none.
+   *
+   * Returned rather than only stored, because the caller asks for a price in
+   * the same tick and `approved` is not readable until the next render. It
+   * was not returned at first, and the consequence was the whole feature
+   * quietly not working: the buyer answered "which account?", confirmed, and
+   * the quote was taken for the brief as it stood *before* the answer.
+   * Brinkwatch declined it with "The brief names no wallet address" — the
+   * agent refusing a brief the buyer had already fixed. It failed safe and
+   * it failed completely.
+   */
+  const approveRequest = (): string | null => {
+    if (!compiled?.payload) return null;
     setApproved({ brief: compiled, payload: compiled.payload, task, provider: providerAddress, escrowChainId });
     /*
      * A new approval cannot inherit the old one's price. The quote is signed
@@ -758,6 +782,7 @@ export function useHire({
      */
     setPreQuote(null);
     setPreRequest(null);
+    return compiled.payload;
   };
 
 
@@ -766,7 +791,7 @@ export function useHire({
    * buyer can go on to Review: either the agent accepted, or no quote is
    * needed. False with `quoteFailure` set, and the brief left as it was.
    */
-  const prepareQuote = async (): Promise<boolean> => {
+  const prepareQuote = async (text: string = outboundTask): Promise<boolean> => {
     setQuoteFailure(null);
     setQuoting(true);
     try {
@@ -779,7 +804,7 @@ export function useHire({
        * was compiled from — quoting the prose would hand the buyer a
        * signature for a brief the courier never sends.
        */
-      const sending = outboundTask;
+      const sending = text;
       if (needsQuote) {
         const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending);
         setPreQuote({ quote, task: sending, provider: providerAddress, escrowChainId });
@@ -1164,6 +1189,7 @@ export function useHire({
      * actually be sent.
      */
     compiled,
+    answers,
     compiling,
     compileFailure,
     compileRequest,

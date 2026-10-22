@@ -148,15 +148,7 @@ export function outboundParts(
  * different things. `layer: 'input'` is what `useHire` reads to say the
  * brief is the thing to fix, rather than the seller or the network.
  */
-/**
- * `inputs-missing` is the general case the other two are special cases of:
- * the skill's published input format names something the brief does not
- * supply. Kept as its own code rather than reported as `subject-missing`,
- * because the buyer's fix is different — a subject refusal names one field
- * and this one carries a list of questions — and because `useHire` routes
- * the two to different screens.
- */
-export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined' | 'inputs-missing';
+export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined';
 
 export function briefRefusalBody(input: {
   message: string;
