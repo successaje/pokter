@@ -320,24 +320,46 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
             if this fails, no buyer can get a price either.
           </p>
         </div>
+        {/* Four states, not two. A failure; a failure a buyer's own signed
+            price has already disproved; a request that succeeded; and no
+            request at all — which used to render as the third, reporting a
+            measurement Pokter had never made. */}
         {d.pokterCheck ? (
           <Notice
-            tone={d.pokterCheck.remediation?.transient ? 'watch' : 'bad'}
-            title={`Pokter's latest price request failed: ${d.pokterCheck.code}`}
-            action={<Fix remediation={d.pokterCheck.remediation} />}
+            tone={d.pokterCheck.outranked || d.pokterCheck.remediation?.transient ? 'watch' : 'bad'}
+            title={
+              d.pokterCheck.outranked
+                ? `Pokter's scheduled request failed (${d.pokterCheck.code}), but buyers can still be quoted`
+                : `Pokter's latest price request failed: ${d.pokterCheck.code}`
+            }
+            action={d.pokterCheck.outranked ? undefined : <Fix remediation={d.pokterCheck.remediation} />}
           >
-            <p>{d.pokterCheck.remediation?.reason ?? 'Pokter has no specific fix recorded for this code.'}</p>
+            {d.pokterCheck.outranked ? (
+              <p>
+                Your agent has since signed a payable price for a buyer&rsquo;s own brief, so this failure is true of
+                Pokter&rsquo;s generic scheduled ask and is not stopping hires. It is worth fixing anyway: no price
+                shows on your public card until a generic request is answered.
+              </p>
+            ) : (
+              <p>{d.pokterCheck.remediation?.reason ?? 'Pokter has no specific fix recorded for this code.'}</p>
+            )}
             <p className="mt-2 text-[12.5px]">
               Observed {DAY(d.pokterCheck.observedAt)}.
-              {d.pokterCheck.remediation?.transient
+              {!d.pokterCheck.outranked && d.pokterCheck.remediation?.transient
                 ? ' This may be a passing condition rather than something to change.'
                 : ''}
             </p>
           </Notice>
-        ) : (
+        ) : d.pokterCheckedAt ? (
           <Notice tone="ok" title="Pokter's latest price request succeeded">
-            The last scheduled request got a usable signed price from this agent, so the quote path works. That is not a
-            statement about demand.
+            The last scheduled request, on {DAY(d.pokterCheckedAt)}, got a usable signed price from this agent, so the
+            quote path works. That is not a statement about demand.
+          </Notice>
+        ) : (
+          <Notice tone="neutral" title="Pokter has not checked this agent yet">
+            No scheduled price request is on record for this agent, so there is nothing here to pass or fail. This is
+            not a reading that the quote path works: until a sweep reaches it, Pokter has made no measurement of
+            whether this agent can be priced.
           </Notice>
         )}
       </section>

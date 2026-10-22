@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -485,4 +485,88 @@ test('the split holds at mainnet scale, not just on a handful of rows', () => {
     db.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a stored failure a buyer’s own signed price disproves does not take the headline', () => {
+  /*
+   * The sweep asks every agent the same generic question, and some answer it
+   * without a price because it names no wallet or token. `decideHireBlocker`
+   * already refuses to call that a blocker once a buyer's own brief has been
+   * signed for a payable price — Vitals said "answers negotiate, but not
+   * with a signed quote" while it was signing quotes for real briefs.
+   *
+   * This panel read the stored failure on its own and promoted it to "no
+   * buyer can get a price from this agent", on the same report that listed
+   * the buyer who got one. Two Pokter surfaces saying opposite things about
+   * one agent is worse than either being wrong alone: the builder cannot
+   * tell which of them to act on.
+   */
+  const quoted = {
+    fingerprint: 'quoted-ask',
+    chainId: 56,
+    tokenId: AGENT_A.tokenId,
+    escrowChainId: 56,
+    source: 'buyer' as const,
+    outcome: 'quoted' as const,
+    code: null,
+    layer: null,
+    sellerReason: null,
+    tries: 1,
+    firstAt: '2026-10-21T09:00:00.000Z',
+    lastAt: '2026-10-21T09:00:00.000Z',
+  };
+  const failure = { code: 'no-quote', detail: null, sellerReason: null, observedAt: '2026-10-18T09:00:00.000Z' };
+
+  const outranked = report({
+    owner: BUILDER_A,
+    agent: AGENT_A,
+    attempts: [quoted],
+    pokterCheck: { ...failure, outranked: true },
+    pokterCheckedAt: failure.observedAt,
+  });
+  assert.notEqual(outranked.headline.id, 'blocked-before-any-buyer', 'the buyer who got a price disproves it');
+  assert.equal(outranked.headline.id, 'nothing-failing');
+  assert.equal(outranked.pokterCheck?.outranked, true, 'still reported, with what it is true of');
+  assert.equal(outranked.pokterCheck?.code, 'no-quote', 'and not hidden: no price shows on the public card either way');
+
+  /* Unoutranked it is still the headline, so the guard cannot swallow the
+     case the headline was written for. */
+  const blocking = report({
+    owner: BUILDER_A,
+    agent: AGENT_A,
+    attempts: [],
+    pokterCheck: { ...failure, outranked: false },
+    pokterCheckedAt: failure.observedAt,
+  });
+  assert.equal(blocking.headline.id, 'blocked-before-any-buyer');
+  assert.equal(blocking.pokterCheck?.outranked, false);
+});
+
+test('an agent Pokter has never checked is not reported as one that passed', () => {
+  /*
+   * `pokterCheck: null` was three facts wearing one shape — the last
+   * scheduled request succeeded, no scheduled request has ever been made,
+   * and the probe store would not open — and the panel said "the last
+   * scheduled request got a usable signed price from this agent" for all
+   * three. For an agent no sweep has reached, that reports a measurement
+   * which never happened, the one thing this panel exists not to do.
+   * `pokterCheckedAt` is what separates them.
+   */
+  const unchecked = report({ owner: BUILDER_A, agent: AGENT_A, pokterCheck: null, pokterCheckedAt: null });
+  assert.equal(unchecked.pokterCheck, null);
+  assert.equal(unchecked.pokterCheckedAt, null, 'no evidence a request was ever made');
+
+  const passed = report({
+    owner: BUILDER_A,
+    agent: AGENT_A,
+    pokterCheck: null,
+    pokterCheckedAt: '2026-10-22T04:00:00.000Z',
+  });
+  assert.equal(passed.pokterCheck, null);
+  assert.equal(passed.pokterCheckedAt, '2026-10-22T04:00:00.000Z', 'a date is the only thing that licenses "succeeded"');
+
+  /* And the panel reads the date rather than the absence of a failure. */
+  const panel = readFileSync(new URL('../src/features/studio/Diagnostics.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /d\.pokterCheckedAt \?/, 'the success claim is gated on positive evidence');
+  assert.match(panel, /has not checked this agent yet/, 'and the third state is said in words');
 });

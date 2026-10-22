@@ -3,6 +3,7 @@ import 'server-only';
 import { agentHistory, isLifecycleDemo } from '@/lib/agent/credited-history';
 import { agentConversion } from '@/lib/conversion/store';
 import { getJobStore } from '@/lib/erc8183/store';
+import { briefQuoteOutranksFailure } from '@/lib/hire/blocker';
 import { getProbeStore } from '@/lib/history/store';
 import { getAgent } from '@/lib/scan/client';
 import { teamWalletSet } from '@/lib/team/server';
@@ -98,14 +99,46 @@ export async function collectBuilderDiagnostics(
   const record =
     chainId === 56 || chainId === 97 ? await getAgent(chainId, tokenId).catch(() => null) : null;
 
+  /*
+   * Pokter's own scheduled price request, and whether Pokter has ever made
+   * one that got an answer.
+   *
+   * `pokterCheckedAt` is the part that cannot be left out. A null check used
+   * to mean three different things — the last request succeeded, no request
+   * has ever been made, and the probe store would not open — and the panel
+   * said "the last scheduled request got a usable signed price" for all
+   * three. For an agent Pokter has never swept that is a measurement being
+   * reported that never happened, which is the mistake this whole panel
+   * exists to avoid.
+   *
+   * `outranked` is `briefQuoteOutranksFailure`, the same precedence the
+   * agent's public page applies through `decideHireBlocker` — read rather
+   * than restated, so the two surfaces cannot disagree. Without it a builder
+   * whose agent declines Pokter's generic ask and signs for real briefs was
+   * told "no buyer can get a price from this agent" on the same report that
+   * showed the buyer who got one.
+   */
   let pokterCheck: Parameters<typeof buildBuilderDiagnostics>[1]['pokterCheck'] = null;
+  let pokterCheckedAt: string | null = null;
   try {
-    const failed = getProbeStore().quoteFailureFor(chainId, tokenId);
+    const probes = getProbeStore();
+    const failed = probes.quoteFailureFor(chainId, tokenId);
+    const stored = probes.quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`) ?? null;
+    /* Either answer is evidence a scheduled request was made and landed. */
+    pokterCheckedAt = failed?.observedAt ?? stored?.quotedAt ?? null;
+    const brief = probes.briefQuote(chainId, tokenId);
     pokterCheck = failed
-      ? { code: failed.code, detail: failed.detail, sellerReason: failed.sellerReason, observedAt: failed.observedAt }
+      ? {
+          code: failed.code,
+          detail: failed.detail,
+          sellerReason: failed.sellerReason,
+          observedAt: failed.observedAt,
+          outranked: brief !== null && briefQuoteOutranksFailure(failed, brief, now),
+        }
       : null;
   } catch {
     pokterCheck = null;
+    pokterCheckedAt = null;
   }
 
   return buildBuilderDiagnostics(proof, {
@@ -120,6 +153,7 @@ export async function collectBuilderDiagnostics(
     history,
     deliveryFailures,
     pokterCheck,
+    pokterCheckedAt,
     /* The registered wallet and declared transports, for the two blocker
        cases that name them: a quote signed by a wallet other than the
        agent's own, and an MCP-only listing that can be measured but never

@@ -74,8 +74,33 @@ export interface DiagnosticsInput {
   /** The agent's credited record: demos, team hires and self-hires already split out. */
   history: AgentEconomicHistory;
   deliveryFailures: readonly DeliveryFailure[];
-  /** Why Pokter's latest scheduled price request failed, when it did. */
-  pokterCheck: { code: string; detail: string | null; sellerReason: string | null; observedAt: string } | null;
+  /**
+   * Why Pokter's latest scheduled price request failed, when it did.
+   *
+   * `outranked` is `briefQuoteOutranksFailure`: this agent has since signed
+   * a payable price for a buyer's own brief, so the stored failure is true
+   * of Pokter's generic ask and false as a statement about hires. The same
+   * precedence the agent's public page applies, carried here so the two
+   * surfaces cannot say opposite things about one agent.
+   */
+  pokterCheck: {
+    code: string;
+    detail: string | null;
+    sellerReason: string | null;
+    observedAt: string;
+    outranked?: boolean;
+  } | null;
+  /**
+   * When Pokter's scheduled price request last got an answer, failed or not,
+   * or null when Pokter has never checked this agent — or could not read its
+   * record of having done so.
+   *
+   * Separate from `pokterCheck` because a null check is three facts, and the
+   * panel asserted the wrong one for two of them: "the last scheduled
+   * request got a usable signed price" is a measurement, and reporting it
+   * for an agent nobody has swept is reporting one that never happened.
+   */
+  pokterCheckedAt?: string | null;
   agentWallet: string | null;
   protocols: readonly string[];
 }
@@ -151,7 +176,15 @@ export interface BuilderDiagnostics {
     failures: Array<DeliveryFailure & { remediation: Remediation }>;
   };
   /** Pokter's own latest scheduled price request, when it failed. Never demand. */
-  pokterCheck: { code: string; observedAt: string; remediation: Remediation | null } | null;
+  pokterCheck: {
+    code: string;
+    observedAt: string;
+    remediation: Remediation | null;
+    /** A buyer's own brief has since been signed and is payable. */
+    outranked: boolean;
+  } | null;
+  /** When a scheduled request last got an answer; null when never checked. */
+  pokterCheckedAt: string | null;
   excluded: ExcludedCount[];
   definitions: readonly MetricDefinition[];
   unmeasured: readonly string[];
@@ -208,7 +241,14 @@ function headline(
   delivery: BuilderDiagnostics['delivery'],
   check: BuilderDiagnostics['pokterCheck'],
 ): BuilderDiagnostics['headline'] {
-  if (check?.remediation && !check.remediation.transient) {
+  /*
+   * `!check.outranked`: a stored failure this agent has already disproved by
+   * signing a payable price for a buyer's own brief must not take the
+   * headline. Promoting it said "no buyer can get a price from this agent"
+   * on the same report that listed the buyer who got one — and contradicted
+   * the agent's public page, which applies this precedence already.
+   */
+  if (check?.remediation && !check.remediation.transient && !check.outranked) {
     return {
       id: 'blocked-before-any-buyer',
       title: 'No buyer can get a price from this agent',
@@ -330,6 +370,7 @@ export function buildBuilderDiagnostics(
     ? {
         code: input.pokterCheck.code,
         observedAt: input.pokterCheck.observedAt,
+        outranked: input.pokterCheck.outranked === true,
         remediation: quoteRemediation({
           code: input.pokterCheck.code,
           detail: input.pokterCheck.detail,
@@ -386,6 +427,7 @@ export function buildBuilderDiagnostics(
     funding,
     delivery,
     pokterCheck: check,
+    pokterCheckedAt: input.pokterCheckedAt ?? null,
     excluded,
     definitions: METRIC_DEFINITIONS,
     unmeasured: UNMEASURED,
