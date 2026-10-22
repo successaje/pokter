@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { readBriefQuote, writeBriefQuote } from '@/lib/history/brief-quote-query';
 import { readLastProbedAt, readProbeTotals } from '@/lib/history/stats-query';
 import type { CorrectableProbe, ProbeCorrection } from './corrections';
 
@@ -50,6 +51,19 @@ export interface QuoteFailureRecord {
   detail: string | null;
   sellerReason: string | null;
   observedAt: string;
+}
+
+/**
+ * The last signed quote a buyer's own brief got from one agent.
+ *
+ * Only ever one row per agent, like `QuoteRecord`: what matters is whether
+ * the agent priced a real brief recently, not a list of expired prices.
+ * `@/lib/hire/blocker` reads it as `BriefQuote`, and that is where what it
+ * may and may not override is decided.
+ */
+export interface BriefQuoteRecord {
+  quotedAt: string;
+  payable: boolean;
 }
 
 export interface SweepRecord {
@@ -120,6 +134,18 @@ export interface ProbeStore {
   recordQuoteOutcomes(failed: QuoteFailureRecord[], quoted: { chainId: number; tokenId: string }[]): void;
   /** Why the latest price request to an agent failed, or null when it quoted or was never asked. */
   quoteFailureFor(chainId: number, tokenId: string): QuoteFailureRecord | null;
+  /**
+   * A buyer's brief got a signed, verified quote from this agent now.
+   *
+   * `payable` is whether an enabled escrow settles the currency it signed,
+   * decided where the quote was read with `escrowChainForCurrency`. It is
+   * recorded rather than inferred later because an unpayable signature is
+   * still a signature: it proves the agent prices, and it must not be read
+   * as proof that the agent can be hired.
+   */
+  noteBriefQuote(chainId: number, tokenId: string, quote: { payable: boolean; at?: string }): void;
+  /** The last signed quote a buyer's brief got from this agent, or null. */
+  briefQuote(chainId: number, tokenId: string): BriefQuoteRecord | null;
   /** Agents that have signed a price for Pokter: offered for sale, so measured. */
   quotedAgents(): { chainId: number; tokenId: string }[];
   lastSweep(): SweepRecord | null;
@@ -209,6 +235,20 @@ const SCHEMA = `
     detail        TEXT,
     seller_reason TEXT,
     observed_at   TEXT    NOT NULL,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
+  -- When a buyer's own brief last got a signed, verified quote from an agent.
+  -- The sweep's quote_failures come from its own generic price request, which
+  -- some agents answer without a price because it names no wallet or token;
+  -- a signed quote for a real brief proves the agent can be priced. The
+  -- payable column says whether an enabled escrow settles the currency it
+  -- signed: a price nothing can pay is not evidence that it can be hired.
+  CREATE TABLE IF NOT EXISTS brief_quotes (
+    chain_id  INTEGER NOT NULL,
+    token_id  TEXT    NOT NULL,
+    quoted_at TEXT    NOT NULL,
+    payable   INTEGER NOT NULL,
     PRIMARY KEY (chain_id, token_id)
   );
 
@@ -523,6 +563,15 @@ class SqliteProbeStore implements ProbeStore {
       .prepare('SELECT * FROM quote_failures WHERE chain_id = ? AND token_id = ?')
       .get(chainId, tokenId) as { chain_id: number; token_id: string; code: string; detail: string | null; seller_reason: string | null; observed_at: string } | undefined;
     return row ? { chainId: row.chain_id, tokenId: row.token_id, code: row.code, detail: row.detail, sellerReason: row.seller_reason, observedAt: row.observed_at } : null;
+  }
+
+  /* Both in `brief-quote-query`, so the write's own rule can be executed in a test. */
+  noteBriefQuote(chainId: number, tokenId: string, quote: { payable: boolean; at?: string }): void {
+    writeBriefQuote(this.db, chainId, tokenId, { quotedAt: quote.at ?? new Date().toISOString(), payable: quote.payable });
+  }
+
+  briefQuote(chainId: number, tokenId: string): BriefQuoteRecord | null {
+    return readBriefQuote(this.db, chainId, tokenId);
   }
 
   quotedAgents(): { chainId: number; tokenId: string }[] {

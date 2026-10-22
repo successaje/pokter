@@ -17,7 +17,20 @@ const CORS = {
   'access-control-allow-headers': 'content-type',
 } as const;
 
-export function apiJson(body: unknown, status = 200): NextResponse {
+export function apiJson(
+  body: unknown,
+  status = 200,
+  /**
+   * `perRequest` for a response measured while answering this request.
+   *
+   * The default below is only honest about data that moves on a sweep
+   * cycle. An agent detail that carries this request's own card read holds
+   * a fresh `observedAt` and can hold a transient "could not check", and
+   * caching that re-serves one passing failure for up to 150 seconds after
+   * it has passed — a promise the response cannot keep.
+   */
+  { perRequest = false }: { perRequest?: boolean } = {},
+): NextResponse {
   return NextResponse.json(body, {
     status,
     headers: {
@@ -27,7 +40,7 @@ export function apiJson(body: unknown, status = 200): NextResponse {
        * request, so a caller polling every second should be served a cached
        * copy rather than made to feel fast while costing a registry lookup.
        */
-      'cache-control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120',
+      'cache-control': perRequest ? 'private, no-store' : 'public, max-age=30, s-maxage=30, stale-while-revalidate=120',
     },
   });
 }

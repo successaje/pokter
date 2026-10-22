@@ -1,9 +1,9 @@
 import 'server-only';
 
-import { a2aCardFallback } from '@/lib/proof/card-access';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { declaredCapabilities, type DeclaredSkill } from './capabilities';
-import { isAgentCard } from '@/lib/a2a/card';
+import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
+import { readCardThrough, type CardProblem } from './card-read';
 
 /**
  * Reads an agent's own Agent Card and returns the capabilities it advertises.
@@ -27,11 +27,6 @@ import { isAgentCard } from '@/lib/a2a/card';
  * completes in under one — so 2.5s accepts the ones that work and gives up
  * quickly on the ones that do not.
  */
-/** A card in either format: a top-level url, or supportedInterfaces (see `a2aInterfaces`). */
-function isCard(body: unknown): body is Record<string, unknown> {
-  return isAgentCard(body);
-}
-
 async function fetchJson(url: string, timeoutMs: number): Promise<{ status: number; body: unknown }> {
   return withPublicEndpoint(url, async (handle) => {
     const response = await handle.fetch({
@@ -52,29 +47,64 @@ async function fetchJson(url: string, timeoutMs: number): Promise<{ status: numb
  * once (`a2aCardFallback`). Every path that talks to an agent reads its card
  * through this, so an agent that passes Pokter's check can also be quoted,
  * asked and hired. Throws when neither yields a card.
+ *
+ * The two steps and what each outcome means live in `readCardThrough`, which
+ * is pure and tested against a real server; this supplies the one transport
+ * agents are ever called through. The thrown message says which kind of
+ * nothing came back, because `classifyQuoteError` reads it to tell a buyer
+ * whether to try again.
  */
 export async function readAgentCard(endpoint: string, { timeoutMs = 8_000 }: { timeoutMs?: number } = {}): Promise<Record<string, unknown>> {
-  const first = await fetchJson(endpoint, timeoutMs);
-  if (isCard(first.body)) return first.body;
-  const fallback = a2aCardFallback(endpoint, first.body);
-  if (fallback) {
-    const second = await fetchJson(fallback, timeoutMs).catch(() => null);
-    if (second && isCard(second.body)) return second.body;
-  }
-  throw new Error(first.status >= 200 && first.status < 300 ? 'The endpoint answered, but not with an agent card.' : `The agent card answered ${first.status}.`);
+  const read = await readCardThrough(endpoint, (url) => fetchJson(url, timeoutMs));
+  if (read.ok) return read.card;
+  throw new Error(read.message);
 }
 
 export async function fetchDeclaredCapabilities(
   endpoint: string | null | undefined,
   tokenId: string,
 ): Promise<DeclaredSkill[]> {
-  if (!endpoint) return [];
-  const resolved = endpoint.replace('{agentId}', tokenId);
+  return (await readCardForPage(endpoint, tokenId)).skills;
+}
 
+/**
+ * What an agent's card says about whether it can be hired, as a permanent
+ * fact or not at all.
+ *
+ * The sweep stores a hire blocker for the agents it reaches, which is the
+ * DeFi categories and the top of the registry. Every other agent's page
+ * showed no blocker and offered a hire at the default budget, and the
+ * reason only appeared when a buyer tried: hwayongjin.agent (56:300282),
+ * whose card answers with no service to send a brief to. The page already
+ * reads the card, once per view, for its skills; this is the same read,
+ * now also saying what it found.
+ *
+ * Three of the four problems do not change by asking again: no A2A endpoint
+ * registered, a card that names no interface, a card with no negotiate
+ * skill. The fourth, `card-unreadable`, is the read failing rather than a
+ * fact about the agent, and it is reported as its own problem instead of as
+ * none: a page that said nothing left the default budget and a hire button
+ * in place, and a page that called it "no interface" told a builder their
+ * agent was unconnected over one slow lookup. It carries a transient
+ * blocker, so no hire path is withdrawn on it.
+ */
+export async function readCardForPage(
+  endpoint: string | null | undefined,
+  tokenId: string,
+): Promise<{ skills: DeclaredSkill[]; problem: CardProblem | null }> {
+  if (!endpoint) return { skills: [], problem: 'no-endpoint' };
+  const resolved = endpoint.replace('{agentId}', tokenId);
+  let read: Awaited<ReturnType<typeof readCardThrough>>;
   try {
-    const card = await readAgentCard(resolved, { timeoutMs: 2_500 });
-    return declaredCapabilities(card.skills);
+    read = await readCardThrough(resolved, (url) => fetchJson(url, 2_500));
   } catch {
-    return [];
+    /* The endpoint Pokter was told to call did not answer: nothing is known. */
+    return { skills: [], problem: 'card-unreadable' };
   }
+  if (!read.ok) {
+    return { skills: [], problem: read.problem === 'no-interface' ? 'card-without-interface' : 'card-unreadable' };
+  }
+  /* One list, read once: `isAgentCard` already required an array here. */
+  const skills = Array.isArray(read.card.skills) ? read.card.skills : [];
+  return { skills: declaredCapabilities(skills), problem: negotiationSkillOf(skills) ? null : 'no-price-skill' };
 }

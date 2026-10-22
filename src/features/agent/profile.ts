@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { CATEGORY_BY_ID, categorySignalSource } from '@/lib/agents/categories';
-import { fetchDeclaredCapabilities } from '@/lib/agents/agent-card';
+import { readCardForPage } from '@/lib/agents/agent-card';
 import { mcpCapabilities, type DeclaredSkill } from '@/lib/agents/capabilities';
 import { deliveryTimes, type DeliveryTimes } from '@/lib/agent/delivery-times';
 import { sampleDelivery, type SampleDelivery } from '@/lib/agent/sample-delivery';
@@ -221,8 +221,9 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
   const testnetTrial = escrowChain === 97 && escrowOptions.includes(56);
   const addresses = correctedErc8183Addresses(escrowChain);
 
-  const [skills, delivery, providers, suggestion, alternatives, imageUrl, platform] = await Promise.all([
-    fetchDeclaredCapabilities(agent.services?.a2a?.endpoint, agent.token_id).catch(() => []),
+  const cardReadAt = new Date().toISOString();
+  const [cardRead, delivery, providers, suggestion, alternatives, imageUrl, platform] = await Promise.all([
+    readCardForPage(agent.services?.a2a?.endpoint, agent.token_id).catch(() => ({ skills: [], problem: null })),
     deliveryTimes(agent.chain_id, agent.token_id).catch(() => ({ samples: 0, medianMs: null, fastestMs: null, slowestMs: null, onTime: null })),
     providerChoicesFor(agent, escrowChain, d.quote, relayRefused).catch(() => [] as ProviderChoice[]),
     d.quote || category === 'unclassified' ? Promise.resolve(null) : suggestedBudgetFor(category, { chainId: agent.chain_id as ChainId }).catch(() => null),
@@ -241,6 +242,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
    * `measured.capabilities`. The reading is already loaded; it was simply
    * never asked.
    */
+  const skills = cardRead.skills;
   const declared = skills.length > 0 ? skills : live.protocol === 'mcp' ? mcpCapabilities(live.tools) : [];
   const skillSource: 'card' | 'mcp' | null = declared.length === 0 ? null : skills.length > 0 ? 'card' : 'mcp';
 
@@ -360,7 +362,7 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
         }
       : null,
     corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
-    hireBlocker: currentHireBlocker(agent, d.quote, payable),
+    hireBlocker: currentHireBlocker(agent, d.quote, payable, { problem: cardRead.problem, readAt: cardReadAt }),
     readiness: readinessRows({
       now: Date.now(),
       live: { answered: answeredNow, medianMs: live.medianMs },

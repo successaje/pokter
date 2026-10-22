@@ -26,6 +26,7 @@ import { siteUrl } from '@/lib/site';
 import { CAMPAIGN_ENDS_AT } from '@/lib/campaign/window';
 import { dueDeadlineReminder, hireProgressNews, settledWith } from '@/lib/campaign/reminders';
 import { alertFor, dropToLiquidation, levelOf, REPEAT_MS, staleDue, type Level } from '@/lib/loan-watch/rules';
+import { alertableFlows, coverageNotice } from '@/lib/trading/alerts';
 
 const DB_PATH = process.env.NOTIFICATION_DB_PATH ?? './data/notifications.db';
 let database: DatabaseSync | null = null;
@@ -145,6 +146,19 @@ function db(): DatabaseSync {
       UNIQUE(email, wallet_address)
     );
 
+    CREATE TABLE IF NOT EXISTS trading_alerts (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      wallet_address TEXT NOT NULL,
+      verification_hash TEXT NOT NULL,
+      verified_at TEXT,
+      unsubscribed_at TEXT,
+      created_at TEXT NOT NULL,
+      alerted_through_block INTEGER,
+      gaps_seen_through TEXT,
+      UNIQUE(email, wallet_address)
+    );
+
     CREATE TABLE IF NOT EXISTS loan_watch_runs (
       at TEXT NOT NULL,
       watched INTEGER NOT NULL,
@@ -157,6 +171,9 @@ function db(): DatabaseSync {
   addColumn(database, 'notification_subscriptions', 'include_answer INTEGER NOT NULL DEFAULT 0');
   // When a watched wallet was last tried, read or not: the rotation key, so wallets that fail cannot take every turn.
   addColumn(database, 'loan_watches', 'last_attempt_at TEXT');
+  /* When a trading wallet's checks went bad, and when its subscriber was told (`coverageNotice`). */
+  addColumn(database, 'trading_alerts', 'coverage_bad_since TEXT');
+  addColumn(database, 'trading_alerts', 'coverage_warned_at TEXT');
   return database;
 }
 
@@ -371,7 +388,7 @@ export async function createBuilderSubscription(input: { email: string; owner: s
 }
 
 export type EmailLinkTarget =
-  | { kind: 'buyer' | 'builder' | 'campaign' | 'loan-watch' }
+  | { kind: 'buyer' | 'builder' | 'campaign' | 'loan-watch' | 'trading' }
   | { kind: 'follow'; chainId: number; tokenId: string };
 
 /** Confirm an address. A follow also says which agent, so the link can return to it. */
@@ -390,6 +407,9 @@ export function verifySubscription(token: string): EmailLinkTarget | null {
   const loan = db().prepare(`UPDATE loan_watches SET verified_at=?, unsubscribed_at=NULL
     WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
   if (loan.changes > 0) return { kind: 'loan-watch' };
+  const trading = db().prepare(`UPDATE trading_alerts SET verified_at=?, unsubscribed_at=NULL
+    WHERE verification_hash=? AND verified_at IS NULL`).run(now, tokenHash);
+  if (trading.changes > 0) return { kind: 'trading' };
   const follow = db().prepare(`SELECT id, chain_id, token_id FROM agent_follows WHERE verification_hash=? AND verified_at IS NULL`).get(tokenHash) as
     | { id: string; chain_id: number; token_id: string }
     | undefined;
@@ -427,6 +447,8 @@ export function unsubscribe(token: string): EmailLinkTarget | null {
   if (campaign.changes > 0) return { kind: 'campaign' };
   const loan = db().prepare('UPDATE loan_watches SET unsubscribed_at=? WHERE id=?').run(now, id);
   if (loan.changes > 0) return { kind: 'loan-watch' };
+  const trading = db().prepare('UPDATE trading_alerts SET unsubscribed_at=? WHERE id=?').run(now, id);
+  if (trading.changes > 0) return { kind: 'trading' };
   const follow = db().prepare('SELECT chain_id, token_id FROM agent_follows WHERE id=?').get(id) as { chain_id: number; token_id: string } | undefined;
   if (!follow) return null;
   db().prepare('UPDATE agent_follows SET unsubscribed_at=? WHERE id=?').run(now, id);
@@ -833,6 +855,129 @@ export async function notifyLoanWatches(input: {
   db().prepare('INSERT INTO loan_watch_runs (at,watched,read_ok,read_failed,alerts) VALUES (?,?,?,?,?)').run(nowIso, result.watched, result.readOk, result.readFailed, result.alerts);
   db().prepare("DELETE FROM loan_watch_runs WHERE at < ?").run(new Date(input.nowMs - 7 * 86_400_000).toISOString());
   return result;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Trading wallet alerts (the trading pilot)
+ *
+ * One row per inbox and wallet. The wallet's activity is public on chain,
+ * so a subscription proves the inbox, not the wallet. Nothing is sent until
+ * the inbox is confirmed; every email can stop the alerts in one click.
+ * ---------------------------------------------------------------------- */
+
+export async function createTradingAlert(input: { email: string; wallet: string }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const wallet = input.wallet.toLowerCase();
+  const token = randomBytes(32).toString('base64url');
+  db().prepare(`INSERT INTO trading_alerts (id,email,wallet_address,verification_hash,created_at) VALUES (?,?,?,?,?)
+    ON CONFLICT(email,wallet_address) DO UPDATE SET
+      verification_hash=excluded.verification_hash,
+      verified_at=NULL,
+      unsubscribed_at=NULL,
+      alerted_through_block=NULL,
+      gaps_seen_through=NULL,
+      created_at=excluded.created_at`).run(randomUUID(), email, wallet, hash(token), new Date().toISOString());
+  const verifyUrl = `${appUrl()}/api/notifications/verify?token=${encodeURIComponent(token)}`;
+  await sendEmail({
+    to: email,
+    subject: 'Confirm alerts for your trading wallet',
+    idempotencyKey: `trading-verify-${hash(`${email}:${wallet}:${token}`).slice(0, 48)}`,
+    html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet alerts</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Confirm your alerts</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Pokter checks this wallet about every ten minutes. You will hear when tokens leave it and nothing comes back in the same transaction, and if Pokter could not check a stretch of blocks.</p>${emailContext([['Wallet', `${input.wallet.slice(0, 6)}…${input.wallet.slice(-4)}`]])}<div>${emailButton(verifyUrl, 'Confirm alerts')}</div><p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">This link only turns on alerts. It grants no wallet permission, and Pokter cannot move anything in this wallet. If you did not ask for this, ignore this email.</p>`, 'Confirm alerts for your trading wallet on Pokter.'),
+  });
+}
+
+/**
+ * The sweep's pass, after the trading scan: for each confirmed
+ * subscription, email any transaction Pokter found where tokens left the
+ * wallet and nothing came back, and any stretch of blocks it could not
+ * check. Only what was found after the person subscribed; what was sent is
+ * recorded after each send, so a failure is retried and nothing repeats.
+ */
+export async function notifyTradingAlerts(input: {
+  flowsAfter: (wallet: string, block: number) => Array<{ txHash: string; block: number; at: string; verdict: string; note: string; sent: Array<{ symbol: string; amount: string; to: string }> }>;
+  gapsAfter: (wallet: string, atIso: string) => Array<{ fromBlock: number; toBlock: number; at: string }>;
+  revokeHelp: (wallet: string) => string | null;
+  /** The wallet's coverage state (`coverage.ts`); only `current` counts as checked. */
+  coverageOf: (wallet: string) => string;
+  now?: number;
+}): Promise<{ checked: number; sent: number }> {
+  const now = input.now ?? Date.now();
+  const rows = db().prepare(`SELECT id,email,wallet_address,created_at,alerted_through_block,gaps_seen_through,coverage_bad_since,coverage_warned_at FROM trading_alerts
+    WHERE verified_at IS NOT NULL AND unsubscribed_at IS NULL`).all() as Array<{ id: string; email: string; wallet_address: string; created_at: string; alerted_through_block: number | null; gaps_seen_through: string | null; coverage_bad_since: string | null; coverage_warned_at: string | null }>;
+  let sent = 0;
+  for (const row of rows) {
+    const unsubscribeUrl = `${appUrl()}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken(row.id))}`;
+    const pageUrl = `${appUrl()}/trading?wallet=${row.wallet_address}`;
+    const short = `${row.wallet_address.slice(0, 6)}…${row.wallet_address.slice(-4)}`;
+    const footer = `<p style="font-size:11px;line-height:1.6;color:#77756d;margin:22px 0 0">Read by Pokter from BNB Chain. Email can be delayed; do not rely on it alone. Pokter never moves funds. <a href="${unsubscribeUrl}" style="color:#55534d;text-decoration:underline">Stop these alerts</a>.</p>`;
+
+    const { alert: bad, nextThrough } = alertableFlows(input.flowsAfter(row.wallet_address, row.alerted_through_block ?? 0), { alertedThrough: row.alerted_through_block, subscribedAt: row.created_at });
+    if (bad.length > 0) {
+      const help = input.revokeHelp(row.wallet_address);
+      const items = bad
+        .map((f) => `<li style="margin:0 0 8px"><b>${escapeHtml(f.sent.map((x) => `${x.amount} ${x.symbol}`).join(' + '))}</b> out to ${escapeHtml(f.sent.map((x) => `${x.to.slice(0, 6)}…${x.to.slice(-4)}`).filter((v, i, all) => all.indexOf(v) === i).join(', '))}, nothing back · <a href="https://bscscan.com/tx/${escapeHtml(f.txHash)}" style="color:#55534d">${escapeHtml(f.txHash.slice(0, 12))}…</a></li>`)
+        .join('');
+      try {
+        await sendEmail({
+          to: row.email,
+          subject: `Tokens left your trading wallet and did not come back (${short})`,
+          idempotencyKey: `trading-${row.id}-${bad[bad.length - 1].txHash.slice(0, 20)}`,
+          html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet alert</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">${bad.length === 1 ? 'A transaction' : `${bad.length} transactions`} where nothing came back</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0 0 12px">Tokens left ${escapeHtml(short)} and nothing returned to it in the same transaction. If you did not make ${bad.length === 1 ? 'this' : 'these'}, revoke the agent's session now.${help ? ` ${escapeHtml(help)}` : ''}</p><ul style="padding-left:18px;font-size:13px;line-height:1.5;color:#292823;margin:0 0 16px">${items}</ul><div>${emailButton(pageUrl, 'See the wallet')}</div>${footer}`, 'Tokens left your trading wallet and did not come back.'),
+        });
+        sent += 1;
+      } catch {
+        continue; // Not recorded as sent: tried again next sweep.
+      }
+    }
+    if (nextThrough !== null && nextThrough !== row.alerted_through_block) db().prepare('UPDATE trading_alerts SET alerted_through_block=? WHERE id=?').run(nextThrough, row.id);
+
+    const gaps = input.gapsAfter(row.wallet_address, row.gaps_seen_through ?? row.created_at);
+    if (gaps.length > 0) {
+      try {
+        await sendEmail({
+          to: row.email,
+          subject: `Pokter could not check part of your trading wallet's history (${short})`,
+          idempotencyKey: `trading-${row.id}-gap-${gaps[gaps.length - 1].at}`,
+          html: emailShell(`<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet alert</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Some blocks went unchecked</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0">Pokter was offline longer than the public node keeps history, so ${gaps.length === 1 ? 'one stretch' : `${gaps.length} stretches`} of this wallet's activity could not be checked. Look at its recent transactions on the explorer yourself; anything in ${gaps.length === 1 ? 'that stretch' : 'them'} would not have been alerted.</p>${emailContext(gaps.slice(0, 3).map((g) => ['Blocks', `${g.fromBlock.toLocaleString('en-US')}–${g.toBlock.toLocaleString('en-US')}`] as [string, string]))}<div>${emailButton(`https://bscscan.com/address/${row.wallet_address}`, 'Open the explorer')}</div>${footer}`, 'Pokter could not check part of your trading wallet’s history.'),
+        });
+        sent += 1;
+        db().prepare('UPDATE trading_alerts SET gaps_seen_through=? WHERE id=?').run(gaps[gaps.length - 1].at, row.id);
+      } catch {
+        /* Tried again next sweep. */
+      }
+    }
+
+    /* Silence is not safety: say when the checks themselves have stopped, and when they resume. */
+    const notice = coverageNotice({ state: input.coverageOf(row.wallet_address), now, badSince: row.coverage_bad_since, warnedAt: row.coverage_warned_at });
+    if (notice.send) {
+      const stopped = notice.send === 'not-checked';
+      try {
+        await sendEmail({
+          to: row.email,
+          subject: stopped ? `Pokter cannot check your trading wallet right now (${short})` : `Pokter is checking your trading wallet again (${short})`,
+          idempotencyKey: `trading-${row.id}-coverage-${notice.send}-${notice.warnedAt ?? row.coverage_warned_at}`,
+          html: emailShell(
+            stopped
+              ? `<p style="margin:0 0 10px;color:#9a7414;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet alert</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Your wallet is not being checked</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0 0 16px">For the last ${Math.round((now - Date.parse(notice.badSince ?? new Date(now).toISOString())) / 60_000)} minutes Pokter has not been able to check ${escapeHtml(short)}, or has fallen behind it. Until you hear that checks have resumed, no email does not mean nothing happened. Look at the wallet on the explorer yourself.</p><div>${emailButton(`https://bscscan.com/address/${row.wallet_address}`, 'Open the explorer')}</div>${footer}`
+              : `<p style="margin:0 0 10px;color:#2f6b3c;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Trading wallet</p><h1 style="font-size:25px;line-height:1.2;letter-spacing:-.4px;margin:0 0 12px">Checks have resumed</h1><p style="font-size:14px;line-height:1.65;color:#55534d;margin:0 0 16px">Pokter is checking ${escapeHtml(short)} again. Anything it could not reach meanwhile is listed on the wallet's page as unchecked.</p><div>${emailButton(pageUrl, 'See the wallet')}</div>${footer}`,
+            stopped ? 'Pokter cannot check your trading wallet right now.' : 'Pokter is checking your trading wallet again.',
+          ),
+        });
+        sent += 1;
+      } catch {
+        continue; // Nothing recorded: the same notice is tried next sweep.
+      }
+    }
+    if (notice.badSince !== row.coverage_bad_since || notice.warnedAt !== row.coverage_warned_at) {
+      db().prepare('UPDATE trading_alerts SET coverage_bad_since=?, coverage_warned_at=? WHERE id=?').run(notice.badSince, notice.warnedAt, row.id);
+    }
+  }
+  return { checked: rows.length, sent };
+}
+
+/** Confirmed alert subscriptions for a wallet, for the page to say alerts are on (a count, never the addresses). */
+export function tradingAlertCount(wallet: string): number {
+  return (db().prepare('SELECT COUNT(*) n FROM trading_alerts WHERE wallet_address=? AND verified_at IS NOT NULL AND unsubscribed_at IS NULL').get(wallet.toLowerCase()) as { n: number }).n;
 }
 
 /** What the page says about how reliable the alerts have been: the last run, and the past day's reads. */

@@ -30,6 +30,7 @@ import { jobPhase, PHASE, STATUS_NAME, useMyJobs } from './hooks';
 import { useClockThrough } from '@/lib/ui/use-moment';
 import { budgetOf, PhaseLabel } from './parts';
 import { JobAnswer } from './JobAnswer';
+import { ReportCheck } from './ReportCheck';
 import { ReviewForm } from './ReviewForm';
 import { UsefulnessQuestion } from './UsefulnessQuestion';
 import { JobUpdates } from './JobUpdates';
@@ -275,6 +276,14 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
           <JobAnswer job={job} deliverableUrl={a.deliverableUrl ?? null} verify={{ run: () => void a.verifyReceipt(), busy: a.busy === 'verify', verified: a.receiptVerified }} />
         </section>
       )}
+
+      {/*
+        And, where Pokter can recompute what the report claims, whether it
+        is true. It sits directly under the answer because that is where
+        the buyer is reading, and above "your move" because it is one of
+        the things that informs it — it decides nothing itself.
+      */}
+      {(job.status === 'SUBMITTED' || job.status === 'COMPLETED' || job.status === 'REJECTED') && <ReportCheck job={job} />}
 
       {/* The one thing that matters now */}
       <section aria-labelledby="now-title" className={cn('flex flex-col gap-4 rounded-[16px] border p-5 sm:p-6', meta.needsYou ? 'border-ink bg-raised shadow-lift' : 'border-rule bg-raised')}>

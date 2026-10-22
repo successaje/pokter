@@ -1,0 +1,415 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { isAddress } from 'viem';
+import { useAccount } from 'wagmi';
+
+import type { DelegatedTrader } from '@/lib/trading/agents';
+import type { Coverage } from '@/lib/trading/coverage';
+import type { FlowVerdict } from '@/lib/trading/flows';
+import { cn } from '@/lib/ui/cn';
+import { shortAddress } from '@/lib/ui/format';
+import { Button } from '@/ui/Button';
+import { Notice, Skeleton } from '@/ui/Feedback';
+import { Input } from '@/ui/Field';
+import { Icon } from '@/ui/icons';
+import { normaliseOwners, ownersMessage } from '@/lib/trading/owners';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
+
+interface WalletView {
+  holdings: {
+    wallet: string;
+    bnb: string;
+    tokens: Array<{ symbol: string; amount: string }>;
+    positions: Array<{ tokenId: string; pair: string; feePct: number; liquidity: string; inRange: boolean | null }>;
+    readAt: string;
+  };
+  watched: { addedAt: string; lastScanAt: string | null; owners: string[]; ownersSignedAt: string | null } | null;
+  coverage: Coverage;
+  /** Whether a confirmed email alert exists for this wallet. */
+  alertsOn: boolean;
+  flows: Array<{ txHash: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: Array<{ symbol: string; amount: string; to: string }> }>;
+  gaps: Array<{ fromBlock: number; toBlock: number }>;
+  checkedTokens: string[];
+}
+
+const VERDICT: Record<FlowVerdict, { label: string; className: string }> = {
+  returned: { label: 'Came back', className: 'bg-ok-wash text-ok' },
+  'added-liquidity': { label: 'Into its own position', className: 'bg-ok-wash text-ok' },
+  'to-owner': { label: 'To your other wallet', className: 'bg-sunken text-ink-2' },
+  'not-returned': { label: 'Did not come back', className: 'bg-bad-wash text-bad' },
+};
+
+async function fetchWallet(address: string): Promise<WalletView> {
+  const r = await fetch(`/api/trading/wallet?wallet=${address}`);
+  const body = (await r.json().catch(() => ({}))) as WalletView & { error?: string };
+  if (!r.ok) throw new Error(body.error ?? 'The chain could not be read just now.');
+  return body;
+}
+
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'not yet');
+
+/**
+ * Watch a trading wallet an agent trades from under a delegated session.
+ *
+ * Everything here is read from chain: what the wallet holds, and every
+ * transaction in which a token left it, judged by whether something came
+ * back (lib/trading/flows.ts). The session's own limits are not shown,
+ * because they cannot yet be read independently, and the page says so.
+ */
+export function TradingWatchPanel({ initialWallet, agentKey, trader }: { initialWallet: string | null; agentKey: string | null; trader: DelegatedTrader | null }) {
+  const [wallet, setWallet] = useState(initialWallet ?? '');
+  const [view, setView] = useState<WalletView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (address: string) => setView(await fetchWallet(address)), []);
+
+  useEffect(() => {
+    if (!initialWallet || !isAddress(initialWallet)) return;
+    let live = true;
+    fetchWallet(initialWallet)
+      .then((v) => live && setView(v))
+      .catch((e: Error) => live && setError(e.message));
+    return () => {
+      live = false;
+    };
+  }, [initialWallet]);
+
+  const watch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAddress(wallet.trim())) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/trading/watch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wallet: wallet.trim(), agent: agentKey }),
+      });
+      const body = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
+      await load(wallet.trim());
+      const url = new URL(window.location.href);
+      url.searchParams.set('wallet', wallet.trim());
+      window.history.replaceState(null, '', url);
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const open = view?.holdings.positions.filter((p) => p.liquidity !== '0') ?? [];
+  const closed = (view?.holdings.positions.length ?? 0) - open.length;
+  const flagged = view?.flows.filter((f) => f.verdict === 'not-returned').length ?? 0;
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="flex flex-col gap-5">
+        {!view?.watched && (
+          <form onSubmit={watch} className="flex flex-col gap-3 rounded-[18px] border border-rule bg-raised p-5">
+            <label htmlFor="trading-wallet" className="text-[15px] font-semibold">
+              The wallet the agent trades from
+            </label>
+            <Input id="trading-wallet" value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="0x…" className="t-readout" spellCheck={false} autoComplete="off" />
+            <Button type="submit" busy={busy} disabled={!isAddress(wallet.trim())} className="self-start">
+              Start watching
+            </Button>
+            <p className="text-[12px] text-ink-3">Read from BNB Chain. Nothing to connect or sign, and Pokter cannot move anything in this wallet.</p>
+          </form>
+        )}
+
+        {error && <Notice tone="bad">{error}</Notice>}
+
+        {view && (
+          <>
+            <section aria-labelledby="flows-title" className="flex flex-col rounded-[18px] border border-rule bg-raised">
+              <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule px-5 py-4">
+                <h2 id="flows-title" className="text-[17px] font-semibold">
+                  Every token that left {shortAddress(view.holdings.wallet)}
+                </h2>
+                <span className="text-[12px] text-ink-3">
+                  {view.watched ? `Watching since ${when(view.watched.addedAt)} · last checked ${when(view.watched.lastScanAt)}` : 'Not watched: nothing checked'}
+                </span>
+              </header>
+              {flagged > 0 && (
+                <div className="px-5 pt-4">
+                  <Notice tone="bad" title={`${flagged} transaction${flagged === 1 ? '' : 's'} where tokens did not come back`}>
+                    Check {flagged === 1 ? 'it' : 'them'} on the explorer. If you did not make {flagged === 1 ? 'it' : 'them'}, revoke the agent’s session now.
+                  </Notice>
+                </div>
+              )}
+              <CoverageNote coverage={view.coverage} />
+              {view.flows.length === 0 ? (
+                view.coverage.state === 'current' && <p className="px-5 py-6 text-[13.5px] text-ink-2">No token has left this wallet since watching began. Pokter checks about every ten minutes.</p>
+              ) : (
+                <ul className="ruled px-5">
+                  {view.flows.map((f) => (
+                    <li key={f.txHash} className="flex flex-col gap-1.5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-[14px]">
+                          {f.sent.map((s) => `${s.amount} ${s.symbol}`).join(' + ')} <span className="text-ink-3">out · {f.note}</span>
+                        </span>
+                        <a href={`https://bscscan.com/tx/${f.txHash}`} target="_blank" rel="noopener noreferrer" className="t-readout text-[11.5px] text-ink-3 hover:text-ink">
+                          {when(f.at)} · {f.txHash.slice(0, 10)}… <Icon.ArrowUpRight size={11} className="inline" aria-hidden />
+                        </a>
+                      </span>
+                      <span className={cn('w-fit shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium', VERDICT[f.verdict].className)}>{VERDICT[f.verdict].label}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {view.gaps.length > 0 && (
+                <p className="border-t border-rule px-5 py-3 text-[12px] text-watch">
+                  {view.gaps.length} stretch{view.gaps.length === 1 ? '' : 'es'} of blocks could not be checked (Pokter was offline longer than the public node keeps history). Anything in {view.gaps.length === 1 ? 'it' : 'them'} is not shown here.
+                </p>
+              )}
+            </section>
+
+            <section aria-labelledby="holdings-title" className="flex flex-col gap-3 rounded-[18px] border border-rule bg-raised p-5">
+              <h2 id="holdings-title" className="text-[16px] font-semibold">
+                What it holds now
+              </h2>
+              <dl className="ruled text-[13.5px]">
+                <div className="flex justify-between gap-3 py-2">
+                  <dt className="text-ink-2">BNB</dt>
+                  <dd className="t-readout">{view.holdings.bnb}</dd>
+                </div>
+                {view.holdings.tokens.map((t) => (
+                  <div key={t.symbol} className="flex justify-between gap-3 py-2">
+                    <dt className="text-ink-2">{t.symbol}</dt>
+                    <dd className="t-readout">{t.amount}</dd>
+                  </div>
+                ))}
+                {open.map((p) => (
+                  <div key={p.tokenId} className="flex items-center justify-between gap-3 py-2">
+                    <dt className="text-ink-2">
+                      PancakeSwap {p.pair} {p.feePct}% <span className="t-readout text-ink-3">#{p.tokenId}</span>
+                    </dt>
+                    <dd className={cn('rounded-full px-2 py-0.5 text-[12px] font-medium', p.inRange ? 'bg-ok-wash text-ok' : 'bg-watch-wash text-watch')}>{p.inRange === null ? 'Range unknown' : p.inRange ? 'In range' : 'Out of range'}</dd>
+                  </div>
+                ))}
+              </dl>
+              {closed > 0 && <p className="text-[12px] text-ink-3">Plus {closed} closed position{closed === 1 ? '' : 's'} with no liquidity left.</p>}
+            </section>
+          </>
+        )}
+      </div>
+
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-24">
+        <section aria-labelledby="checks-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
+          <h2 id="checks-title" className="text-[15px] font-semibold">
+            What Pokter checks
+          </h2>
+          <p className="text-ink-2">Every token or position that leaves this wallet has to go to an address you listed, or to a real PancakeSwap pool that pays the wallet back in the same transaction: tokens, a position, or liquidity in a position it holds. Collecting a position’s tokens to anyone else counts as leaving.</p>
+          <p className="text-ink-3">
+            Tokens checked: {(view?.checkedTokens ?? ['WBNB', 'USDT', 'USDC', 'BTCB', 'ETH', 'CAKE', 'FDUSD', 'U']).join(', ')}, and the tokens of its positions. Not checked: BNB sent directly, and whether a price was fair. A trade on another exchange is flagged, because its pool cannot be confirmed.
+          </p>
+          <p className="text-ink-3">
+            <span className="font-medium text-ink-2">Session limits:</span> not shown yet. Pokter cannot yet read a session’s caps and expiry from chain on its own, so it does not repeat the operator’s figures as checked.
+          </p>
+        </section>
+
+        {view?.watched && <AlertSignup wallet={view.holdings.wallet} on={view.alertsOn} />}
+
+        {view?.watched && <OwnerAddresses wallet={view.holdings.wallet} owners={view.watched.owners} onSaved={() => load(view.holdings.wallet)} />}
+
+        {trader && (
+          <section aria-labelledby="controls-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
+            <h2 id="controls-title" className="text-[15px] font-semibold">
+              Stopping {trader.operator}’s {trader.product}
+            </h2>
+            <dl className="flex flex-col gap-2.5">
+              <div>
+                <dt className="font-medium">Pause</dt>
+                <dd className="text-ink-2">{trader.controls.pause}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Revoke</dt>
+                <dd className="text-ink-2">{trader.controls.revoke}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Withdraw</dt>
+                <dd className="text-ink-2">{trader.controls.withdraw}</dd>
+              </div>
+            </dl>
+            <a href={trader.setupUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-ink hover:underline">
+              Open {trader.operator} <Icon.ArrowUpRight size={13} aria-hidden />
+            </a>
+            <p className="text-[11.5px] text-ink-3">As {trader.operator} describes it ({trader.source}). Pokter has not verified the controls.</p>
+          </section>
+        )}
+        {!view && !error && initialWallet && <Skeleton className="h-40 w-full" />}
+      </aside>
+    </div>
+  );
+}
+
+/**
+ * What the page has actually checked, said before the list. Every state
+ * but `current` means the list may be missing transactions, and the list's
+ * "nothing left" sentence is withheld (`coverage.ts`).
+ */
+function CoverageNote({ coverage }: { coverage: Coverage }) {
+  const note =
+    coverage.state === 'unwatched'
+      ? { tone: 'neutral' as const, title: 'Not checked', text: 'This wallet is not being watched, so Pokter has not checked what left it. Start watching to check every transaction from now on.' }
+      : coverage.state === 'never-scanned'
+        ? coverage.failed
+          ? { tone: 'watch' as const, title: 'Not checked yet', text: 'The first check could not read BNB Chain. Nothing has been checked; Pokter tries again about every ten minutes.' }
+          : { tone: 'neutral' as const, title: 'Not checked yet', text: 'The first check has not run. Nothing has been checked.' }
+        : coverage.state === 'failing'
+          ? { tone: 'watch' as const, title: 'The last check failed', text: `Checked up to block ${coverage.scannedTo.toLocaleString('en-US')}. Anything after it is not shown until a check succeeds; Pokter tries again about every ten minutes.` }
+          : coverage.state === 'stale'
+            ? { tone: 'watch' as const, title: 'Not checked recently', text: `Last checked ${when(coverage.lastScanAt || null)}, up to block ${coverage.scannedTo.toLocaleString('en-US')}. Anything after it is not shown.` }
+            : coverage.state === 'behind'
+              ? { tone: 'watch' as const, title: 'Still catching up', text: `This wallet has more transactions than one check reads, so Pokter is working through them: checked up to block ${coverage.scannedTo.toLocaleString('en-US')} of ${coverage.head.toLocaleString('en-US')}. Anything after it is not shown yet.` }
+              : null;
+  if (!note) return null;
+  return (
+    <div className="px-5 pt-4">
+      <Notice tone={note.tone} title={note.title}>
+        {note.text}
+      </Notice>
+    </div>
+  );
+}
+
+/**
+ * The addresses transfers may go to without an alert. Changing them takes
+ * a signature from the trading wallet itself (`/api/trading/owners`), so a
+ * stranger cannot add their own address to somebody else's watch.
+ */
+function OwnerAddresses({ wallet, owners, onSaved }: { wallet: string; owners: string[]; onSaved: () => void }) {
+  const { address } = useAccount();
+  const { signMessageAsync } = useLiveSignMessage();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isWallet = address?.toLowerCase() === wallet.toLowerCase();
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (draft === null) return;
+    const list = normaliseOwners(wallet, draft.split(/[\s,]+/).filter(Boolean));
+    if (!list) return setError('Up to five valid addresses, other than the trading wallet itself.');
+    setBusy(true);
+    setError(null);
+    try {
+      const issuedAt = new Date().toISOString();
+      const signature = await signMessageAsync({ message: ownersMessage({ wallet, owners: list, issuedAt }) });
+      const r = await fetch('/api/trading/owners', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ wallet, owners: list, issuedAt, signature }) });
+      const body = (await r.json().catch(() => ({}))) as { error?: string; owners?: string[] };
+      if (!r.ok) {
+        /* A refusal that names a list means another signed list got there
+           first, so the addresses on screen are no longer the ones in force.
+           Reload them, and keep the draft: the change was not saved, and the
+           person may well want to sign it again over what is there now. */
+        if (body.owners) onSaved();
+        throw new Error(body.error ?? 'That did not go through.');
+      }
+      setDraft(null);
+      onSaved();
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="owners-title" className="flex flex-col gap-2.5 rounded-[18px] border border-rule p-5 text-[13px]">
+      <h2 id="owners-title" className="text-[15px] font-semibold">
+        Your own addresses
+      </h2>
+      {owners.length ? (
+        <ul className="flex flex-col gap-1">
+          {owners.map((o) => (
+            <li key={o} className="t-readout text-[12.5px] text-ink-2">
+              {shortAddress(o)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-ink-2">None. A transfer to any other address raises an alert.</p>
+      )}
+      <p className="text-[12px] text-ink-3">Transfers to these never raise an alert, so only the trading wallet can change them, by signing the list.</p>
+      {draft === null ? (
+        isWallet ? (
+          <button type="button" onClick={() => setDraft(owners.join(', '))} className="self-start font-medium text-ink hover:underline">
+            Change
+          </button>
+        ) : (
+          <p className="text-[12px] text-ink-3">To change them, connect {shortAddress(wallet)} to Pokter.</p>
+        )
+      ) : (
+        <form onSubmit={save} className="flex flex-col gap-2">
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="0x…, 0x…" aria-label="Your own addresses, comma-separated" className="t-readout" spellCheck={false} autoComplete="off" />
+          {error && <p className="text-[12px] text-bad">{error}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="s" busy={busy}>
+              Sign and save
+            </Button>
+            <Button type="button" size="s" intent="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/** Email alerts for this wallet: confirmed by email first, stoppable from every email. */
+function AlertSignup({ wallet, on }: { wallet: string; on: boolean }) {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  // Where a confirm or unsubscribe link landed (?email=verified|unsubscribed). Client-only component.
+  const [linkState] = useState(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('email')));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setState('sending');
+    try {
+      const r = await fetch('/api/trading/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, wallet }) });
+      const body = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(body.error ?? 'That did not go through.');
+      setState('sent');
+    } catch (caught) {
+      setError((caught as Error).message);
+      setState('idle');
+    }
+  };
+
+  return (
+    <section aria-labelledby="alerts-title" className="flex flex-col gap-3 rounded-[18px] border border-rule bg-raised p-5 text-[13px]">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-8 place-items-center rounded-full bg-sunken text-ink-2">
+          <Icon.Bell size={15} aria-hidden />
+        </span>
+        <h2 id="alerts-title" className="text-[15px] font-semibold">
+          Email me
+        </h2>
+        {on && <span className="ml-auto rounded-full bg-ok-wash px-2 py-0.5 text-[11.5px] font-medium text-ok">On</span>}
+      </div>
+      {linkState === 'verified' && <Notice tone="ok" title="Alerts are on">Each email has a link to stop them.</Notice>}
+      {linkState === 'unsubscribed' && <Notice title="Alerts are off">You will not hear about this wallet again.</Notice>}
+      {state === 'sent' ? (
+        <p className="text-ink-2">We sent a link to {email}. Nothing is sent until you confirm it.</p>
+      ) : (
+        <form onSubmit={submit} className="flex flex-col gap-2.5">
+          <p className="text-ink-2">When something leaves this wallet that did not go to you or come back, when Pokter could not check a stretch of blocks, and when its checks stop or resume.</p>
+          <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" aria-label="Email address" autoComplete="email" />
+          {error && <p className="text-[12.5px] text-bad">{error}</p>}
+          <Button type="submit" busy={state === 'sending'}>
+            Turn on alerts
+          </Button>
+          <p className="text-[11.5px] text-ink-3">Checked about every ten minutes. Email can be delayed: a second pair of eyes, not the only one.</p>
+        </form>
+      )}
+    </section>
+  );
+}

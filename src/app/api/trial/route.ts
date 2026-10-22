@@ -9,6 +9,7 @@ import {
 } from '@/lib/security/rate-limit';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
+import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { getProbeStore } from '@/lib/history/store';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -104,6 +105,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       const known = withRecentQuote((failure as QuoteFailure | null) ?? quoteFailure('no-quote'), getProbeStore().quotesFor([{ chainId, tokenId }]).get(`${chainId}:${tokenId}`)?.quotedAt);
       const { message, status } = describeQuoteFailure(refusal ? { ...known, sellerReason: refusal } : known, agent.name || `Agent #${tokenId}`);
       return NextResponse.json({ error: message.replace(/ ?(?:Try again shortly; )?[Nn]othing has been paid\./, ''), layer: known.layer, code: known.code, retryable: known.retryable }, { status });
+    }
+    /*
+     * A buyer's brief got a signed, verified quote: proof this agent can be
+     * priced, whatever the sweep's generic request got back
+     * (`currentHireBlocker`). The trial is free and does not refuse an
+     * unpayable price, so whether an escrow settles its currency is
+     * recorded beside it — the same question `/api/hire/quote` asks with
+     * the same function. Without it, an agent that signs in a token no
+     * escrow settles would have read as one that can be hired.
+     * Bookkeeping, so a failed write never costs the quote.
+     */
+    try {
+      getProbeStore().noteBriefQuote(chainId, tokenId, { payable: escrowChainForCurrency(quote.currency) !== null });
+    } catch {
+      /* Nothing to do: the quote stands. */
     }
 
     return NextResponse.json({

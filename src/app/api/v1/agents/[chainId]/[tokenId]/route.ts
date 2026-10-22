@@ -7,13 +7,35 @@ import { dossierLadder } from '@/lib/agents/dossier-ladder';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { escrowOptionsForHire } from '@/lib/network/escrow';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
-import { currentHireBlocker } from '@/lib/hire/blocker-live';
+import { currentHireBlockerWithCard, type BlockerSource } from '@/lib/hire/blocker-live';
 
 export const dynamic = 'force-dynamic';
+/*
+ * This route calls the agent when no sweep has priced it (see
+ * `currentHireBlockerWithCard`), so it carries a bound like every other
+ * route that talks to a third party. The card read's own 2.5s budget does
+ * not cover the DNS lookup that precedes it, which is why the ceiling is
+ * here and not left implicit.
+ */
+export const maxDuration = 20;
 
 export function OPTIONS() {
   return apiOptions();
 }
+
+/**
+ * Where a hire blocker came from, in the caller's words.
+ *
+ * One sentence per `BlockerSource`, keyed so a source added later cannot
+ * fall through to another's sentence. This is the endpoint that explains
+ * the evidence behind every claim, and it spent a revision asserting a
+ * sweep price request for a quote a buyer had asked for minutes earlier.
+ */
+const BLOCKER_SOURCE: Record<BlockerSource, string> = {
+  sweep: 'The latest sweep’s read-only price request to the agent.',
+  brief: 'A signed quote Pokter got for a buyer’s own brief, which no enabled escrow settles.',
+  card: 'Pokter’s own read of the agent card, made for this request because no sweep has priced this agent.',
+};
 
 /**
  * One agent, with the evidence behind every claim.
@@ -56,6 +78,11 @@ export async function GET(
   // The same delivery rule the agent page and catalogue apply.
   const adjusted = deliveryAdjustedVerdict(proof.verdict, history);
   const origin = originOf(request);
+  /*
+   * Reads the agent's card only when the sweep has no verdict on it, which
+   * is the one case this endpoint used to answer with no blocker at all.
+   */
+  const blocker = await currentHireBlockerWithCard(agent, quote, payable, agent.services?.a2a?.endpoint);
 
   return apiJson({
     version: API_VERSION,
@@ -106,16 +133,25 @@ export async function GET(
      * goes, and the two answer different questions.
      */
     /*
-     * Why it cannot be priced or hired right now, from the latest sweep's
-     * price request, in words its owner can act on. Null when it has a
-     * signed price an escrow can pay, or was never asked.
+     * Why it cannot be priced or hired right now, in words its owner can
+     * act on. Null when it has a signed price an escrow can pay, or when
+     * nothing Pokter holds or can read says otherwise.
+     *
+     * `source` says which it is, because the two are not equally strong: a
+     * sweep result is a measured price request, and a card read is this
+     * request looking at what the agent publishes.
      */
-    hireBlocker: (() => {
-      const blocker = currentHireBlocker(agent, quote, payable);
-      return blocker
-        ? { code: blocker.code, reason: blocker.reason, transient: blocker.transient, fix: `https://pokter.xyz${blocker.fix.href}`, observedAt: blocker.observedAt, provenance: 'pokter-measured', source: 'The latest sweep’s read-only price request to the agent.' }
-        : null;
-    })(),
+    hireBlocker: blocker
+      ? {
+          code: blocker.code,
+          reason: blocker.reason,
+          transient: blocker.transient,
+          fix: `https://pokter.xyz${blocker.fix.href}`,
+          observedAt: blocker.observedAt,
+          provenance: 'pokter-measured',
+          source: BLOCKER_SOURCE[blocker.from],
+        }
+      : null,
 
     ladder: {
       current: maturity.current,
@@ -203,5 +239,14 @@ export async function GET(
       methodology: `${origin}/methodology`,
     },
     observedAt: new Date().toISOString(),
-  });
+  },
+  200,
+  /*
+   * A blocker from this request's own card read is not sweep-cycle data:
+   * it is dated to this request and may be a transient "could not check".
+   * The shared 30s/150s cache would re-serve one of those long after the
+   * agent started answering again.
+   */
+  { perRequest: blocker?.from === 'card' },
+  );
 }

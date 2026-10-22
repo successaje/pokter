@@ -165,6 +165,26 @@ export async function POST(request: Request): Promise<NextResponse> {
   // mainnet $U is funded on mainnet when mainnet is enabled, and refused here
   // when it is not.
   const escrowChainId = escrowChainForCurrency(quote.currency);
+  /*
+   * A buyer's brief got a signed, verified quote: proof this agent can be
+   * priced, whatever the sweep's generic request got back
+   * (`currentHireBlocker`). Recorded before the refusals below and carrying
+   * whether an escrow settles its currency, because an agent signing
+   * something unpayable must not read as an agent that can be hired — that
+   * is the one thing a signature cannot establish.
+   *
+   * `payable` is the currency question only, which is the claim the
+   * `payment-incompatible` blocker makes in so many words. The domain
+   * checks under it refuse a quote for a different reason — honestly signed,
+   * bound elsewhere — and have their own, so they do not fold in here.
+   *
+   * Bookkeeping, so a failed write never costs the quote.
+   */
+  try {
+    getProbeStore().noteBriefQuote(chainId, tokenId, { payable: escrowChainId !== null });
+  } catch {
+    /* Nothing to do: the quote stands. */
+  }
   if (escrowChainId === null) {
     return NextResponse.json(
       {

@@ -1,3 +1,4 @@
+import { blockerCodeForCardProblem, type CardProblem } from '@/lib/agents/card-read';
 import type { QuoteFailureCode } from './failure';
 
 /**
@@ -47,8 +48,37 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
       return { code: input.code, reason: `Its quote is not signed by its registered agent wallet (${short(input.agentWallet)}), so Pokter will not fund against it.`, fix: at('quote', 'The signed quote'), transient: false };
     case 'terms-mismatch':
       return { code: input.code, reason: 'Its signed hash does not cover the terms it returned, so the price cannot be shown as signed.', fix: at('quote', 'The signed quote'), transient: false };
+    /*
+     * The card itself did not answer, so nothing here is a finding about the
+     * agent. Kept apart from `no-endpoint` because the two make different
+     * claims and only one of them is permanent: a transient card lookup used
+     * to arrive as "names no service to send a brief to", which told a
+     * builder to reconnect an agent that was already connected and told the
+     * buyer, at 409, not to try again.
+     */
+    case 'card-unreadable':
+      return { code: input.code, reason: `Its agent card did not answer this read${input.detail ? ` (${input.detail})` : ''}, so whether it can be priced is unchecked rather than ruled out. Pokter asks again on the next view.`, fix: at('transports', 'Transports'), transient: true };
     case 'no-endpoint': {
       const mcpOnly = input.protocols?.includes('mcp') && !input.protocols.includes('a2a');
+      /*
+       * Nothing Pokter read named an interface (56:300282, whose platform
+       * reports UNBOUND, offline, endpoint null).
+       *
+       * Worded for what was read and nothing else, because four reads
+       * arrive under this detail and no stronger sentence is true of all
+       * four. "Its card answers but names no service" is false where every
+       * location answered with no card at all. "Neither location returns a
+       * card naming an interface" is false where one of them timed out
+       * after the other had already settled it — a negative about a place
+       * that never answered. And "the operator has listed it without
+       * connecting a running agent" is false of an agent serving its card
+       * somewhere other than the well-known path.
+       *
+       * So: what Pokter read, and what it did not find in it.
+       */
+      if (input.detail === 'card-without-interface') {
+        return { code: input.code, reason: 'Nothing Pokter read at its registered endpoint or the card path under it names an A2A interface, so there is nowhere to send a brief.', fix: at('transports', 'Transports'), transient: false };
+      }
       return mcpOnly
         ? { code: input.code, reason: 'It publishes only an MCP endpoint. Paid jobs are priced over A2A (a negotiate skill on an agent card), so it can be measured but not hired.', fix: at('transports', 'Transports'), transient: false }
         : { code: input.code, reason: 'Its agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls to price and hire it.', fix: at('transports', 'Transports'), transient: false };
@@ -79,4 +109,152 @@ export function hireBlocker(input: HireBlockerInput): HireBlocker | null {
     default:
       return null;
   }
+}
+
+/**
+ * Which evidence produced a blocker, named by the branch that produced it.
+ *
+ * Returned rather than worked out afterwards. A caller that reports
+ * provenance — `/api/v1/agents/:chain/:token` does, in a field whose whole
+ * purpose is to say where a claim came from — cannot recover this from the
+ * blocker, because the same code arrives from more than one source:
+ * `payment-incompatible` is the sweep's stored quote or a buyer's own, and
+ * `no-endpoint` is the sweep's price request or this request's card read.
+ *
+ * `'brief'` is a quote Pokter got for a buyer's or an assistant's own
+ * brief, through `/api/hire/quote` or `/api/trial`. It is dated to when
+ * they asked, and it is not a measurement Pokter scheduled.
+ */
+export type BlockerSource = 'sweep' | 'brief' | 'card';
+
+/** How long a buyer's signed quote outweighs the sweep's failed generic one. */
+export const BRIEF_QUOTE_HOLDS_MS = 7 * 24 * 3_600_000;
+
+/** A clock a minute ahead of Pokter's is a clock, not a quote from the future. */
+const CLOCK_SKEW_MS = 60_000;
+
+/** What one signed, verified quote for a buyer's own brief recorded. */
+export interface BriefQuote {
+  quotedAt: string;
+  /** Whether an enabled escrow settles the currency it signed (`escrowChainForCurrency`). */
+  payable: boolean;
+}
+
+/** Whether a recorded brief quote is recent enough to still speak for the agent. */
+export function briefQuoteStillSpeaks(brief: BriefQuote | null | undefined, now: number): brief is BriefQuote {
+  if (!brief) return false;
+  const at = Date.parse(brief.quotedAt);
+  return Number.isFinite(at) && at <= now + CLOCK_SKEW_MS && now - at <= BRIEF_QUOTE_HOLDS_MS;
+}
+
+/**
+ * The one stored failure a buyer's signed quote can disprove.
+ *
+ * The sweep asks every agent the same generic price question, and some
+ * answer it without a price because it names no wallet or token. Vitals
+ * (56:367904) did, so its page said it "answers negotiate, but not with a
+ * signed quote" while it was signing quotes for real briefs. That claim,
+ * and only that claim, is what a signed quote for a real brief contradicts.
+ *
+ * Nothing else is in here, and the omissions are the point. A security,
+ * structural, authentication or payment failure is about whether a job can
+ * reach the agent or be paid for at all, and a price signed last Tuesday
+ * says nothing about a wrong signer, a gated endpoint, a card with no
+ * negotiate skill or a token no escrow settles — an override by recency
+ * alone erased exactly those. `seller-declined` stays too: declining
+ * Pokter's generic ask remains true of the generic ask, which is what its
+ * wording already says. The transient network codes stay because they are
+ * already marked transient and carry no verdict to erase.
+ */
+const STALE_PRICING_FAILURES: ReadonlySet<string> = new Set(['no-quote']);
+
+/**
+ * Whether a buyer's signed quote overrides this stored "cannot be priced".
+ *
+ * Scoped by category and by time, both: the failure has to be the stale
+ * pricing one, the quote has to be payable, and the timestamps have to show
+ * the quote came after the failure. An undated failure is never outranked —
+ * nothing proves which came first — and an unpayable quote proves only that
+ * the agent signs, not that it can be hired (see `payment-incompatible`).
+ */
+export function briefQuoteOutranksFailure(
+  failure: { code: string; observedAt?: string | null },
+  brief: BriefQuote,
+  now: number,
+): boolean {
+  if (!brief.payable) return false;
+  if (!STALE_PRICING_FAILURES.has(failure.code)) return false;
+  if (!briefQuoteStillSpeaks(brief, now)) return false;
+  const failedAt = failure.observedAt ? Date.parse(failure.observedAt) : Number.NaN;
+  return Number.isFinite(failedAt) && Date.parse(brief.quotedAt) > failedAt;
+}
+
+/**
+ * The blocker to show for one agent, from everything Pokter holds about it.
+ *
+ * Pure, and the whole order of precedence lives here, because precedence is
+ * where both mistakes were: a newer failure set aside by an older signed
+ * quote, and a card Pokter could not read reported as a card that names no
+ * interface. `currentHireBlocker` only reads the store and hands the facts
+ * over, so the order can be exercised without one.
+ *
+ * Newest evidence wins, and only over what it actually speaks to:
+ *   1. a verified quote an escrow can pay — nothing is blocking a hire;
+ *   2. that quote in money no escrow settles — the payment problem;
+ *   3. the sweep's own failed price request, unless a newer signed quote for
+ *      a buyer's brief disproves that exact failure;
+ *   4. a signed brief quote in money no escrow settles — it prices, and the
+ *      hire still cannot be funded;
+ *   5. what this page's own card read found, which is the only evidence for
+ *      an agent the sweep has never reached.
+ */
+export function decideHireBlocker(input: {
+  agentWallet?: string | null;
+  protocols?: readonly string[];
+  /** The stored quote from the sweep, and whether an escrow can pay it. */
+  quote: { quotedAt: string } | null;
+  payable: boolean | null;
+  /** Why the sweep's latest generic price request failed, if it did. */
+  failed: { code: string; detail?: string | null; sellerReason?: string | null; observedAt: string } | null;
+  /** The last signed quote a buyer's own brief got (`noteBriefQuote`). */
+  brief: BriefQuote | null;
+  /** What the page's own card read found (`readCardForPage`). */
+  card: { problem: CardProblem | null; readAt: string } | null;
+  now: number;
+}): (HireBlocker & { observedAt: string | null; from: BlockerSource }) | null {
+  const { agentWallet, protocols, quote, payable, failed, card, now } = input;
+  const dated = (blocker: HireBlocker | null, observedAt: string | null, from: BlockerSource) =>
+    blocker ? { ...blocker, observedAt, from } : null;
+
+  if (quote && payable !== false) return null;
+  if (quote && payable === false) return dated(hireBlocker({ code: 'payment-incompatible' }), quote.quotedAt, 'sweep');
+
+  const brief = briefQuoteStillSpeaks(input.brief, now) ? input.brief : null;
+
+  if (failed && !(brief && briefQuoteOutranksFailure(failed, brief, now))) {
+    const blocker = dated(
+      hireBlocker({ code: failed.code, detail: failed.detail, sellerReason: failed.sellerReason, agentWallet, protocols }),
+      failed.observedAt,
+      'sweep',
+    );
+    if (blocker) return blocker;
+  }
+
+  /*
+   * It signed for a brief, in money no enabled escrow settles. The signature
+   * is honest and the hire still cannot be funded, so the quote never stands
+   * in for one that can be: the proof that it prices used to hide the fact
+   * that it cannot be paid.
+   *
+   * `'brief'`, not `'sweep'`. This quote came from a buyer's or an
+   * assistant's own request and is dated to it, and a caller that reported
+   * it as the sweep's price request was asserting a measurement that never
+   * happened — in the field whose purpose is to say where a claim came from.
+   */
+  if (brief && !brief.payable) return dated(hireBlocker({ code: 'payment-incompatible' }), brief.quotedAt, 'brief');
+
+  if (!card?.problem) return null;
+  /* Which code each read implies, including the one that must stay transient. */
+  const { code, detail } = blockerCodeForCardProblem(card.problem);
+  return dated(hireBlocker({ code, detail, agentWallet, protocols }), card.readAt, 'card');
 }
