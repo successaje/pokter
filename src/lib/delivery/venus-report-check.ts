@@ -1,3 +1,4 @@
+import { readDeliveredManifest } from '@/lib/agent/delivery-kind';
 import { answerAccount, readHfAnswer } from '@/lib/assay/health-factor';
 import { answerFromManifest } from '@/lib/assay/paid-grade';
 
@@ -173,7 +174,7 @@ export interface VenusReportClaim {
   collateralUsd: number | null;
 }
 
-export type ClaimRefusalCode = 'unreadable' | 'no-health-factor' | 'no-block' | 'bad-block';
+export type ClaimRefusalCode = 'unreadable' | 'lifecycle-receipt' | 'no-health-factor' | 'no-block' | 'bad-block';
 
 export type ClaimResult = { ok: true; claim: VenusReportClaim } | { ok: false; code: ClaimRefusalCode };
 
@@ -417,6 +418,27 @@ export function statedHfDecimals(manifestText: string, value: number): number | 
  * the chain and the USD totals are new, because only this check needs them.
  */
 export function readVenusReportClaim(manifestText: string): ClaimResult {
+  /*
+   * What the file is, before what it says.
+   *
+   * `readDeliveredManifest` is the project's hardened reader of a stored
+   * delivery: null for anything it cannot make sense of — text that will
+   * not parse, but also a stored `null`, number or array, which parse
+   * perfectly and then have no fields — and it is where Pokter already
+   * decides whether a delivery carries an agent's answer at all. Asking it
+   * first means this check cannot disagree with the rest of the product
+   * about what a delivery is.
+   *
+   * A `lifecycle` delivery is Pokter's own seller submitting a receipt with
+   * no answer from the agent in it. It proves funding, delivery and
+   * settlement work and says nothing about the task, so it must never be
+   * read as a report that failed to state a health factor — that would put
+   * a finding against an agent whose work is not in the file.
+   */
+  const delivery = readDeliveredManifest(manifestText);
+  if (!delivery) return { ok: false, code: 'unreadable' };
+  if (delivery.kind === 'lifecycle') return { ok: false, code: 'lifecycle-receipt' };
+
   const answer = answerFromManifest(manifestText);
   if (!answer) return { ok: false, code: 'unreadable' };
   const record = answer.data ?? null;
@@ -429,10 +451,24 @@ export function readVenusReportClaim(manifestText: string): ClaimResult {
     return { ok: false, code: 'no-block' };
   }
 
-  const observed = readHfAnswer(answer);
+  /*
+   * A relayed delivery wraps the agent's report in the courier's envelope
+   * (`answer` beside `answered_by`, the pair `deliveryKind` identifies), so
+   * every field below sits one level down. Read from the envelope instead
+   * and the block is never found: the first version of this returned "names
+   * no block" for an intact relayed Brinkwatch report, which is a refusal
+   * with the agent's name on it for Pokter's own packaging.
+   */
+  const report = (() => {
+    const inner = object(record.answer);
+    return inner && 'answered_by' in record ? inner : record;
+  })();
+  const reportAnswer = { text: null, data: report };
+
+  const observed = readHfAnswer(reportAnswer);
   if (!observed) return { ok: false, code: 'no-health-factor' };
 
-  const rawBlock = findBlock(record);
+  const rawBlock = findBlock(report);
   if (rawBlock === undefined) return { ok: false, code: 'no-block' };
   const block = readBlock(rawBlock);
   if (block === null) return { ok: false, code: 'bad-block' };
@@ -441,16 +477,16 @@ export function readVenusReportClaim(manifestText: string): ClaimResult {
   return {
     ok: true,
     claim: {
-      account: answerAccount(answer),
-      chainId: readChainId(record),
-      pools: poolsNamedIn(record),
+      account: answerAccount(reportAnswer),
+      chainId: readChainId(report),
+      pools: poolsNamedIn(report),
       block,
       healthFactor,
       statedDecimals: healthFactor === null ? null : statedHfDecimals(manifestText, healthFactor),
       liquidatable: observed.liquidatable,
       liquidatableRaw: observed.liquidatableRaw ?? null,
-      debtUsd: readUsd(record, USD_KEYS.debt),
-      collateralUsd: readUsd(record, USD_KEYS.collateral),
+      debtUsd: readUsd(report, USD_KEYS.debt),
+      collateralUsd: readUsd(report, USD_KEYS.collateral),
     },
   };
 }
@@ -559,6 +595,11 @@ const CLAIM_REFUSALS: Record<ClaimRefusalCode, { headline: string; detail: strin
   unreadable: {
     headline: 'Could not verify',
     detail: 'The delivered file could not be read as a report, so there is nothing in it to check against the chain.',
+  },
+  'lifecycle-receipt': {
+    headline: 'Could not verify',
+    detail:
+      'What was delivered is a Pokter lifecycle receipt \u2014 a record that the job was funded, delivered and settled \u2014 and it carries no answer from the agent. There are no figures in it to recompute, and its absence of them is not a finding about the agent.',
   },
   'no-health-factor': {
     headline: 'Could not verify',

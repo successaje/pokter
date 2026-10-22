@@ -345,6 +345,49 @@ test('3g. a block the chain has not reached, nothing delivered, and an unreadabl
   assert.match(prose.verification.detail, /does not say which block/);
 });
 
+test('3i. a lifecycle receipt is not a report that forgot its figures', async () => {
+  /*
+   * Pokter's own seller submits these to prove funding, delivery and
+   * settlement work; they carry no answer from the agent. Classified with
+   * `readDeliveredManifest`, the same reader the rest of the product uses,
+   * so this check cannot disagree with an agent's page about what a
+   * delivery is. Calling it "no health factor" would put a finding against
+   * an agent whose work is not in the file.
+   */
+  const receipt = JSON.stringify({
+    version: 1,
+    job_id: 1372,
+    chain_id: 97,
+    response: { content: JSON.stringify({ status: 'delivered', note: 'Lifecycle proof: funded, delivered, settled.' }) },
+    metadata: { producer: 'Pokter delivery agent (courier)' },
+  });
+  const { verification: v, asked } = await check(receipt, available());
+  assert.equal(v.verdict, 'unverified');
+  assert.match(v.detail, /lifecycle receipt/);
+  assert.match(v.detail, /not a finding about the agent/);
+  assert.deepEqual(asked, []);
+
+  // A relayed answer is the agent's own work carried by Pokter, and is checked.
+  const relayed = JSON.stringify({
+    version: 1,
+    job_id: 1585,
+    chain_id: 97,
+    response: { content: JSON.stringify({ answer: { account: real.account, health_factor: real.healthFactor, liquidatable: false, as_of: { block: real.block } }, answered_by: { chain_id: 97, token_id: '2618' } }) },
+    metadata: { producer: 'Pokter delivery agent (courier)', answered_by: '97:2618' },
+  });
+  assert.equal((await check(relayed, available())).verification.verdict, 'matches');
+});
+
+test('3j. a stored delivery that is valid JSON but not a manifest is nothing known, not a crash', () => {
+  // `readDeliverable` returns whatever was stored, and `null`, a number and
+  // an array all parse and then have no fields (origin/main f2eab0a9).
+  for (const stored of ['null', '42', '[1,2]', '"just a string"']) {
+    const claim = readVenusReportClaim(stored);
+    assert.equal(claim.ok, false, stored);
+    if (!claim.ok) assert.equal(claim.code, 'unreadable', stored);
+  }
+});
+
 test('3h. the subject comes from the funded brief, and an undecidable subject cannot be verified', () => {
   const one = venusSubjectFromBrief(`Venus health factor for ${real.account} and the repay that restores 1.5`);
   assert.ok(one.ok);
