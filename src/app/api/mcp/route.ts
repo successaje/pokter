@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 
 import { GET as agentDetail } from '@/app/api/v1/agents/[chainId]/[tokenId]/route';
 import { POST as trial } from '@/app/api/trial/route';
+import { POST as compileBrief } from '@/app/api/hire/compile/route';
+import { POST as prepareHire } from '@/app/api/hire/prepare/route';
+import { GET as jobDetail } from '@/app/api/jobs/[jobId]/route';
+import { GET as jobReportCheck } from '@/app/api/jobs/[jobId]/report-check/route';
+import { CHECK_DELIVERY, HIRE_TOOL_CHAIN, JOB_STATUS, PREPARE_BRIEF, PREPARE_HIRE } from '@/lib/assistant/tools';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
@@ -43,6 +48,9 @@ function tools(request: Request): McpTool[] {
   const forward = (url: string, init: RequestInit = {}) => new Request(url, { ...init, headers: { ...passed, ...(init.headers as Record<string, string> | undefined) } });
   const chain = (value: unknown) => (value === 56 || value === 97 || value === '56' || value === '97' ? Number(value) : null);
   const token = (value: unknown) => (typeof value === 'string' || typeof value === 'number') && /^\d{1,12}$/.test(String(value)) ? String(value) : null;
+  /* A job id is the escrow's own counter, which the job routes accept up to
+     eighteen digits — a wider field than a registry token id. */
+  const jobNumber = (value: unknown) => (typeof value === 'string' || typeof value === 'number') && /^\d{1,18}$/.test(String(value)) ? String(value) : null;
   const read = async (response: Response) => ({ data: await response.json().catch(() => ({ error: `HTTP ${response.status}` })), isError: !response.ok });
   // The agent's public record, for the card the three agent tools carry.
   const detail = async (c: number, t: string) => {
@@ -244,6 +252,101 @@ function tools(request: Request): McpTool[] {
         };
       },
     },
+    /*
+     * The four that carry a hire past the link, each one the public route
+     * that already answers it. The brief is compiled by the compiler the
+     * hire page uses, the price is the one `/api/hire/quote` verified, and
+     * the prepared hire is unsigned: the owner approves and funds it in
+     * their own wallet, which is the one step with no tool behind it.
+     */
+    {
+      ...PREPARE_BRIEF,
+      async run(args) {
+        const c = chain(args.chain_id);
+        const t = token(args.token_id);
+        if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
+        const answers = args.answers && typeof args.answers === 'object' && !Array.isArray(args.answers) ? args.answers : undefined;
+        return read(await compileBrief(forward(new URL('/api/hire/compile', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task, answers }) })));
+      },
+    },
+    {
+      ...PREPARE_HIRE,
+      /*
+       * Not a read, and not destructive either: it records the request it
+       * hands over, which is what makes a retry one job rather than two. It
+       * still cannot spend — the owner's wallet is the only thing that can.
+       */
+      annotations: { readOnlyHint: false, idempotentHint: true },
+      async run(args) {
+        const c = chain(args.chain_id);
+        const t = token(args.token_id);
+        if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
+        if (typeof args.max_budget !== 'number') {
+          return { data: { error: 'max_budget is required: the most the owner has authorised for this job, in whole $U. Ask the owner; Pokter sets no budget of its own.' }, isError: true };
+        }
+        const answers = args.answers && typeof args.answers === 'object' && !Array.isArray(args.answers) ? args.answers : undefined;
+        return read(
+          await prepareHire(
+            forward(new URL('/api/hire/prepare', local).href, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                chainId: c,
+                tokenId: t,
+                task: args.task,
+                answers,
+                maxBudget: args.max_budget,
+                ...(typeof args.request_id === 'string' ? { requestId: args.request_id } : {}),
+                ...(typeof args.possibly_funded_job_id === 'string' ? { possiblyFundedJobId: args.possibly_funded_job_id } : {}),
+                ...(typeof args.owner_address === 'string' ? { owner: args.owner_address } : {}),
+              }),
+            }),
+          ),
+        );
+      },
+    },
+    {
+      ...JOB_STATUS,
+      async run(args) {
+        const job = jobNumber(args.job_id);
+        const escrow = chain(args.chain_id);
+        /* The escrow chain is a term of the hire, not a guess: a job id
+           exists on both deployments and means different things on each. */
+        if (!job || !escrow) return { data: { error: 'job_id is the numeric ERC-8183 job id, and chain_id the escrow it was funded on (56 or 97).' }, isError: true };
+        const url = new URL(`/api/jobs/${job}`, local);
+        url.searchParams.set('chain', String(escrow));
+        return read(await jobDetail(forward(url.href), { params: Promise.resolve({ jobId: job }) }));
+      },
+    },
+    {
+      ...CHECK_DELIVERY,
+      async run(args) {
+        const job = jobNumber(args.job_id);
+        const escrow = chain(args.chain_id);
+        if (!job || !escrow) return { data: { error: 'job_id is the numeric ERC-8183 job id, and chain_id the escrow it was funded on (56 or 97).' }, isError: true };
+        const jobUrl = new URL(`/api/jobs/${job}`, local);
+        const checkUrl = new URL(`/api/jobs/${job}/report-check`, local);
+        for (const url of [jobUrl, checkUrl]) url.searchParams.set('chain', String(escrow));
+        /*
+         * The delivery and the check together, because either alone misleads:
+         * a link with no check invites the assistant to grade the report
+         * itself, and a check with no link gives the owner nothing to read.
+         */
+        const [state, check] = await Promise.all([
+          read(await jobDetail(forward(jobUrl.href), { params: Promise.resolve({ jobId: job }) })),
+          read(await jobReportCheck(forward(checkUrl.href), { params: Promise.resolve({ jobId: job }) })),
+        ]);
+        const record = (state.data as { job?: { status?: string; deliverableUrl?: string | null; task?: string } }).job ?? null;
+        return {
+          data: {
+            job: record ? { status: record.status, deliverableUrl: record.deliverableUrl ?? null, task: record.task } : null,
+            verification: check.data,
+            settles: 'Nothing. This is advisory: it releases no escrow, pays nobody and raises no dispute. Only the owner can release or dispute, in their own wallet.',
+          },
+          isError: state.isError,
+        };
+      },
+    },
     {
       name: 'integration_kit',
       title: 'What an agent needs to be hired',
@@ -251,7 +354,13 @@ function tools(request: Request): McpTool[] {
         'For builders: what an AI agent must declare, sign and deliver to be listed, quoted, hired and paid through Pokter on BNB Chain (ERC-8004 identity; an A2A endpoint with a negotiate skill to be priced and hired, where MCP alone can only be measured; ERC-8183 escrow), every refusal code, and the escrow contracts. Use it when the user is building an agent, for example for BNB Chain Set and Earn.',
       inputSchema: { type: 'object', properties: {} },
       async run() {
-        return { data: integrationKit(origin) };
+        /*
+         * And which steps a buyer's assistant can take for them, since that
+         * decides what a builder's agent will be asked and by whom: every
+         * step here is a tool except the two that move money, which are the
+         * owner's own and have no tool at all.
+         */
+        return { data: { ...integrationKit(origin), hireFlow: HIRE_TOOL_CHAIN } };
       },
     },
   ];

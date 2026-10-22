@@ -6,6 +6,15 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { oneRowPerJob } from './job-dedupe';
+import {
+  attachPreparedHireJob,
+  ensurePreparedHires,
+  readPreparedHire,
+  recordPreparedHire,
+  type JobAttachment,
+  type PreparedHireRecord,
+  type PreparedHireWrite,
+} from '@/lib/assistant/prepared-store';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -98,6 +107,18 @@ export interface JobStore {
   /** The latest relay test of an agent: whether a brief carried the way the relay carries one was answered (relay-probe.ts). */
   recordRelayProbe(input: { chainId: number; tokenId: string; outcome: RelayProbeOutcome; detail: string }): void;
   relayProbe(chainId: number, tokenId: string): RelayProbe | null;
+  /**
+   * The unsigned hire requests handed to an assistant, by key.
+   *
+   * Kept here, beside the jobs, because the question a retry asks spans
+   * both: "has this request already been funded" is answered from the job
+   * index, and an answer held in a different file could be missing while
+   * the job itself was there. See `lib/assistant/prepared-store`, which
+   * holds the statements so they can be tested.
+   */
+  recordPreparedHire(write: PreparedHireWrite): 'recorded' | 'kept';
+  preparedHire(key: string): PreparedHireRecord | null;
+  attachPreparedHireJob(key: string, jobId: string): JobAttachment;
 }
 
 export type RelayProbeOutcome = 'answers' | 'paid-only' | 'not-askable' | 'no-answer';
@@ -305,6 +326,21 @@ class SqliteJobStore implements JobStore {
     }
     // After the migration, so an older database already has the column.
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_jobs_client ON jobs (client)');
+    /* The assistant's prepared requests, whose statements live in their own
+       module so a test can run them (see the note on the interface). */
+    ensurePreparedHires(this.db);
+  }
+
+  recordPreparedHire(write: PreparedHireWrite): 'recorded' | 'kept' {
+    return recordPreparedHire(this.db, write);
+  }
+
+  preparedHire(key: string): PreparedHireRecord | null {
+    return readPreparedHire(this.db, key);
+  }
+
+  attachPreparedHireJob(key: string, jobId: string): JobAttachment {
+    return attachPreparedHireJob(this.db, key, jobId);
   }
 
   record(job: HiredJob): void {

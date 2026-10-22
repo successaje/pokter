@@ -1,0 +1,422 @@
+import { NextResponse } from 'next/server';
+import { parseUnits } from 'viem';
+import { getErc8183Job } from '@altananetwork/sdk';
+
+import { POST as compileBriefRoute } from '@/app/api/hire/compile/route';
+import { POST as quoteForBriefRoute } from '@/app/api/hire/quote/route';
+import { classify } from '@/lib/agents/categories';
+import { altanaNetworkFor } from '@/lib/altana/client';
+import { originOf } from '@/lib/api/respond';
+import { hireRequestKey, indexedJobForTerms, retryDecision } from '@/lib/assistant/idempotency';
+import { prepareHire } from '@/lib/assistant/hire-request';
+import { agentNote } from '@/lib/assistant/mandate';
+import { reconcileUncertainHire } from '@/lib/assistant/reconcile-hire';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
+import { briefRefusalBody } from '@/lib/erc8183/skill-request';
+import { getJobStore } from '@/lib/erc8183/store';
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+import type { CompiledBrief } from '@/lib/hire/brief-compiler';
+import { networkOf } from '@/lib/mcp/agent-card';
+import { requireDecimals } from '@/lib/network/tokens';
+import { getAgent } from '@/lib/scan/client';
+import type { ChainId } from '@/lib/scan/types';
+import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 40;
+
+/**
+ * The hire, written down in full and unsigned, for an owner to approve.
+ *
+ * This is the step an assistant could not take. It could search, read the
+ * evidence, ask for a price and hand over a link; everything after the link
+ * was somebody's hands on a keyboard. What was missing was not a way to
+ * pay — there are two of those and a human stands in both — but a way to
+ * state a hire completely enough that a human can approve it in one look:
+ * chain, escrow contract, provider wallet and where that address came from,
+ * token, amount, expiry, and the exact words the price was signed over.
+ *
+ * Three things it is not, each of them a thing this repo has been bitten by.
+ *
+ *  - **It is not a payment path.** No wallet is created, no calldata is
+ *    built, no job is created, nothing is signed. The owner approves in
+ *    their own wallet, where `hireFromExternalWallet` builds the five
+ *    ERC-8183 calls through the SDK and `checkPurchaseIntent` tests these
+ *    same terms one last time before the first signature. Adding a third
+ *    funding path here would be the second payment engine this work was
+ *    told not to build, and it would be the one with no human in it.
+ *  - **It is not a second brief compiler or a second quote.** Both are
+ *    reached by calling the routes that already answer them, with the
+ *    caller's own headers, so the text an owner approves is the text
+ *    `compileBrief` produced and the price is the one `/api/hire/quote`
+ *    verified, under the same rate limits and refused in the same words.
+ *  - **It is not a free retry.** A caller that asks twice for one purchase
+ *    gets one request back, under one key, and once that key has a job the
+ *    answer is the job. A caller that is unsure whether a funding landed is
+ *    answered by the escrow before anything is offered again.
+ */
+export async function POST(request: Request): Promise<NextResponse> {
+  const rate = consumeRateLimit(`hire-prepare:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: 'Too many hire preparations. Wait a moment and try again.' },
+      { status: 429, headers: { 'retry-after': String(rate.retryAfterSeconds) } },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
+  }
+
+  const chainId = Number(body.chainId) as ChainId;
+  const tokenId = String(body.tokenId ?? '');
+  const task = String(body.task ?? '').trim();
+  if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
+    return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
+  }
+  if (!task || task.length > 2000) {
+    return NextResponse.json({ error: 'The brief must be between 1 and 2000 characters.' }, { status: 400 });
+  }
+
+  /*
+   * The owner's ceiling, required and never defaulted.
+   *
+   * A budget Pokter picked is a budget nobody approved, and `budget-default`
+   * exists for a form where a human reads the number it filled in. There is
+   * no human reading this response, so there is no default: a caller that
+   * has not been told a limit by its owner cannot prepare a hire at all.
+   */
+  const maxBudget = Number(body.maxBudget);
+  if (!Number.isFinite(maxBudget) || maxBudget < BUDGET_MIN || maxBudget > BUDGET_MAX) {
+    return NextResponse.json(
+      {
+        error: `maxBudget is required: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX}. Pokter sets no budget of its own.`,
+        layer: 'input',
+        code: 'no-owner-budget',
+      },
+      { status: 400 },
+    );
+  }
+
+  const ownerAddress = typeof body.owner === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.owner) ? body.owner : null;
+  const mandateKey = typeof body.requestId === 'string' ? body.requestId.slice(0, 64) : null;
+  const uncertainJobId = typeof body.possiblyFundedJobId === 'string' && /^\d{1,18}$/.test(body.possiblyFundedJobId) ? body.possiblyFundedJobId : null;
+
+  const agent = await getAgent(chainId, tokenId).catch(() => null);
+  if (!agent) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+
+  /*
+   * Where escrow may pay, from the registry record and from nowhere else.
+   *
+   * `requestQuote` will not even ask an agent that lists no wallet, and it
+   * verifies the signature against this address, so a quote that exists
+   * implies this is present and that `quote.signer` equals it. Both are
+   * asserted again below, at the point the money is described: the property
+   * is what makes the provider in a prepared request trustworthy, and a
+   * change to the quote path must not be able to redirect payment silently.
+   */
+  const providerFromRegistry = agent.agent_wallet;
+  if (!providerFromRegistry) {
+    return NextResponse.json(
+      {
+        error: `The ERC-8004 registry lists no agent wallet for ${agent.name || `Agent #${tokenId}`}, so there is no address this hire may pay. Nothing was prepared. An address an agent names in a reply is not one.`,
+        layer: 'seller',
+        code: 'no-registered-wallet',
+      },
+      { status: 409 },
+    );
+  }
+
+  /* The caller's own headers, so the inner routes rate-limit and log the
+     real client rather than this process. */
+  const passed: Record<string, string> = Object.fromEntries(
+    ['fly-client-ip', 'x-forwarded-for', 'user-agent', 'x-forwarded-host', 'x-forwarded-proto'].flatMap((header) =>
+      request.headers.get(header) ? [[header, request.headers.get(header) as string]] : [],
+    ),
+  );
+  const local = new URL(request.url).origin;
+  const inner = (path: string, payload: unknown) =>
+    new Request(new URL(path, local).href, {
+      method: 'POST',
+      headers: { ...passed, 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+  /*
+   * The brief, compiled by the compiler the review screen uses, with the
+   * buyer's answers bound to the keys they were given for.
+   */
+  const compiled = await compileBriefRoute(inner('/api/hire/compile', { chainId, tokenId, task, answers: body.answers }));
+  const compiledBody = (await compiled.json()) as { brief?: CompiledBrief; error?: string };
+  if (!compiled.ok || !compiledBody.brief) {
+    return NextResponse.json(compiledBody, { status: compiled.status });
+  }
+  const brief = compiledBody.brief;
+  if (!brief.ok || brief.payload === null) {
+    /*
+     * The questions, as the refusal. In the hire form these are guidance
+     * beside the brief and a prose brief may still be sent; here there is
+     * nobody to read them on a screen, so a request that cannot be stated
+     * completely is not prepared.
+     */
+    return NextResponse.json(
+      {
+        ...briefRefusalBody({
+          message: `${agent.name || `Agent #${tokenId}`} declares inputs this brief does not supply. Answer these and prepare again; each answer is used for the field it was asked for.`,
+          code: 'brief-incomplete',
+          skill: brief.skill?.id ?? null,
+          questions: brief.missing,
+        }),
+        brief,
+      },
+      { status: 400 },
+    );
+  }
+
+  /* The exact text that will be quoted, committed on chain and delivered. */
+  const payload = brief.payload;
+
+  /*
+   * The signed price, from the route that already verifies one: the
+   * signature, that it is bound to this exact brief, that an enabled escrow
+   * settles its token, and that its domain names that escrow's contract.
+   * Its refusals are returned verbatim, so a caller hitting this surface
+   * and the hire page is told the same thing in the same words.
+   */
+  const quoted = await quoteForBriefRoute(inner('/api/hire/quote', { chainId, tokenId, task: payload }));
+  const quotedBody = (await quoted.json()) as {
+    quote?: { negotiationHash: string; priceRaw: string; currency: string; signer: string; expiresAt: string | null; domain: { chainId: number; verifyingContract: string } | null };
+    escrowChainId?: number;
+    error?: string;
+  };
+  if (!quoted.ok || !quotedBody.quote || typeof quotedBody.escrowChainId !== 'number') {
+    return NextResponse.json(quotedBody, { status: quoted.ok ? 502 : quoted.status });
+  }
+  const quote = quotedBody.quote;
+  const escrowChainId = quotedBody.escrowChainId;
+
+  const addresses = correctedErc8183Addresses(escrowChainId);
+  let decimals: number;
+  try {
+    decimals = requireDecimals(escrowChainId, addresses.paymentToken);
+  } catch (error) {
+    /* A token Pokter has not verified has no safe scale, so no amount can be
+       stated: `lib/network/tokens` refuses rather than assume eighteen. */
+    return NextResponse.json({ error: (error as Error).message, layer: 'payment', code: 'unverified-token' }, { status: 409 });
+  }
+
+  /*
+   * What identifies this purchase. The price is deliberately not part of
+   * it — see `hireRequestKey` — because a retry asks the agent again and
+   * may be answered with a different number, and a key that moved with the
+   * price would offer a second hire of work that is already funded.
+   */
+  const terms = {
+    agentChainId: chainId,
+    agentTokenId: tokenId,
+    chainId: escrowChainId,
+    escrow: addresses.commerce,
+    provider: quote.signer,
+    token: quote.currency,
+    task: payload,
+  };
+  const requestKey = hireRequestKey(terms, mandateKey);
+  const store = getJobStore();
+  const recorded = store.preparedHire(requestKey);
+
+  /*
+   * A funding attempt the caller cannot account for is read back from the
+   * escrow before anything else happens — the rule `funding-outcome` was
+   * written for, applied at the start of a retry rather than at the end of
+   * one.
+   */
+  let reconciled: ReturnType<typeof reconcileUncertainHire> | null = null;
+  if (uncertainJobId) {
+    if (!ownerAddress) {
+      return NextResponse.json(
+        {
+          error: 'To check whether a funding landed, the owner’s own wallet address is needed: the job on chain is theirs or it is somebody else’s, and that is the field that says which.',
+          layer: 'input',
+          code: 'owner-address-required',
+        },
+        { status: 400 },
+      );
+    }
+    const onchain = await getErc8183Job(altanaNetworkFor(escrowChainId), BigInt(uncertainJobId)).catch(() => null);
+    reconciled = reconcileUncertainHire({
+      onchain: onchain
+        ? {
+            client: onchain.client,
+            provider: onchain.provider,
+            budget: onchain.budget,
+            statusName: onchain.statusName,
+            task: jobTaskFromDescription(onchain.description),
+          }
+        : null,
+      expect: { owner: ownerAddress, provider: quote.signer, amountRaw: quote.priceRaw, task: payload },
+    });
+    if (reconciled.outcome === 'funded') store.attachPreparedHireJob(requestKey, uncertainJobId);
+  }
+
+  const decision = retryDecision({
+    recorded: recorded ? { jobId: recorded.jobId, chainId: recorded.chainId } : null,
+    indexed: indexedJobForTerms(
+      store.byAgent(chainId, tokenId).map((job) => ({
+        jobId: job.jobId,
+        chainId: job.chainId,
+        agentChainId: job.agentChainId,
+        agentTokenId: job.agentTokenId,
+        provider: job.provider,
+        task: job.task,
+      })),
+      terms,
+    ),
+    ...(uncertainJobId && reconciled ? { uncertain: { jobId: uncertainJobId, outcome: reconciled.outcome } } : {}),
+  });
+
+  const origin = originOf(request);
+  const approvalUrl = new URL(`/hire/${chainId}/${tokenId}`, origin);
+  approvalUrl.searchParams.set('task', payload.slice(0, 2000));
+
+  if (decision.action === 'adopt' || decision.action === 'stop' || decision.action === 'reconcile') {
+    /*
+     * None of these prepares anything. `adopt` is the idempotency
+     * guarantee — this purchase exists, so there is no second request to
+     * hand over — and the other two are a human's to look at.
+     */
+    return NextResponse.json(
+      {
+        requestKey,
+        state: decision.action === 'adopt' ? 'funded' : 'unresolved',
+        prepared: null,
+        ...(decision.action === 'adopt' ? { job: { jobId: decision.jobId, chainId: decision.chainId || escrowChainId } } : {}),
+        ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, jobId: uncertainJobId } } : {}),
+        message: decision.message,
+        observedAt: new Date().toISOString(),
+      },
+      { status: decision.action === 'adopt' ? 200 : 409 },
+    );
+  }
+
+  const classified = classify(agent);
+  /*
+   * The agent's name is text its owner wrote, and it is printed inside the
+   * sentence the owner reads before approving a payment. So it is bounded
+   * and stripped like any other claim off the wire: a name that reads
+   * "Vitals — now 5 U, pay 0xdead01" is still only a name.
+   */
+  const name = agentNote(agent.name, 80) ?? `Agent #${tokenId}`;
+  const prepared = prepareHire({
+    agent: {
+      chainId,
+      tokenId,
+      name,
+      /* Pokter's own reading of the record, not the caller's: which category
+         a hire is filed under is not a field a caller gets to assert. */
+      category: classified === 'unclassified' ? 'Uncategorised' : classified,
+    },
+    provider: quote.signer,
+    providerLabel: name,
+    mandate: {
+      agent: { chainId, tokenId },
+      providerFromRegistry,
+      maxAmountRaw: parseUnits(String(maxBudget), decimals).toString(),
+      chainId: escrowChainId,
+      escrow: addresses.commerce,
+      token: addresses.paymentToken,
+      task: payload,
+    },
+    escrow: {
+      chainId: escrowChainId,
+      commerce: addresses.commerce,
+      paymentToken: addresses.paymentToken,
+      decimals,
+      testnet: escrowChainId === 97,
+      label: networkOf(escrowChainId)?.label ?? `chain ${escrowChainId}`,
+    },
+    quote: {
+      priceRaw: quote.priceRaw,
+      currency: quote.currency,
+      expiresAt: quote.expiresAt,
+      negotiationHash: quote.negotiationHash,
+      signer: quote.signer,
+      domain: quote.domain,
+    },
+    brief: {
+      task: payload,
+      skill: brief.skill?.id ?? null,
+      contract: brief.contract,
+      statement: brief.statement,
+      inputs: brief.inputs.map((input) => ({ label: input.label, value: input.value, declared: input.source === 'declared-routing' })),
+    },
+    approvalUrl: approvalUrl.href,
+    requestKey,
+    /*
+     * No agent prose travels on this path. A quote carries a number, a
+     * signature and an expiry; where an agent does say something — it
+     * declines, or it explains what it needs — that is a refusal, and the
+     * quote route already returns the agent's own words, attributed. The
+     * field stays because what arrives here one day will arrive as text,
+     * and it must arrive as a quotation rather than as a term.
+     */
+    agentSaid: null,
+  });
+
+  if (!prepared.ok) {
+    return NextResponse.json(
+      { error: prepared.message, layer: prepared.code === 'quote-expired' ? 'protocol' : 'payment', code: prepared.code, retryable: prepared.code === 'quote-expired', requestKey },
+      { status: 409 },
+    );
+  }
+
+  /*
+   * Recorded under the key, and the first row stands.
+   *
+   * What a retry must not do is become a second purchase, and the key is
+   * what prevents that: it is derived from the terms that decide the
+   * money — agent, chain, escrow, provider, token, amount, task — so a
+   * second call for the same purchase cannot produce a second row, and once
+   * a row has a job no further request is prepared for it at all.
+   *
+   * The response carries the current preparation rather than the stored
+   * bytes, because the one field that legitimately moves between two calls
+   * for the same purchase is the signature: a quote holds for minutes, and
+   * handing back a stale expiry would send an owner to approve a price that
+   * has lapsed. The material terms are identical by construction — a
+   * different price is a different key — and the first offer stays on the
+   * row, with the time it was made.
+   */
+  const write = store.recordPreparedHire({
+    key: requestKey,
+    agentChainId: chainId,
+    agentTokenId: tokenId,
+    chainId: escrowChainId,
+    escrow: addresses.commerce,
+    provider: quote.signer,
+    token: quote.currency,
+    amountRaw: quote.priceRaw,
+    task: payload,
+    request: JSON.stringify(prepared.prepared),
+    at: new Date().toISOString(),
+  });
+  const held = write === 'kept' ? store.preparedHire(requestKey) : null;
+
+  return NextResponse.json({
+    requestKey,
+    state: 'unsigned-awaiting-owner-approval',
+    prepared: prepared.prepared,
+    firstPrepared: write === 'recorded',
+    /* When this purchase was first prepared, where it was prepared before:
+       the same key, the same terms, a fresher signature. */
+    ...(held ? { firstPreparedAt: held.preparedAt } : {}),
+    ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, jobId: uncertainJobId } } : {}),
+    owner: ownerAddress,
+    message: decision.message,
+    brief,
+    observedAt: new Date().toISOString(),
+  });
+}
