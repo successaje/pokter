@@ -28,6 +28,33 @@ test('no new flows leave the bookmark where it was', () => {
   assert.equal(alertableFlows([], { alertedThrough: null, subscribedAt: '2026-10-21T00:00:00Z' }).nextThrough, null);
 });
 
+/*
+ * `flowsAfter` reads fifty rows at a time, oldest first. A wallet watched for
+ * a while before anybody subscribed fills that whole window with flows older
+ * than the subscription, so none of them is alertable. If the bookmark only
+ * moved for alertable flows it would never move at all, the next sweep would
+ * read the same fifty, and nothing after them would ever be reached: a
+ * subscriber who hears nothing, for as long as they stay subscribed, about a
+ * wallet being drained.
+ */
+test('a backlog bigger than one window does not strand the subscriber', () => {
+  const subscribedAt = '2026-10-21T12:00:00Z';
+  const backlog = Array.from({ length: 50 }, (_, i) => flow(1_000 + i, '2026-10-20T00:00:00Z', 'not-returned'));
+  const bad = flow(9_999, '2026-10-21T13:00:00Z', 'not-returned');
+  /** What the store hands back for a given bookmark: `block > ?` ... `LIMIT 50`. */
+  const windowOf = (bookmark: number | null) => [...backlog, bad].filter((f) => f.block > (bookmark ?? 0)).slice(0, 50);
+
+  const alerted: number[] = [];
+  let bookmark: number | null = null;
+  for (let sweep = 0; sweep < 4; sweep++) {
+    const swept: { alert: typeof backlog; nextThrough: number | null } = alertableFlows(windowOf(bookmark), { alertedThrough: bookmark, subscribedAt });
+    alerted.push(...swept.alert.map((f) => f.block));
+    bookmark = swept.nextThrough;
+  }
+  // The one flow after the subscription, and none of the backlog before it.
+  assert.deepEqual(alerted, [9_999]);
+});
+
 test('a trading alert link lands on the trading page', async () => {
   const { emailLinkDestination } = await import('../src/lib/notifications/link-destination');
   assert.equal(emailLinkDestination({ kind: 'trading' }), '/trading');

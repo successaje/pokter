@@ -5,15 +5,26 @@
  * not sent the wallet's history), only once (`alertedThrough` is the last
  * block already covered), and only the transactions where tokens left and
  * nothing came back. `nextThrough` is what to record once the email is sent.
+ *
+ * The bookmark moves past every flow the window held, not only past the ones
+ * worth an email. `flowsAfter` reads fifty rows at a time, oldest first, so a
+ * wallet that was watched for a while before anybody subscribed fills that
+ * whole window with flows older than the subscription. Moving the bookmark
+ * only for alertable flows left it null in that case, the next sweep read the
+ * same fifty rows, and the subscriber was never told about anything — the
+ * silence this file exists to break. Both conditions are therefore applied
+ * separately: the bookmark says what has been looked at, and the subscription
+ * time says what may be sent.
  */
 export function alertableFlows<T extends { block: number; at: string; verdict: string }>(
   flows: readonly T[],
   state: { alertedThrough: number | null; subscribedAt: string },
 ): { alert: T[]; nextThrough: number | null } {
-  const fresh = flows.filter((f) => (state.alertedThrough === null ? f.at >= state.subscribedAt : f.block > state.alertedThrough));
+  const alertedThrough = state.alertedThrough;
+  const looked = alertedThrough === null ? [...flows] : flows.filter((f) => f.block > alertedThrough);
   return {
-    alert: fresh.filter((f) => f.verdict === 'not-returned'),
-    nextThrough: fresh.length ? Math.max(...fresh.map((f) => f.block)) : state.alertedThrough,
+    alert: looked.filter((f) => f.at >= state.subscribedAt && f.verdict === 'not-returned'),
+    nextThrough: looked.length ? Math.max(...looked.map((f) => f.block)) : alertedThrough,
   };
 }
 
