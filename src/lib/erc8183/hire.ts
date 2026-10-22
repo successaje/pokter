@@ -19,8 +19,10 @@ import { ALTANA_NETWORK, IS_TESTNET, adminSigner, altanaClient } from '@/lib/alt
 import { attributeJob } from './attribute-owners';
 import { getJobStore } from './store';
 import { isThisHire } from './hire-confirm';
+import { askIfAgentTakesBrief } from './brief-acceptance';
 import { preflightHireBrief } from './hire-preflight';
 import { getAgent } from '@/lib/scan/client';
+import type { BriefRefusalCode } from './skill-request';
 import type { ChainId } from '@/lib/scan/types';
 import type { HiredJob, JobStatusName } from './types';
 
@@ -110,8 +112,8 @@ export class InsufficientPaymentTokenError extends Error {
 /** A brief the resolved skill cannot read, refused before the escrow is funded. */
 export class BriefNotDeliverableError extends Error {
   constructor(
-    readonly code: 'subject-missing' | 'subject-ambiguous',
-    readonly skill: string,
+    readonly code: BriefRefusalCode,
+    readonly skill: string | null,
     message: string,
     readonly candidates: string[],
   ) {
@@ -186,6 +188,27 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
     const preflight = await preflightHireBrief({ chainId, tokenId: input.agentTokenId, task: input.task, agent });
     if (!preflight.ok) {
       throw new BriefNotDeliverableError(preflight.code, preflight.skill, preflight.message, preflight.candidates);
+    }
+
+    /*
+     * And the agent's own answer on whether it will take the brief.
+     *
+     * The check above speaks only for skills Pokter has an adapter for.
+     * Nothing in the catalogue publishes an input contract to check the
+     * rest against — so the question goes to the agent, over its own
+     * `negotiate` skill, with the text about to be committed on chain. It
+     * fails open on everything but an explicit decline.
+     */
+    if (agent) {
+      const accepted = await askIfAgentTakesBrief(agent, input.task);
+      if (!accepted.ok) {
+        throw new BriefNotDeliverableError(
+          'brief-declined',
+          preflight.skill,
+          `${agent.name || `Agent #${input.agentTokenId}`} declined this brief: \u201c${accepted.reason}\u201d`,
+          [],
+        );
+      }
     }
   }
 

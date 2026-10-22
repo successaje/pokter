@@ -229,3 +229,74 @@ test('a brief edit clears the resolved request on both paths', () => {
   assert.match(hook, /setPreRequest\(\{ request: quote\.request, task, provider: providerAddress, escrowChainId \}\)/);
   assert.match(hook, /setPreRequest\(null\)/, 'cleared when the check refuses');
 });
+
+test('a refusal body says which layer refused, and never blames the wrong one', () => {
+  /*
+   * Pokter failing to turn a brief into a request is the brief's shape.
+   * The agent declining the work is the agent's own judgement, and
+   * reporting that as `layer: "input"` would blame the buyer's wording for
+   * someone else's decision — `useHire` reads this to decide what to say.
+   */
+  const declined = briefRefusalBody({
+    message: 'Venus Yield Keeper declined this brief: “needs the token address”',
+    code: 'brief-declined',
+    skill: 'lp_tier_plan',
+  });
+  assert.equal(declined.layer, 'seller');
+  assert.equal(declined.code, 'brief-declined');
+  assert.equal(declined.retryable, false);
+  assert.ok(!('candidates' in declined));
+
+  for (const code of ['subject-missing', 'subject-ambiguous'] as const) {
+    assert.equal(briefRefusalBody({ message: 'x', code, skill: 'agent_evidence' }).layer, 'input');
+  }
+});
+
+test('a skill Pokter cannot name still carries a refusal', () => {
+  /*
+   * The agent-asked check covers skills Pokter has no adapter for, and for
+   * most of the catalogue it cannot resolve a skill id at all. A null skill
+   * is reported as null rather than suppressing the refusal.
+   */
+  const body = briefRefusalBody({ message: 'Agent #2554 declined this brief: “no”', code: 'brief-declined', skill: null });
+  assert.equal(body.skill, null);
+  assert.equal(body.layer, 'seller');
+});
+
+test('the agent is asked on every funding path that has no price to ask for', () => {
+  /*
+   * The quote route asks as part of getting a signed price, so it is
+   * already covered. The two paths that never asked are the seller-carried
+   * hire and the operator route — the one that funded job 1585.
+   */
+  for (const path of ['app/api/hire/preflight/route.ts', 'lib/erc8183/hire.ts']) {
+    assert.match(code(path), /askIfAgentTakesBrief\(/, path);
+  }
+  assert.match(code('app/api/hire/quote/route.ts'), /await requestQuote\(/, 'the quote route already asks');
+
+  // And in hireAgent it runs before anything is spent, like the check above it.
+  const hire = code('lib/erc8183/hire.ts');
+  const ask = hire.indexOf('askIfAgentTakesBrief(');
+  for (const spend of ['altanaClient()', 'buildHireCalls(', 'client.execute(']) {
+    assert.ok(ask > 0 && ask < hire.indexOf(spend), `asked before ${spend}`);
+  }
+});
+
+test('only an explicit decline blocks a hire', () => {
+  /*
+   * Most of the catalogue publishes no price skill at all — a survey of
+   * every agent that has answered a probe or carries a signed price found
+   * 22 of 26 publishing no input example and no machine-checkable contract.
+   * Refusing everything Pokter cannot ask would stop far more hires than it
+   * saves, so the check fails open on every outcome but a decline.
+   */
+  const acceptance = code('lib/erc8183/brief-acceptance.ts');
+  assert.match(acceptance, /if \(refusal\) return \{ ok: false/);
+  assert.match(acceptance, /code === 'seller-declined' && reported\.sellerReason/);
+  assert.match(acceptance, /return \{ ok: true, answered: quote !== null/);
+  // "answered" and "could not be asked" stay separate facts, so an unchecked
+  // brief is never reported as a checked one.
+  assert.match(acceptance, /failure: quote === null \? \(reported\?\.code \?\? 'no-answer'\)/);
+  // The price is an acceptance signal here, not a payment: it is not returned.
+  assert.ok(!/priceU|priceRaw|negotiationHash/.test(acceptance), 'no price is carried out of the check');
+});

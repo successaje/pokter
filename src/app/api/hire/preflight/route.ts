@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { askIfAgentTakesBrief } from '@/lib/erc8183/brief-acceptance';
 import { preflightHireBrief } from '@/lib/erc8183/hire-preflight';
 import { briefRefusalBody } from '@/lib/erc8183/skill-request';
 import { getAgent } from '@/lib/scan/client';
@@ -69,8 +70,38 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  /*
+   * And whether the agent itself will take the brief.
+   *
+   * The adapter check above can only speak for skills Pokter has an adapter
+   * for, which is one. This is the question for all the rest, put to the
+   * only party that can answer it: the agent is sent the exact brief over
+   * its own `negotiate` skill and a decline is read as a decline. It fails
+   * open on everything else — see `brief-acceptance`.
+   *
+   * After the adapter check, because a brief Pokter cannot phrase should be
+   * reported as that rather than sent to an agent to be puzzled over.
+   */
+  const accepted = await askIfAgentTakesBrief(agent, task);
+  if (!accepted.ok) {
+    return NextResponse.json(
+      briefRefusalBody({
+        /* The seller's own words, attributed: this is its judgement of the
+           work, not Pokter's assessment of the brief. */
+        message: `${agent.name || `Agent #${tokenId}`} declined this brief: \u201c${accepted.reason}\u201d`,
+        code: 'brief-declined',
+        skill: preflight.skill,
+      }),
+      { status: 400 },
+    );
+  }
+
   return NextResponse.json({
     request: { skill: preflight.skill, subject: preflight.subject },
+    /* Whether the agent answered, and why not when it did not: a brief the
+       agent signed for is a different fact from one nobody could ask about,
+       and collapsing them would report an unchecked brief as checked. */
+    accepted: { answered: accepted.answered, failure: accepted.failure },
     observedAt: new Date().toISOString(),
   });
 }
