@@ -67,24 +67,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     source: 'The same endpoint, from the failure it classified.',
   },
   {
-    id: 'signed-prices',
-    label: 'Prices carried to funding',
-    counts:
-      'Signed quotes Pokter recorded for this agent on the way to a funding call — one per negotiation hash, so somebody who edits the brief and asks again records another. This is the one figure here that is NOT filtered to outside demand, and cannot be: a quote is signed before anyone funds, so who was asking is learned only from a funding transaction and never at all for the prices that were never funded. Pokter’s own test hires are in it.',
-    window: WINDOW,
-    denominator: null,
-    source: 'The quote intents Pokter writes before a buyer funds.',
-  },
-  {
-    id: 'priced-not-funded',
-    label: 'Priced and not funded',
-    counts:
-      'Prices carried to funding, minus every job funded in the same window — Pokter’s own hires included on both sides, because the prices cannot be attributed and subtracting a filtered count from an unfiltered one reported Pokter’s test hires as buyers who walked away. An upper bound, not a count of people: one person editing a brief and asking again appears twice.',
-    window: WINDOW,
-    denominator: null,
-    source: 'Quote intents against the job index, over the same days.',
-  },
-  {
     id: 'funded-jobs',
     label: 'Jobs an outside buyer funded',
     counts:
@@ -126,6 +108,8 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
  * reads as a zero, and a zero is a claim.
  */
 export const UNMEASURED: readonly string[] = [
+  'Asks refused for a brief over the 2,000-character limit. That check runs before the agent is loaded, so there is no agent to attribute the refusal to, and moving a pure-input check behind a network call would be a worse trade than leaving this gap. Shorter briefs refused by the length floor ARE recorded, so the two input refusals are deliberately asymmetric.',
+  'How many buyers got a price and then did not fund. Pokter records the prices it signs and the jobs that get funded, but cannot join the two: a signed quote carries no buyer, and the only thing linking one to a job is a negotiation hash written into the job’s description on chain, which Pokter does not read back. Subtracting one count from the other was tried and removed — over a fixed window it counts jobs funded from prices signed before it, so it answered a question nobody asked.',
   'Whether an ask came from Pokter itself. Scheduled checks and free trials are excluded by the path they arrive on, and funded jobs by the wallet that paid — but a person at Pokter opening the hire page is indistinguishable from any other buyer, because no wallet or identity is attached to an ask. Treat a handful of asks with that in mind.',
   'Who the buyers were. No wallet, address or identifier is attached to a price request, so there is no count of distinct buyers before funding — only of asks.',
   'Why a buyer left before asking for a price. Pokter records that the hire page was opened, not what was read or where attention went.',

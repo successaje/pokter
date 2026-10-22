@@ -37,6 +37,9 @@ import {
  * re-used somewhere else with its window or its denominator left behind.
  */
 
+/** How many failed deliveries the panel lists before it says "and more". */
+export const DELIVERY_LIST_LIMIT = 20;
+
 export interface DeliveryFailure {
   jobId: string;
   escrowChainId: number;
@@ -58,30 +61,8 @@ export interface DiagnosticsInput {
   attempts: readonly HireAttemptRow[];
   /** Tab-session hire-flow opens; null when the funnel store could not be read. */
   hireFlowOpens: number | null;
-  /** Signed quotes recorded on the way to a funding call, in the window. */
-  signedPrices: number;
   /** Outside-funded jobs whose hire landed inside the window. */
   fundedInWindow: number;
-  /**
-   * **Every** funded job in the window, Pokter's own test hires included.
-   *
-   * The counterpart to `signedPrices`, and the reason it exists. A quote
-   * intent is written before anyone funds, so it carries no buyer: who was
-   * holding the tab is a fact Pokter only ever learns from a funding
-   * transaction, and never learns at all for exactly the prices that were
-   * never funded. So `signedPrices` cannot be filtered to outside demand —
-   * not imperfectly, not at all.
-   *
-   * Subtracting the outside-only funded count from it was therefore
-   * apples from oranges: Pokter's own test hires sat in the numerator and
-   * were removed from the subtrahend, and three team hires and no outside
-   * ones produced "3 signed prices reached a buyer and none was funded".
-   * They reached Pokter. Both sides of the subtraction are unfiltered now,
-   * which makes the gap a true statement about the quote-to-funding step
-   * and not a claim about demand; `fundedInWindow` stays beside it as the
-   * demand figure, filtered and labelled as such.
-   */
-  fundedAllInWindow: number;
   /**
    * Jobs a declared Pokter wallet funded, counted where the jobs are.
    *
@@ -160,7 +141,6 @@ export type HeadlineId =
   | 'blocked-before-any-buyer'
   | 'buyers-stopped'
   | 'deliveries-lapsed'
-  | 'priced-not-funded'
   | 'no-buyer-yet'
   | 'nothing-failing'
   | 'not-measurable';
@@ -179,28 +159,33 @@ export interface BuilderDiagnostics {
     stopped: number;
     stoppedByCode: StoppedGroup[];
   };
+  /**
+   * What reached escrow, and nothing that tries to stand in for it.
+   *
+   * This carried a count of signed quote intents too. It went with the
+   * "priced and not funded" gap it was there to feed: `demand.quoted`, two
+   * rows above it, counts the same funnel stage from the attempt rows and
+   * counts it better on both axes this panel cares about — filtered to the
+   * buyer path, and folded per ask rather than per re-ask. Keeping a
+   * half-attributable duplicate above an `UNMEASURED` entry saying the
+   * attribution is impossible would only invite the reader to do the
+   * subtraction by hand, with none of the caveats attached.
+   */
   funding: {
-    signedPrices: number;
     /** Outside-funded only: the demand figure. */
     fundedInWindow: number;
-    /** Every funded job in the window, team hires included. */
-    fundedAllInWindow: number;
-    /**
-     * An upper bound, and not a demand figure. Counted across all funding,
-     * because the prices it is counted from cannot be attributed to a buyer
-     * at all — see `fundedAllInWindow`. A buyer who edits and re-asks
-     * records a second price, so some of this gap is one person deciding.
-     */
-    pricedNotFunded: number;
-    remediation: Remediation | null;
   };
   delivery: {
     outsideJobs: number;
     terminal: number;
     delivered: number;
+    /** Counted over every failure, not over the listed ones. */
     lapsed: number;
     refused: number;
     disputed: number;
+    /** How many there are in all, so the page can say when the list is cut. */
+    totalFailures: number;
+    /** The newest `DELIVERY_LIST_LIMIT` of them. */
     failures: Array<DeliveryFailure & { remediation: Remediation }>;
   };
   /** Pokter's own latest scheduled price request, when it failed. Never demand. */
@@ -306,21 +291,6 @@ function headline(
     };
   }
 
-  /*
-   * `fundedAllInWindow`, not `fundedInWindow`: a window whose only hires
-   * were Pokter's own test ones is not a window in which nobody funded.
-   * And the title does not say "reached a buyer", because a quote intent
-   * carries no buyer and some of these reached Pokter.
-   */
-  if (funding.pricedNotFunded > 0 && funding.fundedAllInWindow === 0) {
-    return {
-      id: 'priced-not-funded',
-      title: `${funding.pricedNotFunded} signed price${funding.pricedNotFunded === 1 ? '' : 's'} went out and no job was funded against any of them`,
-      body: afterQuoteRemediation('priced-not-funded').reason,
-      remediation: afterQuoteRemediation('priced-not-funded'),
-    };
-  }
-
   if (!demand.measurable) {
     return {
       id: 'not-measurable',
@@ -377,17 +347,18 @@ export function buildBuilderDiagnostics(
     stoppedByCode: group(stopped, buyers.length, input),
   };
 
-  /* Both sides unfiltered: see `fundedAllInWindow`. Filtering one and not
-     the other reported Pokter's own test hires as buyers who walked away. */
-  const pricedNotFunded = Math.max(0, input.signedPrices - input.fundedAllInWindow);
-  const funding: BuilderDiagnostics['funding'] = {
-    signedPrices: input.signedPrices,
-    fundedInWindow: input.fundedInWindow,
-    fundedAllInWindow: input.fundedAllInWindow,
-    pricedNotFunded,
-    remediation: pricedNotFunded > 0 ? afterQuoteRemediation('priced-not-funded') : null,
-  };
+  const funding: BuilderDiagnostics['funding'] = { fundedInWindow: input.fundedInWindow };
 
+  /*
+   * Counted over every failure, then the list is cut — in that order.
+   *
+   * The collector used to cut to twenty before counting, so an agent with
+   * more than twenty failed deliveries reported exactly twenty however
+   * many it had, and the panel said nothing about the list being short.
+   * A saturating counter on a diagnostics panel is worse than no counter:
+   * the number is wrong in the direction that makes the problem look
+   * smaller, and nothing on the page says so.
+   */
   const lapsed = input.deliveryFailures.filter((f) => f.kind === 'lapsed').length;
   const refused = input.deliveryFailures.filter((f) => f.kind === 'refused-funded-job').length;
   const disputed = input.deliveryFailures.filter((f) => f.kind === 'disputed').length;
@@ -398,7 +369,8 @@ export function buildBuilderDiagnostics(
     lapsed,
     refused,
     disputed,
-    failures: input.deliveryFailures.map((failure) => ({
+    totalFailures: input.deliveryFailures.length,
+    failures: input.deliveryFailures.slice(0, DELIVERY_LIST_LIMIT).map((failure) => ({
       ...failure,
       remediation: afterQuoteRemediation(failure.kind),
     })),

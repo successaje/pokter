@@ -11,6 +11,7 @@ import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
 import { getProbeStore } from '@/lib/history/store';
+import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
 import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
 import { logAndPublic } from '@/lib/api/public-error';
 
@@ -49,9 +50,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const chainId = Number(body.chainId) as ChainId;
-  const tokenId = String(body.tokenId ?? '');
   const task = String(body.task ?? '').trim();
-  if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
+  /* One spelling before any store sees it: this route writes brief quotes
+     and hire attempts, and both are read back by the registry's spelling.
+     See the same step in `/api/hire/quote`. */
+  const tokenId = canonicalTokenId(String(body.tokenId ?? ''));
+  if ((chainId !== 56 && chainId !== 97) || tokenId === null) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
   if (task.length > 500) {

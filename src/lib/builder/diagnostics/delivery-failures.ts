@@ -36,7 +36,6 @@ export function deliveryFailuresFrom(input: {
   teamWallets: ReadonlySet<string>;
   /** The seller's answer when told the job was funded, if it gave one. */
   noticeFor: (job: HiredJob) => { status: string; reason: string | null; lastAt: string } | null;
-  limit?: number;
 }): DeliveryFailure[] {
   const owedByPokter = (job: HiredJob) => {
     const provider = typeof job.provider === 'string' ? job.provider.toLowerCase() : null;
@@ -83,6 +82,12 @@ export function deliveryFailuresFrom(input: {
     }
   }
 
+  /*
+   * Every failure, newest first, and no cut here. The caller used to pass
+   * a limit and the report then counted what it was handed, so an agent
+   * with more than the limit reported exactly the limit. Whoever shortens
+   * the list has to be whoever already knows the total.
+   */
   failures.sort((a, b) => b.at.localeCompare(a.at));
-  return input.limit === undefined ? failures : failures.slice(0, input.limit);
+  return failures;
 }

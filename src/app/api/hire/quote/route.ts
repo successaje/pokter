@@ -16,7 +16,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
 import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
-import type { AttemptCode } from '@/lib/builder/diagnostics/attempt';
+import { canonicalTokenId, type AttemptCode } from '@/lib/builder/diagnostics/attempt';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -55,9 +55,20 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const chainId = Number(body.chainId) as ChainId;
-  const tokenId = String(body.tokenId ?? '');
   const task = String(body.task ?? '').trim();
-  if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(tokenId)) {
+  /*
+   * One spelling, settled before anything is read or written.
+   *
+   * This route accepts any run of digits, and three stores key off what it
+   * passes down — brief quotes, quote intents and hire attempts. A caller
+   * at `tokenId=045422` wrote rows under the padded key that neither the
+   * public agent card nor a builder's diagnostics ever asks for, because
+   * both look up the spelling the registry uses. Canonicalising here is
+   * what makes those three agree; doing it inside each store would be
+   * three chances to forget.
+   */
+  const tokenId = canonicalTokenId(String(body.tokenId ?? ''));
+  if ((chainId !== 56 && chainId !== 97) || tokenId === null) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
   if (task.length > 2000) {

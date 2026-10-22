@@ -14,7 +14,7 @@ import {
 } from '../src/lib/builder/diagnostics/attempt-sql';
 import { authoriseAgentOwner } from '../src/lib/builder/diagnostics/authorise';
 import { deliveryFailuresFrom } from '../src/lib/builder/diagnostics/delivery-failures';
-import { buildBuilderDiagnostics, type DiagnosticsInput } from '../src/lib/builder/diagnostics/report';
+import { buildBuilderDiagnostics, DELIVERY_LIST_LIMIT, type DiagnosticsInput } from '../src/lib/builder/diagnostics/report';
 import { WITHHELD_REASON_TEXT } from '../src/lib/builder/diagnostics/withheld';
 import { summariseEconomicHistory } from '../src/lib/erc8183/economic-history';
 import { sanitiseFailureReason } from '../src/lib/erc8183/delivery-diagnostics';
@@ -98,9 +98,7 @@ function report(input: Partial<DiagnosticsInput> & { owner: string; agent: { cha
     attemptsReadable: true,
     attempts: [],
     hireFlowOpens: 0,
-    signedPrices: 0,
     fundedInWindow: 0,
-    fundedAllInWindow: 0,
     teamFunded: 0,
     history: summariseEconomicHistory([], NOW),
     deliveryFailures: [],
@@ -321,17 +319,44 @@ test('a seller reason that hides a credential is withheld whole, not trimmed', (
   assert.ok(serialised.includes(WITHHELD_REASON_TEXT), 'and the builder is told it was withheld, not that nothing was said');
 });
 
-test('the priced-but-unfunded gap is reported as the upper bound it is', () => {
-  const diagnostics = report({ owner: BUILDER_A, agent: AGENT_A, signedPrices: 4, fundedInWindow: 1, fundedAllInWindow: 1 });
-  assert.equal(diagnostics.funding.pricedNotFunded, 3);
-  assert.equal(diagnostics.funding.remediation?.fix.href, '/build/integration#quote');
+test('the quote-to-funding stage is reported as unmeasured, not estimated', () => {
+  /*
+   * Two figures stood here and both are gone. "Priced and not funded" was
+   * signed prices minus funded jobs over one window, which is not a join:
+   * a job funded from a price signed just before the window makes the gap
+   * look larger than it is. And `signedPrices` itself went with it, because
+   * `demand.quoted` two rows above counts the same funnel stage from the
+   * attempt rows — filtered to the buyer path, folded per ask rather than
+   * per re-ask — so the second figure was the same event measured worse.
+   *
+   * Keeping a half-attributable count directly above an entry saying the
+   * attribution is impossible would only invite the reader to do the
+   * subtraction by hand, with none of the caveats attached.
+   */
+  const d = report({ owner: BUILDER_A, agent: AGENT_A, fundedInWindow: 1 });
+  assert.deepEqual(Object.keys(d.funding), ['fundedInWindow'], 'nothing left to subtract from');
 
-  /* More funded jobs than recorded prices is possible — a job funded from a
-     price negotiated before the window — and must not read as a negative. */
-  assert.equal(
-    report({ owner: BUILDER_A, agent: AGENT_A, signedPrices: 1, fundedInWindow: 3, fundedAllInWindow: 3 }).funding.pricedNotFunded,
-    0,
+  const serialised = JSON.stringify(d);
+  for (const gone of ['pricedNotFunded', 'priced-not-funded', 'signedPrices', 'signed-prices']) {
+    assert.ok(!serialised.includes(gone), `${gone} must not survive anywhere in the report`);
+  }
+  assert.notEqual(d.headline.id, 'priced-not-funded');
+  assert.ok(!d.definitions.some((m) => m.id === 'signed-prices' || m.id === 'priced-not-funded'));
+
+  /* The gap does not disappear with the figure: it becomes unmeasured,
+     which is a different and more honest claim, and it is said where a
+     builder reads it rather than only in a pull request. */
+  assert.ok(
+    d.unmeasured.some((line) => /got a price and then did not fund/.test(line)),
+    'cutting the figure must not make the gap disappear',
   );
+  assert.ok(
+    d.unmeasured.some((line) => /negotiation hash/.test(line)),
+    'and it should say why Pokter cannot join the two',
+  );
+  /* The one input refusal that is deliberately not recorded is disclosed
+     rather than left as an unexplained asymmetry. */
+  assert.ok(d.unmeasured.some((line) => /2,000-character/.test(line)));
 });
 
 test('every published figure carries its window and its denominator', () => {
@@ -576,58 +601,6 @@ test('an agent Pokter has never checked is not reported as one that passed', () 
 });
 
 
-test('Pokter’s own test hires are not reported as buyers who walked away', () => {
-  /*
-   * `signedPrices` is quote intents, and a quote intent carries no buyer:
-   * it is written before anyone funds, so who was asking is learned only
-   * from a funding transaction — and never at all for exactly the prices
-   * that were never funded. Subtracting the outside-only funded count from
-   * it put Pokter's own test hires in the numerator and took them out of
-   * the subtrahend, and three team hires with no outside ones produced
-   * "3 signed prices reached a buyer and none was funded". They reached
-   * Pokter.
-   */
-  const teamOnly = report({
-    owner: BUILDER_A,
-    agent: AGENT_A,
-    signedPrices: 3,
-    fundedInWindow: 0,
-    fundedAllInWindow: 3,
-    teamFunded: 3,
-  });
-  assert.equal(teamOnly.funding.pricedNotFunded, 0, 'every price was funded — by Pokter, but funded');
-  assert.equal(teamOnly.funding.remediation, null);
-  assert.notEqual(teamOnly.headline.id, 'priced-not-funded');
-
-  /* Prices out and nothing funded at all still takes the headline, and
-     the title no longer claims a buyer that a quote intent cannot name. */
-  const nothingFunded = report({
-    owner: BUILDER_A,
-    agent: AGENT_A,
-    signedPrices: 3,
-    fundedInWindow: 0,
-    fundedAllInWindow: 0,
-  });
-  assert.equal(nothingFunded.funding.pricedNotFunded, 3);
-  assert.equal(nothingFunded.headline.id, 'priced-not-funded');
-  assert.doesNotMatch(nothingFunded.headline.title, /reached a buyer/, 'a quote intent carries no buyer');
-  assert.match(nothingFunded.funding.remediation?.reason ?? '', /cannot say who was asking/);
-
-  /* A partial gap is reported in its own section but is not the headline:
-     one job funded out of four prices is a conversion question, not the
-     closed door the headline is for. */
-  const partial = report({
-    owner: BUILDER_A,
-    agent: AGENT_A,
-    signedPrices: 4,
-    fundedInWindow: 1,
-    fundedAllInWindow: 1,
-  });
-  assert.equal(partial.funding.pricedNotFunded, 3);
-  assert.equal(partial.funding.fundedAllInWindow, 1, 'the denominator travels so the UI can state it');
-  assert.notEqual(partial.headline.id, 'priced-not-funded');
-});
-
 test('a buyer bounced before the agent was called is still a buyer who asked', () => {
   /*
    * Eight returns in the quote route stood in front of the recorder, and
@@ -722,4 +695,32 @@ test('attempts written under a padded id are read back by the panel', () => {
     db.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test('the failure counts are over every failure, not over the listed ones', () => {
+  /*
+   * The collector cut the list to twenty before the report counted it, so
+   * an agent with more than twenty failed deliveries reported exactly
+   * twenty however many it had — and nothing on the page said the list was
+   * short. A counter that saturates is worse than no counter: it is wrong
+   * in the direction that makes the problem look smaller.
+   */
+  const many = Array.from({ length: 25 }, (_, i) =>
+    job({ jobId: String(500 + i), id: `97:${500 + i}`, status: 'EXPIRED', expiredAt: `2026-10-${String((i % 28) + 1).padStart(2, '0')}T00:00:00.000Z` }),
+  );
+  const failures = deliveryFailuresFrom({
+    jobs: many,
+    now: NOW,
+    isLifecycleDemo: () => false,
+    teamWallets: teamAddressSet(),
+    noticeFor: () => null,
+  });
+  assert.equal(failures.length, 25, 'the classifier returns them all and cuts nothing');
+
+  const d = report({ owner: BUILDER_A, agent: AGENT_A, deliveryFailures: failures });
+  assert.equal(d.delivery.lapsed, 25, 'counted over all of them');
+  assert.equal(d.delivery.totalFailures, 25);
+  assert.equal(d.delivery.failures.length, DELIVERY_LIST_LIMIT, 'and the list alone is cut');
+  assert.ok(d.delivery.totalFailures > d.delivery.failures.length, 'so the page can say the list is short');
 });

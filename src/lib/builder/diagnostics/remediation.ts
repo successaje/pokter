@@ -21,8 +21,6 @@ import type { InputRefusalCode } from './attempt';
 
 const KIT = '/build/integration';
 
-export type FundingStopCode = 'priced-not-funded';
-
 export type DeliveryStopCode = 'lapsed' | 'refused-funded-job' | 'disputed';
 
 export type DiagnosticStage = 'quote' | 'funding' | 'delivery';
@@ -73,13 +71,7 @@ const INPUT: Record<InputRefusalCode, Omit<Remediation, 'code'>> = {
   },
 };
 
-const AFTER_QUOTE: Record<FundingStopCode | DeliveryStopCode, Omit<Remediation, 'code'>> = {
-  'priced-not-funded': {
-    reason:
-      'Prices were signed for this agent and no job was funded against them. A price somebody has to go back and re-read is usually one that expired while they were deciding, or one far from what the brief looked like it was worth. Pokter cannot say who was asking: a quote is signed before anyone funds, so some of these may be Pokter’s own test hires rather than buyers.',
-    fix: { label: 'The signed quote', href: `${KIT}#quote` },
-    transient: false,
-  },
+const AFTER_QUOTE: Record<DeliveryStopCode, Omit<Remediation, 'code'>> = {
   lapsed: {
     reason:
       'A funded job passed its delivery deadline with nothing submitted, so the buyer reclaimed the escrow. A job it cannot deliver still has to be seen: Pokter tells the agent over notify_funded the moment the money lands.',
@@ -100,8 +92,8 @@ const AFTER_QUOTE: Record<FundingStopCode | DeliveryStopCode, Omit<Remediation, 
   },
 };
 
-/** The fix for a stage-two or stage-three failure. */
-export function afterQuoteRemediation(code: FundingStopCode | DeliveryStopCode): Remediation {
+/** The fix for a delivery that failed. */
+export function afterQuoteRemediation(code: DeliveryStopCode): Remediation {
   return { code, ...AFTER_QUOTE[code] };
 }
 

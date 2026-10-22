@@ -101,9 +101,7 @@ test('the report refuses to assemble without a proof the gate minted', () => {
     attemptsReadable: true,
     attempts: [],
     hireFlowOpens: 0,
-    signedPrices: 0,
     fundedInWindow: 0,
-    fundedAllInWindow: 0,
     teamFunded: 0,
     history: summariseEconomicHistory([], Date.parse('2026-10-22T12:00:00.000Z')),
     deliveryFailures: [],
@@ -392,4 +390,30 @@ test('a half-broken node is an outage, not a missing agent', async () => {
     server.close();
     delete process.env.BSC_MAINNET_RPC_URL;
   }
+});
+
+
+test('every route that writes a store settles the registry number first', () => {
+  /*
+   * The canonical key was half done. `/api/hire/quote` and `/api/trial`
+   * passed the raw id to the brief-quote and quote-intent stores while the
+   * diagnostics panel queried the canonical one, so a caller at
+   * `?tokenId=045422` wrote rows that neither the public agent card nor a
+   * builder's own panel would ever find. Settling it once per route, right
+   * after validation, is what makes every store downstream agree.
+   */
+  for (const path of ['app/api/hire/quote/route.ts', 'app/api/trial/route.ts']) {
+    const src = code(path);
+    assert.match(src, /const tokenId = canonicalTokenId\(String\(body\.tokenId \?\? ''\)\)/, path);
+    assert.doesNotMatch(src, /const tokenId = String\(body\.tokenId/, `${path} must not keep the raw spelling`);
+    const settled = src.indexOf('const tokenId = canonicalTokenId(');
+    for (const writer of ['noteBriefQuote(', 'recordHireAttempt({']) {
+      const at = src.indexOf(writer);
+      if (at >= 0) assert.ok(at > settled, `${path}: ${writer} must see the canonical id`);
+    }
+  }
+  /* And the quote route's own intent write, which keyed the figure that
+     has since been cut but still writes a row other code reads. */
+  const quote = code('app/api/hire/quote/route.ts');
+  assert.ok(quote.indexOf('recordQuoteIntent({') > quote.indexOf('const tokenId = canonicalTokenId('));
 });

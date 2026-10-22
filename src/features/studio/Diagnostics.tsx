@@ -30,7 +30,6 @@ const HEADLINE_TONE: Record<HeadlineId, 'bad' | 'watch' | 'neutral' | 'ok' | 'in
   'blocked-before-any-buyer': 'bad',
   'buyers-stopped': 'watch',
   'deliveries-lapsed': 'watch',
-  'priced-not-funded': 'watch',
   'no-buyer-yet': 'neutral',
   'nothing-failing': 'ok',
   'not-measurable': 'info',
@@ -173,9 +172,9 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
             The hire, stage by stage
           </h3>
           <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
-            Each figure says what it counts, and the two that include Pokter&rsquo;s own traffic say so on the row
-            rather than leaving you to assume otherwise. See &ldquo;Not counted as demand&rdquo; below for what was
-            removed from the rest, and how much of it there was.
+            Every figure here is outside demand, with Pokter&rsquo;s own traffic removed; see &ldquo;Not counted as
+            demand&rdquo; below for what went and how much of it there was. The one section that counts Pokter&rsquo;s
+            own hires on purpose is &ldquo;Deliveries that failed&rdquo;, and it says so where it is.
           </p>
         </div>
         <div className="rounded-[14px] border border-rule bg-raised px-4 py-2 sm:px-5">
@@ -205,15 +204,14 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
             muted={demand.quoted === 0}
             note={`Out of the asks above. A price signed by this agent's registered wallet. ${windowNote}`}
           />
-          <Stage
-            label="Prices carried to funding"
-            value={String(funding.signedPrices)}
-            muted={funding.signedPrices === 0}
-            /* The one demand-side figure that is not filtered, and cannot
-               be: a quote is signed before anyone funds, so who was asking
-               is never learned for the prices that were never funded. */
-            note={`Includes Pokter's own test hires: a price is signed before anyone funds, so who was asking is only ever learned from a funding transaction. One per negotiation hash, so editing the brief and asking again records another. ${windowNote}`}
-          />
+          {/* There was a "Prices carried to funding" row here, counting
+              quote intents. It is gone: "Got a signed price" above counts
+              the same stage of the same funnel, filtered to the buyer path
+              and folded per ask rather than per re-ask, so the second row
+              was the same event measured worse — and sitting directly
+              above the funded row it read as a conversion step that
+              nothing in the data supports. The gap it implied is now where
+              it belongs, in what Pokter does not measure. */}
           <Stage
             label="Jobs an outside buyer funded"
             value={String(funding.fundedInWindow)}
@@ -261,26 +259,6 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
         )}
       </section>
 
-      {funding.pricedNotFunded > 0 && (
-        <section aria-labelledby="diag-funding-title" className="flex flex-col gap-3">
-          <h3 id="diag-funding-title" className="t-h3">
-            Priced and not funded
-          </h3>
-          <Notice tone="watch" title={`${funding.pricedNotFunded} signed price${funding.pricedNotFunded === 1 ? '' : 's'} did not become a funded job`} action={<Fix remediation={funding.remediation} />}>
-            <p>{funding.remediation?.reason}</p>
-            <p className="mt-2 text-[12.5px]">
-              An upper bound, counted as {funding.signedPrices} price
-              {funding.signedPrices === 1 ? '' : 's'} carried to funding minus {funding.fundedAllInWindow} job
-              {funding.fundedAllInWindow === 1 ? '' : 's'} funded over the same {d.window.days} days. Both sides count
-              Pokter&rsquo;s own hires, because a signed price carries no buyer and filtering one side and not the
-              other reported Pokter&rsquo;s test hires as buyers who walked away. Somebody who edits the brief and
-              asks again records a second price, so some of this gap is one person deciding rather than several
-              leaving. Pokter cannot see inside a wallet, so it cannot tell a change of mind from a balance that was
-              short.
-            </p>
-          </Notice>
-        </section>
-      )}
 
       <section aria-labelledby="diag-delivery-title" className="flex flex-col gap-3">
         <div>
@@ -303,7 +281,14 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
               : 'Nothing to report: this agent has no settled, refused, disputed or lapsed job on record. Jobs Pokter delivered on its behalf are excluded and are listed below.'}
           </Notice>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <>
+            {delivery.totalFailures > delivery.failures.length && (
+              <p className="text-[12.5px] leading-relaxed text-ink-3">
+                Showing the {delivery.failures.length} most recent of {delivery.totalFailures}. The counts above are
+                over all of them.
+              </p>
+            )}
+            <ul className="flex flex-col gap-3">
             {delivery.failures.map((failure) => (
               <li key={`${failure.escrowChainId}:${failure.jobId}`} className="flex flex-col gap-2 rounded-[12px] border border-rule bg-raised p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -328,7 +313,8 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
                 </div>
               </li>
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </section>
 
@@ -393,10 +379,9 @@ export async function Diagnostics({ chainId, tokenId }: { chainId: number; token
             Not counted as demand
           </h3>
           <p className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
-            Removed from the demand figures above &mdash; hire page opens, asks, signed prices and outside-funded jobs
-            &mdash; and shown here so you can see the size of what you are not being shown. The two rows that count
-            Pokter&rsquo;s own traffic on purpose, &ldquo;Prices carried to funding&rdquo; and &ldquo;Deliveries that
-            failed&rdquo;, say so where they are.{' '}
+            Removed from every demand figure above &mdash; hire page opens, asks, signed prices and outside-funded
+            jobs &mdash; and shown here so you can see the size of what you are not being shown. One section counts
+            Pokter&rsquo;s own traffic on purpose, &ldquo;Deliveries that failed&rdquo;, and says so where it is.{' '}
             <Link href="/proof" className="link">
               Every wallet Pokter declares as its own
             </Link>{' '}

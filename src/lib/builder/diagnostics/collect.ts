@@ -27,7 +27,7 @@ import { hireAttemptsReadable, readHireAttempts } from './store';
  */
 export async function collectBuilderDiagnostics(
   proof: AgentOwnershipProof,
-  options: { now?: number; windowDays?: number; deliveryLimit?: number } = {},
+  options: { now?: number; windowDays?: number } = {},
 ): Promise<BuilderDiagnostics> {
   const now = options.now ?? Date.now();
   const windowDays = options.windowDays ?? ATTEMPT_WINDOW_DAYS;
@@ -54,13 +54,6 @@ export async function collectBuilderDiagnostics(
     jobs = [];
   }
 
-  let signedPrices = 0;
-  try {
-    signedPrices = jobStore.quoteIntentsSince(chainId, tokenId, since.toISOString());
-  } catch {
-    signedPrices = 0;
-  }
-
   const history = agentHistory(jobs, now);
   const team = teamWalletSet();
 
@@ -80,10 +73,6 @@ export async function collectBuilderDiagnostics(
      figure uses, including a job with no recorded funder — those are the
      operator-signed demo hires from before buyers signed their own. */
   const teamFunded = funded.filter((job) => fundedByTeam(job, team)).length;
-  /* Unfiltered, as the counterpart to `signedPrices`, which cannot be
-     filtered at all: a quote intent is written before anyone funds and so
-     carries no buyer. See `fundedAllInWindow` in report.ts. */
-  const fundedAllInWindow = funded.filter((job) => Date.parse(job.hiredAt) >= since.getTime()).length;
 
   const deliveryFailures = deliveryFailuresFrom({
     jobs,
@@ -94,7 +83,8 @@ export async function collectBuilderDiagnostics(
       const notice = jobStore.noticeFor(job.chainId, job.jobId);
       return notice ? { status: notice.status, reason: notice.reason, lastAt: notice.lastAt } : null;
     },
-    limit: options.deliveryLimit ?? 20,
+    /* Uncut: the report counts over all of them and cuts the list itself,
+       because cutting first made the counts saturate at the list length. */
   });
 
   /* Narrowed here rather than in the proof: ownership is decided for any
@@ -151,9 +141,7 @@ export async function collectBuilderDiagnostics(
     attemptsReadable,
     attempts,
     hireFlowOpens,
-    signedPrices,
     fundedInWindow,
-    fundedAllInWindow,
     teamFunded,
     history,
     deliveryFailures,
