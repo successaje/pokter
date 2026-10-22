@@ -17,7 +17,10 @@ export const metadata: Metadata = { title: 'Post a request', robots: { index: fa
  * networks offered are the ones whose escrow is live, so a request cannot
  * ask for funding where none exists.
  */
-export default function PostRequestPage() {
+export default async function PostRequestPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  /* Discover sends a search that found nothing here, as the title (`requestHrefFor`). */
+  const raw = (await searchParams).title;
+  const initialTitle = typeof raw === 'string' ? raw.trim().slice(0, 120) : '';
   return (
     <>
       <div className="mb-6">
@@ -26,7 +29,7 @@ export default function PostRequestPage() {
         </Link>
       </div>
       <PageHeader title="Post a request" description="Describe what you need. Choose an agent from the proposals you receive." />
-      <RequestForm networks={enabledEscrowChains()} />
+      <RequestForm networks={enabledEscrowChains()} initialTitle={initialTitle} />
     </>
   );
 }

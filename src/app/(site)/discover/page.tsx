@@ -20,6 +20,9 @@ import { outsideActivity } from '@/lib/erc8183/outside-activity';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { LinkButton } from '@/ui/Button';
+import { CATEGORIES } from '@/lib/agents/categories';
+import type { FindRow } from '@/lib/find/rows';
+import { requestHrefFor } from '@/features/discover/params';
 
 export const metadata: Metadata = {
   title: 'Find an agent for the job',
@@ -294,39 +297,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
 
           {result.total === 0 ? (
-            <div className="flex flex-col gap-6">
-              <EmptyState
-                title={p.q ? (result.suggestions?.close.length ? `No agent named “${p.q}”` : `Nothing found for “${p.q}”`) : 'Nothing matches these filters'}
-                action={
-                  <>
-                    <LinkButton href="/discover" intent="secondary" size="s">
-                      Clear everything
-                    </LinkButton>
-                    {p.q && activeFilters > 0 && (
-                      <LinkButton href={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} intent="ghost" size="s">
-                        Keep the words, drop the filters
-                      </LinkButton>
-                    )}
-                  </>
-                }
-              >
-                {p.q
-                  ? result.suggestions?.close.length
-                    ? 'No listed agent has that name. These are the closest names Pokter knows.'
-                    : 'No listed agent has that name or describes that task. These answered this week and can be hired now.'
-                  : 'Loosen a filter to see more.'}
-              </EmptyState>
-              {result.suggestions && (result.suggestions.close.length > 0 || result.suggestions.active.length > 0) && (
-                <section aria-label={result.suggestions.close.length ? 'Did you mean' : 'Hireable now'}>
-                  <h2 className="t-label mb-2">{result.suggestions.close.length ? 'Did you mean' : 'Hireable now'}</h2>
-                  <div className="ruled">
-                    {(result.suggestions.close.length ? result.suggestions.close : result.suggestions.active).map((row) => (
-                      <AgentRow key={row.key} row={row} />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
+            <NoMatch q={p.q} close={result.suggestions?.close ?? []} categoryLabel={result.reading?.categoryLabel ?? null} filtered={activeFilters > 0} keepWordsHref={discoverHref({ category: null, hireable: false, answering: false, priced: false, checked: false, outsideDelivery: false, evidence: 'any', chain: 'any' }, p)} />
           ) : (
             [shown.filter((row) => !row.nameOnly), shown.filter((row) => row.nameOnly)].map((group, g) =>
               group.length === 0 ? null : (
@@ -418,4 +389,107 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 /* One clock for the page, so every "posted 2 hours ago" agrees. */
 function renderedAt(): number {
   return Date.now();
+}
+
+/**
+ * What a search that found nothing says, and where it sends somebody.
+ *
+ * It used to fall back to three agents that "answered this week and can be
+ * hired now". Asked to translate Korean subtitles, it offered DeFi agents:
+ * a recommendation for a job none of them does. Now there are four cases,
+ * and none of them shows an agent that was not asked for.
+ *
+ * - A name close to an agent's: "Did you mean", which is a real match.
+ * - Filters on: the words may be fine and the filters too narrow.
+ * - Words in one of Pokter's categories: nothing listed does it yet.
+ * - Words in none: outside what Pokter covers, said plainly, with its
+ *   scope named so the reader knows what it is for.
+ *
+ * Every case with words offers the request board, with them carried over,
+ * because posting is how a job nobody lists gets a proposal.
+ */
+function NoMatch({ q, close, categoryLabel, filtered, keepWordsHref }: { q: string; close: FindRow[]; categoryLabel: string | null; filtered: boolean; keepWordsHref: string }) {
+  const post = (
+    <LinkButton href={requestHrefFor(q)} size="s" intent={close.length || filtered ? 'ghost' : 'primary'} icon={<Icon.Plus size={14} />}>
+      Post this as a request
+    </LinkButton>
+  );
+  if (!q) {
+    return (
+      <EmptyState
+        title="Nothing matches these filters"
+        action={
+          <LinkButton href="/discover" intent="secondary" size="s">
+            Clear everything
+          </LinkButton>
+        }
+      >
+        Loosen a filter to see more.
+      </EmptyState>
+    );
+  }
+  if (close.length) {
+    return (
+      <div className="flex flex-col gap-6">
+        <EmptyState title={`No agent named “${q}”`} action={post}>
+          No listed agent has that name. These are the closest names Pokter knows.
+        </EmptyState>
+        <section aria-label="Did you mean">
+          <h2 className="t-label mb-2">Did you mean</h2>
+          <div className="ruled">
+            {close.map((row) => (
+              <AgentRow key={row.key} row={row} />
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+  if (filtered) {
+    return (
+      <EmptyState
+        title={`Nothing found for “${q}” with these filters`}
+        action={
+          <>
+            <LinkButton href={keepWordsHref} intent="secondary" size="s">
+              Keep the words, drop the filters
+            </LinkButton>
+            {post}
+          </>
+        }
+      >
+        The filters may be what rules it out. Try without them first.
+      </EmptyState>
+    );
+  }
+  const scope = CATEGORIES.map((c) => c.label.toLowerCase()).join(', ');
+  return categoryLabel ? (
+    <EmptyState
+      title="No listed agent does this yet"
+      action={
+        <>
+          {post}
+          <LinkButton href="/discover" intent="ghost" size="s">
+            Clear search
+          </LinkButton>
+        </>
+      }
+    >
+      Pokter read “{q}” as {categoryLabel}, but no agent listed here describes it. Post it as a request: builders who can do it send proposals with a price, and you choose one before anything is paid.
+    </EmptyState>
+  ) : (
+    <EmptyState
+      title={`Pokter doesn’t cover “${q}”`}
+      action={
+        <>
+          {post}
+          <LinkButton href="/discover" intent="ghost" size="s">
+            Clear search
+          </LinkButton>
+        </>
+      }
+    >
+      Pokter lists agents that work on BNB Chain: {scope}. This is outside that, so no listed agent does it, and suggesting others would only be a guess. You can still post it as a request for builders to see, though nobody may take it on.
+    </EmptyState>
+  );
 }

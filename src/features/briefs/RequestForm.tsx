@@ -55,12 +55,12 @@ const lines = (value: string) => value.split('\n').map((l) => l.trim()).filter(B
  * public and fixed. The review shows the request through the same
  * component its page uses, so what is approved is what builders read.
  */
-export function RequestForm({ networks }: { networks: number[] }) {
+export function RequestForm({ networks, initialTitle = '' }: { networks: number[]; initialTitle?: string }) {
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
 
-  const empty: Draft = { title: '', brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, deliverDays: 3, closesInDays: 0, category: null };
+  const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, deliverDays: 3, closesInDays: 0, category: null };
   const [draft, setDraft] = useState<Draft>(empty);
   const [restored, setRestored] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -77,6 +77,13 @@ export function RequestForm({ networks }: { networks: number[] }) {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as Draft;
+      /*
+       * Arriving from a search with nothing typed into this form before:
+       * the search is the title. A draft somebody was writing wins over it,
+       * because overwriting unfinished work to save typing a title is the
+       * wrong trade; the search is a click away.
+       */
+      if (initialTitle && !saved.title?.trim() && !saved.brief?.trim()) return;
       if (!networks.includes(saved.chainId)) saved.chainId = networks[0] ?? 97;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from browser storage
       setDraft({ ...empty, ...saved });

@@ -27,7 +27,8 @@ export interface DiscoverResult {
   /** Agents under every filter but the task: the "All tasks" count. */
   allTasksCount: number;
   /** When a search finds nothing: names close to it, else agents hireable now. */
-  suggestions: { close: FindRow[]; active: FindRow[] } | null;
+  /** Agents whose names are close to a query that matched nothing; never unrelated ones. */
+  suggestions: { close: FindRow[] } | null;
   /** How a natural-language query was read; null for no query or advanced syntax. */
   reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean }) | null;
   advanced: { unknown: string[] } | null;
@@ -179,10 +180,14 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   if (q && !usesGrammar && rows.length === 0) {
     const everyone = mainnetFirstPerAgent(promotable, (e) => e.listing.agent).items;
     const close = closestNames(everyone, (e) => e.listing.agent.name, q);
-    const active = close.length
-      ? []
-      : orderMarketplace(everyone.filter((e) => offersDirectHire(e) && answeredThisWeek(e)), 'recommended').slice(0, 3);
-    suggestions = { close: findRows(close), active: findRows(active) };
+    /*
+     * Names close to what was typed, and nothing else. This used to fall
+     * back to three agents that "answered this week and can be hired now",
+     * whatever was asked: "Translate Korean subtitles" got DeFi agents,
+     * which reads as a recommendation for a job none of them does. The page
+     * now says why nothing matched and offers the request board instead.
+     */
+    suggestions = { close: findRows(close) };
   }
 
   /*
