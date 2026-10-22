@@ -102,3 +102,37 @@ test('a delivery Pokter merely hosts is still the builder’s own work', () => {
   assert.equal(producerIn('lib/evidence/deliver.ts'), 'Pokter Evidence');
   assert.equal(deliveryKind('Pokter Evidence', { answer: {}, answered_by: {} }), 'agent');
 });
+
+test('valid JSON that is not a manifest is the absence of evidence, not a crash', () => {
+  /*
+   * `readDeliverable` returns whatever was stored, and the `try` only ever
+   * covered text that would not parse. `null` parses perfectly and then
+   * threw on the first property read — a crash in the path every agent page
+   * and API reads its record through, rather than the "nothing on file"
+   * each caller is written to expect.
+   */
+  for (const stored of ['null', '[]', '[{"metadata":{}}]', '5', '"a string"', 'true', '""']) {
+    assert.equal(readDeliveredManifest(stored), null, stored);
+  }
+  // Still null for text that is not JSON at all.
+  for (const stored of ['', '{', 'undefined', '<html>']) {
+    assert.equal(readDeliveredManifest(stored), null, JSON.stringify(stored));
+  }
+});
+
+test('a manifest whose fields are the wrong type reads as far as it safely can', () => {
+  /*
+   * `metadata` and `response` are read off an object that parsed, so a
+   * string or a number there yields `undefined` rather than throwing — but
+   * only a `typeof` check makes the value usable, and a half-read manifest
+   * must not be classified as if it were whole.
+   */
+  assert.deepEqual(readDeliveredManifest('{"metadata":"nope","response":42}'), {
+    kind: 'agent',
+    answeredBy: null,
+  });
+  assert.deepEqual(
+    readDeliveredManifest(JSON.stringify({ metadata: { producer: 42, answered_by: ['97', '2599'] }, response: { content: null } })),
+    { kind: 'agent', answeredBy: null },
+  );
+});

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { summariseEconomicHistory } from '../src/lib/erc8183/economic-history.js';
 import type { HiredJob } from '../src/lib/erc8183/types.js';
+import { carriesRelayedAnswerFor, readDeliveredManifest } from '../src/lib/agent/delivery-kind.js';
 
 function job(status: HiredJob['status'], budgetRaw = '100000000000000000', client?: HiredJob['client']): HiredJob {
   return {
@@ -228,4 +229,38 @@ test('without the manifest predicate nothing is assumed to be relayed', () => {
   const history = summariseEconomicHistory([owed('COMPLETED', POKTER)]);
   assert.equal(history.operatorDelivered, 1);
   assert.equal(history.relayedDelivered, 0, 'an unread manifest is not evidence of a carried answer');
+});
+
+test('a stored manifest that is not an object does not break an agent’s record', () => {
+  /*
+   * The regression, through the path that reads it rather than through the
+   * parser alone. `credited-history` builds these two predicates from
+   * `readDeliveredManifest` and hands them to this summary; every agent
+   * page and API reports its record through it. A stored `null` threw on
+   * the first property read, so one unreadable manifest took out the whole
+   * record rather than counting as nothing known about that job.
+   */
+  const stored = new Map<string, string>([
+    ['a', 'null'],
+    ['b', '[]'],
+    ['c', '"a string"'],
+    ['d', JSON.stringify({ metadata: { producer: 'Pokter delivery agent (courier)', answered_by: '56:1' }, response: { content: JSON.stringify({ answer: {}, answered_by: {} }) } })],
+  ]);
+  const jobs = [...stored.keys()].map((key) => ({ ...job('COMPLETED'), jobId: key }));
+  const manifestOf = (id: string) => {
+    const text = stored.get(id);
+    return text === undefined ? null : readDeliveredManifest(text);
+  };
+
+  const history = summariseEconomicHistory(jobs, Date.now(), {
+    isLifecycleDemo: (j) => manifestOf(j.jobId)?.kind === 'lifecycle',
+    isRelayedDelivery: (j) =>
+      carriesRelayedAnswerFor(manifestOf(j.jobId), { chainId: j.agentChainId, tokenId: j.agentTokenId }),
+  });
+
+  assert.equal(history.jobs, 4, 'every job is still counted');
+  assert.equal(history.delivered, 4);
+  /* Only the readable one is credited as a carried answer; the three
+     unreadable manifests are nothing known, not a default either way. */
+  assert.equal(history.relayedDelivered, 1);
 });
