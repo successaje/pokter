@@ -166,7 +166,7 @@ test('the review step shows the subject from the quote, so a brief edit clears i
    */
   const flow = src('features/hire/HireFlow.tsx');
   assert.match(flow, /hire\.reviewQuote\?\.request\.subject/);
-  assert.match(flow, /What it will be asked/);
+  assert.match(flow, /What \{props\.agent\.name\} will be asked/);
   assert.match(flow, /Your brief is sent whole alongside it/);
 
   const hook = code('lib/hire/useHire.ts');

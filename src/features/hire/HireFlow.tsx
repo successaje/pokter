@@ -634,12 +634,13 @@ export function HireFlow(props: HireFlowProps) {
           */}
           {hire.reviewQuote?.request.subject && (
             <p className="text-[13px] text-ink-2">
-              <span className="font-medium text-ink">What it will be asked: </span>
+              <span className="font-medium text-ink">What {props.agent.name} will be asked: </span>
               a report on agent{' '}
               <span className="font-mono text-ink">{hire.reviewQuote.request.subject.value}</span>
               {hire.reviewQuote.request.skill ? (
                 <>
-                  {' '}under its own <span className="font-mono text-ink">{hire.reviewQuote.request.skill}</span> skill
+                  , through the <span className="font-mono text-ink">{hire.reviewQuote.request.skill}</span> skill it
+                  publishes
                 </>
               ) : null}
               . Your brief is sent whole alongside it.
