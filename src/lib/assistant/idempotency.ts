@@ -152,7 +152,11 @@ export function retryDecision(input: {
   if (input.recorded) {
     return {
       action: 'reuse',
-      message: 'This request was prepared before and is still waiting for the owner’s approval. The same unsigned request is returned, under the same key.',
+      /* The same purchase, under the same key, and not necessarily at the
+         same price: the amount is not part of the key, so a re-quote is
+         answered here. The response says what it was first priced at. */
+      message:
+        'This purchase was prepared before and is still waiting for the owner’s approval. It is returned under the same key, re-priced if the agent answered differently — check the amount against what the owner was told.',
     };
   }
   return { action: 'prepare', message: 'No request has been prepared for these terms yet.' };
@@ -172,6 +176,17 @@ export function retryDecision(input: {
  * A job for this agent, this provider and this exact brief is this
  * purchase, whatever it was finally funded at — and the amount it was
  * actually funded at is on chain for the owner to read.
+ *
+ * Matched on the funding wallet when both are known, because the index is
+ * everybody's. `byAgent` returns every job ever funded for an agent, by any
+ * buyer, and the fields above identify work rather than a buyer: an agent's
+ * own published example brief, or one owner's question about a public
+ * protocol address, is a brief two owners can send byte for byte. Without
+ * this, the second owner is told their hire "was already funded as job N"
+ * — somebody else's job, which they cannot release, dispute or read — and
+ * can never prepare that hire at all. A row indexed before `client` was
+ * kept has none, and an owner that did not say who they are cannot be
+ * compared with: both still match on the work, as before.
  */
 export function indexedJobForTerms(
   jobs: readonly {
@@ -181,8 +196,12 @@ export function indexedJobForTerms(
     agentTokenId: string;
     provider: string;
     task: string;
+    /** The wallet that funded it, where the index kept one. */
+    client?: string | null;
   }[],
   terms: HireRequestTerms,
+  /** The owner this request would be prepared for, where they said. */
+  owner?: string | null,
 ): { jobId: string; chainId: number } | null {
   const found = jobs.find(
     (job) =>
@@ -190,7 +209,8 @@ export function indexedJobForTerms(
       (job.agentChainId ?? 56) === terms.agentChainId &&
       job.agentTokenId === terms.agentTokenId &&
       job.provider.toLowerCase() === terms.provider.toLowerCase() &&
-      job.task === terms.task,
+      job.task === terms.task &&
+      (!owner || !job.client || job.client.toLowerCase() === owner.toLowerCase()),
   );
   return found ? { jobId: found.jobId, chainId: found.chainId } : null;
 }

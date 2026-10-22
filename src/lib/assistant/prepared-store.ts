@@ -133,9 +133,14 @@ export function readPreparedHire(db: DatabaseSync, key: string): PreparedHireRec
  * reads back the winner's row. A JavaScript check around the insert would
  * leave exactly the gap that produces two requests for one purchase.
  *
- * The stored request is never overwritten. A retry gets back the bytes the
- * owner was first shown, so an assistant cannot be handed a quietly
- * different set of terms under a key it has already quoted to a human.
+ * The stored request is never overwritten, and that is what the row is for:
+ * the price is deliberately not part of the key, so a retry can be answered
+ * at a different number under the same key. The first offer stays here to
+ * be compared with the current one — `/api/hire/prepare` returns the fresh
+ * request, because a stale expiry would send an owner to approve a price
+ * that has lapsed, and reports this row's amount beside it. What a caller
+ * must not be able to do is quote one figure to a human and hand over
+ * another under the same key without either of them being told.
  */
 export function recordPreparedHire(db: DatabaseSync, write: PreparedHireWrite): 'recorded' | 'kept' {
   const inserted = db

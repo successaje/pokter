@@ -264,6 +264,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const decision = retryDecision({
     recorded: recorded ? { jobId: recorded.jobId, chainId: recorded.chainId } : null,
+    /* The index is everybody's — `byAgent` is every buyer's job for this
+       agent — so the funding wallet travels with it. A brief is work, not a
+       buyer, and two owners can send one byte for byte. */
     indexed: indexedJobForTerms(
       store.byAgent(chainId, tokenId).map((job) => ({
         jobId: job.jobId,
@@ -272,8 +275,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         agentTokenId: job.agentTokenId,
         provider: job.provider,
         task: job.task,
+        client: job.client ?? null,
       })),
       terms,
+      ownerAddress,
     ),
     ...(uncertainJobId && reconciled ? { uncertain: { jobId: uncertainJobId, outcome: reconciled.outcome } } : {}),
   });
@@ -377,18 +382,22 @@ export async function POST(request: Request): Promise<NextResponse> {
    * Recorded under the key, and the first row stands.
    *
    * What a retry must not do is become a second purchase, and the key is
-   * what prevents that: it is derived from the terms that decide the
-   * money — agent, chain, escrow, provider, token, amount, task — so a
-   * second call for the same purchase cannot produce a second row, and once
-   * a row has a job no further request is prepared for it at all.
+   * what prevents that: it is derived from what the owner is buying —
+   * agent, chain, escrow, provider, token, task — so a second call for the
+   * same purchase cannot produce a second row, and once a row has a job no
+   * further request is prepared for it at all.
    *
    * The response carries the current preparation rather than the stored
-   * bytes, because the one field that legitimately moves between two calls
-   * for the same purchase is the signature: a quote holds for minutes, and
-   * handing back a stale expiry would send an owner to approve a price that
-   * has lapsed. The material terms are identical by construction — a
-   * different price is a different key — and the first offer stays on the
-   * row, with the time it was made.
+   * bytes, because a quote holds for minutes and handing back a stale
+   * expiry would send an owner to approve a price that has lapsed. What
+   * moves between two calls is therefore not only the signature: the price
+   * is deliberately not part of the key (see `hireRequestKey`), so a retry
+   * can be answered at a different number under the same key. That is the
+   * point — a re-quote must not become a second purchase — but it means
+   * "the same request" is a claim about the work and not about the amount.
+   * So the first offer stays on the row and is reported beside the current
+   * one, and an assistant that has already quoted a figure to a human can
+   * see that the figure moved rather than be told it cannot have.
    */
   const write = store.recordPreparedHire({
     key: requestKey,
@@ -410,9 +419,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     state: 'unsigned-awaiting-owner-approval',
     prepared: prepared.prepared,
     firstPrepared: write === 'recorded',
-    /* When this purchase was first prepared, where it was prepared before:
-       the same key, the same terms, a fresher signature. */
-    ...(held ? { firstPreparedAt: held.preparedAt } : {}),
+    /* When this purchase was first prepared, where it was prepared before,
+       and what it was priced at then. The amount is reported because it is
+       the one material term the key does not hold: a retry answered at a
+       different number is still this purchase, and the owner has to be
+       shown the number they are actually approving. */
+    ...(held
+      ? {
+          firstPreparedAt: held.preparedAt,
+          firstAmountRaw: held.amountRaw,
+          priceChangedSinceFirstPrepared: held.amountRaw !== quote.priceRaw,
+        }
+      : {}),
     ...(reconciled ? { reconciled: { outcome: reconciled.outcome, retrySafe: reconciled.retrySafe, jobId: uncertainJobId } } : {}),
     owner: ownerAddress,
     message: decision.message,

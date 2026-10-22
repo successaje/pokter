@@ -551,6 +551,30 @@ test('a hire funded on another device is found in the index rather than bought a
   assert.equal(retryDecision({ recorded: null, indexed: null }).action, 'prepare');
 });
 
+test('one owner is never handed another owner’s job out of the shared index', () => {
+  /*
+   * `byAgent` is every buyer's job for this agent, and the fields that
+   * identify a purchase identify work rather than a buyer: an agent's own
+   * published example brief, or a question about a public protocol address,
+   * is a brief two owners can send byte for byte. Told that purchase "was
+   * already funded as job N", the second owner is pointed at a job they
+   * cannot release, dispute or read — and can never prepare that hire.
+   */
+  const mine = { jobId: '1601', chainId: 56, agentChainId: 56, agentTokenId: '367904', provider: AGENT_WALLET, task: TERMS.task, client: OWNER };
+  const theirs = { ...mine, jobId: '1702', client: ELSEWHERE };
+
+  assert.deepEqual(indexedJobForTerms([mine], TERMS, OWNER), { jobId: '1601', chainId: 56 }, 'my own hire is still found');
+  assert.equal(indexedJobForTerms([theirs], TERMS, OWNER), null, 'somebody else’s is not mine');
+  assert.deepEqual(indexedJobForTerms([theirs, mine], TERMS, OWNER), { jobId: '1601', chainId: 56 }, 'and mine is found past theirs');
+  assert.equal(retryDecision({ recorded: null, indexed: indexedJobForTerms([theirs], TERMS, OWNER) }).action, 'prepare');
+
+  /* Nothing to compare with still matches on the work, as it did before:
+     an owner who did not say who they are, and a row indexed before the
+     funding wallet was kept. */
+  assert.deepEqual(indexedJobForTerms([theirs], TERMS, null), { jobId: '1702', chainId: 56 });
+  assert.deepEqual(indexedJobForTerms([{ ...mine, client: undefined }], TERMS, OWNER), { jobId: '1601', chainId: 56 });
+});
+
 // ── 5. An uncertain payment is read from the chain before anything is retried ──
 
 const expect = { owner: OWNER, provider: AGENT_WALLET, amountRaw: PRICE, task: TERMS.task };
