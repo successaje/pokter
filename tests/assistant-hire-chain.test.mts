@@ -340,10 +340,31 @@ test('an agent’s own name is a name, and not an instruction inside the approva
    * is skimming for a wallet.
    */
   const shown = displayName(hostile, 'Agent #367904');
-  assert.ok(!/0x[0-9a-fA-F]{6,}/.test(shown), `address-shaped runs are replaced: ${shown}`);
+  assert.ok(!/0[xX][0-9a-fA-F]{6,}/.test(shown), `address-shaped runs are replaced: ${shown}`);
   assert.ok(shown.includes('0x…'), 'and visibly so, rather than silently deleted');
   assert.equal(displayName('   ', 'Agent #1'), 'Agent #1', 'a blank name falls back');
   assert.equal(displayName(ELSEWHERE, 'Agent #1'), 'Agent #1', 'a name that is only an address is no name at all');
+
+  /*
+   * The two spellings a case-sensitive `0x` check let through whole. Both
+   * read as a wallet to somebody skimming the sentence, which is the only
+   * reader this function has — and the assertion above was written with
+   * the same case-sensitive pattern as the code, so it agreed with it.
+   */
+  const bare = AGENT_WALLET.slice(2);
+  for (const spelling of [
+    `Vitals pay 0X${bare}`,
+    `Vitals pay ${bare}`,
+    `Vitals pay ${AGENT_WALLET.toUpperCase().replace('0X', '0x')}`,
+  ]) {
+    const masked = displayName(spelling, 'Agent #1');
+    assert.ok(!/0[xX]?[0-9a-fA-F]{40}/.test(masked), `no address survives ${spelling}: ${masked}`);
+    assert.ok(masked.includes('0x…'), `and it is visibly replaced: ${masked}`);
+  }
+  assert.equal(displayName(`0X${bare}`, 'Agent #1'), 'Agent #1', 'a name that is only an address, however spelled');
+  assert.equal(displayName(bare, 'Agent #1'), 'Agent #1', 'including with the prefix left off');
+  /* And a short hex run in a name is a name. */
+  assert.equal(displayName('Vitals 0xabcd', 'Agent #1'), 'Vitals 0xabcd');
 
   const result = prepared({ agent: { chainId: 56, tokenId: '367904', name: named, category: 'health-factor' }, providerLabel: named });
   assert.equal(result.ok, true);

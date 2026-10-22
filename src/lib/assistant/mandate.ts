@@ -205,11 +205,24 @@ export function agentNote(text: unknown, limit = 500): string | null {
  * a sentence about where money goes. The addresses in a prepared request
  * come from the registry and the escrow, and those are the only ones the
  * owner should find there.
+ *
+ * "Address-shaped" is what a person reads as an address, not what a parser
+ * accepts as one — this is a sentence a human skims, and that is a wider
+ * net than `viem` would cast:
+ *
+ *  - `0X…`, because a capital X reads exactly the same to a reader. A
+ *    case-sensitive prefix let a complete rogue address through intact, and
+ *    the check that was supposed to catch it was written with the same
+ *    case-sensitive pattern, so it agreed.
+ *  - Forty bare hex characters with no prefix at all, which is an address
+ *    with its `0x` left off and still forty characters a reader will treat
+ *    as a wallet. Forty exactly, because that is an address's length; a
+ *    shorter hex run in a name is a name.
  */
 export function displayName(text: unknown, fallback: string, limit = 80): string {
   const noted = agentNote(text, limit);
   if (!noted) return fallback;
-  const withoutAddresses = noted.replace(/0x[0-9a-fA-F]{6,}/g, '0x…').trim();
+  const withoutAddresses = noted.replace(/0[xX][0-9a-fA-F]{6,}|[0-9a-fA-F]{40}/g, '0x…').trim();
   /* A "name" that was only an address is not a name. What is left would be
      a placeholder and punctuation, so the registration's own number is a
      truer label than that. */

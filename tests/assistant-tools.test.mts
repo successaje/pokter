@@ -192,7 +192,11 @@ test('the prepare route calls no spending function, and imports no binding that 
    * is, and an added import shows up here rather than in a review.
    */
   const imported = new Map<string, string[]>();
-  for (const [, names, from] of route.matchAll(/import\s*\{([^}]+)\}\s*from\s*'([^']+)'/g)) {
+  /* `import type { … }` too, so the module set below is every module the
+     route names. A type-only import is erased and can carry no binding, so
+     it needs no allowlist entry — but it must not be able to hide a module
+     from the set. */
+  for (const [, names, from] of route.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s*from\s*'([^']+)'/g)) {
     imported.set(from, names.split(',').map((name) => name.replace(/\s+as\s+\w+/, '').replace('type ', '').trim()));
   }
   const allowed: Record<string, string[]> = {
@@ -205,6 +209,46 @@ test('the prepare route calls no spending function, and imports no binding that 
   for (const [from, names] of Object.entries(allowed)) {
     assert.deepEqual(imported.get(from), names, `only read bindings from ${from}`);
   }
+  /*
+   * And the allowlist is closed over modules, not only over the five it
+   * names. Checked only against `allowed`, a *sixth* spend-capable module
+   * was not noticed at all: adding `import { quoteBnbForPaymentToken }
+   * from '@/lib/network/swap'` to the route passed this file untouched,
+   * because nothing iterated the imports the route actually has. So the
+   * set of places it imports from is the assertion, and a new one is a
+   * failing test that asks for the transitive walk to be redone rather
+   * than a line nobody reads.
+   */
+  const KNOWN_SOURCES = [
+    'next/server',
+    'viem',
+    '@altananetwork/sdk',
+    '@/app/api/hire/compile/route',
+    '@/app/api/hire/quote/route',
+    '@/lib/agents/categories',
+    '@/lib/altana/client',
+    '@/lib/api/respond',
+    '@/lib/assistant/idempotency',
+    '@/lib/assistant/hire-request',
+    '@/lib/assistant/mandate',
+    '@/lib/assistant/reconcile-hire',
+    '@/lib/erc8183/addresses',
+    '@/lib/erc8183/job-envelope',
+    '@/lib/erc8183/skill-request',
+    '@/lib/erc8183/store',
+    '@/lib/hire/budget-limits',
+    '@/lib/hire/brief-compiler',
+    '@/lib/mcp/agent-card',
+    '@/lib/network/tokens',
+    '@/lib/scan/client',
+    '@/lib/scan/types',
+    '@/lib/security/rate-limit',
+  ];
+  assert.deepEqual(
+    [...imported.keys()].sort(),
+    [...KNOWN_SOURCES].sort(),
+    'the route imports from these modules and no others; a new one needs its graph walked before it is added here',
+  );
   /* Nor does it write a job, or hold the operator write gate that the one
      spending route has. */
   for (const write of ['getJobStore().record(', 'requireDemoWriteAccess']) {
