@@ -7,6 +7,7 @@ import { verifyMessage } from 'viem';
 import { coverage, STALE_AFTER_MS } from '../src/lib/trading/coverage';
 import {
   normaliseOwners,
+  ownersAlreadyRecorded,
   ownersMessage,
   ownersSignatureProblem,
   ownersSignedAtMs,
@@ -91,6 +92,63 @@ test('the owners route reads the answer the write gives it', () => {
   assert.match(ownersRoute, /=\s*store\.setOwners\(/);
   assert.match(ownersRoute, /'not-newer'/);
   assert.match(ownersRoute, /'not-watched'/);
+});
+
+test('a retry asking for exactly what is saved is recognised as already saved', () => {
+  const at = new Date(now).toISOString();
+  const saved = { owners: ['0x00000000000000000000000000000000000000aa'], signedAt: at };
+  assert.equal(ownersAlreadyRecorded(saved, { owners: ['0x00000000000000000000000000000000000000aa'], issuedAt: at }), true);
+  // The same instant written another way is the same instant.
+  assert.equal(
+    ownersAlreadyRecorded({ owners: [], signedAt: '2026-10-21T13:00:00+01:00' }, { owners: [], issuedAt: '2026-10-21T12:00:00Z' }),
+    true,
+  );
+  // A different list at the same time is not a retry, it is a conflict.
+  assert.equal(ownersAlreadyRecorded(saved, { owners: ['0x00000000000000000000000000000000000000bb'], issuedAt: at }), false);
+  assert.equal(ownersAlreadyRecorded(saved, { owners: [], issuedAt: at }), false);
+  // Nor is the same list signed at a different time.
+  assert.equal(ownersAlreadyRecorded(saved, { owners: saved.owners, issuedAt: new Date(now - 1000).toISOString() }), false);
+  // Nothing saved, and an unreadable time, are not retries of anything.
+  assert.equal(ownersAlreadyRecorded(null, { owners: [], issuedAt: at }), false);
+  assert.equal(ownersAlreadyRecorded({ owners: [], signedAt: null }, { owners: [], issuedAt: at }), false);
+  assert.equal(ownersAlreadyRecorded(saved, { owners: saved.owners, issuedAt: 'yesterday' }), false);
+});
+
+test('the owners route answers its own retry with the list, not a conflict', () => {
+  /* The retry reaches the write (the staleness refusal is lifted for it) and
+     the write still drops it, because an equal time is not newer. What the
+     caller is told is decided by reading back: the state it asked for is the
+     state there is, so that is success, not 409. */
+  assert.match(ownersRoute, /ownersAlreadyRecorded\(/);
+  assert.match(ownersRoute, /lastSignedAt: retry \? null : watched\.ownersSignedAt/);
+  const recognises = ownersRoute.lastIndexOf('ownersAlreadyRecorded(');
+  assert.ok(recognises > ownersRoute.indexOf('store.setOwners('), 'the retry is only answered after the write has had its say');
+  /* And answered from a fresh read, not from `watched`. Asking after the write
+     but against the snapshot taken before it is the whole defect again: a
+     resend whose state was overwritten in the awaits would be told `ok` for a
+     list that is not in force. The read is the line that tells the retry and
+     the lost race apart, so it is pinned here. */
+  assert.match(ownersRoute, /const recorded = store\.ownerList\(wallet\)/, 'the retry is judged against a fresh read of the row');
+  assert.ok(
+    ownersRoute.indexOf('store.ownerList(wallet)') > ownersRoute.indexOf('store.setOwners('),
+    'and that read happens after the write, not before it',
+  );
+});
+
+test('the trading routes name the chain they verify on', () => {
+  // Two bare 56s in a signature check were the only hardcoded chain ids left
+  // in the repo, and this project has paid twice for a one-chain assumption.
+  assert.doesNotMatch(ownersRoute, /signedByWallet\(56|walletCanBeChecked\(56/);
+  assert.match(ownersRoute, /walletCanBeChecked\(TRADING_CHAIN_ID/);
+  assert.match(ownersRoute, /signedByWallet\(TRADING_CHAIN_ID/);
+});
+
+test('the panel shows the list that won when its own change is refused', () => {
+  /* The refusal carries the saved list, and the addresses on screen are then
+     wrong. Reading `body.owners` was dead weight until the panel used it. */
+  const panel = readFileSync(new URL('../src/features/trading/TradingWatchPanel.tsx', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(panel, /owners\?: string\[\]/, 'the refusal body carries a list');
+  assert.match(panel, /if \(body\.owners\) onSaved\(\)/, 'a refusal that names a list must reload the one in force');
 });
 
 test('the owner list is only ever written through the guard', () => {

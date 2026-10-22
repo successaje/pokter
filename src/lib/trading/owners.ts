@@ -71,6 +71,30 @@ export function ownersUpdateSupersedes(issuedAtMs: number, recordedMs: number | 
 }
 
 /**
+ * Whether what is recorded is already exactly what this request asks for.
+ *
+ * A retried request — a double submit, or a client that resent after losing
+ * the response — carries the same list and the same signed time as the one
+ * already saved. Treated as a stale list it was refused, which is untrue of
+ * it twice over: nothing is being replaced, and the state the caller wanted
+ * is the state there is. So the route answers it with the list instead of a
+ * conflict, once the signature over it has been checked like any other.
+ *
+ * Times are compared as instants, not as text, because the same moment can
+ * be written more than one way; lists element by element, because both
+ * sides have been through `normaliseOwners` and so are sorted and lowered.
+ */
+export function ownersAlreadyRecorded(
+  recorded: { owners: readonly string[]; signedAt: string | null } | null,
+  asked: { owners: readonly string[]; issuedAt: string },
+): boolean {
+  if (!recorded || recorded.signedAt === null) return false;
+  const at = ownersSignedAtMs(asked.issuedAt);
+  if (at === null || at !== ownersSignedAtMs(recorded.signedAt)) return false;
+  return recorded.owners.length === asked.owners.length && recorded.owners.every((o, i) => o === asked.owners[i]);
+}
+
+/**
  * Whether a signed list may replace the stored one, before the signature
  * itself is checked: recent, not from the future, and newer than the list
  * it replaces, so an old signature cannot be replayed to bring back an

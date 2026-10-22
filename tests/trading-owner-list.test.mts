@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerListWrite } from '../src/lib/trading/owner-list';
-import { ownersSignatureProblem, ownersSignedAtMs, ownersUpdateSupersedes } from '../src/lib/trading/owners';
+import { ownersAlreadyRecorded, ownersSignatureProblem, ownersSignedAtMs, ownersUpdateSupersedes } from '../src/lib/trading/owners';
 
 /*
  * The owner list is the one address set money may leave for without an
@@ -57,15 +57,25 @@ interface Attempt {
   signatureHolds?: boolean;
 }
 
-type Outcome = OwnerListWrite | 'refused' | 'bad-signature';
+type Outcome = OwnerListWrite | 'refused' | 'bad-signature' | 'already-saved';
 
 /** One request in the route's own order, with its verification awaited. */
 async function request(db: DatabaseSync, attempt: Attempt): Promise<Outcome> {
   const recorded = readOwnerList(db, WALLET);
-  if (ownersSignatureProblem({ issuedAt: attempt.issuedAt, now: NOW, lastSignedAt: recorded?.signedAt ?? null })) return 'refused';
+  /* The route lifts the staleness refusal — and only that one — for a request
+     asking for exactly what is saved, so this has to as well, or it stops
+     standing in for the route. */
+  const retry = ownersAlreadyRecorded(recorded, { owners: attempt.owners, issuedAt: attempt.issuedAt });
+  if (ownersSignatureProblem({ issuedAt: attempt.issuedAt, now: NOW, lastSignedAt: retry ? null : (recorded?.signedAt ?? null) })) return 'refused';
   await attempt.verified;
   if (attempt.signatureHolds === false) return 'bad-signature';
-  return recordSignedOwners(db, { wallet: WALLET, owners: attempt.owners, signedAt: attempt.issuedAt });
+  const written = recordSignedOwners(db, { wallet: WALLET, owners: attempt.owners, signedAt: attempt.issuedAt });
+  if (written !== 'not-newer') return written;
+  /* Read back rather than reuse `recorded`: another accepted request may have
+     won in the awaits above, and then this is a conflict, not a retry. */
+  return ownersAlreadyRecorded(readOwnerList(db, WALLET), { owners: attempt.owners, issuedAt: attempt.issuedAt })
+    ? 'already-saved'
+    : 'not-newer';
 }
 
 test('the older of two overlapping requests cannot land on top of the newer', async (t) => {
@@ -106,6 +116,54 @@ test('the same request twice writes once and leaves the list alone', async (t) =
      carries the same signed time, so it is not newer and does nothing. */
   assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [REMOVED], signedAt: issuedAt }), 'not-newer');
   assert.deepEqual(readOwnerList(db, WALLET)!.owners, [KEPT]);
+
+  /* A retry of the *same* list, though, is the caller asking for what is
+     already there. The write still drops it — an equal time is not newer —
+     and what the route says is decided by reading back: the state asked for
+     is the state there is, so the honest answer is success, not a conflict. */
+  assert.equal(recordSignedOwners(db, { wallet: WALLET, owners: [KEPT], signedAt: issuedAt }), 'not-newer');
+  assert.equal(ownersAlreadyRecorded(readOwnerList(db, WALLET), { owners: [KEPT], issuedAt }), true);
+  // The lost race is the other case, and it must not read as success.
+  assert.equal(ownersAlreadyRecorded(readOwnerList(db, WALLET), { owners: [REMOVED], issuedAt }), false);
+});
+
+test('a resend of the list already saved is answered as saved, and writes nothing', async (t) => {
+  const db = openStore(t);
+  const issuedAt = iso(-60_000);
+  assert.equal(await request(db, { owners: [KEPT], issuedAt, verified: Promise.resolve() }), 'applied');
+
+  /* The same list and the same signed time: a double submit, or a client that
+     resent after losing the response. Refused as stale it never reached the
+     write at all; now it does, the write drops it because an equal time is
+     not newer, and the read-back says the state asked for is the state there
+     is. Nothing is written either way. */
+  assert.equal(await request(db, { owners: [KEPT], issuedAt, verified: Promise.resolve() }), 'already-saved');
+  assert.deepEqual(readOwnerList(db, WALLET)!.owners, [KEPT]);
+  assert.equal(readOwnerList(db, WALLET)!.signedAt, issuedAt);
+});
+
+test('a resend that loses a race while it is verified is a conflict, not a success', async (t) => {
+  const db = openStore(t);
+  const saved = iso(-60_000);
+  const newer = iso(-20_000);
+  assert.equal(await request(db, { owners: [KEPT], issuedAt: saved, verified: Promise.resolve() }), 'applied');
+
+  /* The resend is judged a retry against the list as it stands on arrival,
+     and then a newer list wins while it is being verified. Answered from that
+     arrival snapshot it would report success for a list no longer in force —
+     the fault this file exists to prevent, arriving by way of the retry
+     instead of the write. Only reading back after the write tells the two
+     apart, so that is what decides it. */
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const resend = request(db, { owners: [KEPT], issuedAt: saved, verified: held });
+  assert.equal(await request(db, { owners: [REMOVED], issuedAt: newer, verified: Promise.resolve() }), 'applied');
+  release();
+
+  assert.equal(await resend, 'not-newer', 'the state it asked for is no longer the state there is');
+  assert.deepEqual(readOwnerList(db, WALLET)!.owners, [REMOVED], 'and the list that won must survive it');
 });
 
 test('a replayed older signature is dropped by the write as well as on arrival', async (t) => {

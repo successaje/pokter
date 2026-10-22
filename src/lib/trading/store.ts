@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import type { FlowVerdict } from './flows';
-import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerListWrite } from './owner-list';
+import { ensureWatchedWallets, readOwnerList, recordSignedOwners, watchWallet, type OwnerList, type OwnerListWrite } from './owner-list';
 
 export interface WatchedTradingWallet {
   wallet: string;
@@ -101,9 +101,9 @@ class TradingStore {
     return recordSignedOwners(this.db, { wallet, owners, signedAt });
   }
 
-  /** The list as recorded now, for saying what won a race the caller lost. */
-  owners(wallet: string): string[] {
-    return readOwnerList(this.db, wallet)?.owners ?? [];
+  /** The list as recorded now, for saying what won a race the caller lost — or that the caller's own retry is already saved. */
+  ownerList(wallet: string): OwnerList | null {
+    return readOwnerList(this.db, wallet);
   }
 
   count(): number {
@@ -133,6 +133,18 @@ class TradingStore {
   flows(wallet: string, limit = 100): StoredFlow[] {
     const rows = this.db.prepare('SELECT * FROM trading_flows WHERE wallet = ? ORDER BY block DESC LIMIT ?').all(wallet.toLowerCase(), limit) as Array<{ tx_hash: string; wallet: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: string }>;
     return rows.map((r) => ({ txHash: r.tx_hash, wallet: r.wallet, block: r.block, at: r.at, verdict: r.verdict, note: r.note, sent: JSON.parse(r.sent) }));
+  }
+
+  /** Flows Pokter found after a given block, oldest first, for alerting. */
+  flowsAfter(wallet: string, block: number): StoredFlow[] {
+    const rows = this.db.prepare('SELECT * FROM trading_flows WHERE wallet = ? AND block > ? ORDER BY block ASC LIMIT 50').all(wallet.toLowerCase(), block) as Array<{ tx_hash: string; wallet: string; block: number; at: string; verdict: FlowVerdict; note: string; sent: string }>;
+    return rows.map((r) => ({ txHash: r.tx_hash, wallet: r.wallet, block: r.block, at: r.at, verdict: r.verdict, note: r.note, sent: JSON.parse(r.sent) }));
+  }
+
+  /** Coverage gaps recorded after a given time. */
+  gapsAfter(wallet: string, atIso: string): CoverageGap[] {
+    const rows = this.db.prepare('SELECT * FROM trading_gaps WHERE wallet = ? AND at > ? ORDER BY at ASC').all(wallet.toLowerCase(), atIso) as Array<{ wallet: string; from_block: number; to_block: number; at: string }>;
+    return rows.map((r) => ({ wallet: r.wallet, fromBlock: r.from_block, toBlock: r.to_block, at: r.at }));
   }
 
   gaps(wallet: string): CoverageGap[] {

@@ -10,5 +10,6 @@ export function emailLinkDestination(target: EmailLinkTarget | null): string {
   if (target?.kind === 'builder') return '/build';
   if (target?.kind === 'campaign') return '/set-and-earn';
   if (target?.kind === 'loan-watch') return '/watch';
+  if (target?.kind === 'trading') return '/trading';
   return '/workspace/inbox';
 }

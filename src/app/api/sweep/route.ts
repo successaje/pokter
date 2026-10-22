@@ -22,9 +22,12 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableUrlForIndex, findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { historyClient } from '@/lib/erc8183/history-client';
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, notifyTradingAlerts, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
 import { scanTradingWallets, TRADING_SCAN_BUDGET_MS } from '@/lib/trading/read';
+import { coverage } from '@/lib/trading/coverage';
+import { getTradingStore } from '@/lib/trading/store';
+import { DELEGATED_TRADERS } from '@/lib/trading/agents';
 import type { FollowedAgentState } from '@/lib/notifications/agent-changes';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
@@ -444,6 +447,25 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     /* Watched trading wallets: the blocks since the last sweep, every token that left judged by whether it came back. Public RPC serves about an hour of logs, so this cannot be caught up later. Capped at 15s of the run (about 32s worst case with wallets in flight), and 25 transactions a wallet (lib/trading/bound.ts), so a busy wallet cannot starve the maintenance below. */
     const tradingScan = await budget.step('tradingScan', () => scanTradingWallets(20, Math.min(TRADING_SCAN_BUDGET_MS, budget.remaining())));
+    /* Then the alerts on what it found: a transaction where nothing came back, or blocks it could not check. */
+    const tradingAlerts = await budget.step('tradingAlerts', () =>
+      notifyTradingAlerts({
+        flowsAfter: (wallet, block) => getTradingStore().flowsAfter(wallet, block),
+        gapsAfter: (wallet, at) => getTradingStore().gapsAfter(wallet, at),
+        revokeHelp: (wallet) => {
+          const key = getTradingStore().get(wallet)?.agentKey;
+          return key ? (DELEGATED_TRADERS[key]?.controls.revoke ?? null) : null;
+        },
+        /* The head from the scan above, not a fresh call: `coverage` can only
+           answer 'behind' when it is given one, and without it this passed
+           'current' for a wallet the capped scan had not caught up with. A
+           busy wallet is exactly what `bound.ts` caps and exactly what people
+           watch, so "not being checked" never reached the subscriber whose
+           alerts were running late. Null when no scan read a height this run,
+           and then nothing is called behind on a guess. */
+        coverageOf: (wallet) => coverage(getTradingStore().get(wallet), Date.now(), tradingScan?.head ?? undefined).state,
+      }),
+    );
 
     const campaignReminders = await budget.step('campaignReminders', () =>
       isCampaignLive()
@@ -678,6 +700,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       campaignReminders,
       loanWatches,
       tradingScan,
+      tradingAlerts,
       relayTests,
       funders,
       healthFactorChecks,

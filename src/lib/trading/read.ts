@@ -1,10 +1,10 @@
 import 'server-only';
 
 import { createPublicClient, fallback, getAddress, http, parseAbi, type Address, type Hex } from 'viem';
-import { bsc } from 'viem/chains';
 
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { boundToCap } from './bound';
+import { TRADING_CHAIN } from './chain';
 import { classifyTx, COLLECT_TOPIC, poolCandidates, TRANSFER_TOPIC, type FlowVerdict, type RawLog } from './flows';
 import { getTradingStore, type StoredFlow } from './store';
 
@@ -79,7 +79,7 @@ export interface TradingHoldings {
  * BNB Chain's own node answers receipts but limits log queries.
  */
 function client() {
-  return createPublicClient({ chain: bsc, transport: fallback([http(RPC_URL), http('https://bsc-dataseed.bnbchain.org')]), batch: { multicall: true } });
+  return createPublicClient({ chain: TRADING_CHAIN, transport: fallback([http(RPC_URL), http('https://bsc-dataseed.bnbchain.org')]), batch: { multicall: true } });
 }
 type Client = ReturnType<typeof client>;
 
@@ -228,11 +228,15 @@ export async function scanFlows(input: { wallet: Address; fromBlock: bigint; toB
 /**
  * Scan one watched wallet from where it left off to the head. A range that
  * has fallen out of public RPC's reach is recorded as a gap, never as clean.
+ *
+ * `head` is the block height this scan read, reported back so the sweep can
+ * tell whether a wallet is merely behind without asking the chain again.
+ * Null when the scan never got that far.
  */
-export async function scanWatchedWallet(wallet: string): Promise<{ flows: number; notReturned: number; gap: boolean }> {
+export async function scanWatchedWallet(wallet: string): Promise<{ flows: number; notReturned: number; gap: boolean; head: number | null }> {
   const store = getTradingStore();
   const watched = store.get(wallet);
-  if (!watched) return { flows: 0, notReturned: 0, gap: false };
+  if (!watched) return { flows: 0, notReturned: 0, gap: false, head: null };
   try {
     const holdings = await readHoldings({ wallet: getAddress(wallet) });
     const head = BigInt(holdings.head);
@@ -245,15 +249,15 @@ export async function scanWatchedWallet(wallet: string): Promise<{ flows: number
     }
     if (from > head) {
       store.recordScan({ wallet, scannedTo: null, error: null, flows: [], gap });
-      return { flows: 0, notReturned: 0, gap: Boolean(gap) };
+      return { flows: 0, notReturned: 0, gap: Boolean(gap), head: Number(head) };
     }
     const tokens = [...new Set([...WATCHED_TOKENS.map((t) => t.address.toLowerCase()), ...holdings.positions.flatMap((p) => p.tokens.map((t) => t.toLowerCase()))])] as Address[];
     const { flows, coveredTo } = await scanFlows({ wallet: getAddress(wallet), fromBlock: from, toBlock: head, tokens, ownedPositions: new Set(holdings.positions.map((p) => p.tokenId)), ownerAddresses: watched.owners });
     store.recordScan({ wallet, scannedTo: Number(coveredTo), error: null, flows, gap });
-    return { flows: flows.length, notReturned: flows.filter((f) => f.verdict === 'not-returned').length, gap: Boolean(gap) };
+    return { flows: flows.length, notReturned: flows.filter((f) => f.verdict === 'not-returned').length, gap: Boolean(gap), head: Number(head) };
   } catch (error) {
     store.recordScan({ wallet, scannedTo: null, error: (error as Error).message.slice(0, 200), flows: [], gap: null });
-    return { flows: 0, notReturned: 0, gap: false };
+    return { flows: 0, notReturned: 0, gap: false, head: null };
   }
 }
 
@@ -261,10 +265,17 @@ export async function scanWatchedWallet(wallet: string): Promise<{ flows: number
  * The sweep's pass: watched trading wallets, least recently scanned first,
  * for at most `budgetMs`. A wallet not started in time waits for the next
  * run, first in line; one that falls behind shows as behind on its page.
+ *
+ * `head` is the highest block height any of this run's scans saw, and it is
+ * here so the alert step can judge a wallet "behind" without a chain call of
+ * its own — the height is a fact about the chain, not about one wallet, so
+ * whichever scan read it answers for all of them. Null when no scan got far
+ * enough to read one, and then nothing is called behind rather than guessed.
  */
-export async function scanTradingWallets(max = 20, budgetMs = TRADING_SCAN_BUDGET_MS): Promise<{ scanned: number; deferred: number; flows: number; notReturned: number; gaps: number }> {
+export async function scanTradingWallets(max = 20, budgetMs = TRADING_SCAN_BUDGET_MS): Promise<{ scanned: number; deferred: number; flows: number; notReturned: number; gaps: number; head: number | null }> {
   const due = getTradingStore().due(max);
   const deadline = Date.now() + budgetMs;
   const results = (await mapWithConcurrency(due, 2, (w) => (Date.now() < deadline ? scanWatchedWallet(w.wallet) : Promise.resolve(null)))).filter((r) => r !== null);
-  return { scanned: results.length, deferred: due.length - results.length, flows: results.reduce((n, r) => n + r.flows, 0), notReturned: results.reduce((n, r) => n + r.notReturned, 0), gaps: results.filter((r) => r.gap).length };
+  const heads = results.map((r) => r.head).filter((h): h is number => h !== null);
+  return { scanned: results.length, deferred: due.length - results.length, flows: results.reduce((n, r) => n + r.flows, 0), notReturned: results.reduce((n, r) => n + r.notReturned, 0), gaps: results.filter((r) => r.gap).length, head: heads.length ? Math.max(...heads) : null };
 }
