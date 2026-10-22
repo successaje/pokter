@@ -5,10 +5,21 @@ import { parseQuery } from '@/lib/search/query';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { page, toAgentSummary } from '@/lib/api/v1';
 import { apiError, apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
+import { unknownParams } from '@/lib/api/params';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_LIMIT = 100;
+
+/**
+ * Everything this endpoint reads. Anything else is refused.
+ *
+ * The filters are the query language's, by design — see the note on `GET`.
+ * That makes a parameter like `chainId` not a filter this route ignores but
+ * one it does not have, and answering `200` to it returned every chain to a
+ * caller who had asked for one.
+ */
+const PARAMS = ['q', 'category', 'limit', 'offset'] as const;
 
 export function OPTIONS() {
   return apiOptions();
@@ -21,12 +32,21 @@ export function OPTIONS() {
  * parameters means a caller can lift a query straight out of a marketplace URL
  * and get the same set back — and, more usefully, that the API cannot drift
  * into filtering differently from the pages people check it against.
+ *
+ * So chain is `q=is:mainnet` or `q=is:testnet`, not a `chainId` parameter.
+ * A parameter this route does not have is now refused rather than ignored:
+ * `?chainId=56` used to answer 200 with both chains, which reads as a
+ * filtered list and is not one. `limit` above {@link MAX_LIMIT} is clamped
+ * rather than refused, and the response states the limit actually applied.
  */
 export async function GET(request: Request) {
   const limited = apiRateLimit(request, 'agents');
   if (limited) return limited;
 
   const url = new URL(request.url);
+  const unknown = unknownParams(url.searchParams.keys(), PARAMS);
+  if (unknown) return apiError(unknown.message, 400);
+
   const q = url.searchParams.get('q') ?? '';
   const category = url.searchParams.get('category');
   const limit = Math.min(

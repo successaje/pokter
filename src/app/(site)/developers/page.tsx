@@ -59,6 +59,18 @@ export default function Developers() {
           ))}
         </ul>
         <Code>{`curl https://pokter.xyz/api/v1/agents?category=health-factor&q=has:price`}</Code>
+        {/*
+          Said here because guessing it costs more than reading it. The
+          filters live in the query language, so chain is a term and not a
+          parameter; a `chainId=` guess now returns 400 naming this, rather
+          than 200 with every chain in the list.
+        */}
+        <p>
+          Filters are query terms, not parameters. Chain is{' '}
+          <span className="t-readout text-[13px]">q=is:mainnet</span> or{' '}
+          <span className="t-readout text-[13px]">q=is:testnet</span>; a parameter this endpoint does not have is
+          refused rather than ignored, so a list that comes back is the list you asked for.
+        </p>
         <p>
           Try it: <Link href="/api/v1" className="link">/api/v1</Link>. The verdict values, which queries use, and the label the site shows for each
           (also returned as <span className="t-readout text-[13px]">verdictLabel</span>):{' '}
