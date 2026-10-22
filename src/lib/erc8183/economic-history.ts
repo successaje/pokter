@@ -16,8 +16,13 @@ export interface AgentEconomicHistory {
   jobs: number;
   delivered: number;
   /**
-   * Deliveries submitted by a wallet Pokter does not operate, which is the
-   * only kind that says anything about the agent.
+   * Deliveries the agent submitted itself, which is the only kind that
+   * says anything about the agent.
+   *
+   * A delivery qualifies by two tests, not one: the manifest must not show
+   * Pokter's courier carrying the answer, and the provider must be a
+   * wallet Pokter does not declare. Either on its own can be satisfied by
+   * a delivery Pokter made.
    *
    * The buyer side of this record has always excluded Pokter's own wallets;
    * the seller side did not, so a job Pokter delivered on an agent's behalf
@@ -27,7 +32,7 @@ export interface AgentEconomicHistory {
    * to accept in anyone else's figures.
    */
   selfDelivered: number;
-  /** Deliveries a declared Pokter wallet submitted. Kept, and labelled. */
+  /** Deliveries Pokter submitted, by either test. Kept, and labelled. */
   operatorDelivered: number;
   /**
    * Of those, the ones whose manifest carries this agent's own answer:
@@ -43,10 +48,10 @@ export interface AgentEconomicHistory {
    * reporting it only as `operatorDelivered` said a delivery had reached
    * escrow without saying whose answer was in it.
    *
-   * A subset of `operatorDelivered` rather than a count of its own, so it
-   * refines the existing split instead of redrawing it. The two are the
-   * same set today: a relayed manifest means the courier submitted, and
-   * the courier signs with the operator key, which is declared.
+   * A subset of `operatorDelivered`, and the reason that split no longer
+   * rests on `TEAM_WALLETS` alone: a relayed manifest is proof Pokter's
+   * courier submitted, whatever address it signed from, so it is counted
+   * here and withheld from `selfDelivered` either way.
    */
   relayedDelivered: number;
   completed: number;
@@ -157,14 +162,40 @@ export function summariseEconomicHistory(
   const byOperator = (job: HiredJob) => { const p = provider(job); return p !== null && team.has(p); };
   const bySelf = (job: HiredJob) => { const p = provider(job); return p !== null && !team.has(p); };
 
+  /*
+   * Who submitted a delivery: the manifest first, the address second.
+   *
+   * Withholding credit for a delivery Pokter made rested entirely on the
+   * courier's wallet appearing in `TEAM_WALLETS`, and it does today only
+   * because the courier signs with the operator key. A courier signing
+   * with a wallet nobody had added to that list would have been read as
+   * the agent delivering from its own wallet — full credit, and the
+   * `delivered` milestone, for work Pokter did on its behalf. That is the
+   * substitution this file exists to refuse, and the list is a hand-kept
+   * constant, so it cannot be the only thing standing in the way.
+   *
+   * The manifest settles it without the list: it names the courier as its
+   * producer and the agent whose answer it carried. So a relayed delivery
+   * is Pokter's whatever address submitted it, and never the agent's own
+   * — including when the provider is unknown, where positive evidence of
+   * a courier beats having no address to judge.
+   *
+   * No number moves today. The courier refuses any job that does not name
+   * its own wallet as provider, that wallet is the operator key's, and
+   * both the current and the retired operator keys are declared — so
+   * every courier delivery already fell on the operator side. This makes
+   * that a consequence of the evidence rather than of the list.
+   */
+  const relayedDelivery = (job: HiredJob) => isRelayedDelivery?.(job) === true;
+  const deliveredByPokter = (job: HiredJob) => relayedDelivery(job) || byOperator(job);
+  const deliveredBySelf = (job: HiredJob) => !relayedDelivery(job) && bySelf(job);
+
   return {
     jobs: funded.length,
     delivered: deliveries.length,
-    selfDelivered: deliveries.filter(bySelf).length,
-    operatorDelivered: deliveries.filter(byOperator).length,
-    relayedDelivered: isRelayedDelivery
-      ? deliveries.filter((job) => byOperator(job) && isRelayedDelivery(job)).length
-      : 0,
+    selfDelivered: deliveries.filter(deliveredBySelf).length,
+    operatorDelivered: deliveries.filter(deliveredByPokter).length,
+    relayedDelivered: deliveries.filter(relayedDelivery).length,
     completed: funded.filter((job) => job.status === 'COMPLETED').length,
     rejected: funded.filter((job) => job.status === 'REJECTED').length,
     expired: funded.filter((job) => job.status === 'EXPIRED').length,
