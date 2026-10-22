@@ -1,3 +1,4 @@
+import { uniformOfferedDecimals } from '@/lib/network/tokens';
 import { formatUnits } from 'viem';
 
 import type { HiredJob } from './types';
@@ -150,7 +151,17 @@ export function summariseEconomicHistory(
     unresolved: funded.filter((job) =>
       ['FUNDED', 'SUBMITTED'].includes(job.status),
     ).length,
-    totalFundedU: formatUnits(total, 18),
+    /*
+     * Summed across jobs that do not record their token.
+     *
+     * `uniformOfferedDecimals` throws if the offered tokens ever stop sharing
+     * a scale, so this cannot quietly become wrong. It is still a total
+     * across chains when the caller passes jobs from both, and mainnet $U and
+     * testnet $U are different tokens — one real, one not. Scoping that needs
+     * a chain filter here or a token on the job row, both of which change a
+     * published shape.
+     */
+    totalFundedU: formatUnits(total, uniformOfferedDecimals()),
     latestCheckedAt:
       funded
         .map((job) => job.statusCheckedAt)
