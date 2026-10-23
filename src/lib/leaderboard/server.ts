@@ -274,6 +274,18 @@ export async function loadResponsivenessBoard(
         protocol: entry.listing.agent.supported_protocols?.[0] ?? null,
         windows: entry.record.windows,
         lastSeen: entry.record.lastSeen,
+        /*
+         * Read off the record the catalogue already built, not recomputed
+         * from the day buckets. `buildTrackRecord` derives the span from the
+         * same probe list the windows came from, so a second derivation here
+         * could disagree with the figures printed beside it.
+         *
+         * Both are bounded by `HISTORY_DAYS` in `lib/marketplace.ts`, which
+         * is why the row says "of 30 days" rather than claiming to report the
+         * agent's age — see `RESPONSIVENESS_WINDOW_DAYS`.
+         */
+        firstSeen: entry.record.firstSeen,
+        observedDays: entry.record.observedDays,
       })),
   }));
   const unreadCategories: Category[] = catalogue.incomplete

@@ -36,7 +36,9 @@ import {
   ANSWER_RATE_COLUMN,
   ANSWER_RATE_DOES_NOT_MEAN,
   ANSWER_RATE_MEANS,
+  formatObservedSpan,
   MIN_RESPONSIVENESS_CHECKS,
+  observedSpanNote,
   RESPONSIVENESS_WINDOW_DAYS,
   type CategoryResponsiveness,
   type ResponsivenessRow,
@@ -390,7 +392,11 @@ function ResponsivenessCategory({ entry }: { entry: CategoryResponsiveness }) {
 
 function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: number | null }) {
   return (
-    <li className="grid gap-2 py-3.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_9rem] sm:items-center">
+    /* The last column holds two lines now — the denominator and the span it
+       was taken over — so it is wide enough for "over 29.9 of 30 days" to sit
+       on one line. Wrapped, the span read as two ragged fragments and stopped
+       looking like one statement about one row. */
+    <li className="grid gap-2 py-3.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_10.5rem] sm:items-center">
       <span className="t-readout text-[13px] text-ink-3">{rank === null ? '—' : String(rank).padStart(2, '0')}</span>
       <span className="flex min-w-0 items-center gap-3">
         <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={32} />
@@ -427,10 +433,23 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         because a row whose rate is already an em dash needs to say which of
         the two it is.
       */}
-      <span className="t-readout col-start-2 text-[12px] text-ink-3 sm:col-start-auto sm:text-right">
-        {row.checks === 0
-          ? 'No check in this window'
-          : `${formatCount(row.answered)} of ${formatCount(row.checks)} checks`}
+      <span className="t-readout col-start-2 flex flex-col gap-0.5 text-[12px] text-ink-3 sm:col-start-auto sm:items-end sm:text-right">
+        <span>
+          {row.checks === 0
+            ? 'No check in this window'
+            : `${formatCount(row.answered)} of ${formatCount(row.checks)} checks`}
+        </span>
+        {/*
+          The span sits under the denominator, not under the name, because the
+          denominator is where a reader is already weighing how much is behind
+          the rate — and the two are one fact. "349 of 350 checks" alone reads
+          as a full 30-day record on every row it appears on, and on this data
+          the rows above and below it can cover a twelfth of that period. A
+          row with no check has no span to report and says nothing here rather
+          than printing a nought, which would read as a measured zero-length
+          history instead of an absent one.
+        */}
+        {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
       </span>
     </li>
   );
@@ -684,6 +703,24 @@ export default async function LeaderboardPage({
                   ]}
                 />
               </div>
+
+              {/*
+                Stated here, above the order it qualifies, rather than behind
+                the methodology link. The column says "last 30 days" and the
+                automatic reading is that every row was measured over those
+                30 days; on this data they were not, and the misreading is the
+                flattering one, which is the same reason
+                `ANSWER_RATE_DOES_NOT_MEAN` is printed in the header instead
+                of linked. The figures come from the board being rendered, so
+                this cannot go stale the way the fixed claim it replaces did.
+              */}
+              <Notice
+                tone="watch"
+                className="mt-4"
+                title="The ranked rows are not all measured over the same period"
+              >
+                {observedSpanNote(responsiveness.data.coverage)}
+              </Notice>
 
               {responsiveness.data.coverage.unreadCategories.length > 0 && (
                 <Notice tone="watch" className="mt-4" title="Some categories could not be read">

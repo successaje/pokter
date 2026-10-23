@@ -5,17 +5,39 @@ import type { BoardAgent } from './network';
 /**
  * The window the answer rate is measured over, named on the column.
  *
- * A fixed window, not a lifetime rate. `TrackRecord` already publishes 24h,
- * 7d and 30d buckets, and one of them has to be chosen and printed, because
- * a cumulative rate silently compares agents watched for different lengths
- * of time: observed days across the agents that would qualify run from
- * about 4 to about 30 on mainnet and 2 to 20 on testnet. Ranking a four-day
- * agent against a thirty-day one on a lifetime rate is not an equivalent
- * check, and an equivalent check is the whole premise of this view.
+ * A fixed window, not a lifetime rate. `TrackRecord` publishes 24h, 7d and
+ * 30d buckets, and one of them has to be chosen and printed, because a rate
+ * whose period is not named cannot be checked against anything. 30d is the
+ * longest bucket on offer and the one the catalogue already loads history
+ * for, so it is the widest comparison available without reading more than
+ * the page needs.
  *
- * 30d is the longest bucket on offer and the one the catalogue already
- * loads history for, so it is the widest equivalent comparison available
- * without reading more than the page needs.
+ * What this window does not do is equalise that comparison, and an earlier
+ * version of this comment claimed it did — that picking a fixed window kept
+ * the board from ranking a four-day agent against a thirty-day one. It does
+ * not, because the window is not the binding constraint: the catalogue loads
+ * probes with `HISTORY_DAYS = 30` in `lib/marketplace.ts`, the same 30 days,
+ * so the bucket spans the whole of what was read and truncates nothing out
+ * of it. Two agents sit side by side under one window label with entirely
+ * different amounts of measurement behind them. Measured on 23 October 2026
+ * from `/api/v1/agents`, the span between an agent's first and last loaded
+ * check ran 4.1688 to 29.9290 days over the 60 of 76 mainnet listings Pokter
+ * holds any check for, and 0.1154 to 20.7035 days over 47 of 95 on testnet.
+ *
+ * Nor can that field support the comfortable reading of those figures, that
+ * no agent has 30 days of history so nothing is being truncated. The span is
+ * computed from a read bounded at 30 days, so it is arithmetically incapable
+ * of reaching 30 whatever the agents' real ages are, and a measurement that
+ * cannot come out otherwise is not evidence. The mainnet distribution says as
+ * much: 40 of those 60 spans fall between 29.86 and 29.93 days, roughly one
+ * sweep interval short of the cutoff, which is what a history running past
+ * the edge of the read looks like from inside it.
+ *
+ * So each row discloses its own span instead — `formatObservedSpan` and
+ * `observedSpanNote` — and the reader is told what the board cannot equalise.
+ * Restricting the ranking to agents whose history covers the full window was
+ * considered and rejected: it would empty the board, and a blank page is a
+ * worse answer than a disclosed limit.
  */
 export const RESPONSIVENESS_WINDOW_LABEL = '30d';
 export const RESPONSIVENESS_WINDOW_DAYS = 30;
@@ -44,19 +66,20 @@ export const RESPONSIVENESS_WINDOW_DAYS = 30;
  * threshold before the first real agent, not about 150. The number stands;
  * the comfort around it was overstated.
  *
- * All of that was measured on lifetime totals, and it transfers to the window
- * only because, as of 23 October 2026, no agent has been observed for 30 days
- * at all: the oldest mainnet records stand at 29.95, 29.94 and 29.93 observed
- * days, and testnet's oldest at 20.52, so every agent's whole history still
- * fits inside the window and the two measures coincide. That margin is hours,
- * not months.
+ * Those counts needed no transfer from a lifetime distribution to a windowed
+ * one, which an earlier version of this comment thought they did. They were
+ * read from `/api/v1/agents`, whose `probes.total` is `record.totalProbes`
+ * over the same 30-day catalogue read, so they were already windowed counts.
+ * There is no lifetime measure anywhere on this path to transfer from — see
+ * `RESPONSIVENESS_WINDOW_DAYS` above, where the read bound is what makes the
+ * window's own truncation unobservable.
  *
- * So this needs rechecking once histories run past the window, because the
- * justification above stops transferring the moment they do. At the observed
- * rate of roughly 11.6 checks a day the window should hold about 348 at
- * steady state, which would leave the gap open — but that is a prediction
- * from the current rate and not a measurement of the windowed distribution,
- * and it must not be read as one.
+ * The gap does still need rechecking, because it is a fact about today's
+ * distribution rather than a property of the threshold. At the observed rate
+ * of roughly 11.8 checks a day the window holds about 350 at steady state,
+ * which is where the busiest agents already are — 352 on mainnet, 302 on
+ * testnet, measured 23 October 2026 — so the empty band below them closes as
+ * the quieter agents fill in, not as histories outgrow the window.
  *
  * Below the threshold an agent is listed, with its figures, under "not enough
  * checks". It is never shown as 0%: a rate out of three attempts is not a low
@@ -91,6 +114,63 @@ export const ANSWER_RATE_MEANS =
 export const ANSWER_RATE_DOES_NOT_MEAN =
   'It is not answer quality, not accuracy, not uptime and not reliability. It records that the agent replied, never that the reply was right.';
 
+/**
+ * How much of the window a row's rate is actually made of.
+ *
+ * Said as a share of the window rather than as a bare duration, because the
+ * bare duration is the part a reader cannot place: "2.4 days" sitting under a
+ * column headed "last 30 days" reads as a detail about the agent, not as a
+ * warning that the rate beside it covers a twelfth of the advertised period.
+ * "over 2.4 of 30 days" cannot be read that way, and it sits directly under
+ * "48 of 60 checks" as the same shape of statement.
+ *
+ * One decimal place, and deliberately not `formatDuration` from
+ * `lib/ui/format`: that helper rounds to whole days, so it prints the
+ * 29.9290-day mainnet spans as "30d" and a row whose entire purpose is to
+ * show it has not covered 30 days would claim it had. That is the same defect
+ * as the nought that rendered 349 of 350 checks as "100%" — a figure rounded
+ * until it states something untrue.
+ */
+export function formatObservedSpan(observedDays: number): string {
+  const days = Number.isFinite(observedDays) ? Math.max(0, observedDays) : 0;
+  return `over ${days.toFixed(1)} of ${RESPONSIVENESS_WINDOW_DAYS} days`;
+}
+
+/**
+ * The limit on the order, stated beside the column that publishes it.
+ *
+ * Beside the column rather than in the methodology, for the same reason
+ * `ANSWER_RATE_DOES_NOT_MEAN` is: the flattering misreading is the automatic
+ * one. A reader who sees rows ordered under "last 30 days" assumes the rows
+ * were measured over the same 30 days, and on this data they are not.
+ *
+ * Built from the coverage rather than written as a sentence, because a frozen
+ * sentence is how the claim this replaces went stale — it asserted that no
+ * agent had 30 days of history, which the read bound makes unobservable, and
+ * it would have kept asserting it for as long as nobody re-measured. These
+ * figures are whatever the live board holds.
+ */
+export function observedSpanNote(coverage: ResponsivenessCoverage): string {
+  const bound =
+    `Pokter loads the last ${coverage.windowDays} days of checks and no more, so a rate is measured ` +
+    'over whatever part of that period it holds for the agent.';
+  if (!coverage.rankedSpanDays) {
+    return `${bound} No row is ranked here, so there is no spread to report.`;
+  }
+  const { shortest, longest } = coverage.rankedSpanDays;
+  const spread =
+    shortest.toFixed(1) === longest.toFixed(1)
+      ? `Every ranked row covers ${longest.toFixed(1)} of the ${coverage.windowDays} days.`
+      : `The ranked rows do not hold the same part: their spans run from ${shortest.toFixed(1)} to ` +
+        `${longest.toFixed(1)} of the ${coverage.windowDays} days, shown on each row.`;
+  return (
+    `${bound} ${spread} A span near ${coverage.windowDays} reaches the edge of what Pokter loads and may ` +
+    'have older checks behind it that this board cannot see; a short span is the whole of what Pokter ' +
+    'holds, not a cut-down version of something longer. Short spans are ranked anyway, and labelled, ' +
+    'because dropping them would publish an empty board in place of a disclosed limit.'
+  );
+}
+
 export interface ResponsivenessRow {
   agent: BoardAgent;
   /** The protocol the check speaks to this agent: `a2a`, `mcp`, or none observed. */
@@ -103,6 +183,18 @@ export interface ResponsivenessRow {
   answerRate: number | null;
   /** Whether the window holds enough checks for the row to be ranked. */
   ranked: boolean;
+  /**
+   * Days between the agent's first and last loaded check — how long Pokter
+   * has actually been checking it, as far as this read can see.
+   *
+   * Carried onto the row rather than derived on the page, because the rate
+   * beside it is meaningless without it: the column names 30 days and this
+   * says how much of those 30 the rate is made of. Taken straight from
+   * `TrackRecord.observedDays`, never recomputed here.
+   */
+  observedDays: number;
+  /** The oldest loaded check, or null when there is none. Bounded by the read. */
+  firstSeen: string | null;
 }
 
 export interface CategoryResponsiveness {
@@ -136,6 +228,16 @@ export interface ResponsivenessCoverage {
   lastCheckedAt: string | null;
   /** Categories whose registry reads all failed, so their rows are missing rather than empty. */
   unreadCategories: Category[];
+  /**
+   * The shortest and longest observed span among the ranked rows, in days.
+   * Null when nothing is ranked.
+   *
+   * Ranked rows only. The spread is quoted beside the column as the limit on
+   * the order the board publishes, and an unranked row is not in that order,
+   * so letting its span widen the figure would overstate the limit on a
+   * comparison it never entered.
+   */
+  rankedSpanDays: { shortest: number; longest: number } | null;
 }
 
 export interface ResponsivenessBoard {
@@ -157,6 +259,10 @@ export interface ResponsivenessInput {
   windows: readonly Window[];
   /** The newest check recorded for this agent, from the same record. */
   lastSeen: string | null;
+  /** The oldest, from the same record. */
+  firstSeen: string | null;
+  /** `TrackRecord.observedDays` as the record already computed it. */
+  observedDays: number;
 }
 
 export function toResponsivenessRow(input: ResponsivenessInput): ResponsivenessRow {
@@ -175,7 +281,15 @@ export function toResponsivenessRow(input: ResponsivenessInput): ResponsivenessR
      * em dash for this reason.
      */
     answerRate: checks === 0 ? null : answered / checks,
+    /*
+     * The span is disclosed, never a gate. Ranking only agents whose history
+     * covers the whole window would empty this board — on 23 October 2026 no
+     * loaded span reached 30 days on either chain, and the read bound means
+     * none can — and a blank page is a worse answer than a disclosed limit.
+     */
     ranked: checks >= MIN_RESPONSIVENESS_CHECKS,
+    observedDays: input.observedDays,
+    firstSeen: input.firstSeen,
   };
 }
 
@@ -234,6 +348,13 @@ export function buildResponsivenessBoard(
     .filter((seen): seen is string => seen !== null)
     .sort((a, b) => b.localeCompare(a))[0] ?? null;
 
+  /*
+   * Taken from the ranked rows across every category, because the order the
+   * note qualifies is published per category but the limit on it is the same
+   * read for all of them. Unranked rows are excluded: see `rankedSpanDays`.
+   */
+  const rankedSpans = categories.flatMap((entry) => entry.ranked.map((row) => row.observedDays));
+
   return {
     registryChainId,
     metric: 'answer-rate',
@@ -248,6 +369,10 @@ export function buildResponsivenessBoard(
       checksInWindow: everyRow.reduce((sum, row) => sum + row.checks, 0),
       lastCheckedAt: lastSeen,
       unreadCategories: [...unreadCategories],
+      rankedSpanDays:
+        rankedSpans.length === 0
+          ? null
+          : { shortest: Math.min(...rankedSpans), longest: Math.max(...rankedSpans) },
     },
   };
 }
