@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 import { Card, contentType, size } from '@/lib/og/card';
+import { shareFigure } from '@/lib/leaderboard/card';
 import { loadOutcomeBoard } from '@/lib/leaderboard/server';
 import { MIN_RESPONSIVENESS_CHECKS, RESPONSIVENESS_WINDOW_DAYS } from '@/lib/leaderboard/responsiveness';
 
@@ -62,12 +63,12 @@ export default async function LeaderboardCard() {
            */
           {
             label: 'SETTLED ON BNB CHAIN',
-            value: settled === null || settled === 0 ? '—' : String(settled),
+            value: shareFigure(settled),
             note: 'external buyers, delivery evidence',
           },
           {
             label: 'BUYER WALLETS',
-            value: buyers === null || buyers === 0 ? '—' : String(buyers),
+            value: shareFigure(buyers),
             note: 'distinct, outside Pokter',
           },
           {

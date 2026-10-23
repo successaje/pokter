@@ -15,6 +15,7 @@ import {
   servesFromOneInstance,
   SERVES_FROM_ONE_INSTANCE,
 } from '../src/lib/leaderboard/consistency';
+import { shareFigure } from '../src/lib/leaderboard/card';
 import { buildOutcomeBoard, type OutcomeTests } from '../src/lib/leaderboard/outcomes';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -145,10 +146,28 @@ test('an absent time renders as an em dash, never as "Never"', () => {
  * Chain: 0" arrives in a feed as a claim about the chain rather than about
  * Pokter's index, and that claim is not established.
  */
-test('the board card draws no bare nought', () => {
+test('a share card states no bare nought', () => {
+  /*
+   * The value, not a phrase. The defect that shipped was a figure — a guard
+   * written against null while `reduce` over no rows returns 0 — and no scan
+   * for wording can see that. `shareFigure` is the rule, so the rule is what
+   * is exercised.
+   */
+  assert.equal(shareFigure(0), '—', 'a nought on a card reads as a claim about the chain');
+  assert.equal(shareFigure(null), '—');
+  assert.equal(shareFigure(undefined), '—');
+  assert.equal(shareFigure(Number.NaN), '—');
+  assert.equal(shareFigure(1), '1');
+  assert.equal(shareFigure(21), '21');
+});
+
+test('both figures on the board card go through that one rule', () => {
+  /* They disagreed once: one guarded its nought, the other did not, and the
+     one that did not was the figure production served. */
   const card = read('src/app/(site)/leaderboard/opengraph-image.tsx');
-  assert.match(card, /settled === null \|\| settled === 0 \? '—'/);
-  assert.match(card, /buyers === null \|\| buyers === 0 \? '—'/);
+  assert.match(card, /value: shareFigure\(settled\)/);
+  assert.match(card, /value: shareFigure\(buyers\)/);
+  assert.doesNotMatch(card, /String\(settled\)|String\(buyers\)/, 'a raw figure bypasses the rule');
 });
 
 /*
