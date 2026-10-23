@@ -129,10 +129,23 @@ const nextConfig: NextConfig = {
      * catalogue — which is what a link to /agents was asking for. The
      * redirect would have shadowed it silently: the route exists, builds and
      * renders, and every request to it is answered with a 307 somewhere else.
+     *
+     * `/leaderboard` has just left for the same reason, and it is worth
+     * recording that the warning above did not prevent it. The route was
+     * built, it compiled, it was registered in the sitemap and both footers,
+     * and every request to it returned a 307 to `/discover?sort=evidence` —
+     * caught only by loading the page over `next start`, because nothing in
+     * lint, typecheck, the test suite or the build can see a redirect
+     * shadowing a route. A link labelled Leaderboard in the footer that
+     * lands on Discover is the trap this comment describes.
+     *
+     * `?sort=evidence` was the nearest thing Discover had to a ranking.
+     * The page now does that job properly, and separates the two questions
+     * Discover's one sort was conflating, so the old address is answered by
+     * the page it was always asking for.
      */
     const moved: Array<[string, string]> = [
       ['/categories/:category', '/discover?category=:category'],
-      ['/leaderboard', '/discover?sort=evidence'],
       ['/census', '/methodology'],
       ['/app', '/workspace'],
       ['/activity', '/workspace/jobs'],
