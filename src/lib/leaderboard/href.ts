@@ -29,7 +29,19 @@ export function boardViewFrom(raw: string | string[] | undefined): BoardView {
  * means nothing. The card route puts the same three choices in its path,
  * and this is what turns them back into a query.
  */
-export function leaderboardHref(selection: Partial<BoardSelection> = {}): string {
+export function leaderboardHref(
+  selection: Partial<BoardSelection> = {},
+  /**
+   * What the reader has narrowed the board to, carried through every other
+   * link on the page.
+   *
+   * Dropping it would be the quiet kind of wrong: a reader who has searched
+   * and then clicks a column header gets the whole board back, ordered
+   * differently, with the search box still showing their term. The page
+   * would then be describing a filter it is not applying.
+   */
+  browse: { search?: string; category?: string; page?: number } = {},
+): string {
   const next = { ...DEFAULT_SELECTION, ...selection };
   const params = new URLSearchParams();
   if (next.network !== DEFAULT_SELECTION.network) params.set('network', next.network);
@@ -40,6 +52,12 @@ export function leaderboardHref(selection: Partial<BoardSelection> = {}): string
   if (next.view === 'outcomes' && next.metric !== DEFAULT_SELECTION.metric) {
     params.set('metric', next.metric);
   }
+  const search = browse.search?.trim() ?? '';
+  if (search.length > 0) params.set('q', search);
+  if (browse.category && browse.category !== 'all') params.set('category', browse.category);
+  /* Page one is the default, and `?page=1` in a shared link is noise that
+     also makes the canonical board look like a paginated slice of itself. */
+  if (browse.page !== undefined && browse.page > 1) params.set('page', String(browse.page));
   const query = params.toString();
   return query ? `/leaderboard?${query}` : '/leaderboard';
 }

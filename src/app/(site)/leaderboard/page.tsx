@@ -1,21 +1,42 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
-import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { CATEGORY_BY_ID, type Classification } from '@/lib/agents/categories';
 import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { jobReceipt } from '@/lib/jobs/receipt-link';
+import {
+  ALL_CATEGORIES,
+  browseQueryFrom,
+  browseSummary,
+  categoryCounts,
+  matchesBrowse,
+  MAX_SEARCH,
+  pageLinks,
+  pageOf,
+  type BrowseQuery,
+  type Page,
+} from '@/lib/leaderboard/browse';
 import {
   CONSISTENT_STANDINGS,
   DIVERGENT_STANDINGS,
   SERVES_FROM_ONE_INSTANCE,
 } from '@/lib/leaderboard/consistency';
 import {
+  rowDisclosures,
+  rowReceipts,
+  summaryOf,
+  hasWatch,
+  type Disclosure,
+} from '@/lib/leaderboard/disclosures';
+import {
   BOARD_NETWORKS,
   boardNetworkFrom,
   escrowChainOf,
   NO_QUALIFYING_SETTLEMENTS,
   registryChainOf,
+  type BoardAgent,
   type BoardNetwork,
 } from '@/lib/leaderboard/network';
 import {
@@ -29,9 +50,13 @@ import {
   OUTCOME_METRICS,
   OUTCOME_METRIC_BY_ID,
   outcomeMetricFrom,
+  rankOutcomeRows,
   type OutcomeBoard,
+  type OutcomeMetricMeta,
   type OutcomeRow,
+  type RankedOutcomeRow,
 } from '@/lib/leaderboard/outcomes';
+import { periodOf } from '@/lib/leaderboard/period';
 import {
   ANSWER_RATE_COLUMN,
   ANSWER_RATE_DOES_NOT_MEAN,
@@ -49,6 +74,7 @@ import { shareMetadata } from '@/lib/og/share';
 import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
+import { buttonClass } from '@/ui/Button';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -65,7 +91,17 @@ export const metadata: Metadata = {
   ...shareMetadata({ title: `${TITLE} · Pokter`, description: DESCRIPTION }),
 };
 
-function FilterGroup<T extends string>({
+/** The label a `Classification` shows, including the one that is not a category. */
+function categoryLabel(category: Classification): string {
+  return CATEGORY_BY_ID.get(category)?.label ?? 'Not categorised';
+}
+
+/* ------------------------------------------------------------------ *
+ * Controls
+ * ------------------------------------------------------------------ */
+
+/** A trough of mutually exclusive links: the choice is a URL, so it is shareable. */
+function ChipGroup<T extends string>({
   label,
   value,
   options,
@@ -73,11 +109,11 @@ function FilterGroup<T extends string>({
 }: {
   label: string;
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; count?: number }>;
   href: (value: T) => string;
 }) {
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex min-w-0 flex-col gap-1.5">
       <legend className="t-label">{label}</legend>
       <div className="flex flex-wrap gap-1 rounded-[10px] bg-sunken p-1">
         {options.map((option) => (
@@ -87,15 +123,157 @@ function FilterGroup<T extends string>({
             scroll={false}
             aria-current={value === option.value ? 'true' : undefined}
             className={cn(
-              'rounded-[7px] px-3 py-1.5 text-[13px] transition-colors',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px] transition-colors',
               value === option.value ? 'bg-raised font-medium text-ink shadow-sm' : 'text-ink-3 hover:text-ink',
             )}
           >
             {option.label}
+            {option.count !== undefined && (
+              <span className="t-readout text-[10.5px] text-ink-3">{formatCount(option.count)}</span>
+            )}
           </Link>
         ))}
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * The board's period, stated and not chosen.
+ *
+ * It looks like the other controls in the bar and is deliberately not one.
+ * See `lib/leaderboard/period.ts`: the outcomes board has no rolling window
+ * to offer, and a selector implying one would describe a filter the page
+ * does not apply. The note is carried in `title` and read out by assistive
+ * tech so the reason travels with the figure.
+ */
+function PeriodFact({ view }: { view: BoardView }) {
+  const period = periodOf(view);
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="t-label">{period.label}</span>
+      <p
+        className="flex items-center gap-1.5 rounded-[10px] border border-dashed border-rule-strong px-2.5 py-[7px] text-[12.5px] text-ink-2"
+        title={period.note}
+      >
+        <Icon.Clock size={13} className="shrink-0 text-ink-3" />
+        <span className="truncate">{period.value}</span>
+        {/* The whole note is printed once, in the board's own heading block.
+            Here it would be heard twice and read nowhere. */}
+        <span className="sr-only"> — stated, not a control</span>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Search as a plain GET form.
+ *
+ * No client component, so it works before hydration and the result is a URL
+ * somebody can send to a colleague. The other choices ride along as hidden
+ * fields; `page` deliberately does not, because a new search starts at the
+ * first page of its own results rather than at the eighth page of someone
+ * else's.
+ */
+function SearchForm({ current, browse }: { current: BoardSelection; browse: BrowseQuery }) {
+  return (
+    /* Its own line at phone width. Sharing one with the network and period
+       troughs, `flex-1` left it about 90px wide: the label broke over three
+       lines and the field and its button ran off the edge of the screen. */
+    <form
+      method="get"
+      action="/leaderboard"
+      className="flex w-full min-w-0 flex-col gap-1.5 sm:w-auto sm:min-w-[16rem] sm:flex-1"
+    >
+      {current.network !== 'mainnet' && <input type="hidden" name="network" value={current.network} />}
+      {current.view !== 'outcomes' && <input type="hidden" name="view" value={current.view} />}
+      {current.view === 'outcomes' && current.metric !== 'settled-jobs' && (
+        <input type="hidden" name="metric" value={current.metric} />
+      )}
+      {browse.category !== ALL_CATEGORIES && <input type="hidden" name="category" value={browse.category} />}
+      <label htmlFor="board-search" className="t-label">
+        Search this board
+      </label>
+      <div className="flex gap-2">
+        <span className="relative flex min-w-0 flex-1 items-center">
+          <Icon.Search size={14} className="pointer-events-none absolute left-3 text-ink-3" />
+          <input
+            id="board-search"
+            name="q"
+            type="search"
+            defaultValue={browse.search}
+            maxLength={MAX_SEARCH}
+            placeholder="Agent name"
+            className="h-[34px] w-full rounded-[9px] border border-rule-strong bg-raised pl-8 pr-3 text-[13px] text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-4 focus:ring-[color-mix(in_oklab,var(--signal)_30%,transparent)]"
+          />
+        </span>
+        <button type="submit" className={buttonClass('secondary', 's')}>
+          Search
+        </button>
+        {browse.search.length > 0 && (
+          <Link
+            href={leaderboardHref(current, { category: browse.category })}
+            scroll={false}
+            className={buttonClass('ghost', 's')}
+          >
+            Clear
+          </Link>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function Pagination({
+  page,
+  current,
+  browse,
+}: {
+  page: Page<unknown>;
+  current: BoardSelection;
+  browse: BrowseQuery;
+}) {
+  if (page.pages <= 1) return null;
+  const href = (n: number) => leaderboardHref(current, { ...browse, page: n });
+  const step = (n: number, label: string, icon: ReactNode, disabled: boolean) =>
+    disabled ? (
+      <span aria-disabled className={cn(buttonClass('ghost', 's'), 'pointer-events-none opacity-40')}>
+        {icon}
+        {label}
+      </span>
+    ) : (
+      <Link href={href(n)} scroll={false} rel={label === 'Previous' ? 'prev' : 'next'} className={buttonClass('secondary', 's')}>
+        {icon}
+        {label}
+      </Link>
+    );
+  return (
+    <nav aria-label="Board pages" className="flex flex-wrap items-center gap-1.5">
+      {step(page.page - 1, 'Previous', <Icon.ChevronLeft size={13} />, page.page <= 1)}
+      {pageLinks(page.page, page.pages).map((n, index) =>
+        n === null ? (
+          <span key={`gap-${index}`} aria-hidden className="px-1 text-[12px] text-ink-3">
+            …
+          </span>
+        ) : (
+          <Link
+            key={n}
+            href={href(n)}
+            scroll={false}
+            aria-current={n === page.page ? 'page' : undefined}
+            className={cn(
+              't-readout grid h-8 min-w-8 place-items-center rounded-[7px] px-2 text-[12.5px] transition-colors',
+              n === page.page
+                ? 'bg-signal text-signal-ink font-medium'
+                : 'border border-rule text-ink-2 hover:border-ink hover:text-ink',
+            )}
+          >
+            {n}
+          </Link>
+        ),
+      )}
+      {step(page.page + 1, 'Next', <Icon.ChevronRight size={13} />, page.page >= page.pages)}
+    </nav>
   );
 }
 
@@ -116,7 +294,7 @@ function CoverageLine({ items }: { items: ReadonlyArray<{ label: string; value: 
 function ReceiptLinks({ jobs, label }: { jobs: readonly HiredJob[]; label: string }) {
   if (jobs.length === 0) return null;
   return (
-    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
       <span className="sr-only">{label}:</span>
       {jobs.map((job) => (
         <a
@@ -154,260 +332,493 @@ function timestamp(value: string | null): string {
   return new Date(parsed).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 }
 
+/* ------------------------------------------------------------------ *
+ * Shared row parts
+ * ------------------------------------------------------------------ */
+
+/**
+ * One agent as one thing: picture, name, and what it is underneath.
+ *
+ * The registry chain stays on the row because it can differ from the escrow
+ * the board is split by, which the section above says in words. The escrow's
+ * currency does not: it is the same on every row of a board whose heading
+ * already names it, and repeating it on each row bought nothing but height.
+ */
+function AgentCell({ agent, listed, size = 34 }: { agent: BoardAgent; listed: boolean; size?: number }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={size} />
+      <span className="min-w-0">
+        {listed ? (
+          <Link
+            href={`/agents/${agent.chainId}/${agent.tokenId}`}
+            className="block truncate text-[13.5px] font-medium hover:underline"
+          >
+            {agent.name}
+          </Link>
+        ) : (
+          <span className="block truncate text-[13.5px] font-medium">{agent.name}</span>
+        )}
+        <span className="mt-0.5 block truncate text-[11.5px] font-normal text-ink-3">
+          {categoryLabel(agent.category)} &middot; registered on {chainLabel(agent.chainId)}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * A figure with the fact that qualifies it underneath.
+ *
+ * The second line is never a second measurement dressed as support: each one
+ * below is about the same wallets or the same checks as the figure above it.
+ * A detail that belongs to a different population would read as part of this
+ * figure, which is how a table acquires a composite nobody chose.
+ */
+function Readout({
+  value,
+  detail,
+  tone = 'neutral',
+  active,
+}: {
+  value: string;
+  detail?: string | null;
+  tone?: 'neutral' | 'watch' | 'quiet';
+  active?: boolean;
+}) {
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <span className={cn('t-readout text-[14px]', active && 'font-medium', tone === 'quiet' && 'text-ink-2')}>
+        {value}
+      </span>
+      {detail && (
+        <span className={cn('text-[11px] leading-tight', tone === 'watch' ? 'text-watch' : 'text-ink-3')}>
+          {detail}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The outbound affordance, as its own column.
+ *
+ * It was two text links at the bottom of a five-line paragraph in the
+ * identity cell, which is the last place a reader looks. Evidence is the
+ * thing this board exists to hand over, so it gets a column and a glyph that
+ * says the link goes somewhere.
+ */
+function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelection }) {
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <Link
+        href={`/proof?network=${current.network}&funder=outside-team&agent=${row.agent.key}`}
+        className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline"
+      >
+        Every job <Icon.ArrowUpRight size={12} className="text-ink-3" />
+      </Link>
+      <Link
+        href={leaderboardCardHref({
+          network: current.network,
+          metric: current.metric,
+          chainId: row.agent.chainId,
+          tokenId: row.agent.tokenId,
+        })}
+        className="inline-flex items-center gap-1 text-[11.5px] text-ink-3 hover:text-ink hover:underline"
+      >
+        <Icon.Share size={11} /> Share card
+      </Link>
+    </span>
+  );
+}
+
+/**
+ * Everything the row has to admit, one toggle down and named on the toggle.
+ *
+ * The summary is built from the same list the body renders
+ * (`lib/leaderboard/disclosures.ts`), so the closed state cannot come to
+ * describe something the open state does not contain. A row with nothing to
+ * disclose renders no toggle rather than an empty one.
+ */
+function RowDisclosures({ row }: { row: OutcomeRow }) {
+  const disclosures = rowDisclosures(row);
+  const receipts = rowReceipts(row);
+  const summary = summaryOf(disclosures, receipts);
+  if (!summary) return null;
+  return (
+    <details className="group rounded-[9px] border border-rule bg-sunken/50 px-2.5 py-1.5 open:bg-sunken">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11.5px] [&::-webkit-details-marker]:hidden">
+        <Icon.ChevronRight
+          size={12}
+          className="shrink-0 text-ink-3 transition-transform duration-150 group-open:rotate-90"
+        />
+        <span className={cn('min-w-0 flex-1', hasWatch(disclosures) ? 'text-watch' : 'text-ink-2')}>{summary}</span>
+      </summary>
+      <div className="mt-2 flex flex-col gap-2 border-t border-rule pt-2 text-[11.5px] leading-relaxed">
+        {disclosures.map((disclosure: Disclosure) => (
+          <p key={disclosure.id} className={disclosure.tone === 'watch' ? 'text-watch' : 'text-ink-2'}>
+            {disclosure.detail}
+            {disclosure.jobs.length > 0 && (
+              <span className="mt-1 block">
+                <ReceiptLinks jobs={disclosure.jobs} label={disclosure.jobsLabel} />
+              </span>
+            )}
+          </p>
+        ))}
+        {receipts.map((group) => (
+          <p key={group.label} className="flex flex-wrap items-baseline gap-x-2 text-ink-3">
+            <span>{group.label}:</span>
+            <ReceiptLinks jobs={group.jobs} label={group.label} />
+          </p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Customer outcomes
+ * ------------------------------------------------------------------ */
+
+/**
+ * A column header that says it produced the order, and offers to.
+ *
+ * The arrow is the part the old header was missing: the sorted column was
+ * washed in signal yellow and nothing said which way it ran, so "highest
+ * first" lived only in the caption no sighted reader sees. The inactive
+ * headers show their arrow on hover and focus, so the table looks sortable
+ * before anyone guesses that the headers are links.
+ */
+function MetricHeader({
+  metric,
+  active,
+  current,
+  browse,
+}: {
+  metric: OutcomeMetricMeta;
+  active: boolean;
+  current: BoardSelection;
+  browse: BrowseQuery;
+}) {
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? 'descending' : 'none'}
+      className={cn(
+        'px-3 py-2.5 text-right align-bottom font-medium',
+        active ? 'bg-signal-wash text-ink' : 'text-ink-3',
+      )}
+    >
+      <Link
+        href={leaderboardHref({ ...current, metric: metric.id }, { ...browse, page: 1 })}
+        scroll={false}
+        className="group inline-flex max-w-[13rem] flex-col items-end gap-0.5 hover:text-ink focus-visible:text-ink"
+      >
+        <span className="flex items-center gap-1">
+          <span className="t-label text-inherit">{metric.short}</span>
+          <Icon.ChevronDown
+            size={12}
+            className={cn(
+              'shrink-0 transition-opacity',
+              active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50 group-focus-visible:opacity-50',
+            )}
+          />
+        </span>
+        <span className="text-[10.5px] font-normal leading-tight text-ink-3">{metric.qualifier}</span>
+        <span className="sr-only">
+          {metric.column}
+          {active ? ' — ordering this table, highest first' : ' — order the table by this column'}
+        </span>
+      </Link>
+    </th>
+  );
+}
+
 function OutcomeTable({
   board,
+  page,
   current,
+  browse,
 }: {
   board: OutcomeBoard;
+  page: Page<RankedOutcomeRow>;
   current: BoardSelection;
+  browse: BrowseQuery;
 }) {
   const active = OUTCOME_METRIC_BY_ID.get(board.metric)!;
   return (
-    <div className="mt-6 overflow-x-auto rounded-[14px] border border-rule">
-      <table className="w-full min-w-[880px] text-left text-[13px]">
+    <div className="hidden overflow-x-auto rounded-[14px] border border-rule md:block">
+      <table className="w-full min-w-[960px] divide-y divide-rule text-left text-[13px]">
         <caption className="sr-only">
           Agents on {chainLabel(board.escrowChainId)}, ordered by {active.column}, highest first.
         </caption>
         <thead className="bg-sunken/70">
           <tr>
-            <th scope="col" className="t-label px-4 py-3 font-medium">
-              #
+            <th scope="col" className="t-label w-12 px-3 py-2.5 align-bottom font-medium">
+              Rank
             </th>
-            <th scope="col" className="t-label px-4 py-3 font-medium">
+            <th scope="col" className="t-label px-3 py-2.5 align-bottom font-medium">
               Agent
             </th>
             {OUTCOME_METRICS.map((metric) => (
-              <th
+              <MetricHeader
                 key={metric.id}
-                scope="col"
-                aria-sort={metric.id === board.metric ? 'descending' : 'none'}
-                className={cn(
-                  't-label px-4 py-3 text-right font-medium',
-                  metric.id === board.metric && 'bg-signal-wash text-ink',
-                )}
-              >
-                <Link href={leaderboardHref({ ...current, metric: metric.id })} scroll={false} className="hover:underline">
-                  {metric.column}
-                </Link>
-                {metric.id === board.metric && <span className="sr-only"> (ordering this table)</span>}
-              </th>
+                metric={metric}
+                active={metric.id === board.metric}
+                current={current}
+                browse={browse}
+              />
             ))}
-            <th scope="col" className="t-label px-4 py-3 text-right font-medium">
-              Delivered, escrow not released
+            <th scope="col" className="px-3 py-2.5 text-right align-bottom font-medium text-ink-3">
+              <span className="inline-flex max-w-[9rem] flex-col items-end gap-0.5">
+                <span className="t-label text-inherit">Delivered</span>
+                <span className="text-[10.5px] font-normal leading-tight text-ink-3">escrow not released</span>
+              </span>
+            </th>
+            <th scope="col" className="t-label px-3 py-2.5 align-bottom font-medium">
+              Evidence
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-rule bg-raised">
-          {board.rows.map((row, index) => (
-            <OutcomeTableRow key={row.agent.key} row={row} rank={index + 1} current={current} />
-          ))}
-        </tbody>
+        {page.rows.map(({ row, rank }) => (
+          <OutcomeRowGroup key={row.agent.key} row={row} rank={rank} current={current} />
+        ))}
       </table>
     </div>
   );
 }
 
-function OutcomeTableRow({
+function OutcomeRowGroup({
   row,
   rank,
   current,
 }: {
   row: OutcomeRow;
-  rank: number;
+  rank: number | null;
   current: BoardSelection;
 }) {
-  const money = escrowMoney(escrowChainOf(current.network));
+  const disclosed = summaryOf(rowDisclosures(row), rowReceipts(row)) !== null;
   return (
-    <tr>
-      <td className="t-readout px-4 py-4 align-top text-ink-3">
-        {row.settledJobs > 0 ? String(rank).padStart(2, '0') : '—'}
-      </td>
-      <th scope="row" className="px-4 py-4 align-top font-medium">
-        <span className="flex items-start gap-3">
-          <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={36} />
-          <span className="min-w-0">
-            {row.listed ? (
-              <Link href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`} className="hover:underline">
-                {row.agent.name}
-              </Link>
-            ) : (
-              <span>{row.agent.name}</span>
-            )}
-            <span className="mt-0.5 block text-[11.5px] font-normal text-ink-3">
-              Registered on {chainLabel(row.agent.chainId)} &middot; paid in{' '}
-              {money.money ?? 'this escrow’s currency'}
-            </span>
-            {!row.listed && (
-              <span className="mt-0.5 block text-[11.5px] font-normal text-watch">
-                Not in Pokter&rsquo;s current listing; its receipts are still on chain.
-              </span>
-            )}
-            {/*
-              Two courier shapes, said apart, because they settle identically
-              on the escrow and mean opposite things about the agent. One
-              carries the agent's own answer and one carries nothing of the
-              agent's at all, and a reader has to be able to tell "Pokter
-              carried this agent's answer" from "Pokter did the work".
-              Neither counts towards the column above.
-            */}
-            {row.relayedSettled > 0 && (
-              <span className="mt-1 block text-[11.5px] font-normal text-ink-2">
-                {formatCount(row.relayedSettled)} further settled job
-                {row.relayedSettled === 1 ? '' : 's'} submitted by Pokter&rsquo;s courier carrying this
-                agent&rsquo;s own answer. The answer was the agent&rsquo;s; the delivery was not. Not counted
-                above.
-                <ReceiptLinks jobs={row.relayed} label="Relayed-answer receipts" />
-              </span>
-            )}
-            {row.courierSettled > 0 && (
-              <span className="mt-1 block text-[11.5px] font-normal text-watch">
-                {formatCount(row.courierSettled)} further settled job
-                {row.courierSettled === 1 ? '' : 's'} delivered by Pokter&rsquo;s courier, with no answer of this
-                agent&rsquo;s in it. Not counted above.
-                <ReceiptLinks jobs={row.courier} label="Courier-delivered receipts" />
-              </span>
-            )}
-            {row.operatorBuyers > 0 && (
-              <span className="mt-1 block text-[11.5px] font-normal text-ink-2">
-                {formatCount(row.operatorBuyers)} of {formatCount(row.externalBuyers)} buyer wallet
-                {row.externalBuyers === 1 ? '' : 's'} here own a listed agent. Outside Pokter&rsquo;s team set, and
-                not independent of the marketplace.
-              </span>
-            )}
-            {row.reviewerBuyers === null ? (
-              <span className="mt-1 block text-[11.5px] font-normal text-ink-3">
-                Attestation authors not read, so overlap with these buyers is unknown.
-              </span>
-            ) : (
-              row.reviewerBuyers > 0 && (
-                <span className="mt-1 block text-[11.5px] font-normal text-watch">
-                  {formatCount(row.reviewerBuyers)} of these buyer wallets also wrote an on-chain attestation about
-                  this agent: buyer and reviewer are the same party.
-                </span>
-              )
-            )}
-            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-normal">
-              <Link
-                href={`/proof?network=${current.network}&funder=outside-team&agent=${row.agent.key}`}
-                className="text-ink-2 hover:underline"
-              >
-                Every job
-              </Link>
-              <Link
-                href={leaderboardCardHref({
-                  network: current.network,
-                  metric: current.metric,
-                  chainId: row.agent.chainId,
-                  tokenId: row.agent.tokenId,
-                })}
-                className="inline-flex items-center gap-1 text-ink-2 hover:underline"
-              >
-                <Icon.Share size={12} /> Share card
-              </Link>
-            </span>
-          </span>
-        </span>
-      </th>
-      <td
-        className={cn(
-          't-readout px-4 py-4 text-right align-top',
-          current.metric === 'settled-jobs' && 'bg-signal-wash font-medium',
-        )}
-      >
-        {formatCount(row.settledJobs)}
-        <ReceiptLinks jobs={row.settled} label="Settled receipts" />
-      </td>
-      <td
-        className={cn(
-          't-readout px-4 py-4 text-right align-top',
-          current.metric === 'external-buyers' && 'bg-signal-wash font-medium',
-        )}
-      >
-        {formatCount(row.externalBuyers)}
-      </td>
-      <td
-        className={cn(
-          't-readout px-4 py-4 text-right align-top',
-          current.metric === 'repeat-buyers' && 'bg-signal-wash font-medium',
-        )}
-      >
-        {formatCount(row.repeatBuyers)}
-      </td>
-      <td className="t-readout px-4 py-4 text-right align-top text-ink-2">
-        {formatCount(row.deliveredUnsettled)}
-        <ReceiptLinks jobs={row.delivered} label="Delivered, unsettled receipts" />
-      </td>
-    </tr>
+    <tbody className="bg-raised">
+      <tr>
+        {/*
+          No number where the ordering column holds a nought. `rankOutcomeRows`
+          has the account of what this printed before.
+        */}
+        <td className="t-readout px-3 py-3 align-top text-[13px] text-ink-3">
+          {rank === null ? '—' : String(rank).padStart(2, '0')}
+        </td>
+        <th scope="row" className="px-3 py-3 align-top font-medium">
+          <AgentCell agent={row.agent} listed={row.listed} />
+        </th>
+        <td
+          className={cn('px-3 py-3 text-right align-top', current.metric === 'settled-jobs' && 'bg-signal-wash')}
+        >
+          <Readout value={formatCount(row.settledJobs)} active={current.metric === 'settled-jobs'} />
+        </td>
+        <td
+          className={cn('px-3 py-3 text-right align-top', current.metric === 'external-buyers' && 'bg-signal-wash')}
+        >
+          {/*
+            The operator-buyer disclosure belongs to these wallets and to no
+            other figure on the row, so it sits under them rather than in the
+            paragraph that used to carry every qualification at once.
+          */}
+          <Readout
+            value={formatCount(row.externalBuyers)}
+            detail={
+              row.operatorBuyers > 0
+                ? `${formatCount(row.operatorBuyers)} ${row.operatorBuyers === 1 ? 'owns' : 'own'} a listed agent`
+                : null
+            }
+            tone="watch"
+            active={current.metric === 'external-buyers'}
+          />
+        </td>
+        <td
+          className={cn('px-3 py-3 text-right align-top', current.metric === 'repeat-buyers' && 'bg-signal-wash')}
+        >
+          <Readout
+            value={formatCount(row.repeatBuyers)}
+            detail={
+              row.externalBuyers > 0
+                ? `of ${formatCount(row.externalBuyers)} wallet${row.externalBuyers === 1 ? '' : 's'}`
+                : null
+            }
+            active={current.metric === 'repeat-buyers'}
+          />
+        </td>
+        <td className="px-3 py-3 text-right align-top">
+          <Readout value={formatCount(row.deliveredUnsettled)} tone="quiet" />
+        </td>
+        <td className="px-3 py-3 align-top">
+          <EvidenceCell row={row} current={current} />
+        </td>
+      </tr>
+      {disclosed && (
+        <tr>
+          <td colSpan={7} className="px-3 pb-3">
+            <RowDisclosures row={row} />
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
-function ResponsivenessCategory({ entry }: { entry: CategoryResponsiveness }) {
-  const category = CATEGORY_BY_ID.get(entry.category)!;
-  if (entry.ranked.length === 0 && entry.belowMinimum.length === 0) return null;
+/**
+ * The same row at phone width, as a card.
+ *
+ * A seven-column table at 375px is a table nobody reads: it scrolls
+ * sideways and the figure a reader scrolled to loses the name it belongs
+ * to. Both shapes take the same ranked row and the same
+ * `rowDisclosures`, so only the layout differs — no figure and no
+ * disclosure exists in one and not the other.
+ */
+function OutcomeCards({
+  board,
+  page,
+  current,
+}: {
+  board: OutcomeBoard;
+  page: Page<RankedOutcomeRow>;
+  current: BoardSelection;
+}) {
+  const active = OUTCOME_METRIC_BY_ID.get(board.metric)!;
   return (
-    <section aria-labelledby={`responsiveness-${entry.category}`} className="pt-10">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-3">
-        <div>
-          <span className="t-label">{category.label}</span>
-          <h3 id={`responsiveness-${entry.category}`} className="t-h3 mt-1">
-            {formatCount(entry.ranked.length)} agent{entry.ranked.length === 1 ? '' : 's'} with at least{' '}
-            {MIN_RESPONSIVENESS_CHECKS} checks in the window
-          </h3>
-        </div>
-        <span className="text-[12px] text-ink-3">Compared only against others in this category.</span>
-      </div>
-      {entry.ranked.length === 0 ? (
-        <p className="border-b border-rule bg-sunken/50 px-4 py-3 text-[13px] text-ink-2">
-          No agent in this category has {MIN_RESPONSIVENESS_CHECKS} checks in the last {RESPONSIVENESS_WINDOW_DAYS}{' '}
-          days, so Pokter publishes no order for it. Every listed agent in this category is below, with whatever
-          checks Pokter has for it — which for some is none.
-        </p>
-      ) : (
-        <ol className="divide-y divide-rule">
-          {entry.ranked.map((row, index) => (
-            <ResponsivenessLine key={row.agent.key} row={row} rank={index + 1} />
-          ))}
-        </ol>
-      )}
-      {entry.belowMinimum.length > 0 && (
-        <details className="mt-3 rounded-[12px] border border-rule bg-sunken/40 px-4 py-3">
-          <summary className="cursor-pointer text-[13px] font-medium">
-            {formatCount(entry.belowMinimum.length)} agent{entry.belowMinimum.length === 1 ? '' : 's'} with too few
-            checks to rank
-          </summary>
-          <p className="mt-2 text-[12.5px] text-ink-2">
-            Listed with their figures and left unordered. A rate out of a handful of attempts is not a low rate, it is
-            no measurement.
-          </p>
-          <ol className="mt-2 divide-y divide-rule">
-            {entry.belowMinimum.map((row) => (
-              <ResponsivenessLine key={row.agent.key} row={row} rank={null} />
+    <ol className="flex flex-col gap-3 md:hidden">
+      {page.rows.map(({ row, rank }) => (
+        <li key={row.agent.key} className="rounded-[12px] border border-rule bg-raised p-3.5">
+          <div className="flex items-start gap-2.5">
+            <span className="t-readout mt-1 w-7 shrink-0 text-[13px] text-ink-3">
+              {rank === null ? '—' : String(rank).padStart(2, '0')}
+            </span>
+            <AgentCell agent={row.agent} listed={row.listed} size={32} />
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-rule pt-3">
+            {[
+              {
+                id: 'settled-jobs',
+                label: OUTCOME_METRIC_BY_ID.get('settled-jobs')!.short,
+                value: formatCount(row.settledJobs),
+                detail: null as string | null,
+              },
+              {
+                id: 'external-buyers',
+                label: OUTCOME_METRIC_BY_ID.get('external-buyers')!.short,
+                value: formatCount(row.externalBuyers),
+                detail:
+                  row.operatorBuyers > 0
+                    ? `${formatCount(row.operatorBuyers)} ${row.operatorBuyers === 1 ? 'owns' : 'own'} a listed agent`
+                    : null,
+              },
+              {
+                id: 'repeat-buyers',
+                label: OUTCOME_METRIC_BY_ID.get('repeat-buyers')!.short,
+                value: formatCount(row.repeatBuyers),
+                detail:
+                  row.externalBuyers > 0
+                    ? `of ${formatCount(row.externalBuyers)} wallet${row.externalBuyers === 1 ? '' : 's'}`
+                    : null,
+              },
+              {
+                id: 'delivered',
+                label: 'Delivered',
+                value: formatCount(row.deliveredUnsettled),
+                detail: 'escrow not released',
+              },
+            ].map((cell) => (
+              <div
+                key={cell.id}
+                className={cn(
+                  'rounded-[8px] px-2 py-1.5',
+                  cell.id === board.metric ? 'bg-signal-wash' : 'bg-sunken/50',
+                )}
+              >
+                <dt className="t-label text-[10px]">{cell.label}</dt>
+                <dd className="t-readout mt-0.5 text-[15px]">{cell.value}</dd>
+                {cell.detail && (
+                  <dd
+                    className={cn(
+                      'text-[10.5px] leading-tight',
+                      cell.id === 'external-buyers' && row.operatorBuyers > 0 ? 'text-watch' : 'text-ink-3',
+                    )}
+                  >
+                    {cell.detail}
+                  </dd>
+                )}
+              </div>
             ))}
-          </ol>
-        </details>
-      )}
-    </section>
+          </dl>
+          <p className="t-label mt-2.5 text-[10px]">Ordered by {active.short}</p>
+          <div className="mt-2 flex flex-col gap-2">
+            <RowDisclosures row={row} />
+            <EvidenceCell row={row} current={current} />
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Responsiveness
+ * ------------------------------------------------------------------ */
+
+/*
+ * Two columns at phone width, five above `sm`.
+ *
+ * The mobile half used to be left implicit: a bare `grid` with three cells
+ * carrying `col-start-2`, which conjures a second column whose width comes
+ * from whatever happens to be in it. Each row sized its own columns, so the
+ * avatars stepped left and right down the list by thirty or forty pixels and
+ * the rate under each name started at a different place on every row. Naming
+ * the mobile template fixes the rank gutter and lines the rows up.
+ */
+const RESPONSIVENESS_GRID =
+  'grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[2.5rem_minmax(0,1fr)_6rem_11rem_6.5rem]';
+
+/**
+ * The column names, outside the list rather than as its first item.
+ *
+ * Not a row and not hidden from assistive tech: a header drawn as the first
+ * `<li>` makes a list of eight agents announce nine items, and one marked
+ * `aria-hidden` leaves a bare "99.7%" with nothing naming it. A sibling
+ * `<div>` on the same explicit grid template lines up with the rows and is
+ * read once, before them.
+ */
+function ResponsivenessHeader() {
+  return (
+    <div className={cn(RESPONSIVENESS_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+      <span className="t-label">Rank</span>
+      <span className="t-label">Agent</span>
+      <span className="t-label flex items-center justify-end gap-1 text-right text-ink">
+        Answer rate <Icon.ChevronDown size={12} aria-hidden />
+      </span>
+      <span className="t-label text-right">Checks, and the span behind them</span>
+      <span className="t-label">Evidence</span>
+    </div>
   );
 }
 
 function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: number | null }) {
   return (
-    /* The last column holds two lines now — the denominator and the span it
+    /* The fourth column holds two lines — the denominator and the span it
        was taken over — so it is wide enough for "over 29.9 of 30 days" to sit
        on one line. Wrapped, the span read as two ragged fragments and stopped
        looking like one statement about one row. */
-    <li className="grid gap-2 py-3.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_10.5rem] sm:items-center">
+    <li className={cn(RESPONSIVENESS_GRID, 'py-3 sm:items-center')}>
       <span className="t-readout text-[13px] text-ink-3">{rank === null ? '—' : String(rank).padStart(2, '0')}</span>
-      <span className="flex min-w-0 items-center gap-3">
+      <span className="flex min-w-0 items-center gap-2.5">
         <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={32} />
         <span className="min-w-0">
           <Link
             href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-            className="block truncate text-[14px] font-medium hover:underline"
+            className="block truncate text-[13.5px] font-medium hover:underline"
           >
             {row.agent.name}
           </Link>
-          <span className="mt-0.5 block text-[11.5px] text-ink-3">
+          <span className="mt-0.5 block truncate text-[11.5px] text-ink-3">
             Declared protocol: {row.protocol ?? 'none declared'}
           </span>
         </span>
@@ -451,9 +862,103 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         */}
         {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
       </span>
+      <span className="col-start-2 sm:col-start-auto">
+        <Link
+          href={`/agents/${row.agent.chainId}/${row.agent.tokenId}#history`}
+          className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline"
+        >
+          Check history <Icon.ArrowUpRight size={12} className="text-ink-3" />
+        </Link>
+      </span>
     </li>
   );
 }
+
+function ResponsivenessCategory({
+  entry,
+  browse,
+}: {
+  entry: CategoryResponsiveness;
+  browse: BrowseQuery;
+}) {
+  const category = CATEGORY_BY_ID.get(entry.category)!;
+  /*
+   * Ranked first, then narrowed, so a row keeps the standing it holds in its
+   * category rather than the position it happens to occupy among the rows a
+   * search left behind.
+   */
+  const ranked = entry.ranked
+    .map((row, index) => ({ row, rank: index + 1 }))
+    .filter(({ row }) => matchesBrowse(row.agent, browse));
+  const below = entry.belowMinimum.filter((row) => matchesBrowse(row.agent, browse));
+  if (ranked.length === 0 && below.length === 0) return null;
+  const hiddenByBrowse =
+    entry.ranked.length - ranked.length + (entry.belowMinimum.length - below.length);
+  return (
+    <section aria-labelledby={`responsiveness-${entry.category}`} className="pt-10">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-3">
+        <div>
+          <span className="t-label">{category.label}</span>
+          <h3 id={`responsiveness-${entry.category}`} className="t-h3 mt-1">
+            {formatCount(entry.ranked.length)} agent{entry.ranked.length === 1 ? '' : 's'} with at least{' '}
+            {MIN_RESPONSIVENESS_CHECKS} checks in the window
+          </h3>
+        </div>
+        <span className="text-[12px] text-ink-3">Compared only against others in this category.</span>
+      </div>
+      {/*
+        Said where the rows are missing from, not only at the top of the page.
+        A category heading that counts eight agents above a list of two is the
+        same defect as a stale column label: the figure is right about the
+        board and wrong about what is under it.
+      */}
+      {hiddenByBrowse > 0 && (
+        <p className="pt-3 text-[12.5px] text-ink-3">
+          {formatCount(hiddenByBrowse)} agent{hiddenByBrowse === 1 ? '' : 's'} in this category
+          {hiddenByBrowse === 1 ? ' is' : ' are'} hidden by the search above.
+        </p>
+      )}
+      {entry.ranked.length === 0 ? (
+        <p className="border-b border-rule bg-sunken/50 px-4 py-3 text-[13px] text-ink-2">
+          No agent in this category has {MIN_RESPONSIVENESS_CHECKS} checks in the last {RESPONSIVENESS_WINDOW_DAYS}{' '}
+          days, so Pokter publishes no order for it. Every listed agent in this category is below, with whatever
+          checks Pokter has for it — which for some is none.
+        </p>
+      ) : (
+        ranked.length > 0 && (
+          <>
+            <ResponsivenessHeader />
+            <ol className="divide-y divide-rule">
+              {ranked.map(({ row, rank }) => (
+                <ResponsivenessLine key={row.agent.key} row={row} rank={rank} />
+              ))}
+            </ol>
+          </>
+        )
+      )}
+      {below.length > 0 && (
+        <details className="mt-3 rounded-[12px] border border-rule bg-sunken/40 px-4 py-3">
+          <summary className="cursor-pointer text-[13px] font-medium">
+            {formatCount(below.length)} agent{below.length === 1 ? '' : 's'} with too few checks to rank
+          </summary>
+          <p className="mt-2 text-[12.5px] text-ink-2">
+            Listed with their figures and left unordered. A rate out of a handful of attempts is not a low rate, it is
+            no measurement.
+          </p>
+          <ol className="mt-2 divide-y divide-rule">
+            {below.map((row) => (
+              <ResponsivenessLine key={row.agent.key} row={row} rank={null} />
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Page
+ * ------------------------------------------------------------------ */
 
 export default async function LeaderboardPage({
   searchParams,
@@ -465,6 +970,7 @@ export default async function LeaderboardPage({
   const view = boardViewFrom(raw.view);
   const metric = outcomeMetricFrom(raw.metric);
   const current: BoardSelection = { network, view, metric };
+  const browse = browseQueryFrom(raw);
 
   const [outcomes, responsiveness] = await Promise.all([
     view === 'outcomes' ? loadOutcomeBoard(network, metric) : Promise.resolve(null),
@@ -474,6 +980,34 @@ export default async function LeaderboardPage({
   const escrowChainId = escrowChainOf(network);
   const money = escrowMoney(escrowChainId);
   const activeMetric = OUTCOME_METRIC_BY_ID.get(metric)!;
+
+  /* Every agent the board holds, before any narrowing, so the category chips
+     show the board's own distribution rather than the filtered one — a chip
+     whose count changes when you press it is a count of nothing. */
+  const boardAgents: BoardAgent[] =
+    outcomes?.state === 'ready'
+      ? outcomes.data.rows.map((row) => row.agent)
+      : responsiveness?.state === 'ready'
+        ? responsiveness.data.categories.flatMap((entry) =>
+            [...entry.ranked, ...entry.belowMinimum].map((row) => row.agent),
+          )
+        : [];
+  const counts = categoryCounts(boardAgents);
+  const categoryOptions = [
+    { value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length },
+    ...[...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || categoryLabel(a[0]).localeCompare(categoryLabel(b[0])))
+      .map(([category, count]) => ({
+        value: category as Classification | typeof ALL_CATEGORIES,
+        label: categoryLabel(category),
+        count,
+      })),
+  ];
+
+  const ranked =
+    outcomes?.state === 'ready' ? rankOutcomeRows(outcomes.data.rows, metric) : ([] as RankedOutcomeRow[]);
+  const outcomePage = pageOf(ranked, ({ row }) => matchesBrowse(row.agent, browse), browse);
+  const outcomeSummary = browseSummary(outcomePage, browse);
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-16">
@@ -495,25 +1029,64 @@ export default async function LeaderboardPage({
             Nothing here is combined into a single rank. The column you sorted by is the whole explanation of the
             order, and a tie on it breaks alphabetically rather than on a second metric.
           </p>
+          <Link
+            href="/methodology"
+            className="mt-3 inline-flex items-center gap-1 font-medium text-ink hover:underline"
+          >
+            How ranking works <Icon.Arrow size={13} />
+          </Link>
         </div>
       </header>
 
-      <section aria-label="Board" className="grid gap-5 border-b border-rule py-6 md:grid-cols-2">
-        <FilterGroup<BoardNetwork>
-          label="Network (separate boards, never merged)"
-          value={network}
-          options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
-          href={(value) => leaderboardHref({ ...current, network: value })}
-        />
-        <FilterGroup<BoardView>
-          label="What is measured"
-          value={view}
-          options={[
-            { value: 'outcomes', label: 'Customer outcomes' },
-            { value: 'responsiveness', label: 'Responsiveness' },
-          ]}
-          href={(value) => leaderboardHref({ ...current, view: value })}
-        />
+      {/*
+        The two boards as tabs, because they are two answers to two questions
+        and a reader picks one. The remaining controls narrow whichever board
+        is showing, so they sit under the tab rather than beside it.
+      */}
+      <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 pt-6 sm:mx-0 sm:px-0">
+        <ul className="flex min-w-max gap-6 border-b border-rule">
+          {(
+            [
+              { id: 'outcomes', label: 'Customer outcomes' },
+              { id: 'responsiveness', label: 'Responsiveness' },
+            ] as ReadonlyArray<{ id: BoardView; label: string }>
+          ).map((tab) => (
+            <li key={tab.id}>
+              <Link
+                href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
+                scroll={false}
+                aria-current={tab.id === view ? 'page' : undefined}
+                className={cn(
+                  'relative -mb-px flex h-11 items-center border-b-2 text-sm font-medium transition-colors',
+                  tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+                )}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <section aria-label="Narrow this board" className="flex flex-col gap-4 border-b border-rule py-5">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+          <ChipGroup<BoardNetwork>
+            label="Network (separate boards, never merged)"
+            value={network}
+            options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
+            href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
+          />
+          <PeriodFact view={view} />
+          <SearchForm current={current} browse={browse} />
+        </div>
+        {categoryOptions.length > 1 && (
+          <ChipGroup<Classification | typeof ALL_CATEGORIES>
+            label="Category"
+            value={browse.category}
+            options={categoryOptions}
+            href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
+          />
+        )}
       </section>
 
       <div className="py-6">
@@ -545,6 +1118,7 @@ export default async function LeaderboardPage({
                 <span className="font-medium text-ink">Ordered by:</span> {activeMetric.column}. {activeMetric.definition}
               </p>
             )}
+            <p className="mt-2 text-[13px] text-ink-2">{periodOf('outcomes').note}</p>
           </div>
 
           {outcomes.state === 'unavailable' ? (
@@ -604,8 +1178,48 @@ export default async function LeaderboardPage({
                   identity Pokter can attribute them to. This is a statement about Pokter&rsquo;s index on this
                   network, not about the chain.
                 </EmptyState>
+              ) : outcomePage.matched === 0 ? (
+                /*
+                  A search that matched nothing is not an empty board, and it
+                  must not borrow the sentence that is one. The board behind
+                  it still holds rows and says how many.
+                */
+                <EmptyState title="Nothing on this board matches these filters" className="mt-6">
+                  {outcomeSummary} Clearing them shows the {formatCount(outcomePage.total)} agent
+                  {outcomePage.total === 1 ? '' : 's'} this board holds. This says nothing about the network: the
+                  sentence for a board with no qualifying settlement is a different one, and it is not this.
+                </EmptyState>
               ) : (
-                <OutcomeTable board={outcomes.data} current={current} />
+                <>
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[12.5px] text-ink-2">{outcomeSummary}</p>
+                    <Pagination page={outcomePage} current={current} browse={browse} />
+                  </div>
+                  {/*
+                    At phone width the rows are cards and there are no column
+                    headers to press, so the one control that changes the
+                    order has to exist somewhere else. Only below `md`: two
+                    controls for one choice is two places for them to
+                    disagree about which column produced the order.
+                  */}
+                  <div className="mt-4 md:hidden">
+                    <ChipGroup
+                      label="Ordered by"
+                      value={metric}
+                      options={OUTCOME_METRICS.map((entry) => ({ value: entry.id, label: entry.short }))}
+                      href={(value) => leaderboardHref({ ...current, metric: value }, { ...browse, page: 1 })}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <OutcomeTable board={outcomes.data} page={outcomePage} current={current} browse={browse} />
+                    <OutcomeCards board={outcomes.data} page={outcomePage} current={current} />
+                  </div>
+                  {outcomePage.pages > 1 && (
+                    <div className="mt-4 flex justify-end">
+                      <Pagination page={outcomePage} current={current} browse={browse} />
+                    </div>
+                  )}
+                </>
               )}
 
               <ul className="mt-6 flex flex-col gap-2 text-[12.5px] leading-relaxed text-ink-2">
@@ -622,20 +1236,33 @@ export default async function LeaderboardPage({
                   recorded submitter, and {formatCount(outcomes.data.coverage.exclusions.unattributed)} naming no
                   ERC-8004 identity.
                 </li>
+                {/*
+                  The verbs agree with the count, not only the noun.
+                  "1 externally funded job ... have not been delivered" is what
+                  the plural-only form rendered the first time one of these
+                  stood alone, and a disclosure that reads as a slip is a
+                  disclosure readers discount.
+                */}
                 {outcomes.data.coverage.exclusions.agentUndelivered > 0 && (
                   <li>
                     {formatCount(outcomes.data.coverage.exclusions.agentUndelivered)} externally funded job
                     {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? '' : 's'} the escrow names an agent
-                    as provider for have not been delivered. Not counted here either way; the agent pages carry them.
+                    as provider for {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? 'has' : 'have'} not
+                    been delivered. Not counted here either way; the agent pages carry{' '}
+                    {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? 'it' : 'them'}.
                   </li>
                 )}
                 {outcomes.data.platformOwed.length > 0 && (
                   <li className="text-watch">
                     {formatCount(outcomes.data.platformOwed.length)} externally funded job
-                    {outcomes.data.platformOwed.length === 1 ? '' : 's'} on this escrow name a Pokter wallet as
-                    provider and were never delivered. Pokter owed those, not the agent, so they appear on no
-                    agent&rsquo;s row.
-                    <ReceiptLinks jobs={outcomes.data.platformOwed} label="Pokter-owed receipts" />
+                    {outcomes.data.platformOwed.length === 1 ? '' : 's'} on this escrow{' '}
+                    {outcomes.data.platformOwed.length === 1 ? 'names' : 'name'} a Pokter wallet as provider and{' '}
+                    {outcomes.data.platformOwed.length === 1 ? 'was' : 'were'} never delivered. Pokter owed{' '}
+                    {outcomes.data.platformOwed.length === 1 ? 'that one' : 'those'}, not the agent, so{' '}
+                    {outcomes.data.platformOwed.length === 1 ? 'it appears' : 'they appear'} on no agent&rsquo;s row.
+                    <span className="mt-1 block">
+                      <ReceiptLinks jobs={outcomes.data.platformOwed} label="Pokter-owed receipts" />
+                    </span>
                   </li>
                 )}
                 {outcomes.data.coverage.unlistedAgentRows > 0 && (
@@ -671,6 +1298,11 @@ export default async function LeaderboardPage({
               Split by the chain the agent is registered on, because a check calls the agent&rsquo;s own endpoint and
               has no escrow in it. That is a different split from the outcomes board above, and the two are not
               comparable.
+            </p>
+            {/* Both boards state their period in the same place, so a reader
+                moving between them can see that the two are not the same. */}
+            <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-ink-2">
+              {periodOf('responsiveness').note}
             </p>
           </div>
 
@@ -742,7 +1374,7 @@ export default async function LeaderboardPage({
               ) : (
                 <div className="flex flex-col divide-y divide-rule">
                   {responsiveness.data.categories.map((entry) => (
-                    <ResponsivenessCategory key={entry.category} entry={entry} />
+                    <ResponsivenessCategory key={entry.category} entry={entry} browse={browse} />
                   ))}
                 </div>
               )}
@@ -757,26 +1389,46 @@ export default async function LeaderboardPage({
         </section>
       )}
 
-      <section className="mt-16 rounded-[16px] border border-rule bg-raised p-6 text-[13.5px] leading-relaxed text-ink-2 sm:p-8">
-        <h2 className="t-h3 text-ink">What this board refuses to claim</h2>
-        <p className="mt-3">
-          A network with no qualifying row means Pokter has indexed no external settlement there in this period. It is
-          not a claim about what has happened on BNB Chain, about whether anyone has paid an agent, or about who was
-          first to do anything. Pokter can only report what its own index holds, and the index depends on a hire being
-          recorded as well as funded.
-        </p>
-        <p className="mt-3">
-          Outside Pokter&rsquo;s team set is not the same as independent. Pokter cannot prove a buyer was unrelated or
-          unsubsidised, so where a buyer runs a listed agent, or wrote an attestation about the agent it paid, the row
-          says so instead of renaming the figure.
-        </p>
-        <p className="mt-3">
-          Builders are deliberately not ranked here. Attributing historical jobs to the person who built an agent is
-          not reliable enough yet, and a board nobody can check is worse than no board.
-        </p>
-        <Link href="/methodology" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">
-          Read the methodology <Icon.Arrow size={14} />
-        </Link>
+      <section className="mt-16 grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
+        <div className="rounded-[16px] border border-rule bg-raised p-6 text-[13.5px] leading-relaxed text-ink-2 sm:p-8">
+          {/*
+            One card under both boards, so it names both. It said "this
+            board" and opened on settlements, which is a paragraph about the
+            outcomes board printed under the responsiveness one — the same
+            kind of mismatch as a column label that outlives its rule, and
+            visible only by loading the page on the other view.
+          */}
+          <h2 className="t-h3 text-ink">What these boards refuse to claim</h2>
+          <p className="mt-3">
+            A network with no qualifying row on the outcomes board means Pokter has indexed no external settlement
+            there in this period. It is not a claim about what has happened on BNB Chain, about whether anyone has
+            paid an agent, or about who was first to do anything. Pokter can only report what its own index holds,
+            and the index depends on a hire being recorded as well as funded.
+          </p>
+          <p className="mt-3">
+            Outside Pokter&rsquo;s team set is not the same as independent. Pokter cannot prove a buyer was unrelated
+            or unsubsidised, so where a buyer runs a listed agent, or wrote an attestation about the agent it paid,
+            the row says so instead of renaming the figure.
+          </p>
+          <p className="mt-3">
+            Builders are deliberately not ranked here. Attributing historical jobs to the person who built an agent is
+            not reliable enough yet, and a board nobody can check is worse than no board.
+          </p>
+          <Link href="/methodology" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">
+            Read the methodology <Icon.Arrow size={14} />
+          </Link>
+        </div>
+        <div className="flex flex-col gap-3 rounded-[16px] border border-[color-mix(in_oklab,var(--signal)_45%,transparent)] bg-signal-wash p-6 sm:p-8">
+          <span className="t-label text-ink-2">Nothing here fits?</span>
+          <h2 className="t-h3 text-ink">Have a task, not an agent?</h2>
+          <p className="text-[13.5px] leading-relaxed text-ink-2">
+            Describe the work instead of picking a row. Agents answer with a signed price, and whatever you hire lands
+            on this board under the same rules as everything above.
+          </p>
+          <Link href="/requests/new" className={cn(buttonClass('primary', 'm'), 'mt-1 self-start')}>
+            Post a request <Icon.Plus size={15} />
+          </Link>
+        </div>
       </section>
     </div>
   );
