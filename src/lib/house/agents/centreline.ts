@@ -59,7 +59,7 @@ async function uncollected(client: Client, id: bigint, holder: Address, block: b
 
 export const centreline: HouseAgentDefinition = {
   slug: 'centreline',
-  name: 'Centreline',
+  name: 'Centreline by Pokter',
   version: '1.0.0',
   category: 'rebalancing',
   description:

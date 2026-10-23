@@ -104,7 +104,7 @@ async function swapQuote(client: Client, from: Market, to: Market, amountWei: bi
 
 export const cresthold: HouseAgentDefinition = {
   slug: 'cresthold',
-  name: 'Cresthold',
+  name: 'Cresthold by Pokter',
   version: '1.0.0',
   category: 'yield',
   description:
