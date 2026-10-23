@@ -4,6 +4,7 @@ import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { loadFleet, studioOwner } from '@/features/studio/data';
 import { BuildingSignedOut } from '@/features/studio/SignedOut';
 import { PageHeader } from '@/features/workspace/parts';
+import { reconcileStagedWork } from '@/lib/builders/provider-work-view';
 import { chainLabel } from '@/lib/network/presentation';
 
 // Reads the builder's session cookie, so never cached.
@@ -23,6 +24,16 @@ export default async function IncomingJobsPage() {
     );
   }
   const { jobs, unavailable } = await loadFleet(owner);
+  /*
+   * Work an assistant staged through the automation tools, so the composer
+   * opens with it instead of the provider retyping it. Reconciled first, so
+   * a delivery already on chain is not offered back as a draft.
+   */
+  const staged = Object.fromEntries(
+    reconcileStagedWork(owner)
+      .deliveries.filter((d) => d.state === 'awaiting-wallet-signature')
+      .map((d) => [`${d.chainId}:${d.jobId}`, d.content]),
+  );
   return (
     <>
       {header}
@@ -31,7 +42,7 @@ export default async function IncomingJobsPage() {
           Pokter could not read this wallet&rsquo;s agents on {unavailable.map(chainLabel).join(' and ')} just now, so jobs for them may be missing. Reload to try again.
         </p>
       )}
-      <DeliveryInbox jobs={jobs} />
+      <DeliveryInbox jobs={jobs} staged={staged} />
     </>
   );
 }

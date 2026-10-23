@@ -41,6 +41,7 @@ primary_region = 'iad'
   SATURATION_DB_PATH = '/data/saturation.db'
   TRADING_DB_PATH = '/data/trading.db'
   HIRE_ATTEMPT_DB_PATH = '/data/hire-attempts.db'
+  PROVIDER_DB_PATH = '/data/provider.db'
   # The server schedules its own probe sweeps (src/lib/history/scheduler.ts);
   # GitHub's cron is the backup. Set only here, so no other host sweeps.
   SWEEP_SCHEDULER = 'on'

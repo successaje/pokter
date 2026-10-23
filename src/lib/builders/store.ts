@@ -8,6 +8,17 @@ import { getAddress, type Address, type Hex } from 'viem';
 
 import { siteUrl } from '@/lib/site';
 import { BUILDER_CHALLENGE_TTL_MS, builderVerificationMessage } from './verification';
+import {
+  countLiveAutomationTokens,
+  ensureAutomationTokens,
+  insertAutomationToken,
+  listAutomationTokens,
+  liveAutomationToken,
+  revokeAutomationToken,
+  touchAutomationToken,
+  type AutomationTokenRecord,
+  type AutomationTokenWrite,
+} from './automation-store';
 
 const DB_PATH = process.env.BUILDER_DB_PATH ?? './data/builders.db';
 let database: DatabaseSync | null = null;
@@ -55,6 +66,10 @@ function db(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_builder_sessions_owner
       ON builder_sessions (owner_address, expires_at DESC);
   `);
+  /* Automation tokens live beside the sessions that mint them, in one
+     connection: two `DatabaseSync` handles on one WAL file is a hazard
+     worth not having for the sake of a separate module's tidiness. */
+  ensureAutomationTokens(database);
   return database;
 }
 
@@ -165,4 +180,40 @@ export function revokeBuilderSession(token: string | undefined): void {
   db().prepare('UPDATE builder_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL').run(
     new Date().toISOString(), hash(token),
   );
+}
+
+/*
+ * Automation tokens, bound to this process's database.
+ *
+ * The statements themselves are in `automation-store.ts` so a test can run
+ * them against a temp file; these only supply the connection and the clock.
+ */
+
+export function saveAutomationToken(write: AutomationTokenWrite): void {
+  insertAutomationToken(db(), write);
+}
+
+/**
+ * The live token for this secret, or null — revoked, expired and unknown
+ * are one answer here on purpose. Which it was is not something to tell a
+ * caller holding a credential we do not recognise.
+ */
+export function automationTokenFor(tokenHash: string): AutomationTokenRecord | null {
+  return liveAutomationToken(db(), tokenHash, new Date().toISOString());
+}
+
+export function automationTokensOf(owner: string): AutomationTokenRecord[] {
+  return listAutomationTokens(db(), owner.toLowerCase());
+}
+
+export function liveAutomationTokenCount(owner: string): number {
+  return countLiveAutomationTokens(db(), owner.toLowerCase(), new Date().toISOString());
+}
+
+export function revokeAutomationTokenFor(owner: string, id: string): boolean {
+  return revokeAutomationToken(db(), owner.toLowerCase(), id, new Date().toISOString());
+}
+
+export function noteAutomationTokenUse(tokenHash: string): void {
+  touchAutomationToken(db(), tokenHash, new Date().toISOString());
 }
