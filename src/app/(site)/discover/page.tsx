@@ -8,6 +8,8 @@ import { RememberDiscoverResults } from '@/features/discover/ReturnToResults';
 import { AgentCard, AgentRow, MiniAgentCard } from '@/features/agents/AgentCard';
 import { CompareToggle, CompareTray } from '@/features/compare/CompareControls';
 import { DiscoverSearch, MobileFilters } from '@/features/discover/DiscoverControls';
+import { ManyQuotes } from '@/features/discover/ManyQuotes';
+import { comparisonCandidates } from '@/lib/hire/compare-quotes';
 import { discoverHref, PAGE_SIZE, parseDiscoverParams } from '@/features/discover/params';
 import { discover } from '@/features/discover/search';
 import { CatalogueTools } from '@/features/discover/CatalogueTools';
@@ -257,6 +259,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         />
 
         <section aria-label="Results" className="min-w-0">
+          {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}
+          {p.q && result.total > 0 && (
+            <ManyQuotes task={p.q} agents={comparisonCandidates(shown, result.reading?.category ?? null).map((row) => ({ chainId: row.chainId, tokenId: row.tokenId, name: row.name }))} />
+          )}
           {/* Somebody looking for a health-factor agent usually wants to keep an eye on a loan; that part is free. */}
           {p.category === 'health-factor' && (
             <Link href="/watch" className="mb-5 flex items-center justify-between gap-3 rounded-[14px] border border-rule bg-raised px-4 py-3 text-[13.5px] hover:border-ink-3">
