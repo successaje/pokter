@@ -381,14 +381,66 @@ function lowered(value: string | null | undefined): string | null {
  * claim about merit, so a reader who sees two equal figures can tell that
  * Pokter is not asserting one is better than the other.
  */
+export function outcomeMetricValue(row: OutcomeRow, metric: OutcomeMetric): number {
+  return metric === 'external-buyers'
+    ? row.externalBuyers
+    : metric === 'repeat-buyers'
+      ? row.repeatBuyers
+      : row.settledJobs;
+}
+
 export function sortOutcomeRows(rows: readonly OutcomeRow[], metric: OutcomeMetric): OutcomeRow[] {
-  const value = (row: OutcomeRow): number =>
-    metric === 'external-buyers'
-      ? row.externalBuyers
-      : metric === 'repeat-buyers'
-        ? row.repeatBuyers
-        : row.settledJobs;
-  return [...rows].sort((a, b) => value(b) - value(a) || a.agent.name.localeCompare(b.agent.name));
+  return [...rows].sort(
+    (a, b) =>
+      outcomeMetricValue(b, metric) - outcomeMetricValue(a, metric) ||
+      a.agent.name.localeCompare(b.agent.name),
+  );
+}
+
+export interface RankedOutcomeRow {
+  row: OutcomeRow;
+  /** The standing this row holds on the ordering metric, or null when it holds none. */
+  rank: number | null;
+}
+
+/**
+ * A rank only where the column that produced the order put one.
+ *
+ * The page numbered rows by their position in the sorted array and withheld
+ * the number when `settledJobs` was nought — which is right for the default
+ * metric and wrong for the other two, and both faults were visible on the
+ * production board. Ordered by "Repeat external buyer wallets", testnet
+ * printed `03 Halong Yield`, `05 Position Guard by Dyplux`, `06 Runway
+ * Treasurer`, `08 TiltBalance` and `09 Venus Yield Keeper` under that
+ * header, and every one of those rows had **nought** repeat buyers. A rank
+ * beside a nought in the column that explains the rank says the agent
+ * placed third at something it has not done once.
+ *
+ * The numbering was also full of holes — 03, —, 05, 06, —, 08 — because the
+ * dash read `settledJobs` while the sort read the chosen metric, so rows
+ * with no settlement were scattered through the order rather than at the end
+ * of it. A reader seeing 03 then 05 concludes a row was filtered out. None
+ * was.
+ *
+ * Both follow from the same rule: the rank is produced by the ordering
+ * metric, so it is withheld wherever that metric is nought, and the numbers
+ * run over the rows that do hold one. Because `sortOutcomeRows` puts every
+ * nought last, the ranked rows are a prefix and the numbering is contiguous
+ * by construction rather than by a second pass.
+ *
+ * Ordered by settled jobs — the default, and the board most visitors see —
+ * this produces exactly what shipped before it.
+ */
+export function rankOutcomeRows(
+  rows: readonly OutcomeRow[],
+  metric: OutcomeMetric,
+): RankedOutcomeRow[] {
+  let rank = 0;
+  return rows.map((row) => {
+    if (outcomeMetricValue(row, metric) <= 0) return { row, rank: null };
+    rank += 1;
+    return { row, rank };
+  });
 }
 
 /**
