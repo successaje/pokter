@@ -21,7 +21,8 @@ export const INSTRUCTIONS =
   'Pokter is the agent marketplace for BNB Chain: it lists ERC-8004 AI agents that can be hired through ERC-8183 escrow, with evidence for each (whether it answered Pokter’s checks, its signed price, paid deliveries and receipts). ' +
   'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, or is building one to be hired. ' +
   'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief (this sends the brief to the agent’s own endpoint), and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
-  'Nothing here moves money; never say a hire has been made until the user has funded it.';
+  'To carry a hire through: prepare_brief compiles the request into what the agent’s skill accepts, prepare_hire writes the whole hire down UNSIGNED for the user to approve and fund in their own wallet, job_status tracks it, and check_delivery reads what was delivered and checks it where Pokter can. ' +
+  'Nothing here moves money: no tool can pay, approve, escrow or release anything, and the payment step is always the user in their own wallet. Never say a hire has been made until the user has funded it.';
 
 export interface McpTool {
   name: string;
@@ -30,6 +31,17 @@ export interface McpTool {
   inputSchema: Record<string, unknown>;
   /** A `ui://` view (MCP Apps) that hosts able to render one show for this tool's result. */
   ui?: string;
+  /**
+   * Where this tool's hints differ from the defaults below.
+   *
+   * The defaults describe a read, which every tool here was. Two are not
+   * quite: a quote is asked of the agent afresh each call, and preparing a
+   * hire records the request it hands over so that a retry cannot become a
+   * second job. Both were special cases written into the listing; carrying
+   * them on the tool means a new tool states its own hints beside its own
+   * description instead of a `switch` elsewhere drifting from them.
+   */
+  annotations?: Partial<Record<'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint', boolean>>;
   run: (args: Record<string, unknown>) => Promise<{ data: unknown; isError?: boolean }>;
 }
 
@@ -59,7 +71,12 @@ function object(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-/** Every tool is a read against Pokter or, for get_quote, a free signed-price request to an agent. */
+/**
+ * Every tool is a read against Pokter, a free signed-price request to an
+ * agent, or — for prepare_hire — a request written down for a human to
+ * approve. None of them can spend: `destructiveHint` is false on all of
+ * them because the one step that moves money is not a tool at all.
+ */
 const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 
 async function handle(message: RpcRequest, tools: readonly McpTool[], resources: readonly McpResource[]): Promise<unknown | null> {
@@ -92,7 +109,7 @@ async function handle(message: RpcRequest, tools: readonly McpTool[], resources:
           description: tool.description,
           inputSchema: tool.inputSchema,
           // A quote is asked of the agent afresh each call, so it is not idempotent.
-          annotations: { title: tool.title, ...ANNOTATIONS, ...(tool.name === 'get_quote' ? { idempotentHint: false } : {}) },
+          annotations: { title: tool.title, ...ANNOTATIONS, ...(tool.name === 'get_quote' ? { idempotentHint: false } : {}), ...(tool.annotations ?? {}) },
           // MCP Apps: hosts that render views show this one with the result; others ignore it.
           ...(tool.ui ? { _meta: { ui: { resourceUri: tool.ui } } } : {}),
         })),

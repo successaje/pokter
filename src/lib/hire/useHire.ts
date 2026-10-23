@@ -81,6 +81,21 @@ export type NotificationState =
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
 
+/**
+ * The prepared request this page was opened for, from `?request=`.
+ *
+ * Set by `/api/hire/prepare` on the link it gives an assistant to hand its
+ * owner, and reported back when the hire is funded so the request can be
+ * marked as the job it became. Matched to its exact shape, so nothing else
+ * in a query string is forwarded as one; the server verifies the key
+ * against the job regardless.
+ */
+function preparedRequestKey(): string | null {
+  if (typeof window === 'undefined') return null;
+  const value = new URLSearchParams(window.location.search).get('request');
+  return value && /^phr_[0-9a-f]{32}$/.test(value) ? value : null;
+}
+
 export { BUDGET_MAX, BUDGET_MIN } from './budget-limits';
 import { BUDGET_MAX, BUDGET_MIN } from './budget-limits';
 
@@ -580,6 +595,23 @@ export function useHire({
       agentTokenId: hired.agentTokenId,
       agentName: hired.agentName,
       providerLabel: hired.providerLabel,
+      /*
+       * Which prepared request this payment answered, when the owner
+       * arrived from one.
+       *
+       * An assistant can hand its owner an unsigned request and cannot
+       * watch them approve it, so without this nothing ever tells Pokter
+       * that a prepared request became a job — and `prepare_hire` would go
+       * on offering the same purchase. The key rides in the approval link
+       * and is reported at the one moment the funding is already being
+       * reported. Read from the URL rather than threaded through four
+       * components because it is a property of how this page was opened,
+       * not of the agent or the brief.
+       *
+       * The server trusts none of it: it checks the key against this job's
+       * own chain, agent, provider, brief and funder before keeping it.
+       */
+      ...(preparedRequestKey() ? { requestKey: preparedRequestKey() } : {}),
     });
     /*
      * Retried: the server's node can be a block behind the wallet's and

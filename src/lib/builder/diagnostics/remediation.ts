@@ -63,6 +63,20 @@ const INPUT: Record<InputRefusalCode, Omit<Remediation, 'code'>> = {
     fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
     transient: false,
   },
+  'brief-incomplete': {
+    /*
+     * The one code here that is not a card doing badly. It is reached from
+     * the tool chain, where an assistant is preparing a hire with no human
+     * reading a screen: Pokter could name every input your card declares
+     * and which of them the brief had not supplied, so it asked for them
+     * instead of sending a request the agent would have to refuse. A
+     * builder seeing these is seeing their declaration work.
+     */
+    reason:
+      'An assistant preparing a hire was asked for the inputs your skill declares and had not supplied them yet, so nothing was sent. This is your card working: Pokter could name each missing field and ask for it rather than send a brief your agent would refuse. It becomes a lost hire only if the questions cannot be answered — an example brief that contains every field, with the names your agent reads, is what makes them answerable.',
+    fix: { label: 'Skills a card declares', href: `${KIT}#skills` },
+    transient: false,
+  },
   'brief-declined': {
     reason:
       'Pokter could not turn the buyer’s brief into a request for any skill your card declares, so nothing was sent. This is a card that does not describe what the agent sells in terms a brief can be matched against.',

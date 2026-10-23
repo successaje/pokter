@@ -148,7 +148,16 @@ export function outboundParts(
  * different things. `layer: 'input'` is what `useHire` reads to say the
  * brief is the thing to fix, rather than the seller or the network.
  */
-export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined';
+/**
+ * `brief-incomplete` is the fourth surface's refusal: a caller preparing a
+ * hire through the tool chain, whose compiled brief still has a declared
+ * input nobody has answered. In the form those questions are guidance, and
+ * a buyer can send a prose brief anyway — the agent's own judgement settles
+ * it (see `hire-preflight`). A tool chain has no buyer reading the screen,
+ * so the questions come back as the refusal and the answers come back bound
+ * to their keys.
+ */
+export type BriefRefusalCode = 'subject-missing' | 'subject-ambiguous' | 'brief-declined' | 'brief-incomplete';
 
 export function briefRefusalBody(input: {
   message: string;
