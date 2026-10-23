@@ -256,3 +256,64 @@ test('the staged deliverable reaches the delivery composer, as a draft', () => {
   assert.match(inbox, /sessionStorage\.getItem\(draftKey\) \|\| staged \|\| ''/);
   assert.match(inbox, /Nothing has been delivered yet/);
 });
+
+/*
+ * The address brake must come before any caller-supplied value is a key.
+ *
+ * The per-token bucket is keyed on a hash of the Authorization header,
+ * which the caller chooses. Rotating it produced a fresh bucket per
+ * request: 135 unauthenticated POSTs with 135 different fake tokens drew
+ * 135 answers and no 429, while 135 with one token stopped at 120. Each
+ * distinct key also INSERTs a row into the rate-limit database on the one
+ * mounted volume that carries the job index and the brief store, and
+ * pruning only drops rows over an hour old while SQLite never shrinks the
+ * file without VACUUM — so an unauthenticated flood grew a file every
+ * other store depends on.
+ *
+ * Position, not presence: the defect was ordering, and a test that only
+ * looked for `requestClientKey` somewhere in the file would have passed
+ * while the limiter still ran after the token was parsed.
+ */
+test('the provider endpoint brakes on the address before it keys anything on the caller', () => {
+  const addressLimit = PROVIDER.indexOf('mcp-provider-ip:');
+  const headerRead = PROVIDER.indexOf('automationTokenFromHeader(');
+  const tokenLimit = PROVIDER.indexOf('mcp-provider:');
+
+  assert.ok(addressLimit > 0, 'there is no address-keyed limit on this route');
+  assert.match(PROVIDER, /consumeRateLimit\(`mcp-provider-ip:\$\{requestClientKey\(request\)\}`/);
+  assert.ok(
+    addressLimit < headerRead,
+    'the address limit runs after the Authorization header is read, so a rotated header still reaches it',
+  );
+  assert.ok(
+    addressLimit < tokenLimit,
+    'the caller-keyed bucket runs first, which is the unbounded key space itself',
+  );
+});
+
+/*
+ * Every skill lookup resolves to a skill this route was given.
+ *
+ * `SKILLS` was a plain object literal and the lookup was unguarded, so
+ * `/api/skills/constructor` returned 200 text/markdown holding
+ * "function Object() { [native code] }" and `/api/skills/__proto__`
+ * returned "[object Object]", both cacheable for 300 seconds, while the
+ * route's own contract promises a 404 for an unknown name.
+ */
+test('the skills route cannot resolve an inherited Object key', () => {
+  const skills = route('skills/[name]');
+  assert.match(
+    skills,
+    /Object\.create\(null\)/,
+    'SKILLS inherits from Object.prototype, so constructor and __proto__ resolve as skills',
+  );
+
+  /* The shape the route now builds, exercised rather than described. */
+  const table: Record<string, string> = Object.assign(Object.create(null) as Record<string, string>, {
+    'pokter-provider': '# skill',
+  });
+  for (const key of ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']) {
+    assert.equal(table[key], undefined, `${key} resolved to something a request could be served`);
+  }
+  assert.equal(table['pokter-provider'], '# skill', 'the real skill must still resolve');
+});
