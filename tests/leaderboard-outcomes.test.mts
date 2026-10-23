@@ -434,3 +434,40 @@ test('the newest status check on a row is its last settlement', () => {
   ]);
   assert.equal(built.rows[0].lastSettledAt, '2026-10-23T09:00:00.000Z');
 });
+
+/*
+ * The published definition has to describe the rule the board applies.
+ *
+ * `isAgentDelivery` stopped admitting `relayed-answer` so that a delivery
+ * Pokter's courier submitted is never counted as the agent's, but the
+ * metric's own `definition` string still promised the opposite — "or
+ * carried the agent's own answer in its manifest" — and shipped that way.
+ * The count was right and the sentence above it was wrong, which is worse
+ * than either alone: the definition is what makes the number mean
+ * anything, and a reader comparing the two would have concluded relayed
+ * jobs were included.
+ *
+ * Nothing else could catch it. The rule is a function and the definition is
+ * prose, so a change to one leaves no trace in the other. This asserts the
+ * pair, and it is the pair that has to stay true.
+ */
+test('the settled-jobs definition describes the delivery rule the board applies', () => {
+  const settled = OUTCOME_METRICS.find((metric) => metric.id === 'settled-jobs');
+  assert.ok(settled, 'the settled-jobs metric is gone — update this test rather than deleting it');
+
+  assert.equal(
+    isAgentDelivery('relayed-answer'),
+    false,
+    'relayed answers are excluded, so the definition below must not promise them',
+  );
+  assert.doesNotMatch(
+    settled.definition,
+    /manifest/i,
+    'the definition still offers the manifest reading that isAgentDelivery refuses',
+  );
+  assert.match(
+    settled.definition,
+    /own wallet/i,
+    'the definition no longer states the rule it does apply',
+  );
+});
