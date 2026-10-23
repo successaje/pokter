@@ -11,10 +11,15 @@ import {
   automationTokenFromHeader,
   lastSeen,
   scopeRefusal,
+  type AutomationScope,
 } from '@/lib/builders/automation-token';
 import { hashAutomationToken } from '@/lib/builders/automation-secret';
 import type { AutomationTokenRecord } from '@/lib/builders/automation-store';
 import { confirmAgentOwner } from '@/lib/builders/provider-identity';
+import {
+  notOwnedNote,
+  ownershipUnavailableNote,
+} from '@/lib/builders/provider-ownership';
 import {
   earningsByChain,
   providerWorkload,
@@ -42,6 +47,7 @@ import {
   stagedDeliveryByJob,
   stagedProposal,
 } from '@/lib/assistant/provider-db';
+import { scopeGuarded, withConfirmedAgent } from '@/lib/assistant/provider-gate';
 import { cleanUntrusted, cleanUntrustedLines, untrusted } from '@/lib/assistant/untrusted';
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
 import {
@@ -144,25 +150,48 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
         idempotentHint: true,
         openWorldHint: true,
       },
-      async run(args) {
-        /*
-         * The one scope gate, here.
-         *
-         * The listing used to be filtered as well, which read as the safer
-         * option and was not: `answerMcp` answers a tool it was not given
-         * with `-32602 Unknown tool`, so an assistant holding a token
-         * without `proposals:write` was told prepare_proposal does not
-         * exist. That is a false claim about what Pokter offers, and it
-         * sends the user looking for a tool rather than for a scope. Every
-         * tool is listed; the ones this token cannot call are refused by
-         * name, with the scope to mint and where to mint it.
-         */
-        const refusal = scopeRefusal(token.scopes, scope);
-        if (refusal) return { data: { error: refusal, grantedScopes: token.scopes }, isError: true };
-        return body(args);
-      },
+      /*
+       * The one scope gate, and it is not a statement in front of the work
+       * — `scopeGuarded` holds the body and decides whether to call it.
+       *
+       * It used to be a check here with `return body(args)` after it, and
+       * the only coverage was a source regex that cannot see ordering:
+       * moving the check to run after `await body(args)` left the whole
+       * suite passing, so a token with no `deliverables:prepare` would have
+       * written the staged row and *then* been refused. The ordering is now
+       * a property of a pure module with its own mutation-tested suite.
+       */
+      run: scopeGuarded(scope, token, body),
     };
   };
+
+  /**
+   * One block of a tool's answer, or why this token is not shown it.
+   *
+   * `provider_status` carries no scope of its own, deliberately: it is the
+   * honest first call for any live token, and it is where an assistant
+   * learns what it may do. But it was also returning job and proposal state
+   * — outstanding job ids with their staged content hashes, quoted prices,
+   * and a count of indexed jobs — to a token holding none of the scopes
+   * that govern them. A provider who minted a narrow `requests:read` token
+   * for a less-trusted assistant was told it "cannot read their jobs", and
+   * it could. Each block is now gated on the scope whose description claims
+   * it.
+   *
+   * Withheld is said rather than omitted. An absent `jobsIndexed` reads as
+   * zero and an absent list reads as "nothing is waiting", and reporting
+   * absence as a fact is the defect this repository keeps shipping.
+   */
+  const scoped = <T>(needed: AutomationScope, read: () => T): T | { notShown: string } => {
+    const refusal = scopeRefusal(token.scopes, needed);
+    return refusal ? { notShown: refusal } : read();
+  };
+
+  /** What every tool that reports jobs or money says about agents it could not check. */
+  const ownershipNotes = (fleet: { ownershipUnavailable: string[]; notOwned: string[] }) => ({
+    ...(fleet.ownershipUnavailable.length ? { ownershipUnavailable: ownershipUnavailableNote(fleet.ownershipUnavailable) } : {}),
+    ...(fleet.notOwned.length ? { noLongerOwned: notOwnedNote(fleet.notOwned) } : {}),
+  });
 
   /** The agent this call names, if this token's wallet owns it right now. */
   const ownedAgent = async (args: Record<string, unknown>) => {
@@ -196,13 +225,17 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             'This token cannot sign anything and no scope exists that would let it. Placing a proposal needs the agent owner’s signature and delivering a job needs a transaction from the provider wallet; both happen in the human’s own wallet, because Pokter holds neither key and will not hold one.',
           notHosting:
             'Installing this skill does not host the agent. Work is answered only while this assistant is running on the user’s own machine. A request posted while it is not running is still there when it next starts, but a funded job that waits past its delivery deadline expires and the buyer reclaims the budget — nothing on Pokter delivers on the agent’s behalf.',
+          /* The fleet itself needs no scope: which agents a wallet owns is
+             public on chain, it is the one thing this tool exists to state,
+             and every entry here has just been confirmed against the
+             registry. */
           agents: fleet.agents.map((agent) => ({
             chainId: agent.chainId,
             tokenId: agent.tokenId,
             name: agent.name,
             category: agent.categoryId,
             ownershipProvedAt: agent.provedAt,
-            note: 'Ownership is read from the ERC-8004 registry again before any proposal or delivery is staged for this agent.',
+            note: 'The ERC-8004 registry named this wallet as this agent’s owner on this call, and is read again on every call and before any proposal or delivery is staged.',
           })),
           ...(fleet.catalogueUnavailable.length
             ? {
@@ -210,15 +243,24 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
                 catalogueNote: `Pokter could not read the agent catalogue on ${fleet.catalogueUnavailable.map(chainLabel).join(' and ')} just now, so names and categories may be missing and find_requests cannot match on category. This is Pokter failing to read, not an answer about what this wallet owns.`,
               }
             : {}),
+          ...ownershipNotes(fleet),
           waitingOnAHuman: {
-            proposalsToSign: waiting.proposals
-              .filter((p) => p.state === 'awaiting-owner-signature')
-              .map((p) => ({ key: p.key, requestId: p.requestId, priceU: p.priceU, signAt: handoff.signProposals })),
-            deliveriesToSubmit: waiting.deliveries
-              .filter((d) => d.state === 'awaiting-wallet-signature')
-              .map((d) => ({ jobId: d.jobId, chainId: d.chainId, contentSha256: d.contentSha256, submitAt: handoff.signDeliveries })),
+            /* A staged proposal is proposal state and carries the price
+               that was quoted, so it is `proposals:write`'s to read. */
+            proposalsToSign: scoped('proposals:write', () =>
+              waiting.proposals
+                .filter((p) => p.state === 'awaiting-owner-signature')
+                .map((p) => ({ key: p.key, requestId: p.requestId, priceU: p.priceU, signAt: handoff.signProposals })),
+            ),
+            /* A staged deliverable names a funded job and the hash of the
+               work written against it, so it is `deliverables:prepare`'s. */
+            deliveriesToSubmit: scoped('deliverables:prepare', () =>
+              waiting.deliveries
+                .filter((d) => d.state === 'awaiting-wallet-signature')
+                .map((d) => ({ jobId: d.jobId, chainId: d.chainId, contentSha256: d.contentSha256, submitAt: handoff.signDeliveries })),
+            ),
           },
-          jobsIndexed: jobs.length,
+          jobsIndexed: scoped('jobs:read', () => jobs.length),
           flow: PROVIDER_TOOL_CHAIN,
         },
       };
@@ -267,6 +309,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
                   .join(' and ')} could not be read, so some of this wallet’s agents have no category here and requests they could answer may be missing from this list. Retry, or pass all_categories.`,
               }
             : {}),
+          ...ownershipNotes(fleet),
           total: rows.length,
           requests: rows.slice(0, limit).map(({ brief, category, fit, standing }) => ({
             id: brief.id,
@@ -530,6 +573,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           ...(fleet.catalogueUnavailable.length
             ? { warning: `The agent catalogue on ${fleet.catalogueUnavailable.map(chainLabel).join(' and ')} could not be read, so jobs for agents known only from there may be missing from this list.` }
             : {}),
+          ...ownershipNotes(fleet),
           total: wanted.length,
           jobs: wanted.slice(0, limit).map((job) => {
             const staged = stagedDeliveryByJob(job.chainId, job.jobId);
@@ -581,101 +625,114 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           isError: true,
         };
       }
-      /* The registry again, per request, exactly as the delivery route does
-         it: an agent transferred away stops being deliverable at once, and
-         "could not check" is never reported as "not yours". */
-      const confirmed = await confirmAgentOwner(owner, job.agentChainId ?? 56, job.agentTokenId);
-      if (!confirmed.ok) return { data: { error: confirmed.reason }, isError: true };
-
-      const key = deliveryKey({ owner, chainId, jobId });
-      /* Reconciled before anything is written, so a delivery submitted from
-         a browser this process never saw is known about here. */
-      reconcileStagedWork(owner);
-      const existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
-      const retry = deliveryRetry(existing, contentDigest(content));
-      if (retry.action === 'submitted') {
-        return {
-          data: {
-            key,
-            state: 'submitted',
-            staged: false,
-            transactionHash: retry.transactionHash,
-            message: retry.message,
-          },
-        };
-      }
-      const blocked = deliveryBlocked(job);
-      if (blocked) return { data: { error: blocked, staged: false, jobStatus: job.status }, isError: true };
-      if (existing && existing.key !== key) {
-        return {
-          data: {
-            error: `A deliverable for job ${jobId} on chain ${chainId} was already staged by another wallet’s automation, and one job has one delivery. Nothing was written.`,
-          },
-          isError: true,
-        };
-      }
-      const digest = contentDigest(content);
-      const result = recordStagedDelivery({ key, owner, chainId, jobId, content, contentSha256: digest, at: new Date().toISOString() });
-      if (result === 'conflict') {
-        /* The index on (chain, job) refused it: another wallet's automation
-           holds this job's one delivery. Not this caller's own submission,
-           so it is not reported as one. */
-        return {
-          data: {
-            error: `A deliverable for job ${jobId} on chain ${chainId} is already staged under another key, and one job has one delivery. Nothing was written.`,
-          },
-          isError: true,
-        };
-      }
-      if (result === 'already-submitted') {
-        const row = stagedDelivery(key);
-        return {
-          data: {
-            key,
-            state: 'submitted',
-            staged: false,
-            transactionHash: row?.submitTxHash ?? null,
-            message: 'The delivery was submitted on chain while this was being staged, so nothing was written. Do not redo the work.',
-          },
-        };
-      }
-      return {
-        data: {
-          key,
-          state: 'awaiting-wallet-signature',
-          staged: true,
-          /*
-           * The decision, not the statement's own outcome.
-           *
-           * `recordStagedDelivery` answers `restaged` for every call that
-           * was not the first, because the UPDATE always runs — it rewrites
-           * identical bytes and touches `last_seen_at`. Reporting that as
-           * `action` made a same-bytes retry say `restaged` beside a
-           * message reading "nothing was written again": the field and the
-           * sentence contradicting each other, which is precisely the
-           * defect this repository keeps shipping. `retry.action` is what
-           * actually happened to the work.
-           */
-          action: retry.action,
-          message: retry.message,
-          contentSha256: digest,
-          hashNote:
-            'That is the sha256 of the staged bytes, for recognising this work again. It is NOT the ERC-8183 deliverable hash: that is computed over a manifest recording the moment the provider signs, so it exists only then, and no hash printed before that will match the one on chain.',
-          notDelivered:
-            'NOTHING HAS BEEN DELIVERED. Staged text is a draft on Pokter. The delivery is a transaction from the provider wallet committing a hash of these exact bytes, and Pokter holds no key that could send it.',
-          handoff: {
-            providerWallet: job.provider,
-            where: handoff.signDeliveries,
-            what: `Open that page as ${job.provider}, review the staged text, and press Sign and deliver. It signs a challenge, Pokter stores the exact bytes and hashes them, the wallet commits that hash on chain, and the index checks the transaction before anything is marked delivered.`,
-            deadline: job.expiredAt,
-            ifNobodySigns: 'The work sits here unsubmitted. If the deadline passes undelivered the buyer reclaims the budget and nothing is paid — an assistant that is not running, or an owner who does not sign, both end the same way.',
-          },
+      /*
+       * The registry again, per request, and the staging is inside the
+       * gate rather than after it.
+       *
+       * `withConfirmedAgent` holds the work and decides whether to run it,
+       * exactly as `/api/builders/deliveries` reads ownership per request:
+       * an agent transferred away stops being deliverable at once, and
+       * "could not check" is never reported as "not yours". It used to be a
+       * check with the staging beside it, and deleting the check left all
+       * 1,875 assertions passing, because the source regex asserting it was
+       * satisfied by the surviving call inside `ownedAgent`. There is now
+       * no edit that leaves the refusal in place and the row written anyway.
+       */
+      return withConfirmedAgent(
+        { chainId: job.agentChainId ?? 56, tokenId: job.agentTokenId },
+        (agentChainId, agentTokenId) => confirmAgentOwner(owner, agentChainId, agentTokenId),
+        async () => {
+          const key = deliveryKey({ owner, chainId, jobId });
+          /* Reconciled before anything is written, so a delivery submitted from
+             a browser this process never saw is known about here. */
+          reconcileStagedWork(owner);
+          const existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
+          const retry = deliveryRetry(existing, contentDigest(content));
+          if (retry.action === 'submitted') {
+            return {
+              data: {
+                key,
+                state: 'submitted',
+                staged: false,
+                transactionHash: retry.transactionHash,
+                message: retry.message,
+              },
+            };
+          }
+          const blocked = deliveryBlocked(job);
+          if (blocked) return { data: { error: blocked, staged: false, jobStatus: job.status }, isError: true };
+          if (existing && existing.key !== key) {
+            return {
+              data: {
+                error: `A deliverable for job ${jobId} on chain ${chainId} was already staged by another wallet’s automation, and one job has one delivery. Nothing was written.`,
+              },
+              isError: true,
+            };
+          }
+          const digest = contentDigest(content);
+          const result = recordStagedDelivery({ key, owner, chainId, jobId, content, contentSha256: digest, at: new Date().toISOString() });
+          if (result === 'conflict') {
+            /* The index on (chain, job) refused it: another wallet's automation
+               holds this job's one delivery. Not this caller's own submission,
+               so it is not reported as one. */
+            return {
+              data: {
+                error: `A deliverable for job ${jobId} on chain ${chainId} is already staged under another key, and one job has one delivery. Nothing was written.`,
+              },
+              isError: true,
+            };
+          }
+          if (result === 'already-submitted') {
+            const row = stagedDelivery(key);
+            return {
+              data: {
+                key,
+                state: 'submitted',
+                staged: false,
+                transactionHash: row?.submitTxHash ?? null,
+                message: 'The delivery was submitted on chain while this was being staged, so nothing was written. Do not redo the work.',
+              },
+            };
+          }
+          return {
+            data: {
+              key,
+              state: 'awaiting-wallet-signature',
+              staged: true,
+              /*
+               * The decision, not the statement's own outcome.
+               *
+               * `recordStagedDelivery` answers `restaged` for every call that
+               * was not the first, because the UPDATE always runs — it rewrites
+               * identical bytes and touches `last_seen_at`. Reporting that as
+               * `action` made a same-bytes retry say `restaged` beside a
+               * message reading "nothing was written again": the field and the
+               * sentence contradicting each other, which is precisely the
+               * defect this repository keeps shipping. `retry.action` is what
+               * actually happened to the work.
+               */
+              action: retry.action,
+              message: retry.message,
+              contentSha256: digest,
+              hashNote:
+                'That is the sha256 of the staged bytes, for recognising this work again. It is NOT the ERC-8183 deliverable hash: that is computed over a manifest recording the moment the provider signs, so it exists only then, and no hash printed before that will match the one on chain.',
+              notDelivered:
+                'NOTHING HAS BEEN DELIVERED. Staged text is a draft on Pokter. The delivery is a transaction from the provider wallet committing a hash of these exact bytes, and Pokter holds no key that could send it.',
+              handoff: {
+                providerWallet: job.provider,
+                where: handoff.signDeliveries,
+                what: `Open that page as ${job.provider}, review the staged text, and press Sign and deliver. It signs a challenge, Pokter stores the exact bytes and hashes them, the wallet commits that hash on chain, and the index checks the transaction before anything is marked delivered.`,
+                deadline: job.expiredAt,
+                ifNobodySigns: 'The work sits here unsubmitted. If the deadline passes undelivered the buyer reclaims the budget and nothing is paid — an assistant that is not running, or an owner who does not sign, both end the same way.',
+              },
+            },
+          };
         },
-      };
+      );
     }),
 
     run('report_earnings', async (args) => {
-      const { jobs } = await providerWorkload(owner);
+      const { fleet, jobs } = await providerWorkload(owner);
       const wantChain = chainOf(args.chain_id);
       const since = typeof args.since === 'string' ? Date.parse(args.since) : Number.NaN;
       const counted = jobs
@@ -691,6 +748,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             ? { noTotal: 'The chains are not added together: 56 settles in real $U and 97 in a test token with no value, so one combined figure would not be a number about money.' }
             : {}),
           jobsCounted: counted.length,
+          ...ownershipNotes(fleet),
           source: 'Pokter’s own index of jobs it verified against the chain. The escrow is the authority; this is a reading of it.',
           collecting:
             'A released payment is collected by a transaction from the provider wallet, at /build/jobs. There is no tool for it here and Pokter never holds the money.',

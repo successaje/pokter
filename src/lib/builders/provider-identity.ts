@@ -7,24 +7,37 @@ import { registryOwner } from '@/lib/registry/onchain';
 import { listAgents } from '@/lib/scan/client';
 import type { ScanAgent } from '@/lib/scan/types';
 
+import {
+  confirmOwnedAgents,
+  type OwnerConfirmation,
+} from './provider-ownership';
 import { verifiedPublisherByOwner } from './store';
 
 /**
- * Which agents an automation token's wallet may act for.
+ * Which agents an automation token's wallet may act for, and read for.
  *
- * Two sources, because each fails where the other works. The catalogue
- * knows an agent's name and category, which is what matching a request
- * needs, and it is the source the browser pages already use. The verified
- * publishers table knows only an identity, but it knows it from a signature
- * this wallet produced, so it still answers when the indexer is down — and
- * an assistant told "you own no agents" during an indexer outage would
- * conclude there was nothing to do.
+ * Candidates come from two sources, because each fails where the other
+ * works. The catalogue knows an agent's name and category, which is what
+ * matching a request needs, and it is the source the browser pages already
+ * use. The verified publishers table knows only an identity, but it knows
+ * it from a signature this wallet produced, so it still answers when the
+ * indexer is down — and an assistant told "you own no agents" during an
+ * indexer outage would conclude there was nothing to do. That table now
+ * expires its rows; see `publisher-store.ts` for how long and why.
  *
- * Neither is used to authorise anything on its own. A tool that acts for an
- * agent calls {@link confirmAgentOwner} first, which reads the registry,
- * for the same reason `/api/builders/deliveries` does it per request: an
- * agent transferred away must stop being actionable at once, and a stale
- * catalogue row must not hand it to the previous owner.
+ * Neither source authorises anything. Every candidate is confirmed against
+ * the ERC-8004 registry before it is returned, for the same reason
+ * `/api/builders/deliveries` does it per request: an agent transferred away
+ * must stop being readable and actionable at once, and a stale catalogue row
+ * or an old signature must not hand it to the previous owner.
+ *
+ * That confirmation used to be the *acting* tools' job alone —
+ * `confirmAgentOwner` was reached only from `prepare_proposal` and
+ * `prepare_deliverable`. The four read tools took this fleet unchecked and
+ * matched jobs on `agentChainId:agentTokenId` with no owner filter, so a
+ * former owner's ninety-day token kept reading a new owner's funded briefs,
+ * budgets, deliverable URLs and earnings. The check belongs here, where
+ * every caller gets it, rather than in the tools that remembered.
  */
 
 export interface ProviderAgent {
@@ -39,6 +52,7 @@ export interface ProviderAgent {
 }
 
 export interface ProviderFleet {
+  /** Only the agents the registry names this wallet the owner of, right now. */
   agents: ProviderAgent[];
   /**
    * The registry chains whose catalogue could not be read.
@@ -49,6 +63,16 @@ export interface ProviderFleet {
    * same answer as there being none.
    */
   catalogueUnavailable: number[];
+  /**
+   * `chainId:tokenId` whose ownership could not be confirmed.
+   *
+   * These are withheld, so every surface that reports jobs or money has to
+   * say so: a withheld job reported as no job is "you have nothing
+   * outstanding", which is a false claim about somebody's work.
+   */
+  ownershipUnavailable: string[];
+  /** `chainId:tokenId` the registry no longer names this wallet the owner of. */
+  notOwned: string[];
 }
 
 /** At most this many agents are carried, so one wallet's fleet cannot make a tool call unbounded. */
@@ -92,13 +116,21 @@ export async function providerFleet(ownerAddress: string): Promise<ProviderFleet
     const [chainId, tokenId] = key.split(':');
     found.set(key, { chainId: Number(chainId), tokenId, name: null, categoryId: null, provedAt: verifiedAt });
   }
-  return { agents: [...found.values()].slice(0, MAX_AGENTS), catalogueUnavailable: catalogueUnavailable.sort() };
+  /* Confirmed after the cap, not before, so one wallet's fleet cannot make
+     this an unbounded fan-out of RPC calls either. */
+  const candidates = [...found.values()].slice(0, MAX_AGENTS);
+  const confirmed = await confirmOwnedAgents(candidates, (chainId, tokenId) =>
+    confirmAgentOwner(owner, chainId, tokenId),
+  );
+  return {
+    agents: confirmed.agents,
+    catalogueUnavailable: catalogueUnavailable.sort(),
+    ownershipUnavailable: confirmed.ownershipUnavailable,
+    notOwned: confirmed.notOwned,
+  };
 }
 
-export type OwnerConfirmation =
-  | { ok: true; owner: Address }
-  | { ok: false; unavailable: true; reason: string }
-  | { ok: false; unavailable: false; reason: string };
+export type { OwnerConfirmation };
 
 /**
  * Whether the registry names this wallet as the agent's owner, right now.

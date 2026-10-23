@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
+import { PROVIDER_SKILL_MD as SKILL_MD } from '../src/lib/builders/provider-skill';
+
 /*
  * `import 'server-only'` reaches these routes through their own imports, so
  * nothing in `tests/` can load them. The decisions they make live in pure
@@ -20,6 +22,9 @@ const route = (path: string) =>
     .replace(/^\s*\/\/.*$/gm, '');
 
 const PROVIDER = route('mcp/provider');
+const IDENTITY = readFileSync(new URL('../src/lib/builders/provider-identity.ts', import.meta.url), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 const AUTOMATION = route('builders/automation');
 const SKILLS = route('skills/[name]');
 const BUYING = route('mcp');
@@ -71,17 +76,56 @@ test('the token is read on every call rather than cached per process', () => {
  * tool` — so a token without `proposals:write` was told prepare_proposal
  * does not exist. A false claim about what Pokter offers, and it sends the
  * user hunting for a tool instead of for a scope.
+ *
+ * The gate itself is no longer a statement in this file. It was, with
+ * `return body(args)` after it, and moving it to run after `await
+ * body(args)` left all 1,875 assertions passing — because a source regex
+ * cannot see ordering. It is now `scopeGuarded`, which holds the body and
+ * decides whether to call it, and `tests/provider-gate.test.mts` drives it
+ * with a spy that records whether the work ran. What is left here is the
+ * wiring: that the gate is reached, for every tool, with the spec's own
+ * scope.
  */
 test('scope is enforced at call time, and the listing is not filtered by it', () => {
-  assert.match(PROVIDER, /scopeRefusal\(token\.scopes, scope\)/);
-  assert.match(PROVIDER, /if \(refusal\) return/);
+  assert.match(PROVIDER, /run: scopeGuarded\(scope, token, body\)/);
+  assert.match(PROVIDER, /import \{ scopeGuarded, withConfirmedAgent \} from '@\/lib\/assistant\/provider-gate'/);
+  // Through `run`, which every tool in the returned array is built by, so
+  // no tool can be added that skips it.
+  assert.match(PROVIDER, /const run = \(name: string, body:/);
   assert.doesNotMatch(
     PROVIDER,
     /\.filter\(\(tool\) =>[\s\S]{0,200}token\.scopes\.includes/,
     'a filtered listing turns "you need a scope" into "no such tool"',
   );
   // The refusal names the scope and hands back what the token does carry.
-  assert.match(PROVIDER, /grantedScopes: token\.scopes/);
+  const gate = readFileSync(new URL('../src/lib/assistant/provider-gate.ts', import.meta.url), 'utf8');
+  assert.match(gate, /grantedScopes: token\.scopes/);
+  assert.match(gate, /scopeRefusal\(token\.scopes, scope\)/);
+});
+
+/*
+ * `provider_status` carries no scope, deliberately — it is the honest first
+ * call for any live token. It was also returning outstanding job ids with
+ * the hashes staged against them, quoted proposal prices and a count of
+ * indexed jobs, to a token holding none of the scopes that govern those.
+ * `automation-token.ts` told the user a `requests:read` token "cannot read
+ * their jobs"; it could.
+ */
+test('provider_status gates each block it reports on that block’s own scope', () => {
+  assert.match(PROVIDER, /proposalsToSign: scoped\('proposals:write'/);
+  assert.match(PROVIDER, /deliveriesToSubmit: scoped\('deliverables:prepare'/);
+  assert.match(PROVIDER, /jobsIndexed: scoped\('jobs:read'/);
+  // Withheld is said, not omitted: an absent count reads as zero and an
+  // absent list reads as "nothing is waiting".
+  assert.match(PROVIDER, /\{ notShown: refusal \}/);
+  // And the three surfaces that describe this say the same thing.
+  const spec = readFileSync(new URL('../src/lib/assistant/provider-tools.ts', import.meta.url), 'utf8');
+  for (const scope of [/proposals:write/, /deliverables:prepare/, /jobs:read/]) {
+    assert.match(spec, scope, 'the tool description names the scope each block needs');
+  }
+  assert.match(spec, /rather than coming back empty as though nothing were waiting/);
+  assert.match(SKILL_MD, /unsigned proposals need `proposals:write`/);
+  assert.match(SKILL_MD, /never as "nothing is waiting"/);
 });
 
 /*
@@ -134,7 +178,7 @@ test('submitting a proposal goes through the audited bids route', () => {
  */
 test('acting for an agent re-checks ownership against the registry', () => {
   assert.match(PROVIDER, /confirmAgentOwner\(/);
-  const confirm = readFileSync(new URL('../src/lib/builders/provider-identity.ts', import.meta.url), 'utf8');
+  const confirm = IDENTITY;
   assert.match(confirm, /registryOwner\(/);
   assert.doesNotMatch(
     confirm.replace(/\/\*[\s\S]*?\*\//g, ''),
@@ -144,6 +188,76 @@ test('acting for an agent re-checks ownership against the registry', () => {
   // "Could not check" is reported as that, never as "not yours".
   assert.match(confirm, /unavailable: true/);
   assert.match(confirm, /did not answer/);
+});
+
+/*
+ * Staging a deliverable is INSIDE the ownership gate rather than after it.
+ *
+ * It used to be a check with the staging beside it, and deleting
+ * `confirmAgentOwner(...)` and its refusal from `prepare_deliverable` left
+ * all 1,875 assertions passing — the regex above was satisfied by the
+ * surviving call inside `ownedAgent`. `withConfirmedAgent` holds the work
+ * as a callback, so the ordering is a property of
+ * `tests/provider-gate.test.mts` and what is asserted here is only that
+ * the route still routes through it, with the job's own agent.
+ */
+test('staging a deliverable happens inside the ownership gate, not after it', () => {
+  assert.match(PROVIDER, /return withConfirmedAgent\(\s*\{ chainId: job\.agentChainId \?\? 56, tokenId: job\.agentTokenId \}/);
+  assert.match(PROVIDER, /\(agentChainId, agentTokenId\) => confirmAgentOwner\(owner, agentChainId, agentTokenId\)/);
+  // The write is reached only through the callback the gate is given.
+  assert.match(PROVIDER, /async \(\) => \{[\s\S]*?recordStagedDelivery\(/);
+  assert.doesNotMatch(
+    PROVIDER,
+    /const confirmed = await confirmAgentOwner\(owner, job\./,
+    'a check with the staging beside it is the arrangement a regex could not police',
+  );
+  const gate = readFileSync(new URL('../src/lib/assistant/provider-gate.ts', import.meta.url), 'utf8');
+  assert.match(gate, /if \(!confirmed\.ok\) return \{ data: \{ error: confirmed\.reason \}, isError: true \};/);
+  assert.match(gate, /return body\(\);/);
+});
+
+/*
+ * The release-blocking half of the same defect. `confirmAgentOwner` was
+ * reached only from `prepare_proposal` and `prepare_deliverable`; the four
+ * read tools took `providerFleet` — the union of the catalogue and the
+ * verified-publishers table — and `jobsForAgents` matched jobs on the agent
+ * identity alone. A former owner's ninety-day token kept reading a new
+ * owner's funded briefs, budgets, deliverable URLs and earnings.
+ *
+ * The confirmation now lives in `providerFleet` itself rather than in the
+ * tools that remembered to ask, so there is no unconfirmed fleet for a
+ * caller to get hold of.
+ */
+test('every provider read is filtered by current registry ownership', () => {
+  assert.match(IDENTITY, /confirmOwnedAgents\(candidates, \(chainId, tokenId\) =>\s*confirmAgentOwner\(owner, chainId, tokenId\),\s*\)/);
+  // The fleet that leaves this module is the confirmed one, and the
+  // unconfirmed candidates are not exported for anyone to reach.
+  assert.match(IDENTITY, /agents: confirmed\.agents/);
+  assert.doesNotMatch(IDENTITY, /export (async )?function (providerCandidates|unconfirmedFleet)/);
+  // Withheld agents are named, because a withheld job shown as no job is
+  // "you have nothing outstanding".
+  assert.match(IDENTITY, /ownershipUnavailable: confirmed\.ownershipUnavailable/);
+  assert.match(IDENTITY, /notOwned: confirmed\.notOwned/);
+  const view = readFileSync(new URL('../src/lib/builders/provider-work-view.ts', import.meta.url), 'utf8');
+  assert.match(view, /jobsForAgents\(fleet\.agents\)/);
+  // And every tool that reports jobs or money says what it could not check.
+  assert.match(PROVIDER, /const ownershipNotes = \(fleet/);
+  for (const tool of ['provider_status', 'find_requests', 'list_work', 'report_earnings']) {
+    const body = PROVIDER.slice(PROVIDER.indexOf(`run('${tool}'`), PROVIDER.indexOf(`run('${tool}'`) + 4_000);
+    assert.match(body, /\.\.\.ownershipNotes\(fleet\)/, `${tool} must say which agents it could not confirm`);
+  }
+});
+
+/*
+ * The page reads the same fleet, so a registry outage leaves its figures
+ * short. Said rather than swallowed, for the reason the catalogue warning
+ * is said: four defects have shipped on this page where the code was right
+ * and its claim was wrong.
+ */
+test('the page says when a figure is missing an agent it could not confirm', () => {
+  assert.match(PAGE, /fleet\.ownershipUnavailable\.length > 0/);
+  assert.match(PAGE, /could not confirm ownership of/);
+  assert.match(PAGE, /fleet\.notOwned\.length > 0/);
 });
 
 test('the provider endpoint does not advertise cross-origin access', () => {
@@ -244,6 +358,26 @@ test('the page says both limits before the setup that assumes them', () => {
 test('the page reports a last call, never an online status', () => {
   assert.match(PAGE, /lastSeen\(mostRecentCall\)/);
   assert.doesNotMatch(PAGE, /'Online'|"Online"|Offline/, 'Pokter cannot see whether somebody’s assistant is running');
+});
+
+/*
+ * The comment above this component said the export line is shown with a
+ * placeholder "because a command with a live credential in it goes into
+ * shell history" — and the line below it interpolated `minted.token`,
+ * giving the user a copy button straight into `~/.zsh_history`. Meanwhile
+ * `tokenEnvLine()`, written for exactly this, had no call sites at all.
+ */
+test('the minted token is not rendered into a copyable shell command', () => {
+  const tokens = readFileSync(new URL('../src/features/studio/Automation.tsx', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.match(tokens, /\{tokenEnvLine\(\)\}/, 'the shell line is the placeholder the helper writes');
+  assert.doesNotMatch(tokens, /export \$\{TOKEN_ENV_NAME\}=\$\{minted\.token\}/);
+  assert.doesNotMatch(tokens, /export[^\n]*\$\{minted\.token\}/, 'a live credential must not be interpolated into a command');
+  // The secret still appears, once, in a block of its own.
+  assert.match(tokens, /<CodeBlock wrap label="Copy token">\{minted\.token\}<\/CodeBlock>/);
+  const prompt = readFileSync(new URL('../src/lib/builders/automation-prompt.ts', import.meta.url), 'utf8');
+  assert.match(prompt, /export function tokenEnvLine/, 'and the helper that was dead code now has a caller');
 });
 
 test('the staged deliverable reaches the delivery composer, as a draft', () => {

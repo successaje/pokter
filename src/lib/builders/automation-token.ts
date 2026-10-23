@@ -44,6 +44,14 @@ export const TOKEN_PREFIX = 'pka_';
  * Granular on purpose. A provider who wants an assistant that only watches
  * for work it could bid on grants `requests:read` and nothing else, and
  * that token cannot read their jobs, their earnings or stage a deliverable.
+ *
+ * That claim held for every tool except `provider_status`, which carries no
+ * scope — see `assistant/provider-tools.ts` — and which was returning outstanding
+ * job ids with the hashes staged against them, quoted proposal prices and a
+ * count of indexed jobs to a token holding none of the scopes above. Each
+ * of those blocks is now gated on the scope whose wording claims it, so the
+ * sentence above, the page that renders these descriptions, and the route
+ * all say the same thing.
  */
 export const AUTOMATION_SCOPES = [
   {

@@ -88,7 +88,22 @@ export function reconcileStagedWork(owner: string): ProviderWaiting {
   return { proposals, deliveries };
 }
 
-/** Every job in Pokter's index that belongs to one of these agents, newest first. */
+/**
+ * Every job in Pokter's index that belongs to one of these agents, newest
+ * first.
+ *
+ * The agent identity is the whole filter, which is only safe because of
+ * where this is called from: `providerFleet` has already confirmed every
+ * agent it returns against the ERC-8004 registry, so "jobs for this agent"
+ * and "jobs this wallet may read" are the same set. Pass it an unconfirmed
+ * fleet and it hands a former owner the new owner's funded briefs, which is
+ * exactly what shipped.
+ *
+ * `job.provider` is deliberately not a second filter. It is the agent's
+ * registered wallet as the catalogue reported it at hire time, which is
+ * routinely not the wallet that owns the ERC-8004 token, so filtering on it
+ * would hide a legitimate owner's own jobs.
+ */
 export function jobsForAgents(agents: readonly ProviderAgent[]): HiredJob[] {
   const keys = new Set(agents.map((a) => `${a.chainId}:${a.tokenId}`));
   return getJobStore()
@@ -97,7 +112,15 @@ export function jobsForAgents(agents: readonly ProviderAgent[]): HiredJob[] {
     .sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt));
 }
 
-/** The provider's own fleet and every job indexed for it, in one call. */
+/**
+ * The provider's own fleet and every job indexed for it, in one call.
+ *
+ * Fails closed: `providerFleet` drops any agent whose ownership it could
+ * not read, so an unreachable registry withholds jobs rather than showing
+ * them on a stale record. The fleet names those agents, and every caller
+ * reports them — a withheld job presented as no job is a false claim about
+ * somebody's outstanding work.
+ */
 export async function providerWorkload(owner: string) {
   const fleet = await providerFleet(owner);
   return { fleet, jobs: jobsForAgents(fleet.agents) };

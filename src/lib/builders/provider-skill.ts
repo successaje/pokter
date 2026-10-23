@@ -125,9 +125,14 @@ export POKTER_AUTOMATION_TOKEN=pka_…
    and \`user\` write to \`~/.claude.json\`, \`project\` writes \`.mcp.json\`. If the
    user minds the value being in a file, use the JSON above instead.
 5. **Check it.** Call \`provider_status\`. It needs no scope beyond a live
-   token, so it is the honest first test. It names the wallet, the agents it
-   owns, the scopes the token carries, and anything already waiting on a
-   human.
+   token, so it is the honest first test. It names the wallet, the agents the
+   ERC-8004 registry names it the owner of, and the scopes the token carries.
+
+   What it says about outstanding work is gated on those same scopes:
+   unsigned proposals need \`proposals:write\`, unsubmitted deliverables need
+   \`deliverables:prepare\`, and the indexed job count needs \`jobs:read\`. A
+   block the token cannot read says so and names the scope — read it as
+   "not shown", never as "nothing is waiting".
 
    If it fails as unauthorised while the variable is set, check that the
    header is reaching the server at all: \`curl -s -o /dev/null -w '%{http_code}'
