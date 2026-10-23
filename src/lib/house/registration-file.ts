@@ -12,7 +12,8 @@ export function houseRegistrationFile(definition: HouseAgentDefinition, chainId:
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: definition.name,
     description: definition.description,
-    image: new URL(`/api/avatars/${definition.slug}`, origin).href,
+    /* Its own mark, a fixed file: the registry points here, and a generated image changes when its route does. */
+    image: new URL(`/agents/${definition.slug}.svg`, origin).href,
     services: [{ name: 'A2A', endpoint: new URL(`/house/${definition.slug}/${chainId}/.well-known/agent-card.json`, origin).href }],
     registrations: [],
     tags: listed ? [definition.category] : [],
