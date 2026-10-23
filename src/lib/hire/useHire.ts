@@ -41,6 +41,7 @@ import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-in
 import type { SkillRequestPreview } from '@/lib/erc8183/skill-request';
 import { materialBriefChange, type BriefAnswers, type CompiledBrief, type MissingInput } from '@/lib/hire/brief-compiler';
 import { taskFields } from '@/lib/hire/task-fields';
+import { checkFromFailure, checkFromPreflight, covers, fundingBlock, type BriefCheck, type HireBinding } from '@/lib/hire/brief-check';
 import { withWalletPlaceholder } from './example-chips';
 
 /**
@@ -249,14 +250,23 @@ async function preflightBrief(
   chainId: number,
   tokenId: string,
   task: string,
-): Promise<SkillRequestPreview> {
+  agentName: string,
+): Promise<{ request: SkillRequestPreview; check: BriefCheck }> {
   const response = await fetch('/api/hire/preflight', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chainId, tokenId, task }),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { request?: SkillRequestPreview; error?: string; layer?: FailureLayer; code?: string; retryable?: boolean }
+    | {
+        request?: SkillRequestPreview;
+        brief?: unknown | null;
+        accepted?: { answered: boolean; failure: string | null } | null;
+        error?: string;
+        layer?: FailureLayer;
+        code?: string;
+        retryable?: boolean;
+      }
     | null;
   if (!response.ok) {
     throw new HireFailure(
@@ -266,7 +276,15 @@ async function preflightBrief(
       payload?.retryable ?? response.status >= 500,
     );
   }
-  return payload?.request ?? { skill: null, subject: null };
+  /*
+   * Whether the agent was asked, read rather than assumed. The route passes
+   * a brief it could not judge, and returning only `request` here made that
+   * indistinguishable from one the agent had taken.
+   */
+  return {
+    request: payload?.request ?? { skill: null, subject: null },
+    check: checkFromPreflight({ brief: payload?.brief ?? null, accepted: payload?.accepted ?? null }, agentName),
+  };
 }
 
 export function useHire({
@@ -390,7 +408,7 @@ export function useHire({
    * wallet. Kept with what it was signed for: a changed brief, provider or
    * network does not reuse it.
    */
-  const [preQuote, setPreQuote] = useState<{ quote: Awaited<ReturnType<typeof negotiateForHire>>; task: string; provider: string; escrowChainId: number } | null>(null);
+  const [preQuote, setPreQuote] = useState<{ quote: Awaited<ReturnType<typeof negotiateForHire>>; binding: HireBinding } | null>(null);
   /*
    * What Pokter will ask, for the brief as written.
    *
@@ -399,7 +417,18 @@ export function useHire({
    * both paths. Validated the same way: it is only read back while the task
    * and provider it was resolved for are still the ones in the form.
    */
-  const [preRequest, setPreRequest] = useState<{ request: SkillRequestPreview; task: string; provider: string; escrowChainId: number } | null>(null);
+  const [preRequest, setPreRequest] = useState<{ request: SkillRequestPreview; binding: HireBinding } | null>(null);
+  /*
+   * What the agent said about the request, kept whatever it was.
+   *
+   * An acceptance, a decline and "nobody could ask" are three different
+   * facts, and the review screen has to be able to say which one it has.
+   * Bound like the quote, so an edit to the brief, provider or network
+   * leaves it describing a request that is no longer the one on screen.
+   */
+  const [checked, setChecked] = useState<{ check: BriefCheck; binding: HireBinding } | null>(null);
+  /* The buyer's choice to fund a brief nobody could check, for one request only. */
+  const [overrideFor, setOverrideFor] = useState<HireBinding | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteFailure, setQuoteFailure] = useState<{ message: string; layer: FailureLayer | null } | null>(null);
 
@@ -429,7 +458,7 @@ export function useHire({
    * account?" on one brief is not an answer on the next one.
    */
   const [answersFor, setAnswersFor] = useState<{ answers: Record<string, string>; task: string } | null>(null);
-  const [approved, setApproved] = useState<{ brief: CompiledBrief; payload: string; task: string; provider: string; escrowChainId: number } | null>(null);
+  const [approved, setApproved] = useState<{ brief: CompiledBrief; payload: string; binding: HireBinding } | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [compileFailure, setCompileFailure] = useState<string | null>(null);
 
@@ -483,6 +512,8 @@ export function useHire({
   );
 
   const provider = providers.find((p) => p.address === providerAddress);
+  /** This text, for this agent, provider and escrow: what every confirmation, quote and check is bound to. */
+  const bindingFor = (text: string): HireBinding => ({ agentChainId: agent.chainId, agentTokenId: agent.tokenId, provider: providerAddress, escrowChainId, task: text });
   const providerCanDeliver = Boolean(provider?.reachable && provider.automatedDelivery);
 
   /*
@@ -729,8 +760,7 @@ export function useHire({
    */
   const compiled = compiledFor && compiledFor.task === task ? compiledFor.brief : null;
   const answers = answersFor && answersFor.task === task ? answersFor.answers : {};
-  const approvedRequest =
-    approved && approved.task === task && approved.provider === providerAddress && approved.escrowChainId === escrowChainId ? approved : null;
+  const approvedRequest = approved && covers(approved.binding, bindingFor(task)) ? approved : null;
   /**
    * The text that is quoted, written on chain and delivered.
    *
@@ -806,7 +836,7 @@ export function useHire({
    */
   const approveRequest = (): string | null => {
     if (!compiled?.payload) return null;
-    setApproved({ brief: compiled, payload: compiled.payload, task, provider: providerAddress, escrowChainId });
+    setApproved({ brief: compiled, payload: compiled.payload, binding: bindingFor(task) });
     /*
      * A new approval cannot inherit the old one's price. The quote is signed
      * over the payload, so a price taken for the request the buyer has just
@@ -814,6 +844,9 @@ export function useHire({
      */
     setPreQuote(null);
     setPreRequest(null);
+    /* Confirming again asks the agent again, and the buyer decides again. */
+    setChecked(null);
+    setOverrideFor(null);
     return compiled.payload;
   };
 
@@ -837,24 +870,30 @@ export function useHire({
        * signature for a brief the courier never sends.
        */
       const sending = text;
+      const binding = bindingFor(sending);
       if (needsQuote) {
         const quote = await negotiateForHire(agent.chainId, agent.tokenId, sending);
-        setPreQuote({ quote, task: sending, provider: providerAddress, escrowChainId });
-        setPreRequest({ request: quote.request, task: sending, provider: providerAddress, escrowChainId });
+        setPreQuote({ quote, binding });
+        setPreRequest({ request: quote.request, binding });
+        setChecked({ check: { state: 'accepted', by: 'signed-quote' }, binding });
       } else {
         /*
          * No quote on this path, so the brief is checked on its own. Before
          * Review rather than at funding, because this is the last screen
          * where the brief can still be edited.
          */
-        const request = await preflightBrief(agent.chainId, agent.tokenId, sending);
-        setPreRequest({ request, task: sending, provider: providerAddress, escrowChainId });
+        const { request, check } = await preflightBrief(agent.chainId, agent.tokenId, sending, agent.name);
+        setPreRequest({ request, binding });
+        setChecked({ check, binding });
       }
       return true;
     } catch (caught) {
       setPreQuote(null);
       setPreRequest(null);
       const failure = caught instanceof HireFailure ? caught : null;
+      /* A decline is kept as a decline; a missing input is the brief's to fix, not a verdict. */
+      const outcome = checkFromFailure({ message: (caught as Error).message, code: failure?.code ?? null });
+      setChecked(outcome ? { check: outcome, binding: bindingFor(text) } : null);
       setQuoteFailure({
         message:
           (caught as Error).message ||
@@ -870,10 +909,23 @@ export function useHire({
   };
 
   /** The early quote, while it still covers this hire: same brief, provider and network, and at least a minute left. */
-  const reviewQuote = preQuote && preQuote.task === outboundTask && preQuote.provider === providerAddress && preQuote.escrowChainId === escrowChainId ? preQuote.quote : null;
+  const reviewQuote = preQuote && covers(preQuote.binding, bindingFor(outboundTask)) ? preQuote.quote : null;
   /* Cleared by any edit to the brief or the provider, so the review screen
      never describes a request Pokter would no longer make. */
-  const reviewRequest = preRequest && preRequest.task === outboundTask && preRequest.provider === providerAddress && preRequest.escrowChainId === escrowChainId ? preRequest.request : null;
+  const reviewRequest = preRequest && covers(preRequest.binding, bindingFor(outboundTask)) ? preRequest.request : null;
+  /** What the agent said about the request on screen, or null when it has not been asked about this one. */
+  const reviewCheck = checked && covers(checked.binding, bindingFor(outboundTask)) ? checked.check : null;
+  const unverifiedOverride = covers(overrideFor, bindingFor(outboundTask));
+  const setUnverifiedOverride = (on: boolean) => setOverrideFor(on ? bindingFor(outboundTask) : null);
+  /** Why this hire cannot be funded yet; the same answer the button and `commission` give. */
+  const fundBlock = fundingBlock({
+    compiled,
+    confirmed: Boolean(approvedRequest),
+    changed: requestChanged,
+    check: reviewCheck,
+    overridden: unverifiedOverride,
+    agentName: agent.name,
+  });
   const quoteLive = (quote: Awaited<ReturnType<typeof negotiateForHire>> | null) => Boolean(quote && (!quote.expiresAt || quote.expiresAt * 1000 > Date.now() + 60_000));
 
   const commission = async () => {
@@ -896,32 +948,17 @@ export function useHire({
         throw new Error('Choose a provider that is live on the escrow chain and publishes a delivery endpoint.');
       }
       /*
-       * A request the buyer never confirmed is never funded.
-       *
-       * Only bites where Pokter compiles something: for a prose or
-       * unpublished contract the payload is the brief, so an approval adds
-       * nothing and its absence blocks nothing. Where the agent publishes a
-       * format, the text that gets signed is not the text the buyer typed,
-       * and funding that without their sign-off is Pokter putting words in
-       * their job. Here rather than only in the UI, because every caller of
+       * A request the buyer never confirmed, that is missing something it
+       * needs, that the agent declined, or that nobody could check, is never
+       * funded — the last unless the buyer said, for this request, to fund
+       * it anyway. Here rather than only in the UI, because every caller of
        * `commission()` gets the same refusal before a wallet is touched.
+       *
+       * The confirmation used to be required only where the agent publishes
+       * a format, and an unchecked brief passed silently: the agent could
+       * not be asked, and the hire went ahead exactly as if it had agreed.
        */
-      if (compiled?.contract === 'structured' && !approvedRequest) {
-        throw new HireFailure(
-          `${agent.name} publishes a request format, and this brief has been rewritten into it. Go back and confirm the request before funding.`,
-          'input',
-          'request-unconfirmed',
-          false,
-        );
-      }
-      if (requestChanged.length > 0) {
-        throw new HireFailure(
-          `You changed ${requestChanged.join(' and ')} after confirming the request. Confirm it again before funding.`,
-          'input',
-          'request-changed',
-          false,
-        );
-      }
+      if (fundBlock) throw new HireFailure(fundBlock.message, fundBlock.code === 'brief-declined' ? 'seller' : 'input', fundBlock.code, false);
       /* The one string this hire is about: quoted, written on chain, delivered. */
       const sending = outboundTask;
 
@@ -941,7 +978,7 @@ export function useHire({
          */
         const changed = reviewQuote && signedQuote !== reviewQuote ? materialQuoteChange(reviewQuote, signedQuote) : null;
         if (reviewQuote && changed) {
-          setPreQuote({ quote: signedQuote, task: sending, provider: providerAddress, escrowChainId });
+          setPreQuote({ quote: signedQuote, binding: bindingFor(sending) });
           throw new HireFailure(
             `${agent.name}'s quote expired and ${changed.what}. Check the terms again before paying.`,
             'terms',
@@ -968,8 +1005,8 @@ export function useHire({
          * gets the same refusal before a wallet is touched — the rule the
          * guards above already follow.
          */
-        const request = reviewRequest ?? (await preflightBrief(agent.chainId, agent.tokenId, sending));
-        setPreRequest({ request, task: sending, provider: providerAddress, escrowChainId });
+        const request = reviewRequest ?? (await preflightBrief(agent.chainId, agent.tokenId, sending, agent.name)).request;
+        setPreRequest({ request, binding: bindingFor(sending) });
       }
 
       if (active.mode === 'external') {
@@ -1215,6 +1252,10 @@ export function useHire({
     quoteFailure,
     reviewQuote,
     reviewRequest,
+    reviewCheck,
+    unverifiedOverride,
+    setUnverifiedOverride,
+    fundBlock,
     /*
      * The compiler, as the request step reads it: the live compilation, the
      * approval bound to it, what changed since, and the text that will

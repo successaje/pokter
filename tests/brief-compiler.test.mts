@@ -328,8 +328,10 @@ test('an unanswered question cannot reach a quote, a wallet or the chain', () =>
   }
 
   const hook = code('lib/hire/useHire.ts');
-  const guard = hook.indexOf("compiled?.contract === 'structured' && !approvedRequest");
+  /* One gate for every contract, from `fundingBlock`: unconfirmed, missing, declined or unchecked. */
+  const guard = hook.indexOf('if (fundBlock) throw new HireFailure(');
   assert.ok(guard > 0, 'commission refuses an unconfirmed compiled request');
+  assert.match(hook, /const fundBlock = fundingBlock\(\{\s*compiled,\s*confirmed: Boolean\(approvedRequest\),/);
   for (const fund of ['hireFromExternalWallet(', 'encodePokterJobEnvelope(']) {
     assert.ok(guard < hook.indexOf(fund), `refused before ${fund}`);
   }
@@ -600,13 +602,14 @@ test('the hire invalidates the quote it was given for the request it replaces', 
    */
   const hook = code('lib/hire/useHire.ts');
   assert.match(hook, /const approveRequest = \(\): string \| null => \{[\s\S]{0,900}setPreQuote\(null\);/);
-  assert.match(hook, /const reviewQuote = preQuote && preQuote\.task === outboundTask/);
+  assert.match(hook, /const reviewQuote = preQuote && covers\(preQuote\.binding, bindingFor\(outboundTask\)\)/);
   assert.match(hook, /const requestChanged = approved && compiled \? materialBriefChange\(approved\.brief, compiled\) : \[\];/);
-  assert.match(hook, /if \(requestChanged\.length > 0\) \{[\s\S]{0,400}Confirm it again before funding/);
+  assert.match(hook, /changed: requestChanged,/);
+  assert.match(code('lib/hire/brief-check.ts'), /if \(input\.changed\.length > 0\) \{[\s\S]{0,300}Confirm it again before funding/);
 
   // And the screen will not carry an edited request to the payment step.
   const flow = src('features/hire/HireFlow.tsx');
-  assert.match(flow, /disabled=\{Boolean\(budgetError\) \|\| !hire\.riskAccepted \|\| hire\.requestChanged\.length > 0\}/);
+  assert.match(flow, /disabled=\{Boolean\(budgetError\) \|\| !hire\.riskAccepted \|\| Boolean\(hire\.fundBlock\)\}/);
   assert.match(flow, /hire\.requestChanged\.length > 0 && \(/, 'and says which input changed');
 });
 
@@ -867,7 +870,7 @@ test('the hire funds, records and delivers the one text the buyer approved', () 
   assert.match(hook, /const sending = outboundTask;/);
   for (const site of [
     /negotiateForHire\(agent\.chainId, agent\.tokenId, sending\)/,
-    /preflightBrief\(agent\.chainId, agent\.tokenId, sending\)/,
+    /preflightBrief\(agent\.chainId, agent\.tokenId, sending, agent\.name\)/,
     /task: sending, chainId: escrowChainId, commerce: funding\.commerce/,
     /hireFromExternalWallet\(\{[\s\S]{0,400}task: sending,/,
     /encodePokterJobEnvelope\(\{[\s\S]{0,400}task: sending,/,
@@ -885,10 +888,8 @@ test('the hire funds, records and delivers the one text the buyer approved', () 
   /* The approval is bound to the provider and the escrow as well as the
      text: the same words funded against a different seller or a different
      chain are a different hire. */
-  assert.match(
-    hook,
-    /approved\.task === task && approved\.provider === providerAddress && approved\.escrowChainId === escrowChainId/,
-  );
+  assert.match(hook, /const bindingFor = \(text: string\): HireBinding => \(\{ agentChainId: agent\.chainId, agentTokenId: agent\.tokenId, provider: providerAddress, escrowChainId, task: text \}\)/);
+  assert.match(hook, /const approvedRequest = approved && covers\(approved\.binding, bindingFor\(task\)\) \? approved : null;/);
 });
 
 test('the buyer is shown both their own words and every value that will be sent', () => {

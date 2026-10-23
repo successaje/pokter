@@ -69,7 +69,7 @@ function contractNote(brief: CompiledBrief, agentName: string, verbatim: boolean
       return {
         tone: 'watch',
         title: 'Pokter could not establish what this agent accepts',
-        body: `${agentName} publishes no example request, so there is no format to check your brief against. It is sent exactly as you wrote it. If the agent cannot use it, it declines and nothing is paid.`,
+        body: `${agentName} publishes no example request, so there is no format to check your brief against. It is sent exactly as you wrote it and put to the agent before you pay. If the agent cannot be asked, you are told so before anything is funded.`,
       };
   }
 }
@@ -86,6 +86,7 @@ export function RequestReview({
   onConfirm,
   confirming,
   failure,
+  failureTitle = 'The agent did not take this request',
 }: {
   brief: CompiledBrief;
   agentName: string;
@@ -102,6 +103,8 @@ export function RequestReview({
   onConfirm: () => void;
   confirming: boolean;
   failure: string | null;
+  /** Whose outcome the failure is: the agent declining is not the same as nobody asking it. */
+  failureTitle?: string;
 }) {
   /* What is in the boxes right now. Seeded from the answers already given,
      so a value rejected for its type comes back as the buyer typed it
@@ -302,7 +305,7 @@ export function RequestReview({
       )}
 
       {failure && (
-        <Notice tone="bad" title="The agent did not take this request">
+        <Notice tone="bad" title={failureTitle}>
           {failure} Your brief is kept as you wrote it.
         </Notice>
       )}

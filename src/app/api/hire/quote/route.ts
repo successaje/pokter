@@ -209,6 +209,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         error: refusal
           ? `${agent.name} declined this brief: “${refusal}”`
           : 'The agent did not return a signed quote for this brief. It may be unreachable, or may not sell this work.',
+        /* Coded, so the hire page can tell an agent saying no from one that could not be asked. */
+        layer: fallback.layer,
+        code: fallback.code,
+        retryable: fallback.retryable,
       },
       { status: 502 },
     );

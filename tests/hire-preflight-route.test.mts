@@ -180,7 +180,7 @@ test('the review step shows the subject from the quote, so a brief edit clears i
    * payload that had been replaced. `outboundTask` falls back to the typed
    * brief when nothing was compiled, so an edit still clears this.
    */
-  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === outboundTask/);
+  assert.match(hook, /const reviewRequest = preRequest && covers\(preRequest\.binding, bindingFor\(outboundTask\)\)/);
   assert.match(hook, /const outboundTask = approvedRequest\?\.payload \?\? task;/);
   assert.match(hook, /^\s*reviewRequest,$/m, 'exposed to the screen that reads it');
 });
@@ -221,10 +221,10 @@ test('the no-quote path is refused before a wallet is touched', () => {
   /* `sending` is `outboundTask`: the payload the buyer confirmed, or the
      brief as typed when there was nothing to compile. The check has to run
      against the text that will actually travel, not the text it came from. */
-  const inPrepare = hook.indexOf('await preflightBrief(agent.chainId, agent.tokenId, sending)');
+  const inPrepare = hook.indexOf('await preflightBrief(agent.chainId, agent.tokenId, sending, agent.name)');
   assert.ok(inPrepare > 0, 'prepareQuote checks the brief');
 
-  const gate = hook.lastIndexOf('await preflightBrief(agent.chainId, agent.tokenId, sending)');
+  const gate = hook.lastIndexOf('await preflightBrief(agent.chainId, agent.tokenId, sending, agent.name)');
   assert.ok(gate > inPrepare, 'and commission checks it again for any other caller');
   for (const fund of ['hireFromExternalWallet(', "active.mode === 'external'"]) {
     const at = hook.indexOf(fund);
@@ -239,8 +239,10 @@ test('a brief edit clears the resolved request on both paths', () => {
    * ones in the form.
    */
   const hook = code('lib/hire/useHire.ts');
-  assert.match(hook, /const reviewRequest = preRequest && preRequest\.task === outboundTask && preRequest\.provider === providerAddress/);
-  assert.match(hook, /setPreRequest\(\{ request: quote\.request, task: sending, provider: providerAddress, escrowChainId \}\)/);
+  assert.match(hook, /const reviewRequest = preRequest && covers\(preRequest\.binding, bindingFor\(outboundTask\)\)/);
+  assert.match(hook, /setPreRequest\(\{ request: quote\.request, binding \}\)/);
+  /* And what the agent said is bound the same way, so an edit clears it too. */
+  assert.match(hook, /const reviewCheck = checked && covers\(checked\.binding, bindingFor\(outboundTask\)\) \? checked\.check : null;/);
   assert.match(hook, /setPreRequest\(null\)/, 'cleared when the check refuses');
   /* And an approval of a compiled request drops the quote taken for the one
      it replaces: a price signed over the old payload buys the old work. */
