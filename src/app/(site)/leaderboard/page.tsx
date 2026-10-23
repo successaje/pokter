@@ -407,7 +407,19 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         </span>
       </span>
       <span className="t-readout col-start-2 text-[15px] sm:col-start-auto sm:text-right">
-        {row.ranked ? formatPercent(row.answerRate, { decimals: 0 }) : '—'}
+        {/*
+          One decimal, because nought rounded 349 of 350 up to "100%".
+          That was the top row of the production board: a check had failed
+          and the headline figure said none had. The denominator beside it
+          kept the row honest, but "100%" is what gets quoted once it is
+          separated from "349 of 350" — the same defect as the nought on the
+          share card, a number that becomes a claim when it travels alone.
+
+          A genuine 350 of 350 still reads 100%. Display only: the ordering
+          and the tie-break read the unrounded rate, so rows that tie here
+          tie on the real figure.
+        */}
+        {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
       </span>
       {/*
         "0 of 0 checks" read as an agent that answered nothing, when the fact
