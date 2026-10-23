@@ -72,6 +72,7 @@ ENV MAINTENANCE_DB_PATH=/data/maintenance.db
 ENV SATURATION_DB_PATH=/data/saturation.db
 ENV TRADING_DB_PATH=/data/trading.db
 ENV HIRE_ATTEMPT_DB_PATH=/data/hire-attempts.db
+ENV PROVIDER_DB_PATH=/data/provider.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs

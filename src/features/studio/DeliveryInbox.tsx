@@ -48,7 +48,7 @@ const STAGES = { authorizing: 'Sign to authorise this delivery', storing: 'Stori
  * and hashes them, the provider commits that hash on chain, and the index
  * checks the transaction. Nothing is marked delivered on a promise.
  */
-function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
+function Composer({ job, account, staged }: { job: HiredJob; account: `0x${string}`; staged?: string }) {
   /*
    * An unfinished delivery survives a reload or a wallet prompt, kept for
    * this tab only and per provider, chain and job, so it never reappears
@@ -57,9 +57,16 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   const draftKey = `pokter.delivery-draft.${account.toLowerCase()}.${job.chainId}:${job.jobId}`;
   const [content, setContentState] = useState(() => {
     try {
-      return window.sessionStorage.getItem(draftKey) ?? '';
+      /*
+       * A draft typed in this tab wins over text an assistant staged: the
+       * seller's own unsaved words are the ones they would be angry to
+       * lose. With no draft, the staged text is loaded, which is the whole
+       * point of staging it — the assistant writes, the provider reviews
+       * and signs. It is still only a draft until this form is submitted.
+       */
+      return window.sessionStorage.getItem(draftKey) || staged || '';
     } catch {
-      return '';
+      return staged ?? '';
     }
   });
   const setContent = (value: string) => {
@@ -180,6 +187,12 @@ function Composer({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   const busy = stage !== 'idle';
   return (
     <div className="flex flex-col gap-2">
+      {staged && (
+        <Notice tone="watch" title="Your assistant staged this text. Nothing has been delivered yet.">
+          Read it before you sign: it is what will be hashed on chain and published for the buyer. Delivery is this
+          transaction from your wallet, not the fact that it was written.
+        </Notice>
+      )}
       <label htmlFor={`d-${job.jobId}`} className="text-[13px] font-medium">
         Deliverable
       </label>
@@ -332,7 +345,12 @@ function amountOf(job: HiredJob): string {
   return Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 });
 }
 
-export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
+/**
+ * @param staged Deliverable text an assistant wrote down for a job, keyed
+ * `chainId:jobId`. It pre-fills the composer so the provider reviews and
+ * signs rather than retyping; it is never a delivery by itself.
+ */
+export function DeliveryInbox({ jobs, staged = {} }: { jobs: HiredJob[]; staged?: Record<string, string> }) {
   const { address, isConnected, chain } = useAccount();
   const { openConnect } = useConnect();
   const { switchChain, isPending: switching } = useLiveSwitchChain();
@@ -381,7 +399,7 @@ export function DeliveryInbox({ jobs }: { jobs: HiredJob[] }) {
             {job.status === 'FUNDED' &&
               (open === job.id ? (
                 isProvider && !wrongChain ? (
-                  <Composer job={job} account={connected!} />
+                  <Composer job={job} account={connected!} staged={staged[`${job.chainId}:${job.jobId}`]} />
                 ) : wrongChain ? (
                   <Button size="s" intent="secondary" onClick={() => switchChain({ chainId: job.chainId === 56 ? 56 : 97 })} busy={switching} className="self-start">
                     Switch to {chainLabel(job.chainId)}

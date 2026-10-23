@@ -79,7 +79,31 @@ function object(value: unknown): Record<string, unknown> {
  */
 const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 
-async function handle(message: RpcRequest, tools: readonly McpTool[], resources: readonly McpResource[]): Promise<unknown | null> {
+/**
+ * Who the server says it is, and what it tells an assistant to do with it.
+ *
+ * Carried as an argument rather than read from the constants above, because
+ * there is now more than one server here: the open buying surface and the
+ * token-authenticated provider surface, which have different names and
+ * different instructions. Defaulted to the buying surface's, so the route
+ * that was here before this existed keeps announcing exactly what it did.
+ *
+ * A handshake that named the wrong server would be a false claim in the one
+ * message an assistant reads before it reads anything else.
+ */
+export interface McpServerIdentity {
+  info: { name: string; title: string; version: string };
+  instructions: string;
+}
+
+const SELF: McpServerIdentity = { info: SERVER_INFO, instructions: INSTRUCTIONS };
+
+async function handle(
+  message: RpcRequest,
+  tools: readonly McpTool[],
+  resources: readonly McpResource[],
+  server: McpServerIdentity,
+): Promise<unknown | null> {
   const id = message.id ?? null;
   const isNotification = message.id === undefined;
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
@@ -95,8 +119,8 @@ async function handle(message: RpcRequest, tools: readonly McpTool[], resources:
       return result(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false }, ...(resources.length ? { resources: { listChanged: false } } : {}) },
-        serverInfo: SERVER_INFO,
-        instructions: INSTRUCTIONS,
+        serverInfo: server.info,
+        instructions: server.instructions,
       });
     }
     case 'ping':
@@ -144,10 +168,15 @@ async function handle(message: RpcRequest, tools: readonly McpTool[], resources:
 }
 
 /** One POST body, a single message or a batch, answered; null when it held only notifications. */
-export async function answerMcp(body: unknown, tools: readonly McpTool[], resources: readonly McpResource[] = []): Promise<unknown | null> {
+export async function answerMcp(
+  body: unknown,
+  tools: readonly McpTool[],
+  resources: readonly McpResource[] = [],
+  server: McpServerIdentity = SELF,
+): Promise<unknown | null> {
   if (Array.isArray(body)) {
-    const answers = (await Promise.all(body.map((m) => handle(object(m) as RpcRequest, tools, resources)))).filter((a) => a !== null);
+    const answers = (await Promise.all(body.map((m) => handle(object(m) as RpcRequest, tools, resources, server)))).filter((a) => a !== null);
     return answers.length ? answers : null;
   }
-  return handle(object(body) as RpcRequest, tools, resources);
+  return handle(object(body) as RpcRequest, tools, resources, server);
 }
