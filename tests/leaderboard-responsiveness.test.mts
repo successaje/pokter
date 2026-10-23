@@ -16,6 +16,7 @@ import {
   ANSWER_RATE_MEANS,
   buildResponsivenessBoard,
   formatObservedSpan,
+  spanDecimal,
   MIN_RESPONSIVENESS_CHECKS,
   observedSpanNote,
   RESPONSIVENESS_WINDOW_DAYS,
@@ -374,7 +375,8 @@ test('a span just short of the window is not rendered as the whole window', () =
    printed, rather than collapsing to the nought that reads as "no history". */
 test('a span under a day keeps its figure', () => {
   assert.match(formatObservedSpan(0.1154375), /0\.1 of 30 days/);
-  assert.match(formatObservedSpan(2.3757), /2\.4 of 30 days/);
+  /* Floored, not rounded: the span never reports more coverage than measured. */
+  assert.match(formatObservedSpan(2.3757), /2\.3 of 30 days/);
 });
 
 test('the span names the window it is a share of', () => {
@@ -490,12 +492,12 @@ test('the note quotes the live spread, so it cannot be a fixed sentence', () => 
   const testnet = observedSpanNote(
     coverage({ registryChainId: 97, rankedSpanDays: { shortest: 11.0203, longest: 20.70350789 } }),
   );
-  assert.match(mainnet, /4\.2/);
+  assert.match(mainnet, /4\.1/);
   assert.match(mainnet, /29\.9/);
   assert.match(testnet, /11\.0/);
   assert.match(testnet, /20\.7/);
   assert.notEqual(mainnet, testnet, 'the note must track the data it describes');
-  assert.doesNotMatch(testnet, /4\.2|29\.9/, 'mainnet’s figures must not survive into testnet’s note');
+  assert.doesNotMatch(testnet, /4\.1|29\.9/, 'mainnet’s figures must not survive into testnet’s note');
 });
 
 test('the note names the window the spans are a share of', () => {
@@ -549,4 +551,45 @@ test('the board renders each row’s span and the live note', () => {
   assert.match(page, /observedSpanNote\(responsiveness\.data\.coverage\)/);
   assert.doesNotMatch(page, /formatDuration\(row\.observedDays\)/);
   assert.doesNotMatch(page, /Math\.round\(row\.observedDays\)/);
+});
+
+/*
+ * A span may never print as the whole window.
+ *
+ * The window is the read bound itself — `HISTORY_DAYS` caps what the
+ * catalogue loads — so no row can cover all of it, and a row saying it does
+ * contradicts the note directly above it, which warns that spans only
+ * approach the edge. `toFixed(1)` rounds, so every span at or above 29.95
+ * printed "30.0", and eight rows on the live mainnet board read "over 30.0
+ * of 30 days" while the true maximum was 29.9705.
+ *
+ * The existing coverage did not catch it because it exercised 29.9290 — the
+ * one production span that happens to round down. So this names the value
+ * that was actually shipping, and asserts the boundary from both sides.
+ */
+test('a span near the window floor never claims the whole window', () => {
+  assert.equal(spanDecimal(29.9705), '29.9', 'the live maximum printed as 30.0 before this');
+  assert.equal(spanDecimal(29.95), '29.9', 'the rounding boundary itself');
+  assert.equal(spanDecimal(29.99999), '29.9');
+  assert.equal(formatObservedSpan(29.9705), 'over 29.9 of 30 days');
+
+  assert.doesNotMatch(
+    formatObservedSpan(29.9705),
+    /30\.0 of 30/,
+    'a row claimed it covered the entire window, which the read bound makes impossible',
+  );
+
+  /* Flooring must not distort an ordinary span, only refuse to round one up. */
+  assert.equal(spanDecimal(4.1688), '4.1');
+  assert.equal(spanDecimal(8.2666), '8.2');
+  assert.equal(spanDecimal(0), '0.0');
+});
+
+test('the spread note never claims a ranked row covered the whole window', () => {
+  const note = observedSpanNote({
+    ...coverage(),
+    rankedSpanDays: { shortest: 4.1688, longest: 29.9705 },
+  });
+  assert.match(note, /4\.1 to 29\.9 of the 30 days/);
+  assert.doesNotMatch(note, /30\.0 of the 30 days/, 'the warning itself claimed full coverage');
 });
