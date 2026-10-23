@@ -32,6 +32,10 @@ import { POKTER_TERMS, requestQuote } from './quote';
  * malformed reply: all pass. Most of the catalogue publishes no price skill
  * at all, and refusing those would stop far more hires than it saves. Only
  * an agent that answered and said no is treated as a no.
+ *
+ * Passing is not accepting. The hire page reads `answered` and says an
+ * unasked brief is unverified, and funds one only when the buyer ticks that
+ * they want to for that request — see `lib/hire/brief-check`.
  */
 export type BriefAcceptance =
   /**

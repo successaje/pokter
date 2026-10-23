@@ -613,7 +613,14 @@ export function HireFlow(props: HireFlowProps) {
           busy={hire.compiling}
           onEditBrief={() => setStep('describe')}
           confirming={hire.quoting}
-          failure={hire.quoteFailure?.message ?? null}
+          failure={hire.quoteFailure?.message ?? (hire.reviewCheck && hire.reviewCheck.state !== 'accepted' ? hire.reviewCheck.message : null)}
+          failureTitle={
+            hire.reviewCheck?.state === 'declined'
+              ? `${props.agent.name} declined this request`
+              : hire.reviewCheck?.state === 'unverified'
+                ? `${props.agent.name} could not be asked about this request`
+                : undefined
+          }
           onConfirm={async () => {
             /*
               Confirm, then ask for the price — in that order, and bound
@@ -755,6 +762,39 @@ export function HireFlow(props: HireFlowProps) {
           )}
 
           {/*
+            What the agent said about this request, whichever way it went.
+
+            A brief nobody could check used to reach this screen looking
+            exactly like one the agent had agreed to. It is said as that now,
+            and funding it is the buyer's explicit choice, for this request
+            only: any edit to the brief, provider or network clears the tick.
+          */}
+          {hire.reviewCheck?.state === 'unverified' && (
+            <Notice
+              tone="watch"
+              title={`Nobody has confirmed ${props.agent.name} can use this brief`}
+              action={
+                hire.reviewCheck.overridable ? (
+                  <Checkbox
+                    checked={hire.unverifiedOverride}
+                    onChange={(e) => hire.setUnverifiedOverride(e.target.checked)}
+                    label="Fund it anyway, without the agent confirming this brief"
+                  />
+                ) : (
+                  <Button size="s" intent="secondary" busy={hire.quoting} onClick={() => void hire.prepareQuote(hire.outboundTask)}>
+                    Ask again
+                  </Button>
+                )
+              }
+            >
+              {hire.reviewCheck.message}{' '}
+              {hire.reviewCheck.overridable
+                ? 'If it cannot use the brief, nothing is delivered and you reclaim the budget after the deadline, which ties the money up until then.'
+                : 'Nothing can be funded until it answers.'}
+            </Notice>
+          )}
+
+          {/*
             Said before the first signature, not discovered at it.
 
             When the wallet is short on $U the hire now buys the shortfall
@@ -861,13 +901,18 @@ export function HireFlow(props: HireFlowProps) {
             <p className="text-[12.5px] text-ink-3">
               {hire.reviewQuote
                 ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} $U it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
-                : 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'}
+                : hire.needsQuote
+                  ? 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'
+                  : 'Delivery is relayed by Pokter, so the budget is yours to set, and nothing the agent quotes is charged on top of it.'}
             </p>
           </div>
 
           <div className="overflow-hidden rounded-[14px] border border-rule">
             <dl className="ruled bg-raised text-sm">
               {[
+                ...(hire.reviewCheck?.state === 'accepted' && hire.reviewCheck.by === 'agent-answered'
+                  ? [['Agent accepted', `${props.agent.name} was asked about this exact brief and signed for it. Your budget is what you pay; the price it signed is not charged separately`]]
+                  : []),
                 ...(hire.reviewQuote
                   ? [[
                       'Agent accepted',
@@ -927,12 +972,16 @@ export function HireFlow(props: HireFlowProps) {
             <Button
               size="l"
               onClick={() => setStep('pay')}
-              disabled={Boolean(budgetError) || !hire.riskAccepted || hire.requestChanged.length > 0}
+              disabled={Boolean(budgetError) || !hire.riskAccepted || Boolean(hire.fundBlock)}
               trailing={<Icon.Arrow size={16} />}
             >
               Continue to payment
             </Button>
           </div>
+          {/* Said where the notices above do not already say it. */}
+          {hire.fundBlock && hire.fundBlock.code !== 'request-changed' && hire.fundBlock.code !== 'check-unverified' && (
+            <p className="-mt-4 text-right text-[12.5px] text-ink-3">{hire.fundBlock.message}</p>
+          )}
         </div>
       )}
 
@@ -1031,9 +1080,10 @@ export function HireFlow(props: HireFlowProps) {
                     : 'Your wallet will ask you to approve the job’s transactions, either as one batch or a few in a row. A signature for the quote is not a payment; only the funding transaction moves money.'}
                 </p>
                 <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} label="I’ve checked the amount, network and recipient" />
-                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!confirmed || !hire.riskAccepted || Boolean(budgetError)} className="w-full">
+                <Button intent="signal" size="l" onClick={() => void hire.commission()} disabled={!confirmed || !hire.riskAccepted || Boolean(budgetError) || Boolean(hire.fundBlock)} className="w-full">
                   Fund escrow · {hire.budget} $U
                 </Button>
+                {hire.fundBlock && <p className="text-[12.5px] text-bad">{hire.fundBlock.message}</p>}
               </div>
             </>
           )}
