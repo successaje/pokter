@@ -69,7 +69,7 @@ async function hourlyFeed(client: Client, base: Base): Promise<{ samples: Array<
 
 export const gridloom: HouseAgentDefinition = {
   slug: 'gridloom',
-  name: 'Gridloom',
+  name: 'Gridloom by Pokter',
   version: '1.0.0',
   category: 'grid-trading',
   description:

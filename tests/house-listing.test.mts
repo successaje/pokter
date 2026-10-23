@@ -24,7 +24,7 @@ test('the registration points each chain at its own card and names its maker', (
   assert.deepEqual(file.services, [{ name: 'A2A', endpoint: 'https://pokter.xyz/house/brinkwatch/56/.well-known/agent-card.json' }]);
   assert.deepEqual(file.categories, ['health-factor']);
   assert.equal(file.built_with, 'Pokter Studio · https://pokter.xyz/studio');
-  assert.equal(file.image, 'https://pokter.xyz/api/avatars/brinkwatch');
+  assert.equal(file.image, 'https://pokter.xyz/agents/brinkwatch.svg');
 });
 
 test('every house agent is classified from its description alone, as the registry index stores no tags', async () => {
@@ -32,5 +32,16 @@ test('every house agent is classified from its description alone, as the registr
   const { HOUSE_AGENTS } = await import('../src/lib/house/registry');
   for (const agent of HOUSE_AGENTS) {
     assert.equal(classify({ name: agent.name, description: agent.description, tags: [] } as never), agent.category, agent.slug);
+  }
+});
+
+test('every house agent has its own mark, named for it', async () => {
+  const { existsSync, readFileSync } = await import('node:fs');
+  for (const slug of ['brinkwatch', 'cresthold', 'centreline', 'gridloom', 'touchstone']) {
+    const path = new URL(`../public/agents/${slug}.svg`, import.meta.url);
+    assert.ok(existsSync(path), `${slug} has a mark`);
+    const svg = readFileSync(path, 'utf8');
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 980 980"/);
+    assert.match(svg, new RegExp(`aria-label="${slug[0].toUpperCase()}${slug.slice(1)} by Pokter"`));
   }
 });

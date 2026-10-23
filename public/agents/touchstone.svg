@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 980" width="980" height="980" role="img" aria-label="Touchstone by Pokter">
+  <!--
+    Touchstone by Pokter: Pokter's proof tile with the gates in its corner,
+    and a check: a token found safe. One mark per house agent, the same family: the tile
+    and the gates say whose agent it is, the glyph says which. Drawn to read
+    at the 40px a list renders it, so no lettering and nothing finer than
+    the glyph's stroke. Served as a file because the ERC-8004 registration
+    points at this URL.
+  -->
+  <rect width="980" height="980" rx="214" fill="#f0b90b"/>
+  <g fill="#16171a" transform="translate(118, 104) scale(0.36)"><path d="M192 62H513Q545 62 545 94V168Q545 200 513 200H344Q332 200 332 212V752H192Q160 752 160 720V94Q160 62 192 62Z"/><path d="M592 62H716Q820 62 820 166V546Q820 648 716 648H457Q425 648 425 616V562Q425 530 457 530H640Q652 530 652 518V258Q652 246 640 246H592Z"/></g>
+  <g transform="translate(398, 398) scale(0.8) translate(-250, -250)"><g fill="none" stroke="#16171a" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"><path d="M280 510.0L430 670L700 320"/></g></g>
+</svg>

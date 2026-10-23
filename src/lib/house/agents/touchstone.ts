@@ -57,7 +57,7 @@ async function tradeProbe(client: Client, token: Address): Promise<TokenFacts['p
 
 export const touchstone: HouseAgentDefinition = {
   slug: 'touchstone',
-  name: 'Touchstone',
+  name: 'Touchstone by Pokter',
   version: '1.0.0',
   category: 'token-safety',
   description:

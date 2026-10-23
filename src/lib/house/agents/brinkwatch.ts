@@ -16,7 +16,7 @@ import { brinkwatchReport, readBrief } from './brinkwatch-report';
  */
 export const brinkwatch: HouseAgentDefinition = {
   slug: 'brinkwatch',
-  name: 'Brinkwatch',
+  name: 'Brinkwatch by Pokter',
   version: '1.0.0',
   category: 'health-factor',
   description:
