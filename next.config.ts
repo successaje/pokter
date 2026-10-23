@@ -85,6 +85,23 @@ const nextConfig: NextConfig = {
           { key: 'Content-Security-Policy', value: contentSecurityPolicy() },
         ],
       },
+      /*
+       * Images Pokter publishes for other sites to show.
+       *
+       * `same-origin` above stops any other page embedding a Pokter
+       * response, which is right for everything except these: the house
+       * agents' and the evidence agent's marks, which their ERC-8004
+       * registrations point at, the generated avatars builders register as
+       * their image, and the app icon one builder registered. Under
+       * `same-origin` the registry indexer's proxy, every other marketplace
+       * and any preview off pokter.xyz drew a broken image, while pokter.xyz
+       * itself loaded them fine, so nothing here showed the fault. Later
+       * entries override earlier ones for the same header.
+       */
+      ...['/agents/:file([a-z0-9-]+\\.svg)', '/api/avatars/:seed*', '/apple-icon.png'].map((source) => ({
+        source,
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'cross-origin' }],
+      })),
     ];
   },
 
