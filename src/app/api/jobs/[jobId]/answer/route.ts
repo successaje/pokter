@@ -7,7 +7,7 @@ import { logAndPublic } from '@/lib/api/public-error';
 import { readDeliveredAnswer } from '@/lib/delivery/answer';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
+import { findDeliverable } from '@/lib/erc8183/deliverable-url';
 import { historyClient } from '@/lib/erc8183/history-client';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -52,12 +52,12 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
        * failure, stated as a fact about somebody else's agent, on the
        * page their buyer reads.
        */
-      type Lookup = { url: string } | { url: null; whose: 'ours' | 'theirs' };
+      type Lookup = { url: string } | { url: null; whose: 'ours' | 'theirs' | 'unfound' };
       const lookup: Lookup = indexed?.deliverableUrl
         ? { url: indexed.deliverableUrl }
         : await Promise.race([
-            findDeliverableUrl(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
-              .then((found): Lookup => (found ? { url: found } : { url: null, whose: 'theirs' }))
+            findDeliverable(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
+              .then((found): Lookup => (found.url ? { url: found.url } : { url: null, whose: found.event ? 'theirs' : 'unfound' }))
               .catch((): Lookup => ({ url: null, whose: 'ours' })),
             new Promise<Lookup>((resolve) => setTimeout(() => resolve({ url: null, whose: 'ours' }), 12_000)),
           ]);
@@ -69,7 +69,9 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
           reason:
             'whose' in lookup && lookup.whose === 'ours'
               ? 'We could not retrieve the delivery link just now. The agent may well have published one; this check timed out or the chain read failed.'
-              : 'The agent published no readable link for its delivery.',
+              : 'whose' in lookup && lookup.whose === 'unfound'
+                ? 'We could not find the delivery on chain just now, so its link could not be read. That is usually the node we read from not reaching that far back, not the agent.'
+                : 'The agent published no readable link for its delivery.',
         });
       }
       manifestText = await fetchDeliverableText(url).catch(() => null);

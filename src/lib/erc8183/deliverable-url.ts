@@ -59,12 +59,30 @@ export function deliverableUrlFrom(optParams: `0x${string}` | undefined): string
   }
 }
 
-export async function findDeliverableUrl(client: Reader, policy: `0x${string}`, jobId: bigint, submittedAt: bigint): Promise<string | undefined> {
-  if (submittedAt === 0n) return undefined;
+/**
+ * The submit event's link, and whether the event was found at all.
+ *
+ * Two different facts. An event that carries no readable link is the
+ * agent's doing. No event in the window is usually the node: public BSC
+ * nodes answer an old log range with nothing rather than an error, and job
+ * 56:57001's page told its buyer the agent "published no readable link"
+ * when Pokter had simply not been able to read that far back.
+ */
+export async function findDeliverable(
+  client: Reader,
+  policy: `0x${string}`,
+  jobId: bigint,
+  submittedAt: bigint,
+): Promise<{ event: boolean; url: string | undefined }> {
+  if (submittedAt === 0n) return { event: false, url: undefined };
   const block = await blockAtTime(client, submittedAt);
   const fromBlock = block > SPAN ? block - SPAN : 0n;
   const logs = await client.getLogs({ address: policy, event: JOB_INITIALISED, args: { jobId }, fromBlock, toBlock: block + SPAN });
-  return deliverableUrlFrom(logs[0]?.args.optParams);
+  return { event: logs.length > 0, url: deliverableUrlFrom(logs[0]?.args.optParams) };
+}
+
+export async function findDeliverableUrl(client: Reader, policy: `0x${string}`, jobId: bigint, submittedAt: bigint): Promise<string | undefined> {
+  return (await findDeliverable(client, policy, jobId, submittedAt)).url;
 }
 
 /**
