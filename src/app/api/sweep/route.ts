@@ -22,7 +22,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { deliverableUrlForIndex, findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { historyClient } from '@/lib/erc8183/history-client';
 import { altanaNetworkFor } from '@/lib/altana/client';
-import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyLoanWatches, notifyTradingAlerts, subscribedJobs } from '@/lib/notifications/server';
+import { followedAgents, notifyBuilderJobEvent, notifyCampaignReminders, notifyFollowers, notifyJobEvent, notifyReleaseReminder, notifyLoanWatches, notifyTradingAlerts, subscribedJobs } from '@/lib/notifications/server';
 import { readLoan } from '@/lib/loan-watch/read';
 import { scanTradingWallets, TRADING_SCAN_BUDGET_MS } from '@/lib/trading/read';
 import { coverage } from '@/lib/trading/coverage';
@@ -52,6 +52,8 @@ import { SWEEP_BUDGET_MS, SWEEP_CRITICAL_RESERVE_MS, SWEEP_CRITICAL_STEP_MS, SWE
 import { getMaintenanceStore } from '@/lib/history/maintenance-store';
 import { persistStageOutcomes } from '@/lib/history/stage-outcomes';
 import { CRITICAL_LOOP_SLACK_MS, RECONCILE_DEADLINE_SLACK_MS, afterAttempt, classifyAttempt, dueForReconcile } from '@/lib/history/reconcile-schedule';
+import { disputeWindowSeconds } from '@/lib/erc8183/dispute-window';
+import { releaseReminderDue } from '@/lib/jobs/release-reminder';
 
 export const dynamic = 'force-dynamic';
 /** The platform's ceiling. The run's own budget is below it, deliberately. */
@@ -218,8 +220,14 @@ export async function POST(request: Request): Promise<NextResponse> {
           // Every escrow Pokter has funded hires on, not only the default.
           if (chainId !== 56 && chainId !== 97) return { sent: 0, failed: false };
           const job = await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId));
-          const { sent } = await notifyJobEvent({ chainId, jobId, status: job.statusName, agentName: getJobStore().byId(`${chainId}:${jobId}`)?.agentName });
-          return { sent, failed: false };
+          const agentName = getJobStore().byId(`${chainId}:${jobId}`)?.agentName;
+          const { sent } = await notifyJobEvent({ chainId, jobId, status: job.statusName, agentName });
+          /* A delivered job whose release window is open, or about to close unreleased: the reminder (lib/jobs/release-reminder.ts). Uses the escrow read above and a cached window. */
+          const due = job.statusName === 'SUBMITTED'
+            ? releaseReminderDue({ status: job.statusName, submittedAt: Number(job.submittedAt), disputeWindowSeconds: await disputeWindowSeconds(chainId), expiredAt: Number(job.expiredAt), now: Date.now() })
+            : null;
+          const reminded = due ? (await notifyReleaseReminder({ chainId, jobId, event: due.event, closesAt: due.closesAt, agentName })).sent : 0;
+          return { sent: sent + reminded, failed: false };
         } catch {
           return { sent: 0, failed: true };
         }
