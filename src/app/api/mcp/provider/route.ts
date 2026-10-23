@@ -54,7 +54,7 @@ import {
 } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { chainLabel } from '@/lib/network/presentation';
-import { consumeRateLimit } from '@/lib/security/rate-limit';
+import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { originOf } from '@/lib/api/respond';
 
 export const dynamic = 'force-dynamic';
@@ -701,6 +701,34 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  /*
+   * The address limit comes first, before anything the caller supplied is
+   * used as a key, and it is the brake an unauthenticated caller meets.
+   *
+   * The per-token bucket below is keyed on a hash of the Authorization
+   * header — a value the caller chooses. Rotating it produced a fresh
+   * bucket every request, so 135 requests with 135 different fake tokens
+   * drew 135 answers and no 429 at all, while 135 with one token stopped
+   * at 120. Worse than the missing brake: every distinct key INSERTs a row
+   * into `/data/rate-limit.db`, which shares the one mounted volume with
+   * the job index, the brief store and the builder database, and `prune`
+   * only drops rows older than an hour while SQLite never returns the file
+   * to the filesystem without VACUUM. An unauthenticated flood therefore
+   * grew a file every other store depends on.
+   *
+   * This is the only one of this repo's consumeRateLimit call sites that
+   * was not keyed on `requestClientKey`, and the reason it looked right is
+   * written above the token bucket: an assistant behind one address should
+   * not be throttled as if it were a crowd. That argument holds for the
+   * token bucket and never applied to the key space.
+   */
+  const address = consumeRateLimit(`mcp-provider-ip:${requestClientKey(request)}`, { limit: 600, windowMs: 60_000 });
+  if (!address.allowed) {
+    return NextResponse.json(
+      { jsonrpc: '2.0', id: null, error: { code: -32000, message: `Rate limit reached for this address. Retry in ${address.retryAfterSeconds}s.` } },
+      { status: 429, headers: { 'retry-after': String(address.retryAfterSeconds) } },
+    );
+  }
   const secret = automationTokenFromHeader(request.headers.get('authorization'));
   if (!secret) {
     return unauthorised(
@@ -709,9 +737,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   const tokenHash = hashAutomationToken(secret);
   /*
-   * Per token rather than per address. A provider's assistant runs behind
-   * one IP and may be the only caller on it, so an address limit would
-   * either be useless or throttle a single legitimate assistant.
+   * Per token as well as per address. A provider's assistant runs behind
+   * one address and may be the only caller on it, so the address limit is
+   * deliberately loose and this is what paces one credential.
    */
   const rate = consumeRateLimit(`mcp-provider:${tokenHash}`, { limit: 120, windowMs: 60_000 });
   if (!rate.allowed) {

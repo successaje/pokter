@@ -18,7 +18,22 @@ export const dynamic = 'force-dynamic';
  * open for the same reason the public read API's is — an assistant fetching
  * it has no origin to allow-list — and `GET` is all there is.
  */
-const SKILLS: Readonly<Record<string, string>> = { [PROVIDER_SKILL_NAME]: PROVIDER_SKILL_MD };
+/*
+ * Null-prototype, so a request can only name a skill this object was given.
+ *
+ * A plain object literal inherits `Object.prototype`, and the lookup below
+ * was unguarded, so `/api/skills/constructor` answered 200 text/markdown
+ * with "function Object() { [native code] }" and `/api/skills/__proto__`
+ * with "[object Object]" — each served with `cache-control: public,
+ * max-age=300`, so the junk was cacheable. Nothing was disclosed, but the
+ * route's own contract says an unknown name is a 404 and it was not.
+ *
+ * `Object.create(null)` removes the inherited keys rather than testing for
+ * them, so the guard cannot be forgotten at a second call site later.
+ */
+const SKILLS: Readonly<Record<string, string>> = Object.assign(Object.create(null) as Record<string, string>, {
+  [PROVIDER_SKILL_NAME]: PROVIDER_SKILL_MD,
+});
 
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }): Promise<Response> {
   const limited = apiRateLimit(_request, 'skills', 60);
