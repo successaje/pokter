@@ -798,13 +798,46 @@ export async function searchByName(
   });
 }
 
-export async function listSearchableWithStatus(
-  options: { chainId?: ChainId; limit?: number } = {},
-): Promise<{
+type SearchableWithStatus = {
   entries: SearchableWithHistory[];
   unreachable: boolean;
   incomplete: Array<{ category: Category; chainId: ChainId }>;
-}> {
+};
+
+/** How long one built catalogue serves every request. Its stores change when the sweep runs, about every ten minutes. */
+export const CATALOGUE_FRESH_MS = 60_000;
+const catalogueCache = new Map<string, { at: number; value: Promise<SearchableWithStatus> }>();
+
+/**
+ * The catalogue, shared across requests for a minute.
+ *
+ * It was built per request, and only `react`'s per-request `cache` stood in
+ * front of it: about 600ms of CPU each time (`catalogue.entries`), on the
+ * one CPU that serves the site. Steady traffic of about one page a second
+ * was enough to keep the event loop 1.5s behind, and on 23 October the home
+ * page, Discover and the agent list each took 10 to 13 seconds to load.
+ *
+ * One build now serves every request for `CATALOGUE_FRESH_MS`, and requests
+ * that arrive while it is building wait for that build rather than starting
+ * their own. A build that fails is not kept, so the next request tries
+ * again. Nothing it reads changes faster than the sweep writes it.
+ */
+export function listSearchableWithStatus(options: { chainId?: ChainId; limit?: number } = {}): Promise<SearchableWithStatus> {
+  const key = `${options.chainId ?? 'all'}:${options.limit ?? 'default'}`;
+  const now = Date.now();
+  const hit = catalogueCache.get(key);
+  if (hit && now - hit.at < CATALOGUE_FRESH_MS) return hit.value;
+  const value = buildSearchableWithStatus(options);
+  catalogueCache.set(key, { at: now, value });
+  value.catch(() => {
+    if (catalogueCache.get(key)?.value === value) catalogueCache.delete(key);
+  });
+  return value;
+}
+
+async function buildSearchableWithStatus(
+  options: { chainId?: ChainId; limit?: number } = {},
+): Promise<SearchableWithStatus> {
   /*
    * Split in two, because the whole point is which half costs the 0.7s.
    *
