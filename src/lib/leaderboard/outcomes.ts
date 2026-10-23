@@ -37,7 +37,7 @@ export const OUTCOME_METRICS: readonly OutcomeMetricMeta[] = [
     short: 'Settled jobs',
     qualifier: 'with delivery evidence, external buyers',
     definition:
-      'Escrow jobs on this network that reached COMPLETED, funded by a wallet outside Pokter’s declared team set, not a self-hire, not a lifecycle demonstration, and whose delivery was submitted by the agent’s own wallet or carried the agent’s own answer in its manifest. A count, not a rate.',
+      'Escrow jobs on this network that reached COMPLETED, funded by a wallet outside Pokter’s declared team set, not a self-hire, not a lifecycle demonstration, and whose delivery the agent submitted from its own wallet. A delivery Pokter’s courier submitted is reported on the row and never counted here, whoever wrote the answer inside it. A count, not a rate.',
   },
   {
     id: 'external-buyers',
