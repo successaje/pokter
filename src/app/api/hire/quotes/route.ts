@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 /** At most this many agents per comparison: each is a real request to its builder's endpoint. */
-export const MAX_COMPARED = 4;
+const MAX_COMPARED = 4;
 
 /**
  * One brief, several agents: a signed price from each, side by side.
