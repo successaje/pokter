@@ -15,6 +15,7 @@ import {
   servesFromOneInstance,
   SERVES_FROM_ONE_INSTANCE,
 } from '../src/lib/leaderboard/consistency';
+import { shareFigure } from '../src/lib/leaderboard/card';
 import { buildOutcomeBoard, type OutcomeTests } from '../src/lib/leaderboard/outcomes';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -119,6 +120,54 @@ test('the empty-result wording is the agreed sentence, and the page uses it', ()
   assert.match(page, /NO_QUALIFYING_SETTLEMENTS/, 'the page must render the constant, not its own wording');
   /* And a failed read must say something else entirely. */
   assert.match(page, /DATA_UNAVAILABLE|outcomes\.reason|responsiveness\.reason/);
+});
+
+/*
+ * An absent measurement says nothing, rather than saying something large.
+ *
+ * With no job indexed on an escrow there is no refresh time, and the tile
+ * rendered "Index last refreshed: Never" — read as Pokter never refreshing
+ * its index rather than as this network having nothing to refresh. The same
+ * word under "Last check recorded" claimed an agent had never been checked,
+ * when the figure is scoped to a 30-day window. Both were found by loading
+ * the page, not by reading it.
+ */
+test('an absent time renders as an em dash, never as "Never"', () => {
+  const page = copy('src/app/(site)/leaderboard/page.tsx');
+  assert.doesNotMatch(page, /'Never'/, 'an absent time must make no claim about what Pokter has ever done');
+});
+
+/*
+ * The board's share card withholds a nought the page is free to print.
+ *
+ * The page can say what a nought means — it carries the sentence naming the
+ * network and period, the coverage block and every exclusion behind it. A
+ * card carries none of that and travels without it, so "Settled on BNB
+ * Chain: 0" arrives in a feed as a claim about the chain rather than about
+ * Pokter's index, and that claim is not established.
+ */
+test('a share card states no bare nought', () => {
+  /*
+   * The value, not a phrase. The defect that shipped was a figure — a guard
+   * written against null while `reduce` over no rows returns 0 — and no scan
+   * for wording can see that. `shareFigure` is the rule, so the rule is what
+   * is exercised.
+   */
+  assert.equal(shareFigure(0), '—', 'a nought on a card reads as a claim about the chain');
+  assert.equal(shareFigure(null), '—');
+  assert.equal(shareFigure(undefined), '—');
+  assert.equal(shareFigure(Number.NaN), '—');
+  assert.equal(shareFigure(1), '1');
+  assert.equal(shareFigure(21), '21');
+});
+
+test('both figures on the board card go through that one rule', () => {
+  /* They disagreed once: one guarded its nought, the other did not, and the
+     one that did not was the figure production served. */
+  const card = read('src/app/(site)/leaderboard/opengraph-image.tsx');
+  assert.match(card, /value: shareFigure\(settled\)/);
+  assert.match(card, /value: shareFigure\(buyers\)/);
+  assert.doesNotMatch(card, /String\(settled\)|String\(buyers\)/, 'a raw figure bypasses the rule');
 });
 
 /*

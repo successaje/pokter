@@ -100,6 +100,37 @@ export function leaderboardCard(
      * shared without it reads as paid work, and this card is the surface most
      * likely to be seen by someone who never visits the board.
      */
-    lede: `${money.real === false ? 'Settled in test tokens with no real value. ' : ''}Counts escrow settlements with evidence the agent delivered; it does not establish that any answer was correct or profitable.`,
+    /*
+     * Two lines on the rendered card, not three. At three the last line met
+     * the rule above the facts and the card read as crowded, which on the one
+     * artefact that travels without the page around it is worth a tighter
+     * sentence. Both claims it has to carry survive: the money, and what a
+     * settlement does not prove.
+     */
+    lede: `${money.real === false ? 'Settled in test tokens, which have no real value. ' : ''}Counts escrow settlements with evidence the agent delivered — not that any answer was correct.`,
   };
+}
+
+/**
+ * A count as a share card may state it, or an em dash.
+ *
+ * Nought becomes an em dash here, where the page prints it as nought. The
+ * page can say what a nought means — it carries the sentence naming the
+ * network and the period, the coverage block, and every exclusion that
+ * produced it. A card carries none of that and travels without it, so
+ * "Settled on BNB Chain: 0" arrives in a feed as a claim about the chain
+ * rather than about Pokter's index, and that claim is not established.
+ *
+ * A function rather than a condition written at each fact, because the two
+ * facts on the board's card disagreed: one guarded its nought and the other
+ * did not, and the one that did not was the figure that shipped. `reduce`
+ * over no rows returns 0 and never null, so a guard written only against
+ * null never fires on the case that actually happens. A rule two call sites
+ * must spell out identically is a rule one of them will get wrong — and as a
+ * function it can be checked by a test that reads the value, which a scan
+ * for a phrase cannot do.
+ */
+export function shareFigure(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  return value === 0 ? '—' : String(value);
 }

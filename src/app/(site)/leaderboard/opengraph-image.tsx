@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 import { Card, contentType, size } from '@/lib/og/card';
+import { shareFigure } from '@/lib/leaderboard/card';
 import { loadOutcomeBoard } from '@/lib/leaderboard/server';
 import { MIN_RESPONSIVENESS_CHECKS, RESPONSIVENESS_WINDOW_DAYS } from '@/lib/leaderboard/responsiveness';
 
@@ -47,14 +48,27 @@ export default async function LeaderboardCard() {
         lede="Settled escrow jobs from external buyers, with evidence the agent did the work — and separately, whether it answered Pokter's scheduled check. Mainnet and testnet are never merged."
         signalRule
         facts={[
+          /*
+           * Nought is drawn as an em dash here, where on the page it is drawn
+           * as nought.
+           *
+           * The page can say what a nought means: it carries the sentence
+           * naming the network and the period, the coverage block, and every
+           * exclusion that produced it. A card carries none of that and
+           * travels without it, so "Settled on BNB Chain: 0" arrives in a feed
+           * as a claim about BNB Chain — which is the one claim this whole
+           * board refuses to make, and it is not Pokter's to make from its own
+           * index. `BUYER WALLETS` beside it already withheld its nought for
+           * the same reason; the two now agree.
+           */
           {
             label: 'SETTLED ON BNB CHAIN',
-            value: settled === null ? '—' : String(settled),
+            value: shareFigure(settled),
             note: 'external buyers, delivery evidence',
           },
           {
             label: 'BUYER WALLETS',
-            value: buyers === null || buyers === 0 ? '—' : String(buyers),
+            value: shareFigure(buyers),
             note: 'distinct, outside Pokter',
           },
           {
