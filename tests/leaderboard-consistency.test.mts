@@ -122,6 +122,36 @@ test('the empty-result wording is the agreed sentence, and the page uses it', ()
 });
 
 /*
+ * An absent measurement says nothing, rather than saying something large.
+ *
+ * With no job indexed on an escrow there is no refresh time, and the tile
+ * rendered "Index last refreshed: Never" — read as Pokter never refreshing
+ * its index rather than as this network having nothing to refresh. The same
+ * word under "Last check recorded" claimed an agent had never been checked,
+ * when the figure is scoped to a 30-day window. Both were found by loading
+ * the page, not by reading it.
+ */
+test('an absent time renders as an em dash, never as "Never"', () => {
+  const page = copy('src/app/(site)/leaderboard/page.tsx');
+  assert.doesNotMatch(page, /'Never'/, 'an absent time must make no claim about what Pokter has ever done');
+});
+
+/*
+ * The board's share card withholds a nought the page is free to print.
+ *
+ * The page can say what a nought means — it carries the sentence naming the
+ * network and period, the coverage block and every exclusion behind it. A
+ * card carries none of that and travels without it, so "Settled on BNB
+ * Chain: 0" arrives in a feed as a claim about the chain rather than about
+ * Pokter's index, and that claim is not established.
+ */
+test('the board card draws no bare nought', () => {
+  const card = read('src/app/(site)/leaderboard/opengraph-image.tsx');
+  assert.match(card, /settled === null \|\| settled === 0 \? '—'/);
+  assert.match(card, /buyers === null \|\| buyers === 0 \? '—'/);
+});
+
+/*
  * `import 'server-only'` keeps the loaders out of a test, so the wiring that
  * decides empty-versus-unavailable is asserted as a source fact instead.
  */

@@ -100,6 +100,13 @@ export function leaderboardCard(
      * shared without it reads as paid work, and this card is the surface most
      * likely to be seen by someone who never visits the board.
      */
-    lede: `${money.real === false ? 'Settled in test tokens with no real value. ' : ''}Counts escrow settlements with evidence the agent delivered; it does not establish that any answer was correct or profitable.`,
+    /*
+     * Two lines on the rendered card, not three. At three the last line met
+     * the rule above the facts and the card read as crowded, which on the one
+     * artefact that travels without the page around it is worth a tighter
+     * sentence. Both claims it has to carry survive: the money, and what a
+     * settlement does not prove.
+     */
+    lede: `${money.real === false ? 'Settled in test tokens, which have no real value. ' : ''}Counts escrow settlements with evidence the agent delivered — not that any answer was correct.`,
   };
 }

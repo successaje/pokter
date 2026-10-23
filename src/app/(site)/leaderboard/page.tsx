@@ -131,10 +131,24 @@ function ReceiptLinks({ jobs, label }: { jobs: readonly HiredJob[]; label: strin
   );
 }
 
+/**
+ * A recorded time, or an em dash when there is none.
+ *
+ * It said "Never", which is a different and much larger claim than the one
+ * the absence supports. With no job indexed on an escrow there is no refresh
+ * time to report, and the tile read "Index last refreshed: Never" — which a
+ * reader takes as Pokter never refreshing its index, rather than as this
+ * network having nothing to refresh. The same word under "Last check
+ * recorded" said Pokter had never checked an agent, when the figure is scoped
+ * to a 30-day window and only says nothing was checked inside it.
+ *
+ * An em dash is what every other absent measurement on the site renders as
+ * (`lib/ui/format`), and it makes no claim at all.
+ */
 function timestamp(value: string | null): string {
-  if (!value) return 'Never';
+  if (!value) return '—';
   const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return 'Never';
+  if (!Number.isFinite(parsed)) return '—';
   return new Date(parsed).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 }
 
@@ -326,7 +340,8 @@ function ResponsivenessCategory({ entry }: { entry: CategoryResponsiveness }) {
       {entry.ranked.length === 0 ? (
         <p className="border-b border-rule bg-sunken/50 px-4 py-3 text-[13px] text-ink-2">
           No agent in this category has {MIN_RESPONSIVENESS_CHECKS} checks in the last {RESPONSIVENESS_WINDOW_DAYS}{' '}
-          days, so Pokter publishes no order for it. The agents it has measured are listed below with their figures.
+          days, so Pokter publishes no order for it. Every listed agent in this category is below, with whatever
+          checks Pokter has for it — which for some is none.
         </p>
       ) : (
         <ol className="divide-y divide-rule">
@@ -377,8 +392,16 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
       <span className="t-readout col-start-2 text-[15px] sm:col-start-auto sm:text-right">
         {row.ranked ? formatPercent(row.answerRate, { decimals: 0 }) : '—'}
       </span>
+      {/*
+        "0 of 0 checks" read as an agent that answered nothing, when the fact
+        is that Pokter asked nothing of it inside the window. Said in words,
+        because a row whose rate is already an em dash needs to say which of
+        the two it is.
+      */}
       <span className="t-readout col-start-2 text-[12px] text-ink-3 sm:col-start-auto sm:text-right">
-        {formatCount(row.answered)} of {formatCount(row.checks)} checks
+        {row.checks === 0
+          ? 'No check in this window'
+          : `${formatCount(row.answered)} of ${formatCount(row.checks)} checks`}
       </span>
     </li>
   );
