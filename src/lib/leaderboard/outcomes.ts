@@ -86,9 +86,27 @@ export type DeliverySubmitter =
   /** Nothing was delivered. */
   | 'none';
 
-/** Whether the submitter is evidence that *this agent* did the work. */
+/**
+ * Whether the agent delivered this itself, from its own wallet.
+ *
+ * `relayed-answer` is deliberately **not** here, and that is a correction.
+ * It was, and it made the headline metric credit the agent for a delivery
+ * Pokter's courier submitted: jobs 97/1586 and 97/1587 carry
+ * `producer: "Pokter delivery agent (courier)"`, and Sluicegate and Keel
+ * each showed one settled job whose entire record was that, with nothing on
+ * the row saying so.
+ *
+ * `economic-history.ts` already refuses this substitution and gives the
+ * reason — a relayed delivery is Pokter's whatever address submitted it,
+ * and never the agent's own. The board has to agree with it, and on the one
+ * figure a buyer scans it must not take the flattering reading.
+ *
+ * The answer inside such a delivery is still the agent's, and still worth
+ * knowing, so it is reported on the row as its own count rather than
+ * discarded. See `OutcomeRow.relayedSettled`.
+ */
 export function isAgentDelivery(submitter: DeliverySubmitter): boolean {
-  return submitter === 'agent-wallet' || submitter === 'relayed-answer';
+  return submitter === 'agent-wallet';
 }
 
 /**
@@ -167,6 +185,10 @@ export type OutcomeExclusion =
   | 'team-funded'
   | 'self-hire'
   | 'lifecycle-demo'
+  /* Pokter's courier submitted it, carrying this agent's own answer. Kept
+     apart from `pokter-courier`, which carries no answer of the agent's:
+     the two look identical on the escrow and mean different things. */
+  | 'relayed-answer'
   | 'pokter-courier'
   | 'pokter-owed'
   | 'unknown-submitter'
@@ -209,6 +231,7 @@ export function judgeJob(job: HiredJob, tests: OutcomeTests): JobVerdict {
     // Nothing delivered. Whose failure that is turns on who the escrow names.
     return reject(owed === 'pokter' ? 'pokter-owed' : 'agent-undelivered');
   }
+  if (submitter === 'relayed-answer') return reject('relayed-answer');
   if (submitter === 'pokter-courier') return reject('pokter-courier');
   if (submitter === 'unknown') return reject('unknown-submitter');
   if (job.status !== 'COMPLETED') {
@@ -245,6 +268,17 @@ export interface OutcomeRow {
    */
   courierSettled: number;
   /**
+   * Externally funded and settled, where Pokter's courier submitted a
+   * delivery that carried this agent's own answer.
+   *
+   * Apart from `settledJobs` and apart from `courierSettled`, because it is
+   * neither. The agent produced the answer, which is real evidence it can do
+   * the work; it did not submit the delivery, so it is not evidence of the
+   * thing a buyer hiring it directly relies on. Both facts are true at once
+   * and the row says both rather than rounding to whichever is handier.
+   */
+  relayedSettled: number;
+  /**
    * Buyer wallets on this row that are themselves the registered owner of a
    * listed agent.
    *
@@ -268,6 +302,7 @@ export interface OutcomeRow {
   settled: HiredJob[];
   delivered: HiredJob[];
   courier: HiredJob[];
+  relayed: HiredJob[];
   /** Newest settlement on this row, for the period a shared card states. */
   lastSettledAt: string | null;
 }
@@ -277,6 +312,7 @@ export interface OutcomeExclusions {
   teamFunded: number;
   selfHire: number;
   lifecycleDemo: number;
+  relayedAnswer: number;
   pokterCourier: number;
   pokterOwed: number;
   unknownSubmitter: number;
@@ -396,6 +432,7 @@ export function buildOutcomeBoard(
     teamFunded: 0,
     selfHire: 0,
     lifecycleDemo: 0,
+    relayedAnswer: 0,
     pokterCourier: 0,
     pokterOwed: 0,
     unknownSubmitter: 0,
@@ -406,6 +443,7 @@ export function buildOutcomeBoard(
     'team-funded': 'teamFunded',
     'self-hire': 'selfHire',
     'lifecycle-demo': 'lifecycleDemo',
+    'relayed-answer': 'relayedAnswer',
     'pokter-courier': 'pokterCourier',
     'pokter-owed': 'pokterOwed',
     'unknown-submitter': 'unknownSubmitter',
@@ -416,6 +454,7 @@ export function buildOutcomeBoard(
     settled: HiredJob[];
     delivered: HiredJob[];
     courier: HiredJob[];
+    relayed: HiredJob[];
     /** Settled jobs per lower-cased buyer wallet, for the repeat count. */
     buyers: Map<string, number>;
   }
@@ -423,7 +462,7 @@ export function buildOutcomeBoard(
   const bucketFor = (key: string): Bucket => {
     const held = buckets.get(key);
     if (held) return held;
-    const made: Bucket = { settled: [], delivered: [], courier: [], buyers: new Map() };
+    const made: Bucket = { settled: [], delivered: [], courier: [], relayed: [], buyers: new Map() };
     buckets.set(key, made);
     return made;
   };
@@ -443,6 +482,9 @@ export function buildOutcomeBoard(
        */
       if (verdict.exclusion === 'pokter-courier' && job.status === 'COMPLETED' && isAttributed(job)) {
         bucketFor(jobAgentKey(job)).courier.push(job);
+      }
+      if (verdict.exclusion === 'relayed-answer' && job.status === 'COMPLETED' && isAttributed(job)) {
+        bucketFor(jobAgentKey(job)).relayed.push(job);
       }
       if (verdict.exclusion === 'pokter-owed') platformOwed.push(job);
       continue;
@@ -478,7 +520,7 @@ export function buildOutcomeBoard(
      * is refused and the token id used instead — the rule the proof page
      * applies, for the same reason.
      */
-    const recorded = bucket.settled[0] ?? bucket.delivered[0] ?? bucket.courier[0];
+    const recorded = bucket.settled[0] ?? bucket.delivered[0] ?? bucket.courier[0] ?? bucket.relayed[0];
     const fallbackName =
       recorded && recorded.agentName && !/^verified testnet seller$/i.test(recorded.agentName)
         ? recorded.agentName
@@ -502,11 +544,13 @@ export function buildOutcomeBoard(
       repeatBuyers: [...bucket.buyers.values()].filter((count) => count > 1).length,
       deliveredUnsettled: bucket.delivered.length,
       courierSettled: bucket.courier.length,
+      relayedSettled: bucket.relayed.length,
       operatorBuyers: buyerWallets.filter((wallet) => listedOwners.has(wallet)).length,
       reviewerBuyers: authors ? buyerWallets.filter((wallet) => authors.has(wallet)).length : null,
       settled: bucket.settled,
       delivered: bucket.delivered,
       courier: bucket.courier,
+      relayed: bucket.relayed,
       lastSettledAt:
         bucket.settled.map((job) => job.statusCheckedAt).sort((a, b) => b.localeCompare(a))[0] ?? null,
     });

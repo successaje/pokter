@@ -27,14 +27,24 @@ export const RESPONSIVENESS_WINDOW_DAYS = 30;
  * total. A lifetime minimum would let an agent with 348 checks over its life
  * and two in the last month be ranked on those two.
  *
- * Why 50, stated as what was actually measured rather than as more than that.
- * The *lifetime-total* distribution is strongly bimodal, with an empty band
- * between roughly 10 and 200 probes per agent: a threshold of 30 and one of
- * 50 exclude exactly the same agents — 61 of 77 mainnet registrations qualify
- * at either, 46 of 94 on testnet — so the number sits in a gap rather than on
- * a slope where moving it would reorder the board.
+ * Why 50, with the measurement corrected. An earlier version of this comment
+ * claimed an empty band between roughly 10 and 200 probes per agent. That was
+ * wrong, and wrong in the flattering direction: re-counting the same data puts
+ * 11 agents per chain inside it — mainnet at 82, 162, 164 five times and 190
+ * three times; testnet at 80 twice, 84, 96, 196 twice, 198 and 200 four times.
  *
- * That measurement was taken on lifetime totals and transfers to the window
+ * The real gap is below those, and it is cleaner than the one invented for it:
+ * **every agent that does not clear the threshold has exactly nought checks**,
+ * so the distribution steps from 0 to 82 on mainnet and 0 to 80 on testnet.
+ * A threshold of 30 and one of 50 therefore do select the same agents — 61 of
+ * 77 mainnet registrations, 46 of 94 on testnet — and 50 sits in empty space
+ * rather than on a slope where moving it would reorder the board.
+ *
+ * What changes with the correction is the headroom: about 30 checks above the
+ * threshold before the first real agent, not about 150. The number stands;
+ * the comfort around it was overstated.
+ *
+ * All of that was measured on lifetime totals, and it transfers to the window
  * only because, as of 23 October 2026, no agent has been observed for 30 days
  * at all: the oldest mainnet records stand at 29.95, 29.94 and 29.93 observed
  * days, and testnet's oldest at 20.52, so every agent's whole history still
@@ -44,7 +54,7 @@ export const RESPONSIVENESS_WINDOW_DAYS = 30;
  * So this needs rechecking once histories run past the window, because the
  * justification above stops transferring the moment they do. At the observed
  * rate of roughly 11.6 checks a day the window should hold about 348 at
- * steady state, which would leave the band open — but that is a prediction
+ * steady state, which would leave the gap open — but that is a prediction
  * from the current rate and not a measurement of the windowed distribution,
  * and it must not be read as one.
  *

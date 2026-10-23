@@ -214,9 +214,27 @@ export async function loadOutcomeBoard(
   const build = (reviewerAuthors: ReadonlyMap<string, ReadonlySet<string>>) =>
     buildOutcomeBoard(jobs, { escrowChainId, metric, agents, listedOwners, reviewerAuthors, tests });
 
-  const first = build(new Map());
-  const reviewerAuthors = await reviewerAuthorsFor(first.rows, entries);
-  return { state: 'ready', data: reviewerAuthors.size === 0 ? first : build(reviewerAuthors) };
+  /*
+   * The build is inside the try as well, because it reads a store of its own.
+   *
+   * It looks pure and is not: `tests.lifecycleDemo` and `tests.relayedDelivery`
+   * reach `readDeliverable`, which opens the deliverables database lazily and
+   * runs its DDL on first use. A locked, missing or unwritable file therefore
+   * throws from inside `buildOutcomeBoard`, and outside the try that is an
+   * unhandled throw in a server component — the visitor gets a 500 on a page
+   * whose entire purpose is to say "Data unavailable" instead of failing.
+   *
+   * The same applies to the author lookup: it is already internally
+   * bounded and catching, but a throw in the second build would land here
+   * too.
+   */
+  try {
+    const first = build(new Map());
+    const reviewerAuthors = await reviewerAuthorsFor(first.rows, entries);
+    return { state: 'ready', data: reviewerAuthors.size === 0 ? first : build(reviewerAuthors) };
+  } catch {
+    return { state: 'unavailable', reason: DATA_UNAVAILABLE };
+  }
 }
 
 /**

@@ -6,6 +6,7 @@ import type { BoardAgent } from '../src/lib/leaderboard/network';
 import {
   buildOutcomeBoard,
   deliverySubmitter,
+  isAgentDelivery,
   judgeJob,
   OUTCOME_METRICS,
   outcomeMetricFrom,
@@ -107,17 +108,86 @@ test('a settled job delivered by Pokter’s courier is not the agent’s evidenc
 });
 
 /*
- * The manifest outranks the address, per `carriesRelayedAnswerFor`: the
- * courier submits from a Pokter wallet whichever agent answered, so the
- * address alone can only say "a Pokter wallet delivered this". Job 97/1585 is
- * the case — the agent answered over A2A and the courier submitted it.
+ * A courier delivery carrying the agent's own answer does NOT count as a
+ * settled job with delivery evidence, and this assertion is the inverse of
+ * what it used to make.
+ *
+ * It credited the agent, and that was wrong on the one figure a buyer scans.
+ * Jobs 97/1586 and 97/1587 carry `producer: "Pokter delivery agent
+ * (courier)"`; Sluicegate and Keel each showed a single settled job whose
+ * whole record was that, with nothing on the row saying so.
+ * `economic-history.ts` refuses the same substitution and gives the reason —
+ * a relayed delivery is Pokter's whatever address submitted it.
+ *
+ * The answer is still the agent's, so the row reports it rather than losing
+ * it. Both facts, neither rounded into the other.
  */
-test('a courier delivery carrying the agent’s own answer does count', () => {
+test('a courier delivery carrying the agent’s own answer is not a settled job', () => {
   const relayed = job({ provider: POKTER as HiredJob['provider'] });
+  const verdict = judgeJob(relayed, tests({ relayedDelivery: () => true }));
+  assert.equal(verdict.counts, false, 'readmitting this would credit the agent for Pokter’s submission');
+  assert.equal(verdict.exclusion, 'relayed-answer');
+
   const built = board([relayed], { tests: tests({ relayedDelivery: () => true }) });
-  assert.equal(built.rows[0].settledJobs, 1);
-  assert.equal(built.rows[0].courierSettled, 0);
+  assert.equal(built.rows[0].settledJobs, 0);
+  assert.equal(built.rows[0].relayedSettled, 1, 'the agent’s answer is reported, not discarded');
+  assert.equal(built.rows[0].courierSettled, 0, 'and not confused with a courier receipt carrying no answer');
+  assert.equal(built.coverage.qualifyingJobs, 0);
+  assert.equal(built.coverage.exclusions.relayedAnswer, 1);
   assert.equal(built.coverage.exclusions.pokterCourier, 0);
+});
+
+/*
+ * The guard, stated on the function the metric reads rather than only on a
+ * built board, so readmitting `relayed-answer` fails here whatever else
+ * changes around it.
+ */
+test('only a delivery from the agent’s own wallet is the agent’s delivery', () => {
+  assert.equal(isAgentDelivery('agent-wallet'), true);
+  assert.equal(isAgentDelivery('relayed-answer'), false);
+  assert.equal(isAgentDelivery('pokter-courier'), false);
+  assert.equal(isAgentDelivery('unknown'), false);
+  assert.equal(isAgentDelivery('none'), false);
+});
+
+/*
+ * The two courier shapes are not the same fact and must not share a count.
+ * Both are submitted by a Pokter wallet and settle identically on the
+ * escrow; one carries the agent's answer and one carries nothing of the
+ * agent's at all.
+ */
+test('a courier receipt and a relayed answer are counted apart', () => {
+  const carried = job({ jobId: '1586', id: '97:1586', provider: POKTER as HiredJob['provider'] });
+  const empty = job({ jobId: '1590', id: '97:1590', provider: POKTER as HiredJob['provider'] });
+  const built = board([carried, empty], {
+    tests: tests({ relayedDelivery: (j) => j.jobId === '1586' }),
+  });
+  assert.equal(built.rows[0].settledJobs, 0);
+  assert.equal(built.rows[0].relayedSettled, 1);
+  assert.equal(built.rows[0].courierSettled, 1);
+  assert.equal(built.coverage.exclusions.relayedAnswer, 1);
+  assert.equal(built.coverage.exclusions.pokterCourier, 1);
+});
+
+/*
+ * The condition the page's empty-state sentence is gated on.
+ *
+ * It was gated on there being no rows, and a row exists for a delivered-but-
+ * unsettled job or a courier settlement — so a board with no qualifying
+ * settlement could still render a table of noughts under "Settled jobs with
+ * delivery evidence" and omit the sentence entirely. These are the states
+ * where the two gates disagree, which is what makes the distinction worth a
+ * test.
+ */
+test('no qualifying settlement is reported even when rows exist', () => {
+  for (const [what, built] of [
+    ['delivered but unsettled', board([job({ status: 'SUBMITTED' })])],
+    ['settled by the courier', board([job({ provider: POKTER as HiredJob['provider'] })])],
+    ['a relayed answer', board([job({ provider: POKTER as HiredJob['provider'] })], { tests: tests({ relayedDelivery: () => true }) })],
+  ] as const) {
+    assert.ok(built.rows.length > 0, `${what} must still be shown`);
+    assert.equal(built.coverage.qualifyingJobs, 0, `${what} is not a qualifying settlement`);
+  }
 });
 
 test('a delivery with no recorded submitter is evidence in neither direction', () => {
