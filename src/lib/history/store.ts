@@ -335,6 +335,8 @@ class SqliteProbeStore implements ProbeStore {
       'ALTER TABLE quotes ADD COLUMN domain_chain_id INTEGER',
       'ALTER TABLE quotes ADD COLUMN domain_contract TEXT',
       'ALTER TABLE probes ADD COLUMN adapter TEXT',
+      /* A table made before `payable` existed crashed every hire page that read it. Old rows read as unpayable, the safe direction. */
+      'ALTER TABLE brief_quotes ADD COLUMN payable INTEGER NOT NULL DEFAULT 0',
     ]) {
       try {
         this.db.exec(statement);

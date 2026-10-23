@@ -173,6 +173,11 @@ export function JobAnswer({
               The agent hashed this record with its keys in sorted order, so the hash above (of the file as served) differs from the one on chain. Sorted the same way, it matches: the content is what the agent committed.
             </span>
           )}
+          {data.readable && data.matchedBy === 'sha256' && (
+            <span className="text-[12.5px] text-ink-3">
+              The agent hashed this file with SHA-256 rather than keccak256, so the hash above differs from the one on chain. Hashed with SHA-256, the file as served matches it byte for byte: it is what the agent committed.
+            </span>
+          )}
           {data.readable && data.matchedBy === 'canonical' && (
             <span className="text-[12.5px] text-ink-3">
               The agent hashed this record in the standard canonical form (keys sorted, accented and other non-ASCII characters escaped), so the hash above (of the file as served) differs from the one on chain. In that form it matches: the content is what the agent committed.

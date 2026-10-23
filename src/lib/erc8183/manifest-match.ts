@@ -1,4 +1,4 @@
-import { keccak256, stringToBytes } from 'viem';
+import { keccak256, sha256, stringToBytes } from 'viem';
 
 /**
  * How a delivered file matches the hash its agent committed on chain.
@@ -18,12 +18,21 @@ import { keccak256, stringToBytes } from 'viem';
  * as `sorted-keys`, and 97:1588 contained one "’", served raw but hashed
  * escaped, and its buyer was told the delivery did not match. It did.
  *
+ * `sha256`: SHA-256 of exactly the bytes served. Brain on BNB commits that,
+ * and says so in the record itself ("the bytes32 on this job is the SHA-256
+ * of exactly this document as served"). Its mainnet job 56:57016 matched
+ * that way byte for byte, and its buyer was told, while about to release,
+ * that the file did not match. Only the bytes as served: a re-serialised
+ * record hashed with SHA-256 is not a form any seller has been seen to use,
+ * and accepting more forms than sellers use only widens what a forgery may
+ * aim at.
+ *
  * The sorted forms are accepted because they fix the content, not the
  * layout. Pokter reads a delivery through `JSON.parse` either way, and an
  * escaped character parses to the same character, so what a buyer is shown
  * is exactly what was committed. Any other difference is still a mismatch.
  */
-export type ManifestMatch = 'exact' | 'sorted-keys' | 'canonical';
+export type ManifestMatch = 'exact' | 'sorted-keys' | 'canonical' | 'sha256';
 
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
@@ -56,7 +65,9 @@ export function canonicalText(text: string): string | null {
 export function manifestMatch(text: string, chainHash: string | null | undefined): ManifestMatch | null {
   if (!chainHash) return null;
   const expected = chainHash.toLowerCase();
-  if (keccak256(stringToBytes(text)).toLowerCase() === expected) return 'exact';
+  const bytes = stringToBytes(text);
+  if (keccak256(bytes).toLowerCase() === expected) return 'exact';
+  if (sha256(bytes).toLowerCase() === expected) return 'sha256';
   const sorted = sortedKeysText(text);
   if (sorted !== null && keccak256(stringToBytes(sorted)).toLowerCase() === expected) return 'sorted-keys';
   const canonical = canonicalText(text);

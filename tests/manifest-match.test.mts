@@ -62,3 +62,20 @@ test('canonical matching still refuses changed content', async () => {
   const tampered = JSON.stringify({ ...manifest, response: { ...manifest.response, content: 'APY 9.1% — Venus' } });
   assert.equal(manifestMatch(tampered, onChain), null);
 });
+
+test('a record hashed with SHA-256 as served matches, and only as served', async () => {
+  /* Brain on BNB's mainnet job 56:57016, as its endpoint served it, and the bytes32 on that job. */
+  const { readFileSync } = await import('node:fs');
+  const { sha256 } = await import('viem');
+  const servedRaw = readFileSync(new URL('./fixtures/brainonbnb-56-57016.json', import.meta.url), 'utf8');
+  const onChain = '0x62d6c794c72c8df35073fd04eb5f7921f174e8ab7d22615e8501a48a228466e7';
+  assert.equal(manifestMatch(servedRaw, onChain), 'sha256');
+
+  /* The same content re-serialised, or one figure changed, is not what was committed. */
+  const resorted = sortedKeysText(servedRaw)!;
+  assert.notEqual(resorted, servedRaw);
+  assert.equal(manifestMatch(resorted, onChain), null);
+  assert.equal(manifestMatch(servedRaw.replace('"level_count":10', '"level_count":11'), onChain), null);
+  /* SHA-256 is taken of the bytes as served only, never of a re-serialised form. */
+  assert.equal(manifestMatch(servedRaw, sha256(stringToBytes(resorted))), null);
+});
