@@ -394,6 +394,15 @@ img { max-width: 100%; }
 
 .anim-rise { animation: rise 520ms var(--ease-out) both; }
 .anim-fade { animation: fade 360ms var(--ease-out) both; }
+/* The header search opening leftward from its icon. Clip, not transform: the panel is centred with one.
+   No fill after it ends, or the clip would cut off the suggestions below the field. */
+@keyframes search-open {
+  from { clip-path: inset(0 0 0 calc(100% - 2.25rem) round 10px); }
+  to { clip-path: inset(0 0 0 0 round 10px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .anim-search { animation: search-open 220ms var(--ease-out) backwards; }
+}
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
 
 /*

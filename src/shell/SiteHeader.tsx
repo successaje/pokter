@@ -8,6 +8,7 @@ import { IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
+import { HeaderSearch } from './HeaderSearch';
 import { Wordmark } from './Logo';
 import { PRIMARY_NAV } from './nav';
 import { ThemeSegmented, ThemeToggle } from './ThemeControl';
@@ -87,16 +88,7 @@ export function SiteHeader() {
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle className="hidden lg:grid" />
             {/* Search, then the account. The workspace is in the account menu ("My workspace"), so it is no longer a third control here. */}
-            {/* Already on /discover, the hash changes through pushState, which fires no hashchange for the search box to hear, so it is focused here. From any other page the box focuses itself on arrival. */}
-            <Link
-              href="/discover#discover-q"
-              onClick={() => requestAnimationFrame(() => document.getElementById('discover-q')?.focus())}
-              aria-label="Search agents"
-              title="Search agents"
-              className="hidden size-9 place-items-center rounded-[8px] text-ink-2 hover:bg-sunken hover:text-ink lg:grid"
-            >
-              <Icon.Search size={17} />
-            </Link>
+            <HeaderSearch />
             <LazyHeaderWallet />
             <button
               type="button"
