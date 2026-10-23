@@ -131,9 +131,26 @@ export const ANSWER_RATE_DOES_NOT_MEAN =
  * as the nought that rendered 349 of 350 checks as "100%" — a figure rounded
  * until it states something untrue.
  */
-export function formatObservedSpan(observedDays: number): string {
+export function spanDecimal(observedDays: number): string {
   const days = Number.isFinite(observedDays) ? Math.max(0, observedDays) : 0;
-  return `over ${days.toFixed(1)} of ${RESPONSIVENESS_WINDOW_DAYS} days`;
+  /*
+   * Floored, not rounded, and that is the whole point of this helper.
+   *
+   * `toFixed(1)` rounds, so any span at or above 29.95 printed as "30.0" and
+   * eight rows on the live mainnet board claimed "over 30.0 of 30 days" — a
+   * row saying it covered the entire window, when the window IS the read
+   * bound and therefore nothing can cover it. The comment above warned
+   * against exactly this and the implementation did it anyway, because the
+   * test picked 29.9290, the one span that happens to round down.
+   *
+   * Flooring can only understate coverage, which is the safe direction for a
+   * figure whose job is to warn that a rate rests on less than it advertises.
+   */
+  return (Math.floor(days * 10) / 10).toFixed(1);
+}
+
+export function formatObservedSpan(observedDays: number): string {
+  return `over ${spanDecimal(observedDays)} of ${RESPONSIVENESS_WINDOW_DAYS} days`;
 }
 
 /**
@@ -159,10 +176,10 @@ export function observedSpanNote(coverage: ResponsivenessCoverage): string {
   }
   const { shortest, longest } = coverage.rankedSpanDays;
   const spread =
-    shortest.toFixed(1) === longest.toFixed(1)
-      ? `Every ranked row covers ${longest.toFixed(1)} of the ${coverage.windowDays} days.`
-      : `The ranked rows do not hold the same part: their spans run from ${shortest.toFixed(1)} to ` +
-        `${longest.toFixed(1)} of the ${coverage.windowDays} days, shown on each row.`;
+    spanDecimal(shortest) === spanDecimal(longest)
+      ? `Every ranked row covers ${spanDecimal(longest)} of the ${coverage.windowDays} days.`
+      : `The ranked rows do not hold the same part: their spans run from ${spanDecimal(shortest)} to ` +
+        `${spanDecimal(longest)} of the ${coverage.windowDays} days, shown on each row.`;
   return (
     `${bound} ${spread} A span near ${coverage.windowDays} reaches the edge of what Pokter loads and may ` +
     'have older checks behind it that this board cannot see; a short span is the whole of what Pokter ' +
