@@ -152,6 +152,111 @@ test('prose survives it: newlines, tabs and ordinary text', () => {
   assert.equal(cleanUntrusted('Watch my Venus loan — health factor below 1.5 · 0xAbC'), 'Watch my Venus loan — health factor below 1.5 · 0xAbC');
 });
 
+/*
+ * The gap the eleven assertions above could not see.
+ *
+ * Every one of them uses an ASCII control character, so what they proved
+ * was that control *codes* go. Measured as surviving the old class, which
+ * stopped at U+009F: U+202E, U+2066-U+2069, U+200B, U+200E, U+200F,
+ * U+00AD, U+2028, U+FEFF and the whole U+E0000 tag block. The first two do
+ * exactly what this module's own comment says is prevented — "shown one
+ * thing while the bytes say another" — without an escape sequence in sight,
+ * and the tag block is the standard way to put text in front of a model
+ * that a human reading the brief cannot see at all.
+ *
+ * Code points are written as numbers rather than escapes so that each
+ * assertion names the character it is about, and so that nothing invisible
+ * is sitting in this file waiting to be "tidied up".
+ */
+const ch = (...codes: number[]) => codes.map((code) => String.fromCodePoint(code)).join('');
+
+test('a right-to-left override cannot reverse what a reader is shown', () => {
+  // U+202E reverses the rendering of everything after it: a brief reading
+  // "pay 0xAbC" renders as something else entirely while the model reads
+  // the original bytes. The embeddings and the pop either side of it go too.
+  assert.equal(cleanUntrusted(`run${ch(0x202e)}evil.sh`), 'runevil.sh');
+  for (const code of [0x202a, 0x202b, 0x202c, 0x202d, 0x202e]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+});
+
+test('bidi isolates do not survive either', () => {
+  // U+2066-U+2069: the isolate forms of the same attack, and the ones a
+  // "strip U+202x" fix misses.
+  for (const code of [0x2066, 0x2067, 0x2068, 0x2069]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+  assert.equal(cleanUntrusted(ch(0x2068) + 'hidden' + ch(0x2069)), 'hidden');
+});
+
+test('bidi marks and the Arabic letter mark do not survive', () => {
+  for (const code of [0x200e, 0x200f, 0x061c]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+});
+
+test('zero-width characters cannot split a word the reader sees as one', () => {
+  // U+200B, U+200C, U+200D: a brief can read "delete" to a human while the
+  // bytes spell something a filter never matched.
+  for (const code of [0x200b, 0x200c, 0x200d, 0x2060, 0xfeff, 0x180e]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+  assert.equal(cleanUntrusted(ch(0xfeff) + 'Watch my loan'), 'Watch my loan', 'including a BOM at the front');
+});
+
+test('a soft hyphen does not survive', () => {
+  // U+00AD renders as nothing until a line wraps, so it hides a word break
+  // that the model reads.
+  assert.equal(cleanUntrusted(`de${ch(0x00ad)}lete`), 'delete');
+});
+
+test('deprecated format characters do not survive', () => {
+  // U+206A-U+206F are invisible and deprecated; nothing a buyer types
+  // needs them and the class covers the range rather than the examples.
+  for (const code of [0x2061, 0x2062, 0x2063, 0x2064, 0x206a, 0x206f]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+});
+
+test('the tag-character block does not survive, in whole or in part', () => {
+  // U+E0000-U+E007F. U+E0001 plus tag letters is the standard way to carry
+  // a sentence to a model with nothing on screen: no width, no glyph, no
+  // escape, and it round-trips through every form field in this product.
+  const smuggled = ch(0xe0001, 0xe0049, 0xe0067, 0xe006e, 0xe006f, 0xe0072, 0xe0065);
+  assert.equal(cleanUntrusted(`Watch my loan${smuggled}`), 'Watch my loan');
+  for (const code of [0xe0000, 0xe0001, 0xe0020, 0xe0041, 0xe007a, 0xe007f]) {
+    assert.equal(cleanUntrusted(`a${ch(code)}b`), 'ab', `U+${code.toString(16).toUpperCase()} must not survive`);
+  }
+  // A surrogate pair is two code units, so a class that forgot the `u` flag
+  // would strip half of one and leave a lone surrogate behind.
+  assert.ok(!/[\uD800-\uDFFF]/.test(cleanUntrusted(`a${smuggled}b`)), 'and no half of a pair is left behind');
+});
+
+test('the line and paragraph separators become a newline rather than vanishing', () => {
+  // U+2028 and U+2029 are line breaks. Dropping them joins two lines into
+  // one and changes what the brief says; keeping them is a break a terminal
+  // and a JSON reader may disagree about.
+  assert.equal(cleanUntrusted(`line one${ch(0x2028)}line two`), 'line one\nline two');
+  assert.equal(cleanUntrusted(`para one${ch(0x2029)}para two`), 'para one\npara two');
+});
+
+test('an invisible run inside a list line is cleaned too', () => {
+  assert.deepEqual(
+    cleanUntrustedLines([`must${ch(0x202e)} match`, `${ch(0xfeff)}within budget`]),
+    ['must match', 'within budget'],
+  );
+});
+
+test('text a buyer would actually type still survives, emoji included', () => {
+  // The limit of this: an emoji presentation selector is invisible too, and
+  // stripping it turns a buyer's emoji into an unrelated glyph while
+  // carrying no text of its own. It is kept deliberately.
+  const warning = ch(0x26a0, 0xfe0f);
+  assert.equal(cleanUntrusted(`${warning} health factor below 1.5`), `${warning} health factor below 1.5`);
+  assert.equal(cleanUntrusted('Watch my Venus loan — 1.5 · 0xAbC'), 'Watch my Venus loan — 1.5 · 0xAbC');
+  assert.equal(cleanUntrusted('line one\nline two\n\tindented'), 'line one\nline two\n\tindented');
+});
+
 test('a field is bounded, and a non-string is not passed through', () => {
   assert.equal(cleanUntrusted('x'.repeat(20_000)).length, 8_000);
   assert.equal(cleanUntrusted('abcdef', 3), 'abc');

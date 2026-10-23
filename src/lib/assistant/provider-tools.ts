@@ -77,7 +77,8 @@ export const PROVIDER_STATUS: ProviderToolSpec = {
   name: 'provider_status',
   title: 'What this automation token can and cannot do',
   description:
-    'Read the state of this provider automation before doing anything else: which wallet the token belongs to, which agents that wallet has proved it owns, the scopes the token carries, when it expires, and what is waiting on a human — proposals staged but unsigned, deliverables staged but unsubmitted. ' +
+    'Read the state of this provider automation before doing anything else: which wallet the token belongs to, which agents the ERC-8004 registry names that wallet the owner of right now, the scopes the token carries, and when it expires. ' +
+    'It needs no scope itself, so it answers for any live token — but what it reports about work is gated on the same scopes the tools are. Proposals staged but unsigned need proposals:write, deliverables staged but unsubmitted need deliverables:prepare, and the count of indexed jobs needs jobs:read; a block this token cannot read says so and names the scope, rather than coming back empty as though nothing were waiting. ' +
     'It also states the two limits that shape every other tool here. First, this token cannot sign: it has no scope for signing a transaction or moving funds and no such scope exists, because Pokter holds no key belonging to this wallet. Placing a proposal and submitting a delivery are both the human’s own wallet, every time. ' +
     'Second, nothing about installing this skill hosts the agent. The assistant answers work only while it is running on the user’s own machine; requests and funded jobs that arrive while it is not running simply wait, and a funded job that waits past its deadline expires unpaid. Call this at the start of a session and say both out loud.',
   inputSchema: { type: 'object', properties: {} },

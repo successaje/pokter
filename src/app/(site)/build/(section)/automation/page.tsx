@@ -152,6 +152,27 @@ export default async function AutomationPage() {
               now, so jobs and request matching for them may be missing. Reload to try again.
             </p>
           )}
+          {/*
+            * Ownership is confirmed against the ERC-8004 registry on every
+            * read, and an agent it could not confirm is dropped — so the
+            * figures above are missing that agent's work. Said here for the
+            * reason the catalogue warning is said: a withheld job shown as
+            * no job is "nothing outstanding", and this page has shipped
+            * four defects where the code was right and its claim was wrong.
+            */}
+          {fleet.ownershipUnavailable.length > 0 && (
+            <p className="text-sm text-watch">
+              Pokter could not confirm ownership of {fleet.ownershipUnavailable.join(', ')} against the ERC-8004
+              registry just now, so the figures above leave that agent&rsquo;s jobs and earnings out rather than show
+              them on a stale record. Reload to try again.
+            </p>
+          )}
+          {fleet.notOwned.length > 0 && (
+            <p className="text-sm text-ink-3">
+              The registry no longer names this wallet as the owner of {fleet.notOwned.join(', ')}, so its jobs and
+              earnings are not counted here.
+            </p>
+          )}
         </section>
 
         <section className="flex flex-col gap-3">

@@ -9,6 +9,12 @@ import { getAddress, type Address, type Hex } from 'viem';
 import { siteUrl } from '@/lib/site';
 import { BUILDER_CHALLENGE_TTL_MS, builderVerificationMessage } from './verification';
 import {
+  ensureVerifiedPublishers,
+  saveVerifiedPublisher as writeVerifiedPublisher,
+  verifiedPublisherByOwner as readVerifiedPublisherByOwner,
+  type VerifiedPublisherIdentity,
+} from './publisher-store';
+import {
   countLiveAutomationTokens,
   ensureAutomationTokens,
   insertAutomationToken,
@@ -23,12 +29,7 @@ import {
 const DB_PATH = process.env.BUILDER_DB_PATH ?? './data/builders.db';
 let database: DatabaseSync | null = null;
 
-export interface VerifiedPublisherIdentity {
-  owner: Address;
-  chainId: number;
-  tokenId: string;
-  verifiedAt: string;
-}
+export type { VerifiedPublisherIdentity };
 
 function db(): DatabaseSync {
   if (database) return database;
@@ -46,16 +47,6 @@ function db(): DatabaseSync {
       expires_at TEXT NOT NULL,
       consumed_at TEXT
     );
-    CREATE TABLE IF NOT EXISTS verified_publishers (
-      owner_address TEXT NOT NULL,
-      chain_id INTEGER NOT NULL,
-      token_id TEXT NOT NULL,
-      signature TEXT NOT NULL,
-      verified_at TEXT NOT NULL,
-      PRIMARY KEY (chain_id, token_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_verified_publishers_owner
-      ON verified_publishers (owner_address, verified_at DESC);
     CREATE TABLE IF NOT EXISTS builder_sessions (
       token_hash TEXT PRIMARY KEY,
       owner_address TEXT NOT NULL,
@@ -66,10 +57,13 @@ function db(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_builder_sessions_owner
       ON builder_sessions (owner_address, expires_at DESC);
   `);
-  /* Automation tokens live beside the sessions that mint them, in one
-     connection: two `DatabaseSync` handles on one WAL file is a hazard
-     worth not having for the sake of a separate module's tidiness. */
+  /* Automation tokens and proved publisher identities live beside the
+     sessions that mint them, in one connection: two `DatabaseSync` handles
+     on one WAL file is a hazard worth not having for the sake of a separate
+     module's tidiness. Their statements live in their own modules only so a
+     test can run them against a real file. */
   ensureAutomationTokens(database);
+  ensureVerifiedPublishers(database);
   return database;
 }
 
@@ -118,24 +112,19 @@ export function consumeBuilderChallenge(id: string): boolean {
 export function saveVerifiedPublisher(input: {
   owner: Address; chainId: number; tokenId: string; signature: Hex;
 }) {
-  const verifiedAt = new Date().toISOString();
-  db().prepare(`INSERT INTO verified_publishers
-    (owner_address,chain_id,token_id,signature,verified_at) VALUES (?,?,?,?,?)
-    ON CONFLICT(chain_id,token_id) DO UPDATE SET
-      owner_address=excluded.owner_address, signature=excluded.signature, verified_at=excluded.verified_at`).run(
-    input.owner.toLowerCase(), input.chainId, input.tokenId, input.signature, verifiedAt,
-  );
-  return { owner: input.owner, chainId: input.chainId, tokenId: input.tokenId, verifiedAt };
+  return writeVerifiedPublisher(db(), input);
 }
 
+/**
+ * The identities this wallet has proved lately — and only lately.
+ *
+ * The expiry is `publisher-store.ts`'s and is enforced in the lookup's own
+ * SQL. Before it, a signature made once answered forever, which made a
+ * single past verification a standing claim on an identity the wallet may
+ * since have transferred away.
+ */
 export function verifiedPublisherByOwner(owner: Address): VerifiedPublisherIdentity[] {
-  const rows = db().prepare(`SELECT owner_address,chain_id,token_id,verified_at
-    FROM verified_publishers WHERE owner_address=? ORDER BY verified_at DESC`).all(
-    owner.toLowerCase(),
-  ) as unknown as Array<Record<string, string | number>>;
-  return rows.map((row) => ({
-    owner, chainId: Number(row.chain_id), tokenId: String(row.token_id), verifiedAt: String(row.verified_at),
-  }));
+  return readVerifiedPublisherByOwner(db(), owner);
 }
 
 export const BUILDER_SESSION_COOKIE = 'pokter_builder_session';

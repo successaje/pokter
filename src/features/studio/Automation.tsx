@@ -6,7 +6,7 @@ import { getAddress } from 'viem';
 import { useAccount } from 'wagmi';
 
 import { AUTOMATION_SCOPES, DEFAULT_TOKEN_DAYS, TOKEN_DAY_CHOICES } from '@/lib/builders/automation-token';
-import { TOKEN_ENV_NAME } from '@/lib/builders/automation-prompt';
+import { TOKEN_ENV_NAME, tokenEnvLine } from '@/lib/builders/automation-prompt';
 import { bidMessage } from '@/lib/briefs/model';
 import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { shortAddress } from '@/lib/ui/format';
@@ -41,6 +41,13 @@ const when = (iso: string | null) => (iso ? new Date(iso).toUTCString().slice(5,
  * credential in it goes into shell history, and the point of showing the
  * export line with a placeholder is that the user pastes the value
  * themselves and decides where it lands.
+ *
+ * That was the comment, and the line below it rendered `export
+ * POKTER_AUTOMATION_TOKEN=${minted.token}` — a copy button that put the
+ * live credential straight into `~/.zsh_history`, while
+ * `tokenEnvLine()`, written for exactly this with a placeholder, had no
+ * call sites at all. The token is its own copyable block and the shell
+ * line is the placeholder, which is what the comment always claimed.
  */
 export function AutomationTokens({ initial }: { initial: TokenRow[] }) {
   const [tokens, setTokens] = useState(initial);
@@ -111,7 +118,13 @@ export function AutomationTokens({ initial }: { initial: TokenRow[] }) {
               a commit or an issue.</strong> It expires {when(minted.expiresAt)} UTC and you can revoke it below at any
               time; revocation takes effect on the next call.
             </p>
-            <CodeBlock wrap label="Copy the export line">{`export ${TOKEN_ENV_NAME}=${minted.token}`}</CodeBlock>
+            <CodeBlock wrap label="Copy the export line">{tokenEnvLine()}</CodeBlock>
+            <p className="text-[12.5px] text-ink-3">
+              The export line is a placeholder on purpose: paste the token in place of{' '}
+              <span className="t-readout">pka_…</span> yourself. A command with the live token in it is a command your
+              shell writes to its history file, where it stays long after{' '}
+              <span className="t-readout">{TOKEN_ENV_NAME}</span> has been revoked.
+            </p>
           </div>
         </Notice>
       )}
