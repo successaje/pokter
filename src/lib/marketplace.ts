@@ -13,6 +13,7 @@ import { classify, scoreCategories, CATEGORIES } from '@/lib/agents/categories';
 import type { Category } from '@/lib/agents/categories';
 import { toAttestation, type Attestation } from '@/lib/proof/attestation';
 import { resolveAttestationAuthors } from '@/lib/proof/attestation-authors';
+import { catalogueImagesFor } from '@/lib/registry/image';
 import { registryOwner } from '@/lib/registry/onchain';
 import { summariseProof, type ProofSummary } from '@/lib/proof/engine';
 import { probeAgent, type LiveReading } from '@/lib/proof/prober';
@@ -872,10 +873,16 @@ async function buildSearchableWithStatus(
    */
   const jobs = getJobStore();
   const wallets = agentWallets();
+  /* The image each agent registered, ahead of the indexer's proxy copy; see `catalogueImagesFor`. */
+  const registeredImages = catalogueImagesFor(all.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })));
 
   const entries = timedSync('catalogue.entries', () => all.map((listing) => ({
     listing: {
       ...listing,
+      agent: {
+        ...listing.agent,
+        image_url: registeredImages.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? listing.agent.image_url,
+      },
       quote:
         quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`) ?? null,
       quotePayable: payable(
