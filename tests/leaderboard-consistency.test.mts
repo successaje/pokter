@@ -171,28 +171,103 @@ test('both figures on the board card go through that one rule', () => {
 });
 
 /*
+ * The page gates its mandated sentence on the qualifying count.
+ *
+ * Gated on `rows.length` it was wrong, because a row exists for a job that
+ * was delivered and not settled or that the courier settled — so a board
+ * with nothing qualifying could render a table of noughts and no sentence.
+ * The unit suite covers the states where the two gates disagree; this pins
+ * which one the page reads.
+ */
+test('the empty-result sentence is gated on the qualifying count', () => {
+  const page = copy('src/app/(site)/leaderboard/page.tsx');
+  assert.match(page, /outcomes\.data\.coverage\.qualifyingJobs === 0 \?/);
+  assert.doesNotMatch(
+    page,
+    /outcomes\.data\.rows\.length === 0 \?/,
+    'a row exists for work that did not settle, so rows cannot gate the sentence',
+  );
+});
+
+/*
+ * The board build happens inside the loader's try.
+ *
+ * It looks pure and is not: the lifecycle-demo and relayed-delivery tests
+ * reach `readDeliverable`, which opens the deliverables database lazily and
+ * runs its DDL on first use. Outside the try, a locked or missing file is an
+ * unhandled throw in a server component — a 500 on the page whose whole
+ * purpose is to say "Data unavailable" instead of failing.
+ */
+test('a throw from the board build is caught, not served as a 500', () => {
+  const server = read('src/lib/leaderboard/server.ts');
+  const body = server.slice(server.indexOf('export async function loadOutcomeBoard'));
+  const build = body.indexOf('const first = build(new Map())');
+  const guard = body.lastIndexOf('try {', build);
+  assert.ok(guard !== -1 && guard < build, 'the build must sit inside a try');
+  assert.ok(
+    body.slice(guard, build).indexOf('} catch') === -1,
+    'the try guarding the build must not have closed before it',
+  );
+});
+
+/*
  * `import 'server-only'` keeps the loaders out of a test, so the wiring that
  * decides empty-versus-unavailable is asserted as a source fact instead.
  */
 test('a failed read returns unavailable rather than an empty board', () => {
   const server = read('src/lib/leaderboard/server.ts');
-  /* Both loaders catch, and both catches produce the same state. */
-  assert.equal(
-    (server.match(/state: 'unavailable'/g) ?? []).length,
-    4,
-    'each loader needs an unavailable state for a throw and for an unreachable registry',
+  /*
+   * Every catch in the loaders produces the unavailable state. Asserted as
+   * "no catch does anything else" rather than as a count of them, because a
+   * count fails when a new guard is added correctly — which is exactly what
+   * happened when the board build was wrapped.
+   */
+  /*
+   * Every catch in the loaders produces the unavailable state. Asserted as
+   * "no catch does anything else" rather than as a count of them, because a
+   * count fails when a new guard is added correctly — which is exactly what
+   * happened when the board build was wrapped.
+   */
+  const catches = [...server.matchAll(/\} catch \{/g)].map((m) => m.index ?? 0);
+  assert.ok(
+    catches.length >= 3,
+    'the reads and the board build must each be guarded, in both loaders',
   );
-  assert.match(server, /if \(catalogue\.unreachable\)/);
+  for (const at of catches) {
+    const block = server.slice(at, at + 300);
+    assert.match(block, /state: 'unavailable'/, `a catch must not fall through to a board: ${block.slice(0, 80)}`);
+  }
+  assert.equal(
+    (server.match(/if \(catalogue\.unreachable\)/g) ?? []).length,
+    2,
+    'both loaders must treat an unreachable registry as unavailable, not as no entries',
+  );
   assert.doesNotMatch(server, /entries: \[\]/, 'an unreachable registry must never be substituted with no entries');
 });
 
-test('the responsiveness loader ranks on the stored window, not a cumulative total', () => {
+/*
+ * What this establishes, and what it does not.
+ *
+ * It establishes the wiring: the loader hands the ranker the stored window
+ * buckets and never a lifetime total, so the figure shown is the one the
+ * column names.
+ *
+ * It does **not** establish that the window makes the comparison equivalent,
+ * and the message here used to say it did. As of 23 October 2026 no agent has
+ * 30 days of history — mainnet observed days run 4.09 to 29.87, testnet 2.32
+ * to 20.64 — so the 30-day bucket equals the whole record for every agent and
+ * truncates nothing. A 2.3-day agent is ranked against a 29.9-day one under a
+ * column that says "last 30 days". Reporting observed days per row is the fix
+ * and is deliberately not made here; restricting the ranking to agents whose
+ * history covers the window would empty the board instead.
+ */
+test('the responsiveness loader is wired to the stored window, not a lifetime total', () => {
   const server = read('src/lib/leaderboard/server.ts');
   assert.match(server, /windows: entry\.record\.windows/);
   assert.doesNotMatch(
     server,
     /totalProbes|totalAnswered/,
-    'a lifetime total compares agents watched for different lengths of time',
+    'a lifetime total would not even be the figure the column names',
   );
 });
 

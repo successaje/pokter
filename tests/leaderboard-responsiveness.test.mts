@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import { buildTrackRecord } from '../src/lib/history/record';
+import { formatPercent } from '../src/lib/ui/format';
 
 /* Derived from the function's own signature rather than imported: the
    `ProbeRecord` type lives in the `server-only` probe store, which a test
@@ -258,4 +260,46 @@ test('the last check recorded is the newest across every category', () => {
     unreadCategories: [],
   });
   assert.equal(built.coverage.lastCheckedAt, new Date(NOW.getTime() - 86_400_000).toISOString());
+});
+
+
+/*
+ * The rate a reader sees must not round a failure away.
+ *
+ * `mandaterebalance-agent` sat at the top of the production mainnet board
+ * with 349 of 350 checks answered, and the column printed "100%". One check
+ * had failed and the headline figure said none had. The denominator on the
+ * same row kept it checkable, but "100%" is what survives a screenshot, and
+ * a figure that becomes a claim once separated from its context is the same
+ * defect as a nought on a share card.
+ *
+ * One decimal place is enough to tell the two apart, and a genuine clean
+ * record still reads 100%.
+ */
+test('349 of 350 is not rendered as 100%', () => {
+  const rendered = formatPercent(349 / 350, { decimals: 1 });
+  assert.notEqual(rendered, '100%', 'a failed check must not round away');
+  assert.equal(rendered, '99.7%');
+});
+
+test('a clean record still reads 100%', () => {
+  assert.equal(formatPercent(350 / 350, { decimals: 1 }), '100.0%');
+});
+
+test('the board renders the rate with a decimal place', () => {
+  const page = readFileSync(new URL('../src/app/(site)/leaderboard/page.tsx', import.meta.url), 'utf8');
+  assert.match(page, /formatPercent\(row\.answerRate, \{ decimals: 1 \}\)/);
+  assert.doesNotMatch(page, /formatPercent\(row\.answerRate, \{ decimals: 0 \}\)/);
+});
+
+/*
+ * Rounding is display only. Two rows that differ in the real rate must still
+ * be ordered by it, whatever they print.
+ */
+test('ordering reads the unrounded rate, not the rendered one', () => {
+  const rows = [
+    { agent: agent({ key: 'lower', name: 'Aaa' }), checks: 350, answered: 349, answerRate: 349 / 350, ranked: true, protocol: 'a2a' },
+    { agent: agent({ key: 'perfect', name: 'Zzz' }), checks: 350, answered: 350, answerRate: 1, ranked: true, protocol: 'a2a' },
+  ] as ResponsivenessRow[];
+  assert.deepEqual(sortResponsivenessRows(rows).map((r) => r.agent.key), ['perfect', 'lower']);
 });

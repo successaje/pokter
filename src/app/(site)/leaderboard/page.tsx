@@ -240,11 +240,28 @@ function OutcomeTableRow({
                 Not in Pokter&rsquo;s current listing; its receipts are still on chain.
               </span>
             )}
+            {/*
+              Two courier shapes, said apart, because they settle identically
+              on the escrow and mean opposite things about the agent. One
+              carries the agent's own answer and one carries nothing of the
+              agent's at all, and a reader has to be able to tell "Pokter
+              carried this agent's answer" from "Pokter did the work".
+              Neither counts towards the column above.
+            */}
+            {row.relayedSettled > 0 && (
+              <span className="mt-1 block text-[11.5px] font-normal text-ink-2">
+                {formatCount(row.relayedSettled)} further settled job
+                {row.relayedSettled === 1 ? '' : 's'} submitted by Pokter&rsquo;s courier carrying this
+                agent&rsquo;s own answer. The answer was the agent&rsquo;s; the delivery was not. Not counted
+                above.
+                <ReceiptLinks jobs={row.relayed} label="Relayed-answer receipts" />
+              </span>
+            )}
             {row.courierSettled > 0 && (
               <span className="mt-1 block text-[11.5px] font-normal text-watch">
                 {formatCount(row.courierSettled)} further settled job
-                {row.courierSettled === 1 ? '' : 's'} delivered by Pokter&rsquo;s courier, not by this agent. Not
-                counted above.
+                {row.courierSettled === 1 ? '' : 's'} delivered by Pokter&rsquo;s courier, with no answer of this
+                agent&rsquo;s in it. Not counted above.
                 <ReceiptLinks jobs={row.courier} label="Courier-delivered receipts" />
               </span>
             )}
@@ -390,7 +407,19 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         </span>
       </span>
       <span className="t-readout col-start-2 text-[15px] sm:col-start-auto sm:text-right">
-        {row.ranked ? formatPercent(row.answerRate, { decimals: 0 }) : '—'}
+        {/*
+          One decimal, because nought rounded 349 of 350 up to "100%".
+          That was the top row of the production board: a check had failed
+          and the headline figure said none had. The denominator beside it
+          kept the row honest, but "100%" is what gets quoted once it is
+          separated from "349 of 350" — the same defect as the nought on the
+          share card, a number that becomes a claim when it travels alone.
+
+          A genuine 350 of 350 still reads 100%. Display only: the ordering
+          and the tie-break read the unrounded rate, so rows that tie here
+          tie on the real figure.
+        */}
+        {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
       </span>
       {/*
         "0 of 0 checks" read as an agent that answered nothing, when the fact
@@ -530,7 +559,22 @@ export default async function LeaderboardPage({
                 />
               </div>
 
-              {outcomes.data.rows.length === 0 ? (
+              {/*
+                Gated on the qualifying count, not on whether there are rows.
+                A row exists for a job that was delivered and not settled, or
+                that Pokter's courier settled, so a network with no qualifying
+                settlement at all could still render a table ordered by
+                "Settled jobs with delivery evidence" — every figure in that
+                column a nought, a dash for a rank, and the sentence that is
+                supposed to appear nowhere on the page.
+
+                Mainnet escapes it today only because every job indexed there
+                is team-funded. The first outside-funded mainnet hire that is
+                delivered and not yet released would suppress the sentence,
+                and that hire is the thing this marketplace is working
+                toward.
+              */}
+              {outcomes.data.coverage.qualifyingJobs === 0 ? (
                 <EmptyState title={NO_QUALIFYING_SETTLEMENTS} className="mt-6">
                   The query ran and matched nothing. Of the{' '}
                   {formatCount(outcomes.data.coverage.indexedJobs)} jobs indexed on this escrow,{' '}
