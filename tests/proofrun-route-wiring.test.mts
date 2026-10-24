@@ -114,3 +114,22 @@ test('the account comes from the brief, not from the delivery', () => {
     'the subject is derived after the delivery is read, so a report could choose its own subject',
   );
 });
+
+/*
+ * The chain the position is on is not the chain the job was funded on.
+ *
+ * Venus Core Pool is mainnet, and Pokter's health-factor agents read it
+ * whichever escrow paid for the hire — so passing the URL's chain id as
+ * the subject's chain sealed `subject.chainId: 97` beside the mainnet
+ * Comptroller for every testnet job. The receipt asserted that Venus
+ * Core Pool is on chain 97, which is not somewhere it exists.
+ *
+ * Found by combining this branch with another and running both; neither
+ * branch alone had a testnet job to seal.
+ */
+test('the artifact seals the subject’s own chain, not the escrow chain', () => {
+  assert.match(ARTIFACT, /chainId: report\.subject\.chainId/, 'the subject carries the escrow chain');
+  /* And the job reference keeps the escrow chain, which is what the URL
+     names and where the money actually is. */
+  assert.match(ARTIFACT, /job: \{ chainId, jobId \}/);
+});
