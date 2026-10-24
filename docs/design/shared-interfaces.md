@@ -1,6 +1,6 @@
 # Shared interfaces: hire flow and ProofRun
 
-Status: proposed by Agent 1 on 24 October 2026, open for Agent 2's changes.
+Status: agreed by Agent 1 and Agent 2 on 24 October 2026.
 Types live in `src/lib/shared/contracts.ts`. Both agents import from there
 and change it only by agreement.
 
@@ -27,15 +27,36 @@ adds the published URL, the hash committed on chain and `matchedBy`, the
 existing `manifestMatch` result (`exact`, `sorted-keys`, `canonical`,
 `sha256`), or null when the bytes did not match or were not read.
 
-**AcceptanceSpec.** What a delivery must satisfy, stated before funding.
-Optional: most jobs have none. `kind` names a checker, and only kinds with a
-checker may be offered to a buyer.
+**AcceptanceSpec.** What a delivery must satisfy, stated before funding:
+criteria (each with a stable id, a label and a machine check), a `specHash`
+(keccak256 of `canonicalJson(criteria)`), the subject with its deployment
+named, versions, and a **binding**. Optional: most jobs have none.
 
-**VerificationResult.** A verifier's answer: `verified`, `mismatch`,
-`unverifiable`, `pending` or `error`, with the method, per-field details,
-evidence, limitations and an optional replay reference. It maps onto the
-Venus report check's existing verdict: `matches` → `verified`, `differs` →
-`mismatch`, `unverified` → `unverifiable`.
+The binding is the honest part. The agent's quote signature already covers
+`terms.success_criteria` (`negotiationContent`, a port of the reference SDK).
+So when Pokter sends the spec hash in `success_criteria` and the agent's
+signed terms carry it back with `negotiationTermsBound()` true, the criteria
+are **agreed** (`signed-terms`). Otherwise they are **recorded by Pokter**
+(`pokter-asserted`) and shown that way. No envelope field is added: an
+anchored job description is the anchor alone, so a new field would be dropped
+for exactly the sellers that hash it.
+
+**VerificationResult.** A summary state (`verified`, `mismatch`,
+`unverifiable`, `pending`, `error`, `contradicted`) over per-check results.
+A buyer sees exactly three outcomes per check: Passed, Failed, Not verified;
+why a check is not verified stays in its `limitation`. `contradicted` is
+verifiers disagreeing: unresolved, never passed.
+
+## Hooks between the two
+
+- **Quote path (Agent 1).** `requestQuote` and `/api/hire/quote` accept
+  `successCriteria: string[]`, sent inside the negotiated terms. ProofRun
+  supplies the strings from a spec; the hire flow never invents criteria.
+- **Review panel (Agent 2 renders, Agent 1 mounts).** The brief review screen
+  mounts ProofRun's "What Pokter will check" panel, passing the prepared
+  brief and the spec when there is one, and nothing when there is not.
+- **Hashing.** `canonicalJson` from `erc8183/negotiation` is the only
+  canonical serialiser.
 
 ## Rules both sides keep
 

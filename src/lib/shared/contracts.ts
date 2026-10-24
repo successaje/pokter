@@ -1,11 +1,13 @@
 /**
- * The four shapes the hire flow (Agent 1) and ProofRun (Agent 2) exchange.
+ * The shapes the hire flow (Agent 1) and ProofRun (Agent 2) exchange.
  *
  * Types only, and each one wraps what already exists rather than restating
  * it: the prepared brief is the one `prepare_hire` writes down, a delivery's
- * hash match is `manifestMatch`'s, and a verification maps one to one onto
- * the Venus report check's verdict. See docs/design/shared-interfaces.md.
+ * hash match is `manifestMatch`'s, and hashing is `canonicalJson` from
+ * `erc8183/negotiation`. See docs/design/shared-interfaces.md.
  */
+import type { Address } from 'viem';
+
 import type { PreparedBrief as HirePreparedBrief } from '@/lib/assistant/hire-request';
 import type { ManifestMatch } from '@/lib/erc8183/manifest-match';
 
@@ -29,29 +31,67 @@ export interface DeliveryRef extends JobRef {
   matchedBy: ManifestMatch | null;
 }
 
+/* ---------- what a delivery must satisfy ---------- */
+
+export interface Criterion {
+  /** Stable across versions of the same criteria set. */
+  id: string;
+  /** What a buyer reads. */
+  label: string;
+  check: {
+    /** JSON path into the deliverable. */
+    field: string;
+    comparator: 'equals' | 'within' | 'at-least' | 'at-most' | 'present';
+    /** Absent when the expected value is recomputed from chain at check time. */
+    expected?: string | number | boolean;
+    /** In the field's own units. */
+    tolerance?: number;
+  };
+}
+
 /**
  * What a delivery must satisfy, stated before the job is funded.
  *
  * Optional per brief: most jobs have none, and a job without one is never
- * reported as verified. `kind` names the checker; only kinds a checker
- * exists for may be offered to a buyer.
+ * reported as verified.
  */
 export interface AcceptanceSpec {
-  version: 1;
-  kind: string;
-  /** Fields of the deliverable the checker recomputes, by JSON path. */
-  recompute: string[];
-  /** Per-field tolerance, in the field's own units, where exact equality is wrong. */
-  tolerance?: Record<string, number>;
-  /** The chain state the claim is bound to: a block the report names, or "head at delivery". */
-  boundTo: 'reported-block' | 'delivery-block';
+  criteria: Criterion[];
+  /** keccak256 of `canonicalJson(criteria)`, so a receipt can be checked against what was agreed. */
+  specHash: string;
+  /**
+   * Whether the agent agreed to these criteria or Pokter only recorded them.
+   *
+   * `signed-terms` only when `negotiationTermsBound()` holds and the spec
+   * hash appears in the `success_criteria` of the terms the agent signed.
+   * Anything else is `pokter-asserted`, and is shown as recorded by Pokter,
+   * not agreed by the agent.
+   */
+  binding: { kind: 'signed-terms' | 'pokter-asserted'; negotiationHash?: string; boundAt?: string };
+  /** The deployment is named, never implied by the chain id. */
+  subject: { chainId: number; protocol: 'venus-core-pool'; deployment: Address; blockNumber?: string; blockHash?: string };
+  versions: { criteria: string; verifier: string };
 }
 
+/* ---------- a verifier's answer ---------- */
+
 /**
- * A verifier's answer. Never `verified` on a timeout, an unknown or an
- * unsupported case: those are `unverifiable` or `error`, with why.
+ * The summary. Never `verified` on a timeout, an unknown or an unsupported
+ * case. `contradicted` is verifiers disagreeing: unresolved, never passed.
  */
-export type VerificationState = 'verified' | 'mismatch' | 'unverifiable' | 'pending' | 'error';
+export type VerificationState = 'verified' | 'mismatch' | 'unverifiable' | 'pending' | 'error' | 'contradicted';
+
+/** Exactly three outcomes reach a buyer. Why a check is not verified stays in `limitation`. */
+export interface CheckResult {
+  id: string;
+  label: string;
+  outcome: 'passed' | 'failed' | 'not-verified';
+  expected: string;
+  observed: string;
+  source: { block: string | null; hash: string | null };
+  tolerance: string | null;
+  limitation?: string;
+}
 
 export interface VerificationResult {
   state: VerificationState;
@@ -62,16 +102,14 @@ export interface VerificationResult {
   method: string;
   /** One line a buyer reads first. */
   headline: string;
-  /** Per-field outcome, in a reader's terms. */
-  details: Array<{ label: string; reported: string; checked: string; agrees: boolean | null; note?: string }>;
+  checks: CheckResult[];
   /** Where each checked figure came from: contract, call, block. */
   evidence: string[];
   limitations: string[];
+  /** The spec these checks were run against, when there was one. */
+  specHash?: string;
   /** Where to replay the check, when ProofRun recorded one. */
   replayRef?: string;
-  /**
-   * Fixture, simulation, sponsored test or real customer work. Kept on the
-   * result so no surface can count one as another.
-   */
+  /** Fixture, simulation, sponsored test or real customer work, so no surface counts one as another. */
   provenance: 'fixture' | 'simulation' | 'sponsored' | 'customer';
 }
