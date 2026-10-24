@@ -3,7 +3,7 @@ import { readAgentCard } from '@/lib/agents/agent-card';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import { readJson, withPublicEndpoint } from '@/lib/proof/prober';
 import { deadlineSignal } from '@/lib/net/bounded';
-import { negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
+import { criteriaInSignedTerms, negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
 import { readA2AReply } from '@/lib/a2a/reply';
@@ -62,6 +62,12 @@ export interface AgentQuote {
    * hash is of its own quote, and refuses the job.
    */
   anchor: Record<string, unknown> | null;
+  /**
+   * Whether every success criterion Pokter sent is inside the terms the
+   * agent signed. Null when none were sent. Only `true` makes acceptance
+   * criteria agreed rather than recorded by Pokter (see shared/contracts).
+   */
+  criteriaSigned: boolean | null;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -77,6 +83,7 @@ function responseData(payload: unknown): Record<string, unknown> | null {
 }
 
 export { POKTER_TERMS } from './terms';
+
 
 /** The fixed, read-only brief used to ask an agent what it charges. */
 const PRICE_ENQUIRY = {
@@ -120,7 +127,7 @@ export async function requestQuote(
      */
     enquiry?: {
       task_description: string;
-      terms: { deliverables: string; quality_standards: string };
+      terms: { deliverables: string; quality_standards: string; success_criteria?: string[] };
     };
     /**
      * The seller's own words when it declines, so a buyer is told what to
@@ -270,6 +277,7 @@ export async function requestQuote(
       anchor: content
         ? { ...content, negotiation_hash: data.negotiation_hash, provider_sig: data.provider_sig }
         : null,
+      criteriaSigned: criteriaInSignedTerms(enquiry.terms.success_criteria, content),
     };
   } catch (error) {
     return fail(classifyQuoteError(error));

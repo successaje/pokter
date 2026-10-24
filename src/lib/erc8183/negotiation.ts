@@ -209,3 +209,17 @@ export function negotiationTermsBound(envelope: Record<string, unknown>, sentTas
   }
   return keccak256(toBytes(canonicalJson(content))).toLowerCase() === hash.toLowerCase();
 }
+
+/**
+ * Whether the criteria sent are all in the terms the hash covers. The
+ * content is already proven to hash to the signed negotiation hash by
+ * `negotiationTermsBound`, so membership here is membership in what the
+ * agent signed. Compared after the same sanitising the hash applies.
+ */
+export function criteriaInSignedTerms(sent: readonly string[] | undefined, content: Record<string, unknown> | null): boolean | null {
+  if (!sent || sent.length === 0) return null;
+  const signed = (content?.terms as { success_criteria?: unknown } | undefined)?.success_criteria;
+  if (!Array.isArray(signed)) return false;
+  const have = new Set(signed.map((c) => String(c)));
+  return sent.every((c) => have.has(sanitizeForClaim(c)));
+}
