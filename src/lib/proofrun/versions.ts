@@ -11,8 +11,21 @@
  * rather than silently re-checking with whatever is current.
  */
 
-/** The criteria set a spec is built from. Bump when a criterion's meaning changes. */
-export const CRITERIA_VERSION = 'venus-health-factor-criteria@1';
+/**
+ * The criteria set a spec is built from.
+ *
+ * Bumped whenever `specHashOf` would return a different value, which is
+ * a wider rule than "when a criterion's meaning changes" and is the one
+ * that keeps the version useful. The labels are inside the hash, so
+ * rewording one changes it; two receipts both saying `@1` with different
+ * spec hashes would make the version say nothing at all.
+ *
+ * `@2` states the tolerance rule the checker has always applied — the
+ * larger of a fixed floor and a proportion of the figure — where `@1`
+ * said only the floor. The check did not change; the description of it
+ * stopped understating what an agent signs up to.
+ */
+export const CRITERIA_VERSION = 'venus-health-factor-criteria@2';
 
 /**
  * The checker that computes observed values. Bump on any change to what a

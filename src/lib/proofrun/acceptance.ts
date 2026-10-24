@@ -67,7 +67,7 @@ export function venusHealthCriteria(): Criterion[] {
     },
     {
       id: 'hf.value',
-      label: 'The health factor matches Venus’s own accounting at the named block',
+      label: 'The health factor matches Venus’s own accounting at the named block, within the larger of ±0.005 and 0.5% of the figure',
       check: { field: 'health_factor', comparator: 'within', tolerance: 0.005 },
     },
     {
@@ -77,12 +77,12 @@ export function venusHealthCriteria(): Criterion[] {
     },
     {
       id: 'position.debt_usd',
-      label: 'Total borrowed value matches Venus, within 1%',
+      label: 'Total borrowed value matches Venus, within the larger of ±$1 and 1%',
       check: { field: 'debt_usd', comparator: 'within', tolerance: 0.01 },
     },
     {
       id: 'position.collateral_usd',
-      label: 'Total collateral value matches Venus, within 1%',
+      label: 'Total collateral value matches Venus, within the larger of ±$1 and 1%',
       check: { field: 'collateral_usd', comparator: 'within', tolerance: 0.01 },
     },
   ];
