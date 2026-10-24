@@ -81,10 +81,20 @@ export async function GET(
     });
 
     const run = proofRun({
+      /* The escrow chain: where the money is, and what the URL names. */
       job: { chainId, jobId },
       account: report.subject.account,
       deployment: VENUS_COMPTROLLER,
-      chainId,
+      /*
+       * The chain the *position* is on, which is not the chain the job
+       * was funded on. Venus Core Pool is mainnet and Pokter's
+       * health-factor agents read it whichever escrow paid for the hire,
+       * so passing the escrow chain here sealed `subject.chainId: 97`
+       * beside the mainnet Comptroller for every testnet job — a receipt
+       * asserting Venus Core Pool is on chain 97. The subject's own
+       * chain is the one `venusSubjectFromBrief` pinned.
+       */
+      chainId: report.subject.chainId,
       verification,
       manifestText: report.manifestText,
       brief: report.brief,
