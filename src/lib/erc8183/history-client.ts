@@ -1,7 +1,9 @@
 import 'server-only';
 
-import { createPublicClient, fallback, http } from 'viem';
+import { createPublicClient } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
+
+import { historyTransport } from '@/lib/chain/rpc';
 
 /**
  * A client for reading old logs: where a job's deliverable URL is found.
@@ -24,10 +26,5 @@ const PUBLIC: Record<56 | 97, string> = {
 };
 
 export function historyClient(chainId: 56 | 97) {
-  const key = process.env.NODEREAL_API_KEY?.trim();
-  const transports = [
-    ...(key ? [http(`https://bsc-${chainId === 56 ? 'mainnet' : 'testnet'}.nodereal.io/v1/${key}`)] : []),
-    http(PUBLIC[chainId]),
-  ];
-  return createPublicClient({ chain: chainId === 56 ? bsc : bscTestnet, transport: fallback(transports) });
+  return createPublicClient({ chain: chainId === 56 ? bsc : bscTestnet, transport: historyTransport(chainId, [PUBLIC[chainId]]) });
 }

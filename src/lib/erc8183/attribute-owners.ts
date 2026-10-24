@@ -1,23 +1,30 @@
 import 'server-only';
 
-import { createPublicClient, getAddress, http, pad, parseAbiItem, toHex, type Hex } from 'viem';
+import { getAddress, pad, parseAbiItem, toHex, type Hex } from 'viem';
 
-import { altanaNetworkFor } from '@/lib/altana/client';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { isEscrowChain } from '@/lib/network/escrow';
-import { REGISTRY_ABI, registryAddress, registryClient } from '@/lib/registry/onchain';
+import { historyClient } from '@/lib/erc8183/history-client';
+import { REGISTRY_ABI, registryAddress } from '@/lib/registry/onchain';
 import { fundedRecently, ownerAtFunding, ownerCandidate, type OwnershipReader } from './owner-at-job';
 
 const MAX_PER_RUN = 10;
 const TRANSFER = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)');
 
+/*
+ * Every read here is of the past: the funding's receipt, the owner at an
+ * earlier block, transfers since. Public mainnet nodes refuse all three, so
+ * a mainnet job could never be attributed; they go through the history
+ * client (NodeReal first, see `chain/rpc.ts`).
+ */
+
 /** The proof's reads, against the agent's own registry chain. Null when Pokter has no registry or RPC for it. */
 function registryReader(chainId: number, tokenId: string): OwnershipReader | null {
-  const client = registryClient(chainId);
   const address = registryAddress(chainId);
-  if (!client || !address || !/^\d+$/.test(tokenId)) return null;
+  if ((chainId !== 56 && chainId !== 97) || !address || !/^\d+$/.test(tokenId)) return null;
+  const client = historyClient(chainId);
   const token = BigInt(tokenId);
   return {
     latestBlock: () => client.getBlockNumber(),
@@ -41,8 +48,7 @@ function registryReader(chainId: number, tokenId: string): OwnershipReader | nul
 export async function attributeJob(job: HiredJob, nowMs = Date.now()): Promise<boolean> {
   const store = getJobStore();
   if (!isEscrowChain(job.chainId) || !ownerCandidate(job, store.ownerAt(job.id) !== null, nowMs)) return false;
-  const network = altanaNetworkFor(job.chainId);
-  const rpc = createPublicClient({ chain: network.chain, transport: http(network.publicRpcUrl) });
+  const rpc = historyClient(job.chainId === 56 ? 56 : 97);
   const receipt = await rpc.getTransactionReceipt({ hash: job.hireTxHash as Hex }).catch(() => null);
   if (!receipt || receipt.status !== 'success') return false;
   // The transaction must be this job's own, from the escrow, not any recent hash.
