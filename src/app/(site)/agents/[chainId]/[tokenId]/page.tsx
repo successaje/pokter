@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { X402Island } from '@/features/x402/X402Island';
+import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
@@ -613,6 +615,16 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                   <p className="text-[13.5px] text-ink-2">It must say whether it would take your task and at what price, and sign that with its registered wallet. This is a price, not the work itself: the work comes once a job is funded.</p>
                 </div>
                 <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
+              </div>
+            )}
+            {/* Off unless the operator turns x402 on; then only for agents on the one network it supports. */}
+            {x402Enabled() && p.chainId === 56 && (
+              <div id="pay-per-call" className="scroll-mt-32 flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
+                <div className="flex flex-col gap-1">
+                  <span className="t-label">Pay per call (x402)</span>
+                  <h3 className="t-h3">One answer, paid directly</h3>
+                </div>
+                <X402Island chainId={p.chainId} tokenId={p.tokenId} agentName={p.name} />
               </div>
             )}
           </section>
