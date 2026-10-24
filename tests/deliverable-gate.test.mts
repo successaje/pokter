@@ -58,9 +58,27 @@ test('a reader uses the stored copy only when it is what was delivered', async (
   assert.equal(storedDeliveryText(null, committed), null);
 });
 
-test('the answer and report-check routes read the stored copy through that rule', () => {
-  for (const path of ['../src/app/api/jobs/[jobId]/answer/route.ts', '../src/app/api/jobs/[jobId]/report-check/route.ts']) {
-    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(source, /storedDeliveryText\(readDeliverable\(deliverableKey\(chainId, jobId\)\), job\.deliverable\)/, path);
-  }
+test('every reader of the stored copy goes through that rule', () => {
+  /*
+   * The report-check route no longer reads the delivery itself: that
+   * moved to `lib/delivery/delivered-report.ts`, so ProofRun's receipt
+   * endpoint judges the same bytes this route shows rather than fetching
+   * its own copy. The guard moved with it rather than being dropped —
+   * which is the regression an extraction invites, since the new home
+   * has to keep every guard the old one had and nothing checks that
+   * automatically. Asserted here in both places it can now live.
+   */
+  const source = readFileSync(new URL('../src/app/api/jobs/[jobId]/answer/route.ts', import.meta.url), 'utf8');
+  assert.match(source, /storedDeliveryText\(readDeliverable\(deliverableKey\(chainId, jobId\)\), job\.deliverable\)/);
+
+  const loader = readFileSync(new URL('../src/lib/delivery/delivered-report.ts', import.meta.url), 'utf8');
+  assert.match(
+    loader,
+    /storedDeliveryText\(\s*readDeliverable\([\s\S]*?job\.deliverable\)/,
+    'the shared delivery loader reads its stored copy without the rule',
+  );
+
+  const route = readFileSync(new URL('../src/app/api/jobs/[jobId]/report-check/route.ts', import.meta.url), 'utf8');
+  assert.match(route, /loadDeliveredVenusReport\(/, 'the report-check route no longer reads the delivery through the loader');
+  assert.doesNotMatch(route, /readDeliverable\(/, 'the report-check route reads a stored copy of its own again');
 });

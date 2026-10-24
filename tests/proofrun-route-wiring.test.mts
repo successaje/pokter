@@ -133,3 +133,31 @@ test('the artifact seals the subject’s own chain, not the escrow chain', () =>
      names and where the money actually is. */
   assert.match(ARTIFACT, /job: \{ chainId, jobId \}/);
 });
+
+/*
+ * The stored copy is used only when it *is* the delivery.
+ *
+ * A builder can prepare one draft and submit different bytes. Without
+ * `storedDeliveryText`, the stale draft is served and checked as if it
+ * were the answer, so a report could be verified against a document the
+ * agent never committed.
+ *
+ * The loader lost this when it was extracted: the route it came from
+ * gained the guard on a different branch, so the two only disagreed once
+ * they were combined. Pinned here because that is a class of regression
+ * an extraction invites — the new home has to keep every guard the old
+ * one had, and nothing checks that automatically.
+ */
+test('the loader only uses a stored delivery that matches what was committed', () => {
+  assert.match(LOADER, /storedDeliveryText\(/, 'the loader reads its stored copy without the submitted-bytes guard');
+  assert.match(
+    LOADER,
+    /storedDeliveryText\(\s*readDeliverable\([\s\S]*?job\.deliverable\)/,
+    'the guard is applied, but not to the stored copy against the hash the job committed',
+  );
+  assert.doesNotMatch(
+    LOADER,
+    /readDeliverable\([^)]*\)\?\.manifestText/,
+    'the loader still reads the stored manifest directly somewhere',
+  );
+});
