@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { logAndPublic } from '@/lib/api/public-error';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
-import { isRunnable } from '@/features/proofrun/catalogue';
 import { forgetRun, runScenario, type RunRequest } from '@/features/proofrun/run';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 40;
-
-/** The longest report a replay will read. Beyond this it is not a Venus report. */
-const MAX_REPORT = 20_000;
 
 /**
  * Run one ProofRun scenario.
@@ -17,13 +13,13 @@ const MAX_REPORT = 20_000;
  * Public and unauthenticated, like the compatibility diagnostic it sits
  * beside: a buyer should be able to see where an agent fails without an
  * account, and nothing here moves money, writes on chain or contacts an
- * agent. A fixture makes no network call at all; a replay makes one
- * read-only archive read of BNB Chain.
+ * agent.
  *
- * Rate limited per caller, because the replay path spends somebody else's
- * RPC allowance: one archive read, at the block the report names. Fixtures
- * are pure, and are served from this process's own memory after the first
- * run — which the response labels as reused rather than as fresh.
+ * Every scenario this route can run is a fixture, and `runFixture`
+ * supplies the facts rather than a reader, so no path from here reaches an
+ * RPC. The rate limit is therefore not protecting somebody else's node —
+ * it is protecting this process from an unauthenticated caller spending
+ * its CPU on keccak hashing, which is the only cost a run has.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const rate = consumeRateLimit(`proofrun:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
@@ -41,30 +37,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
 
-  const scenarioId = typeof body.scenarioId === 'string' ? body.scenarioId.trim() : '';
-  if (!isRunnable(scenarioId)) {
-    return NextResponse.json(
-      {
-        error:
-          'That is not a scenario ProofRun can run from here. A live test is a funded job, reviewed and paid for in your own wallet.',
-        field: 'scenario',
-      },
-      { status: 400 },
-    );
-  }
-
-  const report = typeof body.report === 'string' ? body.report : '';
-  if (report.length > MAX_REPORT) {
-    return NextResponse.json(
-      { error: `That report is longer than the ${MAX_REPORT.toLocaleString('en-US')} characters this check reads.`, field: 'report' },
-      { status: 400 },
-    );
-  }
-
+  /*
+   * The id is checked by `runScenario` against the library's own
+   * catalogue rather than against a list kept here. A second list would
+   * be a second thing to keep in step, and the failure mode is a route
+   * that refuses a scenario the page offers.
+   */
   const runRequest: RunRequest = {
-    scenarioId,
-    ...(typeof body.account === 'string' ? { account: body.account } : {}),
-    ...(report ? { report } : {}),
+    scenarioId: typeof body.scenarioId === 'string' ? body.scenarioId.trim() : '',
   };
 
   /*

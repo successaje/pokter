@@ -4,7 +4,7 @@ import { Icon } from '@/ui/icons';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 
-import { KIND_COPY, PROOFRUN_DOES_NOT_MEAN } from './catalogue';
+import { KIND_DISCLOSURE, PROOFRUN_LIMITATIONS, type Scenario } from '@/lib/proofrun/scenarios';
 import { OutcomeChip, OutcomeTally } from './Outcome';
 import type { Freshness, ProofRunView } from './run';
 
@@ -76,7 +76,6 @@ const STATE_ICON = { ok: 'text-ok', bad: 'text-bad', watch: 'text-watch', none: 
 export function ProofRunResults({ view }: { view: ProofRunView }) {
   const { result, scenario, spec } = view;
   const state = STATE[result.state];
-  const kind = KIND_COPY[scenario.kind];
   const synthetic = scenario.kind === 'fixture';
 
   return (
@@ -104,7 +103,7 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
             : 'border-rule bg-sunken text-ink-2',
         )}
       >
-        <span className="font-medium text-ink">{kind.name}.</span> {kind.blurb}
+        {KIND_DISCLOSURE[scenario.kind]}
       </p>
 
       <div className={cn('flex flex-col gap-2 rounded-[12px] border px-4 py-3.5', STATE_SKIN[state.tone])}>
@@ -116,31 +115,14 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
         </p>
         <p className="pl-[26px] text-[13px] leading-relaxed text-ink-2">{state.detail}</p>
         {/*
-          The verifier's own sentence, captioned.
-
-          It is the one place a reader learns *what* happened — that the
-          oracle returned no price, that the node no longer keeps the block
-          — so it has to be shown. But it is written for a delivery checked
-          against the chain, and under a fixture it says things like "Venus
-          could not be read at block 900000004", which is a chain read that
-          never happened at a block that does not exist. The caption carries
-          that frame, rather than leaving the sentence to be read as a
-          reading of BNB Chain.
+          The checker's own one-line reason used to sit here, and does not
+          any more: `ProofRun` carries the result and the receipt, not the
+          `VenusReportVerification` behind them, so `detail` cannot reach
+          this component. It is a real loss — it is the sentence that says
+          *what* went wrong where the per-check limitations are generic —
+          and the fix belongs in the library rather than in a second run of
+          the checker here. Nothing is invented in its place.
         */}
-        <div className="border-t border-[color-mix(in_oklab,var(--ink)_12%,transparent)] pl-[26px] pt-2.5">
-          <span className="t-label block">
-            {synthetic
-              ? 'What the checker said — reading the fixture’s own figures'
-              : 'What the checker said'}
-          </span>
-          <p className="mt-1 text-[13px] leading-relaxed text-ink">{view.reason}</p>
-          {synthetic && (
-            <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-3">
-              It is phrased as though it had read Venus. In this run “Venus” is the fixture’s written-down figures and
-              the block is a label on them, not a block on BNB Chain.
-            </p>
-          )}
-        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -173,39 +155,34 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
       <Source view={view} />
 
       <div className="flex flex-col gap-3">
-        <Details summary={`How this was checked${view.methodNote ? ' (no call was made in this run)' : ''}`}>
-          <div className="flex flex-col gap-2.5 text-[13px] leading-relaxed text-ink-2">
-            {view.methodNote && <p className="font-medium text-ink">{view.methodNote}</p>}
-            {view.method.map((line, index) => (
-              <p key={index}>{line}</p>
-            ))}
-          </div>
-        </Details>
-
-        <Details summary="Tolerances, numerically">
-          <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-ink-2">
-            {view.tolerances.map((line, index) => (
-              <li key={index}>{line}</li>
-            ))}
-          </ul>
-        </Details>
-
         <Details summary={`Where every figure came from (${result.evidence.length})`}>
-          {result.evidence.length > 0 ? (
-            <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-ink-2">
-              {result.evidence.map((line, index) => (
-                <li key={index} className="break-words">
-                  {line}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            /* An empty list under this heading would read as "no sources
-               were needed". Nothing was read, which is a different fact. */
-            <p className="text-[13px] leading-relaxed text-ink-2">
-              Nothing was read. The run stopped before any figure was fetched, so there are no sources to list.
-            </p>
-          )}
+          <div className="flex flex-col gap-2.5">
+            {/*
+              Said before the list, not instead of it.
+              These lines name contract calls at a block, which under a
+              fixture describes calls nobody made — but they are also the
+              lines sealed into the receipt, and a page showing different
+              ones from the receipt it links to would be two accounts of
+              one run. So the list is faithful and the framing goes above.
+            */}
+            {view.evidenceNote && <p className="text-[13px] leading-relaxed text-ink">{view.evidenceNote}</p>}
+            {result.evidence.length > 0 ? (
+              <ul className="flex flex-col gap-2 text-[13px] leading-relaxed text-ink-2">
+                {result.evidence.map((line, index) => (
+                  <li key={index} className="break-words">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              /* An empty list under this heading would read as "no sources
+                 were needed". Nothing was read, which is a different fact. */
+              <p className="text-[13px] leading-relaxed text-ink-2">
+                Nothing was read. The run stopped before any figure was fetched, so there are no sources to list.
+              </p>
+            )}
+            <p className="text-[12px] leading-relaxed text-ink-3">{view.source}</p>
+          </div>
         </Details>
 
         <Details summary={`What this run does not establish (${result.limitations.length})`} defaultOpen>
@@ -220,7 +197,7 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
       <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-sunken/50 px-4 py-3.5">
         <span className="t-label">And what it is not</span>
         <ul className="flex flex-col gap-1.5 text-[12.5px] leading-relaxed text-ink-2">
-          {PROOFRUN_DOES_NOT_MEAN.map((line) => (
+          {PROOFRUN_LIMITATIONS.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
@@ -233,18 +210,18 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
  * Provenance and freshness
  * ------------------------------------------------------------------ */
 
-function ProvenanceChip({ kind }: { kind: ProofRunView['scenario']['kind'] }) {
-  const copy = KIND_COPY[kind];
+export function ProvenanceChip({ kind }: { kind: Scenario['kind'] }) {
+  const fixture = kind === 'fixture';
   return (
     <span
       className={cn(
         'inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-medium',
-        kind === 'fixture' ? 'bg-info-wash text-ink' : kind === 'replay' ? 'bg-sunken text-ink-2' : 'bg-signal-wash text-ink',
+        fixture ? 'bg-info-wash text-ink' : 'bg-sunken text-ink-2',
       )}
-      title={copy.provenance}
+      title={KIND_DISCLOSURE[kind]}
     >
-      {kind === 'fixture' ? <Icon.Flask size={12} /> : kind === 'replay' ? <Icon.Clock size={12} /> : <Icon.Pulse size={12} />}
-      {copy.name}
+      {fixture ? <Icon.Flask size={12} /> : <Icon.Clock size={12} />}
+      {fixture ? 'Synthetic fixture' : 'Historical replay'}
     </span>
   );
 }
