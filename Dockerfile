@@ -34,10 +34,13 @@ ARG NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 # Escrow chains hires may be funded on. Unset means testnet only; "97,56"
 # opens mainnet hires, with real money. See src/lib/network/escrow.ts.
 ARG NEXT_PUBLIC_ESCROW_CHAINS
+# Pay per call over x402. Off unless exactly "true"; see docs/release/x402.md.
+ARG NEXT_PUBLIC_X402_ENABLED
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_PASSKEY_RP_ID=$NEXT_PUBLIC_PASSKEY_RP_ID
 ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=$NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 ENV NEXT_PUBLIC_ESCROW_CHAINS=$NEXT_PUBLIC_ESCROW_CHAINS
+ENV NEXT_PUBLIC_X402_ENABLED=$NEXT_PUBLIC_X402_ENABLED
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
@@ -73,6 +76,7 @@ ENV SATURATION_DB_PATH=/data/saturation.db
 ENV TRADING_DB_PATH=/data/trading.db
 ENV HIRE_ATTEMPT_DB_PATH=/data/hire-attempts.db
 ENV PROVIDER_DB_PATH=/data/provider.db
+ENV X402_DB_PATH=/data/x402.db
 
 RUN groupadd --system --gid 1001 nodejs \
  && useradd --system --uid 1001 --gid nodejs nextjs
