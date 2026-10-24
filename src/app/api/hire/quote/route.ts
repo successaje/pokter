@@ -71,6 +71,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   if ((chainId !== 56 && chainId !== 97) || tokenId === null) {
     return NextResponse.json({ error: 'Invalid agent identifier.' }, { status: 400 });
   }
+  /*
+   * Acceptance criteria to put inside the negotiated terms, which the
+   * agent's signature then covers. Supplied by ProofRun from a spec, never
+   * composed here; bounded so a caller cannot make the negotiation large.
+   */
+  const rawCriteria = body.successCriteria;
+  if (rawCriteria !== undefined && (!Array.isArray(rawCriteria) || rawCriteria.length > 8 || rawCriteria.some((c) => typeof c !== 'string' || c.length === 0 || c.length > 200))) {
+    return NextResponse.json({ error: 'successCriteria must be up to 8 non-empty strings of at most 200 characters.' }, { status: 400 });
+  }
+  const successCriteria = Array.isArray(rawCriteria) && rawCriteria.length > 0 ? (rawCriteria as string[]) : undefined;
   if (task.length > 2000) {
     return NextResponse.json(
       { error: 'The brief must be 2000 characters or fewer.' },
@@ -180,7 +190,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let failure: QuoteFailure | null = null;
   const quote = await requestQuote(agent, {
     timeoutMs: 20_000,
-    enquiry: { task_description: task, terms: POKTER_TERMS },
+    enquiry: { task_description: task, terms: successCriteria ? { ...POKTER_TERMS, success_criteria: successCriteria } : POKTER_TERMS },
     onRefused: (reason) => {
       refusal = reason;
     },
@@ -326,6 +336,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       domain: quote.domain,
       anchor: quote.anchor,
     },
+    /*
+     * Whether the agent signed the acceptance criteria it was sent:
+     * `signed-terms` when the spec line (which fixes every criterion by
+     * hash) is inside the terms its signature covers, or, with no spec
+     * line, every criterion is; otherwise they are only recorded by Pokter.
+     */
+    binding: successCriteria
+      ? quote.criteriaSigned
+        ? { kind: 'signed-terms' as const, negotiationHash: quote.negotiationHash, boundAt: quote.quotedAt }
+        : { kind: 'pokter-asserted' as const }
+      : null,
     /* The escrow this price can be paid on, which the caller funds and no other. */
     escrowChainId,
     /* The exact text the signature covers, so the caller funds that and not a variant. */

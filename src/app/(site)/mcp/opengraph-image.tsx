@@ -33,7 +33,7 @@ export default function McpCard() {
   ];
   const facts = [
     { label: 'ADD', value: 'pokter.xyz/api/mcp', note: 'Claude, Cursor, any MCP client' },
-    { label: 'TOOLS', value: '5, all read-only', note: 'Search, evidence, price, link' },
+    { label: 'TOOLS', value: '9, none move money', note: 'Search, evidence, price, prepare, track, check' },
     { label: 'MONEY', value: 'Only you sign', note: 'Hires are funded in your wallet' },
   ];
   return new ImageResponse(

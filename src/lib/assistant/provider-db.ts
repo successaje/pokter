@@ -10,6 +10,7 @@ import {
   ensureProviderWork,
   readStagedDelivery,
   readStagedProposal,
+  releaseStagedDelivery,
   stageDelivery,
   stageProposal,
   stagedDeliveriesFor,
@@ -67,6 +68,10 @@ export function recordStagedDelivery(write: StagedDeliveryWrite) {
 
 export function stagedDelivery(key: string): StagedDelivery | null {
   return readStagedDelivery(db(), key);
+}
+
+export function releaseUnsubmittedDelivery(key: string): boolean {
+  return releaseStagedDelivery(db(), key);
 }
 
 export function stagedDeliveryByJob(chainId: number, jobId: string): StagedDelivery | null {

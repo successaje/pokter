@@ -338,6 +338,15 @@ export function stageDelivery(db: DatabaseSync, write: StagedDeliveryWrite): 're
   return Number(changed.changes) === 1 ? 'restaged' : 'already-submitted';
 }
 
+/**
+ * Drop a staged delivery that was never submitted, so the job's one slot can
+ * be taken by whoever now owns the agent. A submitted row is never touched:
+ * its bytes are what the chain committed to. True when a row was removed.
+ */
+export function releaseStagedDelivery(db: DatabaseSync, key: string): boolean {
+  return Number(db.prepare('DELETE FROM staged_deliveries WHERE key = ? AND submit_tx_hash IS NULL').run(key).changes) === 1;
+}
+
 export type DeliveryAttachment = 'attached' | 'already-attached' | 'no-such-delivery';
 
 /** Record the transaction the provider wallet sent. Never overwritten, for the reason above. */

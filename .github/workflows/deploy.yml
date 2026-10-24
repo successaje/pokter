@@ -160,6 +160,30 @@ jobs:
             fi
           done
 
+      - name: Verify the MCP servers answer
+        # Assistants reach Pokter through these, and a page check cannot see
+        # them break. Read-only: initialize and tools/list contact no agent
+        # and record nothing; the provider endpoint is asked with no token.
+        run: |
+          rpc() {
+            curl --silent --show-error --retry 3 --retry-all-errors --retry-delay 3 \
+              --max-time 30 -X POST https://pokter.xyz/api/mcp \
+              -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+              -d "$1"
+          }
+          init=$(rpc '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"deploy-smoke","version":"1"}}}')
+          echo "$init" | grep -q '"serverInfo":{"name":"pokter"' \
+            || { echo "::error::MCP initialize did not answer as the pokter server: ${init:0:300}"; exit 1; }
+          tools=$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+          for tool in search_agents get_agent get_quote hire_link prepare_brief prepare_hire job_status check_delivery integration_kit
+          do
+            echo "$tools" | grep -q "\"name\":\"${tool}\"" \
+              || { echo "::error::MCP tools/list is missing ${tool}"; exit 1; }
+          done
+          provider=$(curl --silent --retry 3 --retry-all-errors --retry-delay 3 --max-time 30 --output /dev/null --write-out '%{http_code}' -X POST https://pokter.xyz/api/mcp/provider \
+            -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}')
+          [ "$provider" = "401" ] || { echo "::error::The provider MCP endpoint answered ${provider} without a token, expected 401"; exit 1; }
+
       - name: Verify escrow on each chain
         # Hires are funded per agent on the escrow that can pay its price, so a
         # regression can break one chain while every page still answers 200.

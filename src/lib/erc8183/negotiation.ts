@@ -209,3 +209,28 @@ export function negotiationTermsBound(envelope: Record<string, unknown>, sentTas
   }
   return keccak256(toBytes(canonicalJson(content))).toLowerCase() === hash.toLowerCase();
 }
+
+/**
+ * Whether the criteria sent are all in the terms the hash covers. The
+ * content is already proven to hash to the signed negotiation hash by
+ * `negotiationTermsBound`, so membership here is membership in what the
+ * agent signed. Compared after the same sanitising the hash applies.
+ */
+const SPEC_LINE = /^pokter-proofrun\/\d+ spec=0x[0-9a-fA-F]{64}$/;
+
+export function criteriaInSignedTerms(sent: readonly string[] | undefined, content: Record<string, unknown> | null): boolean | null {
+  if (!sent || sent.length === 0) return null;
+  const signed = (content?.terms as { success_criteria?: unknown } | undefined)?.success_criteria;
+  if (!Array.isArray(signed)) return false;
+  const have = new Set(signed.map((c) => String(c)));
+  /*
+   * When the criteria carry a spec-hash line (ProofRun's
+   * `pokter-proofrun/<v> spec=0x…`), that exact line is what makes the
+   * agreement checkable, and the prose lines are for the seller to read. An
+   * agent that tidied whitespace in the prose has still signed the spec.
+   * Without such a line every criterion must be there.
+   */
+  const specLine = sent.find((c) => SPEC_LINE.test(c));
+  if (specLine) return have.has(sanitizeForClaim(specLine));
+  return sent.every((c) => have.has(sanitizeForClaim(c)));
+}

@@ -43,6 +43,7 @@ import {
   placeStagedProposal,
   recordStagedDelivery,
   recordStagedProposal,
+  releaseUnsubmittedDelivery,
   stagedDelivery,
   stagedDeliveryByJob,
   stagedProposal,
@@ -147,7 +148,9 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
            are not tools at all. */
         readOnlyHint: scope === 'proposals:write' || scope === 'deliverables:prepare' ? false : true,
         destructiveHint: false,
-        idempotentHint: true,
+        /* `submit_proposal` places a bid with the request's poster: a second
+           call is refused as a duplicate, but it is not a no-op to repeat. */
+        idempotentHint: name !== 'submit_proposal',
         openWorldHint: true,
       },
       /*
@@ -646,7 +649,37 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           /* Reconciled before anything is written, so a delivery submitted from
              a browser this process never saw is known about here. */
           reconcileStagedWork(owner);
-          const existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
+          let existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
+          /*
+           * The job's one staged slot, held by another wallet. When that
+           * wallet no longer owns the agent (it was transferred) and its
+           * draft was never submitted, the draft can never be delivered by
+           * anyone, and holding the slot would lock the new owner out for
+           * good. Released after the same registry check every call makes;
+           * a registry that cannot be read releases nothing.
+           */
+          if (existing && existing.key !== key && !existing.submitTxHash) {
+            const previous = await confirmAgentOwner(existing.owner as Address, job.agentChainId ?? 56, job.agentTokenId);
+            if (!previous.ok && previous.unavailable) {
+              return { data: { error: previous.reason, staged: false }, isError: true };
+            }
+            if (!previous.ok) {
+              /*
+               * Released only while the escrow itself says nothing was
+               * submitted. The index can lag a submission, and the former
+               * owner's provider wallet may have sent this very draft
+               * before Pokter recorded it; deleting it then would lose the
+               * transaction for good. Loaded here, not at the top, so the
+               * route's own tests do not load the SDK.
+               */
+              const { jobOnChain } = await import('@/lib/erc8183/job-onchain');
+              const onchain = await jobOnChain(chainId, jobId);
+              if (!onchain) {
+                return { data: { error: 'Pokter could not read this job from chain just now, so it cannot release the former owner’s draft. Nothing was changed; try again shortly.', staged: false }, isError: true };
+              }
+              if (onchain.status === 'FUNDED' && onchain.submittedAt === 0n && releaseUnsubmittedDelivery(existing.key)) existing = stagedDelivery(key);
+            }
+          }
           const retry = deliveryRetry(existing, contentDigest(content));
           if (retry.action === 'submitted') {
             return {
@@ -795,26 +828,33 @@ export async function POST(request: Request): Promise<Response> {
   }
   const tokenHash = hashAutomationToken(secret);
   /*
+   * Read on every call, and revoked and expired are excluded in the
+   * lookup's own SQL. There is nothing cached between a revocation and the
+   * next refusal: the row the next call reads is the row the page changed.
+   *
+   * Before the per-token bucket, not after: the bucket INSERTs a row per
+   * key, and keyed on a token nobody issued, a caller rotating fake tokens
+   * wrote one row per request. The lookup only reads, so a token Pokter did
+   * not issue now writes nothing and meets only the address limit above.
+   */
+  const token = automationTokenFor(tokenHash);
+  if (!token) {
+    return unauthorised(
+      'This automation token is not valid: it was revoked, it has expired, or it is not a token Pokter issued. Mint a new one at /build/automation. Scopes are never widened on an existing token.',
+    );
+  }
+  /*
    * Per token as well as per address. A provider's assistant runs behind
    * one address and may be the only caller on it, so the address limit is
-   * deliberately loose and this is what paces one credential.
+   * deliberately loose and this is what paces one credential. Keyed only on
+   * tokens Pokter issued, so its key space is bounded by issuance (at most
+   * ten live tokens per wallet).
    */
   const rate = consumeRateLimit(`mcp-provider:${tokenHash}`, { limit: 120, windowMs: 60_000 });
   if (!rate.allowed) {
     return NextResponse.json(
       { jsonrpc: '2.0', id: null, error: { code: -32000, message: `Rate limit reached for this automation token. Retry in ${rate.retryAfterSeconds}s.` } },
       { status: 429, headers: { 'retry-after': String(rate.retryAfterSeconds) } },
-    );
-  }
-  /*
-   * Read on every call, and revoked and expired are excluded in the
-   * lookup's own SQL. There is nothing cached between a revocation and the
-   * next refusal: the row the next call reads is the row the page changed.
-   */
-  const token = automationTokenFor(tokenHash);
-  if (!token) {
-    return unauthorised(
-      'This automation token is not valid: it was revoked, it has expired, or it is not a token Pokter issued. Mint a new one at /build/automation. Scopes are never widened on an existing token.',
     );
   }
   noteAutomationTokenUse(tokenHash);
