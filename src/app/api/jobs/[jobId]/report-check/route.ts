@@ -1,27 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getErc8183Job } from '@altananetwork/sdk';
 
-import { altanaNetworkFor } from '@/lib/altana/client';
 import { logAndPublic } from '@/lib/api/public-error';
 import { venusClient } from '@/lib/assay/venus';
+import { loadDeliveredVenusReport } from '@/lib/delivery/delivered-report';
 import { readVenusFactsAt } from '@/lib/delivery/venus-facts';
 import {
   CHECK_DOES_NOT_MEAN,
   CHECK_MEANS,
   cannotVerify,
   checkDeliveredVenusReport,
-  venusHealthJob,
-  venusSubjectFromBrief,
   type VenusReportVerification,
 } from '@/lib/delivery/venus-report-check';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
-import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
-import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
-import { historyClient } from '@/lib/erc8183/history-client';
-import { decodePokterJobEnvelope, jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
-import { getJobStore } from '@/lib/erc8183/store';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -55,63 +45,23 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
     NextResponse.json({ applies: true, means: CHECK_MEANS, doesNotMean: CHECK_DOES_NOT_MEAN, verification });
 
   try {
-    const network = altanaNetworkFor(chainId);
-    const job = await getErc8183Job(network, BigInt(jobId));
-    const brief = jobTaskFromDescription(job.description) ?? job.description;
-    const category = decodePokterJobEnvelope(job.description)?.category ?? null;
-    if (!venusHealthJob({ category, brief })) {
-      return NextResponse.json({ applies: false, reason: 'This job did not ask for a Venus health factor, so there is nothing here this check can recompute.' });
-    }
-    if (!['SUBMITTED', 'COMPLETED', 'REJECTED'].includes(job.statusName)) {
-      return answer(cannotVerify('Nothing has been delivered for this job yet, so there is no report to check.'));
-    }
-
-    const subject = venusSubjectFromBrief(brief);
-    if (!subject.ok) {
-      return answer(
-        cannotVerify(
-          subject.code === 'none'
-            ? 'The brief this job was funded with names no wallet address, so there is no position for Pokter to read independently. The account has to come from what the buyer asked for — taking it from the report would let the report choose its own subject.'
-            : `The brief names more than one address (${subject.candidates.join(', ')}), so which position the report should be about is not decided by the brief. Pokter will not pick one on the buyer’s behalf.`,
-        ),
-      );
-    }
-
-    /*
-     * The same two-step the answer route uses: Pokter's own copy when it
-     * has one, else the URL the agent committed on chain. Shared on
-     * purpose — a check that read a different copy of the delivery from
-     * the one the buyer is shown would be checking a different document.
-     */
-    let manifestText = readDeliverable(deliverableKey(chainId, jobId))?.manifestText ?? null;
-    if (!manifestText) {
-      const indexed = getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId);
-      const url =
-        indexed?.deliverableUrl ??
-        (await Promise.race([
-          findDeliverableUrl(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt).catch(() => null),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)),
-        ]));
-      if (!url) {
-        return answer(cannotVerify('Pokter could not retrieve the delivered file: no link for it could be read just now. That is a gap in what Pokter can see, not a finding about the report.'));
+    const loaded = await loadDeliveredVenusReport({ chainId, jobId });
+    if (!loaded.ok) {
+      /*
+       * `not-this-check` is the one refusal that is not a failure to see:
+       * the job never asked for this, so there is no verdict to withhold.
+       * Everything else is Pokter saying what it could not read.
+       */
+      if (loaded.refusal.code === 'not-this-check') {
+        return NextResponse.json({ applies: false, reason: loaded.refusal.reason });
       }
-      manifestText = await fetchDeliverableText(url).catch(() => null);
-      if (!manifestText) {
-        return answer(cannotVerify('The delivered file could not be read from the link the agent published, so there is nothing to check.'));
-      }
+      return answer(cannotVerify(loaded.refusal.reason));
     }
-
-    /*
-     * Null, not false, when the job carries no hash to compare with. The
-     * verifier refuses anything but `true`, and the distinction is what
-     * lets it tell the buyer "this file is not what was committed" apart
-     * from "Pokter could not confirm what was committed".
-     */
-    const committed = /^0x0{64}$/.test(job.deliverable) ? null : job.deliverable;
+    const { report } = loaded;
     const verification = await checkDeliveredVenusReport({
-      subject: subject.subject,
-      manifestText,
-      manifestMatchesChain: committed === null ? null : manifestMatch(manifestText, committed) !== null,
+      subject: report.subject,
+      manifestText: report.manifestText,
+      manifestMatchesChain: report.committed === null ? null : manifestMatch(report.manifestText, report.committed) !== null,
       readFactsAt: (at) => readVenusFactsAt(venusClient(), at),
     });
     return answer(verification);

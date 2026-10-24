@@ -69,6 +69,9 @@ function facts(overrides: Partial<VenusHealthFacts> = {}): VenusHealthFacts {
     pool: 'core',
     block: BLOCK,
     blockTime: real.blockTime,
+    /* Null by default: most fixtures never had a header, and a fixture that
+       silently carried a hash would make a replay look pinned when it was not. */
+    blockHash: null,
     healthFactor: real.healthFactor,
     borrowLimitRatio: real.borrowLimitRatio,
     liquidatable: real.liquidatable,
@@ -653,6 +656,7 @@ test('the real delivery is checkable end to end, and an unstated liquidation fla
     pool: 'core',
     block: DELIVERED_BLOCK,
     blockTime: '2026-10-15T11:59:31.000Z',
+    blockHash: null,
     healthFactor: 1.8655,
     borrowLimitRatio: 1 / 0.9583,
     liquidatable: false,
@@ -750,11 +754,23 @@ test('5c. the route is wired to the same pure check, read-only, and decides noth
   assert.doesNotMatch(route, /export async function (POST|PUT|PATCH|DELETE)/);
   assert.match(route, /checkDeliveredVenusReport/);
   assert.match(route, /readVenusFactsAt/);
+  assert.match(route, /manifestMatch\(report\.manifestText, report\.committed\) !== null/);
+
+  /*
+   * Reading the job and deriving the subject moved into
+   * `lib/delivery/delivered-report.ts`, so ProofRun's receipt endpoint
+   * judges the same delivery this route shows rather than fetching its
+   * own copy. The properties did not move with it: they are asserted
+   * where the code now is, because they are what stops a report choosing
+   * the position it will be graded against.
+   */
+  const loader = readFileSync(new URL('../src/lib/delivery/delivered-report.ts', import.meta.url), 'utf8');
+  assert.match(route, /loadDeliveredVenusReport\(/);
   // The subject comes from the brief on chain, never from the delivery.
-  assert.match(route, /venusSubjectFromBrief\(brief\)/);
-  assert.match(route, /jobTaskFromDescription/);
-  // The hash is compared, and an absent commitment is null rather than true.
-  assert.match(route, /manifestMatch\(manifestText, committed\) !== null/);
+  assert.match(loader, /venusSubjectFromBrief\(brief\)/);
+  assert.match(loader, /jobTaskFromDescription/);
+  // An absent commitment stays null rather than becoming true.
+  assert.match(loader, /\/\^0x0\{64\}\$\/\.test\(job\.deliverable\) \? null :/);
   // And the meaning of a verdict travels with it, so the UI cannot drop it.
   assert.match(route, /CHECK_DOES_NOT_MEAN/);
 
