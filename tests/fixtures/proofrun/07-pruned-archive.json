@@ -1,0 +1,44 @@
+{
+  "_why": "The node no longer keeps state at the named block. This is the ordinary outcome in production and the one a replay is most tempted to paper over, so it must be not verified and the latest block must never be substituted.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "pruned-archive",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder. The node's refusal is real and is not synthetic.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "refused",
+    "note": "The block identity is real: BNB Smart Chain block 129,170,001, hash agreed by bsc-dataseed.bnbchain.org and bsc-rpc.publicnode.com on 2026-10-24. The refusal is real too, and is not duplicated here: it is the string bsc-dataseed.bnbchain.org actually returned through viem for state outside its retained window, captured on 2026-10-22 by scripts/capture-venus-fixture.mts. The suite reads it from the sibling fixture named below so there is one copy of the node's own words. The block identity and the refusal are real; the report is synthetic.",
+    "nodeErrorFrom": "tests/fixtures/venus-health-0x4a4ffcee.json#prunedError",
+    "nodeWords": "missing trie node",
+    "nodeRpcCode": -32000,
+    "_whyNodeWordsAsWell": "The captured string is viem's packaging around the node's answer: a URL, the whole request body, a documentation link, and the node's own words after 'Details:'. A stub endpoint has to send the node's part, not the packaging, or the replay's output ends up quoting a URL it never called. The JSON-RPC code was not captured; -32000 is used because it is one of the two codes viem maps to the message the capture carries.",
+    "expectRefusalCode": "no-history",
+    "expectRefusalDetail": "missing trie node."
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1223,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor 1.1223 at block 129,170,001. Not liquidatable."
+  },
+  "expect": {
+    "verdict": "unverified",
+    "state": "unverifiable",
+    "cli": "not-verified",
+    "_criticalProperty": "The report is the correct one from 01-correct-report.json and the receipt may carry a pass. With no archive access the replay still has to say not verified, and it must ask the node for block 129,170,001 and for no other block. A replay that read the head here would compare a report about one block with a position that has moved, and would be believed.",
+    "_whyThisIsTheOrdinaryCase": "Every free BNB Chain endpoint prunes state within about a hundred blocks. Archive reads need a NodeReal key, so absent one this is what a replay meets."
+  }
+}

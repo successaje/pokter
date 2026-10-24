@@ -1,0 +1,57 @@
+{
+  "_why": "The node serves a different block at the number the receipt names. A block number is the same on both sides of a reorg, so the hash is the only thing that pins the state — and when it differs the replay has read somewhere else.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "mismatched-block-hash",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "available",
+    "note": "The receipt's block identity is real: BNB Smart Chain block 129,170,001 with the hash two nodes agreed on 2026-10-24, over real captured Core Pool state. What is synthetic is the replay: servesBlockHash below is the hash the node answers with on the replay, and it is a repeating pattern chosen to be unmistakably not a BNB Chain block hash. It stands for a node on a different fork, or for the same number after a reorg. No chain has ever had this hash at this number.",
+    "servesBlockHash": "0xf1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7",
+    "facts": {
+      "blockTime": "2026-10-22T17:28:47.000Z",
+      "healthFactor": 1.122279,
+      "borrowLimitRatio": 1.122152,
+      "liquidatable": false,
+      "debtUsd": 207792.7696819796,
+      "collateralUsd": 291545.97
+    },
+    "legs": {
+      "_note": "As 01-correct-report.json. Liquidation thresholds captured; collateral factors synthetic and set equal to them.",
+      "collateral": {
+        "BNB": { "supplyUsd": 291370.25, "liquidationThreshold": 0.8, "collateralFactor": 0.8 },
+        "XVS": { "supplyUsd": 175.72, "liquidationThreshold": 0.6, "collateralFactor": 0.6 }
+      },
+      "debt": { "USDC": 50231.33, "USDT": 157561.43 }
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1223,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor 1.1223 at block 129,170,001. Not liquidatable."
+  },
+  "expect": {
+    "verdict": "matches",
+    "state": "verified",
+    "cli": "not-verified",
+    "recomputeRuns": false,
+    "_whyAVerifiedReceiptStillFails": "The receipt is a clean one: every criterion settled, state verified. That is the point. The replay refuses it anyway, because the state it would compare against was read from a different block, and a receipt that deserves to pass is the hardest case in which to refuse.",
+    "_criticalProperty": "The figures the node serves agree with the report exactly. The replay must still refuse, because they were read from a block the receipt does not name. Agreement on figures read from the wrong state is the failure this guard exists for, and it is the hardest one to notice because everything else looks right.",
+    "_alsoProves": "A receipt whose subject carries no block hash at all is equally not verified. A replay cannot pin state it was never told, and treating a missing hash as a match on the number is the same defect with the evidence removed."
+  }
+}

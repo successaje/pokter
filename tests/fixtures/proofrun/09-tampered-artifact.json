@@ -1,0 +1,43 @@
+{
+  "_why": "A receipt edited after it was sealed. It must be refused outright, before any chain read, and the two ways of editing it must be told apart: an altered body and altered criteria fail for different reasons and mean different things to a buyer.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "tampered-artifact",
+  "attribution": "Synthetic. The edits below are declared rather than baked in, so the suite applies them to an artifact it has just sealed from the live core. Nothing here is attributable to any builder, and no real receipt was altered.",
+  "basedOn": "01-correct-report.json",
+  "_howTheSuiteUsesThis": "For each edit the suite seals a correct artifact, proves it is intact, applies the edit as described, and then proves the integrity check refuses it. Declaring the edit instead of storing a pre-tampered artifact means the fixture cannot rot into passing for the wrong reason — a stored hash that went stale against a changed core would read as tampering when nothing had been tampered with.",
+  "edits": [
+    {
+      "name": "body-edited-after-sealing",
+      "guard": "checkArtifactIntegrity",
+      "target": "checks[hf.value].observed",
+      "to": "1.3512",
+      "reseal": false,
+      "expect": "tampered",
+      "_why": "The figure the report claimed is rewritten to a wrong one while the sealed hash is left alone. The hash is recomputed from the body rather than compared with a stored field, so this cannot be hidden."
+    },
+    {
+      "name": "hash-edited-to-match-the-edited-body",
+      "guard": "checkArtifactIntegrity",
+      "target": "checks[hf.value].observed",
+      "to": "1.3512",
+      "reseal": "forged-hash",
+      "expect": "tampered",
+      "_why": "The same edit with the stored hash also rewritten, to a value that is not the keccak of the new body. Editing two places consistently is not enough: a forger needs a keccak collision, and the forged hash here is one byte off."
+    },
+    {
+      "name": "criteria-swapped-after-sealing",
+      "guard": "checkSpecIntegrity",
+      "target": "criteria[hf.value].check.tolerance",
+      "to": 0.5,
+      "reseal": true,
+      "expect": "tampered",
+      "_why": "The tolerance is widened from 0.005 to 0.5 and the artifact is re-sealed, so the artifact hash is correct and only the spec hash is wrong. An intact receipt describing a different agreement is the subtler forgery, and the one a buyer most needs named separately: the receipt was not edited, the criteria it claims to have been judged against were."
+    }
+  ],
+  "expect": {
+    "cli": "tampered",
+    "chainReadsBeforeRefusal": 0,
+    "_criticalProperty": "Integrity comes before everything. A tampered receipt must not cause a chain read, must not be re-run, and must not reach a verdict of any kind — not even not-verified, which a reader could mistake for a missing node rather than a forged document."
+  }
+}
