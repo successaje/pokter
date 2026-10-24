@@ -1,3 +1,7 @@
+import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
+import { unpayablePriceNote } from '@/lib/erc8183/payable';
+import { escrowChainForCurrency, isEscrowChain } from '@/lib/network/escrow';
+
 /**
  * One brief, several agents, one row each: what the comparison shows.
  *
@@ -66,4 +70,20 @@ export function comparisonCandidates<T extends { hirable: boolean; nameOnly?: bo
     .sort((a, b) => Number(b.row.priceU !== null) - Number(a.row.priceU !== null) || a.index - b.index)
     .slice(0, count)
     .map(({ row }) => row);
+}
+
+/** Why a signed quote cannot be funded, in the hire page's words, or null when it can. */
+export function unusableQuoteReason(quote: { currency: string; expiresAt?: string | null; domain?: { chainId: number; verifyingContract: string } | null }, escrowContract: (chainId: number) => string, now: Date = new Date()): string | null {
+  const escrowChainId = escrowChainForCurrency(quote.currency);
+  if (escrowChainId === null) return unpayablePriceNote(quote.currency, !isEscrowChain(56));
+  const usable = quoteUsableForEscrow(
+    {
+      expiresAt: quote.expiresAt ? Date.parse(quote.expiresAt) / 1000 : undefined,
+      domain: quote.domain ? { chainId: quote.domain.chainId, verifyingContract: quote.domain.verifyingContract as `0x${string}` } : undefined,
+    },
+    escrowChainId,
+    now,
+    escrowContract(escrowChainId),
+  );
+  return usable.usable ? null : usable.reason;
 }

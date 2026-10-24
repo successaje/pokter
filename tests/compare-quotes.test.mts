@@ -50,3 +50,19 @@ test('candidates: hireable, in the brief’s category, signed prices first, at m
   assert.deepEqual(comparisonCandidates(rows, 'token-safety').map((r) => r.id), ['touchstone', 'check', 'sniper']);
   assert.deepEqual(comparisonCandidates(rows, null).map((r) => r.id), ['planner', 'touchstone', 'check']);
 });
+
+test('a signed price the hire page would refuse is not shown as priced', async () => {
+  const { unusableQuoteReason } = await import('../src/lib/hire/compare-quotes');
+  const testnetU = '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565';
+  const now = new Date('2026-10-24T09:00:00Z');
+  const later = '2026-10-24T10:00:00Z';
+  const commerce = '0xa206c0517B6371C6638CD9e4a42Cc9f02A33B0DE';
+  const escrow = () => commerce;
+
+  assert.equal(unusableQuoteReason({ currency: testnetU, expiresAt: later, domain: { chainId: 97, verifyingContract: commerce } }, escrow, now), null, 'bound to our escrow');
+  assert.equal(unusableQuoteReason({ currency: testnetU, expiresAt: later }, escrow, now), null, 'unbound is the seller’s to check, as on the hire page');
+  assert.ok(unusableQuoteReason({ currency: '0x00000000000000000000000000000000000000aa', expiresAt: later }, escrow, now), 'a currency no escrow settles');
+  assert.match(unusableQuoteReason({ currency: testnetU, expiresAt: later, domain: { chainId: 56, verifyingContract: commerce } }, escrow, now) ?? '', /chain 56/);
+  assert.ok(unusableQuoteReason({ currency: testnetU, expiresAt: later, domain: { chainId: 97, verifyingContract: '0x00000000000000000000000000000000000000bb' } }, escrow, now), 'another escrow contract');
+  assert.ok(unusableQuoteReason({ currency: testnetU, expiresAt: '2026-10-24T08:00:00Z' }, escrow, now), 'expired');
+});
