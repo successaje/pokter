@@ -43,6 +43,7 @@ import {
   placeStagedProposal,
   recordStagedDelivery,
   recordStagedProposal,
+  releaseUnsubmittedDelivery,
   stagedDelivery,
   stagedDeliveryByJob,
   stagedProposal,
@@ -646,7 +647,22 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           /* Reconciled before anything is written, so a delivery submitted from
              a browser this process never saw is known about here. */
           reconcileStagedWork(owner);
-          const existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
+          let existing = stagedDelivery(key) ?? stagedDeliveryByJob(chainId, jobId);
+          /*
+           * The job's one staged slot, held by another wallet. When that
+           * wallet no longer owns the agent (it was transferred) and its
+           * draft was never submitted, the draft can never be delivered by
+           * anyone, and holding the slot would lock the new owner out for
+           * good. Released after the same registry check every call makes;
+           * a registry that cannot be read releases nothing.
+           */
+          if (existing && existing.key !== key && !existing.submitTxHash) {
+            const previous = await confirmAgentOwner(existing.owner as Address, job.agentChainId ?? 56, job.agentTokenId);
+            if (!previous.ok && previous.unavailable) {
+              return { data: { error: previous.reason, staged: false }, isError: true };
+            }
+            if (!previous.ok && releaseUnsubmittedDelivery(existing.key)) existing = stagedDelivery(key);
+          }
           const retry = deliveryRetry(existing, contentDigest(content));
           if (retry.action === 'submitted') {
             return {
