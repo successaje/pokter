@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -319,4 +320,87 @@ test('the artifact states that its hash is not a correctness claim', () => {
 
 test('an artifact says whether it came from a fixture or from customer work', () => {
   assert.equal(artifactFor([check()]).artifact.provenance, 'fixture');
+});
+
+/* ---------- remediation ---------- */
+
+import { remediationFor, remediationForRun, REMEDIATION_PREAMBLE } from '../src/lib/proofrun/remediation';
+
+/*
+ * The live case this was built for: mainnet job 56/57071, a delivered
+ * report from an agent that answers every probe, refused because it never
+ * says which block it read. Nothing is wrong with the figures; there is
+ * no way to check them, and the fix is one field.
+ */
+test('the commonest dead end tells the builder what to add', () => {
+  const fix = remediationForRun({
+    state: 'unverifiable',
+    checks: [],
+    headline: 'Could not verify',
+    detail: 'The report does not say which block it read. Without that, a check could only compare it with the position now.',
+  });
+  assert.ok(fix, 'the commonest unverifiable case offers no fix at all');
+  assert.equal(fix.owner, 'builder');
+  assert.match(fix.fix, /block number/i);
+});
+
+/*
+ * Whose fix it is, is the point of the module. Telling a builder to
+ * correct a pruned node would be telling them to fix something that is
+ * not theirs — and a builder who "fixed" it by guessing a block would
+ * turn a checkable report into a wrong one.
+ */
+test('a limitation on Pokter’s side is not pinned on the builder', () => {
+  const fix = remediationFor({ outcome: 'not-verified', limitation: 'The node no longer keeps that block.' });
+  assert.equal(fix?.owner, 'pokter');
+  assert.match(fix?.fix ?? '', /Nothing for the builder to change/);
+});
+
+test('a brief that names no account is the buyer’s to fix', () => {
+  const fix = remediationFor({ outcome: 'not-verified', limitation: 'The brief names no wallet address.' });
+  assert.equal(fix?.owner, 'buyer');
+});
+
+/*
+ * A failed check already has its answer. Offering a fix for one would
+ * read as advice on how to make a wrong report pass, which is the
+ * opposite of what this feature is for.
+ */
+test('no fix is offered for a check that ran and failed', () => {
+  assert.equal(remediationFor({ outcome: 'failed', limitation: 'The report does not say which block it read.' }), null);
+  assert.equal(remediationFor({ outcome: 'passed' }), null);
+  assert.equal(remediationForRun({ state: 'mismatch', checks: [], headline: 'Differs' }), null);
+  assert.equal(remediationForRun({ state: 'verified', checks: [], headline: 'Matches' }), null);
+});
+
+/* Not-verified must never be introduced as a finding that the report is wrong. */
+test('the preamble does not accuse a report it could not check', () => {
+  assert.match(REMEDIATION_PREAMBLE.builder, /not a finding that it is wrong/i);
+  for (const line of Object.values(REMEDIATION_PREAMBLE)) {
+    assert.doesNotMatch(line, /incorrect|wrong report|failed/i);
+  }
+});
+
+/*
+ * Remediation matches on the checker's own sentences, so a reword in
+ * `venus-report-check.ts` would silently stop offering the fix for the
+ * commonest dead end — the failure would be an absence, which is the
+ * hardest kind to notice. This holds the checker to the phrasings the
+ * patterns depend on, and names the file to edit when one must change.
+ */
+test('the checker still says what remediation matches on', () => {
+  const checker = readFileSync(new URL('../src/lib/delivery/venus-report-check.ts', import.meta.url), 'utf8');
+  for (const phrase of [
+    'does not say which block it read',
+    'Stated to ${claim.statedDecimals} decimal place',
+  ]) {
+    assert.ok(
+      checker.includes(phrase),
+      `the checker no longer says “${phrase}”, so src/lib/proofrun/remediation.ts stopped matching it`,
+    );
+  }
+  /* And the live sentence, as production returned it for job 56/57071. */
+  const live = 'The report does not say which block it read. Without that, a check could only compare it with the position now — and a position moves, so the result would describe the delay rather than the report.';
+  const fix = remediationForRun({ state: 'unverifiable', checks: [], headline: 'Could not verify', detail: live });
+  assert.equal(fix?.owner, 'builder', 'the sentence production actually returns is not matched');
 });
