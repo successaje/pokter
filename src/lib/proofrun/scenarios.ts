@@ -57,10 +57,31 @@ export interface ReplayScenario extends ScenarioBase {
  */
 export interface FixtureScenario extends ScenarioBase {
   kind: 'fixture';
-  /** The fixture file this run is built from, so a reader can open it. */
-  fixture: string;
   provenance: Extract<VerificationResult['provenance'], 'fixture' | 'simulation'>;
 }
+
+/*
+ * A `fixture: string` field used to sit here, naming `normal-borrow.json`
+ * and three siblings. **None of those files existed and nothing read the
+ * field** — a dead reference to data that was never written, in the file
+ * whose types exist to stop a fixture claiming evidence it does not have,
+ * one field away from the test that makes exactly this class executable
+ * for routes. It is removed rather than repointed.
+ *
+ * Repointing it at `tests/fixtures/proofrun/*` would have been worse than
+ * leaving it. Eight of those ten carry **real** BNB Chain state — a real
+ * account at block 129170001 with that block's real hash — under a
+ * written report, and `KIND_DISCLOSURE.fixture` says "it never existed on
+ * chain". Printing that over them would make the page assert something
+ * untrue about real state and a real wallet. `src/` importing from
+ * `tests/` would also ship test data in the bundle.
+ *
+ * The honest shape is a third kind this union cannot express: real,
+ * named, verifiable chain state under a synthetic report. It is not added
+ * here because nothing offers it to a buyer yet, and a kind with no
+ * instance is the thing `SCENARIOS` is careful not to ship. When a
+ * surface needs it, that is the change — not a filename.
+ */
 
 export type Scenario = ReplayScenario | FixtureScenario;
 
@@ -86,7 +107,6 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Normal borrowing',
     purpose: 'An ordinary position with collateral and debt, where a correct answer is available and checkable.',
     exercises: 'The health factor, the liquidation flag and both USD totals, all compared against the position as written.',
-    fixture: 'normal-borrow.json',
     provenance: 'fixture',
   },
   {
@@ -95,7 +115,6 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'No debt',
     purpose: 'A position that has borrowed nothing, so there is no health factor to report.',
     exercises: 'Whether an agent invents a ratio where none exists. Venus has no health factor for an account with no debt, and the right answer says so.',
-    fixture: 'zero-debt.json',
     provenance: 'fixture',
   },
   {
@@ -104,7 +123,6 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Mixed token decimals',
     purpose: 'Collateral and debt in tokens of different precision, where a naive calculation is off by orders of magnitude.',
     exercises: 'Decimal handling across markets. This is the error that looks most like a correct answer at a glance.',
-    fixture: 'mixed-decimals.json',
     provenance: 'fixture',
   },
   {
@@ -113,7 +131,6 @@ export const SCENARIOS: readonly Scenario[] = [
     label: 'Stale or missing oracle price',
     purpose: 'A position where one price is stale or absent, so part of the position cannot be valued.',
     exercises: 'Whether an agent reports the gap or fills it. A health factor computed through a missing price is a guess presented as a figure.',
-    fixture: 'stale-oracle.json',
     provenance: 'fixture',
   },
 ];

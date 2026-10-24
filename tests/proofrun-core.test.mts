@@ -680,3 +680,53 @@ test('every link a ProofRun result emits resolves to a route the app defines', (
     );
   }
 });
+
+/*
+ * A scenario may not name a file, because a name is a promise.
+ *
+ * `FixtureScenario` carried `fixture: string` naming four JSON files.
+ * None existed and nothing read the field — a dead reference to data
+ * never written, in the file whose types exist to stop a fixture
+ * claiming evidence it does not have, one field from the test that
+ * makes this class executable for routes.
+ *
+ * Repointing it was the wrong fix and is worth recording: eight of the
+ * ten fixtures that do exist carry real chain state under a written
+ * report, and `KIND_DISCLOSURE.fixture` says "it never existed on
+ * chain". So the guard is that a scenario carries no file reference at
+ * all until the union can express that third kind — real state,
+ * synthetic report — rather than flattening it into either.
+ */
+test('no scenario names a file, since none can be named honestly yet', () => {
+  for (const scenario of SCENARIOS) {
+    for (const [key, value] of Object.entries(scenario)) {
+      assert.ok(
+        typeof value !== 'string' || !/\.(json|mts|ts)$/i.test(value),
+        `${scenario.id}.${key} names the file ${value}; nothing resolves it and the fixtures that exist have a different provenance`,
+      );
+    }
+  }
+});
+
+/*
+ * The hash identifies a run, not a job. `checkedAt` is inside it and a
+ * run is recomputed per request, so two copies fetched a moment apart
+ * hash differently. A reader who downloads a receipt, re-fetches, and
+ * compares the two would see a mismatch and reasonably conclude it had
+ * been altered — so the artifact says what the hash covers.
+ */
+test('the artifact says its hash identifies the run and not the job', () => {
+  const sealed = artifactFor([check()]);
+  assert.ok(
+    sealed.artifact.limitations.some((line) => /identifies this run, not this job/i.test(line)),
+    'the artifact does not say that re-fetching produces a different hash',
+  );
+});
+
+test('two runs of the same inputs differ only by when they were checked', () => {
+  const a = artifactFor([check()]);
+  const b = artifactFor([check()]);
+  /* `artifactFor` pins checkedAt, so identical inputs hash identically —
+     the instability is the clock and nothing else. */
+  assert.equal(a.artifactHash, b.artifactHash, 'identical runs hashed differently, so something other than the clock moves');
+});
