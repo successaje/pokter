@@ -84,7 +84,13 @@ export async function GET(
       job: { chainId, jobId },
       account: report.subject.account,
       deployment: VENUS_COMPTROLLER,
-      chainId,
+      /*
+       * The chain the position lives on, pinned by the brief's subject, not
+       * the escrow that funded the job. A testnet-funded job asks about a
+       * mainnet Venus position; recording chain 97 beside the mainnet
+       * Comptroller would send any replay to a chain with no Venus on it.
+       */
+      chainId: report.subject.chainId,
       verification,
       manifestText: report.manifestText,
       brief: report.brief,

@@ -75,6 +75,7 @@ export function proofRun(input: ProofRunInput): ProofRun {
     criteria: spec.criteria,
     blockHash: input.blockHash,
     chainClaim: claim?.ok ? claim.claim.chain : undefined,
+    accountNamed: Boolean(claim?.ok && claim.claim.account),
     /* So a row cannot say a criterion was agreed while the spec beside it
        says Pokter only recorded it. */
     binding: spec.binding,

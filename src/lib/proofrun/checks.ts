@@ -126,6 +126,12 @@ export function checksFromVerification(input: {
    * all, and both would read as not verified — understating the first.
    */
   chainClaim?: ChainClaim;
+  /**
+   * Whether the report itself named an account. The checker compares the
+   * account only when the report names one, so a comparison reached by a
+   * report that named none proves nothing about whose position it is.
+   */
+  accountNamed?: boolean;
 }): CheckResult[] {
   const criteria = input.criteria ?? venusHealthCriteria();
   const source = { block: input.verification.block, hash: input.blockHash ?? null };
@@ -191,6 +197,26 @@ export function checksFromVerification(input: {
    * `unverified` verdict may have stopped before the account was
    * examined at all, and that case stays not-verified.
    */
+  if (!placed.has('binding.account') && input.verification.verdict !== 'unverified' && input.accountNamed !== true) {
+    /*
+     * A report that names no account never met the checker's account
+     * comparison, so reaching the figures says nothing about whose position
+     * they describe. Not verified, with why: a pass here would certify a
+     * report that never said whose health factor it gives.
+     */
+    const criterion = criteria.find((c) => c.id === 'binding.account');
+    results.push({
+      id: 'binding.account',
+      label: criterion?.label ?? 'The report is about the account the brief named',
+      outcome: 'not-verified',
+      expected: 'the account the brief named',
+      observed: 'no account named in the report',
+      source,
+      tolerance: null,
+      limitation: 'The report does not say which account it is about, so Pokter cannot confirm its figures describe the position the brief asked for.',
+    });
+    placed.add('binding.account');
+  }
   if (!placed.has('binding.account') && input.verification.verdict !== 'unverified') {
     const criterion = criteria.find((c) => c.id === 'binding.account');
     results.push({

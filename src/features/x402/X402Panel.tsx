@@ -206,13 +206,13 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
               {stage.outcome.call.responseText ? ` It said: ${stage.outcome.call.responseText.slice(0, 300)}` : ''}
             </Notice>
           )}
-          {(stage.outcome.kind === 'unknown' || stage.outcome.kind === 'lost' || stage.outcome.kind === 'already-sent') && (
+          {(stage.outcome.kind === 'unknown' || stage.outcome.kind === 'lost' || stage.outcome.kind === 'in-flight') && (
             <Notice tone="watch" title="Outcome unknown: do not pay again">
               {stage.outcome.kind === 'unknown'
                 ? stage.outcome.call.error
                 : stage.outcome.kind === 'lost'
                   ? 'Pokter’s reply did not reach this page, so it is not known whether the seller was paid. Check the receipt before doing anything else.'
-                  : 'This payment was already sent once and is not sent again. Check the receipt for how it ended.'}
+                  : 'This payment is still being sent by an earlier request. Wait a moment, then check the receipt. Do not sign again.'}
             </Notice>
           )}
           {stage.outcome.kind === 'terms-changed' && (
