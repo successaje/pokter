@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import { changedTerms, paymentHeaderProblem, readPaymentHeader, type X402Choice, type X402Terms } from './exact';
-import { beginX402Call, effectiveState, finishX402Call, readX402Call, type X402Call } from './receipts';
+import { beginX402Call, effectiveState, finishX402Call, readX402Call, reclaimNotSent, type X402Call } from './receipts';
 
 /**
  * One paid call, from a buyer's signed authorization to the seller's answer.
@@ -27,7 +27,8 @@ export type CallOutcome =
   | { kind: 'refused'; call: X402Call }
   | { kind: 'unknown'; call: X402Call }
   | { kind: 'not-sent'; call: X402Call }
-  | { kind: 'already-sent'; call: X402Call }
+  /** Claimed by another request that is still sending. Wait, then check the receipt; do not sign again. */
+  | { kind: 'in-flight'; call: X402Call }
   | { kind: 'terms-changed'; reason: string; fresh: X402Terms }
   | { kind: 'unavailable'; reason: string }
   | { kind: 'invalid'; reason: string };
@@ -111,9 +112,22 @@ export async function runX402Call(input: {
     at,
   });
   if (!claim.begun) {
-    if (claim.existing.state === 'answered') return { kind: 'answered', call: claim.existing, replayed: true };
-    /* A send that never finished is reported as what it may be: settled, with the answer lost. */
-    return { kind: 'already-sent', call: { ...claim.existing, state: effectiveState(claim.existing, now) } };
+    /*
+     * The same authorization again. Said as exactly what happened to it,
+     * never as a generic "already sent": that phrase read the same for a
+     * call that was answered, refused, lost or never sent at all.
+     */
+    const existing = claim.existing;
+    const state = effectiveState(existing, now);
+    if (state === 'answered') return { kind: 'answered', call: existing, replayed: true };
+    if (state === 'refused') return { kind: 'refused', call: existing };
+    if (state === 'unknown') return { kind: 'unknown', call: { ...existing, state } };
+    if (state === 'sending') return { kind: 'in-flight', call: existing };
+    /* `not-sent`: it never reached the seller, so it may be sent once more, if no other retry took it first. */
+    if (!reclaimNotSent(input.db, existing.nonce, at)) {
+      const now2 = readX402Call(input.db, existing.nonce)!;
+      return { kind: 'in-flight', call: now2 };
+    }
   }
 
   let response: SentResponse;

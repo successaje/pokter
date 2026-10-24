@@ -68,7 +68,7 @@ test('two clicks at once send once; the second is told it is already in flight',
   await new Promise((r) => setTimeout(r, 20));
   release();
   const kinds = [(await a).kind, (await b).kind].sort();
-  assert.deepEqual(kinds, ['already-sent', 'answered']);
+  assert.deepEqual(kinds, ['answered', 'in-flight']);
   assert.equal(sends, 1);
 });
 
@@ -80,7 +80,7 @@ test('a lost response is unknown, never success and never retried', async () => 
   assert.match(out.kind === 'unknown' ? out.call.error ?? '' : '', /Do not pay again/);
   let sends = 0;
   const retry = await runX402Call({ db: d, agreed: terms, agent, header, body: '{}', readFresh: fresh(), send: async () => { sends += 1; return reply(200, 'ok'); }, nowMs: NOW_MS });
-  assert.equal(retry.kind, 'already-sent');
+  assert.equal(retry.kind, 'unknown', 'said as unknown again, not as a generic "already sent"');
   assert.equal(sends, 0, 'the same authorization is not sent again');
 });
 
@@ -135,8 +135,7 @@ test('a refusal before anything left Pokter is "not sent", and a send stuck by a
   beginX402Call(d, { nonce: stuck.nonce, endpoint: terms.endpoint, payTo: terms.payTo, asset: terms.asset, amountRaw: terms.amountRaw, network: terms.network, payer: buyer.address, agentChainId: 56, agentTokenId: '302257', at: new Date(NOW_MS - 120_000).toISOString() });
   let sends = 0;
   const after = await runX402Call({ db: d, agreed: terms, agent, header: stuck.header, body: '{}', readFresh: fresh(), send: async () => { sends += 1; return reply(200, 'x'); }, nowMs: NOW_MS });
-  assert.equal(after.kind, 'already-sent');
-  assert.equal(after.kind === 'already-sent' && after.call.state, 'unknown', 'never "sending" forever');
+  assert.equal(after.kind, 'unknown', 'a send stuck by a restart reads as unknown, never "sending" forever');
   assert.equal(sends, 0);
 });
 
@@ -151,4 +150,38 @@ test('a second signature is offered only when nothing can have been taken', asyn
   assert.equal(maySignAgain({ kind: 'refused', call: call({}) }, { kind: 'idle' }), true);
   assert.equal(maySignAgain({ kind: 'refused', call: call({ settlementTx: '0x' + '1'.repeat(64) }) }, { kind: 'idle' }), false, 'refused but settled: may have been taken');
   assert.equal(maySignAgain({ kind: 'invalid', reason: 'x' }, { kind: 'idle' }), true);
+});
+
+test('a retry of the same authorization says what happened to it, and only a never-sent one is sent', async () => {
+  const { X402NotSentError } = await import('../src/lib/x402/call');
+  const d = db();
+  // Refused by the seller: the stored refusal comes back, nothing is resent.
+  const refusedOnce = await signed();
+  let sends = 0;
+  await runX402Call({ db: d, agreed: terms, agent, header: refusedOnce.header, body: '{}', readFresh: fresh(), send: async () => { sends += 1; return reply(402, '{"error":"no"}'); }, nowMs: NOW_MS });
+  const again = await runX402Call({ db: d, agreed: terms, agent, header: refusedOnce.header, body: '{}', readFresh: fresh(), send: async () => { sends += 1; return reply(200, 'x'); }, nowMs: NOW_MS });
+  assert.equal(again.kind, 'refused');
+  assert.equal(sends, 1);
+
+  // Never sent: the same authorization may be sent once more, and is.
+  const neverSent = await signed();
+  await runX402Call({ db: d, agreed: terms, agent, header: neverSent.header, body: '{}', readFresh: fresh(), send: async () => { throw new X402NotSentError('DNS changed'); }, nowMs: NOW_MS });
+  let retrySends = 0;
+  const retried = await runX402Call({ db: d, agreed: terms, agent, header: neverSent.header, body: '{}', readFresh: fresh(), send: async () => { retrySends += 1; return reply(200, '{"ok":1}'); }, nowMs: NOW_MS });
+  assert.equal(retried.kind, 'answered');
+  assert.equal(retrySends, 1);
+
+  // Two retries of a never-sent authorization at once: one sends, the other is told it is in flight.
+  const raced = await signed();
+  await runX402Call({ db: d, agreed: terms, agent, header: raced.header, body: '{}', readFresh: fresh(), send: async () => { throw new X402NotSentError('DNS changed'); }, nowMs: NOW_MS });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let racedSends = 0;
+  const send = async () => { racedSends += 1; await gate; return reply(200, 'ok'); };
+  const a = runX402Call({ db: d, agreed: terms, agent, header: raced.header, body: '{}', readFresh: fresh(), send, nowMs: NOW_MS });
+  const b = runX402Call({ db: d, agreed: terms, agent, header: raced.header, body: '{}', readFresh: fresh(), send, nowMs: NOW_MS });
+  await new Promise((r) => setTimeout(r, 20));
+  release();
+  assert.deepEqual([(await a).kind, (await b).kind].sort(), ['answered', 'in-flight']);
+  assert.equal(racedSends, 1);
 });

@@ -16,7 +16,7 @@ const STATUS: Record<CallOutcome['kind'], number> = {
   refused: 502,
   unknown: 504,
   'not-sent': 502,
-  'already-sent': 409,
+  'in-flight': 409,
   'terms-changed': 409,
   unavailable: 503,
   invalid: 400,

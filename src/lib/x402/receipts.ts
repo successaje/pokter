@@ -113,6 +113,16 @@ export function beginX402Call(
   return { begun: false, existing: readX402Call(db, write.nonce)! };
 }
 
+/**
+ * Take back a claim whose send never left Pokter, so the same authorization
+ * can be sent once more. Atomic: of two retries at once, one wins and the
+ * other sees the row already `sending`. Only from `not-sent`; nothing that
+ * may have reached the seller is ever resent.
+ */
+export function reclaimNotSent(db: DatabaseSync, nonce: string, at: string): boolean {
+  return Number(db.prepare("UPDATE x402_calls SET state = 'sending', error = NULL, updated_at = ? WHERE nonce = ? AND state = 'not-sent'").run(at, nonce.toLowerCase()).changes) === 1;
+}
+
 /** Record how a send ended. Only a call still `sending` changes: an outcome is written once. */
 export function finishX402Call(
   db: DatabaseSync,
