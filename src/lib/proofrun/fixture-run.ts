@@ -65,6 +65,14 @@ export interface ProofRunFixture {
    * the failures a buyer most needs the checker to catch.
    */
   manifestMatchesChain?: boolean | null;
+  /**
+   * What this fixture could not establish, carried into the receipt.
+   *
+   * The labelling has to survive the artifact leaving the repository. A
+   * fixture written over real chain state should say which half was
+   * real there, not only in the file it came from.
+   */
+  limitations?: readonly string[];
 }
 
 /**
@@ -141,5 +149,9 @@ export async function runFixture(
     provenance: 'fixture',
     spec,
     checkedAt: options.checkedAt,
+    limitations: [
+      'This run was made against a written-down position. No provider was contacted and nothing was read from a chain.',
+      ...(fixture.limitations ?? []),
+    ],
   });
 }
