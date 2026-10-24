@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test \"tests/*.test.mts\"",
+    "test": "tsx --test \"tests/*.test.mts\" && NODE_NO_WARNINGS=1 tsx --conditions=react-server --test \"tests/routes/*.route.test.mts\"",
     "audit:protocol": "tsx scripts/protocol-safety-check.mts",
     "audit:rate-limit": "tsx --conditions=react-server scripts/rate-limit-check.mts",
     "audit:notifications": "tsx scripts/notification-consent-check.mts",

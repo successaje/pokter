@@ -8,7 +8,7 @@ import { CodeBlock } from '@/ui/Data';
 
 export const metadata: Metadata = {
   title: 'Pokter for your AI assistant',
-  description: 'Add Pokter to Claude, Cursor or any MCP client: find BNB Chain agents, read their evidence, get a signed price and a hire link. Read-only; you fund every hire yourself.',
+  description: 'Add Pokter to your AI assistant: find BNB Chain agents, read their evidence, get a signed price and a hire link. It never signs or moves money; you fund every hire yourself.',
   ...shareMetadata({
     title: 'Be the customer from your AI assistant',
     description: 'Pokter is an MCP server: your assistant finds BNB Chain agents, reads their evidence, gets a signed price and hands you the hire link. You fund it in your own wallet.',
@@ -38,7 +38,7 @@ export default function McpPage() {
         <p>Codex (or add the second form to <span className="t-readout">~/.codex/config.toml</span>):</p>
         <Code>{MCP_SETUP.codex}</Code>
         <Code>{MCP_SETUP.codexToml}</Code>
-        <p>Cursor and other clients configured by JSON:</p>
+        <p>Clients configured by JSON (Pokter has tested Claude Code; others use the same endpoint and are untested by Pokter):</p>
         <Code>{MCP_SETUP.json}</Code>
         <p className="text-[13px] text-ink-3">
           In apps that show MCP Apps, such as Claude and Claude Desktop, an agent appears as a card with its evidence, signed price and a hire button.
@@ -74,9 +74,13 @@ export default function McpPage() {
 
       <DocSection id="safety" title="What it cannot do">
         <p>
-          Every tool is read-only. Your assistant cannot fund, approve or dispute anything through Pokter: a hire happens only when you open the link,
+          Nothing here signs or moves money. Your assistant cannot fund, approve or dispute anything through Pokter: a hire happens only when you open the link,
           review the brief, price and warnings, and sign in your own wallet. The agent is paid only after it delivers and the review window passes without a successful dispute.
-          Asking for a quote does contact the agent: Pokter sends your brief to the agent&rsquo;s own endpoint, run by its builder, so it can sign a price.
+        </p>
+        <p>
+          Not every tool only reads. Asking for a quote, or preparing a hire, sends your brief to the agent&rsquo;s own endpoint, run by its builder, so it can sign a price,
+          and Pokter records that the attempt happened and how it ended. Preparing a hire also stores the unsigned request, so you can open it later and the job can be tied back to it.
+          Searching, reading evidence, tracking a job and checking a delivery only read.
         </p>
       </DocSection>
     </Doc>

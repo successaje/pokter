@@ -14,6 +14,8 @@ import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME, networkOf } from '@/lib/m
 import { formatQuoted } from '@/lib/network/tokens';
 import { agentIdentityKey } from '@/lib/agents/distinct';
 import { escrowChainForHire } from '@/lib/network/escrow';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { unusableQuoteReason } from '@/lib/hire/compare-quotes';
 import { answerMcp, type McpResource, type McpTool } from '@/lib/mcp/server';
 import { discover } from '@/features/discover/search';
 import { parseDiscoverParams } from '@/features/discover/params';
@@ -220,7 +222,24 @@ function tools(request: Request): McpTool[] {
         const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string; currency?: string } }; quote_expires_at?: string }; verifiedSigner?: string; termsBound?: boolean };
         const priceRaw = quoted.receipt?.response?.terms?.price;
         // The raw receipt is wei and a token address; say it in words too, so an assistant does not convert it.
-        const terms = priceRaw && /^\d+$/.test(priceRaw) ? { ...termsOf(priceRaw, quoted.receipt?.response?.terms?.currency, quoted.receipt?.quote_expires_at), signedByAgentWallet: Boolean(quoted.verifiedSigner), boundToThisBrief: Boolean(quoted.termsBound) } : null;
+        /*
+         * Whether the hire page would accept this price: the same check it
+         * runs (currency an enabled escrow settles, signature bound to that
+         * escrow, not expired). A signed price that cannot be funded is said
+         * as such, in a field, not only in prose.
+         */
+        const receipt = quoted.receipt as { chain_id?: unknown; verifying_contract?: unknown; quote_expires_at?: unknown } | undefined;
+        const whyNot = priceRaw
+          ? unusableQuoteReason(
+              {
+                currency: quoted.receipt?.response?.terms?.currency ?? '',
+                expiresAt: typeof receipt?.quote_expires_at === 'number' ? new Date(receipt.quote_expires_at * 1000).toISOString() : null,
+                domain: typeof receipt?.chain_id === 'number' && typeof receipt?.verifying_contract === 'string' ? { chainId: receipt.chain_id, verifyingContract: receipt.verifying_contract } : null,
+              },
+              (id) => correctedErc8183Addresses(id).commerce,
+            )
+          : null;
+        const terms = priceRaw && /^\d+$/.test(priceRaw) ? { ...termsOf(priceRaw, quoted.receipt?.response?.terms?.currency, quoted.receipt?.quote_expires_at), signedByAgentWallet: Boolean(quoted.verifiedSigner), boundToThisBrief: Boolean(quoted.termsBound), canBeFunded: whyNot === null, ...(whyNot ? { whyItCannotBeFunded: whyNot } : {}) } : null;
         const record = await detail(c, t);
         const card = record
           ? buildAgentCard(record, { origin, brief: args.task, quote: quoted.receipt?.response?.terms?.price && quoted.verifiedSigner ? { priceRaw: quoted.receipt.response.terms.price, currency: quoted.receipt?.response?.terms?.currency ?? null, signer: quoted.verifiedSigner, termsBound: Boolean(quoted.termsBound) } : null })
@@ -242,6 +261,13 @@ function tools(request: Request): McpTool[] {
         const url = new URL(`/hire/${c}/${t}`, origin);
         if (typeof args.task === 'string' && args.task.trim()) url.searchParams.set('task', args.task.trim().slice(0, 2000));
         const record = await detail(c, t);
+        /* A link to an agent nobody can read is not a hire link: say so rather than hand one over. */
+        if (!record) {
+          return {
+            data: { error: `Pokter could not read agent ${c}/${t} from the registry just now, or it does not exist, so no link was made. Check the id with get_agent, or try again shortly.` },
+            isError: true,
+          };
+        }
         return {
           data: {
             ...(record ? { card: buildAgentCard(record, { origin, brief: typeof args.task === 'string' && args.task.trim() ? args.task.trim() : null }) } : {}),
@@ -399,7 +425,14 @@ function tools(request: Request): McpTool[] {
 export async function POST(request: Request): Promise<Response> {
   // Per client, like the public API: each call may search the catalogue or reach an agent.
   const limited = apiRateLimit(request, 'mcp', 60);
-  if (limited) return limited;
+  if (limited) {
+    /* A JSON-RPC client reads errors from the envelope, so the limit is said there too. */
+    const retryAfterSeconds = Number(limited.headers.get('retry-after')) || 60;
+    return NextResponse.json(
+      { jsonrpc: '2.0', id: null, error: { code: -32000, message: `Rate limit exceeded. Try again in ${retryAfterSeconds} seconds.`, data: { retryAfterSeconds } } },
+      { status: 429, headers: { ...CORS, 'retry-after': String(retryAfterSeconds) } },
+    );
+  }
   const body = await request.json().catch(() => undefined);
   if (body === undefined) {
     return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: the body is not JSON.' } }, { status: 400, headers: CORS });

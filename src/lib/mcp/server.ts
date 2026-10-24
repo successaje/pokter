@@ -1,17 +1,23 @@
 /**
- * Pokter as an MCP server: a read-only doorway for AI assistants.
+ * Pokter as an MCP server: a doorway for AI assistants that never signs or moves money.
  *
  * BNB's Set and Earn asks people to learn what makes an agent worth hiring
  * by becoming its customer. Many of them work through an assistant, which
  * speaks MCP. This lets the assistant search agents, read the evidence, ask
  * an agent for a signed price and hand its user a hire link, while Pokter
- * never moves money: every tool is a read, and a hire is always finished by
- * the person in their own wallet.
+ * never signs or moves money: a hire is always finished by the person in
+ * their own wallet.
+ *
+ * Not every tool is a pure read, and the tools say which. `get_quote` and
+ * `prepare_hire` send the brief to the agent's own endpoint and record the
+ * attempt (builders see why hires fail); `prepare_hire` also stores the
+ * unsigned request so the owner can find it and the job can be tied back to
+ * it. Everything else only reads.
  *
  * Streamable HTTP, stateless: each POST is answered with JSON. Revisions
  * that open with `initialize` get it (no session is needed afterwards), and
- * the stateless revision works without it. No tool reads or writes anything
- * the public API does not.
+ * the stateless revision works without it. The tools go through the same
+ * public routes the site uses, under their rate limits.
  */
 
 export const SERVER_INFO = { name: 'pokter', title: 'Pokter: BNB Chain agent marketplace', version: '1.0.0' } as const;
@@ -22,7 +28,7 @@ export const INSTRUCTIONS =
   'Use it when the user wants to find, vet, price or hire an AI agent on BNB Chain, or is building one to be hired. ' +
   'Use search_agents to find agents for a task, get_agent for one agent’s evidence and anything blocking a hire, get_quote to ask an agent for a free signed price for a brief (this sends the brief to the agent’s own endpoint), and hire_link to give the user a link where they review and fund the hire in their own wallet. ' +
   'To carry a hire through: prepare_brief compiles the request into what the agent’s skill accepts, prepare_hire writes the whole hire down UNSIGNED for the user to approve and fund in their own wallet, job_status tracks it, and check_delivery reads what was delivered and checks it where Pokter can. ' +
-  'Nothing here moves money: no tool can pay, approve, escrow or release anything, and the payment step is always the user in their own wallet. Never say a hire has been made until the user has funded it.';
+  'Nothing here signs or moves money: no tool can pay, approve, escrow or release anything, and the payment step is always the user in their own wallet. get_quote and prepare_hire do contact the agent and Pokter records the attempt, and prepare_hire stores the unsigned request; say so if the user asks what was shared. Never say a hire has been made until the user has funded it.';
 
 export interface McpTool {
   name: string;
@@ -133,7 +139,7 @@ async function handle(
           description: tool.description,
           inputSchema: tool.inputSchema,
           // A quote is asked of the agent afresh each call, so it is not idempotent.
-          annotations: { title: tool.title, ...ANNOTATIONS, ...(tool.name === 'get_quote' ? { idempotentHint: false } : {}), ...(tool.annotations ?? {}) },
+          annotations: { title: tool.title, ...ANNOTATIONS, ...(tool.name === 'get_quote' ? { readOnlyHint: false, idempotentHint: false } : {}), ...(tool.annotations ?? {}) },
           // MCP Apps: hosts that render views show this one with the result; others ignore it.
           ...(tool.ui ? { _meta: { ui: { resourceUri: tool.ui } } } : {}),
         })),

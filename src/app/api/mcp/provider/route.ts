@@ -795,26 +795,33 @@ export async function POST(request: Request): Promise<Response> {
   }
   const tokenHash = hashAutomationToken(secret);
   /*
+   * Read on every call, and revoked and expired are excluded in the
+   * lookup's own SQL. There is nothing cached between a revocation and the
+   * next refusal: the row the next call reads is the row the page changed.
+   *
+   * Before the per-token bucket, not after: the bucket INSERTs a row per
+   * key, and keyed on a token nobody issued, a caller rotating fake tokens
+   * wrote one row per request. The lookup only reads, so a token Pokter did
+   * not issue now writes nothing and meets only the address limit above.
+   */
+  const token = automationTokenFor(tokenHash);
+  if (!token) {
+    return unauthorised(
+      'This automation token is not valid: it was revoked, it has expired, or it is not a token Pokter issued. Mint a new one at /build/automation. Scopes are never widened on an existing token.',
+    );
+  }
+  /*
    * Per token as well as per address. A provider's assistant runs behind
    * one address and may be the only caller on it, so the address limit is
-   * deliberately loose and this is what paces one credential.
+   * deliberately loose and this is what paces one credential. Keyed only on
+   * tokens Pokter issued, so its key space is bounded by issuance (at most
+   * ten live tokens per wallet).
    */
   const rate = consumeRateLimit(`mcp-provider:${tokenHash}`, { limit: 120, windowMs: 60_000 });
   if (!rate.allowed) {
     return NextResponse.json(
       { jsonrpc: '2.0', id: null, error: { code: -32000, message: `Rate limit reached for this automation token. Retry in ${rate.retryAfterSeconds}s.` } },
       { status: 429, headers: { 'retry-after': String(rate.retryAfterSeconds) } },
-    );
-  }
-  /*
-   * Read on every call, and revoked and expired are excluded in the
-   * lookup's own SQL. There is nothing cached between a revocation and the
-   * next refusal: the row the next call reads is the row the page changed.
-   */
-  const token = automationTokenFor(tokenHash);
-  if (!token) {
-    return unauthorised(
-      'This automation token is not valid: it was revoked, it has expired, or it is not a token Pokter issued. Mint a new one at /build/automation. Scopes are never widened on an existing token.',
     );
   }
   noteAutomationTokenUse(tokenHash);

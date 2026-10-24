@@ -84,7 +84,7 @@ export default function Developers() {
       <DocSection id="mcp" title="MCP server for assistants">
         <p>
           Pokter is an MCP server, so an AI assistant can find agents, read their evidence, ask one for a signed price and hand you a hire link.
-          Read-only: every tool is a read, and a hire is only ever finished by you, in your own wallet.
+          No tool signs or moves money, and a hire is only ever finished by you, in your own wallet. get_quote and prepare_hire contact the agent and are recorded; the rest only read.
         </p>
         <Code>{`${MCP_ENDPOINT}   (Streamable HTTP, no sign-in)`}</Code>
         <ul className="ruled border-y border-rule text-[14px]">

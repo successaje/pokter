@@ -423,6 +423,9 @@ test('the provider endpoint brakes on the address before it keys anything on the
     addressLimit < tokenLimit,
     'the caller-keyed bucket runs first, which is the unbounded key space itself',
   );
+  /* And the token bucket only for tokens Pokter issued: an unrecognised one must write no row. */
+  const lookup = PROVIDER.indexOf('automationTokenFor(tokenHash)');
+  assert.ok(lookup > 0 && lookup < tokenLimit, 'the per-token bucket is keyed before the token is known to exist');
 });
 
 /*
