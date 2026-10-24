@@ -37,6 +37,20 @@ export interface ProofRunInput {
   provenance: VerificationResult['provenance'];
   spec?: AcceptanceSpec;
   checkedAt?: string;
+  /**
+   * What this particular run could not establish, beyond the standing
+   * limits the checker and the artifact already carry.
+   *
+   * Added because the labelling has to travel *in the receipt*. A
+   * fixture built over real chain state — real block, real hash, real
+   * figures, written report — is a shape neither scenario kind covers,
+   * and once the artifact leaves this repository `provenance: 'fixture'`
+   * is the only thing distinguishing it. That is enough to stop it being
+   * counted as customer work and not enough to say which half was
+   * synthetic. A reader holding the file should not have to find the
+   * fixture it came from to learn that.
+   */
+  limitations?: readonly string[];
 }
 
 export interface ProofRun {
@@ -98,7 +112,9 @@ export function proofRun(input: ProofRunInput): ProofRun {
     state,
     checkedAt,
     evidence: input.verification.evidence,
-    limitations: input.verification.limitations,
+    /* The run's own first, then the checker's: a reader meets what is
+       particular to this receipt before the standing caveats. */
+    limitations: [...(input.limitations ?? []), ...input.verification.limitations],
   });
 
   return {
@@ -110,7 +126,7 @@ export function proofRun(input: ProofRunInput): ProofRun {
       headline: headlineFor(checks),
       checks,
       evidence: input.verification.evidence,
-      limitations: input.verification.limitations,
+      limitations: [...(input.limitations ?? []), ...input.verification.limitations],
       specHash: spec.specHash,
       replayRef: input.job ? replayRef(input.job) : undefined,
       provenance: input.provenance,

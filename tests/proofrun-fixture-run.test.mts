@@ -301,3 +301,31 @@ test('a run with no job carries null on both the result and the artifact', async
   assert.equal(run.sealed.artifact.job, null);
   assert.equal(run.result.replayRef, undefined, 'a run with no job offered a replay link');
 });
+
+/*
+ * The labelling has to travel in the receipt, not only in the fixture
+ * file it came from.
+ *
+ * Once an artifact leaves this repository, `provenance: 'fixture'` is
+ * the only thing distinguishing it — enough to stop it being counted as
+ * customer work, and not enough to say which half was synthetic. A
+ * fixture written over real chain state should say so where a reader
+ * holding the file will see it.
+ */
+test('a fixture receipt says in itself that nothing was contacted', async () => {
+  const run = await runFixture({
+    ...correct,
+    limitations: ['The figures are real Venus state at block 129170001; the report is written.'],
+  });
+  const text = run.sealed.artifact.limitations.join(' ');
+  assert.match(text, /No provider was contacted and nothing was read from a chain/i);
+  assert.match(text, /real Venus state at block 129170001; the report is written/);
+  /* And the standing limitations still travel with it. */
+  assert.match(text, /says nothing about whether the figures are correct/i);
+});
+
+test('a run without its own limitations still carries the standing ones', async () => {
+  const run = await runFixture(correct);
+  assert.ok(run.sealed.artifact.limitations.length > 0);
+  assert.match(run.sealed.artifact.limitations.join(' '), /unresolved rather than as a pass/i);
+});
