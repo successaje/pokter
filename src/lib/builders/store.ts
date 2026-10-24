@@ -71,6 +71,11 @@ function hash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/** Each wallet that has signed in to Building, and when it first did. For the operator's counts only. */
+export function builderFirstSessions(): Array<{ wallet: string; firstAt: string }> {
+  return db().prepare('SELECT owner_address AS wallet, MIN(created_at) AS firstAt FROM builder_sessions GROUP BY owner_address').all() as Array<{ wallet: string; firstAt: string }>;
+}
+
 export function createBuilderChallenge(input: { chainId: number; tokenId: string; owner: Address }) {
   const id = randomUUID();
   const nonce = randomBytes(24).toString('base64url');

@@ -195,6 +195,16 @@ class BriefStore {
     return this.db.prepare("UPDATE briefs SET state = 'cancelled' WHERE id = ? AND state = 'open'").run(briefId).changes > 0;
   }
 
+  /** Each wallet that posted a request, and when it first did. For the operator's counts only. */
+  posters(): Array<{ wallet: string; firstAt: string }> {
+    return this.db.prepare('SELECT poster AS wallet, MIN(posted_at) AS firstAt FROM briefs GROUP BY poster').all() as Array<{ wallet: string; firstAt: string }>;
+  }
+
+  /** Each wallet that bid on a request, and when it first did. */
+  bidders(): Array<{ wallet: string; firstAt: string }> {
+    return this.db.prepare('SELECT bidder AS wallet, MIN(placed_at) AS firstAt FROM bids GROUP BY bidder').all() as Array<{ wallet: string; firstAt: string }>;
+  }
+
   countOpen(): number {
     const row = this.db.prepare("SELECT COUNT(*) AS n FROM briefs WHERE state = 'open'").get() as { n: number };
     return row.n;

@@ -1522,3 +1522,42 @@ export function removeIdentity(wallet: string, chainId: number): { stoppedJobs: 
     .run(now, wallet.toLowerCase(), chainId);
   return { stoppedJobs: Number(stopped) };
 }
+
+/**
+ * Email sign-ups by kind, as counts only: for the operator, never shown
+ * publicly. An address counts once it is verified and until it
+ * unsubscribes; `new` is by when the row was created, verified or not.
+ * Emails cannot be told apart as team or outside, so none are excluded.
+ */
+export const EMAIL_SIGNUP_KINDS = {
+  job_updates: 'notification_subscriptions',
+  builder_emails: 'builder_notification_subscriptions',
+  agent_follows: 'agent_follows',
+  set_and_earn_reminders: 'campaign_reminders',
+  loan_watch: 'loan_watches',
+  trading_alerts: 'trading_alerts',
+} as const;
+
+export type EmailSignupCounts = { active: number; verifiedEmails: number; requested7d: number; requested30d: number };
+
+export function emailSignupCounts(now = Date.now()): { byKind: Record<keyof typeof EMAIL_SIGNUP_KINDS, EmailSignupCounts>; distinctVerifiedEmails: number } {
+  const d7 = new Date(now - 7 * 86_400_000).toISOString();
+  const d30 = new Date(now - 30 * 86_400_000).toISOString();
+  const byKind = {} as Record<keyof typeof EMAIL_SIGNUP_KINDS, EmailSignupCounts>;
+  for (const [kind, table] of Object.entries(EMAIL_SIGNUP_KINDS) as Array<[keyof typeof EMAIL_SIGNUP_KINDS, string]>) {
+    const row = db()
+      .prepare(
+        `SELECT COALESCE(SUM(verified_at IS NOT NULL AND unsubscribed_at IS NULL), 0) AS active,
+                COUNT(DISTINCT CASE WHEN verified_at IS NOT NULL THEN email END) AS verifiedEmails,
+                COALESCE(SUM(created_at >= ?), 0) AS requested7d,
+                COALESCE(SUM(created_at >= ?), 0) AS requested30d
+         FROM ${table}`,
+      )
+      .get(d7, d30) as EmailSignupCounts;
+    byKind[kind] = { active: Number(row.active), verifiedEmails: Number(row.verifiedEmails), requested7d: Number(row.requested7d), requested30d: Number(row.requested30d) };
+  }
+  const union = Object.values(EMAIL_SIGNUP_KINDS).map((table) => `SELECT email FROM ${table} WHERE verified_at IS NOT NULL`).join(' UNION ');
+  const distinct = db().prepare(`SELECT COUNT(*) AS n FROM (${union})`).get() as { n: number };
+  return { byKind, distinctVerifiedEmails: Number(distinct.n) };
+}
+
