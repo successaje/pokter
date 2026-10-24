@@ -30,3 +30,12 @@ test('the hire page says how long the money can be locked', () => {
 test('an unreadable window is refused rather than guessed', () => {
   assert.throws(() => jobLifetimeSeconds(Number.NaN), /INVALID_DISPUTE_WINDOW/);
 });
+
+test('a chosen proposal’s delivery time is the job’s, plus the review window', async () => {
+  const { deliverySecondsFor, deadlineTerms, jobLifetimeSeconds, DELIVERY_WINDOW_SECONDS } = await import('../src/lib/erc8183/deadline');
+  assert.equal(deliverySecondsFor(7), 7 * 86_400);
+  assert.equal(jobLifetimeSeconds(7 * 86_400, deliverySecondsFor(7)), 14 * 86_400, 'mainnet: 7 days to deliver, then 7 days of review');
+  for (const bad of [null, undefined, 0, 31, 1.5, Number.NaN]) assert.equal(deliverySecondsFor(bad as number), DELIVERY_WINDOW_SECONDS, String(bad));
+  assert.match(deadlineTerms(900, deliverySecondsFor(3)).deadline, /^3 days from funding: 3 days for the agent to deliver/);
+  assert.match(deadlineTerms(900).deadline, /24 hours for the agent to deliver/, 'unchanged without a proposal');
+});

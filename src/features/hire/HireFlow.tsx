@@ -11,7 +11,7 @@ import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget } from '@/lib/erc8183/pricing';
-import { deadlineTerms } from '@/lib/erc8183/deadline';
+import { deadlineTerms, deliverySecondsFor } from '@/lib/erc8183/deadline';
 import { readDisputeWindow } from '@/lib/wallet/external';
 import { useQuery } from '@tanstack/react-query';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
@@ -157,7 +157,9 @@ export function HireFlow(props: HireFlowProps) {
   const actionRow = props.embedded ? 'sticky -bottom-5 z-10 -mx-5 -mb-5 border-t border-rule bg-raised px-5 py-3' : '';
   /* A chosen proposal applies on the network its request named, and nowhere else. */
   const proposalHere = Boolean(props.proposal && props.proposal.chainId === props.escrow.chainId);
-  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, proposalU: proposalHere ? props.proposal!.priceU : null });
+  /* The chosen proposal's own delivery time reaches the job's deadline, not just the notice above it. */
+  const deliverySeconds = deliverySecondsFor(proposalHere ? props.proposal!.deliverDays : null);
+  const hire = useHire({ agent: props.agent, providers: props.providers, signedQuoteU: props.signedQuoteU, suggestedU: props.suggestedU, lastSignedU: props.lastSignedU ?? null, riskWarnings: props.warnings, declaredSkills: props.declaredSkills, escrowChainId: props.escrow.chainId, initialTask: props.initialTask ?? null, proposalU: proposalHere ? props.proposal!.priceU : null, deliverySeconds });
   // A task declared as JSON must have its required inputs before it can be funded.
   // Read against the layout of the template the buyer started from, so a
   // value of the wrong type is not re-read as a different kind of field.
@@ -179,7 +181,7 @@ export function HireFlow(props: HireFlowProps) {
     queryFn: () => readDisputeWindow(escrowChainId),
     staleTime: 60 * 60_000,
   });
-  const deadline = disputeWindow.data !== undefined ? deadlineTerms(disputeWindow.data) : null;
+  const deadline = disputeWindow.data !== undefined ? deadlineTerms(disputeWindow.data, deliverySeconds) : null;
   const faucets = testnet ? FAUCETS : null;
   const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
