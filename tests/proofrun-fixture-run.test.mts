@@ -214,3 +214,74 @@ test('a report that states every checked field reaches verified', async () => {
   assert.equal(run.result.state, 'verified');
   assert.match(run.result.headline, /All 7 checks matched/);
 });
+
+/*
+ * Zero debt is a real position, and its figures still have to agree.
+ *
+ * `verifyVenusReport` returned from its no-debt branch before the dollar
+ * rows were built, so a report correctly stating an account had borrowed
+ * nothing had its collateral recorded and never checked. Two criteria a
+ * buyer had been shown could not be settled on any zero-debt position,
+ * and a run that cannot settle them can never reach verified however
+ * right the report is. Nothing unchecked was passed — the gap was that
+ * nothing could be checked.
+ *
+ * Found by the independent fixtures work, against the core it does not
+ * own, which is the point of having one.
+ */
+function zeroDebtReport(overrides: Record<string, unknown> = {}): string {
+  const manifest = JSON.parse(REAL_REPORT) as { response: { content: string } };
+  const body = JSON.parse(manifest.response.content) as Record<string, unknown>;
+  manifest.response.content = JSON.stringify({
+    ...body,
+    health_factor: null,
+    debt_usd: 0,
+    collateral_usd: 376368.41,
+    chain_id: 56,
+    liquidatable: false,
+    ...overrides,
+  });
+  return JSON.stringify(manifest);
+}
+
+const ZERO_DEBT_FACTS = fixtureFacts({
+  account: ACCOUNT,
+  block: BLOCK,
+  blockTime: '2026-10-15T11:59:31.000Z',
+  healthFactor: null,
+  borrowLimitRatio: null,
+  liquidatable: false,
+  debtUsd: 0,
+  collateralUsd: 376368.41,
+});
+
+test('a correct zero-debt report settles every criterion', async () => {
+  const run = await runFixture({
+    id: 'zero-debt',
+    why: 'no borrow, so no health factor',
+    report: zeroDebtReport(),
+    account: ACCOUNT,
+    evidence: { available: true, facts: ZERO_DEBT_FACTS },
+  });
+  const unsettled = run.result.checks.filter((c) => c.outcome !== 'passed');
+  assert.deepEqual(
+    unsettled.map((c) => `${c.id}:${c.outcome}`),
+    [],
+    'a correct zero-debt report left criteria unsettled, so it could never be verified',
+  );
+  assert.equal(run.result.state, 'verified');
+});
+
+/* And the dollars are still judged on a zero-debt position, so a wrong
+   collateral figure is caught rather than excused by the absent ratio. */
+test('a zero-debt report with the wrong collateral still fails', async () => {
+  const run = await runFixture({
+    id: 'zero-debt-wrong-collateral',
+    why: 'no borrow, wrong collateral',
+    report: zeroDebtReport({ collateral_usd: 1_000_000 }),
+    account: ACCOUNT,
+    evidence: { available: true, facts: ZERO_DEBT_FACTS },
+  });
+  assert.equal(run.result.checks.find((c) => c.id === 'position.collateral_usd')?.outcome, 'failed');
+  assert.equal(run.result.state, 'mismatch');
+});
