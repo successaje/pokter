@@ -1,5 +1,5 @@
 import type { AcceptanceSpec, CheckResult, Criterion, VerificationState } from '@/lib/shared/contracts';
-import type { CheckedValue, VenusReportVerification } from '@/lib/delivery/venus-report-check';
+import type { ChainClaim, CheckedValue, VenusReportVerification } from '@/lib/delivery/venus-report-check';
 import { venusHealthCriteria } from './acceptance';
 
 /**
@@ -86,6 +86,15 @@ export function checksFromVerification(input: {
   blockHash?: string | null;
   /** How the criteria were bound, so a row cannot claim agreement the spec denies. */
   binding?: AcceptanceSpec['binding'];
+  /**
+   * What the report said about its chain.
+   *
+   * Needed because the checker, like the account check, only emits a row
+   * when the claim is wrong. Without this, a report that correctly named
+   * its chain is indistinguishable from one that never named a chain at
+   * all, and both would read as not verified — understating the first.
+   */
+  chainClaim?: ChainClaim;
 }): CheckResult[] {
   const criteria = input.criteria ?? venusHealthCriteria();
   const source = { block: input.verification.block, hash: input.blockHash ?? null };
@@ -134,6 +143,59 @@ export function checksFromVerification(input: {
       ...(input.verification.block ? {} : { limitation: 'Without a named block there is nothing to check the figures against.' }),
     });
     placed.add('binding.block');
+  }
+
+  /*
+   * The account check the checker only reports when it fails.
+   *
+   * `preEvidenceVerdict` refuses outright when the report is about
+   * another wallet, emitting an `Account` row and going no further. So a
+   * verdict that reached a real comparison is proof the account matched
+   * — the checker could not have got there otherwise — but no row says
+   * so, and leaving it not-verified understates a check that genuinely
+   * ran. That is the opposite of this module's usual error and still a
+   * misreport.
+   *
+   * Inferred only from `verdict`, never from the absence of a row: an
+   * `unverified` verdict may have stopped before the account was
+   * examined at all, and that case stays not-verified.
+   */
+  if (!placed.has('binding.account') && input.verification.verdict !== 'unverified') {
+    const criterion = criteria.find((c) => c.id === 'binding.account');
+    results.push({
+      id: 'binding.account',
+      label: criterion?.label ?? 'The report is about the account the brief named',
+      outcome: 'passed',
+      expected: 'the account the brief named',
+      observed: 'the same account',
+      source,
+      tolerance: null,
+      limitation: 'The checker refuses a report about another account before reading the chain, so reaching a comparison establishes this.',
+    });
+    placed.add('binding.account');
+  }
+
+  /*
+   * The chain check, which is also only reported when it fails.
+   *
+   * A pass is inferred only when the report actually named a chain by
+   * id: `kind: 'none'` is a report that said nothing, and that stays not
+   * verified however far the check got, because the criterion is that
+   * the report names its chain and this one did not.
+   */
+  if (!placed.has('binding.chain') && input.verification.verdict !== 'unverified' && input.chainClaim?.kind === 'id') {
+    const criterion = criteria.find((c) => c.id === 'binding.chain');
+    results.push({
+      id: 'binding.chain',
+      label: criterion?.label ?? 'The report names the chain its figures were read on',
+      outcome: 'passed',
+      expected: String(input.chainClaim.chainId),
+      observed: String(input.chainClaim.chainId),
+      source,
+      tolerance: null,
+      limitation: 'The checker refuses a report naming another chain, so reaching a comparison establishes this.',
+    });
+    placed.add('binding.chain');
   }
 
   /*
