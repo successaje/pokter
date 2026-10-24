@@ -928,6 +928,17 @@ export function verifyVenusReport(input: PreEvidenceInput & { evidence: VenusEvi
       return differs(`The report says the position can be liquidated. With no debt at block ${claim.block} there is nothing to liquidate.`);
     }
     values.push({ label: 'Liquidatable', reported: claim.liquidatable === null ? 'not stated' : 'no', checked: 'no', agrees: claim.liquidatable === null ? null : true });
+    /*
+     * The dollars still have to agree. No debt settles the ratio and
+     * says nothing about the collateral, and a report that puts the
+     * wrong value on a position is wrong whether or not it borrowed.
+     */
+    const noDebtUsd = usdComparisons(claim, facts);
+    values.push(...noDebtUsd);
+    const wrongUsd = noDebtUsd.find((row) => row.agrees === false);
+    if (wrongUsd) {
+      return differs(`Venus shows no borrow for this account at block ${claim.block}, which the report gets right, but its ${wrongUsd.label.toLowerCase()} figure does not match: it gives ${wrongUsd.reported} where Venus shows ${wrongUsd.checked}.`);
+    }
     return {
       ...built,
       evidence,
@@ -1023,25 +1034,7 @@ export function verifyVenusReport(input: PreEvidenceInput & { evidence: VenusEvi
    * about the same block — but they are listed after the ratio because the
    * ratio is what the buyer acts on.
    */
-  const usdRows: CheckedValue[] = [];
-  for (const [label, reported, checked] of [
-    ['Debt', claim.debtUsd, facts.debtUsd],
-    ['Collateral', claim.collateralUsd, facts.collateralUsd],
-  ] as const) {
-    if (reported === null) {
-      usdRows.push({ label: `${label} (USD)`, reported: 'not stated', checked: usd(checked), agrees: null, note: 'The report does not give this, so it was not compared.' });
-      continue;
-    }
-    const room = usdTolerance(checked);
-    const off = Math.abs(reported - checked);
-    usdRows.push({
-      label: `${label} (USD)`,
-      reported: usd(reported),
-      checked: usd(checked),
-      agrees: off <= room,
-      note: off <= room ? undefined : `Out by ${usd(off)}, where ±${usd(room)} is allowed.`,
-    });
-  }
+  const usdRows = usdComparisons(claim, facts);
   values.push(...usdRows);
   // Only the dollar rows are consulted here: the ratio and the flag have
   // already been judged, and sweeping every row would re-report them.
@@ -1059,6 +1052,43 @@ export function verifyVenusReport(input: PreEvidenceInput & { evidence: VenusEvi
     detail: `Recomputed from Venus’s own contracts at block ${claim.block}, this account’s health factor is ${num(facts.healthFactor)}; the report gives ${num(claim.healthFactor)}, inside the ±${num(allowance)} allowed for rounding.`,
     values,
   };
+}
+
+/**
+ * The dollar totals, compared when stated.
+ *
+ * Extracted because the no-debt branch returned before ever reaching
+ * them. A report correctly saying an account has borrowed nothing had
+ * its collateral figure recorded and never checked, so two criteria a
+ * buyer was shown could not be settled on any zero-debt position — and
+ * a run that cannot settle them can never reach "verified", however
+ * right the report is. Nothing unchecked was being passed; the gap was
+ * that nothing could be checked.
+ *
+ * One copy, called from both paths, so the two cannot drift into
+ * judging the same figures differently.
+ */
+function usdComparisons(claim: VenusReportClaim, facts: VenusHealthFacts): CheckedValue[] {
+  const rows: CheckedValue[] = [];
+  for (const [label, reported, checked] of [
+    ['Debt', claim.debtUsd, facts.debtUsd],
+    ['Collateral', claim.collateralUsd, facts.collateralUsd],
+  ] as const) {
+    if (reported === null) {
+      rows.push({ label: `${label} (USD)`, reported: 'not stated', checked: usd(checked), agrees: null, note: 'The report does not give this, so it was not compared.' });
+      continue;
+    }
+    const room = usdTolerance(checked);
+    const off = Math.abs(reported - checked);
+    rows.push({
+      label: `${label} (USD)`,
+      reported: usd(reported),
+      checked: usd(checked),
+      agrees: off <= room,
+      note: off <= room ? undefined : `Out by ${usd(off)}, where ±${usd(room)} is allowed.`,
+    });
+  }
+  return rows;
 }
 
 /**
