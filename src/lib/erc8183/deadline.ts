@@ -22,6 +22,21 @@ export function jobLifetimeSeconds(disputeWindowSeconds: number | bigint, delive
   return window + deliverySeconds;
 }
 
+/**
+ * The seller's delivery time for one hire.
+ *
+ * A proposal chosen on a request promises "delivered within N days", and
+ * the job funded from it must allow that: hiring with the fixed 24 hours
+ * turned a 7-day proposal into a job that expired after one. Request bids
+ * are bounded to 1–30 days where they are made; anything else falls back
+ * to the standing window rather than to an unbounded deadline.
+ */
+export function deliverySecondsFor(deliverDays: number | null | undefined): number {
+  return typeof deliverDays === 'number' && Number.isInteger(deliverDays) && deliverDays >= 1 && deliverDays <= 30
+    ? deliverDays * 86_400
+    : DELIVERY_WINDOW_SECONDS;
+}
+
 /** "24 hours", "7 days", "8 days": the resolution a buyer reads a deadline at. */
 export function describeSeconds(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`;
@@ -36,10 +51,10 @@ export function describeSeconds(seconds: number): string {
 }
 
 /** The deadline row on the hire page, in the buyer's terms. */
-export function deadlineTerms(disputeWindowSeconds: number): { deadline: string; reclaim: string } {
-  const total = jobLifetimeSeconds(disputeWindowSeconds);
+export function deadlineTerms(disputeWindowSeconds: number, deliverySeconds: number = DELIVERY_WINDOW_SECONDS): { deadline: string; reclaim: string } {
+  const total = jobLifetimeSeconds(disputeWindowSeconds, deliverySeconds);
   return {
-    deadline: `${describeSeconds(total)} from funding: ${describeSeconds(DELIVERY_WINDOW_SECONDS)} for the agent to deliver, then the escrow’s review window of ${describeSeconds(disputeWindowSeconds)}`,
+    deadline: `${describeSeconds(total)} from funding: ${describeSeconds(deliverySeconds)} for the agent to deliver, then the escrow’s review window of ${describeSeconds(disputeWindowSeconds)}`,
     reclaim: `You reclaim the full amount after the deadline, ${describeSeconds(total)} from funding`,
   };
 }
