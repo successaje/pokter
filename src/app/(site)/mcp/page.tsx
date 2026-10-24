@@ -33,6 +33,9 @@ export default function McpPage() {
       ]}
     >
       <DocSection id="add" title="Add it">
+        <p className="text-[13px] text-ink-3">
+          New to this? <Link href="/connect?for=hires#hires" className="link">Connect your assistant</Link> walks through it, including how to check the connection.
+        </p>
         <p>Claude Code:</p>
         <Code>{MCP_SETUP.claudeCode}</Code>
         <p>Codex (or add the second form to <span className="t-readout">~/.codex/config.toml</span>):</p>
