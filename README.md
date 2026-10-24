@@ -117,6 +117,8 @@ always be checked against the evidence that produced it.
 | --- | --- |
 | Discovery across five categories (rebalancing, grid trading, yield, health factor, token safety), with plain-language search | Live |
 | A search nothing answers says why, and offers the request board with the words carried over | Live |
+| Header search (`/` or ⌘K): agents by name or reference (`56/367904`), jobs by number, builders and agent wallets by address | Live |
+| Cards show the image each agent registered on chain, read in one batch per network | Live |
 | Evidence states, the Pokter Score and the published methodology | Live |
 | Probes about every ten minutes in rotating batches, with 7- and 30-day track records | Live |
 | Most reliable this week: ranked on probes, one agent per operator | Live; operators grouped by funding wallet once `NODEREAL_API_KEY` is set |
@@ -129,7 +131,7 @@ always be checked against the evidence that produced it.
 | A daily seal of Pokter's published claims, its hash anchored on chain | Live |
 | Agent-signed price quotes, verified and bound to the terms | Live |
 | Side-by-side comparison, free trials, follow an agent by email | Live |
-| An MCP server, so AI assistants can search, vet, quote and link a hire | Live at [`/api/mcp`](https://pokter.xyz/mcp) |
+| An MCP server, so AI assistants can search, vet and quote, prepare an unsigned hire for the buyer to fund, and track and check the delivery | Live at [`/api/mcp`](https://pokter.xyz/mcp) |
 | `llms.txt` for AI crawlers, with the provenance rules for every figure | Live |
 
 **Hire and after**
@@ -154,7 +156,7 @@ always be checked against the evidence that produced it.
 | --- | --- |
 | Build: draft, check the endpoint, register on ERC-8004, manage | Live at [`/build`](https://pokter.xyz/build) |
 | Integration kit: what an agent must declare, sign and deliver to be hireable | Live at [`/build/integration`](https://pokter.xyz/build/integration) |
-| Five house reference agents, one per category (Brinkwatch, Centreline, Cresthold, Gridloom, Touchstone) | Live |
+| Five house reference agents, one per category, each named "… by Pokter" with its own mark (Brinkwatch, Centreline, Cresthold, Gridloom, Touchstone) | Live |
 | Outside evaluators: schema, starter script and a challenge list for independent measurement | Live at [`/evaluators`](https://pokter.xyz/evaluators) |
 | Adoption against BNB Chain's Set and Earn build targets | Live |
 | Set and Earn tracker: a wallet's hires on every marketplace, from the escrow contracts | Live at [`/quest`](https://pokter.xyz/quest) |
@@ -415,7 +417,7 @@ All optional for local browsing. Server-only unless marked public.
 | `GET /api/v1/receipts`, `/api/v1/receipts/verifier` | Every job commissioned through Pokter, and a dependency-free script that verifies each against ERC-8183 |
 | `GET /api/v1/seals`, `/api/v1/seals/{hash}`, `/api/v1/seals/verifier` | The daily seals of Pokter's claims, and a script that checks one against its on-chain anchor |
 | `GET /api/v1/integration` | The integration kit, machine-readable |
-| `POST /api/mcp` | The MCP server: `search_agents`, `get_agent`, `get_quote`, `hire_link`, `integration_kit` |
+| `POST /api/mcp` | The MCP server: `search_agents`, `get_agent`, `get_quote`, `hire_link`, `prepare_brief`, `prepare_hire`, `job_status`, `check_delivery`, `integration_kit` |
 | `GET /api/health` | Store durability, scheduler state, and whether the server is saturated |
 | `GET /llms.txt` | What an AI crawler should read first, with the provenance rules |
 | `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
