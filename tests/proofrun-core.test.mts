@@ -404,3 +404,61 @@ test('the checker still says what remediation matches on', () => {
   const fix = remediationForRun({ state: 'unverifiable', checks: [], headline: 'Could not verify', detail: live });
   assert.equal(fix?.owner, 'builder', 'the sentence production actually returns is not matched');
 });
+
+/* ---------- scenarios ---------- */
+
+import { KIND_DISCLOSURE, PROOFRUN_LIMITATIONS, SCENARIOS, scenarioById } from '../src/lib/proofrun/scenarios';
+
+/*
+ * The two claims this feature is most able to make by accident: that a
+ * written-down position existed on chain, and that running it contacted
+ * the agent. Both are prevented in the type rather than in a label
+ * somebody remembers to render — a fixture has no block to pin and
+ * cannot carry one.
+ */
+test('a fixture cannot carry on-chain evidence, and a replay must', () => {
+  for (const scenario of SCENARIOS) {
+    if (scenario.kind === 'fixture') {
+      assert.ok(!('blockNumber' in scenario), `${scenario.id} is synthetic but carries a block number`);
+      assert.ok(!('account' in scenario), `${scenario.id} is synthetic but names an on-chain account`);
+      assert.ok(['fixture', 'simulation'].includes(scenario.provenance), `${scenario.id} is synthetic but claims ${scenario.provenance} provenance`);
+    } else {
+      assert.match(scenario.blockNumber, /^\d+$/, `${scenario.id} is a replay without a block to re-read`);
+      assert.ok(['customer', 'sponsored'].includes(scenario.provenance));
+    }
+  }
+});
+
+test('the disclosure for a fixture denies both claims in words', () => {
+  assert.match(KIND_DISCLOSURE.fixture, /never existed on chain/i);
+  assert.match(KIND_DISCLOSURE.fixture, /contacts no provider/i);
+  assert.match(KIND_DISCLOSURE.replay, /existed on BNB Chain at the block named/i);
+});
+
+/* Every scenario says what passing it proves, so a green row cannot be
+   read as a broader endorsement than it is. */
+test('every scenario names the behaviour it exercises', () => {
+  assert.ok(SCENARIOS.length > 0);
+  for (const scenario of SCENARIOS) {
+    assert.ok(scenario.exercises.length > 30, `${scenario.id} does not say what it exercises`);
+    assert.ok(scenario.purpose.length > 30, `${scenario.id} does not say what it is for`);
+  }
+  assert.equal(scenarioById('zero-debt')?.kind, 'fixture');
+  assert.equal(scenarioById('nope'), null);
+});
+
+/*
+ * The positioning is "see where it fails", and the forbidden claims are
+ * the ones a verification feature drifts into: a guarantee, a first, or a
+ * verdict on advice. These assert the limitations carry the opposite.
+ */
+test('the limitations refuse the claims this feature could drift into', () => {
+  const all = PROOFRUN_LIMITATIONS.join(' ');
+  assert.match(all, /not a statement about the agent’s other answers/i);
+  assert.match(all, /Whether a position is wise.*outside what any of this can settle/is);
+  assert.match(all, /Only Venus Core Pool on BNB Smart Chain is supported/i);
+  assert.match(all, /not verified rather than re-read at the head/i);
+  for (const forbidden of [/world.s first/i, /guarantee/i, /safe to invest/i, /audited and approved/i, /certifi/i]) {
+    assert.doesNotMatch(all, forbidden, 'the limitations make a claim they exist to refuse');
+  }
+});
