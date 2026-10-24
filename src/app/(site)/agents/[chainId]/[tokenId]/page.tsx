@@ -26,6 +26,7 @@ import { LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
 import { Address, Details, Facts, Readout } from '@/ui/Data';
 import { CategoryCheck } from '@/features/agent/CategoryCheck';
+import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { EmptyState } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
@@ -655,6 +656,19 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               </div>
               <ClaimVsObserved p={p} />
               {p.categoryCheck && <CategoryCheck definition={p.categoryCheck.definition} run={p.categoryCheck.run} agentKey={`${p.chainId}:${p.tokenId}`} />}
+              {/*
+                ProofRun, on the agents it can actually check.
+                Offered only to `health-factor` agents: the scenarios are
+                Venus Core Pool positions, and on a grid-trading agent every
+                run would print "could not verify" — which a reader takes as
+                a failed check rather than as a check that does not apply.
+                The same reasoning is written into `venusHealthJob`.
+              */}
+              {p.category?.id === 'health-factor' && (
+                <div id="proofrun" className="scroll-mt-32 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
+                  <TestAgentPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} />
+                </div>
+              )}
               <div className="flex flex-col gap-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="t-label">Daily answer rate, last 30 days</span>
