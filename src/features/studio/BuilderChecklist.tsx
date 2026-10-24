@@ -28,6 +28,7 @@ export function BuilderChecklist({ d, title = 'Before you publish' }: { d: Agent
       ok: d.endpointChecked,
       detail: d.preflight?.detail ?? null,
       status: d.preflight?.status ?? null,
+      error: d.preflightError,
     },
     capabilities: d.preflight?.capabilities ?? [],
     quoteCapability: Boolean(d.preflight?.quoteCapability),

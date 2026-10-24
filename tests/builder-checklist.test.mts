@@ -43,3 +43,13 @@ test('identity lists what is missing', () => {
   const stage = builderChecklist({ ...base, identity: { done: false, missing: ['a description', 'a category'] } })[0];
   assert.equal(stage.detail, 'Still to set: a description, a category.');
 });
+
+test('a check that could not run is a failure with its reason, not "to do"', () => {
+  const stage = builderChecklist({ ...base, endpoint: { checked: false, ok: false, detail: null, status: null, error: 'Too many checks from this connection. Wait a minute.' } })[1];
+  assert.equal(stage.status, 'failed');
+  assert.match(stage.detail, /could not run: Too many checks/);
+});
+
+test('quote-like skills are not counted as work a buyer can hire', () => {
+  assert.equal(statuses({ ...base, capabilities: ['get_price', 'quote_job'] }).inputs, 'failed');
+});

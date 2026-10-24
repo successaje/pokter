@@ -23,7 +23,7 @@ export interface ChecklistStage {
 export interface ChecklistInput {
   /** Name, description, category and image checks, as the form already runs them. */
   identity: { done: boolean; missing: string[] };
-  endpoint: { checked: boolean; ok: boolean; detail: string | null; status: number | null };
+  endpoint: { checked: boolean; ok: boolean; detail: string | null; status: number | null; error?: string | null };
   /** Skills the endpoint's card declares. */
   capabilities: string[];
   /** Whether the card declares a negotiation skill a quote can be asked of. */
@@ -33,14 +33,17 @@ export interface ChecklistInput {
 
 const KIT = '/build/integration';
 const fix = (anchor: string, label: string) => ({ label, href: `${KIT}#${anchor}` });
-const NEGOTIATION = /negotiat/i;
+/* The same rule the preflight route uses to decide a card can quote. */
+const QUOTE_SKILL = /(?:negotiate|quote|price)/i;
 
 export function builderChecklist(input: ChecklistInput): ChecklistStage[] {
   const identity: ChecklistStage = input.identity.done
     ? { id: 'identity', label: 'Identity', status: 'done', detail: 'Name, description, category and image are set.', fix: null }
     : { id: 'identity', label: 'Identity', status: 'todo', detail: `Still to set: ${input.identity.missing.join(', ') || 'the details above'}.`, fix: fix('identity', 'What a listing needs') };
 
-  const endpoint: ChecklistStage = !input.endpoint.checked
+  const endpoint: ChecklistStage = input.endpoint.error && !input.endpoint.checked
+    ? { id: 'endpoint', label: 'Endpoint', status: 'failed', detail: `The check could not run: ${input.endpoint.error}`, fix: fix('transports', 'Fix the endpoint') }
+    : !input.endpoint.checked
     ? { id: 'endpoint', label: 'Endpoint', status: 'todo', detail: 'Not checked yet. Pokter calls it the way a hire would.', fix: null }
     : input.endpoint.ok
       ? { id: 'endpoint', label: 'Endpoint', status: 'done', detail: 'It answered Pokter’s check the way a hire would call it.', fix: null }
@@ -52,7 +55,7 @@ export function builderChecklist(input: ChecklistInput): ChecklistStage[] {
           fix: fix('transports', 'Fix the endpoint'),
         };
 
-  const work = input.capabilities.filter((c) => !NEGOTIATION.test(c));
+  const work = input.capabilities.filter((c) => !QUOTE_SKILL.test(c));
   const inputs: ChecklistStage = !input.endpoint.ok
     ? { id: 'inputs', label: 'Compatible inputs', status: 'todo', detail: 'Read from the endpoint once it answers.', fix: null }
     : work.length > 0
@@ -63,7 +66,7 @@ export function builderChecklist(input: ChecklistInput): ChecklistStage[] {
     ? { id: 'price', label: 'Signed price', status: 'todo', detail: 'Read from the endpoint once it answers.', fix: null }
     : input.quoteCapability
       ? { id: 'price', label: 'Signed price', status: 'after-publish', detail: 'It declares a negotiation skill. Pokter asks it for a signed price after you publish, because a quote is bound to a registered identity.', fix: null }
-      : { id: 'price', label: 'Signed price', status: 'failed', detail: 'It declares no negotiation skill, so it cannot sign a price and buyers cannot hire it through escrow.', fix: fix('quote', 'Add a quote skill') };
+      : { id: 'price', label: 'Signed price', status: 'failed', detail: 'It declares no negotiation skill, so it cannot sign a price for a buyer’s brief. Buyers can then only reach it on a budget they set, which it may decline.', fix: fix('quote', 'Add a quote skill') };
 
   const testDelivery: ChecklistStage = !input.trial.ran
     ? { id: 'test-delivery', label: 'Test delivery', status: 'optional', detail: 'Optional: run one free preview to see what a buyer would receive.', fix: null }

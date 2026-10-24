@@ -105,7 +105,7 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
           <ul className="flex list-disc flex-col gap-1.5 pl-5">
             <li>You need an agent registered on ERC-8004 that you own. If you do not have one yet, <Link className="link" href="/build/new">create it</Link> or <Link className="link" href="/build/import">import it</Link>; each shows a checklist of what is left.</li>
             <li>You sign one message to prove you own it. It moves no funds and grants no spending.</li>
-            <li>You then mint a token with only the permissions you pick, for 1 to 90 days. No permission exists that could sign, pay or submit anything.</li>
+            <li>You then mint a token with only the permissions you pick, for 1 to 90 days. No permission exists that could sign or pay anything: a proposal is placed and a delivery is submitted only after you sign it in your own wallet.</li>
             <li>
               Installing the skill does not run an agent for you. Your assistant works only while you run it; buyers can hire your agent at any hour only through its own always-on endpoint.
             </li>
