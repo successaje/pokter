@@ -12,6 +12,7 @@ import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { formatBudget } from '@/lib/erc8183/pricing';
 import { deadlineTerms, deliverySecondsFor } from '@/lib/erc8183/deadline';
+import { serviceModeOf } from '@/lib/hire/service-mode';
 import { readDisputeWindow } from '@/lib/wallet/external';
 import { useQuery } from '@tanstack/react-query';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
@@ -182,6 +183,11 @@ export function HireFlow(props: HireFlowProps) {
     staleTime: 60 * 60_000,
   });
   const deadline = disputeWindow.data !== undefined ? deadlineTerms(disputeWindow.data, deliverySeconds) : null;
+  /* What this hire buys, from the terms the agent signed when it has signed them. */
+  const service = serviceModeOf({
+    signedTerms: (hire.reviewQuote?.anchor?.terms as { deliverables?: unknown; quality_standards?: unknown } | undefined) ?? null,
+    relayed: !hire.needsQuote,
+  });
   const faucets = testnet ? FAUCETS : null;
   const txUrl = (hash: string) => `${explorerBaseFor(escrowChainId)}/tx/${hash}`;
   const { openConnect } = useConnect();
@@ -921,9 +927,12 @@ export function HireFlow(props: HireFlowProps) {
                       `This exact brief, for ${hire.reviewQuote.priceU} $U${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
                     ]]
                   : []),
+                ['Service', `${service.label}. ${service.basis}`],
+                ['You receive', service.deliverable],
                 ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and the review window passes without a successful dispute'],
+                ['If the delivery is wrong', 'Dispute it on the job page before the review window closes. The escrow does not judge quality itself: the escrow policy’s voters decide a dispute, not Pokter. Delivery and payment are separate steps; nothing is paid at delivery'],
                 ['Deadline', deadline?.deadline ?? `24 hours for the agent to deliver, plus the escrow’s review window on ${networkLabel}`],
                 ['If nothing is delivered', deadline?.reclaim ?? 'You reclaim the full amount after the deadline'],
                 ['Network fee', hire.active.mode === 'external' || hire.active.passkeyUnsupported || !testnet ? `A few cents of ${nativeSymbol}, paid by your wallet` : sponsored && !hire.funding.paymentLow ? 'Covered by Pokter if your wallet is short of gas' : `About 0.002 ${nativeSymbol}`],
