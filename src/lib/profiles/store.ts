@@ -57,6 +57,15 @@ class ProfileStore {
     return row ? ProfileStore.toProfile(row as Record<string, string | null>) : null;
   }
 
+  /** Every profile's wallet, when it was last signed and whether it has a handle. For the operator's counts only. */
+  signers(): Array<{ wallet: string; signedAt: string; handle: boolean }> {
+    return (this.db.prepare('SELECT wallet, signed_at, handle FROM profiles').all() as Array<{ wallet: string; signed_at: string; handle: string | null }>).map((row) => ({
+      wallet: row.wallet,
+      signedAt: row.signed_at,
+      handle: Boolean(row.handle),
+    }));
+  }
+
   /** Whether another wallet already holds this handle. */
   handleTaken(handle: string, wallet: string): boolean {
     if (!handle) return false;

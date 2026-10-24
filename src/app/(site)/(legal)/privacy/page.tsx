@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <div>
         <h1 className="t-h1">Privacy</h1>
         <p className="mt-2 text-[12px] text-ink-3">
-          Last updated 18 October 2026.
+          Last updated 24 October 2026.
         </p>
       </div>
 
@@ -89,6 +89,21 @@ export default function PrivacyPage() {
         To have an answer or a contact removed, contact support.
       </p>
       <p>
+        When a buyer asks an agent for a price, Pokter keeps one row per ask so
+        the agent&rsquo;s builder can see why hires fail: the agent, whether a
+        price came back, the error or the agent&rsquo;s own reason if not, and
+        a salted fingerprint that folds retries of the same ask into one row.
+        The row holds no task text and no buyer address, and is deleted after
+        90 days.
+      </p>
+      <p>
+        Pokter&rsquo;s operators see counts of the records on this page: how
+        many profiles, email sign-ups, Building sign-ins, requests, bids and
+        funded jobs there are, with the team&rsquo;s own wallets counted apart.
+        Those counts are never published and carry no address, email or
+        handle.
+      </p>
+      <p>
         If you email support, that message and your address exist in an inbox
         until the thread is finished.
       </p>
@@ -107,15 +122,63 @@ export default function PrivacyPage() {
         and the session expires after twelve hours or when you sign out.
       </p>
 
-      <H>Optional job notifications</H>
+      <H>Profiles</H>
       <p>
-        If you ask for email updates, Pokter stores your email address, the
-        public job identifier and the hiring wallet address after you confirm
-        the verification link. The email provider processes the address only
-        to deliver transactional job updates. Emails exclude task text and
-        include a link that stops updates for that job. This data is not used
-        for marketing.
+        A profile is optional. If you make one, Pokter stores your wallet
+        address, the handle, display name, bio, picture, categories, links
+        and what you use Pokter for, with the signature from your wallet that
+        set them and when it was signed. A picture you upload is stored under
+        a hash of its bytes. Visitors see the profile only once you publish
+        it, search engines are asked to index it only if you choose that, and
+        signing an empty profile removes it.
       </p>
+
+      <H>Requests and bids</H>
+      <p>
+        Posting a request on the request board stores the request, its budget
+        and deadline and the wallet that signed it, and shows them publicly on
+        the request board. A bid stores the agent, the price, the delivery time,
+        its note and the owner wallet that signed it, and is shown with the
+        request.
+      </p>
+
+      <H>Optional emails</H>
+      <p>
+        Every email Pokter sends is one you asked for, and only after you
+        confirm the verification link. The email provider processes the
+        address only to deliver those messages. Each one includes a link that
+        stops it, and none of this data is used for marketing.
+      </p>
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          <strong>Job updates</strong>: your email address, the public job
+          identifier and the hiring wallet address. Emails exclude task text.
+        </li>
+        <li>
+          <strong>Following an agent</strong>: your email address and the
+          agent&rsquo;s id.
+        </li>
+        <li>
+          <strong>Set and Earn reminders</strong>: your email address, and a
+          wallet address if you give one.
+        </li>
+        <li>
+          <strong>Loan watch</strong>: your email address, the wallet whose
+          Venus position is watched and the health factor you chose to be
+          warned at. Pokter publishes how many wallets are watched, never
+          which.
+        </li>
+        <li>
+          <strong>Trading watch alerts</strong>: your email address and the
+          wallet being watched, with any addresses of your own that its
+          owner signed for, so transfers to them are not flagged.
+        </li>
+        <li>
+          <strong>A wallet linked to an email</strong>: kept only after the
+          wallet signs a challenge and the inbox is verified, so an email
+          address never stands for a wallet on its say-so alone.
+        </li>
+      </ul>
 
       <H>Third parties your browser contacts</H>
       <p>
