@@ -4,12 +4,13 @@ import { classify } from '@/lib/agents/categories';
 import { deliveryTimes } from '@/lib/agent/delivery-times';
 import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { prepareAgent } from '@/lib/erc8183/courier';
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { getProbeStore } from '@/lib/history/store';
 import { briefAcceptable, BRIEF_MIN } from '@/lib/hire/brief';
 import { compileBrief } from '@/lib/hire/brief-compiler';
-import { compareRow, orderRows, type CompareRow } from '@/lib/hire/compare-quotes';
+import { compareRow, orderRows, unusableQuoteReason, type CompareRow } from '@/lib/hire/compare-quotes';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 import { networkOf } from '@/lib/mcp/agent-card';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
@@ -92,11 +93,19 @@ export async function POST(request: Request): Promise<NextResponse> {
         /* Bookkeeping only: the quote stands. */
       }
     }
-    const formatted = quote ? formatQuoted(quote.currency, quote.priceRaw) : null;
+    /*
+     * The hire page's own check, so a row says "priced" only when Hire
+     * would accept the price: a currency no escrow settles, or a quote
+     * bound to another chain or contract, is refused there with a 409.
+     * Shown as priced here, the buyer chose an agent and was turned away.
+     */
+    const unusable = quote ? unusableQuoteReason(quote, (id) => correctedErc8183Addresses(id).commerce) : null;
+    const hireable = quote && !unusable ? quote : null;
+    const formatted = hireable ? formatQuoted(hireable.currency, hireable.priceRaw) : null;
     const known = (failure as QuoteFailure | null) ?? quoteFailure('no-quote');
-    const reason = quote ? null : describeQuoteFailure(refusal ? { ...known, sellerReason: refusal } : known, name).message.replace(/ ?(?:Try again shortly; )?[Nn]othing has been paid\.?/, '').trim();
+    const reason = hireable ? null : (unusable ?? describeQuoteFailure(refusal ? { ...known, sellerReason: refusal } : known, name).message.replace(/ ?(?:Try again shortly; )?[Nn]othing has been paid\.?/, '').trim());
     return row({
-      quote: quote ? { label: formatted?.label ?? null, network: networkOf(formatted?.chainId ?? null), expiresAt: quote.expiresAt ?? null } : null,
+      quote: hireable ? { label: formatted?.label ?? null, network: networkOf(formatted?.chainId ?? null), expiresAt: hireable.expiresAt ?? null } : null,
       missing: (compiled?.missing ?? []).map((m) => ({ label: m.label, question: m.question })),
       failure: reason,
       deliveryMs: delivery?.medianMs ?? null,
