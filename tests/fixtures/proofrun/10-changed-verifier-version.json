@@ -1,0 +1,36 @@
+{
+  "_why": "A receipt produced by a different build of the checker, or against a different criteria set. The replay must say so rather than silently re-check with whatever is current, because then 'agreed' would mean two different things agreed.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "changed-verifier-version",
+  "attribution": "Synthetic. The version changes are declared rather than baked in, so the suite applies them to an artifact it has just sealed from the live core. Nothing here is attributable to any builder.",
+  "basedOn": "01-correct-report.json",
+  "_howTheSuiteUsesThis": "For each change the suite seals a correct artifact, rewrites the named version field, re-seals so the artifact and spec hashes are both correct, and then proves the replay refuses it. Re-sealing is the point: these must fail on the version and not on integrity, or the test would pass for the wrong reason.",
+  "changes": [
+    {
+      "name": "verifier-bumped",
+      "field": "versions.verifier",
+      "to": "venus-health-factor@0",
+      "expect": "not-verified",
+      "_why": "A checker fixed to read a threshold it had been reading wrongly produces different figures from the same chain state. Replaying it with today's checker would report either agreement or a contradiction, and both would be about the code change rather than about the report."
+    },
+    {
+      "name": "criteria-bumped",
+      "field": "versions.criteria",
+      "to": "venus-health-factor-criteria@0",
+      "expect": "not-verified",
+      "_why": "Two versions and not one, because they change for different reasons. A buyer who asked for a stricter tolerance must not look like a different checker ran, and a checker that was fixed must not look like the buyer agreed to different criteria. The replay names which of the two moved."
+    },
+    {
+      "name": "artifact-format-bumped",
+      "field": "version",
+      "to": "pokter-proofrun/0",
+      "expect": "not-verified",
+      "_why": "A receipt in a format this build does not read cannot be replayed by it. Reading it anyway would mean guessing what each field meant in the older format."
+    }
+  ],
+  "expect": {
+    "cli": "not-verified",
+    "_criticalProperty": "Not verified, and never a pass. A version mismatch is the absence of a comparable run, not a disagreement the receipt earned — so it must not be reported as a contradiction either, which would read as an accusation against whoever produced the receipt."
+  }
+}

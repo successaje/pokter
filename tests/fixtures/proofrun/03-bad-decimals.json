@@ -1,0 +1,54 @@
+{
+  "_why": "A health factor stated to one decimal place, so coarse that no reading of the chain can agree or disagree with it. It must come out unresolved, because calling it a match would make 'always answer 1.1' a passing strategy.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "bad-decimals",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "available",
+    "note": "Same real Venus Core Pool state as 01-correct-report.json: this account at BNB Smart Chain block 129,170,001, captured 2026-10-22. The state is real; the report is synthetic.",
+    "facts": {
+      "blockTime": "2026-10-22T17:28:47.000Z",
+      "healthFactor": 1.122279,
+      "borrowLimitRatio": 1.122152,
+      "liquidatable": false,
+      "debtUsd": 207792.7696819796,
+      "collateralUsd": 291545.97
+    },
+    "legs": {
+      "_note": "As 01-correct-report.json. Liquidation thresholds captured; collateral factors synthetic and set equal to them.",
+      "collateral": {
+        "BNB": { "supplyUsd": 291370.25, "liquidationThreshold": 0.8, "collateralFactor": 0.8 },
+        "XVS": { "supplyUsd": 175.72, "liquidationThreshold": 0.6, "collateralFactor": 0.6 }
+      },
+      "debt": { "USDC": 50231.33, "USDT": 157561.43 }
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor about 1.1 at block 129,170,001. Not liquidatable."
+  },
+  "expect": {
+    "verdict": "unverified",
+    "state": "unverifiable",
+    "cli": "not-verified",
+    "unresolvedCheck": "hf.value",
+    "_arithmetic": "1.1 against 1.122279 is out by 0.022279, which is past the 0.005611 allowed at this health factor but inside the plus or minus 0.05 the report's own rounding claims. Neither a match nor a disagreement it earned, so hf.value is not-verified and the replay reports unresolved rather than a pass."
+  }
+}
