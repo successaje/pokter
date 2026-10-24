@@ -174,12 +174,19 @@ export function proofRun(input: ProofRunInput): ProofRun {
  *
  * Job-keyed rather than run-keyed, because a run is recomputed rather
  * than stored: there is no run id to put in a URL, and inventing one
- * would imply a record that does not exist. When a human-readable page
- * exists this can point there instead — and the test below will insist
- * it exists before it may.
+ * would imply a record that does not exist.
+ *
+ * It points at the page again, and the page exists this time:
+ * `src/app/(site)/proofrun/[chainId]/[jobId]/page.tsx`, added in the
+ * same commit as this line so the two cannot be separated, with the
+ * route test below insisting on it. The page is the better destination
+ * because a receipt link is most often followed by somebody who was sent
+ * one and wants to know what it says — and the page offers the artifact
+ * for download, so the reader who does want the bytes is one click from
+ * them while the reader who wants the answer is already there.
  */
 export function replayRef(job: JobRef): string {
-  return artifactHref(job);
+  return `/proofrun/${job.chainId}/${job.jobId}`;
 }
 
 export function artifactHref(job: JobRef): string {
