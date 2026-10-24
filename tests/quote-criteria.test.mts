@@ -44,3 +44,14 @@ test('criteria are compared as the hash saw them', () => {
   const { content } = envelope({ deliverables: 'x', quality_standards: 'y', success_criteria: sent });
   assert.equal(criteriaInSignedTerms(sent, content), true, 'brackets are sanitised the same way on both sides');
 });
+
+test('with a ProofRun spec line, that exact line is the agreement and the prose is advisory', () => {
+  const spec = `pokter-proofrun/1 spec=0x${'ab'.repeat(32)}`;
+  const sent = [spec, 'hf: health factor within 0.01'];
+  const tidied = envelope({ deliverables: 'x', quality_standards: 'y', success_criteria: [spec, 'hf:  health factor within 0.01 '] });
+  assert.equal(criteriaInSignedTerms(sent, tidied.content), true, 'prose whitespace changed, spec line intact');
+  const otherSpec = envelope({ deliverables: 'x', quality_standards: 'y', success_criteria: [`pokter-proofrun/1 spec=0x${'cd'.repeat(32)}`, sent[1]] });
+  assert.equal(criteriaInSignedTerms(sent, otherSpec.content), false, 'a different spec hash is not this agreement');
+  const otherVersion = envelope({ deliverables: 'x', quality_standards: 'y', success_criteria: [spec.replace('/1 ', '/2 '), sent[1]] });
+  assert.equal(criteriaInSignedTerms(sent, otherVersion.content), false, 'not a prefix match');
+});
