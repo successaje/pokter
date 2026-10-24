@@ -484,6 +484,18 @@ export async function replayArtifact(input: ReplayInput): Promise<ReplayResult> 
     criteria: artifact.criteria,
     blockHash: facts.blockHash,
     chainClaim: claim?.ok ? claim.claim.chain : undefined,
+    /*
+     * Same reason as `chainClaim`: the account row is inferred only for a
+     * report that named one. From the delivery when it was supplied; from a
+     * receipt alone, the rebuild carries no account (see
+     * `reconstructDelivery`), so whether the report named it is read from the
+     * sealed row, as the health factor is: an inferred pass there was only
+     * ever written for a report that named its account.
+     */
+    accountNamed:
+      claimSource === 'deliverable'
+        ? Boolean(claim?.ok && claim.claim.account)
+        : rowOf(artifact.checks, 'binding.account')?.outcome === 'passed',
     binding: artifact.binding,
   });
   const replayState = stateFromChecks(fresh);
