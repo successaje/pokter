@@ -52,8 +52,9 @@ drawdown are reported as _not measured_, because nobody publishes them and
 inferring them from uptime would be fabrication.
 
 **We produce evidence, not just consume it.** Few agents carry attestations,
-so Pokter measures agents itself. Scheduled sweeps probe every listed endpoint
-every two hours and keep the record, published in the same shape as
+so Pokter measures agents itself. A scheduler inside the server sweeps about
+every ten minutes, probing a rotating batch of listed endpoints, and keeps the
+record, published in the same shape as
 third-party attestations, including the defects of our own method.
 
 **We do not count ourselves as independent.** Our sweep runs through the same
@@ -78,6 +79,22 @@ sweeps ask for a quote, check that the signature recovers to the agent's
 registered wallet and is bound to the terms Pokter sent, and keep only that.
 Listings say plainly when an agent would not name a price.
 
+### The hiring ladder
+
+Every agent also stands on one rung of what it has actually done through
+Pokter, earned in order and never assigned:
+
+| Rung | Earned when |
+| --- | --- |
+| **Answers** | It answers Pokter's scheduled checks |
+| **Priced** | It signs a price, with its registered wallet, that an open escrow can pay |
+| **Delivered** | A paid job settled with the agent's own answer |
+| **Checked** | It passed the latest correctness check for its category |
+| **Proven in use** | Three settled jobs from three buyer wallets outside the team |
+
+When an agent cannot be priced or hired, its page says why and links the part
+of the integration kit that fixes it, before anyone funds anything.
+
 ### The evidence tiers
 
 | Tier         | What it means                                                                 |
@@ -98,14 +115,24 @@ always be checked against the evidence that produced it.
 
 | Capability | Status |
 | --- | --- |
-| Discovery across four categories, with plain-language search | Live |
+| Discovery across five categories (rebalancing, grid trading, yield, health factor, token safety), with plain-language search | Live |
+| A search nothing answers says why, and offers the request board with the words carried over | Live |
+| Header search (`/` or ⌘K): agents by name or reference (`56/367904`), jobs by number, builders and agent wallets by address | Live |
+| Cards show the image each agent registered on chain, read in one batch per network | Live |
 | Evidence states, the Pokter Score and the published methodology | Live |
-| Probes every two hours, with 7- and 30-day track records | Live |
+| Probes about every ten minutes in rotating batches, with 7- and 30-day track records | Live |
 | Most reliable this week: ranked on probes, one agent per operator | Live; operators grouped by funding wallet once `NODEREAL_API_KEY` is set |
 | Delivery record on every agent: delivered and missed paid jobs | Live |
 | Health factor check against live Venus positions | Live; two agents per sweep |
+| Correctness suites for grid trading, yield and token safety, and grading of paid deliveries | Live |
+| Category rankings from settled escrow work | Live at [`/rankings`](https://pokter.xyz/rankings) |
+| Every escrow job, misses included, split by real and test money and by who funded it | Live at [`/proof`](https://pokter.xyz/proof) |
+| A public log of what Pokter got wrong | Live at [`/corrections`](https://pokter.xyz/corrections) |
+| A daily seal of Pokter's published claims, its hash anchored on chain | Live |
 | Agent-signed price quotes, verified and bound to the terms | Live |
 | Side-by-side comparison, free trials, follow an agent by email | Live |
+| An MCP server, so AI assistants can search, vet and quote, prepare an unsigned hire for the buyer to fund, and track and check the delivery | Live at [`/api/mcp`](https://pokter.xyz/mcp) |
+| `llms.txt` for AI crawlers, with the provenance rules for every figure | Live |
 
 **Hire and after**
 
@@ -114,6 +141,9 @@ always be checked against the evidence that produced it.
 | ERC-8183 hiring with a browser or passkey wallet | Verified on chain |
 | Delivery for agents registered on mainnet: Pokter's seller carries the brief and delivers the agent's own answer, or nothing | Live |
 | Workspace: jobs, receipts verified against the on-chain hash, settle, dispute, reclaim | Live |
+| Requests: a buyer posts a signed brief, builders propose, the buyer chooses and hires | Live at [`/requests`](https://pokter.xyz/requests) |
+| Free Venus liquidation alerts by email, confirmed first and stoppable from every email | Live at [`/watch`](https://pokter.xyz/watch) |
+| Testnet hires offered only once a relayed brief is known to reach the agent | Live |
 | Jobs follow the wallet: any device shows a wallet's hires | Live |
 | Email when a job is delivered, with a preview or the full answer | Live; needs email configured |
 | Signed reviews, publishable by the buyer to the ERC-8004 reputation registry | Live |
@@ -124,7 +154,10 @@ always be checked against the evidence that produced it.
 
 | Capability | Status |
 | --- | --- |
-| Builder Studio: draft, check the endpoint, register on ERC-8004, manage | Live |
+| Build: draft, check the endpoint, register on ERC-8004, manage | Live at [`/build`](https://pokter.xyz/build) |
+| Integration kit: what an agent must declare, sign and deliver to be hireable | Live at [`/build/integration`](https://pokter.xyz/build/integration) |
+| Five house reference agents, one per category, each named "… by Pokter" with its own mark (Brinkwatch, Centreline, Cresthold, Gridloom, Touchstone) | Live |
+| Outside evaluators: schema, starter script and a challenge list for independent measurement | Live at [`/evaluators`](https://pokter.xyz/evaluators) |
 | Adoption against BNB Chain's Set and Earn build targets | Live |
 | Set and Earn tracker: a wallet's hires on every marketplace, from the escrow contracts | Live at [`/quest`](https://pokter.xyz/quest) |
 
@@ -188,7 +221,7 @@ authority is created, the grant route refuses before reading grant parameters
 or touching a signer — `403` to the public, since granting was always an
 operator-funded demo action, and `409` even when that check passes — and
 `toSessionPermissions` refuses every marketplace category. `npm run
-audit:protocol` checks all four categories so a raw protocol selector cannot be
+audit:protocol` checks every marketplace category so a raw protocol selector cannot be
 reintroduced as an incidental refactor.
 
 Delegation will remain disabled until an audited adapter or account validator
@@ -252,6 +285,20 @@ marketplace settles through the same escrow, which does not record where a
 hire was made. The tracker names a marketplace only when a job's own record
 does, and says "not recorded" otherwise.
 
+**Only $U is payable.** The escrows also support USDT, and an agent may sign a
+price in it, but Pokter funds jobs in $U alone, so a USDT price shows as priced
+and not hireable.
+
+**The passkey wallet is testnet only.** A mainnet hire needs a browser wallet.
+
+**Agents outside the five categories are not measured.** The sweep covers the
+categories and the top of the registry; any other agent's page can still say,
+from its own card, why it cannot be hired.
+
+**Some features need a NodeReal key.** Funding-wallet grouping, wallet activity
+and the on-chain capability check switch off without `NODEREAL_API_KEY`, and the
+public BSC node limits how far back logs can be read.
+
 **Performance and risk are never scored.** No agent publishes realised returns,
 and nothing on chain attributes profit or loss to an agent's decision. Both read
 _not measured_ permanently, and the Pokter Score rescales across what is left.
@@ -265,14 +312,16 @@ for passkey wallets and ERC-8183, and SQLite on a persistent volume.
 
 ```
 src/app/
-  (site)/       public pages: home, discover, agents/[chain]/[id], compare,
-                set-and-earn, quest, how-it-works, methodology, developers, build
+  (site)/       every page: home, discover, agents/[chain]/[id], compare,
+                requests, workspace, build, watch, proof, rankings, corrections,
+                evaluators, set-and-earn, quest, account, developers, mcp
   (flow)/       the hire flow: hire/[chain]/[id]
-  (app)/        workspace, studio, account
-  api/          routes; v1/ is the public read API
+  api/          routes; v1/ is the public read API, mcp/ the MCP server,
+                sweep/ the scheduled run, health/ the liveness check
+  house/        the five house reference agents' A2A endpoints
 src/lib/
   scan/         8004scan client, server-only
-  agents/       classification into the four marketplace categories
+  agents/       classification into the five marketplace categories
   search/       retrieval, filters, ordering and the reliability ranking
   proof/        attestation decoding, verdicts, live endpoint probing
   history/      probe store, track records, scheduled sweeps
@@ -284,6 +333,16 @@ src/lib/
   reviews/      signed reviews and ERC-8004 reputation publishing
   notifications email: job updates, builder alerts, agent follows
   wallet/       passkey and browser wallets, device-side records
+  briefs/       the request board: signed briefs, proposals, awards
+  hire/         quote failures, hire blockers, budgets
+  loan-watch/   Venus liquidation alerts
+  house/        the house reference agents
+  mcp/          the MCP tools and the inline agent card
+  seals/        the daily seal and its on-chain anchor
+  evaluators/   the outside measurement schema and starter
+  capability/   what agents' own wallets do on chain
+  alerts/       operator alerts (Telegram and email)
+  network/      escrows, chains and payment tokens
 src/features/   page-level components by area
 src/ui/         the design system's primitives
 ```
@@ -303,10 +362,15 @@ Open http://localhost:4311. Browsing needs no keys.
 Checks, the same ones the deploy runs:
 
 ```bash
-npm run lint && npx tsc --noEmit && npm test
-npm run audit:protocol && npm run audit:rate-limit
+npm run verify          # lint, types, tests and the three audits
+npm run verify:build    # the same, then a production build
 BASE_URL=http://localhost:4311 npm run smoke
 ```
+
+The audits are `audit:protocol` (no raw protocol selector can be granted),
+`audit:rate-limit` (every public route is rate limited) and
+`audit:notifications` (every email sender checks consent). `npm run
+audit:receipts` re-verifies indexed jobs against the chain.
 
 `npm run smoke` requests every public route and checks its status and content.
 
@@ -325,23 +389,37 @@ All optional for local browsing. Server-only unless marked public.
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Public. Enables mobile wallets via WalletConnect |
 | `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL` | Enable email; `NOTIFICATION_REPLY_TO` optional |
 | `NOTIFICATION_UNSUBSCRIBE_SECRET` | Signs unsubscribe links; recommended, otherwise the Resend key is used |
-| `NODEREAL_API_KEY` | Enables grouping agent operators by funding wallet (BSC mainnet) |
+| `NODEREAL_API_KEY` | Enables grouping operators by funding wallet, wallet activity and the capability check (BSC mainnet) |
+| `SWEEP_SCHEDULER` | `on` runs the sweep inside the server about every ten minutes; production must have it on, and the deploy checks |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERT_CHAT_ID`, `OPERATOR_ALERT_EMAIL` | Operator alerts: a new outside hire, a stuck job, a sweep that stopped |
+| `SEAL_ANCHOR_CHAIN` | Chain the daily seal is anchored on; default `56` |
+| `POKTER_TRUSTED_CLIENT_IP_HEADER` | The proxy header rate limits trust for the client address |
+| `BSC_RPC_URL` | Node for PancakeSwap pool reads |
+| `SCAN_BASE_URL` | Overrides the 8004scan API base |
+| `NEXT_PUBLIC_ALTANA_NETWORK` | Public. Must agree with `ALTANA_NETWORK`; the server refuses to start otherwise |
+| `NEXT_PUBLIC_PASSKEY_RP_ID` | Public. The passkey relying-party id; a build arg |
 | `BSC_MAINNET_RPC_URL` | Overrides the public node used for Venus and escrow reads |
 | `NEXT_PUBLIC_ESCROW_CHAINS` | Which escrows hires may be funded on, e.g. `97,56`. Unset means testnet only. A build arg, not a runtime value |
 | `ALTANA_MAINNET_OPERATOR_PURPOSES` | Comma-separated operator purposes allowed to sign on mainnet, e.g. `evidence-agent`. Nothing signs on mainnet without it |
-| `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`. Default `./data/` |
+| `*_DB_PATH` | SQLite locations: `PROBE`, `SESSION`, `JOB`, `DELIVERABLE`, `RATE_LIMIT`, `NOTIFICATION`, `REVIEW`, `BUILDER`, `FUNDER`, `ASSAY`, `QUEST`, `CONVERSION`, `SEAL`, `WALLET_ACTIVITY`, `CAPABILITY`, `FEEDBACK`, `BRIEF`, `PROFILE`, `MAINTENANCE`, `SATURATION`. Default `./data/`. A new store is registered in `src/lib/health/stores.ts`, the Dockerfile and `fly.toml` together |
 
 ## Public endpoints
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /api/v1/agents`, `/api/v1/agents/{chain}/{id}` | Agents with provenance on every field |
+| `GET /api/v1` | The service description: every endpoint, category, verdict and query term |
+| `GET /api/v1/agents`, `/api/v1/agents/{chain}/{id}` | Agents with provenance on every field, and `hireBlocker` when one cannot be hired |
 | `GET /api/v1/agents/verifier` | Dependency-free script that checks returned identities and owners against ERC-8004 |
 | `GET /api/v1/activity` | Aggregate job figures; no wallet, email or task text |
 | `GET /api/v1/evaluators/schema` | The public measurement schema, example and on-chain identity rules |
 | `GET /api/v1/evaluators/starter` | Dependency-free evaluator script; prepares feedback but never signs or broadcasts |
 | `GET /api/v1/evaluators/challenge` | Mainnet agents ready for independent measurement, one per observable operator |
-| `GET /api/v1/receipts/verifier` | Dependency-free script that verifies every indexed job against ERC-8183 |
+| `GET /api/v1/receipts`, `/api/v1/receipts/verifier` | Every job commissioned through Pokter, and a dependency-free script that verifies each against ERC-8183 |
+| `GET /api/v1/seals`, `/api/v1/seals/{hash}`, `/api/v1/seals/verifier` | The daily seals of Pokter's claims, and a script that checks one against its on-chain anchor |
+| `GET /api/v1/integration` | The integration kit, machine-readable |
+| `POST /api/mcp` | The MCP server: `search_agents`, `get_agent`, `get_quote`, `hire_link`, `prepare_brief`, `prepare_hire`, `job_status`, `check_delivery`, `integration_kit` |
+| `GET /api/health` | Store durability, scheduler state, and whether the server is saturated |
+| `GET /llms.txt` | What an AI crawler should read first, with the provenance rules |
 | `GET /api/jobs?client=0x…` | The jobs one wallet funded through Pokter |
 | `GET /api/jobs/{id}` | One job, read from chain |
 | `GET /api/reviews/{chain}/{job}` | A review as the exact document its on-chain rating hashes |
@@ -349,21 +427,26 @@ All optional for local browsing. Server-only unless marked public.
 
 ## Deployment
 
-Pushing to `main` deploys. The GitHub Actions workflow runs lint, types, tests,
-both audits and a webpack build, deploys to Fly.io, then checks production
-health, the main routes, and robots, sitemap and canonical tags.
+Pushing to `main` deploys. Pull requests run the same checks first
+(`verify.yml`). The deploy workflow runs lint, types, tests, the three audits
+and a webpack build, deploys to Fly.io (retrying once), then checks production
+health, that the sweep scheduler is on, each escrow chain, the main routes'
+copy, and robots, sitemap and canonical tags.
 
 The SQLite stores live on a Fly volume, and the volume is the point: probe
 history, jobs, deliverables, reviews, checks and subscriptions accumulate. A
 marketplace whose evidence resets on every deploy is not one. Every `*_DB_PATH`
 must point at the volume (`/data/…`, set in `fly.toml` and the Dockerfile).
 
-The sweep runs every two hours from a scheduled workflow against production.
-Each run probes agents, asks for quotes, reconciles the job index, retries
-stuck deliveries, sends job, builder and follower emails, runs due health
-factor checks, indexes new escrow jobs for the tracker, and refreshes funding
-wallets when a NodeReal key is set. Each step is bounded in time and caught, so
-a slow one cannot cost the measurements before it.
+The sweep runs inside the server about every ten minutes (`SWEEP_SCHEDULER=on`);
+a scheduled GitHub workflow is the backup. Each run probes a batch of agents and
+asks for quotes, then reconciles the job index, watches for new hires, retries
+stuck deliveries, notices sellers and stuck jobs, sends job, builder, follower
+and liquidation-alert emails, runs due correctness checks, grades paid
+deliveries, indexes escrow jobs, seals the day's claims, and tests relays. The
+whole run shares a 240-second budget with 40 seconds held for the critical
+steps; each step reports its duration and outcome, so a slow or failing one is
+named in the log rather than silently costing the steps after it.
 
 Guarded operator endpoints use the bearer `SWEEP_SECRET`: `POST /api/jobs/backfill`
 re-reads jobs from chain (a dry run unless `"write": true`), and
