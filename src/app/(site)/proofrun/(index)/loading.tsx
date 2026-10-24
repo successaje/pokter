@@ -2,8 +2,17 @@ import { LoadingRegion, Skeleton } from '@/ui/Feedback';
 
 /**
  * ProofRun-shaped, in the order the page renders: header, the three
- * outcomes, the criteria list, the two scenario groups with the runner
- * beneath, then the pair of binding examples.
+ * outcomes, the criteria list, the scenario runner, then the pair of
+ * binding examples.
+ *
+ * It lives in a `(index)` group so it covers this page and nothing
+ * under it. Beside `page.tsx` at the segment root it was also the
+ * fallback for `/proofrun/[chainId]/[jobId]`, so somebody opening a
+ * receipt link saw an explainer skeleton — three outcome cards, seven
+ * criteria rows, a scenario picker — and then got a table of checks. A
+ * skeleton that promises one layout and delivers another reads as the
+ * page breaking, which is the worst first impression for a page whose
+ * subject is whether its figures can be trusted.
  *
  * No placeholder figures and no placeholder outcome marks. A greyed-out
  * "Passed" would be a verdict, and on a page whose subject is what may and

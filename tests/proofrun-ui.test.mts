@@ -3,8 +3,11 @@ import test from 'node:test';
 
 import { SCENARIOS, KIND_DISCLOSURE, type FixtureScenario } from '../src/lib/proofrun/scenarios';
 import { FIXTURE_IDS, FIXTURE_SCENARIO_IDS, FIXTURE_SETUP, fixtureFor } from '../src/features/proofrun/fixtures';
-import { forgetRun, runScenario } from '../src/features/proofrun/run';
+import { forgetRun, jobView, runScenario, scenarioSpec } from '../src/features/proofrun/run';
 import { OUTCOME_COPY } from '../src/features/proofrun/Outcome';
+import { proofRun, replayRef } from '../src/lib/proofrun/run';
+import { checkDeliveredVenusReport, CHECKED_POOL, VENUS_CHAIN_ID } from '../src/lib/delivery/venus-report-check';
+import { VENUS_COMPTROLLER } from '../src/lib/assay/venus';
 
 /*
  * What the buyer-facing surface is allowed to say, held to the run that
@@ -122,8 +125,13 @@ test('a fixture run carries none of the marks of chain history', async () => {
     assert.equal(view.result.replayRef, undefined, `${scenario.id} offered a replay link for a job that does not exist`);
     /* The account is a label, not a wallet somebody holds. */
     assert.match(view.subject.account, /^0xfacade0{32}\d{2}$/, `${scenario.id} used an account that reads as real`);
-    /* The page must cite where the figures are actually written down. */
-    assert.ok(view.source.includes('fixtures.ts'), `${scenario.id} cited a source the page is not reading`);
+    /* The page must cite where the figures are actually written down.
+       A job-backed run cites nothing, because its figures came from the
+       chain — but a fixture always has a file behind it. */
+    assert.ok(
+      view.source?.includes('fixtures.ts'),
+      `${scenario.id} cited a source the page is not reading`,
+    );
   }
 });
 
@@ -184,4 +192,115 @@ test('the sentence that stops a fixture being read as history is the library’s
    */
   assert.match(KIND_DISCLOSURE.fixture, /never existed on chain/);
   assert.match(KIND_DISCLOSURE.fixture, /contacts no provider/);
+});
+
+/* ---------- the job-backed run, which is somebody's real work ---------- */
+
+/**
+ * One customer run, built the way the job page builds it.
+ *
+ * The position is a fixture's, because a test may not depend on a node
+ * or on a particular job existing — but the provenance is `customer`,
+ * which is the thing under test. What matters here is not the figures;
+ * it is that a run marked as a buyer's work carries none of the wording
+ * reserved for something Pokter wrote down.
+ */
+async function aCustomerRun(jobId: string) {
+  const fixture = fixtureFor('normal-borrow');
+  assert.ok(fixture, 'the normal-borrow position is missing');
+  const job = { chainId: VENUS_CHAIN_ID, jobId };
+  const spec = scenarioSpec();
+  const verification = await checkDeliveredVenusReport({
+    subject: { chainId: VENUS_CHAIN_ID, account: fixture.account, pool: CHECKED_POOL },
+    manifestText: fixture.report,
+    manifestMatchesChain: true,
+    readFactsAt: async () => fixture.evidence,
+  });
+  const run = proofRun({
+    job,
+    account: fixture.account,
+    deployment: VENUS_COMPTROLLER,
+    chainId: VENUS_CHAIN_ID,
+    verification,
+    manifestText: fixture.report,
+    brief: `Report the health factor of ${fixture.account}.`,
+    blockHash: null,
+    provenance: 'customer',
+    spec,
+  });
+  return { view: jobView({ run, spec, job, atMs: T0 }), job };
+}
+
+test('a job-backed run is never drawn as something Pokter wrote down', async () => {
+  const { view } = await aCustomerRun('57004');
+
+  assert.equal(view.result.provenance, 'customer', 'a buyer\u2019s job lost its provenance');
+  /*
+   * The three pieces of fixture framing must all be absent. Each one
+   * read against customer work would tell a buyer their own paid job was
+   * synthetic — the mislabelling that matters most on that page.
+   */
+  assert.equal(view.kindDisclosure, null, 'a customer run carried the fixture disclosure');
+  assert.equal(view.evidenceNote, null, 'a customer run claimed no node was contacted');
+  assert.equal(view.methodNote, null, 'a customer run claimed no call was made');
+  assert.equal(view.source, null, 'a customer run cited a fixture file');
+  assert.equal(view.scenario, null, 'a customer run claimed to be a scenario');
+  assert.match(view.title, /57004/, 'the job page does not name the job');
+});
+
+test('a job-backed run offers its receipt, and a fixture has none to offer', async () => {
+  /*
+   * The receipt is the point of a job's page: a reader who would rather
+   * check than be told needs the bytes `scripts/proofrun-verify.mts`
+   * reads. A fixture has no job to key one by, and offering a download
+   * that 404s would be the dead-link class again.
+   */
+  const { view, job } = await aCustomerRun('57004');
+  assert.equal(view.artifactHref, `/api/proofrun/${job.chainId}/${job.jobId}/artifact.json`);
+  assert.equal(view.result.replayRef, replayRef(job), 'the run and the link disagree about where it is read');
+
+  forgetRun({ scenarioId: 'normal-borrow' });
+  const scenario = await runScenario({ scenarioId: 'normal-borrow' }, { nowMs: T0 });
+  assert.ok(scenario.ok);
+  assert.equal(scenario.view.artifactHref, null, 'a fixture offered a receipt for a job that does not exist');
+});
+
+test('the checker\u2019s own reason reaches the view, for both kinds of run', async () => {
+  /*
+   * `detail` is the sentence that says *what* went wrong where the
+   * per-check limitations are generic. It was lost for one commit when
+   * `ProofRun` carried only the result and the receipt, and the page
+   * showed nothing in its place rather than inventing one.
+   */
+  forgetRun({ scenarioId: 'stale-oracle' });
+  const blind = await runScenario({ scenarioId: 'stale-oracle' }, { nowMs: T0 });
+  assert.ok(blind.ok);
+  assert.match(blind.view.reason, /oracle/i, 'the run that cannot be priced does not say why');
+  assert.ok(blind.view.method.length > 0, 'the method prose did not reach the view');
+  assert.ok(blind.view.tolerances.length > 0, 'the tolerance prose did not reach the view');
+
+  const { view } = await aCustomerRun('57004');
+  assert.ok(view.reason.length > 0, 'a customer run reached the page with no reason');
+});
+
+test('a criterion states its own tolerance rule, so the page needs no gloss', () => {
+  /*
+   * The page used to carry a sentence explaining that the stated band
+   * was a floor and the checker allowed the larger of it and a
+   * proportional one. That gloss existed only because the label said
+   * "within 1%" while the result quoted something wider. The labels now
+   * carry the rule, inside the hash the agent signs, so there is one
+   * statement of it rather than two that could drift.
+   */
+  const spec = scenarioSpec();
+  for (const id of ['hf.value', 'position.debt_usd', 'position.collateral_usd']) {
+    const criterion = spec.criteria.find((c) => c.id === id);
+    assert.ok(criterion, `${id} is missing from the criteria`);
+    assert.match(
+      criterion.label,
+      /larger of/i,
+      `${id} states a tolerance in its check but not in the name a buyer reads`,
+    );
+  }
+  assert.match(spec.versions.criteria, /@2$/, 'the labels changed without the criteria version moving');
 });

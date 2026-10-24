@@ -4,7 +4,8 @@ import { Icon } from '@/ui/icons';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 
-import { KIND_DISCLOSURE, PROOFRUN_LIMITATIONS, type Scenario } from '@/lib/proofrun/scenarios';
+import { PROOFRUN_LIMITATIONS } from '@/lib/proofrun/scenarios';
+import type { VerificationResult } from '@/lib/shared/contracts';
 import { OutcomeChip, OutcomeTally } from './Outcome';
 import type { Freshness, ProofRunView } from './run';
 
@@ -74,16 +75,18 @@ const STATE_SKIN = {
 const STATE_ICON = { ok: 'text-ok', bad: 'text-bad', watch: 'text-watch', none: 'text-ink-3' } as const;
 
 export function ProofRunResults({ view }: { view: ProofRunView }) {
-  const { result, scenario, spec } = view;
+  const { result, spec } = view;
   const state = STATE[result.state];
-  const synthetic = scenario.kind === 'fixture';
+  /* The discriminant is the run's own provenance, which a surface cannot
+     set, rather than a local flag that could be wrong. */
+  const synthetic = result.provenance === 'fixture';
 
   return (
     <section aria-label="ProofRun result" className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="t-label">{scenario.label}</span>
-          <ProvenanceChip kind={scenario.kind} />
+          <span className="t-label">{view.title}</span>
+          <ProvenanceChip provenance={result.provenance} />
         </div>
         <h3 className="t-h3">{result.headline}</h3>
         <p className="text-[13px] leading-relaxed text-ink-3">{view.setup}</p>
@@ -95,16 +98,18 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
         are a table of figures, and the difference is the whole meaning of
         the table.
       */}
-      <p
-        className={cn(
-          'rounded-[10px] border px-4 py-2.5 text-[12.5px] leading-relaxed',
-          synthetic
-            ? 'border-[color-mix(in_oklab,var(--info)_28%,transparent)] bg-info-wash text-ink-2'
-            : 'border-rule bg-sunken text-ink-2',
-        )}
-      >
-        {KIND_DISCLOSURE[scenario.kind]}
-      </p>
+      {view.kindDisclosure && (
+        <p
+          className={cn(
+            'rounded-[10px] border px-4 py-2.5 text-[12.5px] leading-relaxed',
+            synthetic
+              ? 'border-[color-mix(in_oklab,var(--info)_28%,transparent)] bg-info-wash text-ink-2'
+              : 'border-rule bg-sunken text-ink-2',
+          )}
+        >
+          {view.kindDisclosure}
+        </p>
+      )}
 
       <div className={cn('flex flex-col gap-2 rounded-[12px] border px-4 py-3.5', STATE_SKIN[state.tone])}>
         <p className="flex items-start gap-2.5 text-[14px] font-medium leading-snug text-ink">
@@ -115,15 +120,47 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
         </p>
         <p className="pl-[26px] text-[13px] leading-relaxed text-ink-2">{state.detail}</p>
         {/*
-          The checker's own one-line reason used to sit here, and does not
-          any more: `ProofRun` carries the result and the receipt, not the
-          `VenusReportVerification` behind them, so `detail` cannot reach
-          this component. It is a real loss — it is the sentence that says
-          *what* went wrong where the per-check limitations are generic —
-          and the fix belongs in the library rather than in a second run of
-          the checker here. Nothing is invented in its place.
+          The checker's own sentence, captioned.
+
+          It is the one place a reader learns *what* happened — that the
+          oracle returned no price, that the node no longer keeps the
+          block — where the per-check limitations are generic. It is the
+          same object the checker produced, carried through `ProofRun`,
+          not a second comparison.
+
+          But it is written for a delivery checked against the chain, and
+          under a fixture it says things like "Venus could not be read at
+          block 900000004", which is a read that never happened at a block
+          that does not exist. The caption carries that frame rather than
+          leaving the sentence to be read as a reading of BNB Chain.
         */}
+        <div className="border-t border-[color-mix(in_oklab,var(--ink)_12%,transparent)] pl-[26px] pt-2.5">
+          <span className="t-label block">
+            {synthetic ? 'What the checker said — reading the fixture’s own figures' : 'What the checker said'}
+          </span>
+          <p className="mt-1 text-[13px] leading-relaxed text-ink">{view.reason}</p>
+          {synthetic && (
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-3">
+              It is phrased as though it had read Venus. In this run “Venus” is the fixture’s written-down figures
+              and the block is a label on them, not a block on BNB Chain.
+            </p>
+          )}
+        </div>
       </div>
+
+      {/*
+        What would make an unverifiable run checkable, and whose job that
+        is. Only ever shown for a run nobody could check: offering a "fix"
+        beside a failed check would read as advice on how to make a wrong
+        report pass, which `remediationFor` refuses for the same reason.
+      */}
+      {view.remediation && (
+        <div className="flex flex-col gap-1.5 rounded-[12px] border border-rule bg-sunken/50 px-4 py-3.5">
+          <span className="t-label">What would make this checkable</span>
+          <p className="text-[12.5px] leading-relaxed text-ink-2">{view.remediation.preamble}</p>
+          <p className="text-[13px] leading-relaxed text-ink">{view.remediation.fix}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <OutcomeTally checks={result.checks} />
@@ -137,19 +174,21 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
       <CheckTable checks={result.checks} />
       <CheckCards checks={result.checks} />
       {/*
-        The reconciliation, said where the figures are.
-        A row's stated tolerance is the band the criteria set; the checker
-        applies the larger of that and a floor of its own, and writes the
-        figure it actually allowed into the check's own note. Printing the
-        stated band alone, beside a note quoting a wider one, reads as the
-        page contradicting itself — so the relationship between the two is
-        named rather than left for the reader to infer.
+        No paraphrase of the tolerance rule here any more.
+
+        This used to explain that the stated band was a floor and the
+        checker allowed the larger of it and a proportional one — a
+        sentence that existed only because the criterion label said
+        "within 1%" while the result quoted a wider figure. The criteria
+        now state the rule themselves ("within the larger of ±$1 and 1%"),
+        so the label is printed verbatim and there is nothing left to
+        reconcile. One statement of the rule, inside the hash the agent
+        signs, rather than two that could drift.
       */}
       <p className="text-[12px] leading-relaxed text-ink-3">
-        <strong className="font-medium text-ink">Stated tolerance</strong> is the band the criteria set. The checker
-        allows the larger of that and a floor of its own, and where the two differ the allowance it used is in the
-        check’s own note. <strong className="font-medium text-ink">None</strong> means the criterion admits no
-        tolerance: a field that must simply be stated, or a yes-or-no Venus settles exactly.
+        <strong className="font-medium text-ink">None</strong> under tolerance means the criterion admits none: a
+        field that must simply be stated, or a yes-or-no Venus settles exactly. Each criterion’s own allowance is in
+        its name.
       </p>
 
       <Source view={view} />
@@ -210,18 +249,53 @@ export function ProofRunResults({ view }: { view: ProofRunView }) {
  * Provenance and freshness
  * ------------------------------------------------------------------ */
 
-export function ProvenanceChip({ kind }: { kind: Scenario['kind'] }) {
-  const fixture = kind === 'fixture';
+/**
+ * What kind of evidence this run is, drawn from the run rather than from
+ * the page that is showing it.
+ *
+ * All four provenances are named. An unhandled one falling through to a
+ * fixture's wording would be the mislabelling that matters most — real
+ * customer work drawn as something somebody wrote down, or the reverse.
+ */
+const PROVENANCE: Record<
+  VerificationResult['provenance'],
+  { label: string; skin: string; icon: React.ReactNode; title: string }
+> = {
+  fixture: {
+    label: 'Synthetic fixture',
+    skin: 'bg-info-wash text-ink',
+    icon: <Icon.Flask size={12} />,
+    title: 'A position written down to exercise one behaviour. It never existed on chain, and running it contacts no provider.',
+  },
+  simulation: {
+    label: 'Dry run',
+    skin: 'bg-sunken text-ink-2',
+    icon: <Icon.Flask size={12} />,
+    title: 'A run made on Pokter’s own initiative rather than for a buyer.',
+  },
+  sponsored: {
+    label: 'Sponsored test',
+    skin: 'bg-signal-wash text-ink',
+    icon: <Icon.Pulse size={12} />,
+    title: 'A job Pokter paid for, not a customer’s own work.',
+  },
+  customer: {
+    label: 'Customer work',
+    skin: 'bg-ok-wash text-ink',
+    icon: <Icon.Briefcase size={12} />,
+    title: 'A job a buyer funded, checked against the chain at the block the report names.',
+  },
+};
+
+export function ProvenanceChip({ provenance }: { provenance: VerificationResult['provenance'] }) {
+  const copy = PROVENANCE[provenance];
   return (
     <span
-      className={cn(
-        'inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-medium',
-        fixture ? 'bg-info-wash text-ink' : 'bg-sunken text-ink-2',
-      )}
-      title={KIND_DISCLOSURE[kind]}
+      className={cn('inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-medium', copy.skin)}
+      title={copy.title}
     >
-      {fixture ? <Icon.Flask size={12} /> : <Icon.Clock size={12} />}
-      {fixture ? 'Synthetic fixture' : 'Historical replay'}
+      {copy.icon}
+      {copy.label}
     </span>
   );
 }
@@ -423,8 +497,11 @@ function CheckCards({ checks }: { checks: readonly CheckResult[] }) {
  * case in which it matters.
  */
 function Source({ view }: { view: ProofRunView }) {
-  const { subject, result, scenario } = view;
-  const synthetic = scenario.kind === 'fixture';
+  const { subject, result } = view;
+  /* Same discriminant as the header: the run's own provenance, which no
+     surface can set, rather than a scenario that a job-backed run has
+     none of. */
+  const synthetic = result.provenance === 'fixture';
   return (
     <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-2">
       <SourceFact label="Account">
@@ -454,7 +531,7 @@ function Source({ view }: { view: ProofRunView }) {
             None.{' '}
             {synthetic
               ? 'This state was not read from a chain, so there is no hash to give.'
-              : 'The node gave no hash, so the reading is pinned by number alone.'}
+              : 'The node served no header, so this reading is pinned by block number alone — which two chains, or one chain either side of a reorg, can both satisfy.'}
           </span>
         )}
       </SourceFact>
@@ -484,6 +561,36 @@ function Source({ view }: { view: ProofRunView }) {
         <span className="mt-0.5 block text-[11.5px] text-ink-3">
           Shows these bytes are unaltered. It says nothing about whether the figures are right.
         </span>
+        {/*
+          Said wherever the receipt can be downloaded, because without it
+          the page invites a false alarm.
+
+          A run is recomputed per request and `checkedAt` is inside the
+          hash, so two fetches a second apart produce different receipt
+          hashes. A reader who downloads the file, hashes it, and finds it
+          does not match the figure above would reasonably conclude
+          somebody had altered it — which is exactly the alarm the hash
+          exists to raise, fired by nothing.
+        */}
+        {view.artifactHref && (
+          <span className="mt-1 block text-[11.5px] text-ink-3">
+            It covers this run, including the moment it was made. The receipt is recomputed each time it is fetched,
+            so a copy taken later carries its own time and its own hash. What stays the same across them is the
+            criteria hash above and the checks themselves.
+          </span>
+        )}
+        {view.artifactHref && (
+          /* The receipt itself, for a reader who would rather check it
+             than be told. `scripts/proofrun-verify.mts` reads this file. */
+          <a
+            href={view.artifactHref}
+            className="link mt-1 inline-flex items-center gap-1 text-[12px] text-ink"
+            download
+          >
+            Download the receipt
+            <Icon.Download size={12} />
+          </a>
+        )}
       </SourceFact>
     </dl>
   );

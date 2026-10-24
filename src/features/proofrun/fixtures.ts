@@ -10,16 +10,34 @@ import { SCENARIOS } from '@/lib/proofrun/scenarios';
  * facts as `readFactsAt`, so there is no code path from a fixture run to
  * an RPC.
  *
- * ## Where this lives, and where it is going
+ * ## Why this is not loaded from `tests/fixtures/proofrun/`
  *
- * `SCENARIOS` names a `fixture` file per scenario — `normal-borrow.json`
- * and so on — which belongs in `tests/fixtures/proofrun/`. Those files are
- * another agent's and have not landed. Rather than import paths that do
- * not resolve, or stub the runner, the data sits here keyed by the
- * scenario ids the library already publishes, so the page runs today and
- * the swap is a loader change in one place. `FIXTURE_SOURCE` is what the
- * UI tells a reader in the meantime, so the page never cites a file it is
- * not actually reading.
+ * That directory now exists, and the plan was to read it from here. It
+ * turned out to be the wrong move for three separate reasons, each of
+ * which would have put a false sentence on the page:
+ *
+ *  1. **The provenance is different.** Eight of those ten fixtures carry
+ *     *real* BNB Chain state — a real account, block 129,170,001, and
+ *     that block's real hash — with a synthetic report written against
+ *     it. Only `04-zero-debt.json` is synthetic throughout. The sentence
+ *     this page prints over a fixture is the library's own
+ *     `KIND_DISCLOSURE.fixture`: "it never existed on chain". That is
+ *     true of the positions below and false of most of those, so loading
+ *     them would make the page assert something untrue about real state
+ *     and a real wallet.
+ *  2. **The names do not line up.** `SCENARIOS` names `normal-borrow.json`,
+ *     `zero-debt.json`, `mixed-decimals.json` and `stale-oracle.json`;
+ *     the files are `01-correct-report.json` through
+ *     `10-changed-verifier-version.json`. Nothing resolves the `fixture`
+ *     field, so it currently names four files that do not exist.
+ *  3. **The dependency runs the wrong way.** `src/` importing from
+ *     `tests/` would ship test data in the application bundle and tie
+ *     production code to the test tree. Nothing in `src/` does that, and
+ *     those files are not this agent's to reshape.
+ *
+ * So the positions stay here, where they genuinely are what the page says
+ * they are, and `FIXTURE_SOURCE` points a reader at this file rather than
+ * at one it is not reading.
  *
  * Three deliberate choices keep the synthetic nature visible rather than
  * merely documented:
@@ -38,7 +56,7 @@ import { SCENARIOS } from '@/lib/proofrun/scenarios';
 
 /** Said in the UI wherever a fixture is cited, so the page names its real source. */
 export const FIXTURE_SOURCE =
-  'Written down in src/features/proofrun/fixtures.ts, and moving to tests/fixtures/proofrun when those files land.';
+  'These positions are written down in src/features/proofrun/fixtures.ts. Nothing in them was read from a chain.';
 
 /** A hand-written position. `0xfacade…`, so it cannot be mistaken for a wallet. */
 function syntheticAccount(index: number): string {
