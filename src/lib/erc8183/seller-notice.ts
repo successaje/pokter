@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { readA2AReply } from '@/lib/a2a/reply';
 import { readAgentCard } from '@/lib/agents/agent-card';
 import { sendOperatorAlert } from '@/lib/alerts/operator';
 import { getJobStore, type SellerNotice, type SellerNoticeStatus } from '@/lib/erc8183/store';
@@ -39,7 +40,7 @@ async function askSeller(input: {
   }
 
   const rpcId = crypto.randomUUID();
-  const reply = await withPublicEndpoint(jsonRpcEndpoint(card) as string, async (service) => {
+  const payload = await withPublicEndpoint(jsonRpcEndpoint(card) as string, async (service) => {
     const response = await service.fetch({
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -67,13 +68,20 @@ async function askSeller(input: {
       signal: AbortSignal.timeout(SELLER_ANSWER_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`The seller answered HTTP ${response.status}.`);
-    return agentReply(await readJson(response, { expectId: rpcId }));
+    return readJson(response, { expectId: rpcId });
   });
-  const read = readNoticeReply(reply);
-  if (!read) {
-    return { status: 'unreachable', reason: 'The seller answered without saying whether it accepted the job.', deliverableUrl: null };
+  const read = readNoticeReply(agentReply(payload));
+  if (read) return read;
+  /* An A2A task the seller has taken on and not finished: its own word for accepted. */
+  const task = readA2AReply(payload);
+  if (task.kind === 'task' && (task.state === 'working' || task.state === 'submitted')) {
+    return { status: 'accepted', reason: task.statusText, deliverableUrl: null };
   }
-  return read;
+  return {
+    status: 'unreachable',
+    reason: 'The seller answered, but not in a form Pokter reads as accepted or refused. Pokter watches the chain for its delivery.',
+    deliverableUrl: null,
+  };
 }
 
 /**

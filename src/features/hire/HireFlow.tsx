@@ -306,7 +306,7 @@ export function HireFlow(props: HireFlowProps) {
                 {hire.notification === 'notifying' && 'Telling the agent the job is funded…'}
                 {hire.notification === 'accepted' && 'The agent verified the funded job and accepted the work.'}
                 {hire.notification === 'rejected' && 'The agent saw the job but declined the delivery request. If nothing is delivered by the deadline, you reclaim the full amount.'}
-                {hire.notification === 'failed' && `The agent could not be reached (${hire.notificationDetail ?? 'no detail'}). The job stays funded; if nothing arrives by the deadline, you reclaim it.`}
+                {hire.notification === 'failed' && `Pokter could not confirm the agent took the job (${hire.notificationDetail ?? 'no detail'}). It may still deliver: Pokter checks the chain for its delivery. The job stays funded; if nothing arrives by the deadline, you reclaim it.`}
                 {hire.notification === 'not-applicable' && hire.notificationDetail}
                 {hire.notification === 'idle' && 'Waiting to notify the agent.'}
               </p>
