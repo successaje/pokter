@@ -1,6 +1,6 @@
 import { keccak256, toHex } from 'viem';
 
-import type { VenusReportVerification } from '@/lib/delivery/venus-report-check';
+import { readVenusReportClaim, type VenusReportVerification } from '@/lib/delivery/venus-report-check';
 import type { AcceptanceSpec, JobRef, VerificationResult } from '@/lib/shared/contracts';
 import { venusAcceptanceSpec } from './acceptance';
 import { buildArtifact, type SealedArtifact } from './artifact';
@@ -53,10 +53,14 @@ export function hashBytes(value: string | null | undefined): string | null {
 export function proofRun(input: ProofRunInput): ProofRun {
   const spec = input.spec ?? venusAcceptanceSpec({ deployment: input.deployment, chainId: input.chainId });
   const checkedAt = input.checkedAt ?? new Date().toISOString();
+  /* The same pure reader the checker used, on the same bytes, so the two
+     cannot disagree about what the report claimed. */
+  const claim = input.manifestText === null ? null : readVenusReportClaim(input.manifestText);
   const checks = checksFromVerification({
     verification: input.verification,
     criteria: spec.criteria,
     blockHash: input.blockHash,
+    chainClaim: claim?.ok ? claim.claim.chain : undefined,
     /* So a row cannot say a criterion was agreed while the spec beside it
        says Pokter only recorded it. */
     binding: spec.binding,
