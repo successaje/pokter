@@ -462,3 +462,27 @@ test('the limitations refuse the claims this feature could drift into', () => {
     assert.doesNotMatch(all, forbidden, 'the limitations make a claim they exist to refuse');
   }
 });
+
+/*
+ * A row must not claim agreement the spec beside it denies.
+ *
+ * Found by running the real route: the artifact for job 56/57004 carried
+ * `binding: pokter-asserted` — the agent never agreed to these criteria —
+ * above seven rows each reading "This criterion was agreed but nothing
+ * settled it". The verdict was right and the sentence above it was wrong,
+ * which is the exact failure this feature exists to catch, reproduced
+ * inside it. Neither the unit tests nor the type checker could see it;
+ * fetching the artifact could.
+ */
+test('an unsettled criterion does not claim the agent agreed to it', () => {
+  const unsettled = (binding: 'signed-terms' | 'pokter-asserted') =>
+    checksFromVerification({
+      verification: verification({ values: [] }),
+      criteria: venusHealthCriteria(),
+      binding: { kind: binding },
+    }).find((c) => c.id === 'hf.value')?.limitation ?? '';
+
+  assert.match(unsettled('pokter-asserted'), /not agreed by the agent/i, 'Pokter-recorded criteria were described as agreed');
+  assert.doesNotMatch(unsettled('pokter-asserted'), /^Agreed with the agent/i);
+  assert.match(unsettled('signed-terms'), /Agreed with the agent/i, 'criteria the agent signed were not described as agreed');
+});

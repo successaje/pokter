@@ -1,4 +1,4 @@
-import type { CheckResult, Criterion, VerificationState } from '@/lib/shared/contracts';
+import type { AcceptanceSpec, CheckResult, Criterion, VerificationState } from '@/lib/shared/contracts';
 import type { CheckedValue, VenusReportVerification } from '@/lib/delivery/venus-report-check';
 import { venusHealthCriteria } from './acceptance';
 
@@ -63,10 +63,29 @@ function toleranceFor(id: string, criteria: readonly Criterion[]): string | null
   return id.endsWith('_usd') ? `±${tolerance * 100}%` : `±${tolerance}`;
 }
 
+/**
+ * What to say about a criterion nothing settled, given how it got there.
+ *
+ * Said two ways because only one of them is true at a time, and the
+ * wrong one is a claim rather than a clumsiness. An artifact for job
+ * 56/57004 carried `binding: pokter-asserted` — the agent never agreed
+ * to these criteria — above seven rows each reading "This criterion was
+ * **agreed** but nothing settled it". The verdict was right and the
+ * sentence above it was wrong, which is the failure this whole feature
+ * is built to catch, reproduced inside it.
+ */
+function unsettledLimitation(binding: AcceptanceSpec['binding'] | undefined): string {
+  return binding?.kind === 'signed-terms'
+    ? 'Agreed with the agent, but nothing in the delivery or the chain reading settled it.'
+    : 'Recorded by Pokter and not agreed by the agent, and nothing in the delivery or the chain reading settled it.';
+}
+
 export function checksFromVerification(input: {
   verification: VenusReportVerification;
   criteria?: readonly Criterion[];
   blockHash?: string | null;
+  /** How the criteria were bound, so a row cannot claim agreement the spec denies. */
+  binding?: AcceptanceSpec['binding'];
 }): CheckResult[] {
   const criteria = input.criteria ?? venusHealthCriteria();
   const source = { block: input.verification.block, hash: input.blockHash ?? null };
@@ -132,7 +151,7 @@ export function checksFromVerification(input: {
       observed: '—',
       source,
       tolerance: toleranceFor(criterion.id, criteria),
-      limitation: 'This criterion was agreed but nothing in the delivery or the chain reading settled it.',
+      limitation: unsettledLimitation(input.binding),
     });
   }
 

@@ -57,6 +57,9 @@ export function proofRun(input: ProofRunInput): ProofRun {
     verification: input.verification,
     criteria: spec.criteria,
     blockHash: input.blockHash,
+    /* So a row cannot say a criterion was agreed while the spec beside it
+       says Pokter only recorded it. */
+    binding: spec.binding,
   });
   const state = stateFromChecks(checks);
 
