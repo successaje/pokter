@@ -664,6 +664,34 @@ export async function main(argv: readonly string[]): Promise<{ code: number; lin
   const url = rpc ?? nodeRealUrl(56);
   if (!url) {
     /*
+     * Integrity first, even with nowhere to read from.
+     *
+     * This returned "not verified — nothing was read, so nothing about
+     * the receipt has been established either way" for a **forged**
+     * receipt, because the endpoint check sat in front of the integrity
+     * check that needs no endpoint. Something had been established: the
+     * bytes are not the bytes that were sealed. Saying otherwise is the
+     * worst direction to be wrong in, and it is the likeliest
+     * invocation — somebody handed a receipt, running the verifier
+     * before finding an archive node.
+     *
+     * `replayArtifact` opens with the same two checks, so this is the
+     * same gate reached earlier rather than a second copy of the rule:
+     * both call `checkArtifactIntegrity` and `checkSpecIntegrity`, and a
+     * change to either is a change to both.
+     */
+    const offline = await replayArtifact({
+      sealed,
+      deliverableText,
+      /* Never consulted: a tampered or mis-specified receipt is refused
+         before anything is read, and anything that gets past those two
+         is stopped by the verdict below. */
+      readFactsAt: async () => ({ available: false, code: 'no-history', detail: 'no endpoint was supplied.' }),
+    });
+    if (offline.verdict === 'tampered' || offline.verdict === 'unreadable') {
+      return { code: EXIT[offline.verdict], lines: renderReplay(offline, { artifactPath, endpoint: 'none' }) };
+    }
+    /*
      * The code comes from the verdict rather than being written out again
      * here. Two places that have to say "not verified" is one place too many:
      * the headline and the exit code would be free to drift apart, and a

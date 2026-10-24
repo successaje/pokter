@@ -745,3 +745,38 @@ test('8c. as a command: the exit codes a script would branch on are the process�
   assert.match(tampered.out, /^Tampered$/m);
   assert.notEqual(agreed.code, tampered.code, 'the two cases a script must tell apart do not share a code');
 });
+
+/*
+ * A forged receipt is forged whether or not you have an archive node.
+ *
+ * The endpoint check sat in front of the integrity check that needs no
+ * endpoint, so running the verifier on a tampered receipt without
+ * `--rpc` answered "nothing was read, so nothing about the receipt has
+ * been established either way". Something had been established: the
+ * bytes are not the bytes that were sealed. It is also the likeliest
+ * invocation — somebody handed a receipt, running it before finding an
+ * archive node — so the one case most likely to be hit was the one that
+ * stayed quiet.
+ *
+ * Both directions are pinned, because a fix that refused everything
+ * offline would be no better than one that refused nothing.
+ */
+test('tampering is reported without an endpoint, and an intact receipt still is not', async () => {
+  const base = buildRun(fixture('01-correct-report.json'));
+
+  const forged = clone(base.sealed) as SealedArtifact;
+  forged.artifact.checks.find((c) => c.id === 'hf.value')!.observed = 'edited';
+  const tamperedPath = writeJson('offline-tampered.json', forged);
+  const tampered = await run([tamperedPath]);
+  assert.equal(tampered.code, 4, `a forged receipt without an endpoint exited ${tampered.code}, not 4:\n${tampered.out}`);
+  assert.match(tampered.flat, /Tampered/);
+  assert.doesNotMatch(tampered.flat, /nothing about the receipt has been established either way/);
+  assert.doesNotMatch(tampered.flat, /No endpoint was given/, 'the endpoint message pre-empted the integrity verdict');
+
+  /* The control: a fix that refused everything offline would be no
+     better than one that refused nothing. */
+  const intactPath = writeJson('offline-intact.json', base.sealed);
+  const intact = await run([intactPath]);
+  assert.equal(intact.code, 2, `an intact receipt without an endpoint exited ${intact.code}, not 2:\n${intact.out}`);
+  assert.match(intact.flat, /No endpoint was given/);
+});
