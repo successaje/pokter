@@ -1,0 +1,53 @@
+{
+  "_why": "A position with no borrow, where there is no health factor to state. A report that correctly says so must not be failed for the missing figure, and one that invents a ratio must not be passed.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "zero-debt",
+  "attribution": "Synthetic throughout, written for this test suite. No agent delivered the report and it is not the work of any external builder.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x000000000000000000000000000000000000f1b7",
+    "pool": "core",
+    "blockNumber": "900000001",
+    "blockHash": "0xf1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7f1b7"
+  },
+  "chain": {
+    "real": false,
+    "read": "available",
+    "note": "No part of this chain state is real. The captured position carries debt, so a no-borrow case cannot be derived from it. The account, block number, block hash and figures below are placeholders chosen to be unmistakably synthetic — the account is a padded placeholder, block 900,000,001 is far beyond BNB Smart Chain's head, and the hash is a repeating pattern. This position has never existed on any chain, and nothing here may be read as a statement about BNB Smart Chain.",
+    "facts": {
+      "blockTime": "2026-10-22T18:00:00.000Z",
+      "healthFactor": null,
+      "borrowLimitRatio": null,
+      "liquidatable": false,
+      "debtUsd": 0,
+      "collateralUsd": 1000
+    },
+    "legs": {
+      "_note": "One supplied market and no borrowed market, which is what makes the health factor undefined.",
+      "collateral": {
+        "BNB": { "supplyUsd": 1000, "liquidationThreshold": 0.8, "collateralFactor": 0.8 }
+      },
+      "debt": {}
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x000000000000000000000000000000000000f1b7",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "900000001", "time": "2026-10-22T18:00:00.000Z" },
+    "health_factor": null,
+    "liquidatable": false,
+    "debt_usd": 0,
+    "collateral_usd": 1000,
+    "summary": "Supplies collateral and borrows nothing, so there is no health factor and nothing can be liquidated."
+  },
+  "expect": {
+    "verdict": "matches",
+    "state": "verified",
+    "cli": "verified",
+    "_theDollarsAreCompared": "This fixture was the one that found the no-debt branch returning before the dollar rows were built: position.debt_usd and position.collateral_usd were recorded and never compared, so no zero-debt position could reach verified however right the report was. Fixed in the core; the suite now proves both rows are judged, and that a wrong collateral figure here fails rather than being excused by the absent ratio.",
+    "_alsoProves": "The inverse must fail: the same state against a report that states a health factor is a disagreement the report earned, because with no debt there is no ratio to give."
+  }
+}

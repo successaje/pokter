@@ -1,0 +1,56 @@
+{
+  "_why": "A wrong figure stated as confidently and as precisely as a right one, so the suite proves the verdict comes from the chain and not from how sure the report sounds.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "plausible-wrong-report",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder. The error in it was put there on purpose and is nobody's mistake.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "available",
+    "note": "Same real Venus Core Pool state as 01-correct-report.json: this account at BNB Smart Chain block 129,170,001, captured 2026-10-22, hash re-read 2026-10-24 and agreed by two nodes. The state is real; the report is synthetic.",
+    "facts": {
+      "blockTime": "2026-10-22T17:28:47.000Z",
+      "healthFactor": 1.122279,
+      "borrowLimitRatio": 1.122152,
+      "liquidatable": false,
+      "debtUsd": 207792.7696819796,
+      "collateralUsd": 291545.97
+    },
+    "legs": {
+      "_note": "As 01-correct-report.json. Liquidation thresholds captured; collateral factors synthetic and set equal to them.",
+      "collateral": {
+        "BNB": { "supplyUsd": 291370.25, "liquidationThreshold": 0.8, "collateralFactor": 0.8 },
+        "XVS": { "supplyUsd": 175.72, "liquidationThreshold": 0.6, "collateralFactor": 0.6 }
+      },
+      "debt": { "USDC": 50231.33, "USDT": 157561.43 }
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.3512,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "confidence": "high",
+    "summary": "Health factor 1.3512 at block 129,170,001, read directly from the Venus Comptroller. The position is comfortable and not liquidatable; collateral would have to fall 26.0 percent before liquidation."
+  },
+  "expect": {
+    "verdict": "differs",
+    "state": "mismatch",
+    "cli": "not-verified",
+    "failedCheck": "hf.value",
+    "_whyNotContradicted": "The receipt and the replay agree that hf.value failed, so this is not verifier disagreement. It is still not-verified overall, because verifyVenusReport returns on the first disagreement and the criteria below it were never settled — the replay confirms what ran and refuses to call the rest confirmed.",
+    "_whyStatedToFourPlaces": "Four decimals puts it past HF_MIN_STATED_DECIMALS, so the precision guard cannot absorb it. A report this precise and this wrong has to come out as a disagreement it earned."
+  }
+}

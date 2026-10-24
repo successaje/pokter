@@ -298,6 +298,7 @@ export function useHire({
   escrowChainId = WALLET_NETWORK.chainId,
   initialTask = null,
   proposalU = null,
+  deliverySeconds = DELIVERY_WINDOW_SECONDS,
 }: {
   agent: HireAgent;
   providers: ProviderChoice[];
@@ -331,6 +332,8 @@ export function useHire({
   riskWarnings?: string[];
   /** The price of a proposal chosen on a request, which the budget starts at. */
   proposalU?: number | null;
+  /** Time the seller has to deliver: a chosen proposal's own, or the standing window. */
+  deliverySeconds?: number;
   /** The agent's own skills, whose examples beat a category guess. */
   declaredSkills?: readonly { id?: string; name: string; kind?: string; description?: string | null; examples: readonly string[] }[];
 }) {
@@ -1023,7 +1026,7 @@ export function useHire({
           quote: signedQuote ?? undefined,
           intent: signedQuote ? { ...signedQuote.intent, provider: providerAddress as `0x${string}` } : undefined,
           budgetU: budget,
-          ttlSeconds: DELIVERY_WINDOW_SECONDS,
+          ttlSeconds: deliverySeconds,
           escrowChainId,
           onProgress: ({ step: reached, jobId: reachedId }) => {
             setExternalStep(reached);
@@ -1161,7 +1164,7 @@ export function useHire({
       const outcome = await hireErc8183Agent(
         { address: wallet.address },
         signer,
-        { provider: providerAddress as `0x${string}`, task: committedTask, budget: budgetRaw },
+        { provider: providerAddress as `0x${string}`, task: committedTask, budget: budgetRaw, deadlineSeconds: deliverySeconds },
         { network: WALLET_NETWORK },
       );
       const now = new Date().toISOString();
