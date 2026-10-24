@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 
 import { formatQuoted } from '@/lib/network/tokens';
+import { useLiveSignMessage } from '@/lib/wallet/use-live-sign-message';
 import { useLiveSignTypedData } from '@/lib/wallet/use-live-sign-typed-data';
+import { receiptProofMessage } from '@/lib/x402/receipt-proof';
+import { maySignAgain, type Receipt, type ReceiptView } from '@/lib/x402/sign-again';
 import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 import { authorizationTypedData, paymentHeader, X402_CHAIN_ID, type X402Terms } from '@/lib/x402/exact';
 import type { CallOutcome } from '@/lib/x402/call';
@@ -19,7 +22,7 @@ type Stage =
   | { kind: 'terms'; terms: X402Terms }
   | { kind: 'signing'; terms: X402Terms }
   | { kind: 'sending'; terms: X402Terms; nonce: string }
-  | { kind: 'done'; terms: X402Terms; outcome: CallOutcome; nonce: string | null };
+  | { kind: 'done'; terms: X402Terms; outcome: CallOutcome | { kind: 'lost' }; nonce: string | null };
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
@@ -38,6 +41,8 @@ function randomNonce(): `0x${string}` {
 export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: string }) {
   const { address, chain, isConnected } = useAccount();
   const { signTypedDataAsync } = useLiveSignTypedData();
+  const { signMessageAsync } = useLiveSignMessage();
+  const [receipt, setReceipt] = useState<ReceiptView>({ kind: 'idle' });
   const { switchChainAsync } = useLiveSwitchChain();
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [body, setBody] = useState('{\n  "task": ""\n}');
@@ -98,15 +103,12 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
         setError(`${outcome.error} Nothing was sent.`);
         return;
       }
+      setReceipt({ kind: 'idle' });
       setStage({ kind: 'done', terms, outcome, nonce });
     } catch {
       /* The answer to our own request was lost: the seller may have been paid. Never resend. */
-      setStage({
-        kind: 'done',
-        terms,
-        nonce,
-        outcome: { kind: 'unavailable', reason: 'Pokter’s answer did not reach this page, so it is not known whether the call was sent. Do not pay again: open the receipt below.' },
-      });
+      setReceipt({ kind: 'idle' });
+      setStage({ kind: 'done', terms, nonce, outcome: { kind: 'lost' } });
     }
   };
 
@@ -116,6 +118,31 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
     void readTerms();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, []);
+
+  const checkReceipt = async (nonce: string) => {
+    setReceipt({ kind: 'checking' });
+    try {
+      const response = await fetch(`/api/x402/calls/${nonce}`, { cache: 'no-store' });
+      if (response.status === 404) return setReceipt({ kind: 'missing' });
+      const data = (await response.json()) as { receipt?: Receipt; error?: string };
+      if (!response.ok || !data.receipt) throw new Error(data.error ?? `HTTP ${response.status}`);
+      setReceipt({ kind: 'seen', receipt: data.receipt });
+    } catch (reason) {
+      setReceipt({ kind: 'failed', reason: (reason as Error).message });
+    }
+  };
+
+  const showAnswer = async (nonce: string) => {
+    try {
+      const signature = await signMessageAsync({ message: receiptProofMessage(nonce) });
+      const response = await fetch(`/api/x402/calls/${nonce}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ signature }) });
+      const data = (await response.json()) as { receipt?: Receipt; error?: string };
+      if (!response.ok || !data.receipt) throw new Error(data.error ?? `HTTP ${response.status}`);
+      setReceipt({ kind: 'seen', receipt: data.receipt });
+    } catch (reason) {
+      setReceipt({ kind: 'failed', reason: (reason as Error).message.split('\n')[0] });
+    }
+  };
 
   const price = (t: X402Terms) => formatQuoted(t.asset, t.amountRaw)?.label ?? `${t.amountRaw} raw units`;
 
@@ -173,21 +200,55 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
               <pre className="max-h-64 overflow-auto rounded-[10px] bg-sunken p-3 text-[12px]">{stage.outcome.call.responseText}</pre>
             </>
           )}
-          {stage.outcome.kind === 'refused' && <Notice tone="bad" title="The seller did not answer the call">{stage.outcome.call.error}</Notice>}
-          {stage.outcome.kind === 'unknown' && <Notice tone="watch" title="Outcome unknown">{stage.outcome.call.error}</Notice>}
-          {stage.outcome.kind === 'already-sent' && <Notice tone="watch" title="Already sent">This authorization was already sent once; it is not sent again. See its receipt.</Notice>}
+          {stage.outcome.kind === 'refused' && (
+            <Notice tone="bad" title="The seller did not answer the call">
+              {stage.outcome.call.error}
+              {stage.outcome.call.responseText ? ` It said: ${stage.outcome.call.responseText.slice(0, 300)}` : ''}
+            </Notice>
+          )}
+          {(stage.outcome.kind === 'unknown' || stage.outcome.kind === 'lost' || stage.outcome.kind === 'already-sent') && (
+            <Notice tone="watch" title="Outcome unknown: do not pay again">
+              {stage.outcome.kind === 'unknown'
+                ? stage.outcome.call.error
+                : stage.outcome.kind === 'lost'
+                  ? 'Pokter’s reply did not reach this page, so it is not known whether the seller was paid. Check the receipt before doing anything else.'
+                  : 'This payment was already sent once and is not sent again. Check the receipt for how it ended.'}
+            </Notice>
+          )}
           {stage.outcome.kind === 'terms-changed' && (
             <Notice tone="watch" title="The seller’s terms changed" action={<Button size="s" intent="secondary" onClick={() => setStage({ kind: 'terms', terms: (stage.outcome as { fresh: X402Terms }).fresh })}>Review the new terms</Button>}>
               {stage.outcome.reason}
             </Notice>
           )}
           {(stage.outcome.kind === 'unavailable' || stage.outcome.kind === 'invalid') && <Notice tone="bad" title="Not sent">{stage.outcome.reason}</Notice>}
-          {stage.nonce && (
-            <a className="link text-[12.5px]" href={`/api/x402/calls/${stage.nonce}`} target="_blank" rel="noreferrer">
-              Receipt for this payment
-            </a>
+          {stage.outcome.kind === 'not-sent' && <Notice tone="bad" title="Not sent">{stage.outcome.call.error}</Notice>}
+
+          {stage.nonce && stage.outcome.kind !== 'answered' && stage.outcome.kind !== 'terms-changed' && (
+            <div className="flex flex-col gap-2">
+              <Button size="s" intent="secondary" className="self-start" busy={receipt.kind === 'checking'} onClick={() => void checkReceipt(stage.nonce!)}>
+                Check the receipt
+              </Button>
+              {receipt.kind === 'missing' && <p className="text-[13px] text-ink-2">Pokter never received this payment, so nothing was sent to the seller.</p>}
+              {receipt.kind === 'failed' && <p className="text-[13px] text-bad">The receipt could not be read: {receipt.reason}. Try again; do not pay again.</p>}
+              {receipt.kind === 'seen' && (
+                <div className="flex flex-col gap-2 text-[13px]">
+                  <p>
+                    Receipt: <span className="t-readout">{receipt.receipt.state}</span>
+                    {receipt.receipt.httpStatus ? ` · HTTP ${receipt.receipt.httpStatus}` : ''}
+                    {receipt.receipt.settlementTx ? ` · settled in ${short(receipt.receipt.settlementTx)}` : ''}
+                  </p>
+                  {receipt.receipt.state === 'answered' && receipt.receipt.responseText === undefined && (
+                    <Button size="s" intent="secondary" className="self-start" onClick={() => void showAnswer(stage.nonce!)}>
+                      Show the answer (sign with the paying wallet; moves nothing)
+                    </Button>
+                  )}
+                  {typeof receipt.receipt.responseText === 'string' && <pre className="max-h-64 overflow-auto rounded-[10px] bg-sunken p-3 text-[12px]">{receipt.receipt.responseText}</pre>}
+                </div>
+              )}
+            </div>
           )}
-          {stage.outcome.kind !== 'answered' && stage.outcome.kind !== 'terms-changed' && (
+
+          {maySignAgain(stage.outcome, receipt) && (
             <Button size="s" intent="ghost" className="self-start" onClick={() => setStage({ kind: 'terms', terms: stage.terms })}>
               Back to the terms (your request is kept)
             </Button>

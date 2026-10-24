@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-import { authorizationMismatch, changedTerms, readPaymentHeader, type X402Choice, type X402Terms } from './exact';
-import { beginX402Call, finishX402Call, readX402Call, type X402Call } from './receipts';
+import { changedTerms, paymentHeaderProblem, readPaymentHeader, type X402Choice, type X402Terms } from './exact';
+import { beginX402Call, effectiveState, finishX402Call, readX402Call, type X402Call } from './receipts';
 
 /**
  * One paid call, from a buyer's signed authorization to the seller's answer.
@@ -26,6 +26,7 @@ export type CallOutcome =
   | { kind: 'answered'; call: X402Call; replayed: boolean }
   | { kind: 'refused'; call: X402Call }
   | { kind: 'unknown'; call: X402Call }
+  | { kind: 'not-sent'; call: X402Call }
   | { kind: 'already-sent'; call: X402Call }
   | { kind: 'terms-changed'; reason: string; fresh: X402Terms }
   | { kind: 'unavailable'; reason: string }
@@ -38,6 +39,18 @@ export interface SentResponse {
 }
 
 const SETTLEMENT_HEADERS = ['payment-response', 'x-payment-response'];
+
+/**
+ * Thrown by a sender that refused before any request left Pokter (a DNS
+ * answer that changed, a private address): nothing reached the seller, so
+ * the authorization was not spent and the buyer may sign again.
+ */
+export class X402NotSentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'X402NotSentError';
+  }
+}
 
 /** The settlement transaction a seller reported, when its response header says one. */
 export function settlementTransaction(headers: Headers): string | null {
@@ -81,8 +94,8 @@ export async function runX402Call(input: {
   if (input.header.name !== expectedHeader) return { kind: 'invalid', reason: `This seller speaks x402 version ${fresh.terms.version}, so the payment goes in ${expectedHeader}.` };
   const signed = readPaymentHeader(input.header.value);
   if (!signed) return { kind: 'invalid', reason: 'The payment header could not be read.' };
-  const mismatch = authorizationMismatch(fresh.terms, signed.authorization, nowSeconds);
-  if (mismatch) return { kind: 'invalid', reason: mismatch };
+  const problem = await paymentHeaderProblem(fresh.terms, signed, nowSeconds);
+  if (problem) return { kind: 'invalid', reason: problem };
 
   const at = new Date(now).toISOString();
   const claim = beginX402Call(input.db, {
@@ -99,13 +112,18 @@ export async function runX402Call(input: {
   });
   if (!claim.begun) {
     if (claim.existing.state === 'answered') return { kind: 'answered', call: claim.existing, replayed: true };
-    return { kind: 'already-sent', call: claim.existing };
+    /* A send that never finished is reported as what it may be: settled, with the answer lost. */
+    return { kind: 'already-sent', call: { ...claim.existing, state: effectiveState(claim.existing, now) } };
   }
 
   let response: SentResponse;
   try {
     response = await input.send({ [expectedHeader]: input.header.value, 'content-type': 'application/json', accept: 'application/json' }, input.body);
   } catch (error) {
+    if (error instanceof X402NotSentError) {
+      finishX402Call(input.db, signed.authorization.nonce, { state: 'not-sent', httpStatus: null, settlementTx: null, responseText: null, error: `Nothing was sent: ${error.message}`, at: new Date().toISOString() });
+      return { kind: 'not-sent', call: readX402Call(input.db, signed.authorization.nonce)! };
+    }
     const reason =
       'The request was sent but no answer came back, so Pokter does not know whether the seller settled the payment. Do not pay again: check this receipt later, or the token transfer on chain.';
     finishX402Call(input.db, signed.authorization.nonce, { state: 'unknown', httpStatus: null, settlementTx: null, responseText: null, error: `${reason} (${error instanceof Error ? error.message.slice(0, 120) : 'no detail'})`, at: new Date().toISOString() });

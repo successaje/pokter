@@ -69,3 +69,29 @@ test('the signed authorization recovers to the buyer, travels in the header, and
   const v1 = paymentHeader({ ...terms, version: 1 }, signature, authorization);
   assert.equal(v1.name, 'X-PAYMENT');
 });
+
+test('only the buyer’s own signature over these terms, in the seller’s envelope, is forwarded', async () => {
+  const { paymentHeaderProblem } = await import('../src/lib/x402/exact');
+  const terms = (chooseX402Option(BRAIN, fixture('brainonbnb')) as { ok: true; terms: import('../src/lib/x402/exact').X402Terms }).terms;
+  const { typedData, authorization } = authorizationTypedData(terms, buyer.address, NOW, NONCE);
+  const good = readPaymentHeader(paymentHeader(terms, await buyer.signTypedData(typedData), authorization).value)!;
+  assert.equal(await paymentHeaderProblem(terms, good, NOW), null);
+
+  const other = privateKeyToAccount('0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba');
+  const forged = readPaymentHeader(paymentHeader(terms, await other.signTypedData(typedData), authorization).value)!;
+  assert.match((await paymentHeaderProblem(terms, forged, NOW)) ?? '', /not signed by the wallet it names/);
+
+  const v1Envelope = readPaymentHeader(paymentHeader({ ...terms, version: 1 }, good.signature, authorization).value)!;
+  assert.match((await paymentHeaderProblem(terms, v1Envelope, NOW)) ?? '', /different x402 version/);
+
+  const nan = JSON.parse(Buffer.from(paymentHeader(terms, good.signature, authorization).value, 'base64').toString());
+  nan.payload.authorization.validBefore = 'soon';
+  assert.equal(readPaymentHeader(Buffer.from(JSON.stringify(nan)).toString('base64')), null, 'a non-number never reaches the expiry check');
+});
+
+test('the header base64 is the same in the browser shape and on the server', () => {
+  const terms = (chooseX402Option(BRAIN, fixture('brainonbnb')) as { ok: true; terms: import('../src/lib/x402/exact').X402Terms }).terms;
+  const header = paymentHeader(terms, ('0x' + '11'.repeat(65)) as `0x${string}`, { from: buyer.address, to: terms.payTo, value: '1', validAfter: '0', validBefore: '2', nonce: NONCE });
+  const decoded = JSON.parse(Buffer.from(header.value, 'base64').toString('utf8'));
+  assert.equal(decoded.accepted.extra.name, 'United Stables', 'no Buffer needed to build it, and it decodes with one');
+});

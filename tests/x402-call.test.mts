@@ -122,3 +122,33 @@ test('a settlement header is read only when it decodes to a transaction', () => 
   assert.equal(settlementTransaction(new Headers({ 'payment-response': 'garbage' })), null);
   assert.equal(settlementTransaction(new Headers()), null);
 });
+
+test('a refusal before anything left Pokter is "not sent", and a send stuck by a restart reads as unknown', async () => {
+  const { X402NotSentError } = await import('../src/lib/x402/call');
+  const { beginX402Call } = await import('../src/lib/x402/receipts');
+  const d = db();
+  const first = await signed();
+  const out = await runX402Call({ db: d, agreed: terms, agent, header: first.header, body: '{}', readFresh: fresh(), send: async () => { throw new X402NotSentError('DNS answer changed'); }, nowMs: NOW_MS });
+  assert.equal(out.kind, 'not-sent');
+
+  const stuck = await signed();
+  beginX402Call(d, { nonce: stuck.nonce, endpoint: terms.endpoint, payTo: terms.payTo, asset: terms.asset, amountRaw: terms.amountRaw, network: terms.network, payer: buyer.address, agentChainId: 56, agentTokenId: '302257', at: new Date(NOW_MS - 120_000).toISOString() });
+  let sends = 0;
+  const after = await runX402Call({ db: d, agreed: terms, agent, header: stuck.header, body: '{}', readFresh: fresh(), send: async () => { sends += 1; return reply(200, 'x'); }, nowMs: NOW_MS });
+  assert.equal(after.kind, 'already-sent');
+  assert.equal(after.kind === 'already-sent' && after.call.state, 'unknown', 'never "sending" forever');
+  assert.equal(sends, 0);
+});
+
+test('a second signature is offered only when nothing can have been taken', async () => {
+  const { maySignAgain } = await import('../src/lib/x402/sign-again');
+  const call = (over: object) => ({ ...(readX402Call(db(), '0x00') ?? {}), settlementTx: null, ...over }) as never;
+  assert.equal(maySignAgain({ kind: 'lost' }, { kind: 'idle' }), false, 'a lost reply never offers a second payment');
+  assert.equal(maySignAgain({ kind: 'unknown', call: call({}) }, { kind: 'idle' }), false);
+  assert.equal(maySignAgain({ kind: 'lost' }, { kind: 'seen', receipt: { state: 'unknown', settlementTx: null, httpStatus: null } }), false);
+  assert.equal(maySignAgain({ kind: 'lost' }, { kind: 'missing' }), true, 'Pokter never received it');
+  assert.equal(maySignAgain({ kind: 'lost' }, { kind: 'seen', receipt: { state: 'not-sent', settlementTx: null, httpStatus: null } }), true);
+  assert.equal(maySignAgain({ kind: 'refused', call: call({}) }, { kind: 'idle' }), true);
+  assert.equal(maySignAgain({ kind: 'refused', call: call({ settlementTx: '0x' + '1'.repeat(64) }) }, { kind: 'idle' }), false, 'refused but settled: may have been taken');
+  assert.equal(maySignAgain({ kind: 'invalid', reason: 'x' }, { kind: 'idle' }), true);
+});

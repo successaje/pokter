@@ -10,10 +10,12 @@ import { readX402Terms, sendX402, x402EndpointFor } from '@/lib/x402/seller';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 
+/* Only an answer is a 2xx. A refusal or an unknown outcome must not read as success to a script. */
 const STATUS: Record<CallOutcome['kind'], number> = {
   answered: 200,
-  refused: 200,
-  unknown: 202,
+  refused: 502,
+  unknown: 504,
+  'not-sent': 502,
   'already-sent': 409,
   'terms-changed': 409,
   unavailable: 503,

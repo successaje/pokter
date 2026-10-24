@@ -1,11 +1,11 @@
 import 'server-only';
 
-import { withPublicEndpoint } from '@/lib/proof/prober';
+import { assertPublicEndpoint, withPublicEndpoint } from '@/lib/proof/prober';
 import { registryTokenUri } from '@/lib/registry/onchain';
 
 import { x402EndpointFromRegistration, registrationFromDataUri } from './endpoint';
 import { chooseX402Option, X402_CHAIN_ID, type X402Choice } from './exact';
-import type { SentResponse } from './call';
+import { X402NotSentError, type SentResponse } from './call';
 import { X402_RESPONSE_LIMIT } from './receipts';
 
 /*
@@ -51,10 +51,19 @@ export async function x402EndpointFor(chainId: number, tokenId: string): Promise
   });
 }
 
-/** Ask the seller what a call costs, without paying: a plain request answered with 402. */
+/**
+ * Ask the seller what a call costs, without paying: the same POST the paid
+ * call will make, with no payment, answered with 402. The same method on
+ * purpose, so the terms shown are the terms of the call that is paid; a
+ * seller that only takes payment some other way is reported, not guessed at.
+ */
 export async function readX402Terms(endpoint: string): Promise<X402Choice> {
   return withPublicEndpoint(endpoint, async (service) => {
-    const response = await service.fetch({ method: 'GET', headers: { accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(10_000) });
+    const response = await service.fetch({ method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body: '{}', redirect: 'error', signal: AbortSignal.timeout(10_000) });
+    if (response.status === 405) {
+      await response.body?.cancel();
+      return { ok: false, reason: 'This seller takes payment on a GET request, and Pokter only sends paid calls as POST.', offered: [] };
+    }
     if (response.status !== 402) {
       await response.body?.cancel();
       return { ok: false, reason: `The endpoint did not ask for payment (HTTP ${response.status}).`, offered: [] };
@@ -82,8 +91,17 @@ export async function readX402Terms(endpoint: string): Promise<X402Choice> {
 
 /** Send the paid request once. Throws when no answer came back, which the caller records as unknown. */
 export async function sendX402(endpoint: string, headers: Record<string, string>, body: string): Promise<SentResponse> {
-  return withPublicEndpoint(endpoint, async (service) => {
+  /* Resolved and checked before anything is sent; a refusal here means nothing left Pokter. */
+  let service: Awaited<ReturnType<typeof assertPublicEndpoint>>;
+  try {
+    service = await assertPublicEndpoint(endpoint);
+  } catch (error) {
+    throw new X402NotSentError(error instanceof Error ? error.message.slice(0, 160) : 'the endpoint was refused');
+  }
+  try {
     const response = await service.fetch({ method: 'POST', headers, body, redirect: 'error', signal: AbortSignal.timeout(60_000) });
     return { status: response.status, headers: response.headers, text: await boundedText(response) };
-  });
+  } finally {
+    await service.close();
+  }
 }

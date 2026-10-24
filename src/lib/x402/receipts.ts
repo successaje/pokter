@@ -14,7 +14,19 @@ import type { DatabaseSync } from 'node:sqlite';
  * call whose outcome is unknown is refused rather than resent. Pokter never
  * signs, so it never pays again on its own.
  */
-export type X402CallState = 'sending' | 'answered' | 'refused' | 'unknown';
+export type X402CallState = 'sending' | 'answered' | 'refused' | 'unknown' | 'not-sent';
+
+/**
+ * A row still `sending` after this long is reported as unknown: the process
+ * that claimed it may have restarted mid-send (a deploy restarts Pokter), and
+ * "sending" forever would hide that the payment may have settled.
+ */
+export const X402_SENDING_STALE_MS = 90_000;
+
+/** The state a buyer should be told, given when the row was last written. */
+export function effectiveState(call: X402Call, nowMs: number): X402CallState {
+  return call.state === 'sending' && nowMs - Date.parse(call.updatedAt) > X402_SENDING_STALE_MS ? 'unknown' : call.state;
+}
 
 export interface X402Call {
   nonce: string;

@@ -1,4 +1,4 @@
-import { getAddress, isAddress, type Address, type Hex } from 'viem';
+import { getAddress, isAddress, recoverTypedDataAddress, type Address, type Hex } from 'viem';
 
 import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
 
@@ -178,14 +178,29 @@ export function paymentHeader(terms: X402Terms, signature: Hex, authorization: X
     terms.version === 2
       ? { x402Version: 2, ...(terms.resource ? { resource: { url: terms.resource } } : {}), accepted: terms.accepted, payload }
       : { x402Version: 1, scheme: 'exact', network: terms.network, payload };
-  const value = Buffer.from(JSON.stringify(body), 'utf8').toString('base64');
-  return { name: terms.version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT', value };
+  return { name: terms.version === 2 ? 'PAYMENT-SIGNATURE' : 'X-PAYMENT', value: toBase64(JSON.stringify(body)) };
 }
 
-/** A payment header read back: what it authorises, so the server checks it before sending anything. */
-export function readPaymentHeader(value: string): { signature: Hex; authorization: X402Authorization } | null {
+/*
+ * UTF-8 base64 that runs the same in the browser and on the server: the
+ * header is built in the buyer's browser, where `Buffer` is not guaranteed.
+ */
+function toBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function fromBase64(value: string): string {
+  const binary = atob(value);
+  return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+}
+
+/** A payment header read back: what it authorises, and the envelope it came in, so the server checks both before sending anything. */
+export function readPaymentHeader(value: string): { signature: Hex; authorization: X402Authorization; envelope: { x402Version: unknown; scheme: unknown; network: unknown; accepted: Record<string, unknown> | null } } | null {
   try {
-    const parsed = object(JSON.parse(Buffer.from(value, 'base64').toString('utf8')));
+    const parsed = object(JSON.parse(fromBase64(value)));
     const payload = object(parsed?.payload);
     const auth = object(payload?.authorization);
     const signature = payload?.signature;
@@ -193,7 +208,10 @@ export function readPaymentHeader(value: string): { signature: Hex; authorizatio
     const fields = ['from', 'to', 'value', 'validAfter', 'validBefore', 'nonce'] as const;
     if (fields.some((f) => typeof auth[f] !== 'string')) return null;
     if (!isAddress(auth.from as string) || !isAddress(auth.to as string) || !/^0x[0-9a-fA-F]{64}$/.test(auth.nonce as string)) return null;
+    /* Whole numbers only: `Number('abc')` is NaN, and NaN passes every comparison by failing it. */
+    if (!(['value', 'validAfter', 'validBefore'] as const).every((f) => /^\d{1,78}$/.test(auth[f] as string))) return null;
     return {
+      envelope: { x402Version: parsed?.x402Version, scheme: parsed?.scheme, network: parsed?.network, accepted: object(parsed?.accepted) },
       signature: signature as Hex,
       authorization: {
         from: getAddress(auth.from as string),
@@ -213,7 +231,52 @@ export function readPaymentHeader(value: string): { signature: Hex; authorizatio
 export function authorizationMismatch(terms: X402Terms, authorization: X402Authorization, nowSeconds: number): string | null {
   if (authorization.to !== terms.payTo) return 'The authorization pays someone other than the agreed recipient.';
   if (authorization.value !== terms.amountRaw) return 'The authorization is for a different amount than agreed.';
-  if (Number(authorization.validBefore) <= nowSeconds) return 'The authorization has expired. Nothing was sent; sign again.';
-  if (Number(authorization.validBefore) - nowSeconds > X402_MAX_VALIDITY_SECONDS + 5) return 'The authorization stays valid longer than Pokter allows.';
+  const before = BigInt(authorization.validBefore);
+  const now = BigInt(nowSeconds);
+  if (before <= now) return 'The authorization has expired. Nothing was sent; sign again.';
+  if (before - now > BigInt(X402_MAX_VALIDITY_SECONDS + 5)) return 'The authorization stays valid longer than Pokter allows.';
+  if (BigInt(authorization.validAfter) > now) return 'The authorization is not valid yet.';
+  return null;
+}
+
+/**
+ * Why a payment header must not be forwarded, or null when it is the
+ * buyer's own signature over exactly these terms in the seller's envelope.
+ * The signature is recovered under the pinned domain and must be `from`:
+ * Pokter forwards nothing it has not verified, so it is never the relay
+ * for junk signatures or for payments made up in someone else's name.
+ */
+export async function paymentHeaderProblem(
+  terms: X402Terms,
+  read: NonNullable<ReturnType<typeof readPaymentHeader>>,
+  nowSeconds: number,
+): Promise<string | null> {
+  const mismatch = authorizationMismatch(terms, read.authorization, nowSeconds);
+  if (mismatch) return mismatch;
+  const { envelope } = read;
+  if (envelope.x402Version !== terms.version) return 'The payment names a different x402 version than the seller asked for.';
+  if (terms.version === 1 && (envelope.scheme !== 'exact' || envelope.network !== terms.network)) return 'The payment names a different scheme or network than the seller asked for.';
+  if (terms.version === 2) {
+    const accepted = envelope.accepted;
+    if (!accepted || accepted.network !== terms.network || typeof accepted.asset !== 'string' || !isAddress(accepted.asset) || getAddress(accepted.asset) !== terms.asset || accepted.payTo !== terms.accepted.payTo) {
+      return 'The payment names different terms than the seller asked for.';
+    }
+  }
+  let signer: Address;
+  try {
+    const { typedData } = authorizationTypedData(terms, read.authorization.from, 0, read.authorization.nonce);
+    signer = await recoverTypedDataAddress({
+      ...typedData,
+      message: {
+        ...typedData.message,
+        validAfter: BigInt(read.authorization.validAfter),
+        validBefore: BigInt(read.authorization.validBefore),
+      },
+      signature: read.signature,
+    });
+  } catch {
+    return 'The payment signature could not be checked.';
+  }
+  if (signer !== read.authorization.from) return 'The payment is not signed by the wallet it names.';
   return null;
 }
