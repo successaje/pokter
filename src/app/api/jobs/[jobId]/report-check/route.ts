@@ -15,6 +15,7 @@ import {
   type VenusReportVerification,
 } from '@/lib/delivery/venus-report-check';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { storedDeliveryText } from '@/lib/erc8183/deliverable-gate';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { findDeliverableUrl } from '@/lib/erc8183/deliverable-url';
 import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
@@ -83,7 +84,8 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
      * purpose — a check that read a different copy of the delivery from
      * the one the buyer is shown would be checking a different document.
      */
-    let manifestText = readDeliverable(deliverableKey(chainId, jobId))?.manifestText ?? null;
+    /* The stored copy only when it is what was delivered; a draft never stands in for it. */
+    let manifestText = storedDeliveryText(readDeliverable(deliverableKey(chainId, jobId)), job.deliverable);
     if (!manifestText) {
       const indexed = getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId);
       const url =

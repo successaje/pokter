@@ -338,8 +338,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     },
     /*
      * Whether the agent signed the acceptance criteria it was sent:
-     * `signed-terms` only when every criterion is inside the terms its
-     * signature covers; otherwise they are only recorded by Pokter.
+     * `signed-terms` when the spec line (which fixes every criterion by
+     * hash) is inside the terms its signature covers, or, with no spec
+     * line, every criterion is; otherwise they are only recorded by Pokter.
      */
     binding: successCriteria
       ? quote.criteriaSigned

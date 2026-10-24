@@ -596,7 +596,8 @@ async function deliveredAnswer(chainId: number, jobId: string): Promise<string |
   // Deliverables Pokter hosts: its delivery agent's (testnet) and builders'
   // Studio deliveries (any escrow).
   const stored = readDeliverable(deliverableKey(chainId, jobId));
-  if (stored) return answerFromManifest(stored.manifestText);
+  /* Only a copy whose submission was recorded; otherwise the committed URL below, which serves only what was delivered. */
+  if (stored?.submitTxHash) return answerFromManifest(stored.manifestText);
   const url = getJobStore().byId(`${chainId}:${jobId}`)?.deliverableUrl;
   if (!url) return null;
   const text = await withPublicEndpoint(url, async (endpoint) => {

@@ -5,6 +5,7 @@ import { keccak256, stringToBytes } from 'viem';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { logAndPublic } from '@/lib/api/public-error';
 import { readDeliveredAnswer } from '@/lib/delivery/answer';
+import { storedDeliveryText } from '@/lib/erc8183/deliverable-gate';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { findDeliverable } from '@/lib/erc8183/deliverable-url';
@@ -41,7 +42,8 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
     if (!['SUBMITTED', 'COMPLETED', 'REJECTED'].includes(job.statusName)) {
       return NextResponse.json({ delivered: false });
     }
-    let manifestText = readDeliverable(deliverableKey(chainId, jobId))?.manifestText ?? null;
+    /* The stored copy only when it is what was delivered; a draft never stands in for it. */
+    let manifestText = storedDeliveryText(readDeliverable(deliverableKey(chainId, jobId)), job.deliverable);
     if (!manifestText) {
       const indexed = getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId);
       // The index, else the submit event found near its own block, within a bound: a slow chain read must not hang the page.

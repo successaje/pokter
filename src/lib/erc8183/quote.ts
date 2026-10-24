@@ -63,9 +63,12 @@ export interface AgentQuote {
    */
   anchor: Record<string, unknown> | null;
   /**
-   * Whether every success criterion Pokter sent is inside the terms the
-   * agent signed. Null when none were sent. Only `true` makes acceptance
-   * criteria agreed rather than recorded by Pokter (see shared/contracts).
+   * Whether the agent signed the acceptance criteria Pokter sent. When they
+   * carry a ProofRun spec line, that exact line, which fixes every criterion
+   * by hash, is what must be signed and the prose lines are advisory;
+   * otherwise every criterion must be inside the signed terms. Null when
+   * none were sent. Only `true` makes the criteria agreed rather than
+   * recorded by Pokter (see shared/contracts).
    */
   criteriaSigned: boolean | null;
 }

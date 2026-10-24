@@ -30,3 +30,17 @@ export async function deliverableGate(
   }
   return { serve: true, readChain: true };
 }
+
+/**
+ * The stored copy a reader may use in place of the delivered one: only when
+ * it is the delivery. A builder can prepare one draft and submit different
+ * bytes; read first, the stale draft would be shown and checked as if it
+ * were the answer. Without a recorded submit, the copy must match the hash
+ * the job committed on chain; otherwise the caller reads the committed URL.
+ */
+export function storedDeliveryText(stored: { manifestText: string; submitTxHash: string | null } | null, committed: string | null | undefined): string | null {
+  if (!stored) return null;
+  if (stored.submitTxHash) return stored.manifestText;
+  if (typeof committed !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(committed) || NONE.test(committed)) return null;
+  return manifestMatch(stored.manifestText, committed) === null ? null : stored.manifestText;
+}

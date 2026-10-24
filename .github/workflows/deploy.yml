@@ -180,7 +180,7 @@ jobs:
             echo "$tools" | grep -q "\"name\":\"${tool}\"" \
               || { echo "::error::MCP tools/list is missing ${tool}"; exit 1; }
           done
-          provider=$(curl --silent --max-time 30 --output /dev/null --write-out '%{http_code}' -X POST https://pokter.xyz/api/mcp/provider \
+          provider=$(curl --silent --retry 3 --retry-all-errors --retry-delay 3 --max-time 30 --output /dev/null --write-out '%{http_code}' -X POST https://pokter.xyz/api/mcp/provider \
             -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}')
           [ "$provider" = "401" ] || { echo "::error::The provider MCP endpoint answered ${provider} without a token, expected 401"; exit 1; }
 

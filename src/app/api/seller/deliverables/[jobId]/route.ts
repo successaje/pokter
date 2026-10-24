@@ -6,8 +6,12 @@ import { altanaNetworkFor } from '@/lib/altana/client';
 import { deliverableGate } from '@/lib/erc8183/deliverable-gate';
 import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
 import { jobChainParam } from '@/lib/jobs/href';
+import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+/* Deliverables the chain has confirmed in this process; see below. Bounded by the number of stored deliverables. */
+const CONFIRMED = new Set<string>();
 
 export async function GET(
   request: Request,
@@ -43,7 +47,29 @@ export async function GET(
    * on chain must commit to exactly these bytes, which also covers a builder
    * who submitted but never confirmed, and copies captured after the fact.
    */
-  const gate = await deliverableGate(deliverable, async () => (await getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId))).deliverable);
+  /*
+   * A match is permanent: the chain never un-commits a hash. So a copy the
+   * chain has confirmed is served from memory after the first read, and
+   * only unconfirmed copies cost a chain read, under a per-address limit
+   * and a timeout.
+   */
+  const key = deliverableKey(chainId, jobId);
+  let gate: Awaited<ReturnType<typeof deliverableGate>>;
+  if (CONFIRMED.has(key)) {
+    gate = { serve: true, readChain: false };
+  } else {
+    if (!deliverable.submitTxHash) {
+      const rate = consumeRateLimit(`deliverable-chain:${requestClientKey(request)}`, { limit: 60, windowMs: 60_000 });
+      if (!rate.allowed) return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers: { 'Cache-Control': 'no-store', 'retry-after': String(rate.retryAfterSeconds) } });
+    }
+    gate = await deliverableGate(deliverable, () =>
+      Promise.race([
+        getErc8183Job(altanaNetworkFor(chainId), BigInt(jobId)).then((job) => job.deliverable),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8_000)),
+      ]),
+    );
+    if (gate.serve && gate.readChain) CONFIRMED.add(key);
+  }
   if (!gate.serve) {
     return NextResponse.json(
       { error: gate.reason },

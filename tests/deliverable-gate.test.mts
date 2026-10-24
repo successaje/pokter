@@ -45,3 +45,22 @@ test('the public route gates before it serves, and never caches a refusal', () =
   assert.ok(route.indexOf('deliverableGate(') > 0 && route.indexOf('deliverableGate(') < route.indexOf('new NextResponse(deliverable.manifestText'));
   assert.match(route, /status: gate\.status, headers: \{ 'Cache-Control': 'no-store'/);
 });
+
+test('a reader uses the stored copy only when it is what was delivered', async () => {
+  const { storedDeliveryText } = await import('../src/lib/erc8183/deliverable-gate');
+  const draft = JSON.stringify({ v: 1 });
+  const submitted = JSON.stringify({ v: 2 });
+  const committed = keccak256(stringToBytes(submitted));
+  assert.equal(storedDeliveryText({ manifestText: draft, submitTxHash: null }, committed), null, 'prepared v1, submitted v2: v1 is never read');
+  assert.equal(storedDeliveryText({ manifestText: submitted, submitTxHash: null }, committed), submitted);
+  assert.equal(storedDeliveryText({ manifestText: draft, submitTxHash: '0x' + '1'.repeat(64) }, committed), draft, 'a recorded submit is trusted as before');
+  assert.equal(storedDeliveryText({ manifestText: submitted, submitTxHash: null }, undefined), null);
+  assert.equal(storedDeliveryText(null, committed), null);
+});
+
+test('the answer and report-check routes read the stored copy through that rule', () => {
+  for (const path of ['../src/app/api/jobs/[jobId]/answer/route.ts', '../src/app/api/jobs/[jobId]/report-check/route.ts']) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.match(source, /storedDeliveryText\(readDeliverable\(deliverableKey\(chainId, jobId\)\), job\.deliverable\)/, path);
+  }
+});

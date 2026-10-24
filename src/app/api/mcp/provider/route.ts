@@ -663,7 +663,22 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             if (!previous.ok && previous.unavailable) {
               return { data: { error: previous.reason, staged: false }, isError: true };
             }
-            if (!previous.ok && releaseUnsubmittedDelivery(existing.key)) existing = stagedDelivery(key);
+            if (!previous.ok) {
+              /*
+               * Released only while the escrow itself says nothing was
+               * submitted. The index can lag a submission, and the former
+               * owner's provider wallet may have sent this very draft
+               * before Pokter recorded it; deleting it then would lose the
+               * transaction for good. Loaded here, not at the top, so the
+               * route's own tests do not load the SDK.
+               */
+              const { jobOnChain } = await import('@/lib/erc8183/job-onchain');
+              const onchain = await jobOnChain(chainId, jobId);
+              if (!onchain) {
+                return { data: { error: 'Pokter could not read this job from chain just now, so it cannot release the former owner’s draft. Nothing was changed; try again shortly.', staged: false }, isError: true };
+              }
+              if (onchain.status === 'FUNDED' && onchain.submittedAt === 0n && releaseUnsubmittedDelivery(existing.key)) existing = stagedDelivery(key);
+            }
           }
           const retry = deliveryRetry(existing, contentDigest(content));
           if (retry.action === 'submitted') {
