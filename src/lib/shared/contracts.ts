@@ -95,7 +95,17 @@ export interface CheckResult {
 
 export interface VerificationResult {
   state: VerificationState;
-  job: JobRef;
+  /**
+   * The job this verifies, or null when there is none.
+   *
+   * Nullable because a fixture run and a replay of a pasted report have
+   * no job, and the alternative was worse: `run.ts` was emitting
+   * `{chainId, jobId: ''}` for a fixture — an invented reference, beside
+   * an artifact that correctly carried null, so one run disagreed with
+   * itself about whether a job existed. `ProofRunArtifact.job` was
+   * already nullable; this makes the pair consistent.
+   */
+  job: JobRef | null;
   /** ISO time of the check. */
   checkedAt: string;
   /** The checker that ran, e.g. "venus-health-factor@1". */
