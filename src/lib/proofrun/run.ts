@@ -104,7 +104,7 @@ export function proofRun(input: ProofRunInput): ProofRun {
   return {
     result: {
       state,
-      job: input.job ?? { chainId: input.chainId, jobId: '' },
+      job: input.job,
       checkedAt,
       method: VERIFIER_VERSION,
       headline: headlineFor(checks),

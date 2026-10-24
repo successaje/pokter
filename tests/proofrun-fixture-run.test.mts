@@ -285,3 +285,19 @@ test('a zero-debt report with the wrong collateral still fails', async () => {
   assert.equal(run.result.checks.find((c) => c.id === 'position.collateral_usd')?.outcome, 'failed');
   assert.equal(run.result.state, 'mismatch');
 });
+
+/*
+ * A run without a job says so, rather than inventing one.
+ *
+ * `proofRun` emitted `{chainId, jobId: ''}` on the result for a fixture
+ * while the artifact beside it carried null — one run disagreeing with
+ * itself about whether a job existed, and an empty id is a reference a
+ * surface could render or key on. Found by the UI work, which had to
+ * widen the type locally to avoid repeating the invention.
+ */
+test('a run with no job carries null on both the result and the artifact', async () => {
+  const run = await runFixture(correct);
+  assert.equal(run.result.job, null, 'a fixture run invented a job reference');
+  assert.equal(run.sealed.artifact.job, null);
+  assert.equal(run.result.replayRef, undefined, 'a run with no job offered a replay link');
+});
