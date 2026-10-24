@@ -215,6 +215,20 @@ export interface VenusHealthFacts {
   block: bigint;
   /** The block's own timestamp, when the node gave one. */
   blockTime: string | null;
+  /**
+   * The block's own hash, when the node gave one.
+   *
+   * A block number does not pin state: two chains, or one chain either
+   * side of a reorg, both have a block 51,000,000. A replay that matched
+   * on the number alone would report agreement between readings of
+   * different states. ProofRun treats a missing or differing hash as not
+   * verified rather than re-reading at the head — see `lib/proofrun`.
+   *
+   * Null rather than fatal here, because this checker's own verdict never
+   * rested on it and making the hash mandatory would turn a working check
+   * into a refusal on every pruned node.
+   */
+  blockHash: string | null;
   /** On liquidation thresholds: what Venus liquidates on. Null with no debt. */
   healthFactor: number | null;
   /** The same ratio on collateral factors, to tell a definition apart from an error. */

@@ -69,6 +69,9 @@ function facts(overrides: Partial<VenusHealthFacts> = {}): VenusHealthFacts {
     pool: 'core',
     block: BLOCK,
     blockTime: real.blockTime,
+    /* Null by default: most fixtures never had a header, and a fixture that
+       silently carried a hash would make a replay look pinned when it was not. */
+    blockHash: null,
     healthFactor: real.healthFactor,
     borrowLimitRatio: real.borrowLimitRatio,
     liquidatable: real.liquidatable,
@@ -653,6 +656,7 @@ test('the real delivery is checkable end to end, and an unstated liquidation fla
     pool: 'core',
     block: DELIVERED_BLOCK,
     blockTime: '2026-10-15T11:59:31.000Z',
+    blockHash: null,
     healthFactor: 1.8655,
     borrowLimitRatio: 1 / 0.9583,
     liquidatable: false,

@@ -91,13 +91,26 @@ export async function readVenusFactsAt(client: VenusClient, at: { account: strin
   const reading = await readVenusPosition(client, at.account as Address, { atBlock: at.block }).catch((error: unknown) => error as Error);
   if (reading instanceof Error) return { available: false, ...venusReadRefusal(reading) };
 
-  // A block header is served by pruned nodes too, and a failure here must
-  // not cost the verdict: the timestamp is context for the reader, not
-  // evidence the comparison rests on.
-  const blockTime = await client
+  /*
+   * A block header is served by pruned nodes too, and a failure here must
+   * not cost the verdict: the timestamp is context for the reader, not
+   * evidence the comparison rests on.
+   *
+   * The hash is read from the same header rather than a second call, and
+   * it was already being fetched and thrown away. It matters to ProofRun,
+   * where a replay has to prove it read the same state and not merely the
+   * same block number — a number is the same on both sides of a reorg.
+   * Still not fatal here, for the reason above.
+   */
+  const header = await client
     .getBlock({ blockNumber: at.block })
-    .then((block) => new Date(Number(block.timestamp) * 1000).toISOString())
+    .then((block) => ({
+      time: new Date(Number(block.timestamp) * 1000).toISOString(),
+      hash: typeof block.hash === 'string' ? block.hash : null,
+    }))
     .catch(() => null);
+  const blockTime = header?.time ?? null;
+  const blockHash = header?.hash ?? null;
 
   const collateralUsd = Object.values(reading.rows.collateral).reduce((sum, leg) => sum + leg.amount, 0);
   return {
@@ -108,6 +121,7 @@ export async function readVenusFactsAt(client: VenusClient, at: { account: strin
       pool: CHECKED_POOL,
       block: reading.block,
       blockTime,
+      blockHash,
       healthFactor: reading.healthFactor,
       borrowLimitRatio: reading.borrowLimitRatio,
       liquidatable: reading.liquidatable,
