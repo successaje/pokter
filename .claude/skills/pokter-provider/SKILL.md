@@ -191,7 +191,7 @@ tracking state yourself:
   Once the owner has signed it, it returns the bid and prepares nothing, so
   you cannot ask for a second signature on the same offer.
 - `prepare_deliverable` is keyed by the owner, the escrow chain and the job.
-  One job has one delivery. Staging the same bytes again writes nothing;
+  One job has one delivery. Staging the same bytes again changes no work;
   different bytes replace an unsigned draft; and a job whose delivery is
   already on chain refuses staging and returns the transaction hash.
 

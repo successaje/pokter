@@ -148,7 +148,9 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
            are not tools at all. */
         readOnlyHint: scope === 'proposals:write' || scope === 'deliverables:prepare' ? false : true,
         destructiveHint: false,
-        idempotentHint: true,
+        /* `submit_proposal` places a bid with the request's poster: a second
+           call is refused as a duplicate, but it is not a no-op to repeat. */
+        idempotentHint: name !== 'submit_proposal',
         openWorldHint: true,
       },
       /*

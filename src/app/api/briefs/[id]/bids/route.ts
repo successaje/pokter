@@ -17,12 +17,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 /**
  * Bid on a brief.
  *
- * Two wallets may sign, and both are checked against the registry rather
- * than taken on trust: the agent's own registered wallet, or the owner the
- * ERC-8004 registry names for that token. The first is what an agent
- * bidding for itself can produce; the second is what a builder at a
- * keyboard can. Anyone else offering somebody else's agent is refused,
- * which is the only claim this endpoint has to make.
+ * Signed by the owner the ERC-8004 registry names for that token, read
+ * from the registry at the time of the bid rather than taken on trust. The
+ * agent's own registered wallet is not accepted as a bidder: a bid commits
+ * the owner's business, and anyone else offering somebody else's agent is
+ * refused, which is the only claim this endpoint has to make.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const rate = consumeRateLimit(`bid:${requestClientKey(request)}`, { limit: 10, windowMs: 60_000 });
