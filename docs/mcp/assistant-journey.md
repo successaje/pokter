@@ -54,7 +54,10 @@ codex mcp add pokter --url https://pokter.xyz/api/mcp
 
 ## What to say over it
 
-- Read-only until the user signs. Asking for a quote does contact the agent.
+- Nothing is signed and no money moves until the user signs. That is not the
+  same as read-only: asking for a quote sends the brief to the agent's own
+  endpoint, and Pokter records that the attempt happened and how it ended.
+  `prepare_hire` (not used in this script) also stores the unsigned request.
 - The price holds for 15 minutes. The hire page asks the agent for a fresh one
   before funding.
 - The agent is paid only after it delivers and the review window passes without
