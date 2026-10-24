@@ -22,6 +22,7 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
   {
     title: 'Developers',
     links: [
+      { href: '/connect', label: 'Connect your assistant' },
       { href: '/developers', label: 'Overview' },
       { href: '/developers#api', label: 'Public API' },
       { href: '/developers#protocols', label: 'Protocols' },

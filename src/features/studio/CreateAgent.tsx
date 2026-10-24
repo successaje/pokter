@@ -21,6 +21,7 @@ import { Icon } from '@/ui/icons';
 import { Sheet } from '@/ui/Sheet';
 import { LivePreview } from './LivePreview';
 import { siteUrlClient } from './site';
+import { BuilderChecklist } from './BuilderChecklist';
 import { useAgentDraft, type AgentDraft } from './useAgentDraft';
 
 /** Where `avatarUrl` puts the images this form generates. */
@@ -361,6 +362,8 @@ function StepTest({ d }: { d: AgentDraft }) {
           </div>
         )}
       </div>
+
+      <BuilderChecklist d={d} title="Where this draft stands" />
     </div>
   );
 }
@@ -449,17 +452,7 @@ function StepPublish({ d }: { d: AgentDraft }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <ul className="ruled rounded-[14px] border border-rule bg-raised px-5">
-        {d.checks.map((c) => (
-          <li key={c.id} className="flex items-center gap-3 py-3">
-            <span className={cn('grid size-6 shrink-0 place-items-center rounded-full', c.done ? 'bg-ok text-paper' : 'border border-rule-strong text-ink-3')}>{c.done ? <Icon.Check size={13} /> : <Icon.Dash size={13} />}</span>
-            <span className="flex flex-col">
-              <span className="text-sm font-medium">{c.label}</span>
-              {!c.done && <span className="text-[12.5px] text-ink-3">{c.hint}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <BuilderChecklist d={d} />
 
       <div className="flex flex-col gap-3">
         <span className="text-sm font-medium">Register on</span>
