@@ -1,5 +1,12 @@
 import type { AcceptanceSpec, CheckResult, Criterion, VerificationState } from '@/lib/shared/contracts';
-import type { ChainClaim, CheckedValue, VenusReportVerification } from '@/lib/delivery/venus-report-check';
+import {
+  hfTolerance,
+  USD_ABSOLUTE_TOLERANCE,
+  USD_RELATIVE_TOLERANCE,
+  type ChainClaim,
+  type CheckedValue,
+  type VenusReportVerification,
+} from '@/lib/delivery/venus-report-check';
 import { venusHealthCriteria } from './acceptance';
 
 /**
@@ -56,11 +63,35 @@ function outcomeOf(agrees: boolean | null): CheckResult['outcome'] {
   return 'not-verified';
 }
 
-function toleranceFor(id: string, criteria: readonly Criterion[]): string | null {
+/**
+ * The band actually applied, not the floor the criterion declares.
+ *
+ * `hfTolerance` and `usdTolerance` both allow the *larger* of a fixed
+ * floor and a proportion of the figure, so a criterion carrying `0.005`
+ * describes the floor and never the allowance at a given value — at a
+ * health factor of 1.6432 the checker allows ±0.0082. Showing the floor
+ * beside a pass granted at the wider band invites a reader to conclude
+ * the check is broken, and it understates what the agent is held to in
+ * the criteria it signs.
+ *
+ * Computed from the figure Venus gave where that parses, and falling
+ * back to the declared floor where it does not — never silently
+ * dropping the tolerance, since a band of "none" would read as exact.
+ */
+function toleranceFor(id: string, criteria: readonly Criterion[], checked?: string): string | null {
   const criterion = criteria.find((c) => c.id === id);
   const tolerance = criterion?.check.tolerance;
   if (tolerance === undefined) return null;
-  return id.endsWith('_usd') ? `±${tolerance * 100}%` : `±${tolerance}`;
+
+  const value = checked === undefined ? Number.NaN : Number(checked.replace(/[$,]/g, ''));
+  if (id.endsWith('_usd')) {
+    return Number.isFinite(value)
+      ? `±$${Math.max(USD_ABSOLUTE_TOLERANCE, USD_RELATIVE_TOLERANCE * Math.abs(value)).toFixed(2)}`
+      : `the larger of ±$${USD_ABSOLUTE_TOLERANCE} and ±${USD_RELATIVE_TOLERANCE * 100}%`;
+  }
+  return Number.isFinite(value)
+    ? `±${Number(hfTolerance(value).toFixed(6))}`
+    : `the larger of ±${tolerance} and ±${tolerance * 100}%`;
 }
 
 /**
@@ -111,7 +142,7 @@ export function checksFromVerification(input: {
       expected: value.checked,
       observed: value.reported,
       source,
-      tolerance: toleranceFor(id, criteria),
+      tolerance: toleranceFor(id, criteria, value.checked),
       ...(value.note ? { limitation: value.note } : {}),
       /*
        * A label this module does not know still reaches the buyer, with

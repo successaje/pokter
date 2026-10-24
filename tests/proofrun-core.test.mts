@@ -562,3 +562,58 @@ test('no criteria at all is never signed-terms', () => {
   assert.equal(bindingFor({ specHash: `0x${'c'.repeat(64)}`, termsBound: true, signedCriteria: [], sentCriteria: [] }).kind, 'pokter-asserted');
   assert.equal(bindingFor({ specHash: `0x${'c'.repeat(64)}`, termsBound: true, signedCriteria: null }).kind, 'pokter-asserted');
 });
+
+/* ---------- the tolerance shown is the tolerance applied ---------- */
+
+/*
+ * `hfTolerance` and `usdTolerance` allow the larger of a fixed floor and
+ * a proportion of the figure, so the criterion's `0.005` is the floor and
+ * never the allowance at a given value. Showing the floor beside a pass
+ * granted at ±0.0082 invites a reader to conclude the check is broken,
+ * and it understates what an agent is held to in criteria it signs.
+ */
+test('the band shown is the band the checker applied, not the floor', () => {
+  const checks = checksFromVerification({
+    verification: verification({
+      values: [
+        { label: 'Health factor', reported: '1.6430', checked: '1.6432', agrees: true },
+        { label: 'Debt (USD)', reported: '$210,500', checked: '$210,500.07', agrees: true },
+      ],
+    }),
+  });
+
+  /* 1.6432 × 0.005 = 0.008216, which beats the 0.005 floor. */
+  assert.equal(checks.find((c) => c.id === 'hf.value')?.tolerance, '±0.008216');
+
+  /* $210,500.07 × 1% = $2,105.00, which beats the $1 floor. */
+  assert.equal(checks.find((c) => c.id === 'position.debt_usd')?.tolerance, '±$2105.00');
+});
+
+test('a small figure falls back to the floor rather than below it', () => {
+  const checks = checksFromVerification({
+    verification: verification({
+      values: [{ label: 'Health factor', reported: '0.5', checked: '0.5', agrees: true }],
+    }),
+  });
+  /* 0.5 × 0.005 = 0.0025, under the floor, so the floor applies. */
+  assert.equal(checks.find((c) => c.id === 'hf.value')?.tolerance, '±0.005');
+});
+
+/* Where no figure parses, the rule is stated rather than a band invented
+   or the tolerance dropped — "no tolerance" would read as exact. */
+test('an unparseable figure states the rule instead of a number', () => {
+  const checks = checksFromVerification({
+    verification: verification({ values: [] }),
+    criteria: venusHealthCriteria(),
+  });
+  assert.match(checks.find((c) => c.id === 'hf.value')?.tolerance ?? '', /larger of/);
+  assert.match(checks.find((c) => c.id === 'position.debt_usd')?.tolerance ?? '', /larger of/);
+});
+
+/* The criteria an agent signs must describe the rule it is held to. */
+test('the signed criteria state the real tolerance rule', () => {
+  const byId = new Map(venusHealthCriteria().map((c) => [c.id, c.label]));
+  assert.match(byId.get('hf.value') ?? '', /larger of ±0\.005 and 0\.5%/);
+  assert.match(byId.get('position.debt_usd') ?? '', /larger of ±\$1 and 1%/);
+  assert.match(byId.get('position.collateral_usd') ?? '', /larger of ±\$1 and 1%/);
+});
