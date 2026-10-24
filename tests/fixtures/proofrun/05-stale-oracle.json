@@ -1,0 +1,44 @@
+{
+  "_why": "Venus's oracle refusing to price a market at the named block. The figures cannot be recomputed at all, so the only honest answer is not verified — a stale price must never be read as agreement.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "stale-oracle",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "refused",
+    "note": "The block identity is real (BNB Smart Chain block 129,170,001, hash agreed by two nodes on 2026-10-24). The refusal below is not a captured string: it is written in the shape viem produces when a contract call reverts, standing for Venus's own oracle declining to return a price it considers stale rather than serving one. Venus prices every leg through its oracle on the way to getAccountSnapshot, so a refused price means there is no recomputation to be had at this block, for anyone. The block identity is real; the refusal and the report are synthetic.",
+    "nodeError": "The contract function \"getUnderlyingPrice\" reverted. Contract Call: address: 0xfD36E2c2a6789Db23113685031d7F16329158384 function: getUnderlyingPrice Docs: https://viem.sh/docs/contract/readContract Details: execution reverted: stale oracle price Version: viem@2.56.1",
+    "nodeWords": "execution reverted: stale oracle price",
+    "nodeRpcCode": 3,
+    "_whyNodeWordsAsWell": "nodeError above is the shape viem produces, for the classifier to be held to. nodeWords is the node's own part of it, which is what a stub endpoint sends; code 3 is the JSON-RPC code a Geth-derived node returns for a reverted call, and it matters here because the code decides the message viem wraps the refusal in — and that message is what the no-history classifier reads.",
+    "expectRefusalCode": "read-failed",
+    "expectRefusalDetail": "execution reverted: stale oracle price."
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1223,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor 1.1223 at block 129,170,001. Not liquidatable."
+  },
+  "expect": {
+    "verdict": "unverified",
+    "state": "unverifiable",
+    "cli": "not-verified",
+    "_whyReadFailedAndNotNoHistory": "A revert is not a pruned block, and the two must be told apart: 'read-failed' says this is Pokter's failure to see and says nothing about the report, while 'no-history' says the node no longer keeps the block. The refusal text here matches none of the no-history phrasings, so venusReadRefusal classifies it as read-failed.",
+    "_criticalProperty": "The report here is the same correct report as 01-correct-report.json. It is still not verified, because the evidence is missing — a replay must never fall back to a reading it can get."
+  }
+}

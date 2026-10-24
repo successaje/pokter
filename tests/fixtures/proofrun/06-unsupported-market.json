@@ -1,0 +1,54 @@
+{
+  "_why": "A report about a Venus isolated pool, which Pokter does not read. There are no figures of its own to compare, so it is unresolved rather than wrong — and it must be settled before any chain read is spent on it.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "unsupported-market",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "available",
+    "note": "The same real Core Pool state as 01-correct-report.json, at BNB Smart Chain block 129,170,001. It is present so the suite can prove the Core Pool figures are never compared with a report about another pool: the refusal happens before the read, and the figures here are the ones a careless verifier would have reached for. The state is real; the report is synthetic.",
+    "facts": {
+      "blockTime": "2026-10-22T17:28:47.000Z",
+      "healthFactor": 1.122279,
+      "borrowLimitRatio": 1.122152,
+      "liquidatable": false,
+      "debtUsd": 207792.7696819796,
+      "collateralUsd": 291545.97
+    },
+    "legs": {
+      "_note": "As 01-correct-report.json. Liquidation thresholds captured; collateral factors synthetic and set equal to them.",
+      "collateral": {
+        "BNB": { "supplyUsd": 291370.25, "liquidationThreshold": 0.8, "collateralFactor": 0.8 },
+        "XVS": { "supplyUsd": 175.72, "liquidationThreshold": 0.6, "collateralFactor": 0.6 }
+      },
+      "debt": { "USDC": 50231.33, "USDT": 157561.43 }
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "Stablecoins",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1223,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor 1.1223 in the Venus Stablecoins pool at block 129,170,001."
+  },
+  "expect": {
+    "verdict": "unverified",
+    "state": "unverifiable",
+    "cli": "not-verified",
+    "chainReadsBeforeVerdict": 0,
+    "_whyUnresolvedAndNotWrong": "Each Venus isolated pool has its own Comptroller and its own account liquidity. A Core Pool reading is not a figure about the Stablecoins pool, so there is nothing to disagree with. Reporting this as 'differs' would put a finding against a report that may be entirely right about a pool Pokter cannot read."
+  }
+}
