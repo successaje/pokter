@@ -329,3 +329,20 @@ test('a run without its own limitations still carries the standing ones', async 
   assert.ok(run.sealed.artifact.limitations.length > 0);
   assert.match(run.sealed.artifact.limitations.join(' '), /unresolved rather than as a pass/i);
 });
+
+/*
+ * The checker's own sentence reaches a surface without a second run.
+ *
+ * Per-row limitations are generic by design; `verification.detail` is
+ * the one that says which thing went wrong, and a page that needed it
+ * would otherwise have to run the comparison again — two runs of one
+ * comparison being exactly what the single-verifier split exists to
+ * prevent.
+ */
+test('a run carries the checker’s own verdict through unchanged', async () => {
+  const run = await runFixture({ ...correct, report: reportWithHealthFactor(2.9) });
+  assert.equal(run.verification.verdict, 'differs');
+  assert.match(run.verification.detail, /health factor/i);
+  /* Unchanged: the same object the checker produced, not a rebuild. */
+  assert.equal(run.verification.block, run.sealed.artifact.subject.blockNumber);
+});

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -21,6 +21,7 @@ import {
 } from '../src/lib/proofrun/artifact';
 import { checksFromVerification, criterionIdForLabel, headlineFor, KNOWN_CHECK_LABELS, stateFromChecks } from '../src/lib/proofrun/checks';
 import { SPEC_TERM_PREFIX } from '../src/lib/proofrun/versions';
+import { artifactHref, replayRef } from '../src/lib/proofrun/run';
 import type { CheckResult } from '../src/lib/shared/contracts';
 import type { VenusReportVerification } from '../src/lib/delivery/venus-report-check';
 
@@ -616,4 +617,66 @@ test('the signed criteria state the real tolerance rule', () => {
   assert.match(byId.get('hf.value') ?? '', /larger of ±0\.005 and 0\.5%/);
   assert.match(byId.get('position.debt_usd') ?? '', /larger of ±\$1 and 1%/);
   assert.match(byId.get('position.collateral_usd') ?? '', /larger of ±\$1 and 1%/);
+});
+
+/* ---------- every route ProofRun names is a route that exists ---------- */
+
+/*
+ * A link to a page nobody wrote.
+ *
+ * `replayRef` returned `/proofrun/{chain}/{job}` for six commits and no
+ * such page existed, so every job-backed result carried a 404 — inside
+ * the artifact payload as well, where it would have travelled to anyone
+ * the receipt was shared with. Nothing in lint, types, the suite or the
+ * build can see a reference to a route that was never written; the same
+ * class shipped on the leaderboard, where a page was built, linked from
+ * both footers, listed in the sitemap, and answered every request with a
+ * redirect elsewhere.
+ *
+ * So the rule is executable: resolve what ProofRun emits against what
+ * `src/app` actually defines, matching dynamic segments the way the
+ * router does.
+ */
+function appRoutes(): string[] {
+  const root = new URL('../src/app/', import.meta.url);
+  const found: string[] = [];
+  const walk = (dir: URL, segments: string[]) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    if (entries.some((e) => e.isFile() && /^(route|page)\.(tsx|ts|jsx|js)$/.test(e.name))) {
+      found.push(`/${segments.join('/')}`);
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const transparent = /^[(@_]/.test(entry.name);
+      walk(new URL(`${entry.name}/`, dir), transparent ? segments : [...segments, entry.name]);
+    }
+  };
+  walk(root, []);
+  return found;
+}
+
+/** True when a concrete path matches a route pattern, `[param]` taking any one segment. */
+function routeMatches(pattern: string, path: string): boolean {
+  const p = pattern.split('/').filter(Boolean);
+  const q = path.split('/').filter(Boolean);
+  if (p.length !== q.length) return false;
+  return p.every((segment, i) => (segment.startsWith('[') && segment.endsWith(']') ? true : segment === q[i]));
+}
+
+test('every link a ProofRun result emits resolves to a route the app defines', () => {
+  const routes = appRoutes();
+  assert.ok(routes.some((r) => r.includes('proofrun')), 'the route walk found no proofrun route, so it is not reading src/app');
+
+  const job = { chainId: 56, jobId: '57004' };
+  for (const [name, href] of [['replayRef', replayRef(job)], ['artifactHref', artifactHref(job)]] as const) {
+    assert.ok(
+      routes.some((pattern) => routeMatches(pattern, href)),
+      `${name} emits ${href}, which no route under src/app answers`,
+    );
+  }
 });
