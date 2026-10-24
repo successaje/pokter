@@ -486,3 +486,79 @@ test('an unsettled criterion does not claim the agent agreed to it', () => {
   assert.doesNotMatch(unsettled('pokter-asserted'), /^Agreed with the agent/i);
   assert.match(unsettled('signed-terms'), /Agreed with the agent/i, 'criteria the agent signed were not described as agreed');
 });
+
+/* ---------- the consolidated binding rule ---------- */
+
+import { isSpecLine } from '../src/lib/proofrun/acceptance';
+import { sanitizeForClaim } from '../src/lib/erc8183/negotiation';
+
+/*
+ * Cases Agent 1's `criteriaInSignedTerms` covered and `bindingFor` did
+ * not, moved here as the two rules consolidate into one. One of them was
+ * a latent defect in mine.
+ *
+ * `negotiationContent` maps `success_criteria` through `sanitizeForClaim`
+ * before hashing, so the strings an agent signs are the sanitised ones.
+ * Comparing a raw line against them works for today's spec prefix only
+ * because it carries no bracket and no control character — a property of
+ * the current string, not a guarantee. A prefix that grew one would make
+ * every binding silently fall back to `pokter-asserted`, which fails in
+ * the safe direction and would still be wrong.
+ */
+test('binding compares after the same sanitising the hash applies', () => {
+  const spec = venusAcceptanceSpec({ deployment: DEPLOYMENT, chainId: 56 });
+  const line = `${SPEC_TERM_PREFIX}${spec.specHash}`;
+
+  /* What the agent actually signed is the sanitised form. */
+  assert.equal(
+    bindingFor({ specHash: spec.specHash, termsBound: true, signedCriteria: [sanitizeForClaim(line)] }).kind,
+    'signed-terms',
+    'a correctly signed criterion was not recognised after sanitising',
+  );
+
+  /* And a control character in the signed copy must not defeat the match,
+     since the hash was taken over the sanitised text either way. */
+  assert.equal(
+    bindingFor({ specHash: spec.specHash, termsBound: true, signedCriteria: [`${line}\u0007`] }).kind,
+    'signed-terms',
+  );
+});
+
+/*
+ * The weaker rule, for a caller that asked for criteria without going
+ * through `criteriaForTerms`. There is no hash to match, so the only
+ * question left is whether every string sent came back signed.
+ */
+test('without a spec line, every string sent must be in the signed terms', () => {
+  const sent = ['deliver a health factor', 'name the block'];
+  assert.equal(
+    bindingFor({ specHash: '0x'.padEnd(66, '0'), termsBound: true, signedCriteria: sent, sentCriteria: sent }).kind,
+    'signed-terms',
+  );
+  assert.equal(
+    bindingFor({ specHash: '0x'.padEnd(66, '0'), termsBound: true, signedCriteria: [sent[0]], sentCriteria: sent }).kind,
+    'pokter-asserted',
+    'a criterion the agent did not sign was treated as agreed',
+  );
+});
+
+/*
+ * A spec line of another version is still a spec line, so the strong rule
+ * applies and the weaker every-string rule must not rescue it. It will
+ * not match the current hash, so the answer is `pokter-asserted` —
+ * refused for the right reason rather than accepted for the wrong one.
+ */
+test('a spec line from another version does not fall back to the prose rule', () => {
+  const other = `pokter-proofrun/2 spec=0x${'a'.repeat(64)}`;
+  assert.ok(isSpecLine(other));
+  assert.equal(
+    bindingFor({ specHash: `0x${'b'.repeat(64)}`, termsBound: true, signedCriteria: [other], sentCriteria: [other] }).kind,
+    'pokter-asserted',
+  );
+});
+
+/* Nothing sent is not agreement, and never reaches signed-terms. */
+test('no criteria at all is never signed-terms', () => {
+  assert.equal(bindingFor({ specHash: `0x${'c'.repeat(64)}`, termsBound: true, signedCriteria: [], sentCriteria: [] }).kind, 'pokter-asserted');
+  assert.equal(bindingFor({ specHash: `0x${'c'.repeat(64)}`, termsBound: true, signedCriteria: null }).kind, 'pokter-asserted');
+});

@@ -1,6 +1,6 @@
 import { keccak256, toHex } from 'viem';
 
-import { canonicalJson } from '@/lib/erc8183/negotiation';
+import { canonicalJson, sanitizeForClaim } from '@/lib/erc8183/negotiation';
 import type { AcceptanceSpec, Criterion } from '@/lib/shared/contracts';
 import { CRITERIA_VERSION, SPEC_TERM_PREFIX, VERIFIER_VERSION } from './versions';
 
@@ -151,21 +151,72 @@ export function bindingFor(input: {
   specHash: string;
   termsBound: boolean;
   signedCriteria: readonly string[] | null | undefined;
+  /**
+   * The strings that were sent to be signed, when the caller has them.
+   *
+   * Only consulted where no spec line is present. A caller that asked for
+   * criteria without going through `criteriaForTerms` has no hash to
+   * match, and the only thing left is whether every string it sent came
+   * back inside the signed terms.
+   */
+  sentCriteria?: readonly string[] | null;
   negotiationHash?: string | null;
   boundAt?: string | null;
 }): AcceptanceSpec['binding'] {
-  const wanted = `${SPEC_TERM_PREFIX}${input.specHash}`;
-  const agreed =
-    input.termsBound &&
-    Array.isArray(input.signedCriteria) &&
-    input.signedCriteria.some((line) => line === wanted);
+  const asserted: AcceptanceSpec['binding'] = { kind: 'pokter-asserted' };
+  if (!input.termsBound || !Array.isArray(input.signedCriteria)) return asserted;
 
-  if (!agreed) return { kind: 'pokter-asserted' };
+  /*
+   * Compared after the same sanitising the hash applies.
+   *
+   * `negotiationContent` maps `success_criteria` through
+   * `sanitizeForClaim` before hashing, so the strings the agent signed
+   * are the sanitised ones. Comparing a raw line against them happens to
+   * work for the spec line as it stands — it carries no bracket and no
+   * control character — but that is a property of today's prefix and not
+   * a guarantee, and a version prefix that ever grew one would make
+   * every binding silently fall back to `pokter-asserted`. Sanitising
+   * both sides removes the coincidence.
+   */
+  const signed = new Set(input.signedCriteria.map((line) => sanitizeForClaim(String(line))));
+  const wanted = sanitizeForClaim(`${SPEC_TERM_PREFIX}${input.specHash}`);
+
+  /*
+   * The hash line is what makes the agreement checkable, so when one was
+   * sent it is the only thing that counts: prose cannot be compared
+   * across two readings of the same agreement, and an agent that tidied
+   * whitespace in a label has still signed the spec. Without such a line
+   * there is no hash to match, and every string sent must be present —
+   * the weaker rule, for callers that did not go through ProofRun.
+   */
+  const agreed = signed.has(wanted)
+    ? true
+    : Array.isArray(input.sentCriteria) && input.sentCriteria.length > 0 && !input.sentCriteria.some(isSpecLine)
+      ? input.sentCriteria.every((line) => signed.has(sanitizeForClaim(String(line))))
+      : false;
+
+  if (!agreed) return asserted;
   return {
     kind: 'signed-terms',
     ...(input.negotiationHash ? { negotiationHash: input.negotiationHash } : {}),
     ...(input.boundAt ? { boundAt: input.boundAt } : {}),
   };
+}
+
+/**
+ * A spec line of any version, which is what makes the strong rule apply.
+ *
+ * Any version, deliberately: a line from a future ProofRun is still a
+ * spec line, and treating it as prose would quietly apply the weaker
+ * every-string rule to criteria that were meant to be bound by a hash.
+ * It will not match the current spec hash, so the binding still comes
+ * back `pokter-asserted` — refused for the right reason rather than
+ * accepted for the wrong one.
+ */
+export const SPEC_LINE = /^pokter-proofrun\/\d+ spec=0x[0-9a-fA-F]{64}$/;
+
+export function isSpecLine(value: string): boolean {
+  return SPEC_LINE.test(value);
 }
 
 /**
