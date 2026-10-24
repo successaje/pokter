@@ -4,12 +4,12 @@ import {
   ContractFunctionZeroDataError,
   createPublicClient,
   getAddress,
-  http,
   parseAbi,
   type Address,
 } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
+import { readTransport } from '@/lib/chain/rpc';
 import { IDENTITY_REGISTRY } from '@/lib/reviews/onchain';
 
 /**
@@ -36,7 +36,7 @@ const NETWORK: Record<number, { chain: typeof bsc | typeof bscTestnet; url: stri
 export function registryClient(chainId: number) {
   const network = NETWORK[chainId];
   if (!network) return null;
-  return createPublicClient({ chain: network.chain, transport: http(network.url) });
+  return createPublicClient({ chain: network.chain, transport: readTransport(chainId, [network.url]) });
 }
 
 export function registryAddress(chainId: number): Address | null {
