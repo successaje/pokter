@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ProofRunCheckPanel } from '@/features/proofrun/CheckPanel';
-import { FIXTURE_SCENARIOS, OUTCOME_COPY, PROOFRUN_DOES_NOT_MEAN } from '@/features/proofrun/catalogue';
-import { OutcomeGlyph } from '@/features/proofrun/Outcome';
+import { OUTCOME_COPY, OutcomeGlyph } from '@/features/proofrun/Outcome';
+import { PROOFRUN_LIMITATIONS, SCENARIOS } from '@/lib/proofrun/scenarios';
 import { scenarioSpec } from '@/features/proofrun/run';
 import { TestAgentPanel } from '@/features/proofrun/TestAgentPanel';
 import { shareMetadata } from '@/lib/og/share';
@@ -121,23 +121,25 @@ export default async function ProofRunPage({
         </ol>
         <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-ink-3">
           Two of these — that the report is about the right account, and that it names the chain it read — are settled
-          structurally rather than scored: the checker produces a row for them only when a report gets them{' '}
-          <em>wrong</em>, and refuses the whole comparison on the spot. So on a report that gets them right they come
-          out as <strong className="font-medium text-ink">not verified</strong>, noting that nothing in the delivery or
-          the chain reading settled them. That is the honest reading, and it is not a mark against the agent.
+          structurally rather than scored. The checker produces a row for them only when a report gets them{' '}
+          <em>wrong</em>, and refuses the whole comparison on the spot, so there is no row to read when a report gets
+          them right.
         </p>
         {/*
-          Said out loud, because the page would otherwise imply a state the
-          product cannot reach. `stateFromChecks` needs every criterion
-          passed, and the two above are never settled positively, so no run
-          against this criteria set reports "every check matched". A page
-          that let a reader expect it would be describing a rule the code
-          does not apply.
+          This paragraph used to say the opposite, and was right at the
+          time: the two binding criteria were only ever settled when a
+          report got them wrong, so a correct report came out "5 of 7
+          matched; 2 could not be checked" and `verified` was unreachable.
+          `checksFromVerification` now infers both structurally, and the
+          copy had to follow — a page describing a limitation the code has
+          stopped having is the same defect as one describing a rule it has
+          stopped applying, just in the generous direction.
         */}
         <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-ink-3">
-          A consequence worth stating: because those two are never settled positively, no run against this criteria set
-          reports <em>every</em> check matched. The best result available in this version is every compared check
-          matching, with those two unsettled — so read the counts, not an overall verdict.
+          Both are then inferred rather than left unsettled. Reaching a comparison at all establishes the account,
+          because a report about another one is refused before the chain is read. The chain passes only where the
+          report actually named one: a report that named none stays{' '}
+          <strong className="font-medium text-ink">not verified</strong>, because naming it <em>is</em> the criterion.
         </p>
       </section>
 
@@ -153,8 +155,8 @@ export default async function ProofRunPage({
           would be two places to keep in step.
         */}
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-ink-2">
-          {FIXTURE_SCENARIOS.length} synthetic fixtures and one historical replay, kept apart below because the
-          difference is the whole meaning of a result. Both are free, read-only, and move no money.
+          {SCENARIOS.length} synthetic fixtures, free and read-only, and no historical replay in this version — the
+          two kinds are kept apart below because the difference is the whole meaning of a result.
         </p>
         <div className="mt-6 rounded-[14px] border border-rule bg-raised p-5 sm:p-6">
           <TestAgentPanel initialScenarioId={asked} heading="Run a check" />
@@ -200,7 +202,7 @@ export default async function ProofRunPage({
           What a ProofRun is not
         </h2>
         <ul className="mt-5 flex max-w-2xl flex-col gap-3">
-          {PROOFRUN_DOES_NOT_MEAN.map((line) => (
+          {PROOFRUN_LIMITATIONS.map((line) => (
             <li key={line} className="flex items-start gap-2.5 text-[14px] leading-relaxed text-ink-2">
               <Icon.Dash size={14} className="mt-1 shrink-0 text-ink-3" />
               <span>{line}</span>

@@ -4,18 +4,12 @@ import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { Button, LinkButton } from '@/ui/Button';
-import { Checkbox, Field, Input, Textarea } from '@/ui/Field';
+import { Checkbox, Field, Input } from '@/ui/Field';
 import { EmptyState, LoadingRegion, Notice, Skeleton } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { cn } from '@/lib/ui/cn';
 
-import {
-  FIXTURE_SCENARIOS,
-  KIND_COPY,
-  LIVE_SCENARIO,
-  REPLAY_SCENARIO,
-  type ScenarioMeta,
-} from './catalogue';
+import { KIND_DISCLOSURE, SCENARIOS, type FixtureScenario } from '@/lib/proofrun/scenarios';
 import { ProofRunResults } from './ResultsView';
 import type { ProofRunView } from './run';
 
@@ -42,16 +36,16 @@ import type { ProofRunView } from './run';
  * answer render as one.
  */
 
-const REPORT_PLACEHOLDER = `{
-  "account": "0x…",
-  "chain_id": 56,
-  "pool": "core",
-  "as_of": { "block_number": "44100000" },
-  "health_factor": 1.64,
-  "liquidatable": false,
-  "debt_usd": 24500.12,
-  "collateral_usd": 58240.77
-}`;
+/**
+ * Every fixture the library publishes, in the order it publishes them.
+ *
+ * Read from `SCENARIOS` rather than listed here, so a scenario added to
+ * the library appears on the page without a second edit — and so this
+ * page cannot offer one the library does not support.
+ */
+const FIXTURES: readonly FixtureScenario[] = SCENARIOS.filter(
+  (scenario): scenario is FixtureScenario => scenario.kind === 'fixture',
+);
 
 type Phase =
   | { kind: 'idle' }
@@ -76,12 +70,10 @@ export function TestAgentPanel({
   heading?: string;
 }) {
   const [scenarioId, setScenarioId] = useState<string>(
-    initialScenarioId && [...FIXTURE_SCENARIOS, REPLAY_SCENARIO].some((s) => s.id === initialScenarioId)
+    initialScenarioId && FIXTURES.some((scenario) => scenario.id === initialScenarioId)
       ? initialScenarioId
-      : FIXTURE_SCENARIOS[0].id,
+      : FIXTURES[0].id,
   );
-  const [account, setAccount] = useState('');
-  const [report, setReport] = useState('');
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [online, setOnline] = useState(true);
   /* Unique per mount, so two panels on one page do not share one radio
@@ -139,36 +131,9 @@ export function TestAgentPanel({
     [],
   );
 
-  const replaying = scenarioId === REPLAY_SCENARIO.id;
-  /*
-   * A refusal about one field belongs beside that field and nowhere else.
-   * Printing it in the banner as well said the same sentence twice, under
-   * a heading ("the run did not finish") that was wrong about it anyway —
-   * a rejected address means the run never started, which is the reader's
-   * to fix rather than Pokter's to apologise for.
-   */
-  const fieldLevel =
-    phase.kind === 'failed' && (phase.field === 'account' || phase.field === 'report');
-
-  /*
-   * A refusal about a field stops describing that field the moment it is
-   * edited.
-   *
-   * Leaving it up was a small lie with a loud voice: the box stayed
-   * outlined and the line underneath still read "give the account as a
-   * 42-character address" while a perfectly good address sat in it. The
-   * reader is told the run has not happened yet, which is true, rather
-   * than told their corrected input is still wrong, which is not.
-   */
-  function clearFieldError(field: 'account' | 'report') {
-    setPhase((current) =>
-      current.kind === 'failed' && current.field === field ? { kind: 'idle' } : current,
-    );
-  }
-
   /** What identifies a run, for deciding whether a press is a re-run. */
   function inputKey(): string {
-    return replaying ? `${scenarioId}|${account.trim().toLowerCase()}|${report.trim()}` : scenarioId;
+    return scenarioId;
   }
 
   async function run(options: { fresh?: boolean } = {}) {
@@ -187,7 +152,6 @@ export function TestAgentPanel({
         signal: controller.signal,
         body: JSON.stringify({
           scenarioId,
-          ...(replaying ? { account, report } : {}),
           /* Set only when this press re-runs the same scenario with the
              same inputs. Then "Run again" recomputes rather than
              re-serving what this process held, which is what the button
@@ -229,10 +193,10 @@ export function TestAgentPanel({
          * exists to refuse.
          */
         message: aborted
-          ? 'The run did not finish within 30 seconds, so nothing was checked. Your inputs are still here — try again.'
+          ? 'The run did not finish within 30 seconds, so nothing was checked. The scenario you chose is still selected — try again.'
           : navigator.onLine
-            ? 'Pokter could not be reached. Nothing was checked, and your inputs are still here.'
-            : 'This browser is offline, so nothing was checked. Your inputs are still here.',
+            ? 'Pokter could not be reached, so nothing was checked. The scenario you chose is still selected.'
+            : 'This browser is offline, so nothing was checked. The scenario you chose is still selected.',
         field: null,
         offline: !navigator.onLine,
       });
@@ -264,7 +228,8 @@ export function TestAgentPanel({
 
       {!online && (
         <Notice tone="watch" title="This browser is offline.">
-          Nothing can be run until the connection is back. Whatever you have typed stays where it is.
+          Nothing can be run until the connection is back. The scenario you chose stays selected, and the custom test
+          below keeps anything you have typed.
         </Notice>
       )}
 
@@ -272,84 +237,15 @@ export function TestAgentPanel({
         <legend className="sr-only">Choose a scenario to run</legend>
 
         <ScenarioGroup
-          kind="fixture"
           name={groupName}
-          scenarios={FIXTURE_SCENARIOS}
-          selected={scenarioId}
-          onSelect={setScenarioId}
-          disabled={phase.kind === 'running'}
-        />
-
-        <ScenarioGroup
-          kind="replay"
-          name={groupName}
-          scenarios={[REPLAY_SCENARIO]}
+          scenarios={FIXTURES}
           selected={scenarioId}
           onSelect={setScenarioId}
           disabled={phase.kind === 'running'}
         />
       </fieldset>
 
-      {replaying && (
-        <div className="flex flex-col gap-4 rounded-[12px] border border-rule bg-sunken/40 p-4">
-          <p className="text-[12.5px] leading-relaxed text-ink-2">
-            A replay reads Venus’s own figures for a real account, at whatever block the report names — never at the
-            head. Free endpoints keep only recent blocks, so an older one usually cannot be read at all, and where it
-            cannot, every check is reported as not verified rather than re-read somewhere else.
-          </p>
-          {/*
-            The account is an input and the block is not.
-            The subject has to come from outside the report: one that chose
-            its own subject could answer correctly about any wallet and
-            collect a pass for a position nobody asked about, which is why
-            `venusSubjectFromBrief` reads it from the brief. The block is
-            the opposite — the chain is read at the block the report itself
-            names and at no other, so a field for it could only disagree
-            with the comparison that actually ran.
-          */}
-          <Field
-            label="Account"
-            hint="The borrower the report should be about, as a 42-character address. Taken from here rather than from the report, so a report cannot choose its own subject."
-            error={phase.kind === 'failed' && phase.field === 'account' ? phase.message : undefined}
-          >
-            {(props) => (
-              <Input
-                {...props}
-                value={account}
-                onChange={(event) => {
-                  setAccount(event.target.value);
-                  clearFieldError('account');
-                }}
-                placeholder="0x…"
-                spellCheck={false}
-                autoComplete="off"
-                className="t-readout text-[13px]"
-                disabled={phase.kind === 'running'}
-              />
-            )}
-          </Field>
-          <Field
-            label="The report to check"
-            hint="The agent’s own answer, as JSON. It must name the block it read — that is the block the chain is read at, and without one there is nothing to bind the figures to."
-            error={phase.kind === 'failed' && phase.field === 'report' ? phase.message : undefined}
-          >
-            {(props) => (
-              <Textarea
-                {...props}
-                value={report}
-                onChange={(event) => {
-                  setReport(event.target.value);
-                  clearFieldError('report');
-                }}
-                placeholder={REPORT_PLACEHOLDER}
-                spellCheck={false}
-                className="t-readout min-h-40 text-[12.5px]"
-                disabled={phase.kind === 'running'}
-              />
-            )}
-          </Field>
-        </div>
-      )}
+      <ReplayKind />
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -370,11 +266,11 @@ export function TestAgentPanel({
         </Button>
         <span className="text-[12px] text-ink-3">
           Read-only, free, and it moves no money.{' '}
-          {replaying ? 'One archive read of BNB Chain.' : 'Nothing is read from the chain, and no agent is contacted.'}
+          Nothing is read from the chain, and no agent is contacted.
         </span>
       </div>
 
-      {phase.kind === 'failed' && !fieldLevel && (
+      {phase.kind === 'failed' && (
         <Notice
           tone={phase.offline ? 'watch' : 'bad'}
           title={
@@ -449,31 +345,29 @@ export function TestAgentPanel({
  * ------------------------------------------------------------------ */
 
 function ScenarioGroup({
-  kind,
   name,
   scenarios,
   selected,
   onSelect,
   disabled,
 }: {
-  kind: 'fixture' | 'replay';
-  /** Shared across both groups so arrow keys move through every scenario. */
   name: string;
-  scenarios: readonly ScenarioMeta[];
+  scenarios: readonly FixtureScenario[];
   selected: string;
   onSelect: (id: string) => void;
   disabled: boolean;
 }) {
-  const copy = KIND_COPY[kind];
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-1">
         <span className="t-label flex items-center gap-1.5">
-          {kind === 'fixture' ? <Icon.Flask size={12} /> : <Icon.Clock size={12} />}
-          {copy.name}
-          {scenarios.length > 1 && <span className="font-normal normal-case tracking-normal">· {scenarios.length}</span>}
+          <Icon.Flask size={12} />
+          Synthetic fixture
+          <span className="font-normal normal-case tracking-normal">· {scenarios.length}</span>
         </span>
-        <p className="max-w-prose text-[12px] leading-relaxed text-ink-3">{copy.blurb}</p>
+        {/* The library's own sentence, not a paraphrase: the line that
+            stops a fixture being read as history lives next to the data. */}
+        <p className="max-w-prose text-[12px] leading-relaxed text-ink-3">{KIND_DISCLOSURE.fixture}</p>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {scenarios.map((scenario) => (
@@ -501,11 +395,50 @@ function ScenarioGroup({
             <span className="flex min-w-0 flex-col gap-1">
               <span className="text-[13.5px] font-medium leading-snug text-ink">{scenario.label}</span>
               <span className="text-[12px] leading-relaxed text-ink-2">{scenario.purpose}</span>
-              <span className="text-[11.5px] leading-relaxed text-ink-3">{scenario.exposes}</span>
+              <span className="text-[11.5px] leading-relaxed text-ink-3">{scenario.exercises}</span>
             </span>
           </label>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * The replay kind
+ * ------------------------------------------------------------------ */
+
+/**
+ * The other kind of evidence, named and accounted for rather than absent.
+ *
+ * `SCENARIOS` ships no replay, and the library says why: a replay needs
+ * historical state the free BNB endpoints stopped serving about a hundred
+ * blocks back, so one offered here without an archive key would answer
+ * "not verified" every time — a scenario whose only reliable outcome is a
+ * shrug. An earlier draft of this panel offered exactly that, and against
+ * the public node it refused a block forty seconds old.
+ *
+ * Saying nothing instead would be worse in the other direction: a reader
+ * shown four fixtures and no mention of replays could reasonably conclude
+ * that a fixture is all a ProofRun ever is. So the kind is named, the gap
+ * is explained, and the place a real replay does exist — a funded job's
+ * own receipt — is pointed at.
+ */
+function ReplayKind() {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-[11px] border border-dashed border-rule-strong p-3.5">
+      <span className="t-label flex items-center gap-1.5">
+        <Icon.Clock size={12} />
+        Historical on-chain replay
+        <span className="font-normal normal-case tracking-normal">· none in this version</span>
+      </span>
+      <p className="max-w-prose text-[12px] leading-relaxed text-ink-3">{KIND_DISCLOSURE.replay}</p>
+      <p className="max-w-prose text-[12px] leading-relaxed text-ink-2">
+        None is offered here. A replay needs a node that still serves the block the report named, and the free BNB
+        endpoints keep only the most recent ones — so a replay button on this page would answer{' '}
+        <span className="text-ink">not verified</span> every time, which measures Pokter&rsquo;s reach rather than the
+        agent. Where a funded job has been delivered, its own run is a real replay, read at that job&rsquo;s receipt.
+      </p>
     </div>
   );
 }
@@ -540,7 +473,7 @@ function LiveTest({ agent }: { agent: TestAgentAgent | null }) {
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
         <Icon.ChevronRight size={14} className="shrink-0 transition-transform duration-150 group-open:rotate-90" />
         <span className="flex flex-wrap items-center gap-2">
-          {LIVE_SCENARIO.label}
+          Custom test on a live position
           <span className="rounded-full bg-signal-wash px-1.5 py-px text-[11px] font-normal text-ink">Optional · paid</span>
         </span>
       </summary>

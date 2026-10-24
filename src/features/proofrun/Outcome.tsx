@@ -1,7 +1,22 @@
 import type { CheckResult } from '@/lib/shared/contracts';
 import { cn } from '@/lib/ui/cn';
 
-import { OUTCOME_COPY } from './catalogue';
+/**
+ * The three outcomes, with the words every surface is allowed to use for
+ * them.
+ *
+ * `not-verified` is one outcome, not a family of near-passes: whichever of
+ * unsupported, missing or unavailable produced it travels in the check's
+ * own `limitation`, so this stays a vocabulary of three.
+ */
+export const OUTCOME_COPY = {
+  passed: { label: 'Passed', meaning: 'The comparison ran and the report matched.' },
+  failed: { label: 'Failed', meaning: 'The comparison ran and the report contradicted it.' },
+  'not-verified': {
+    label: 'Not verified',
+    meaning: 'Unsupported, missing or unavailable. Not a pass, and not a finding against the agent.',
+  },
+} as const;
 
 /*
  * Three outcomes, three shapes.
