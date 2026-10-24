@@ -56,6 +56,23 @@ export interface ProofRunInput {
 export interface ProofRun {
   result: VerificationResult;
   sealed: SealedArtifact;
+  /**
+   * The checker's own verdict, carried through unchanged.
+   *
+   * `result.checks` carry a generic limitation per row — "nothing in the
+   * delivery or the chain reading settled it" — where `verification.detail`
+   * says which thing: the oracle returned a zero price, the node no longer
+   * serves that block, the report named a pool this check does not read.
+   * That sentence is the most useful thing on the page for a reader
+   * deciding what to do next, and it exists only here.
+   *
+   * Passed through rather than recovered by a second run. Two runs of one
+   * comparison can disagree, and preventing that is the whole reason
+   * `verifyVenusReport` is the only thing that compares a report with the
+   * chain. A surface that needed the prose should not have to buy it at
+   * the price of a second opinion.
+   */
+  verification: VenusReportVerification;
 }
 
 /** keccak of the bytes, or null. Used for the deliverable and the brief alike. */
@@ -75,6 +92,8 @@ export function proofRun(input: ProofRunInput): ProofRun {
     criteria: spec.criteria,
     blockHash: input.blockHash,
     chainClaim: claim?.ok ? claim.claim.chain : undefined,
+    /* Silence is not agreement: the checker compares the account only
+       when the report gives one. */
     accountNamed: Boolean(claim?.ok && claim.claim.account),
     /* So a row cannot say a criterion was agreed while the spec beside it
        says Pokter only recorded it. */
@@ -119,6 +138,7 @@ export function proofRun(input: ProofRunInput): ProofRun {
   });
 
   return {
+    verification: input.verification,
     result: {
       state,
       job: input.job,
@@ -139,12 +159,27 @@ export function proofRun(input: ProofRunInput): ProofRun {
 /**
  * Where a run can be read and replayed.
  *
- * Job-keyed rather than run-keyed, because a run is recomputed rather than
- * stored: there is no run id to put in a URL, and inventing one would
- * imply a record that does not exist.
+ * The artifact, because the artifact is the thing a replay takes: it
+ * carries the criteria, the pinned state and the rows, and
+ * `scripts/proofrun-verify.mts` reads exactly this.
+ *
+ * It pointed at `/proofrun/{chain}/{job}` for six commits and **that
+ * page does not exist** — every job-backed result carried a link that
+ * 404s, and it travelled inside the artifact payload too. A reference
+ * to a route nobody wrote is the defect that shipped on the leaderboard
+ * last week, where a page was built, linked from two footers, put in
+ * the sitemap, and answered every request with a redirect somewhere
+ * else. Nothing in lint, types, tests or the build can see it; only
+ * loading the thing can, which is how this one was found as well.
+ *
+ * Job-keyed rather than run-keyed, because a run is recomputed rather
+ * than stored: there is no run id to put in a URL, and inventing one
+ * would imply a record that does not exist. When a human-readable page
+ * exists this can point there instead — and the test below will insist
+ * it exists before it may.
  */
 export function replayRef(job: JobRef): string {
-  return `/proofrun/${job.chainId}/${job.jobId}`;
+  return artifactHref(job);
 }
 
 export function artifactHref(job: JobRef): string {

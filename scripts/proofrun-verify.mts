@@ -484,19 +484,24 @@ export async function replayArtifact(input: ReplayInput): Promise<ReplayResult> 
     criteria: artifact.criteria,
     blockHash: facts.blockHash,
     chainClaim: claim?.ok ? claim.claim.chain : undefined,
+    binding: artifact.binding,
     /*
-     * Same reason as `chainClaim`: the account row is inferred only for a
-     * report that named one. From the delivery when it was supplied; from a
-     * receipt alone, the rebuild carries no account (see
-     * `reconstructDelivery`), so whether the report named it is read from the
-     * sealed row, as the health factor is: an inferred pass there was only
-     * ever written for a report that named its account.
+     * Whether the report named an account, by the same rule the route
+     * uses — otherwise this replay would answer `not-verified` against a
+     * receipt that has the row `passed`, and report its own missing
+     * input as a contradiction the receipt earned.
+     *
+     * From the delivered bytes only when they were actually supplied.
+     * A reconstructed claim parses cleanly and deliberately carries no
+     * account, so reading it would answer "not named" for every receipt
+     * replayed without --deliverable. The sealed row is the only record
+     * left, and a row that passed can only have passed because one was
+     * named.
      */
     accountNamed:
-      claimSource === 'deliverable'
-        ? Boolean(claim?.ok && claim.claim.account)
-        : rowOf(artifact.checks, 'binding.account')?.outcome === 'passed',
-    binding: artifact.binding,
+      claimSource === 'deliverable' && claim?.ok
+        ? Boolean(claim.claim.account)
+        : artifact.checks.find((check) => check.id === 'binding.account')?.outcome === 'passed',
   });
   const replayState = stateFromChecks(fresh);
   const outcome = compareRuns(artifact.checks, fresh);

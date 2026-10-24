@@ -329,3 +329,57 @@ test('a run without its own limitations still carries the standing ones', async 
   assert.ok(run.sealed.artifact.limitations.length > 0);
   assert.match(run.sealed.artifact.limitations.join(' '), /unresolved rather than as a pass/i);
 });
+
+/*
+ * The checker's own sentence reaches a surface without a second run.
+ *
+ * Per-row limitations are generic by design; `verification.detail` is
+ * the one that says which thing went wrong, and a page that needed it
+ * would otherwise have to run the comparison again — two runs of one
+ * comparison being exactly what the single-verifier split exists to
+ * prevent.
+ */
+test('a run carries the checker’s own verdict through unchanged', async () => {
+  const run = await runFixture({ ...correct, report: reportWithHealthFactor(2.9) });
+  assert.equal(run.verification.verdict, 'differs');
+  assert.match(run.verification.detail, /health factor/i);
+  /* Unchanged: the same object the checker produced, not a rebuild. */
+  assert.equal(run.verification.block, run.sealed.artifact.subject.blockNumber);
+});
+
+/*
+ * Silence is not agreement.
+ *
+ * The checker compares the account only when the report gives one
+ * (`claim.account && …`), so a verdict that reached a comparison does
+ * not establish a matching account — only that nothing contradicted
+ * one. Inferring a pass from the verdict alone marked `binding.account`
+ * passed, observed as "the same account", and the whole run **verified**,
+ * for a report naming no account at all. A fabricated claim inside a
+ * receipt built to be shared.
+ *
+ * It was introduced by the inference that fixed the opposite problem.
+ * Over-correcting an understatement into a false pass is worse than the
+ * understatement was, and it took combining this branch with another to
+ * see it.
+ */
+test('a report naming no account does not pass the account check', async () => {
+  const manifest = JSON.parse(completeReport()) as { response: { content: string } };
+  const body = JSON.parse(manifest.response.content) as Record<string, unknown>;
+  delete body.account;
+  manifest.response.content = JSON.stringify(body);
+
+  const run = await runFixture({ ...correct, report: JSON.stringify(manifest) });
+  const check = run.result.checks.find((c) => c.id === 'binding.account');
+  assert.equal(check?.outcome, 'not-verified', 'a report naming no account passed the account check');
+  assert.doesNotMatch(check?.observed ?? '', /the same account/, 'the row claimed a match that was never made');
+  assert.match(check?.limitation ?? '', /silence is not agreement/i);
+  assert.notEqual(run.result.state, 'verified', 'the run verified without the account ever being compared');
+});
+
+/* The control: a report that does name it still passes, so the fix did
+   not simply turn the inference off. */
+test('a report that names the account still passes the account check', async () => {
+  const run = await runFixture(complete);
+  assert.equal(run.result.checks.find((c) => c.id === 'binding.account')?.outcome, 'passed');
+});

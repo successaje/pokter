@@ -34,7 +34,7 @@ test('missing account: a report that names no account does not pass the account 
   const unnamed = checksFromVerification({ verification: matched(), accountNamed: false });
   const account = unnamed.find((c) => c.id === 'binding.account')!;
   assert.equal(account.outcome, 'not-verified');
-  assert.match(account.limitation ?? '', /does not say which account/);
+  assert.ok((account.limitation ?? '').length > 0, 'the reason travels with the row');
   assert.notEqual(stateFromChecks(unnamed), 'verified', 'a run with an unconfirmed subject is never verified as a whole');
 
   const omitted = checksFromVerification({ verification: matched() });
