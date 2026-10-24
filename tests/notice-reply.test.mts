@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { readNoticeReply } from '../src/lib/erc8183/notice-reply';
+import { noticeReplyData, readNoticeReply } from '../src/lib/erc8183/notice-reply';
 
 test('the reference answer is read as given', () => {
   assert.deepEqual(readNoticeReply({ status: 'accepted', job_id: 1 }), { status: 'accepted', reason: null, deliverableUrl: null });
@@ -17,7 +17,8 @@ test('a seller that already delivered has accepted, and its URL is kept', () => 
 });
 
 test('an answer naming no outcome is still unreadable', () => {
-  assert.equal(readNoticeReply({ status: 'working' }), null);
+  /* "working" was unreadable here until 24 October: a seller at work on the job has taken it (see below). */
+  assert.equal(readNoticeReply({ status: 'working' })?.status, 'accepted');
   assert.equal(readNoticeReply({ job_id: 1 }), null);
   assert.equal(readNoticeReply(null), null);
 });
@@ -32,4 +33,37 @@ test('a seller that answers with a bare JSON-RPC result is read, and its deliver
   // The usual A2A message shape still goes through the A2A reader.
   const message = { jsonrpc: '2.0', id: 'y', result: { kind: 'message', parts: [{ kind: 'data', data: { status: 'accepted', job_id: 1 } }] } };
   assert.equal(readNoticeReply(noticeReplyData(message))?.status, 'accepted');
+});
+
+test('an acknowledgement is an acceptance, and keeps the deliverable URL it names', () => {
+  /* Mandate Guard-1's answer to job 57071 on 24 October, verbatim. It delivered within the minute. */
+  const mandate = {
+    jsonrpc: '2.0',
+    id: 'x',
+    result: {
+      kind: 'message',
+      role: 'agent',
+      messageId: 'm',
+      parts: [{ kind: 'data', data: { received: true, job_id: 57071, deliverable_url: 'https://www.mandatemarkets.com/api/escrow/jobs/57071/deliverable', estimated_completion_seconds: 60 } }],
+    },
+  };
+  assert.deepEqual(readNoticeReply(noticeReplyData(mandate)), {
+    status: 'accepted',
+    reason: null,
+    deliverableUrl: 'https://www.mandatemarkets.com/api/escrow/jobs/57071/deliverable',
+  });
+  for (const status of ['received', 'processing', 'in_progress', 'FUNDED', 'queued']) {
+    assert.equal(readNoticeReply({ job_id: 1, status })?.status, 'accepted', status);
+  }
+  assert.equal(readNoticeReply({ accepted: true })?.status, 'accepted');
+});
+
+test('only words of refusal are a refusal, and an answer that says neither stays unread', () => {
+  for (const reply of [{ status: 'declined', reason: 'busy' }, { status: 'refused' }, { accepted: false, reason: 'no quote' }]) {
+    assert.equal(readNoticeReply(reply)?.status, 'rejected');
+  }
+  assert.equal(readNoticeReply({ status: 'declined', reason: 'busy' })?.reason, 'busy');
+  assert.equal(readNoticeReply({ job_id: 1, note: 'thanks' }), null);
+  assert.equal(readNoticeReply({ status: 'unknown' }), null);
+  assert.equal(readNoticeReply({ received: 'yes' }), null, 'a boolean, not any truthy word');
 });

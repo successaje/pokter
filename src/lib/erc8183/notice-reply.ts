@@ -14,16 +14,37 @@ import { statedDeliverableUrl } from './stated-url';
  * delivered, and dropped the URL it was handed.
  *
  * A reply saying the job is delivered is the strongest acceptance there
- * is. Anything else that names neither outcome stays unreadable.
+ * is.
+ *
+ * An acknowledgement counts too. Mandate Guard-1 answered job 57071 with
+ * { received: true, deliverable_url, estimated_completion_seconds } and
+ * delivered within the minute; with no `status` in it, the buyer was told
+ * the agent "could not be reached" and its deliverable URL was dropped.
+ * BNB's reference buyer does not read the acknowledgement at all: it logs
+ * it and watches the chain. So a reply that says it received, is working
+ * on, or reads the job as funded is taken as accepted, and only words of
+ * refusal are a refusal. Anything that names neither stays unreadable, and
+ * the chain decides.
  */
 const DELIVERED = new Set(['submitted', 'completed', 'delivered']);
+/* Received and under way, in the words sellers use, including the job's own on-chain status. */
+const UNDER_WAY = new Set(['accepted', 'received', 'acknowledged', 'ack', 'ok', 'queued', 'processing', 'working', 'in_progress', 'in-progress', 'started', 'funded']);
+const REFUSED = new Set(['rejected', 'declined', 'refused']);
 
 export function readNoticeReply(reply: Record<string, unknown> | null): { status: 'accepted' | 'rejected'; reason: string | null; deliverableUrl: string | null } | null {
   if (!reply) return null;
   const reason = typeof reply.reason === 'string' ? reply.reason.trim().slice(0, 500) || null : null;
   const status = typeof reply.status === 'string' ? reply.status.trim().toLowerCase() : '';
-  if (status === 'accepted' || status === 'rejected') return { status, reason, deliverableUrl: statedDeliverableUrl(reply) };
-  if (reply.already_delivered === true || reply.alreadyDelivered === true || DELIVERED.has(status)) {
+  if (REFUSED.has(status) || reply.accepted === false) return { status: 'rejected', reason, deliverableUrl: null };
+  if (
+    reply.already_delivered === true ||
+    reply.alreadyDelivered === true ||
+    reply.received === true ||
+    reply.accepted === true ||
+    reply.acknowledged === true ||
+    DELIVERED.has(status) ||
+    UNDER_WAY.has(status)
+  ) {
     return { status: 'accepted', reason, deliverableUrl: statedDeliverableUrl(reply) };
   }
   return null;
