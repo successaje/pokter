@@ -1,0 +1,53 @@
+{
+  "_why": "A correct report, so the suite has one case that must reach full agreement on an independent replay. Every other fixture is measured against this one.",
+  "fixture": true,
+  "provenance": "fixture",
+  "case": "correct-report",
+  "attribution": "Synthetic report, written for this test suite. No agent delivered it and it is not the work of any external builder. It must not be presented as anyone's delivery.",
+  "subject": {
+    "chainId": 56,
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "pool": "core",
+    "blockNumber": "129170001",
+    "blockHash": "0x0fb0ff45c30e9eff4119ff9bef93dddff826964d97680724b0263b58a3780ac3"
+  },
+  "chain": {
+    "real": true,
+    "read": "available",
+    "note": "The position figures are real Venus Core Pool state for this account, read at BNB Smart Chain block 129,170,001 and carried over from tests/fixtures/venus-health-0x4a4ffcee.json (captured 2026-10-22). The block number, hash and timestamp are that block's real ones: the hash was re-read on 2026-10-24 from bsc-dataseed.bnbchain.org and bsc-rpc.publicnode.com, which agreed, and the timestamp matches the capture. The state is real. The report below is synthetic — it was written here, and no report about this account was ever delivered to Pokter.",
+    "facts": {
+      "blockTime": "2026-10-22T17:28:47.000Z",
+      "healthFactor": 1.122279,
+      "borrowLimitRatio": 1.122152,
+      "liquidatable": false,
+      "debtUsd": 207792.7696819796,
+      "collateralUsd": 291545.97
+    },
+    "legs": {
+      "_note": "Per-market rows as captured, used to answer a replay's own eth_calls. The liquidation thresholds are the captured ones. The collateral factors are synthetic: the capture did not record them, so each is set equal to its market's liquidation threshold — which is true of BNB on Venus, and is why a borrowing-limit ratio recomputed from these rows differs from the captured 1.122152 in the fourth decimal.",
+      "collateral": {
+        "BNB": { "supplyUsd": 291370.25, "liquidationThreshold": 0.8, "collateralFactor": 0.8 },
+        "XVS": { "supplyUsd": 175.72, "liquidationThreshold": 0.6, "collateralFactor": 0.6 }
+      },
+      "debt": { "USDC": 50231.33, "USDT": 157561.43 }
+    }
+  },
+  "report": {
+    "_fixture": "Synthetic ProofRun fixture. Not a delivery by any agent.",
+    "account": "0x4a4FfCeeBC80782400F2DDf1878DD4b2d33661ba",
+    "protocol": "Venus Core Pool, BNB Smart Chain mainnet",
+    "chain_id": 56,
+    "as_of": { "block": "129170001", "time": "2026-10-22T17:28:47.000Z" },
+    "health_factor": 1.1223,
+    "liquidatable": false,
+    "debt_usd": 207793,
+    "collateral_usd": 291546,
+    "summary": "Health factor 1.1223 on 207,793 USD of stablecoin debt against 291,546 USD of collateral. Not liquidatable at this block."
+  },
+  "expect": {
+    "verdict": "matches",
+    "state": "verified",
+    "cli": "verified",
+    "_allSevenCriteriaAreSettled": "Two of them are inferred rather than compared, and the report has to earn both. binding.account rests on the verdict: the checker refuses a report about another account before it reads the chain, so reaching a comparison at all establishes that the account matched. binding.chain rests on the report naming a chain by id, which is why chain_id is stated above — delete it and this fixture is unverifiable, which is the negative the suite also checks."
+  }
+}
