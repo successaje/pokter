@@ -29,6 +29,11 @@ export async function disputeWindowSeconds(chainId: number): Promise<number> {
  * hours: when "deadline minus 24 hours" is already past, that is the older
  * kind (or a new one in its last week, which this misdates; the index's own
  * `hiredAt` is preferred wherever there is one).
+ *
+ * It also assumes the standing 24-hour delivery window. A job funded from a
+ * proposal with a longer delivery time is misdated here by the difference;
+ * jobs hired through Pokter record their real `hiredAt`, so this only
+ * reaches jobs Pokter never saw funded, and stays an estimate.
  */
 export async function estimatedFundedAt(chainId: number, expiredAtSeconds: number, now = Date.now()): Promise<Date> {
   const legacy = (expiredAtSeconds - DELIVERY_WINDOW_SECONDS) * 1000;
