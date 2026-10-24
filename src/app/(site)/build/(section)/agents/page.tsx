@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 
 import { loadFleet, studioOwner } from '@/features/studio/data';
+import { FleetDesk, FleetDeskSkeleton } from '@/features/studio/FleetDesk';
 import { FleetList } from '@/features/studio/FleetList';
 import { BuildingSignedOut } from '@/features/studio/SignedOut';
 import { PageHeader } from '@/features/workspace/parts';
@@ -33,6 +35,9 @@ export default async function MyAgentsPage() {
           Pokter could not read this wallet&rsquo;s agents on {unavailable.map(chainLabel).join(' and ')} just now, so this list may be incomplete. Reload to try again.
         </p>
       )}
+      <Suspense fallback={<FleetDeskSkeleton />}>
+        <FleetDesk agents={agents.map((a) => ({ chainId: a.chainId, tokenId: a.tokenId, name: a.name }))} />
+      </Suspense>
       <FleetList agents={agents} unavailable={unavailable} />
     </>
   );
