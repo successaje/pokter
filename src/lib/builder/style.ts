@@ -1,3 +1,4 @@
+import { CONCEPTS } from '@/lib/builder/concepts';
 import type { BuildStyle, DraftFields } from '@/lib/builder/drafts';
 
 /**
@@ -29,7 +30,9 @@ export const BUILD_STYLES: ReadonlyArray<{
     summary: 'Pokter proposes and decides; you confirm the things that matter.',
     behaviour: [
       'Uses everything you have already given and never asks for it twice.',
-      'With no idea yet, puts forward five concepts, recommends one, and says why.',
+      /* Counted from the list the picker renders, so the description cannot
+         outlive the list. It said five while the prompt said three. */
+      `With no idea yet, puts forward ${CONCEPTS.length} concepts, recommends one, and says why.`,
       'Takes the routine decisions itself — protocol, skill names, file names — and shows what it chose.',
       'Asks only what genuinely blocks the build, grouped into one message.',
       'Changes nothing until you choose. Saying nothing is not agreement.',
@@ -47,6 +50,27 @@ export const BUILD_STYLES: ReadonlyArray<{
     ],
   },
 ];
+
+/**
+ * Recommend-and-build in the fewest words that still bind, for the briefs
+ * that have no room for the long form.
+ *
+ * Three surfaces hand an assistant a brief: the guided step, the
+ * standalone prompt builder, and the Pokter MCP section — which the page
+ * marks "Recommended" and which therefore reaches more builders than the
+ * other two together. That one ended with "Ask me what the agent should
+ * do before writing anything", so the most prominent route was the one
+ * instructing the questionnaire this flow is trying to remove.
+ *
+ * The long prompt says this at length because it has the space. This is
+ * the same commitment compressed, kept here rather than written out twice
+ * so the short form cannot drift from the default it names.
+ */
+export const RECOMMEND_AND_BUILD_BRIEF = [
+  'Do not interview me before you start. If I have said what I want, build that. If I have not, propose a few concepts, recommend one, and say why.',
+  'If I say "choose for me", or reply without picking one, take your own recommendation and get on with it. Do not wait on a name.',
+  'Decide the routine engineering yourself — language, layout, tests, libraries — and tell me in one line what you chose. Ask me only for a wallet signature, for money I have not already agreed to spend, or for a security trade-off. Never ask me for a private key or a recovery phrase.',
+].join('\n');
 
 export function buildStyle(id: BuildStyle) {
   return BUILD_STYLES.find((style) => style.id === id) ?? BUILD_STYLES[0];

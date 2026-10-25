@@ -6,6 +6,7 @@ import { useId, useState } from 'react';
 import { MCP_CONNECT, MCP_ENDPOINT, MCP_SETUP } from '@/lib/mcp/catalogue';
 import { CodeBlock, CopyButton } from '@/ui/Data';
 import { Icon } from '@/ui/icons';
+import { RECOMMEND_AND_BUILD_BRIEF } from '@/lib/builder/style';
 
 /**
  * Build an agent with the assistant you already use.
@@ -67,7 +68,9 @@ First call integration_kit for the current requirements. Then help me build an a
 4. A price quote signed by the agent's own registered wallet
 5. A deliverable whose hash it commits on chain for each funded job
 
-Ask me what the agent should do before writing anything. Then scaffold the endpoint, and tell me exactly how to test each of the five before I register.`;
+Then scaffold the endpoint, and tell me exactly how to test each of the five before I register.
+
+${RECOMMEND_AND_BUILD_BRIEF}`;
 
 const ASKS = [
   ['Requirements', 'What does my agent need to be hired through Pokter?'],

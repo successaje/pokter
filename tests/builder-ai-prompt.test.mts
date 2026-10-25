@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
-import { createAgentBuildPrompt } from '../src/lib/builder/ai-prompt';
+import { createAgentBuildPrompt, promptInputFrom } from '../src/lib/builder/ai-prompt';
+import { PROPOSED_CONCEPT_COUNT } from '../src/lib/builder/concepts';
+import { BUILD_STYLES, RECOMMEND_AND_BUILD_BRIEF } from '../src/lib/builder/style';
+import { DEFAULT_PLAN } from '../src/lib/builder/drafts';
+import { RUNTIME_OPTIONS } from '../src/lib/builder/runtime';
 import { FAUCETS } from '../src/lib/network/presentation';
 import { CATEGORIES, NO_CATEGORY } from '../src/lib/agents/categories';
 import { KIT_VERSION } from '../src/lib/integration/guide';
@@ -22,7 +27,14 @@ test('creates a category-aware A2A build prompt with safety constraints', () => 
   assert.match(prompt, /GET \/\.well-known\/agent-card\.json/);
   assert.match(prompt, /Never request, print, store, or hard-code a seed phrase or private key/);
   assert.match(prompt, /public HTTPS URL/);
-  assert.match(prompt, /three meaningfully different agent concepts and original names/);
+  /*
+   * This input carries a direction, so the prompt must not propose
+   * concepts at all. It used to ask for three unconditionally, which meant
+   * a builder who had already written what they wanted was offered three
+   * alternatives to it.
+   */
+  assert.doesNotMatch(prompt, /meaningfully different concepts/);
+  assert.match(prompt, /I already have a direction/);
 });
 
 const BASE = {
@@ -238,7 +250,10 @@ test('it closes the protocol gaps a paid job actually runs through', () => {
 test('it tells the agent how to bind itself to the acceptance criteria', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
   assert.match(prompt, /terms\.success_criteria/);
-  assert.match(prompt, /echo the array back unchanged inside the terms you sign/);
+  /* Was "echo the array back unchanged inside the terms you sign", which
+     reads as hash-them-unchanged and costs the hire on a bracket. */
+  assert.match(prompt, /echo the array back inside the terms you sign, in the order it arrived/);
+  assert.match(prompt, /before hashing/);
   // And that declining to is allowed, so it does not read as a new requirement.
   assert.match(prompt, /Omitting it is allowed and refuses nothing/);
 });
@@ -315,11 +330,14 @@ test('it says the record is continuous, public and uneditable', () => {
   assert.match(prompt, /Nothing about the record can be edited/);
 });
 
-/* Seven now, including the one that catches an unpayable quote. */
+/* Seven, including the one that catches an unpayable quote — and stated
+   from the same list as the section that introduces them, because the two
+   passages used to say six and seven. */
 test('it defers the verdict to Pokter’s own checks, all seven', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
-  assert.match(prompt, /seven checks of its own/);
-  assert.match(prompt, /the quote can actually be paid from the escrow/);
+  assert.match(prompt, /Pokter runs the same seven checks named above/);
+  assert.match(prompt, /lists an agent on seven checks/);
+  assert.match(prompt, /that the quote can be paid from the escrow/);
   assert.match(prompt, /do not describe it to me as working on the strength of your own tests alone/i);
 });
 
@@ -451,4 +469,279 @@ test('it promises no earnings, hosting or production readiness', () => {
       }
     }
   }
+});
+
+
+/*
+ * The five corrections to the building experience, each pinned where it
+ * can actually fail: in the text that gets copied into somebody's
+ * assistant. The mode buttons were already correct on the page while the
+ * copied prompt expressed no style at all and opened with a questionnaire,
+ * so asserting the buttons would have proved nothing.
+ */
+
+test('Recommend and build is the default, in the prompt and not only on the page', () => {
+  /* Omitted entirely — the case both pages hit before they passed a style. */
+  const defaulted = createAgentBuildPrompt({ ...BASE });
+  assert.match(defaulted, /HOW I WANT THIS DECIDED — recommend and build/);
+  assert.equal(promptInputFrom({}).style, 'recommend');
+  assert.equal(DEFAULT_PLAN.style, 'recommend', 'the stored default no longer agrees with the prompt');
+  assert.equal(BUILD_STYLES[0].id, 'recommend', 'the first style offered is no longer the default one');
+
+  /* And the other style is genuinely available, not just listed. */
+  const withMe = createAgentBuildPrompt({ ...BASE, style: 'with-me' });
+  assert.match(withMe, /HOW I WANT THIS DECIDED — build with me/);
+  assert.match(withMe, /offer me the choices you would otherwise take yourself/i);
+});
+
+test('a builder who already has an idea is not sent through discovery', () => {
+  /* A description alone is a direction. A name alone is not — see below. */
+  for (const input of [
+    { ...BASE, description: 'Returns a read-only Venus risk report.' },
+    { ...BASE, category: 'yield' },
+  ]) {
+    const prompt = createAgentBuildPrompt(input);
+    assert.match(prompt, /I already have a direction/);
+    assert.doesNotMatch(prompt, /meaningfully different concepts/);
+    /* The six-part interview the prompt used to open with. */
+    assert.doesNotMatch(prompt, /Begin by asking about my experience/);
+    assert.doesNotMatch(prompt, /DISCOVERY FIRST/);
+    assert.match(prompt, /Do not run a discovery questionnaire/);
+    assert.match(prompt, /Do not ask me about my experience, my intended users, my risk tolerance or my preferred data sources/);
+    /* The target experience: a recommendation and one question. */
+    assert.match(prompt, /Open with your recommendation and the reasoning for it/);
+    assert.match(prompt, /shall I build it\?/);
+  }
+});
+
+test('with no idea it proposes options, recommends one, and takes "choose for me"', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, new RegExp(`Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts`));
+  assert.match(prompt, /Recommend one and say why you would start there/);
+  assert.match(prompt, /If I say "choose for me", or if I reply without picking one, take your own recommendation and start building it/);
+  assert.doesNotMatch(prompt, /Begin by asking about my experience/);
+  /* The brief's own fallbacks have to agree with the section above it. The
+     direction line used to read "Not defined—discover it with me", which
+     invited the discovery the section had just refused. */
+  assert.doesNotMatch(prompt, /discover it with me/);
+  assert.match(prompt, /Do not interview me for it/);
+  assert.match(prompt, /pick a provisional one and keep going/);
+});
+
+/*
+ * The name gate, which was explicit: "do not begin coding until I choose
+ * or refine one concept and name". A name is a label on an idea and the
+ * cheapest thing in the build to change, so nothing waits for it.
+ */
+test('a name never blocks the build, and having only a name is not a direction', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.doesNotMatch(prompt, /begin coding until I choose or refine one concept and name/);
+  assert.match(prompt, /Do not wait on a name/);
+  assert.match(prompt, /provisional and trivial to change later/);
+
+  /* A name with nothing behind it still needs concepts proposing. */
+  const named = createAgentBuildPrompt({ ...BASE, name: 'Position Guardian' });
+  assert.match(named, /Position Guardian/, 'the name was dropped from the brief');
+  assert.match(named, new RegExp(`Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts`));
+});
+
+test('routine choices are delegated and only four things come back to the builder', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /WHAT YOU DECIDE, AND WHAT YOU ASK ME/);
+  for (const routine of [/the framework and language/, /the file layout/, /the test strategy/, /which libraries to use/]) {
+    assert.match(prompt, routine);
+  }
+  assert.match(prompt, /Do not present these as questions/);
+
+  /* The four that are genuinely the builder's, each with its reason. */
+  assert.match(prompt, /Anything needing my wallet to sign/);
+  assert.match(prompt, /Prepare it unsigned/);
+  assert.match(prompt, /spends money I have not already agreed to, including paid hosting/);
+  assert.match(prompt, /trades off security or exposure/);
+  assert.match(prompt, /What the agent is for, if that was never settled/);
+  /* And the line that is never negotiable, in the prompt as well as the UI. */
+  assert.match(prompt, /Never ask me for a private key or a recovery phrase/);
+});
+
+/*
+ * Point 4, and the reason the other four could regress quietly. The prompt
+ * is copied from two pages. Both called `createAgentBuildPrompt`, which
+ * looked like one source, and then built its argument separately — the
+ * standalone builder hardcoded `protocol: 'a2a'` and passed no style. The
+ * same idea produced two different prompts.
+ *
+ * This generates both pages' inputs the way the pages now do and compares
+ * the whole text, so a field added to one and not the other fails here
+ * rather than in a prompt nobody reads twice.
+ */
+test('both pages generate the same prompt for the same idea', () => {
+  const idea = { name: 'Treasury Sentinel', description: 'Returns a sourced treasury risk report.', categoryId: 'yield' } as const;
+
+  /* The standalone prompt builder: three fields and a style. */
+  const standalone = createAgentBuildPrompt(promptInputFrom({ ...idea, style: 'recommend' }));
+
+  /* The guided Configure step: the same fields off a live draft, with the
+     category's first runtime options, which is what its defaults resolve to. */
+  const options = RUNTIME_OPTIONS[idea.categoryId];
+  const guided = createAgentBuildPrompt(
+    promptInputFrom({
+      ...idea,
+      protocol: 'a2a',
+      style: 'recommend',
+      runtime: { target: options.target[0], policy: options.policy[0], output: options.output[0] },
+    }),
+  );
+
+  assert.equal(standalone, guided, 'the two pages describe the same idea differently');
+});
+
+test('the shared derivation fills what a page does not ask for', () => {
+  const input = promptInputFrom({ name: '  Spaced  ', categoryId: 'yield' });
+  assert.equal(input.name, 'Spaced', 'the name was not trimmed');
+  assert.equal(input.category, CATEGORIES.find((c) => c.id === 'yield')!.label, 'the category id was not resolved to its label');
+  assert.equal(input.protocol, 'a2a', 'a page that does not offer a protocol no longer defaults to A2A');
+  /* Runtime defaults come from the category, so neither page carries a copy. */
+  assert.equal(input.target, RUNTIME_OPTIONS.yield.target[0]);
+  assert.equal(input.policy, RUNTIME_OPTIONS.yield.policy[0]);
+  assert.equal(input.output, RUNTIME_OPTIONS.yield.output[0]);
+
+  /* An unknown category must not invent runtime text. */
+  const unknown = promptInputFrom({ categoryId: 'not-a-category' });
+  assert.equal(unknown.category, '');
+  assert.equal(unknown.target, '');
+});
+
+test('the concept count is one number, and the style panel counts its own list', () => {
+  assert.equal(PROPOSED_CONCEPT_COUNT, 3);
+  /* The panel said five while the prompt said three. It now reads from the
+     list it renders, so the two cannot disagree again. */
+  const behaviour = BUILD_STYLES.find((style) => style.id === 'recommend')!.behaviour.join(' ');
+  assert.doesNotMatch(behaviour, /five concepts/);
+  assert.match(behaviour, /puts forward \d+ concepts/);
+});
+
+/*
+ * Both pages are client components, so the wiring is asserted as a source
+ * fact — the pattern `tests/provider-route-wiring.test.mts` uses. Comments
+ * are stripped first, so the comments above these call sites cannot
+ * satisfy the assertions they describe.
+ */
+const source = (path: string) =>
+  readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+test('neither page builds the prompt input itself any more', () => {
+  const standalone = source('features/build/PromptBuilder.tsx');
+  const guided = source('features/studio/useAgentDraft.ts');
+
+  for (const [name, text] of [['the prompt builder', standalone], ['the guided step', guided]] as const) {
+    assert.match(text, /promptInputFrom\(/, `${name} no longer derives its input from the shared helper`);
+    /* The fields each page owns go in; the label lookup and the runtime
+       defaults come out. A page resolving its own category label is the
+       drift this replaced. */
+    assert.doesNotMatch(text, /CATEGORIES\.find\(\(c\) => c\.id === (category|draft\.category)\)/, `${name} resolves the category label itself again`);
+  }
+
+  /* The standalone page hardcoded A2A and passed no style at all. */
+  assert.doesNotMatch(standalone, /protocol: 'a2a'/, 'the prompt builder hardcodes the protocol again');
+  assert.match(standalone, /style/, 'the prompt builder does not pass a style');
+});
+
+test('the prompt page offers the same style switch as the guided flow', () => {
+  const standalone = source('features/build/PromptBuilder.tsx');
+  assert.match(standalone, /<BuildStyleSwitch/, 'the prompt page has no style switch');
+  assert.match(standalone, /useState<BuildStyle>\('recommend'\)/, 'the prompt page does not default to Recommend and build');
+
+  /* And the guided flow's default comes from the stored plan, not a literal. */
+  const guided = source('features/studio/useAgentDraft.ts');
+  assert.match(guided, /style: readLastStyle\(\)/, 'the guided flow no longer restores the remembered style');
+  assert.match(guided, /style: plan\.style/, 'the guided flow does not pass its style into the prompt');
+});
+
+/*
+ * Three surfaces hand an assistant a brief, not two: the guided step, the
+ * standalone prompt builder, and the Pokter MCP section — which the page
+ * marks "Recommended" and which therefore reaches more builders than the
+ * other two together.
+ *
+ * That one ended "Ask me what the agent should do before writing
+ * anything", so the most prominent route on the page was the one
+ * instructing the questionnaire the other two had just stopped doing. The
+ * mode buttons were correct throughout.
+ */
+test('the recommended MCP route does not ask first either', () => {
+  const mcp = source('features/build/BuildWithAI.tsx');
+  assert.doesNotMatch(mcp, /Ask me what the agent should do before writing anything/);
+  assert.match(mcp, /RECOMMEND_AND_BUILD_BRIEF/, 'the MCP brief no longer carries the shared stance');
+  /* Still asks for the thing it legitimately needs: the five checks. */
+  assert.match(mcp, /call integration_kit for the current requirements/);
+});
+
+test('the short and long forms of the default agree on what it commits to', () => {
+  const long = createAgentBuildPrompt({ ...BASE });
+
+  /* The short form is one string, so it cannot drift from itself. What can
+     drift is the long form quietly dropping one of these. */
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not interview me before you start/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /choose for me/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not wait on a name/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Never ask me for a private key or a recovery phrase/);
+
+  for (const commitment of [/choose for me/, /Do not wait on a name/, /Never ask me for a private key or a recovery phrase/]) {
+    assert.match(long, commitment, 'the long prompt dropped a commitment the short brief still makes');
+  }
+});
+
+/* The page's own description of the blank case, which said it would ask. */
+test('the page does not promise a questionnaire the prompt no longer runs', () => {
+  const page = source('app/(site)/build/(section)/new/assistant/page.tsx');
+  assert.doesNotMatch(page, /leave them blank and it will ask you/);
+  assert.match(page, /propose a few and recommend one/);
+
+  /* The empty category reads as a decision to delegate, not a question
+     queued up for later. */
+  const standalone = source('features/build/PromptBuilder.tsx');
+  assert.doesNotMatch(standalone, /Let the assistant ask/);
+  assert.match(standalone, /Let the assistant choose/);
+});
+
+/*
+ * Three defects the fresh-session acceptance test turned up, each of which
+ * produces a signature or a verdict that is valid and refused — the
+ * expensive kind, because nothing visibly breaks.
+ */
+
+test('the listing checks are stated once and the two passages agree', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* It said "six checks" in one section and "seven checks of its own" in
+     another, the second adding whether the quote can be paid. */
+  assert.doesNotMatch(prompt, /lists an agent on six checks/);
+  assert.equal(prompt.match(/that the quote can be paid from the escrow/g)?.length, 2, 'the two passages no longer list the same checks');
+
+  /* And the one no build can satisfy is named rather than left to look
+     like a defect in the builder's own code. */
+  assert.match(prompt, /independent attestations, which no code can satisfy/);
+  assert.match(prompt, /Expect that one to read unknown/);
+});
+
+test('it says the signature is over the raw bytes, not the hex string', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* "an EIP-191 signature of that hash" is ambiguous in the one direction
+     that costs money: signing the hex string recovers to the right wallet
+     and is still refused. */
+  assert.doesNotMatch(prompt, /EIP-191 signature of that hash/);
+  assert.match(prompt, /signMessage\(\{ message: \{ raw: negotiation_hash \} \}\)/);
+  assert.match(prompt, /raw 32 bytes/);
+  assert.match(prompt, /Signing the hex string instead produces a signature that is valid, recoverable, and refused/);
+});
+
+test('it says to sanitise the criteria before hashing them', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* "echo the array back unchanged inside the terms you sign" reads as
+     hash-them-unchanged. Pokter sanitises every element before it
+     recomputes, so a bracketed criterion hashed raw is terms-mismatch. */
+  assert.doesNotMatch(prompt, /echo the array back unchanged inside the terms you sign/);
+  assert.match(prompt, /Apply the kit's character substitutions to each criterion \*\*before hashing\*\*/);
+  assert.match(prompt, /refused as terms-mismatch for a signature that was perfectly correct/);
 });

@@ -247,3 +247,28 @@ jobs:
             echo '::error::Production discovery metadata contains localhost URLs'
             exit 1
           fi
+
+      # The integration kit is the contract a builder is told to fetch
+      # before writing anything, and its preflight block is the first
+      # thing it offers. Those links were built from the request URL,
+      # which behind the proxy is the container's listen socket, so the
+      # live document served them all on https://0.0.0.0:8080 while every
+      # unit test passed. The fault only exists once there is a proxy in
+      # front, so this is the only place that can catch it coming back.
+      - name: Verify the integration kit publishes reachable links
+        run: |
+          kit=$(curl --fail --silent --show-error --max-time 30 \
+            https://pokter.xyz/api/v1/integration)
+
+          echo "$kit" | grep -q '"preflight"' \
+            || { echo '::error::Integration kit published no preflight tools'; exit 1; }
+
+          if echo "$kit" | grep -qE '0\.0\.0\.0|localhost|127\.0\.0\.1'; then
+            echo '::error::Integration kit publishes unreachable hosts'
+            echo "$kit" | tr ',' '\n' | grep -E '0\.0\.0\.0|localhost|127\.0\.0\.1'
+            exit 1
+          fi
+
+          # And the page and the JSON are meant to be one document.
+          echo "$kit" | grep -q 'https://pokter.xyz/build/import' \
+            || { echo '::error::Integration kit preflight does not point at pokter.xyz'; exit 1; }

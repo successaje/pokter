@@ -3,6 +3,9 @@ import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentati
 import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
 import { BUILT_WITH_KEY, BUILT_WITH_POKTER } from '@/lib/brand/built-with';
 import { CANONICAL_RULES, JOB_DEADLINE_FIELD, KIT_VERSION, TIMING } from '@/lib/integration/guide';
+import { PROPOSED_CONCEPT_COUNT } from '@/lib/builder/concepts';
+import { RUNTIME_OPTIONS } from '@/lib/builder/runtime';
+import type { BuildStyle } from '@/lib/builder/drafts';
 
 export type AgentBuildPromptInput = {
   name: string;
@@ -12,6 +15,16 @@ export type AgentBuildPromptInput = {
   target?: string;
   policy?: string;
   output?: string;
+  /**
+   * How the builder wants to be helped, carried into the prompt itself.
+   *
+   * The two styles existed as buttons on the page while the copied prompt
+   * expressed neither, so the default the product advertises — Pokter
+   * proposes and decides — stopped at the edge of the textarea. The prompt
+   * is the only part of this that reaches the assistant doing the work, so
+   * a style the prompt does not state is a style that does not happen.
+   */
+  style?: BuildStyle;
 };
 
 /**
@@ -27,6 +40,39 @@ export type AgentBuildPromptInput = {
  * decided while the agent is being written, so they belong in the prompt
  * that writes it.
  */
+/**
+ * The checks a listing is graded on, written once.
+ *
+ * The prompt stated them twice and the two disagreed: "six checks" in the
+ * section explaining what Pokter calls, "seven checks of its own" in the
+ * verification step, which added the one that decides whether a quote can
+ * actually be paid. A builder reading both learned that one of them was
+ * wrong without learning which.
+ *
+ * Seven is the honest count of what a build can reach. Pokter's
+ * compatibility API reports them at finer grain — it splits capabilities
+ * into notify_funded, a named priced skill and example briefs — and adds
+ * independent attestations, which no amount of code produces because it
+ * needs somebody else to hire the agent. That last one is named here
+ * rather than quietly dropped, because a builder who is told the build is
+ * unfinished until every check passes will otherwise go hunting for a
+ * defect that is not theirs.
+ */
+const LISTING_CHECKS = [
+  'an ERC-8004 identity',
+  'a published endpoint',
+  'answering when called',
+  'published capabilities',
+  'a signed price quote',
+  'that the quote can be paid from the escrow',
+  'a marketplace category',
+] as const;
+
+const CHECK_COUNT_WORD = 'seven';
+
+/** "a, b and c" — a list a person reads, not an array joined by commas. */
+const CHECKS_SENTENCE = `${LISTING_CHECKS.slice(0, -1).join(', ')} and ${LISTING_CHECKS[LISTING_CHECKS.length - 1]}`;
+
 const ESCROW_CHAIN_ID = 97;
 
 /**
@@ -179,7 +225,7 @@ function fallbackSection(): string {
 Say so explicitly — name the URL and what happened — and then proceed on the bundled summary below, which was generated against kit schema ${KIT_VERSION}. Write that version into your notes and into the listing summary, so what you built to is on the record and can be rechecked against the live kit later. Do not ask me for the wire format: I copied this prompt because I do not know it, and a shape I invent on your behalf is worse than the one below. If the summary genuinely does not cover something you need, say exactly which field you are missing and ask me to paste that part of ${KIT_JSON} — never fill the gap by guessing, because a wire format guessed confidently and slightly wrong produces a quote Pokter cannot verify, which looks like a bug in the agent for as long as it takes somebody to check the hash.
 - \`negotiate\` request: a JSON-RPC \`message/send\` whose message carries a data part { skill: "negotiate", task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains }.
 - \`negotiate\` reply: { request: { task_description }, response: { accepted: true, terms: { price, currency, deliverables, quality_standards, success_criteria? } }, negotiated_at, quote_expires_at?, chain_id?, verifying_contract?, negotiation_hash, provider_sig }. To decline, \`accepted: false\` with a plain-language \`reason\`; the buyer reads it.
-- \`negotiation_hash\` = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }. \`provider_sig\` = an EIP-191 signature of that hash by the registered agent wallet.
+- \`negotiation_hash\` = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }. \`provider_sig\` = an EIP-191 signature over the raw 32 bytes of that hash — \`signMessage({ message: { raw: negotiation_hash } })\` — by the registered agent wallet. Signing the hex string instead produces a signature that is valid, recoverable, and refused.
 - Canonical JSON, exactly:
 ${CANONICAL_RULES.map((rule) => `  - ${rule}`).join('\n')}
 - \`notify_funded\` request: { skill: "notify_funded", job_id }. Reply { status: "accepted" | "rejected", job_id } immediately; do the work afterwards.
@@ -187,8 +233,120 @@ ${CANONICAL_RULES.map((rule) => `  - ${rule}`).join('\n')}
 - Deadlines: ${TIMING.rules[0]}`;
 }
 
+/**
+ * What the builder has already settled, and what is still open.
+ *
+ * A direction is a description or a category — something that says what the
+ * agent is for. A name is neither: it is a label on an idea, and waiting
+ * for one is the clearest way to stall a build that could otherwise have
+ * started. The prompt therefore treats a name as decoration and never as a
+ * gate.
+ */
+/**
+ * One derivation of the prompt's input, for every page that offers it.
+ *
+ * The prompt is copied from two places: the guided Configure step and the
+ * standalone prompt builder. Both called `createAgentBuildPrompt`, which
+ * made them look like one source, and then built its argument separately —
+ * the guided step from a live draft, the prompt builder from three fields
+ * with `protocol` hardcoded to `a2a` and no style at all. The same idea
+ * therefore produced two different prompts, and the difference was
+ * invisible because nobody reads both.
+ *
+ * So the pages pass what the builder actually typed and this decides the
+ * rest: the category label from its id, the runtime defaults from the
+ * category, A2A unless told otherwise, and Recommend-and-build unless the
+ * builder switched. `tests/builder-ai-prompt.test.mts` asserts the two
+ * call sites agree by generating both from here.
+ */
+export function promptInputFrom(fields: {
+  name?: string;
+  description?: string;
+  /** The category's id, as the form holds it — not its label. */
+  categoryId?: string;
+  protocol?: 'a2a' | 'mcp';
+  style?: BuildStyle;
+  /** A chosen runtime, where a page has one. Defaults come from the category. */
+  runtime?: { target?: string; policy?: string; output?: string };
+}): AgentBuildPromptInput {
+  const categoryId = (fields.categoryId ?? '').trim();
+  const options = RUNTIME_OPTIONS[categoryId];
+  return {
+    name: (fields.name ?? '').trim(),
+    description: (fields.description ?? '').trim(),
+    category: CATEGORIES.find((category) => category.id === categoryId)?.label ?? '',
+    protocol: fields.protocol ?? 'a2a',
+    target: fields.runtime?.target || options?.target[0] || '',
+    policy: fields.runtime?.policy || options?.policy[0] || '',
+    output: fields.runtime?.output || options?.output[0] || '',
+    style: fields.style ?? 'recommend',
+  };
+}
+
+function hasDirection(input: AgentBuildPromptInput): boolean {
+  return Boolean(input.description.trim() || input.category.trim());
+}
+
+/**
+ * How to proceed, which is the part the prompt previously got wrong.
+ *
+ * Every copied prompt opened with "DISCOVERY FIRST" and, when no direction
+ * was given, with "Begin by asking about my experience, intended users,
+ * financial problem, preferred data sources, risk tolerance" — a six-part
+ * questionnaire before a line of code. It then asked for three concepts
+ * unconditionally, so a builder who had already written what they wanted
+ * was proposed three alternatives anyway, and it forbade coding "until I
+ * choose or refine one concept and name", which blocks a build on a label.
+ *
+ * What replaces it is the behaviour the page already advertises: a
+ * recommendation with its reasoning, one question, and then the work.
+ */
+function directionSection(input: AgentBuildPromptInput): string {
+  const style = input.style ?? 'recommend';
+  if (style === 'with-me') {
+    return `HOW I WANT THIS DECIDED — build with me
+- I want a say at each stage. Before you ask me anything, say what the stage is for and what turns on it.
+- Offer me the choices you would otherwise take yourself, and mark the one you recommend and why. A choice with no recommendation is just work handed back to me.
+- Do not ask me for anything already written below, and do not ask the same thing twice. ${hasDirection(input) ? 'My direction is below; start from it rather than re-deriving it.' : `I have not settled on an idea: put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts, recommend one, and let me pick.`}
+- Once a stage is agreed, do that stage's work yourself — being involved in the decisions is not the same as wanting to write the code.
+- Keep the deep technical detail available but out of the way: a line I can ask about, not a wall I have to read.`;
+  }
+
+  if (hasDirection(input)) {
+    return `HOW I WANT THIS DECIDED — recommend and build
+- I already have a direction; it is below. Do not run a discovery questionnaire. Do not ask me about my experience, my intended users, my risk tolerance or my preferred data sources. Where something is missing, choose it and tell me what you chose.
+- Open with your recommendation and the reasoning for it: what you would build, what the narrow first version is, and why that is the right first version. Then ask me one question — shall I build it? If I agree, or answer without changing the direction, build it.
+- If you think my direction is wrong, say so in that same opening and argue for the better one. Telling me I am wrong is useful; a list of questions is not.
+- Check the scope is narrow enough to finish and verify today, and useful enough that a buyer would pay for its output. If it is not, say which part to cut.`;
+  }
+
+  return `HOW I WANT THIS DECIDED — recommend and build
+- I have not settled on an idea, and I do not want to be interviewed for one. Do not open with questions about my experience, my users, my risk tolerance or my data sources.
+- Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts. For each: the buyer, the narrow job, what makes it different, the data it needs, what it will not do, and how hard it is to finish. Recommend one and say why you would start there.
+- If I say "choose for me", or if I reply without picking one, take your own recommendation and start building it. Do not ask again.
+- Do not wait on a name. Pick a working one, say it is provisional and trivial to change later, and carry on — nothing downstream depends on the name being final.
+- Check the scope is narrow enough to finish and verify today, and useful enough that a buyer would pay for its output.`;
+}
+
+/**
+ * The line between what the assistant decides and what only I can.
+ *
+ * Point of this section: a build that stops to ask about a test framework
+ * is as broken as one that silently registers an identity. The first wastes
+ * the help; the second spends money or exposes a key on somebody's behalf.
+ * So the routine decisions are explicitly delegated, and the four things
+ * that genuinely need a person are named, with the reason each one does.
+ */
+const DECISIONS_SECTION = `WHAT YOU DECIDE, AND WHAT YOU ASK ME
+Decide these yourself and tell me in one line what you chose: the framework and language, the file layout, how the code is structured and named, the test strategy, which libraries to use, the shape of the report the agent returns, and anything else that is a matter of competent engineering judgement. Do not present these as questions.
+Ask me only when the answer is genuinely mine:
+- Anything needing my wallet to sign — registering the identity, funding a job, approving a token. Prepare it unsigned, tell me exactly what I would be signing, and wait.
+- Anything that spends money I have not already agreed to, including paid hosting and registering on mainnet rather than testnet.
+- Anything that trades off security or exposure: where a key lives, how wide a permission is, what gets written to a log, what a stranger is able to call.
+- What the agent is for, if that was never settled.
+Never ask me for a private key or a recovery phrase, and never accept one if I offer it — there is no step here that needs it, and an assistant that takes one has already made the worst mistake available.`;
+
 export function createAgentBuildPrompt(input: AgentBuildPromptInput, { mainnetEscrow = MAINNET_ESCROW }: { mainnetEscrow?: boolean } = {}) {
-  const hasDefinedConcept = Boolean(input.name || input.description || input.category);
 
   return `You are my product strategist and senior protocol engineer. Help me design and build a distinctive, production-quality financial AI agent for Pokter, an evidence-first agent marketplace on BNB Chain.
 
@@ -200,17 +358,13 @@ HOW I WANT YOU TO WORK
 - Then carry it through: write the code, write the tests, run what you can run, and report what the run said. Do not stop at a plan, and do not describe a plan as though it were a build.
 - Where you cannot reach a file, run a command, or fetch a URL, say exactly what you could not do and give me the smallest next step that unblocks it — the one command to run or the one value to paste — rather than a general suggestion or a silent assumption.
 
-DISCOVERY FIRST
-${hasDefinedConcept
-    ? '- I have provided an initial direction below. Challenge weak assumptions and suggest improvements before implementation.'
-    : '- Begin by asking about my experience, intended users, financial problem, preferred data sources, risk tolerance, and whether the agent should only advise or also prepare actions.'}
-- Suggest three meaningfully different agent concepts and original names. For each, explain the buyer, narrow job, differentiator, required data, limitations, and implementation difficulty.
-- Do not reuse a generic sample identity or begin coding until I choose or refine one concept and name.
-- Check that the selected scope is specific enough to test and useful enough that a buyer would pay for its output.
+${directionSection(input)}
+
+${DECISIONS_SECTION}
 
 AGENT BRIEF
-- Existing name, if chosen: ${input.name || 'Not chosen—propose original options'}
-- Existing direction, if provided: ${input.description || 'Not defined—discover it with me'}
+- Existing name, if chosen: ${input.name || 'Not chosen — pick a provisional one and keep going'}
+- Existing direction, if provided: ${input.description || 'Not settled — propose concepts and recommend one, as above. Do not interview me for it'}
 - Likely category: ${input.category || 'Not chosen—recommend the closest supported financial category'}
 - Scope: ${input.target || 'Define the assets, protocols, or positions it supports'}
 - Operating policy: ${input.policy || 'Use conservative, explicit limits'}
@@ -231,7 +385,7 @@ ${chainsSection(mainnetEscrow)}${fundingSection(mainnetEscrow)}
 ${transportSection(input.protocol)}
 
 WHAT POKTER CALLS, AND WHAT IT CHECKS
-Pokter lists an agent on six checks: ERC-8004 identity, a published endpoint, answering when called, published capabilities, a signed price quote, and a marketplace category. Passing the first four gets the agent listed and probed; without the fifth it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
+Pokter lists an agent on ${CHECK_COUNT_WORD} checks: ${CHECKS_SENTENCE}. Passing the first four gets the agent listed and probed; without a signed quote it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
 - Probing is an unauthenticated GET of the agent card every two hours. That is what builds the public record, and it proves reachability only — never correctness.
 
 Identity and wallets
@@ -243,10 +397,11 @@ The signed quote
 - \`negotiate\` must return a quote the agent has signed: the request and response it is agreeing to, a hash over both, that signature, the price, the currency address, an expiry, and the signing domain.
 - Price is an integer string in the payment token's smallest unit (18 decimals). Not a float, not a decimal string, not a human-readable amount.
 - Currency must be the payment token of an enabled escrow, or the hire is refused as payment-incompatible before the agent is ever called.
-- \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature of that hash. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
+- \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature over the **raw 32 bytes** of that hash, not over its hex string: \`signMessage({ message: { raw: negotiation_hash } })\`. Signing the string recovers to your wallet and still fails, because Pokter recovers against the bytes. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
 - A quote is short-lived. Return \`quote_expires_at\`, honour it, and refuse your own expired quotes.
 - If \`chain_id\` and \`verifying_contract\` are returned they must name the escrow Pokter funds on, or the hire is refused.
-- If the request carries \`terms.success_criteria\`, echo the array back unchanged inside the terms you sign. It is covered by the hash, and echoing it is what records that the agent agreed to the criteria it will be judged against rather than that Pokter merely asserted them. Omitting it is allowed and refuses nothing; it only loses that binding.
+- If the request carries \`terms.success_criteria\`, echo the array back inside the terms you sign, in the order it arrived and with nothing added or removed. It is covered by the hash, and echoing it is what records that the agent agreed to the criteria it will be judged against rather than that Pokter merely asserted them. Omitting it is allowed and refuses nothing; it only loses that binding.
+- Apply the kit's character substitutions to each criterion **before hashing**, exactly as you do to the task and the other terms. Pokter sanitises every element it reads before recomputing, so a criterion carrying a bracket that you hash raw gives a hash Pokter cannot reproduce — refused as terms-mismatch for a signature that was perfectly correct. Echoing the sanitised strings is the simplest way to keep the two the same.
 
 Validating a funded job before doing any work
 - \`notify_funded\` receives the funded job id and must answer \`{ status, job_id }\` immediately. Do not block the reply on the work.
@@ -289,7 +444,7 @@ BUILD REQUIREMENTS
 7. Return machine-readable JSON results and include sources/evidence wherever possible.
 8. Provide complete files, setup commands, tests, a local run command, a sample request and response, and deployment steps for a public HTTPS URL. Where a step depends on something only I can do — a funded wallet, a DNS record, a hosting account — name it and say what you need from me.
 9. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
-10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all seven pass. Do not describe it to me as working on the strength of your own tests alone.
+10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs the same ${CHECK_COUNT_WORD} checks named above — ${CHECKS_SENTENCE}. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all ${CHECK_COUNT_WORD} pass. Do not describe it to me as working on the strength of your own tests alone.\nPokter's compatibility API reports these at finer grain — it splits published capabilities into notify_funded, a priced skill named for the work, and example briefs — and adds one more, independent attestations, which no code can satisfy because it needs somebody else to hire the agent. Expect that one to read unknown, and do not treat it as a defect in the build.
 
 ${fallbackSection()}
 

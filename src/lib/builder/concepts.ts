@@ -124,6 +124,23 @@ export const CONCEPTS: ReadonlyArray<AgentConcept> = [
   },
 ];
 
+/**
+ * How many concepts an assistant puts forward when there is no idea yet.
+ *
+ * Three, because the point is a decision rather than a catalogue: enough
+ * for the choice to be real, few enough that each can carry its buyer, its
+ * job and its limits without becoming a reading exercise. One of them is
+ * recommended, so the builder can also decline to choose.
+ *
+ * Deliberately not `CONCEPTS.length`. `CONCEPTS` is Pokter's own picker,
+ * where the cards are already written and a fifth costs nothing to scan;
+ * this is the number an assistant should compose from scratch in a chat.
+ * The two numbers drifted apart silently once — the prompt said three
+ * while the style panel claimed five — so both now read from a named
+ * constant and the panel reads from the list it actually renders.
+ */
+export const PROPOSED_CONCEPT_COUNT = 3;
+
 /** The one to put forward, and the argument for it in plain words. */
 export const RECOMMENDED_CONCEPT_ID = 'token-screen';
 

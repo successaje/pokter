@@ -39,7 +39,7 @@ export default function BuildWithAssistant() {
           <h2 id="method-prompt" className="text-[19px] font-medium tracking-[-0.015em]">
             Or copy a build prompt
           </h2>
-          <p className="text-[13.5px] text-ink-2">Works with any assistant and needs no setup; your assistant will not be able to check Pokter as it builds. Add a few details to point it in a direction, or leave them blank and it will ask you.</p>
+          <p className="text-[13.5px] text-ink-2">Works with any assistant and needs no setup; your assistant will not be able to check Pokter as it builds. Add a few details to point it in a direction, or leave them blank and it will propose a few and recommend one.</p>
         </div>
         <div className="rounded-[16px] border border-rule bg-raised p-6">
           <PromptBuilder />
