@@ -167,7 +167,17 @@ export function formatObservedSpan(observedDays: number): string {
  * it would have kept asserting it for as long as nobody re-measured. These
  * figures are whatever the live board holds.
  */
-export function observedSpanNote(coverage: ResponsivenessCoverage): string {
+/**
+ * The part a reader has to meet before the order: that the spans differ,
+ * and by how much.
+ *
+ * Split from the rest because the whole note runs to a paragraph above the
+ * table, and a hundred words of caveat before the first row is a caveat
+ * most readers skip — which costs the disclosure the thing it was for.
+ * This is the claim and its figures; `observedSpanDetail` is what the
+ * figures mean, and reads perfectly well under the rows it describes.
+ */
+export function observedSpanHeadline(coverage: ResponsivenessCoverage): string {
   const bound =
     `Pokter loads the last ${coverage.windowDays} days of checks and no more, so a rate is measured ` +
     'over whatever part of that period it holds for the agent.';
@@ -180,12 +190,27 @@ export function observedSpanNote(coverage: ResponsivenessCoverage): string {
       ? `Every ranked row covers ${spanDecimal(longest)} of the ${coverage.windowDays} days.`
       : `The ranked rows do not hold the same part: their spans run from ${spanDecimal(shortest)} to ` +
         `${spanDecimal(longest)} of the ${coverage.windowDays} days, shown on each row.`;
+  return `${bound} ${spread}`;
+}
+
+/** What a long or short span means, and why short ones are ranked at all. */
+export function observedSpanDetail(coverage: ResponsivenessCoverage): string | null {
+  if (!coverage.rankedSpanDays) return null;
   return (
-    `${bound} ${spread} A span near ${coverage.windowDays} reaches the edge of what Pokter loads and may ` +
+    `A span near ${coverage.windowDays} reaches the edge of what Pokter loads and may ` +
     'have older checks behind it that this board cannot see; a short span is the whole of what Pokter ' +
     'holds, not a cut-down version of something longer. Short spans are ranked anyway, and labelled, ' +
     'because dropping them would publish an empty board in place of a disclosed limit.'
   );
+}
+
+/**
+ * Both halves, for anywhere that wants the whole statement in one string.
+ * The page prints them in two places; this keeps them one note.
+ */
+export function observedSpanNote(coverage: ResponsivenessCoverage): string {
+  const detail = observedSpanDetail(coverage);
+  return detail ? `${observedSpanHeadline(coverage)} ${detail}` : observedSpanHeadline(coverage);
 }
 
 export interface ResponsivenessRow {
