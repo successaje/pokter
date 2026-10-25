@@ -17,10 +17,16 @@ import { bindingFor, criteriaForTerms, venusAcceptanceSpec } from '../src/lib/pr
  * either, so the path had never run end to end anywhere.
  *
  * This signs a real quote with a throwaway key and puts it through the
- * verifier a buyer's hire goes through. It establishes that the mechanism
- * works and that the house agent now participates in it. It does **not**
- * establish that a funded job on testnet produces such a receipt — that
- * needs escrow, and it is prepared separately.
+ * verifier a buyer's hire goes through, so it establishes that the
+ * mechanism works.
+ *
+ * It does **not** establish that the house agent participates in it, and
+ * the first version of this comment claimed it did. `signHouseQuote` is
+ * tested here directly; the handler that receives a buyer's request had
+ * to pass the criteria along, and did not, so the field was dead in
+ * production until `tests/house-criteria-wiring.test.mts` pinned that
+ * link. Nor does it establish that a funded job on testnet produces such
+ * a receipt — that needs escrow, and it is prepared separately.
  */
 
 /* A key that exists only here. It signs test data and holds nothing. */

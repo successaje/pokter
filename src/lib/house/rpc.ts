@@ -9,7 +9,7 @@ import { gradeDeliveredFixture } from '@/lib/assay/paid-run';
 import { deliverHouseJob } from './deliver';
 import { isPriceEnquiry } from './rpc-enquiry';
 import { houseAccount } from './keys';
-import { signHouseQuote } from './quote';
+import { echoableCriteria, signHouseQuote } from './quote';
 import { HOUSE_CHAINS, type HouseAgentDefinition, type HouseChainId } from './types';
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -78,6 +78,18 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
         task: brief || `Quote ${definition.name}'s standard deliverable.`,
         deliverables: typeof terms?.deliverables === 'string' ? terms.deliverables : undefined,
         qualityStandards: typeof terms?.quality_standards === 'string' ? terms.quality_standards : undefined,
+        /*
+         * The acceptance criteria, echoed so the signature covers them.
+         *
+         * Without this the house agent could sign criteria but was never
+         * handed any: `signHouseQuote` took `successCriteria` and this,
+         * its only caller, did not pass it. A live quote carrying all
+         * eight Venus criteria came back with `success_criteria` absent
+         * and bound as `pokter-asserted`, so the path the integration kit
+         * tells third-party builders to implement was one Pokter's own
+         * agent did not walk.
+         */
+        successCriteria: echoableCriteria(terms?.success_criteria),
       });
       return message(id, quote);
     } catch (error) {

@@ -1,10 +1,46 @@
 import { getAddress, keccak256, parseUnits, toBytes, type LocalAccount } from 'viem';
 
 import { canonicalJson, sanitizeForClaim } from '@/lib/erc8183/negotiation';
+import { MAX_TERM_LENGTH, MAX_TERM_STRINGS } from '@/lib/proofrun/acceptance';
 
 import type { HouseAgentDefinition, HouseChainId } from './types';
 
 const QUOTE_TTL_SECONDS = 15 * 60;
+
+/**
+ * The criteria from a negotiate request, if they are safe to sign.
+ *
+ * A seller signs whatever it echoes, so this is untrusted input on its way
+ * into a signature. Each string is bounded and sanitised, and the caller
+ * must get back either the whole array or nothing: `bindingFor` requires
+ * every criterion it sent to appear in the signed terms, so echoing a
+ * filtered subset would produce a signature that binds nothing while
+ * looking like it binds something.
+ *
+ * Malformed or oversized input therefore costs the binding and not the
+ * hire. The quote still verifies and the job can still be funded; the
+ * delivery is simply judged against criteria the agent did not sign, which
+ * is what `pokter-asserted` already means. Refusing the quote outright
+ * would contradict the kit's own promise that omitting the field "refuses
+ * nothing", and would break a hire over a field that is optional.
+ *
+ * The bounds come from `acceptance.ts` rather than a copy, because they
+ * are the limits Pokter publishes in the integration kit and a second
+ * copy would drift from the documented one.
+ */
+export function echoableCriteria(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TERM_STRINGS) return undefined;
+  const lines: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') return undefined;
+    /* Sanitising can only shorten, so the length is checked on what is
+       signed rather than on what arrived. */
+    const line = sanitizeForClaim(entry);
+    if (line.trim().length === 0 || line.length > MAX_TERM_LENGTH) return undefined;
+    lines.push(line);
+  }
+  return lines;
+}
 
 export interface HouseSignedQuote {
   request: { task_description: string };
