@@ -360,7 +360,7 @@ test('a row’s page size is the one the page paginates by', () => {
 test('every link on the board carries what the reader narrowed it to', () => {
   assert.equal(
     leaderboardHref({ network: 'testnet', view: 'outcomes', metric: 'repeat-buyers' }, { search: 'venus', category: 'yield', page: 3 }),
-    '/leaderboard?network=testnet&metric=repeat-buyers&q=venus&category=yield&page=3',
+    '/leaderboard?network=testnet&view=outcomes&metric=repeat-buyers&q=venus&category=yield&page=3',
   );
   /* Defaults stay out, so the canonical board is still a bare path. */
   assert.equal(leaderboardHref({}, { search: '', category: 'all', page: 1 }), '/leaderboard');
@@ -473,10 +473,11 @@ test('the board renders the disclosures from the rule, not from its own copy', (
   const source = copy(BOARD);
   assert.match(source, /rowDisclosures\(row\)/);
   assert.match(source, /rowReceipts\(row\)/);
-  /* Rendered from the rule's own text. The summary line went with the
-     closed toggle the rows no longer have — the expansion shows every
-     disclosure in full, so there is nothing left to summarise. */
-  assert.match(source, /\{disclosure\.detail\}/);
+  /* Rendered from the rule's own summary. The expansion is gone, so the
+     row carries the one line the closed toggle used to carry — and it has
+     to, because the agent page does not publish these and dropping them
+     would have deleted a disclosure rather than moved one. */
+  assert.match(source, /summaryOf\(rowDisclosures\(row\), rowReceipts\(row\)\)/);
   /* The sentences moved into `disclosures.ts`; a second copy on the page
      is how the two come to say different things. */
   assert.doesNotMatch(source, /buyer and reviewer are the same party/);
@@ -607,14 +608,16 @@ test('the board still combines nothing into one figure', () => {
  * separate card list for phones — two renderings of one board, and one of
  * them only visible at a width the author was not looking at.
  */
-test('both boards render from one grid, at one row height', () => {
+test('all three boards use one row height, and none of them is a wide table', () => {
   const source = copy(BOARD);
   assert.match(source, /const BOARD_GRID =/);
-  assert.match(source, /const RESPONSIVENESS_GRID = BOARD_GRID;/, 'the two boards use different grids again');
-  /* 56px on a phone, 60px on a desktop: inside the 56–64 the design asks
-     for, and the same number on both boards. */
-  assert.equal((source.match(/min-h-\[56px\][^"]*sm:min-h-\[60px\]/g) ?? []).length, 2);
-  /* And the desktop table and its separate mobile card list are gone. */
+  assert.match(source, /const RESPONSIVENESS_GRID = BOARD_GRID;/, 'outcomes and responsiveness use different grids again');
+  /* The score board has its own columns and so its own template, but the
+     row height is the same on all three: 56px on a phone, 60px on a
+     desktop, inside the 56-64 the design asks for. */
+  assert.match(source, /const SCORE_GRID =/);
+  assert.equal((source.match(/min-h-\[56px\][^"]*sm:min-h-\[60px\]/g) ?? []).length, 3);
+  /* And the desktop table with its separate mobile card list is gone. */
   assert.doesNotMatch(source, /min-w-\[960px\]|function OutcomeCards|function OutcomeTable/);
 });
 
@@ -633,15 +636,31 @@ test('the column is centred and bounded, and the title is not a hero', () => {
  * rather than gone — and in a `details`, because a tooltip is a thing
  * phones do not have.
  */
-test('per-row detail is in an expansion, not on every row and not in a tooltip', () => {
+/*
+ * No row opens. Expandable rows put the evidence one press away and one
+ * row at a time; the agent's own page holds all of it at once, and the
+ * name on every row is the link to it.
+ */
+test('no row on any board expands, and nothing hides in a tooltip', () => {
   const source = copy(BOARD);
-  assert.match(source, /Declared protocol: \{row\.protocol \?\? 'none declared'\}/);
-  assert.match(source, /Observed \{span\}/);
-  /* Inside the open half of the row's `details`, never in the summary. */
-  const summaryEnd = source.indexOf('</summary>', source.indexOf('function ResponsivenessLine'));
-  const summary = source.slice(source.indexOf('function ResponsivenessLine'), summaryEnd);
-  assert.doesNotMatch(summary, /Declared protocol|Observed \{span\}/);
+  /*
+    The three row renderers, each on its own. Scoped to them rather than to
+    the whole file: the empty view's "Why no results?" is a disclosure the
+    design asks for and the category control is a menu, and neither is a
+    row that opens.
+  */
+  for (const fn of ['function ScoreTable', 'function OutcomeLine', 'function ResponsivenessLine']) {
+    const start = source.indexOf(fn);
+    assert.ok(start > 0, `${fn} is missing`);
+    const body = source.slice(start, source.indexOf('\n}\n', start));
+    assert.doesNotMatch(body, /<details/, `${fn} expands again`);
+    assert.doesNotMatch(body, /<summary/, `${fn} expands again`);
+  }
   assert.doesNotMatch(source, /title=\{`Observed|role="tooltip"/);
+  /* The protocol label left the row rather than moving into a toggle. */
+  assert.doesNotMatch(source, /Declared protocol: \{row\.protocol/);
+  /* The span stays, under the denominator it qualifies. */
+  assert.match(source, /formatObservedSpan\(row\.observedDays\)/);
 });
 
 test('the category is the section title and the rule is not', () => {
@@ -712,10 +731,16 @@ test('search narrows as you type and still leaves a URL behind', () => {
   assert.doesNotMatch(source, /Search this board|type="submit"/);
 });
 
-test('rows are reachable by keyboard and show where focus is', () => {
+test('every agent on every board is a keyboard-reachable link that shows focus', () => {
   const source = copy(BOARD);
-  /* The summary is the tab stop, and it has to be visible when it has focus. */
-  assert.match(source, /focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal\/40/);
-  /* The chevron animates, so it has to stop animating when asked to. */
-  assert.match(source, /motion-reduce:transition-none/);
+  /* Three boards, three rows, each with the name as the link out. A row is
+     no longer a control, so the link is the tab stop. */
+  assert.equal(
+    (source.match(/href=\{`\/agents\/\$\{row\.agent\.chainId\}\/\$\{row\.agent\.tokenId\}`\}/g) ?? []).length,
+    3,
+  );
+  assert.ok(
+    (source.match(/focus-visible:ring-2 focus-visible:ring-signal\/40/g) ?? []).length >= 3,
+    'a row link does not show where focus is',
+  );
 });

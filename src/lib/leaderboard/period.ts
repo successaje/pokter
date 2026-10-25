@@ -67,6 +67,25 @@ export const RESPONSIVENESS_PERIOD: BoardPeriod = {
     `${RESPONSIVENESS_WINDOW_DAYS} days each row actually covers is stated on the row, because the rows do not all cover the same part of it.`,
 };
 
+/**
+ * The score board draws on both windows at once, so it states both.
+ *
+ * Saying only one of them would be the quiet kind of wrong: the delivery
+ * half counts every job the index holds and the responsiveness half counts
+ * the last 30 days, and a reader told "last 30 days" would take the job
+ * record to be recent when it is not.
+ */
+export const SCORE_PERIOD: BoardPeriod = {
+  label: 'Period',
+  value: `Checks from the last ${RESPONSIVENESS_WINDOW_DAYS} days · every indexed job`,
+  note:
+    `The two halves of the score cover different periods and the board says so. Checks older than ` +
+    `${RESPONSIVENESS_WINDOW_DAYS} days are outside the responsiveness component; the delivery component counts ` +
+    `every paid job Pokter's index holds, however old, so nothing in it should be read as recent.`,
+};
+
 export function periodOf(view: BoardView): BoardPeriod {
-  return view === 'responsiveness' ? RESPONSIVENESS_PERIOD : OUTCOMES_PERIOD;
+  if (view === 'responsiveness') return RESPONSIVENESS_PERIOD;
+  if (view === 'score') return SCORE_PERIOD;
+  return OUTCOMES_PERIOD;
 }

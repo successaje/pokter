@@ -3,9 +3,6 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { CATEGORY_BY_ID, type Classification } from '@/lib/agents/categories';
-import { escrowCommerceAddress } from '@/lib/erc8183/addresses';
-import type { HiredJob } from '@/lib/erc8183/types';
-import { jobReceipt } from '@/lib/jobs/receipt-link';
 import {
   ALL_CATEGORIES,
   browseQueryFrom,
@@ -21,9 +18,9 @@ import {
 } from '@/lib/leaderboard/consistency';
 import {
   rowDisclosures,
+  summaryOf,
   rowReceipts,
   hasWatch,
-  type Disclosure,
 } from '@/lib/leaderboard/disclosures';
 import {
   BOARD_NETWORKS,
@@ -61,7 +58,7 @@ import {
   type CategoryResponsiveness,
   type ResponsivenessRow,
 } from '@/lib/leaderboard/responsiveness';
-import { loadOutcomeBoard, loadResponsivenessBoard } from '@/lib/leaderboard/server';
+import { loadOutcomeBoard, loadResponsivenessBoard, loadScoreBoard, type ScoreRow } from '@/lib/leaderboard/server';
 import { chainLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
 import { cn } from '@/lib/ui/cn';
@@ -69,6 +66,7 @@ import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { buttonClass } from '@/ui/Button';
 import { SearchField } from '@/features/leaderboard/SearchField';
+import { MIN_CHECKS, UNRANKED_COPY, type EvidenceStrength } from '@/lib/score/track-record';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -240,26 +238,6 @@ function Pagination({
 }
 
 
-/** A job number that goes to the escrow receipt, which is the source of truth. */
-function ReceiptLinks({ jobs, label }: { jobs: readonly HiredJob[]; label: string }) {
-  if (jobs.length === 0) return null;
-  return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
-      <span className="sr-only">{label}:</span>
-      {jobs.map((job) => (
-        <a
-          key={`${job.chainId}:${job.jobId}`}
-          href={jobReceipt(job, escrowCommerceAddress).href}
-          target="_blank"
-          rel="noreferrer"
-          className="t-readout hover:underline"
-        >
-          #{job.jobId}
-        </a>
-      ))}
-    </span>
-  );
-}
 
 /**
  * A recorded time, or an em dash when there is none.
@@ -363,6 +341,80 @@ function BoardUnavailable({ reason, children, retryHref }: { reason: string; chi
   );
 }
 
+/**
+ * The Pokter Score table.
+ *
+ * Flat, by design. The two other boards grew an expandable row each, which
+ * is a place to put detail that then has to be opened one row at a time —
+ * and the detail a reader wants after seeing a score is the breakdown,
+ * which belongs on the agent's own page beside everything else about it.
+ * So the name is the link and the row carries only what ranks it.
+ */
+const SCORE_GRID =
+  'grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[2rem_minmax(0,1fr)_4.5rem_7.5rem_6.5rem]';
+
+const STRENGTH_LABEL: Record<EvidenceStrength, string> = {
+  limited: 'Limited',
+  moderate: 'Moderate',
+  strong: 'Strong',
+};
+
+function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
+  return (
+    <>
+      <div className={cn(SCORE_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+        <span className="t-label">#</span>
+        <span className="t-label">Agent</span>
+        <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
+          Score <Icon.ChevronDown size={12} aria-hidden />
+        </span>
+        <span className="t-label whitespace-nowrap text-right">Evidence strength</span>
+        <span className="t-label whitespace-nowrap text-right">Jobs completed</span>
+      </div>
+      <ol className="divide-y divide-rule">
+        {rows.map((row, index) => (
+          <li key={row.agent.key} className={cn(SCORE_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
+            <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <span className="flex min-w-0 items-center gap-2.5">
+              <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+              <span className="min-w-0">
+                <Link
+                  href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+                  className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+                >
+                  {row.agent.name}
+                </Link>
+                {/* Where it is registered, because testnet and mainnet
+                    evidence are counted alike and the reader decides what
+                    that is worth. */}
+                <span className="block truncate text-[11.5px] text-ink-3">
+                  {chainLabel(row.agent.chainId)}
+                </span>
+              </span>
+            </span>
+            <span className="t-readout col-start-3 row-start-1 text-right text-[15px] font-medium tabular-nums">
+              {Math.round(row.score.overall ?? 0)}
+            </span>
+            <span className="col-start-2 row-start-2 text-[12px] text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+              {STRENGTH_LABEL[row.score.evidence]}
+            </span>
+            {/*
+              Completed means the escrow released and this agent submitted
+              the delivery itself. A job Pokter's courier carried is not
+              counted, and nor is a self-hire.
+            */}
+            <span className="t-readout col-start-3 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-5 sm:row-start-1 sm:text-right">
+              {formatCount(row.score.delivered)} of {formatCount(row.score.resolvedJobs)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
 function OutcomeHeader({ active }: { active: OutcomeMetricMeta }) {
   return (
     <div className={cn(BOARD_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
@@ -372,7 +424,7 @@ function OutcomeHeader({ active }: { active: OutcomeMetricMeta }) {
         {active.short} <Icon.ChevronDown size={12} aria-hidden />
       </span>
       <span className="t-label whitespace-nowrap text-right">External buyers</span>
-      <span className="sr-only">Details</span>
+      <span className="t-label whitespace-nowrap text-right">Evidence</span>
     </div>
   );
 }
@@ -401,83 +453,54 @@ function OutcomeLine({
   rank: number | null;
   current: BoardSelection;
 }) {
-  const active = OUTCOME_METRIC_BY_ID.get(current.metric)!;
-  const disclosures = rowDisclosures(row);
-  const receipts = rowReceipts(row);
   return (
-    <li>
-      <details className="group">
-        <summary
-          className={cn(
-            BOARD_GRID,
-            'min-h-[56px] cursor-pointer list-none py-2.5 transition-colors hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal/40 sm:min-h-[60px] [&::-webkit-details-marker]:hidden',
-          )}
-        >
-          <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
-            {rank === null ? '—' : String(rank).padStart(2, '0')}
+    /*
+      Flat, like the other two. The metrics, the disclosures and the
+      receipts were in an expansion; they are on the agent's own page,
+      which is where a reader who wants the evidence behind a figure is
+      going anyway, and the board links to it by name.
+    */
+    <li className={cn(BOARD_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
+      <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+        {rank === null ? '—' : String(rank).padStart(2, '0')}
+      </span>
+      <span className="flex min-w-0 items-center gap-2.5">
+        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+        <span className="min-w-0">
+          <Link
+            href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+            className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+          >
+            {row.agent.name}
+          </Link>
+          {/*
+            The disclosure that weakens the figures stays on the row.
+            It was inside an expansion; expansions are gone, and the agent
+            page does not carry these, so removing them would have deleted
+            a disclosure rather than moved one. One line, no toggle: a
+            reader who never opens anything still learns that the buyer
+            owns the agent, or wrote its review.
+          */}
+          <span
+            className={cn(
+              'block truncate text-[11.5px]',
+              hasWatch(rowDisclosures(row)) ? 'text-watch' : 'text-ink-3',
+            )}
+          >
+            {summaryOf(rowDisclosures(row), rowReceipts(row)) ??
+              (row.listed ? chainLabel(row.agent.chainId) : 'Not in Pokter’s current listing')}
           </span>
-          <span className="flex min-w-0 items-center gap-2.5">
-            <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
-            <span className="min-w-0">
-              <Link
-                href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-                className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
-              >
-                {row.agent.name}
-              </Link>
-              {/* Registered where, because the registry chain and the escrow
-                  the money settled on are different facts and can differ. */}
-              <span className="block truncate text-[11.5px] text-ink-3">
-                {row.listed ? `Registered on ${chainLabel(row.agent.chainId)}` : 'Not in Pokter’s current listing'}
-              </span>
-            </span>
-          </span>
-          <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
-            {formatCount(outcomeMetricValue(row, current.metric))}
-          </span>
-          <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
-            {formatCount(row.externalBuyers)} buyer{row.externalBuyers === 1 ? '' : 's'}
-          </span>
-          <Icon.ChevronRight
-            size={14}
-            aria-hidden
-            className="col-start-4 row-start-1 justify-self-end text-ink-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none sm:col-start-5"
-          />
-        </summary>
-        <div className="flex flex-col gap-3 px-1 pb-4 text-[12.5px] text-ink-2 sm:pl-[3.25rem]">
-          <dl className="flex flex-wrap gap-x-6 gap-y-2">
-            {OUTCOME_METRICS.map((metric) => (
-              <div key={metric.id} className={cn(metric.id === active.id && 'text-ink')}>
-                <dt className="t-label">{metric.short}</dt>
-                <dd className="t-readout text-[14px] tabular-nums">
-                  {formatCount(outcomeMetricValue(row, metric.id))}
-                </dd>
-              </div>
-            ))}
-            {/* Its own number and its own line: added to settled jobs it
-                would claim money moved when the escrow still holds it. */}
-            <div>
-              <dt className="t-label">Delivered, not released</dt>
-              <dd className="t-readout text-[14px] tabular-nums">{formatCount(row.deliveredUnsettled)}</dd>
-            </div>
-          </dl>
-          {disclosures.length > 0 && (
-            <ul className="flex flex-col gap-1.5">
-              {disclosures.map((disclosure: Disclosure) => (
-                <li key={disclosure.summary} className={cn(hasWatch([disclosure]) ? 'text-watch' : 'text-ink-2')}>
-                  {disclosure.detail}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            <EvidenceCell row={row} current={current} />
-            {receipts.map((group) => (
-              <ReceiptLinks key={group.label} jobs={group.jobs} label={group.label} />
-            ))}
-          </div>
-        </div>
-      </details>
+        </span>
+      </span>
+      <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+        {formatCount(outcomeMetricValue(row, current.metric))}
+      </span>
+      <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+        {formatCount(row.externalBuyers)} buyer{row.externalBuyers === 1 ? '' : 's'}
+      </span>
+      <span className="col-start-3 row-start-2 justify-self-end sm:col-start-5 sm:row-start-1">
+        <EvidenceCell row={row} current={current} />
+      </span>
     </li>
   );
 }
@@ -502,7 +525,6 @@ function ResponsivenessHeader() {
         Answer rate <Icon.ChevronDown size={12} aria-hidden />
       </span>
       <span className="t-label whitespace-nowrap text-right">Checks answered</span>
-      <span className="sr-only">Details</span>
     </div>
   );
 }
@@ -521,63 +543,47 @@ function ResponsivenessHeader() {
  * stop that opens with Enter.
  */
 function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: number | null }) {
-  const span = row.checks > 0 ? formatObservedSpan(row.observedDays) : null;
   return (
-    <li>
-      <details className="group">
-        <summary
-          className={cn(
-            RESPONSIVENESS_GRID,
-            'min-h-[56px] cursor-pointer list-none py-2.5 transition-colors hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal/40 sm:min-h-[60px] [&::-webkit-details-marker]:hidden',
-          )}
+    /*
+      Flat. This was an expandable row holding the observed span and the
+      declared protocol; the span now rides under the denominator it
+      qualifies, where it is one glance rather than one press, and the
+      protocol lives on the agent's page with the rest of what it declares.
+    */
+    <li className={cn(RESPONSIVENESS_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
+      <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+        {rank === null ? '—' : String(rank).padStart(2, '0')}
+      </span>
+      <span className="flex min-w-0 items-center gap-2.5">
+        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+        <Link
+          href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+          className="truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
         >
-          <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
-            {rank === null ? '—' : String(rank).padStart(2, '0')}
-          </span>
-          <span className="flex min-w-0 items-center gap-2.5">
-            <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
-            <Link
-              href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-              className="truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
-            >
-              {row.agent.name}
-            </Link>
-          </span>
-          {/*
-            One decimal, because nought rounded 349 of 350 up to "100%".
-            That was the top row of the production board: a check had
-            failed and the headline figure said none had. Display only —
-            the ordering and the tie-break read the unrounded rate.
-          */}
-          <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
-            {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
-          </span>
-          {/*
-            "0 of 0 checks" read as an agent that answered nothing, when
-            the fact is that Pokter asked nothing of it inside the window.
-          */}
-          <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
-            {row.checks === 0
-              ? 'No check in this window'
-              : `${formatCount(row.answered)} of ${formatCount(row.checks)}`}
-          </span>
-          <Icon.ChevronRight
-            size={14}
-            aria-hidden
-            className="col-start-4 row-start-1 justify-self-end text-ink-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none sm:col-start-5"
-          />
-        </summary>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pb-3 text-[12.5px] text-ink-2 sm:pl-[3.25rem]">
-          {span && <span className="t-readout">Observed {span}</span>}
-          <span>Declared protocol: {row.protocol ?? 'none declared'}</span>
-          <Link
-            href={`/agents/${row.agent.chainId}/${row.agent.tokenId}#history`}
-            className="inline-flex items-center gap-1 font-medium text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
-          >
-            Check history <Icon.ArrowUpRight size={12} className="text-ink-3" />
-          </Link>
-        </div>
-      </details>
+          {row.agent.name}
+        </Link>
+      </span>
+      {/*
+        One decimal, because nought rounded 349 of 350 up to "100%". That
+        was the top row of the production board: a check had failed and the
+        headline figure said none had. Display only — the ordering and the
+        tie-break read the unrounded rate.
+      */}
+      <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+        {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
+      </span>
+      {/*
+        "0 of 0 checks" read as an agent that answered nothing, when the
+        fact is that Pokter asked nothing of it inside the window.
+      */}
+      <span className="t-readout col-start-2 row-start-2 flex flex-wrap gap-x-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:flex-col sm:items-end sm:gap-0">
+        <span>
+          {row.checks === 0
+            ? 'No check in this window'
+            : `${formatCount(row.answered)} of ${formatCount(row.checks)}`}
+        </span>
+        {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
+      </span>
     </li>
   );
 }
@@ -651,21 +657,25 @@ function ResponsivenessCategory({
           </>
         )
       )}
+      {/*
+        Flat, like everything else. This was a toggle, which put the agents
+        with the least evidence behind a press — the one group whose
+        figures most need saying out loud. They continue the list with no
+        rank, which is what unranked looks like.
+      */}
       {below.length > 0 && (
-        <details className="mt-3 rounded-[12px] border border-rule bg-sunken/40 px-4 py-3">
-          <summary className="cursor-pointer text-[13px] font-medium">
-            {formatCount(below.length)} agent{below.length === 1 ? '' : 's'} with too few checks to rank
-          </summary>
-          <p className="mt-2 text-[12.5px] text-ink-2">
-            Listed with their figures and left unordered. A rate out of a handful of attempts is not a low rate, it is
-            no measurement.
+        <div className="mt-4">
+          <p className="border-t border-rule pt-3 text-[12.5px] text-ink-3">
+            {formatCount(below.length)} agent{below.length === 1 ? '' : 's'} with too few checks to rank, listed with
+            their figures and left unordered. A rate out of a handful of attempts is not a low rate, it is no
+            measurement.
           </p>
-          <ol className="mt-2 divide-y divide-rule">
+          <ol className="mt-1 divide-y divide-rule">
             {below.map((row) => (
               <ResponsivenessLine key={row.agent.key} row={row} rank={null} />
             ))}
           </ol>
-        </details>
+        </div>
       )}
     </section>
   );
@@ -687,7 +697,8 @@ export default async function LeaderboardPage({
   const current: BoardSelection = { network, view, metric };
   const browse = browseQueryFrom(raw);
 
-  const [outcomes, responsiveness] = await Promise.all([
+  const [scoreBoard, outcomes, responsiveness] = await Promise.all([
+    view === 'score' ? loadScoreBoard(network) : Promise.resolve(null),
     view === 'outcomes' ? loadOutcomeBoard(network, metric) : Promise.resolve(null),
     view === 'responsiveness' ? loadResponsivenessBoard(network) : Promise.resolve(null),
   ]);
@@ -697,7 +708,9 @@ export default async function LeaderboardPage({
      show the board's own distribution rather than the filtered one — a chip
      whose count changes when you press it is a count of nothing. */
   const boardAgents: BoardAgent[] =
-    outcomes?.state === 'ready'
+    scoreBoard?.state === 'ready'
+      ? scoreBoard.data.rows.map((row) => row.agent)
+      : outcomes?.state === 'ready'
       ? outcomes.data.rows.map((row) => row.agent)
       : responsiveness?.state === 'ready'
         ? responsiveness.data.categories.flatMap((entry) =>
@@ -707,7 +720,9 @@ export default async function LeaderboardPage({
   /* What the board read, from whichever board is showing. Null when the
      read failed, so the header says nothing rather than nought. */
   const agentsRead: number | null =
-    outcomes?.state === 'ready'
+    scoreBoard?.state === 'ready'
+      ? scoreBoard.data.coverage.listedAgents
+      : outcomes?.state === 'ready'
       ? outcomes.data.coverage.listedAgents
       : responsiveness?.state === 'ready'
         ? responsiveness.data.coverage.listedAgents
@@ -720,14 +735,19 @@ export default async function LeaderboardPage({
    * figure here is misleading without.
    */
   const lastRead =
-    outcomes?.state === 'ready'
+    scoreBoard?.state === 'ready'
+      ? scoreBoard.data.coverage.lastRefreshedAt
+      : outcomes?.state === 'ready'
       ? outcomes.data.coverage.lastRefreshedAt
       : responsiveness?.state === 'ready'
         ? responsiveness.data.coverage.lastCheckedAt
         : null;
   const boardMeta = [
     periodOf(view).value,
-    view === 'responsiveness' ? `At least ${MIN_RESPONSIVENESS_CHECKS} checks` : null,
+    view === 'responsiveness' || view === 'score' ? `At least ${MIN_RESPONSIVENESS_CHECKS} checks` : null,
+    view === 'score' && scoreBoard?.state === 'ready'
+      ? `${formatCount(scoreBoard.data.coverage.ranked)} of ${formatCount(scoreBoard.data.coverage.listedAgents)} ranked`
+      : null,
     /* The sample the outcomes figures came out of. A count of nought
        qualifying means something only beside the number of jobs it was
        drawn from, and that pair is the board's whole coverage claim. */
@@ -742,9 +762,35 @@ export default async function LeaderboardPage({
     .filter(Boolean)
     .join(' · ');
 
+  /*
+    The score board ranks inside a category, so with nothing chosen it has
+    to choose one — and the control and the table have to choose the same
+    one. Resolved here, once, rather than in both places: they disagreed
+    when they each worked it out for themselves, and the dropdown said
+    Rebalancing over a table headed Yield Optimisation.
+  */
+  const scoreCategory: Classification | typeof ALL_CATEGORIES =
+    view !== 'score' || scoreBoard?.state !== 'ready'
+      ? browse.category
+      : browse.category !== ALL_CATEGORIES
+        ? browse.category
+        : ((): Classification | typeof ALL_CATEGORIES => {
+            const byCategory = new Map<string, number>();
+            for (const row of scoreBoard.data.rows) {
+              byCategory.set(String(row.category), (byCategory.get(String(row.category)) ?? 0) + 1);
+            }
+            const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+            return (top?.[0] as Classification) ?? ALL_CATEGORIES;
+          })();
+
   const counts = categoryCounts(boardAgents);
   const categoryOptions = [
-    { value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length },
+    /* "All" is a filter on the other two boards and a category-less
+       ranking on this one, which the model does not produce — so the
+       score board offers only real categories. */
+    ...(view === 'score'
+      ? []
+      : [{ value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length }]),
     ...[...counts.entries()]
       .sort((a, b) => b[1] - a[1] || categoryLabel(a[0]).localeCompare(categoryLabel(b[0])))
       .map(([category, count]) => ({
@@ -774,10 +820,18 @@ export default async function LeaderboardPage({
       </header>
 
       {/* The two boards, on their own row, as the first choice a reader makes. */}
-      <nav aria-label="What is measured" className="mt-5 border-b border-rule">
-        <ul className="flex gap-5">
+      {/*
+        The strip scrolls, the page does not. Three labels of this length
+        wrap to two lines each at 390px and the tabs stop reading as a row
+        of choices; a strip that slides sideways is the one place a little
+        horizontal movement is right, and it is contained here rather than
+        thrown onto the document.
+      */}
+      <nav aria-label="What is measured" className="no-scrollbar -mx-4 mt-5 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
+        <ul className="flex min-w-max gap-5">
           {(
             [
+              { id: 'score', label: 'Pokter Score' },
               { id: 'outcomes', label: 'Customer outcomes' },
               { id: 'responsiveness', label: 'Responsiveness' },
             ] as ReadonlyArray<{ id: BoardView; label: string }>
@@ -816,7 +870,7 @@ export default async function LeaderboardPage({
         {categoryOptions.length > 1 && (
           <LinkMenu<Classification | typeof ALL_CATEGORIES>
             label="Category"
-            value={browse.category}
+            value={view === 'score' ? scoreCategory : browse.category}
             options={categoryOptions}
             href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
           />
@@ -833,6 +887,90 @@ export default async function LeaderboardPage({
         leaderboard does not need a counter in bold.
       */}
       <p className="mt-3 border-b border-rule pb-3 text-[12px] text-ink-3">{boardMeta}</p>
+
+      {view === 'score' && scoreBoard && (
+        <section aria-labelledby="score-title">
+          <h2 id="score-title" className="sr-only">
+            Pokter Score
+          </h2>
+          {scoreBoard.state === 'unavailable' ? (
+            <BoardUnavailable reason={scoreBoard.reason} retryHref={leaderboardHref(current, browse)}>
+              Pokter could not read the registry or the job index for this board, so it is showing nothing rather
+              than a zero. An empty board would claim no agent has a record, which this read does not establish.
+            </BoardUnavailable>
+          ) : (
+            (() => {
+              /*
+                One category at a time. A delivery count and an answer rate
+                mean different things for a grid trader and a health-factor
+                monitor, so the model ranks inside a category and the page
+                shows one — a single table across them would invite one
+                category's typical figure to be read as the standard for
+                another.
+              */
+              /*
+                No "All" ranking here. The model compares inside a
+                category, so a mixed table would publish an order the model
+                never produced — one category's typical figure read as the
+                standard for another. With nothing chosen the board opens on
+                the category holding the most ranked agents, and says which.
+              */
+              const chosen = scoreCategory;
+              const inCategory = scoreBoard.data.rows.filter((row) => row.category === chosen);
+              const matched = inCategory.filter((row) => matchesBrowse(row.agent, browse));
+              const page = pageOf(matched, () => true, browse);
+              const unrankedHere = scoreBoard.data.unranked.filter((row) => row.category === chosen);
+              if (matched.length === 0) {
+                return browse.search.trim() || browse.category !== ALL_CATEGORIES ? (
+                  <div className="py-14 text-center">
+                    <p className="text-[15px] font-medium text-ink">No agent here matches these filters.</p>
+                    <p className="mx-auto mt-2 max-w-md text-[13px] text-ink-2">
+                      {formatCount(scoreBoard.data.coverage.ranked)} agent
+                      {scoreBoard.data.coverage.ranked === 1 ? ' is' : 's are'} ranked on this network. Clearing the
+                      filters shows {scoreBoard.data.coverage.ranked === 1 ? 'it' : 'them'}.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="py-14 text-center">
+                    <p className="text-[15px] font-medium text-ink">No agent on this network meets the evidence bar yet.</p>
+                    <p className="mx-auto mt-2 max-w-lg text-[13px] text-ink-2">
+                      An agent is ranked once Pokter has {MIN_CHECKS} checks for it and one paid job has reached
+                      delivery or its deadline. {formatCount(scoreBoard.data.coverage.listedAgents)} agents are listed
+                      here; {formatCount(scoreBoard.data.coverage.withResolvedJob)} have a resolved paid job.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  <p className="pb-2 text-[12.5px] text-ink-3">
+                    Ranked within{' '}
+                    <span className="text-ink">{categoryLabel(chosen as Classification)}</span>. Agents are compared
+                    only against others in their own category.
+                  </p>
+                  <ScoreTable rows={page.rows} />
+                  {page.pages > 1 && (
+                    <div className="mt-4 flex justify-end">
+                      <Pagination page={page} current={current} browse={browse} />
+                    </div>
+                  )}
+                  {/*
+                    Said, not hidden: these agents are not at the bottom of
+                    the table with a nought, they are absent from it, and a
+                    reader is owed the number and the reason.
+                  */}
+                  {unrankedHere.length > 0 && (
+                    <p className="mt-5 border-t border-rule pt-4 text-[12.5px] text-ink-3">
+                      {formatCount(unrankedHere.length)} more agent{unrankedHere.length === 1 ? '' : 's'} here
+                      {unrankedHere.length === 1 ? ' is' : ' are'} unranked. {UNRANKED_COPY['no-resolved-jobs']}
+                    </p>
+                  )}
+                </>
+              );
+            })()
+          )}
+        </section>
+      )}
 
       {view === 'outcomes' && outcomes && (
         <section aria-labelledby="outcomes-title">
@@ -1053,7 +1191,11 @@ export default async function LeaderboardPage({
       */}
       <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-[12.5px] text-ink-3">
         <p>
-          {view === 'responsiveness' ? ANSWER_RATE_SHORT : 'Settled jobs, not a measure of whether the answer was useful.'}
+          {view === 'responsiveness'
+            ? ANSWER_RATE_SHORT
+            : view === 'score'
+              ? 'An operational record: work delivered and checks answered. Not a measure of whether an answer was correct or useful.'
+              : 'Settled jobs, not a measure of whether the answer was useful.'}
         </p>
         <Link
           href={LEADERBOARD_METHOD_HREF}

@@ -1,5 +1,6 @@
 import { CONSISTENT_STANDINGS, DIVERGENT_STANDINGS, SERVES_FROM_ONE_INSTANCE } from './consistency';
 import { OUTCOMES_PERIOD, RESPONSIVENESS_PERIOD } from './period';
+import { COMPONENT_WEIGHTS, MIN_CHECKS, MIN_RESOLVED_JOBS, SCORE_LIMITS, SCORE_VERSION } from '@/lib/score/track-record';
 import { ANSWER_RATE_DOES_NOT_MEAN, ANSWER_RATE_MEANS, MIN_RESPONSIVENESS_CHECKS, RESPONSIVENESS_WINDOW_DAYS } from './responsiveness';
 
 /**
@@ -26,6 +27,22 @@ export interface MethodNote {
 }
 
 export const LEADERBOARD_METHOD: readonly MethodNote[] = [
+  {
+    heading: 'The Pokter Score',
+    paragraphs: [
+      `Version ${SCORE_VERSION}. An operational track record on a 0–100 scale, computed server-side from two components: whether the agent delivered the paid work it was given (${COMPONENT_WEIGHTS.delivery} points) and whether it answered Pokter's scheduled checks (${COMPONENT_WEIGHTS.responsiveness} points).`,
+      `Both components are required. An agent missing either is not scored at all — it is listed as "Not enough evidence" and left out of the order rather than given a nought, because no evidence and a failure are different facts. Nothing is ever redistributed onto the remaining component, so every ranked agent is scored on the same two things out of the same 100.`,
+      `The minimum is ${MIN_CHECKS} checks in the window and ${MIN_RESOLVED_JOBS} paid job that has reached delivery or its deadline. A funded job still inside its deadline is pending and counts as neither delivered nor missed.`,
+      'Each component is ordered on the lower bound of a Wilson score interval at 95%, not on the raw rate. Thirty-two of the forty-seven agents with a resolved job have delivered every one, so a raw rate ties most of the field at 100% and leaves the order to the tie-break. The bound asks instead how little the evidence would still support: one job delivered out of one earns 0.207 of the delivery component where thirteen out of thirteen earns 0.772. The plain rate and the sample it came from are both printed beside the score.',
+      'Agents are ranked inside their category, because a delivery count and an answer rate mean different things for a grid trader and a health-factor monitor. Ties break on resolved jobs, then checks, then name — each a stated fact rather than a second hidden metric, and the last of them makes the order total, so two runs over the same data cannot disagree.',
+      'Evidence strength is reported beside the score and is never inside it. It is a plain reading of the two sample sizes, not a calibrated confidence interval, and it does not move the number.',
+      'The weights are 60/40 rather than 50/50 because a paid job is a scarcer signal than a free check. The split barely matters, which is the better argument for it: moving it to 50/50, 70/30, 40/60 or 80/20 changes at most two positions in the top ten, by one place. The order is produced by the evidence.',
+    ],
+  },
+  {
+    heading: 'What the Pokter Score does not measure',
+    paragraphs: [...SCORE_LIMITS],
+  },
   {
     heading: 'Two boards, never blended',
     paragraphs: [

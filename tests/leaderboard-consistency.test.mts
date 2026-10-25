@@ -237,10 +237,15 @@ test('a failed read returns unavailable rather than an empty board', () => {
     const block = server.slice(at, at + 300);
     assert.match(block, /state: 'unavailable'/, `a catch must not fall through to a board: ${block.slice(0, 80)}`);
   }
+  /* One guard per loader, counted from the loaders rather than fixed at a
+     number — a third board was added and the old count silently passed
+     until it did not. */
+  const loaders = (server.match(/export async function load\w+Board\(/g) ?? []).length;
+  assert.ok(loaders >= 3, 'the score board loader is missing');
   assert.equal(
     (server.match(/if \(catalogue\.unreachable\)/g) ?? []).length,
-    2,
-    'both loaders must treat an unreachable registry as unavailable, not as no entries',
+    loaders,
+    'every loader must treat an unreachable registry as unavailable, not as no entries',
   );
   assert.doesNotMatch(server, /entries: \[\]/, 'an unreachable registry must never be substituted with no entries');
 });
