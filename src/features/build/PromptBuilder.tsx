@@ -42,7 +42,7 @@ export function PromptBuilder() {
         <Field label="Category" hint="Optional.">
           {(p) => (
             <Select {...p} value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">Let the assistant ask</option>
+              <option value="">Let the assistant choose</option>
               {CATEGORIES.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}

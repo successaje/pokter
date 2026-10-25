@@ -40,6 +40,36 @@ export type AgentBuildPromptInput = {
  * decided while the agent is being written, so they belong in the prompt
  * that writes it.
  */
+/**
+ * The checks a listing is graded on, written once.
+ *
+ * The prompt stated them twice and the two disagreed: "six checks" in the
+ * section explaining what Pokter calls, "seven checks of its own" in the
+ * verification step, which added the one that decides whether a quote can
+ * actually be paid. A builder reading both learned that one of them was
+ * wrong without learning which.
+ *
+ * Seven is the honest count of what a build can reach. Pokter's
+ * compatibility API reports them at finer grain — it splits capabilities
+ * into notify_funded, a named priced skill and example briefs — and adds
+ * independent attestations, which no amount of code produces because it
+ * needs somebody else to hire the agent. That last one is named here
+ * rather than quietly dropped, because a builder who is told the build is
+ * unfinished until every check passes will otherwise go hunting for a
+ * defect that is not theirs.
+ */
+const LISTING_CHECKS = [
+  'an ERC-8004 identity',
+  'a published endpoint',
+  'answering when called',
+  'published capabilities',
+  'a signed price quote',
+  'that the quote can be paid from the escrow',
+  'a marketplace category',
+] as const;
+
+const CHECK_COUNT_WORD = 'seven';
+
 const ESCROW_CHAIN_ID = 97;
 
 /**
@@ -192,7 +222,7 @@ function fallbackSection(): string {
 Say so explicitly — name the URL and what happened — and then proceed on the bundled summary below, which was generated against kit schema ${KIT_VERSION}. Write that version into your notes and into the listing summary, so what you built to is on the record and can be rechecked against the live kit later. Do not ask me for the wire format: I copied this prompt because I do not know it, and a shape I invent on your behalf is worse than the one below. If the summary genuinely does not cover something you need, say exactly which field you are missing and ask me to paste that part of ${KIT_JSON} — never fill the gap by guessing, because a wire format guessed confidently and slightly wrong produces a quote Pokter cannot verify, which looks like a bug in the agent for as long as it takes somebody to check the hash.
 - \`negotiate\` request: a JSON-RPC \`message/send\` whose message carries a data part { skill: "negotiate", task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains }.
 - \`negotiate\` reply: { request: { task_description }, response: { accepted: true, terms: { price, currency, deliverables, quality_standards, success_criteria? } }, negotiated_at, quote_expires_at?, chain_id?, verifying_contract?, negotiation_hash, provider_sig }. To decline, \`accepted: false\` with a plain-language \`reason\`; the buyer reads it.
-- \`negotiation_hash\` = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }. \`provider_sig\` = an EIP-191 signature of that hash by the registered agent wallet.
+- \`negotiation_hash\` = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }. \`provider_sig\` = an EIP-191 signature over the raw 32 bytes of that hash — \`signMessage({ message: { raw: negotiation_hash } })\` — by the registered agent wallet. Signing the hex string instead produces a signature that is valid, recoverable, and refused.
 - Canonical JSON, exactly:
 ${CANONICAL_RULES.map((rule) => `  - ${rule}`).join('\n')}
 - \`notify_funded\` request: { skill: "notify_funded", job_id }. Reply { status: "accepted" | "rejected", job_id } immediately; do the work afterwards.
@@ -352,7 +382,7 @@ ${chainsSection(mainnetEscrow)}${fundingSection(mainnetEscrow)}
 ${transportSection(input.protocol)}
 
 WHAT POKTER CALLS, AND WHAT IT CHECKS
-Pokter lists an agent on six checks: ERC-8004 identity, a published endpoint, answering when called, published capabilities, a signed price quote, and a marketplace category. Passing the first four gets the agent listed and probed; without the fifth it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
+Pokter lists an agent on ${CHECK_COUNT_WORD} checks: ${LISTING_CHECKS.join(', ')}. Passing the first four gets the agent listed and probed; without a signed quote it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
 - Probing is an unauthenticated GET of the agent card every two hours. That is what builds the public record, and it proves reachability only — never correctness.
 
 Identity and wallets
@@ -364,10 +394,11 @@ The signed quote
 - \`negotiate\` must return a quote the agent has signed: the request and response it is agreeing to, a hash over both, that signature, the price, the currency address, an expiry, and the signing domain.
 - Price is an integer string in the payment token's smallest unit (18 decimals). Not a float, not a decimal string, not a human-readable amount.
 - Currency must be the payment token of an enabled escrow, or the hire is refused as payment-incompatible before the agent is ever called.
-- \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature of that hash. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
+- \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature over the **raw 32 bytes** of that hash, not over its hex string: \`signMessage({ message: { raw: negotiation_hash } })\`. Signing the string recovers to your wallet and still fails, because Pokter recovers against the bytes. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
 - A quote is short-lived. Return \`quote_expires_at\`, honour it, and refuse your own expired quotes.
 - If \`chain_id\` and \`verifying_contract\` are returned they must name the escrow Pokter funds on, or the hire is refused.
-- If the request carries \`terms.success_criteria\`, echo the array back unchanged inside the terms you sign. It is covered by the hash, and echoing it is what records that the agent agreed to the criteria it will be judged against rather than that Pokter merely asserted them. Omitting it is allowed and refuses nothing; it only loses that binding.
+- If the request carries \`terms.success_criteria\`, echo the array back inside the terms you sign, in the order it arrived and with nothing added or removed. It is covered by the hash, and echoing it is what records that the agent agreed to the criteria it will be judged against rather than that Pokter merely asserted them. Omitting it is allowed and refuses nothing; it only loses that binding.
+- Apply the kit's character substitutions to each criterion **before hashing**, exactly as you do to the task and the other terms. Pokter sanitises every element it reads before recomputing, so a criterion carrying a bracket that you hash raw gives a hash Pokter cannot reproduce — refused as terms-mismatch for a signature that was perfectly correct. Echoing the sanitised strings is the simplest way to keep the two the same.
 
 Validating a funded job before doing any work
 - \`notify_funded\` receives the funded job id and must answer \`{ status, job_id }\` immediately. Do not block the reply on the work.
@@ -410,7 +441,7 @@ BUILD REQUIREMENTS
 7. Return machine-readable JSON results and include sources/evidence wherever possible.
 8. Provide complete files, setup commands, tests, a local run command, a sample request and response, and deployment steps for a public HTTPS URL. Where a step depends on something only I can do — a funded wallet, a DNS record, a hosting account — name it and say what you need from me.
 9. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
-10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all seven pass. Do not describe it to me as working on the strength of your own tests alone.
+10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs the same ${CHECK_COUNT_WORD} checks named above — ${LISTING_CHECKS.join(', ')}. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all ${CHECK_COUNT_WORD} pass. Do not describe it to me as working on the strength of your own tests alone.\nPokter's compatibility API reports these at finer grain — it splits published capabilities into notify_funded, a priced skill named for the work, and example briefs — and adds one more, independent attestations, which no code can satisfy because it needs somebody else to hire the agent. Expect that one to read unknown, and do not treat it as a defect in the build.
 
 ${fallbackSection()}
 

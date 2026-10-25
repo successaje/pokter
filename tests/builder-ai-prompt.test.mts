@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { createAgentBuildPrompt, promptInputFrom } from '../src/lib/builder/ai-prompt';
 import { PROPOSED_CONCEPT_COUNT } from '../src/lib/builder/concepts';
-import { BUILD_STYLES } from '../src/lib/builder/style';
+import { BUILD_STYLES, RECOMMEND_AND_BUILD_BRIEF } from '../src/lib/builder/style';
 import { DEFAULT_PLAN } from '../src/lib/builder/drafts';
 import { RUNTIME_OPTIONS } from '../src/lib/builder/runtime';
 import { FAUCETS } from '../src/lib/network/presentation';
@@ -250,7 +250,10 @@ test('it closes the protocol gaps a paid job actually runs through', () => {
 test('it tells the agent how to bind itself to the acceptance criteria', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
   assert.match(prompt, /terms\.success_criteria/);
-  assert.match(prompt, /echo the array back unchanged inside the terms you sign/);
+  /* Was "echo the array back unchanged inside the terms you sign", which
+     reads as hash-them-unchanged and costs the hire on a bracket. */
+  assert.match(prompt, /echo the array back inside the terms you sign, in the order it arrived/);
+  assert.match(prompt, /before hashing/);
   // And that declining to is allowed, so it does not read as a new requirement.
   assert.match(prompt, /Omitting it is allowed and refuses nothing/);
 });
@@ -327,11 +330,14 @@ test('it says the record is continuous, public and uneditable', () => {
   assert.match(prompt, /Nothing about the record can be edited/);
 });
 
-/* Seven now, including the one that catches an unpayable quote. */
+/* Seven, including the one that catches an unpayable quote — and stated
+   from the same list as the section that introduces them, because the two
+   passages used to say six and seven. */
 test('it defers the verdict to Pokter’s own checks, all seven', () => {
   const prompt = createAgentBuildPrompt({ ...BASE });
-  assert.match(prompt, /seven checks of its own/);
-  assert.match(prompt, /the quote can actually be paid from the escrow/);
+  assert.match(prompt, /Pokter runs the same seven checks named above/);
+  assert.match(prompt, /lists an agent on seven checks/);
+  assert.match(prompt, /that the quote can be paid from the escrow/);
   assert.match(prompt, /do not describe it to me as working on the strength of your own tests alone/i);
 });
 
@@ -651,4 +657,91 @@ test('the prompt page offers the same style switch as the guided flow', () => {
   const guided = source('features/studio/useAgentDraft.ts');
   assert.match(guided, /style: readLastStyle\(\)/, 'the guided flow no longer restores the remembered style');
   assert.match(guided, /style: plan\.style/, 'the guided flow does not pass its style into the prompt');
+});
+
+/*
+ * Three surfaces hand an assistant a brief, not two: the guided step, the
+ * standalone prompt builder, and the Pokter MCP section — which the page
+ * marks "Recommended" and which therefore reaches more builders than the
+ * other two together.
+ *
+ * That one ended "Ask me what the agent should do before writing
+ * anything", so the most prominent route on the page was the one
+ * instructing the questionnaire the other two had just stopped doing. The
+ * mode buttons were correct throughout.
+ */
+test('the recommended MCP route does not ask first either', () => {
+  const mcp = source('features/build/BuildWithAI.tsx');
+  assert.doesNotMatch(mcp, /Ask me what the agent should do before writing anything/);
+  assert.match(mcp, /RECOMMEND_AND_BUILD_BRIEF/, 'the MCP brief no longer carries the shared stance');
+  /* Still asks for the thing it legitimately needs: the five checks. */
+  assert.match(mcp, /call integration_kit for the current requirements/);
+});
+
+test('the short and long forms of the default agree on what it commits to', () => {
+  const long = createAgentBuildPrompt({ ...BASE });
+
+  /* The short form is one string, so it cannot drift from itself. What can
+     drift is the long form quietly dropping one of these. */
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not interview me before you start/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /choose for me/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not wait on a name/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Never ask me for a private key or a recovery phrase/);
+
+  for (const commitment of [/choose for me/, /Do not wait on a name/, /Never ask me for a private key or a recovery phrase/]) {
+    assert.match(long, commitment, 'the long prompt dropped a commitment the short brief still makes');
+  }
+});
+
+/* The page's own description of the blank case, which said it would ask. */
+test('the page does not promise a questionnaire the prompt no longer runs', () => {
+  const page = source('app/(site)/build/(section)/new/assistant/page.tsx');
+  assert.doesNotMatch(page, /leave them blank and it will ask you/);
+  assert.match(page, /propose a few and recommend one/);
+
+  /* The empty category reads as a decision to delegate, not a question
+     queued up for later. */
+  const standalone = source('features/build/PromptBuilder.tsx');
+  assert.doesNotMatch(standalone, /Let the assistant ask/);
+  assert.match(standalone, /Let the assistant choose/);
+});
+
+/*
+ * Three defects the fresh-session acceptance test turned up, each of which
+ * produces a signature or a verdict that is valid and refused — the
+ * expensive kind, because nothing visibly breaks.
+ */
+
+test('the listing checks are stated once and the two passages agree', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* It said "six checks" in one section and "seven checks of its own" in
+     another, the second adding whether the quote can be paid. */
+  assert.doesNotMatch(prompt, /lists an agent on six checks/);
+  assert.equal(prompt.match(/that the quote can be paid from the escrow/g)?.length, 2, 'the two passages no longer list the same checks');
+
+  /* And the one no build can satisfy is named rather than left to look
+     like a defect in the builder's own code. */
+  assert.match(prompt, /independent attestations, which no code can satisfy/);
+  assert.match(prompt, /Expect that one to read unknown/);
+});
+
+test('it says the signature is over the raw bytes, not the hex string', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* "an EIP-191 signature of that hash" is ambiguous in the one direction
+     that costs money: signing the hex string recovers to the right wallet
+     and is still refused. */
+  assert.doesNotMatch(prompt, /EIP-191 signature of that hash/);
+  assert.match(prompt, /signMessage\(\{ message: \{ raw: negotiation_hash \} \}\)/);
+  assert.match(prompt, /raw 32 bytes/);
+  assert.match(prompt, /Signing the hex string instead produces a signature that is valid, recoverable, and refused/);
+});
+
+test('it says to sanitise the criteria before hashing them', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  /* "echo the array back unchanged inside the terms you sign" reads as
+     hash-them-unchanged. Pokter sanitises every element before it
+     recomputes, so a bracketed criterion hashed raw is terms-mismatch. */
+  assert.doesNotMatch(prompt, /echo the array back unchanged inside the terms you sign/);
+  assert.match(prompt, /Apply the kit's character substitutions to each criterion \*\*before hashing\*\*/);
+  assert.match(prompt, /refused as terms-mismatch for a signature that was perfectly correct/);
 });
