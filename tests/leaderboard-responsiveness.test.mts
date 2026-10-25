@@ -550,10 +550,14 @@ test('the loader passes the record’s span through', () => {
 test('the board renders each row’s span and the live note', () => {
   const page = readFileSync(new URL('../src/app/(site)/leaderboard/page.tsx', import.meta.url), 'utf8');
   assert.match(page, /formatObservedSpan\(row\.observedDays\)/);
-  /* Printed in two places now: the claim above the order it qualifies,
-     the elaboration under the rows it describes. Both must be there. */
-  assert.match(page, /observedSpanHeadline\(responsiveness\.data\.coverage\)/);
-  assert.match(page, /observedSpanDetail\(responsiveness\.data\.coverage\)/);
+  /*
+   * The span is now stated per row and nowhere else on the board: the
+   * paragraph that used to sit above the order moved to the methodology
+   * page the board links to. The row is the better place for it anyway —
+   * the spans differ by row, so a figure on the row is the fact, and the
+   * paragraph was a summary of facts the reader could already see.
+   */
+  assert.doesNotMatch(page, /observedSpanHeadline|observedSpanNote/);
   assert.doesNotMatch(page, /formatDuration\(row\.observedDays\)/);
   assert.doesNotMatch(page, /Math\.round\(row\.observedDays\)/);
 });

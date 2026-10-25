@@ -19,9 +19,6 @@ import {
   type Page,
 } from '@/lib/leaderboard/browse';
 import {
-  CONSISTENT_STANDINGS,
-  DIVERGENT_STANDINGS,
-  SERVES_FROM_ONE_INSTANCE,
 } from '@/lib/leaderboard/consistency';
 import {
   rowDisclosures,
@@ -56,27 +53,23 @@ import {
   type OutcomeRow,
   type RankedOutcomeRow,
 } from '@/lib/leaderboard/outcomes';
+import { LEADERBOARD_METHOD_HREF } from '@/lib/leaderboard/method';
 import { periodOf } from '@/lib/leaderboard/period';
 import {
-  ANSWER_RATE_COLUMN,
   ANSWER_RATE_DOES_NOT_MEAN,
-  ANSWER_RATE_MEANS,
   formatObservedSpan,
   MIN_RESPONSIVENESS_CHECKS,
-  observedSpanDetail,
-  observedSpanHeadline,
   RESPONSIVENESS_WINDOW_DAYS,
   type CategoryResponsiveness,
   type ResponsivenessRow,
 } from '@/lib/leaderboard/responsiveness';
 import { loadOutcomeBoard, loadResponsivenessBoard } from '@/lib/leaderboard/server';
-import { chainLabel, escrowMoney } from '@/lib/network/presentation';
+import { chainLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
 import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { buttonClass } from '@/ui/Button';
-import { Details } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -103,6 +96,58 @@ function categoryLabel(category: Classification): string {
  * ------------------------------------------------------------------ */
 
 /** A trough of mutually exclusive links: the choice is a URL, so it is shareable. */
+/**
+ * A dropdown that is links, not a control.
+ *
+ * The board is a server component and a native `<select>` needs script to
+ * navigate on change, so this is a `<details>` holding the same links the
+ * chips held. It reads as the dropdown the design asks for and still works
+ * with nothing running — which also keeps every narrowing of the board a
+ * real URL somebody can share.
+ */
+function LinkMenu<T extends string>({
+  label,
+  value,
+  options,
+  href,
+}: {
+  label: string;
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string; count?: number }>;
+  href: (value: T) => string;
+}) {
+  const current = options.find((option) => option.value === value) ?? options[0];
+  return (
+    <details className="group relative">
+      <summary
+        aria-label={label}
+        className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-[10px] border border-rule bg-raised px-3 py-2 text-[13.5px] font-medium text-ink hover:border-rule-strong [&::-webkit-details-marker]:hidden"
+      >
+        {current?.label ?? label}
+        <Icon.ChevronDown size={14} className="text-ink-3 transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="absolute right-0 z-20 mt-1 max-h-72 min-w-[13rem] overflow-auto rounded-[10px] border border-rule bg-raised p-1 shadow-lg">
+        {options.map((option) => (
+          <li key={option.value}>
+            <Link
+              href={href(option.value)}
+              scroll={false}
+              aria-current={option.value === value ? 'true' : undefined}
+              className={cn(
+                'flex items-center justify-between gap-4 rounded-[7px] px-3 py-2 text-[13.5px] hover:bg-sunken',
+                option.value === value ? 'font-medium text-ink' : 'text-ink-2',
+              )}
+            >
+              {option.label}
+              {option.count !== undefined && <span className="t-readout text-[12px] text-ink-3">{option.count}</span>}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function ChipGroup<T extends string>({
   label,
   value,
@@ -140,33 +185,6 @@ function ChipGroup<T extends string>({
   );
 }
 
-/**
- * The board's period, stated and not chosen.
- *
- * It looks like the other controls in the bar and is deliberately not one.
- * See `lib/leaderboard/period.ts`: the outcomes board has no rolling window
- * to offer, and a selector implying one would describe a filter the page
- * does not apply. The note is carried in `title` and read out by assistive
- * tech so the reason travels with the figure.
- */
-function PeriodFact({ view }: { view: BoardView }) {
-  const period = periodOf(view);
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <span className="t-label">{period.label}</span>
-      <p
-        className="flex items-center gap-1.5 rounded-[10px] border border-dashed border-rule-strong px-2.5 py-[7px] text-[12.5px] text-ink-2"
-        title={period.note}
-      >
-        <Icon.Clock size={13} className="shrink-0 text-ink-3" />
-        <span className="truncate">{period.value}</span>
-        {/* The whole note is printed once, in the board's own heading block.
-            Here it would be heard twice and read nowhere. */}
-        <span className="sr-only"> — stated, not a control</span>
-      </p>
-    </div>
-  );
-}
 
 /**
  * Search as a plain GET form.
@@ -279,18 +297,6 @@ function Pagination({
   );
 }
 
-function CoverageLine({ items }: { items: ReadonlyArray<{ label: string; value: string }> }) {
-  return (
-    <dl className="grid gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-4">
-      {items.map((item) => (
-        <div key={item.label} className="bg-raised p-4">
-          <dt className="t-label">{item.label}</dt>
-          <dd className="t-readout mt-1 text-[15px]">{item.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
 
 /** A job number that goes to the escrow receipt, which is the source of truth. */
 function ReceiptLinks({ jobs, label }: { jobs: readonly HiredJob[]; label: string }) {
@@ -792,12 +798,12 @@ const RESPONSIVENESS_GRID =
 function ResponsivenessHeader() {
   return (
     <div className={cn(RESPONSIVENESS_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
-      <span className="t-label">Rank</span>
+      <span className="t-label">#</span>
       <span className="t-label">Agent</span>
       <span className="t-label flex items-center justify-end gap-1 text-right text-ink">
         Answer rate <Icon.ChevronDown size={12} aria-hidden />
       </span>
-      <span className="t-label text-right">Checks, and the span behind them</span>
+      <span className="t-label text-right">Checks answered</span>
       <span className="t-label">Evidence</span>
     </div>
   );
@@ -979,9 +985,6 @@ export default async function LeaderboardPage({
     view === 'responsiveness' ? loadResponsivenessBoard(network) : Promise.resolve(null),
   ]);
 
-  const escrowChainId = escrowChainOf(network);
-  const money = escrowMoney(escrowChainId);
-  const activeMetric = OUTCOME_METRIC_BY_ID.get(metric)!;
 
   /* Every agent the board holds, before any narrowing, so the category chips
      show the board's own distribution rather than the filtered one — a chip
@@ -1002,6 +1005,35 @@ export default async function LeaderboardPage({
       : responsiveness?.state === 'ready'
         ? responsiveness.data.coverage.listedAgents
         : null;
+
+  /*
+   * The meta line: the window the figures were taken in, the sample an
+   * agent needs before it is ranked, and how much was read. Short because
+   * it is read every time, and the three facts it carries are the ones a
+   * figure here is misleading without.
+   */
+  const lastRead =
+    outcomes?.state === 'ready'
+      ? outcomes.data.coverage.lastRefreshedAt
+      : responsiveness?.state === 'ready'
+        ? responsiveness.data.coverage.lastCheckedAt
+        : null;
+  const boardMeta = [
+    periodOf(view).value,
+    view === 'responsiveness' ? `At least ${MIN_RESPONSIVENESS_CHECKS} checks` : null,
+    /* The sample the outcomes figures came out of. A count of nought
+       qualifying means something only beside the number of jobs it was
+       drawn from, and that pair is the board's whole coverage claim. */
+    view === 'outcomes' && outcomes?.state === 'ready'
+      ? `${formatCount(outcomes.data.coverage.indexedJobs)} indexed, ${formatCount(outcomes.data.coverage.qualifyingJobs)} qualifying`
+      : null,
+    agentsRead !== null ? `${formatCount(agentsRead)} agents read` : null,
+    /* Freshness stays on the board. A board with no time on it reads as
+       current whatever its age, and this one is refreshed by a sweep. */
+    lastRead ? `updated ${timestamp(lastRead)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const counts = categoryCounts(boardAgents);
   const categoryOptions = [
@@ -1030,111 +1062,82 @@ export default async function LeaderboardPage({
         now sits under the table it qualifies, where it is read after the
         number rather than instead of it.
       */}
-      <header className="flex flex-col gap-3 border-b border-rule pb-6">
-        <span className="t-label flex items-center gap-2">
-          <span className="tile" aria-hidden /> Leaderboard
-        </span>
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h1 className="t-display">{TITLE}</h1>
-          {/*
-            The agents this board read, not the rows it ended up with.
-            `boardAgents.length` is the row count, which on the mainnet
-            outcomes board is nought while the strip below it says 176
-            agents were read — a reader meets "0 agents on BNB Chain"
-            first and it reads as a claim about the marketplace rather
-            than about qualifying settlements. That is close enough to the
-            sentence this page exists to avoid that it is not worth the
-            one word it saved.
-          */}
-          {agentsRead !== null && (
-            <p className="text-[14px] text-ink-2">
-              {formatCount(agentsRead)} agent{agentsRead === 1 ? '' : 's'} read on{' '}
-              {chainLabel(view === 'outcomes' ? escrowChainId : registryChainOf(network))}
-            </p>
-          )}
-        </div>
-        <p className="text-[13.5px] leading-relaxed text-ink-2">
-          Two boards, never blended: what buyers paid for, and what answered a check.{' '}
-          <span className="text-ink">There is no overall score</span> — the column you sorted by is the whole
-          explanation of the order.{' '}
-          <Link href="/methodology" className="font-medium text-ink hover:underline">
-            How ranking works
-          </Link>
-        </p>
+      {/*
+        Title, one line, the two boards, and the controls that pick which
+        one you are looking at. Everything that explains how the figures
+        are made is on the methodology page now, linked from the row below
+        the tabs — the board leads with its rows, which is the only thing
+        anyone opens it for.
+      */}
+      <header className="flex flex-col gap-2 pb-6">
+        <h1 className="t-display">Leaderboard</h1>
+        <p className="text-[15px] text-ink-2">Compare agents by observed results.</p>
       </header>
 
-      {/*
-        The two boards as tabs, because they are two answers to two questions
-        and a reader picks one. The remaining controls narrow whichever board
-        is showing, so they sit under the tab rather than beside it.
-      */}
-      <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 pt-6 sm:mx-0 sm:px-0">
-        <ul className="flex min-w-max gap-6 border-b border-rule">
-          {(
-            [
-              { id: 'outcomes', label: 'Customer outcomes' },
-              { id: 'responsiveness', label: 'Responsiveness' },
-            ] as ReadonlyArray<{ id: BoardView; label: string }>
-          ).map((tab) => (
-            <li key={tab.id}>
-              <Link
-                href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
-                scroll={false}
-                aria-current={tab.id === view ? 'page' : undefined}
-                className={cn(
-                  'relative -mb-px flex h-11 items-center border-b-2 text-sm font-medium transition-colors',
-                  tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
-                )}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <section aria-label="Narrow this board" className="flex flex-col gap-4 border-b border-rule py-5">
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-          {/* Just "Network". That the two boards are never merged is a
-              guarantee, not a control label, and the header now makes it
-              once for the page instead of inside a form field. */}
-          <ChipGroup<BoardNetwork>
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-rule">
+        <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <ul className="flex min-w-max gap-6">
+            {(
+              [
+                { id: 'outcomes', label: 'Customer outcomes' },
+                { id: 'responsiveness', label: 'Responsiveness' },
+              ] as ReadonlyArray<{ id: BoardView; label: string }>
+            ).map((tab) => (
+              <li key={tab.id}>
+                <Link
+                  href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
+                  scroll={false}
+                  aria-current={tab.id === view ? 'page' : undefined}
+                  className={cn(
+                    'relative -mb-px flex h-11 items-center border-b-2 text-sm font-medium transition-colors',
+                    tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="flex flex-wrap items-center gap-2 pb-2.5">
+          <LinkMenu<BoardNetwork>
             label="Network"
             value={network}
             options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
             href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
           />
-          <PeriodFact view={view} />
+          {categoryOptions.length > 1 && (
+            <LinkMenu<Classification | typeof ALL_CATEGORIES>
+              label="Category"
+              value={browse.category}
+              options={categoryOptions}
+              href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
+            />
+          )}
+          {/* Kept. What was asked to go was the explanation, not the
+              controls — and a board of this many rows with a filter in the
+              URL and no field to clear it is a trap. */}
           <SearchForm current={current} browse={browse} />
         </div>
-        {categoryOptions.length > 1 && (
-          <ChipGroup<Classification | typeof ALL_CATEGORIES>
-            label="Category"
-            value={browse.category}
-            options={categoryOptions}
-            href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
-          />
-        )}
-      </section>
+      </div>
 
       {/*
-        Only when it is a warning.
-        
-        "The same standings for every visitor" is a reassurance, and a
-        paragraph of reassurance above the table costs every reader a
-        screen to tell them nothing is wrong. Its opposite is a disclosure
-        that weakens the figures, and that one keeps the position: a reader
-        who would be misled has to meet it before the numbers, not after.
-        Both texts stay on the page either way — the reassurance moves into
-        the explanation under the table.
+        One line, and it is the line the figures would be misread without:
+        the window they were taken in and the sample an agent needs before
+        it is ranked at all. Everything else that used to stand here —
+        the coverage strip, the serving note, the spans, the exclusions —
+        is behind the link on the right, which is where the design asks for
+        it and where it is actually read.
       */}
-      {!SERVES_FROM_ONE_INSTANCE && (
-        <div className="py-6">
-          <Notice tone="watch" title="Standings may differ between visitors">
-            {DIVERGENT_STANDINGS}
-          </Notice>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3 text-[12.5px] text-ink-3">
+        <p>{boardMeta}</p>
+        <Link
+          href={LEADERBOARD_METHOD_HREF}
+          className="inline-flex items-center gap-1 font-medium text-ink-2 hover:text-ink hover:underline"
+        >
+          How rankings work <Icon.ArrowUpRight size={12} />
+        </Link>
+      </div>
 
       {view === 'outcomes' && outcomes && (
         <section aria-labelledby="outcomes-title">
@@ -1146,17 +1149,6 @@ export default async function LeaderboardPage({
             it produced and a reader who wants the figure should not have
             to read the rule first.
           */}
-          <div className="border-b border-rule pb-4">
-            <span className="t-label">Customer outcomes</span>
-            <h2 id="outcomes-title" className="t-h2 mt-1">
-              Settled on {chainLabel(escrowChainId)}, in {money.money ?? 'this escrow’s currency'}
-            </h2>
-            {outcomes.state === 'ready' && (
-              <p className="mt-2 text-[13px] text-ink-2">
-                <span className="font-medium text-ink">Ordered by:</span> {activeMetric.column}
-              </p>
-            )}
-          </div>
 
           {outcomes.state === 'unavailable' ? (
             <EmptyState tone="bad" title={outcomes.reason}>
@@ -1166,28 +1158,6 @@ export default async function LeaderboardPage({
             </EmptyState>
           ) : (
             <>
-              <div className="pt-5">
-                <CoverageLine
-                  items={[
-                    {
-                      label: 'Indexed jobs on this escrow',
-                      value: formatCount(outcomes.data.coverage.indexedJobs),
-                    },
-                    {
-                      label: 'Qualifying settled jobs',
-                      value: formatCount(outcomes.data.coverage.qualifyingJobs),
-                    },
-                    {
-                      label: 'Listed agents read',
-                      value: formatCount(outcomes.data.coverage.listedAgents),
-                    },
-                    {
-                      label: 'Index last refreshed',
-                      value: timestamp(outcomes.data.coverage.lastRefreshedAt),
-                    },
-                  ]}
-                />
-              </div>
 
               {/*
                 Gated on the qualifying count, not on whether there are rows.
@@ -1259,78 +1229,6 @@ export default async function LeaderboardPage({
                 </>
               )}
 
-              <Details
-                className="mt-8 border-t border-rule pt-5"
-                summary="How these figures are counted, and what they exclude"
-              >
-              <p className="max-w-3xl text-[13px] leading-relaxed text-ink-2">
-                {activeMetric.definition}
-              </p>
-              <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-                Split by the escrow the money settled on, because that is what decides whether it was money. An
-                agent&rsquo;s own registry chain is shown on its row and can differ.
-              </p>
-              <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{periodOf('outcomes').note}</p>
-              {SERVES_FROM_ONE_INSTANCE && (
-                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{CONSISTENT_STANDINGS}</p>
-              )}
-              <ul className="mt-4 flex flex-col gap-2 text-[12.5px] leading-relaxed text-ink-2">
-                <li>
-                  Excluded from every figure above:{' '}
-                  {formatCount(outcomes.data.coverage.exclusions.teamFunded)} job
-                  {outcomes.data.coverage.exclusions.teamFunded === 1 ? '' : 's'} funded by Pokter&rsquo;s declared
-                  wallets, {formatCount(outcomes.data.coverage.exclusions.selfHire)} self-hire
-                  {outcomes.data.coverage.exclusions.selfHire === 1 ? '' : 's'},{' '}
-                  {formatCount(outcomes.data.coverage.exclusions.lifecycleDemo)} lifecycle demonstration
-                  {outcomes.data.coverage.exclusions.lifecycleDemo === 1 ? '' : 's'},{' '}
-                  {formatCount(outcomes.data.coverage.exclusions.pokterCourier)} settled by Pokter&rsquo;s courier
-                  rather than the agent, {formatCount(outcomes.data.coverage.exclusions.unknownSubmitter)} with no
-                  recorded submitter, and {formatCount(outcomes.data.coverage.exclusions.unattributed)} naming no
-                  ERC-8004 identity.
-                </li>
-                {/*
-                  The verbs agree with the count, not only the noun.
-                  "1 externally funded job ... have not been delivered" is what
-                  the plural-only form rendered the first time one of these
-                  stood alone, and a disclosure that reads as a slip is a
-                  disclosure readers discount.
-                */}
-                {outcomes.data.coverage.exclusions.agentUndelivered > 0 && (
-                  <li>
-                    {formatCount(outcomes.data.coverage.exclusions.agentUndelivered)} externally funded job
-                    {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? '' : 's'} the escrow names an agent
-                    as provider for {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? 'has' : 'have'} not
-                    been delivered. Not counted here either way; the agent pages carry{' '}
-                    {outcomes.data.coverage.exclusions.agentUndelivered === 1 ? 'it' : 'them'}.
-                  </li>
-                )}
-                {outcomes.data.platformOwed.length > 0 && (
-                  <li className="text-watch">
-                    {formatCount(outcomes.data.platformOwed.length)} externally funded job
-                    {outcomes.data.platformOwed.length === 1 ? '' : 's'} on this escrow{' '}
-                    {outcomes.data.platformOwed.length === 1 ? 'names' : 'name'} a Pokter wallet as provider and{' '}
-                    {outcomes.data.platformOwed.length === 1 ? 'was' : 'were'} never delivered. Pokter owed{' '}
-                    {outcomes.data.platformOwed.length === 1 ? 'that one' : 'those'}, not the agent, so{' '}
-                    {outcomes.data.platformOwed.length === 1 ? 'it appears' : 'they appear'} on no agent&rsquo;s row.
-                    <span className="mt-1 block">
-                      <ReceiptLinks jobs={outcomes.data.platformOwed} label="Pokter-owed receipts" />
-                    </span>
-                  </li>
-                )}
-                {outcomes.data.coverage.unlistedAgentRows > 0 && (
-                  <li>
-                    {formatCount(outcomes.data.coverage.unlistedAgentRows)} row
-                    {outcomes.data.coverage.unlistedAgentRows === 1 ? ' is' : 's are'} for an agent not in
-                    Pokter&rsquo;s current listing. Their receipts are on chain, so the settlements are counted rather
-                    than dropped.
-                  </li>
-                )}
-                <li>
-                  A settled job proves the escrow released to the provider. It does not prove the answer was correct,
-                  useful, or profitable, and nothing on this board converts one into a return.
-                </li>
-              </ul>
-              </Details>
             </>
           )}
         </section>
@@ -1338,24 +1236,6 @@ export default async function LeaderboardPage({
 
       {view === 'responsiveness' && responsiveness && (
         <section aria-labelledby="responsiveness-title">
-          <div className="border-b border-rule pb-4">
-            <span className="t-label">Responsiveness</span>
-            <h2 id="responsiveness-title" className="t-h2 mt-1">
-              {ANSWER_RATE_COLUMN}, on {chainLabel(registryChainOf(network))}
-            </h2>
-            {/*
-              What the rate is not stays above the table, alone, while the
-              rest of the explanation moves under it. The automatic reading
-              of an answer rate is that it measures the answers, and a
-              correction printed below the number it corrects is read after
-              the reader has already taken the number at face value. The
-              others describe the figure; this one stops it being
-              misunderstood, so it is the one that keeps the position.
-            */}
-            <p className="mt-2 max-w-3xl text-[13.5px] font-medium leading-relaxed text-ink">
-              {ANSWER_RATE_DOES_NOT_MEAN}
-            </p>
-          </div>
 
           {responsiveness.state === 'unavailable' ? (
             <EmptyState tone="bad" title={responsiveness.reason}>
@@ -1364,28 +1244,6 @@ export default async function LeaderboardPage({
             </EmptyState>
           ) : (
             <>
-              <div className="pt-5">
-                <CoverageLine
-                  items={[
-                    {
-                      label: 'Listed agents read',
-                      value: formatCount(responsiveness.data.coverage.listedAgents),
-                    },
-                    {
-                      label: `Checked in last ${RESPONSIVENESS_WINDOW_DAYS} days`,
-                      value: `${formatCount(responsiveness.data.coverage.agentsWithChecks)} agents · ${formatCount(responsiveness.data.coverage.checksInWindow)} checks`,
-                    },
-                    {
-                      label: `Ranked (≥ ${MIN_RESPONSIVENESS_CHECKS} checks)`,
-                      value: formatCount(responsiveness.data.coverage.agentsRanked),
-                    },
-                    {
-                      label: 'Last check recorded',
-                      value: timestamp(responsiveness.data.coverage.lastCheckedAt),
-                    },
-                  ]}
-                />
-              </div>
 
               {/*
                 Stated here, above the order it qualifies, rather than behind
@@ -1397,13 +1255,6 @@ export default async function LeaderboardPage({
                 of linked. The figures come from the board being rendered, so
                 this cannot go stale the way the fixed claim it replaces did.
               */}
-              <Notice
-                tone="watch"
-                className="mt-4"
-                title="The ranked rows are not all measured over the same period"
-              >
-                {observedSpanHeadline(responsiveness.data.coverage)}
-              </Notice>
 
               {responsiveness.data.coverage.unreadCategories.length > 0 && (
                 <Notice tone="watch" className="mt-4" title="Some categories could not be read">
@@ -1430,85 +1281,29 @@ export default async function LeaderboardPage({
                 </div>
               )}
 
-              <Details
-                className="mt-8 border-t border-rule pt-5"
-                summary="How this rate is measured, and what it does not cover"
-              >
-                <p className="max-w-3xl text-[13px] leading-relaxed text-ink-2">{ANSWER_RATE_MEANS}</p>
-                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-                  Split by the chain the agent is registered on, because a check calls the agent&rsquo;s own endpoint
-                  and has no escrow in it. That is a different split from the outcomes board, and the two are not
-                  comparable.
-                </p>
-                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-                  {periodOf('responsiveness').note}
-                </p>
-                {SERVES_FROM_ONE_INSTANCE && (
-                  <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{CONSISTENT_STANDINGS}</p>
-                )}
-                {observedSpanDetail(responsiveness.data.coverage) && (
-                  <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-                    {observedSpanDetail(responsiveness.data.coverage)}
-                  </p>
-                )}
-                <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-ink-2">
-                  The check is a protocol handshake against the endpoint the agent&rsquo;s own card publishes, so the
-                  declared protocol on each row is what Pokter spoke to it. A handshake is not a task: an agent can
-                  answer every check and still be unable to do the work, which is what the outcomes board is for.
-                </p>
-              </Details>
             </>
           )}
         </section>
       )}
 
-      <section className="mt-16 grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-start">
-        <div className="rounded-[16px] border border-rule bg-raised p-6 text-[13.5px] leading-relaxed text-ink-2 sm:p-8">
-          {/*
-            One card under both boards, so it names both. It said "this
-            board" and opened on settlements, which is a paragraph about the
-            outcomes board printed under the responsiveness one — the same
-            kind of mismatch as a column label that outlives its rule, and
-            visible only by loading the page on the other view.
+      {/*
+        The one sentence that has to be under the figure it qualifies.
+        Everything else moved to the methodology page; this did not,
+        because the automatic reading of a response rate is that it
+        measures the answers, and a reader who takes the column at face
+        value has already been misled by the time they click a link.
+      */}
+      <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-[12.5px] text-ink-3">
+        <p className="max-w-2xl">
+          {view === 'responsiveness'
+            ? ANSWER_RATE_DOES_NOT_MEAN
+            : 'A settled job proves the escrow released to the provider. It does not prove the answer was correct, useful, or profitable.'}
+        </p>
+        <Link href={LEADERBOARD_METHOD_HREF} className="font-medium text-ink-2 hover:text-ink hover:underline">
+          How rankings work
+        </Link>
+      </footer>
 
-            Folded rather than dropped. These three refusals are the ones a
-            reader is most likely to need and least likely to read, and the
-            heading alone carries the warning for everyone who does not
-            open it.
-          */}
-          <Details summary={<span className="t-h3 text-ink">What these boards refuse to claim</span>}>
-          <p className="mt-1">
-            A network with no qualifying row on the outcomes board means Pokter has indexed no external settlement
-            there in this period. It is not a claim about what has happened on BNB Chain, about whether anyone has
-            paid an agent, or about who was first to do anything. Pokter can only report what its own index holds,
-            and the index depends on a hire being recorded as well as funded.
-          </p>
-          <p className="mt-3">
-            Outside Pokter&rsquo;s team set is not the same as independent. Pokter cannot prove a buyer was unrelated
-            or unsubsidised, so where a buyer runs a listed agent, or wrote an attestation about the agent it paid,
-            the row says so instead of renaming the figure.
-          </p>
-          <p className="mt-3">
-            Builders are deliberately not ranked here. Attributing historical jobs to the person who built an agent is
-            not reliable enough yet, and a board nobody can check is worse than no board.
-          </p>
-          <Link href="/methodology" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">
-            Read the methodology <Icon.Arrow size={14} />
-          </Link>
-          </Details>
-        </div>
-        <div className="flex flex-col gap-3 rounded-[16px] border border-[color-mix(in_oklab,var(--signal)_45%,transparent)] bg-signal-wash p-6 sm:p-8">
-          <span className="t-label text-ink-2">Nothing here fits?</span>
-          <h2 className="t-h3 text-ink">Have a task, not an agent?</h2>
-          <p className="text-[13.5px] leading-relaxed text-ink-2">
-            Describe the work instead of picking a row. Agents answer with a signed price, and whatever you hire lands
-            on this board under the same rules as everything above.
-          </p>
-          <Link href="/requests/new" className={cn(buttonClass('primary', 'm'), 'mt-1 self-start')}>
-            Post a request <Icon.Plus size={15} />
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }
