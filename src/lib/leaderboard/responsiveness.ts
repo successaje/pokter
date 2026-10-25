@@ -115,6 +115,18 @@ export const ANSWER_RATE_DOES_NOT_MEAN =
   'It is not answer quality, not accuracy, not uptime and not reliability. It records that the agent replied, never that the reply was right.';
 
 /**
+ * The same correction, in the length a board can carry under every table.
+ *
+ * The long form is the one the methodology prints, because there it has
+ * room to name each thing the rate is not. On the board it ran to two
+ * sentences of small print under the rows, which is where small print
+ * goes unread — and a correction nobody reads is the one case where
+ * saying more says less. This is the part that has to land: the column
+ * counts answers, not how good they were.
+ */
+export const ANSWER_RATE_SHORT = 'Answered checks, not output quality.';
+
+/**
  * How much of the window a row's rate is actually made of.
  *
  * Said as a share of the window rather than as a bare duration, because the

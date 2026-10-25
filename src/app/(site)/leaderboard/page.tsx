@@ -12,7 +12,6 @@ import {
   browseSummary,
   categoryCounts,
   matchesBrowse,
-  MAX_SEARCH,
   pageLinks,
   pageOf,
   type BrowseQuery,
@@ -23,7 +22,6 @@ import {
 import {
   rowDisclosures,
   rowReceipts,
-  summaryOf,
   hasWatch,
   type Disclosure,
 } from '@/lib/leaderboard/disclosures';
@@ -47,8 +45,8 @@ import {
   OUTCOME_METRICS,
   OUTCOME_METRIC_BY_ID,
   outcomeMetricFrom,
+  outcomeMetricValue,
   rankOutcomeRows,
-  type OutcomeBoard,
   type OutcomeMetricMeta,
   type OutcomeRow,
   type RankedOutcomeRow,
@@ -56,7 +54,7 @@ import {
 import { LEADERBOARD_METHOD_HREF } from '@/lib/leaderboard/method';
 import { periodOf } from '@/lib/leaderboard/period';
 import {
-  ANSWER_RATE_DOES_NOT_MEAN,
+  ANSWER_RATE_SHORT,
   formatObservedSpan,
   MIN_RESPONSIVENESS_CHECKS,
   RESPONSIVENESS_WINDOW_DAYS,
@@ -70,6 +68,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { buttonClass } from '@/ui/Button';
+import { SearchField } from '@/features/leaderboard/SearchField';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -186,63 +185,6 @@ function ChipGroup<T extends string>({
 }
 
 
-/**
- * Search as a plain GET form.
- *
- * No client component, so it works before hydration and the result is a URL
- * somebody can send to a colleague. The other choices ride along as hidden
- * fields; `page` deliberately does not, because a new search starts at the
- * first page of its own results rather than at the eighth page of someone
- * else's.
- */
-function SearchForm({ current, browse }: { current: BoardSelection; browse: BrowseQuery }) {
-  return (
-    /* Its own line at phone width. Sharing one with the network and period
-       troughs, `flex-1` left it about 90px wide: the label broke over three
-       lines and the field and its button ran off the edge of the screen. */
-    <form
-      method="get"
-      action="/leaderboard"
-      className="flex w-full min-w-0 flex-col gap-1.5 sm:w-auto sm:min-w-[16rem] sm:flex-1"
-    >
-      {current.network !== 'mainnet' && <input type="hidden" name="network" value={current.network} />}
-      {current.view !== 'outcomes' && <input type="hidden" name="view" value={current.view} />}
-      {current.view === 'outcomes' && current.metric !== 'settled-jobs' && (
-        <input type="hidden" name="metric" value={current.metric} />
-      )}
-      {browse.category !== ALL_CATEGORIES && <input type="hidden" name="category" value={browse.category} />}
-      <label htmlFor="board-search" className="t-label">
-        Search this board
-      </label>
-      <div className="flex gap-2">
-        <span className="relative flex min-w-0 flex-1 items-center">
-          <Icon.Search size={14} className="pointer-events-none absolute left-3 text-ink-3" />
-          <input
-            id="board-search"
-            name="q"
-            type="search"
-            defaultValue={browse.search}
-            maxLength={MAX_SEARCH}
-            placeholder="Agent name"
-            className="h-[34px] w-full rounded-[9px] border border-rule-strong bg-raised pl-8 pr-3 text-[13px] text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-4 focus:ring-[color-mix(in_oklab,var(--signal)_30%,transparent)]"
-          />
-        </span>
-        <button type="submit" className={buttonClass('secondary', 's')}>
-          Search
-        </button>
-        {browse.search.length > 0 && (
-          <Link
-            href={leaderboardHref(current, { category: browse.category })}
-            scroll={false}
-            className={buttonClass('ghost', 's')}
-          >
-            Clear
-          </Link>
-        )}
-      </div>
-    </form>
-  );
-}
 
 function Pagination({
   page,
@@ -344,69 +286,7 @@ function timestamp(value: string | null): string {
  * Shared row parts
  * ------------------------------------------------------------------ */
 
-/**
- * One agent as one thing: picture, name, and what it is underneath.
- *
- * The registry chain stays on the row because it can differ from the escrow
- * the board is split by, which the section above says in words. The escrow's
- * currency does not: it is the same on every row of a board whose heading
- * already names it, and repeating it on each row bought nothing but height.
- */
-function AgentCell({ agent, listed, size = 34 }: { agent: BoardAgent; listed: boolean; size?: number }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      <AgentAvatar name={agent.name} imageUrl={agent.imageUrl} seed={agent.key} size={size} />
-      <span className="min-w-0">
-        {listed ? (
-          <Link
-            href={`/agents/${agent.chainId}/${agent.tokenId}`}
-            className="block truncate text-[13.5px] font-medium hover:underline"
-          >
-            {agent.name}
-          </Link>
-        ) : (
-          <span className="block truncate text-[13.5px] font-medium">{agent.name}</span>
-        )}
-        <span className="mt-0.5 block truncate text-[11.5px] font-normal text-ink-3">
-          {categoryLabel(agent.category)} &middot; registered on {chainLabel(agent.chainId)}
-        </span>
-      </span>
-    </span>
-  );
-}
 
-/**
- * A figure with the fact that qualifies it underneath.
- *
- * The second line is never a second measurement dressed as support: each one
- * below is about the same wallets or the same checks as the figure above it.
- * A detail that belongs to a different population would read as part of this
- * figure, which is how a table acquires a composite nobody chose.
- */
-function Readout({
-  value,
-  detail,
-  tone = 'neutral',
-  active,
-}: {
-  value: string;
-  detail?: string | null;
-  tone?: 'neutral' | 'watch' | 'quiet';
-  active?: boolean;
-}) {
-  return (
-    <span className="flex flex-col items-end gap-0.5">
-      <span className={cn('t-readout text-[14px]', active && 'font-medium', tone === 'quiet' && 'text-ink-2')}>
-        {value}
-      </span>
-      {detail && (
-        <span className={cn('text-[11px] leading-tight', tone === 'watch' ? 'text-watch' : 'text-ink-3')}>
-          {detail}
-        </span>
-      )}
-    </span>
-  );
-}
 
 /**
  * The outbound affordance, as its own column.
@@ -440,163 +320,79 @@ function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelecti
   );
 }
 
-/**
- * Everything the row has to admit, one toggle down and named on the toggle.
- *
- * The summary is built from the same list the body renders
- * (`lib/leaderboard/disclosures.ts`), so the closed state cannot come to
- * describe something the open state does not contain. A row with nothing to
- * disclose renders no toggle rather than an empty one.
- */
-function RowDisclosures({ row }: { row: OutcomeRow }) {
-  const disclosures = rowDisclosures(row);
-  const receipts = rowReceipts(row);
-  const summary = summaryOf(disclosures, receipts);
-  if (!summary) return null;
-  return (
-    <details className="group rounded-[9px] border border-rule bg-sunken/50 px-2.5 py-1.5 open:bg-sunken">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11.5px] [&::-webkit-details-marker]:hidden">
-        <Icon.ChevronRight
-          size={12}
-          className="shrink-0 text-ink-3 transition-transform duration-150 group-open:rotate-90"
-        />
-        <span className={cn('min-w-0 flex-1', hasWatch(disclosures) ? 'text-watch' : 'text-ink-2')}>{summary}</span>
-      </summary>
-      <div className="mt-2 flex flex-col gap-2 border-t border-rule pt-2 text-[11.5px] leading-relaxed">
-        {disclosures.map((disclosure: Disclosure) => (
-          <p key={disclosure.id} className={disclosure.tone === 'watch' ? 'text-watch' : 'text-ink-2'}>
-            {disclosure.detail}
-            {disclosure.jobs.length > 0 && (
-              <span className="mt-1 block">
-                <ReceiptLinks jobs={disclosure.jobs} label={disclosure.jobsLabel} />
-              </span>
-            )}
-          </p>
-        ))}
-        {receipts.map((group) => (
-          <p key={group.label} className="flex flex-wrap items-baseline gap-x-2 text-ink-3">
-            <span>{group.label}:</span>
-            <ReceiptLinks jobs={group.jobs} label={group.label} />
-          </p>
-        ))}
-      </div>
-    </details>
-  );
-}
 
 /* ------------------------------------------------------------------ *
  * Customer outcomes
  * ------------------------------------------------------------------ */
 
-/**
- * A column header that says it produced the order, and offers to.
- *
- * The arrow is the part the old header was missing: the sorted column was
- * washed in signal yellow and nothing said which way it ran, so "highest
- * first" lived only in the caption no sighted reader sees. The inactive
- * headers show their arrow on hover and focus, so the table looks sortable
- * before anyone guesses that the headers are links.
- */
-function MetricHeader({
-  metric,
-  active,
-  current,
-  browse,
-}: {
-  metric: OutcomeMetricMeta;
-  active: boolean;
-  current: BoardSelection;
-  browse: BrowseQuery;
-}) {
-  return (
-    <th
-      scope="col"
-      aria-sort={active ? 'descending' : 'none'}
-      className={cn(
-        'px-3 py-2.5 text-right align-bottom font-medium',
-        active ? 'bg-signal-wash text-ink' : 'text-ink-3',
-      )}
-    >
-      <Link
-        href={leaderboardHref({ ...current, metric: metric.id }, { ...browse, page: 1 })}
-        scroll={false}
-        className="group inline-flex max-w-[13rem] flex-col items-end gap-0.5 hover:text-ink focus-visible:text-ink"
-      >
-        <span className="flex items-center gap-1">
-          <span className="t-label text-inherit">{metric.short}</span>
-          <Icon.ChevronDown
-            size={12}
-            className={cn(
-              'shrink-0 transition-opacity',
-              active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50 group-focus-visible:opacity-50',
-            )}
-          />
-        </span>
-        <span className="text-[10.5px] font-normal leading-tight text-ink-3">{metric.qualifier}</span>
-        <span className="sr-only">
-          {metric.column}
-          {active ? ' — ordering this table, highest first' : ' — order the table by this column'}
-        </span>
-      </Link>
-    </th>
-  );
-}
 
-function OutcomeTable({
-  board,
-  page,
-  current,
-  browse,
-}: {
-  board: OutcomeBoard;
-  page: Page<RankedOutcomeRow>;
-  current: BoardSelection;
-  browse: BrowseQuery;
-}) {
-  const active = OUTCOME_METRIC_BY_ID.get(board.metric)!;
+/*
+ * One grid for both boards.
+ *
+ * Outcomes used to be a 960px table for desktop and a separate card list
+ * for phones: two renderings of one board, which is two places for a
+ * column to go stale and one of them only visible at a width the author
+ * was not looking at. It is now the same row treatment as responsiveness,
+ * so a reader moving between the tabs is reading the same shape.
+ */
+const BOARD_GRID =
+  'grid grid-cols-[1.75rem_minmax(0,1fr)_auto_1.25rem] items-center gap-x-3 gap-y-1 sm:grid-cols-[2rem_minmax(0,1fr)_7rem_7.5rem_1.75rem]';
+
+/**
+ * A read that failed, told apart from a board with nothing on it.
+ *
+ * These are different facts and the page must never let one wear the
+ * other's clothes: an empty board says Pokter looked and found nothing,
+ * and this says Pokter could not look. Showing a nought here would be the
+ * worst available answer — it would assert the thing the read failed to
+ * establish.
+ *
+ * Retry is a link to the same URL rather than a button, so it works
+ * before hydration and on a page that is `force-dynamic` fetches the
+ * board again.
+ */
+function BoardUnavailable({ reason, children, retryHref }: { reason: string; children: ReactNode; retryHref: string }) {
   return (
-    <div className="hidden overflow-x-auto rounded-[14px] border border-rule md:block">
-      <table className="w-full min-w-[960px] divide-y divide-rule text-left text-[13px]">
-        <caption className="sr-only">
-          Agents on {chainLabel(board.escrowChainId)}, ordered by {active.column}, highest first.
-        </caption>
-        <thead className="bg-sunken/70">
-          <tr>
-            <th scope="col" className="t-label w-12 px-3 py-2.5 align-bottom font-medium">
-              Rank
-            </th>
-            <th scope="col" className="t-label px-3 py-2.5 align-bottom font-medium">
-              Agent
-            </th>
-            {OUTCOME_METRICS.map((metric) => (
-              <MetricHeader
-                key={metric.id}
-                metric={metric}
-                active={metric.id === board.metric}
-                current={current}
-                browse={browse}
-              />
-            ))}
-            <th scope="col" className="px-3 py-2.5 text-right align-bottom font-medium text-ink-3">
-              <span className="inline-flex max-w-[9rem] flex-col items-end gap-0.5">
-                <span className="t-label text-inherit">Delivered</span>
-                <span className="text-[10.5px] font-normal leading-tight text-ink-3">escrow not released</span>
-              </span>
-            </th>
-            <th scope="col" className="t-label px-3 py-2.5 align-bottom font-medium">
-              Evidence
-            </th>
-          </tr>
-        </thead>
-        {page.rows.map(({ row, rank }) => (
-          <OutcomeRowGroup key={row.agent.key} row={row} rank={rank} current={current} />
-        ))}
-      </table>
+    <div className="py-14 text-center" role="status">
+      <p className="text-[15px] font-medium text-ink">{reason}</p>
+      <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-ink-2">{children}</p>
+      <Link href={retryHref} prefetch={false} className={cn(buttonClass('secondary', 's'), 'mt-4')}>
+        Retry
+      </Link>
     </div>
   );
 }
 
-function OutcomeRowGroup({
+function OutcomeHeader({ active }: { active: OutcomeMetricMeta }) {
+  return (
+    <div className={cn(BOARD_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+      <span className="t-label">#</span>
+      <span className="t-label">Agent</span>
+      <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
+        {active.short} <Icon.ChevronDown size={12} aria-hidden />
+      </span>
+      <span className="t-label whitespace-nowrap text-right">External buyers</span>
+      <span className="sr-only">Details</span>
+    </div>
+  );
+}
+
+/**
+ * One agent's outcomes, at one rank.
+ *
+ * The board carried five metric columns at once, each under a two-line
+ * label, plus a disclosure strip between every pair of rows. Every figure
+ * was on screen and none of them was legible. The metric being ordered by
+ * leads; the rest are a press away, with the disclosures and the receipts
+ * that back them — which is where evidence belongs on a list somebody is
+ * scanning, not where it competes with the thing being scanned.
+ *
+ * Nothing is dropped and nothing is added together: `deliveredUnsettled`
+ * and the courier figures keep their own lines inside, because a funded
+ * job, a delivered job and a settled job are three different facts and
+ * adding any two of them would claim money moved when it did not.
+ */
+function OutcomeLine({
   row,
   rank,
   current,
@@ -605,186 +401,88 @@ function OutcomeRowGroup({
   rank: number | null;
   current: BoardSelection;
 }) {
-  const disclosed = summaryOf(rowDisclosures(row), rowReceipts(row)) !== null;
+  const active = OUTCOME_METRIC_BY_ID.get(current.metric)!;
+  const disclosures = rowDisclosures(row);
+  const receipts = rowReceipts(row);
   return (
-    <tbody className="bg-raised">
-      <tr>
-        {/*
-          No number where the ordering column holds a nought. `rankOutcomeRows`
-          has the account of what this printed before.
-        */}
-        <td className="t-readout px-3 py-3 align-top text-[13px] text-ink-3">
-          {rank === null ? '—' : String(rank).padStart(2, '0')}
-        </td>
-        <th scope="row" className="px-3 py-3 align-top font-medium">
-          <AgentCell agent={row.agent} listed={row.listed} />
-        </th>
-        <td
-          className={cn('px-3 py-3 text-right align-top', current.metric === 'settled-jobs' && 'bg-signal-wash')}
+    <li>
+      <details className="group">
+        <summary
+          className={cn(
+            BOARD_GRID,
+            'min-h-[56px] cursor-pointer list-none py-2.5 transition-colors hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal/40 sm:min-h-[60px] [&::-webkit-details-marker]:hidden',
+          )}
         >
-          <Readout value={formatCount(row.settledJobs)} active={current.metric === 'settled-jobs'} />
-        </td>
-        <td
-          className={cn('px-3 py-3 text-right align-top', current.metric === 'external-buyers' && 'bg-signal-wash')}
-        >
-          {/*
-            The operator-buyer disclosure belongs to these wallets and to no
-            other figure on the row, so it sits under them rather than in the
-            paragraph that used to carry every qualification at once.
-          */}
-          <Readout
-            value={formatCount(row.externalBuyers)}
-            detail={
-              row.operatorBuyers > 0
-                ? `${formatCount(row.operatorBuyers)} ${row.operatorBuyers === 1 ? 'owns' : 'own'} a listed agent`
-                : null
-            }
-            tone="watch"
-            active={current.metric === 'external-buyers'}
-          />
-        </td>
-        <td
-          className={cn('px-3 py-3 text-right align-top', current.metric === 'repeat-buyers' && 'bg-signal-wash')}
-        >
-          <Readout
-            value={formatCount(row.repeatBuyers)}
-            detail={
-              row.externalBuyers > 0
-                ? `of ${formatCount(row.externalBuyers)} wallet${row.externalBuyers === 1 ? '' : 's'}`
-                : null
-            }
-            active={current.metric === 'repeat-buyers'}
-          />
-        </td>
-        <td className="px-3 py-3 text-right align-top">
-          <Readout value={formatCount(row.deliveredUnsettled)} tone="quiet" />
-        </td>
-        <td className="px-3 py-3 align-top">
-          <EvidenceCell row={row} current={current} />
-        </td>
-      </tr>
-      {disclosed && (
-        <tr>
-          <td colSpan={7} className="px-3 pb-3">
-            <RowDisclosures row={row} />
-          </td>
-        </tr>
-      )}
-    </tbody>
-  );
-}
-
-/**
- * The same row at phone width, as a card.
- *
- * A seven-column table at 375px is a table nobody reads: it scrolls
- * sideways and the figure a reader scrolled to loses the name it belongs
- * to. Both shapes take the same ranked row and the same
- * `rowDisclosures`, so only the layout differs — no figure and no
- * disclosure exists in one and not the other.
- */
-function OutcomeCards({
-  board,
-  page,
-  current,
-}: {
-  board: OutcomeBoard;
-  page: Page<RankedOutcomeRow>;
-  current: BoardSelection;
-}) {
-  const active = OUTCOME_METRIC_BY_ID.get(board.metric)!;
-  return (
-    <ol className="flex flex-col gap-3 md:hidden">
-      {page.rows.map(({ row, rank }) => (
-        <li key={row.agent.key} className="rounded-[12px] border border-rule bg-raised p-3.5">
-          <div className="flex items-start gap-2.5">
-            <span className="t-readout mt-1 w-7 shrink-0 text-[13px] text-ink-3">
-              {rank === null ? '—' : String(rank).padStart(2, '0')}
-            </span>
-            <AgentCell agent={row.agent} listed={row.listed} size={32} />
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-rule pt-3">
-            {[
-              {
-                id: 'settled-jobs',
-                label: OUTCOME_METRIC_BY_ID.get('settled-jobs')!.short,
-                value: formatCount(row.settledJobs),
-                detail: null as string | null,
-              },
-              {
-                id: 'external-buyers',
-                label: OUTCOME_METRIC_BY_ID.get('external-buyers')!.short,
-                value: formatCount(row.externalBuyers),
-                detail:
-                  row.operatorBuyers > 0
-                    ? `${formatCount(row.operatorBuyers)} ${row.operatorBuyers === 1 ? 'owns' : 'own'} a listed agent`
-                    : null,
-              },
-              {
-                id: 'repeat-buyers',
-                label: OUTCOME_METRIC_BY_ID.get('repeat-buyers')!.short,
-                value: formatCount(row.repeatBuyers),
-                detail:
-                  row.externalBuyers > 0
-                    ? `of ${formatCount(row.externalBuyers)} wallet${row.externalBuyers === 1 ? '' : 's'}`
-                    : null,
-              },
-              {
-                id: 'delivered',
-                label: 'Delivered',
-                value: formatCount(row.deliveredUnsettled),
-                detail: 'escrow not released',
-              },
-            ].map((cell) => (
-              <div
-                key={cell.id}
-                className={cn(
-                  'rounded-[8px] px-2 py-1.5',
-                  cell.id === board.metric ? 'bg-signal-wash' : 'bg-sunken/50',
-                )}
+          <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+            {rank === null ? '—' : String(rank).padStart(2, '0')}
+          </span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+            <span className="min-w-0">
+              <Link
+                href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+                className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
               >
-                <dt className="t-label text-[10px]">{cell.label}</dt>
-                <dd className="t-readout mt-0.5 text-[15px]">{cell.value}</dd>
-                {cell.detail && (
-                  <dd
-                    className={cn(
-                      'text-[10.5px] leading-tight',
-                      cell.id === 'external-buyers' && row.operatorBuyers > 0 ? 'text-watch' : 'text-ink-3',
-                    )}
-                  >
-                    {cell.detail}
-                  </dd>
-                )}
+                {row.agent.name}
+              </Link>
+              {/* Registered where, because the registry chain and the escrow
+                  the money settled on are different facts and can differ. */}
+              <span className="block truncate text-[11.5px] text-ink-3">
+                {row.listed ? `Registered on ${chainLabel(row.agent.chainId)}` : 'Not in Pokter’s current listing'}
+              </span>
+            </span>
+          </span>
+          <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+            {formatCount(outcomeMetricValue(row, current.metric))}
+          </span>
+          <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+            {formatCount(row.externalBuyers)} buyer{row.externalBuyers === 1 ? '' : 's'}
+          </span>
+          <Icon.ChevronRight
+            size={14}
+            aria-hidden
+            className="col-start-4 row-start-1 justify-self-end text-ink-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none sm:col-start-5"
+          />
+        </summary>
+        <div className="flex flex-col gap-3 px-1 pb-4 text-[12.5px] text-ink-2 sm:pl-[3.25rem]">
+          <dl className="flex flex-wrap gap-x-6 gap-y-2">
+            {OUTCOME_METRICS.map((metric) => (
+              <div key={metric.id} className={cn(metric.id === active.id && 'text-ink')}>
+                <dt className="t-label">{metric.short}</dt>
+                <dd className="t-readout text-[14px] tabular-nums">
+                  {formatCount(outcomeMetricValue(row, metric.id))}
+                </dd>
               </div>
             ))}
+            {/* Its own number and its own line: added to settled jobs it
+                would claim money moved when the escrow still holds it. */}
+            <div>
+              <dt className="t-label">Delivered, not released</dt>
+              <dd className="t-readout text-[14px] tabular-nums">{formatCount(row.deliveredUnsettled)}</dd>
+            </div>
           </dl>
-          <p className="t-label mt-2.5 text-[10px]">Ordered by {active.short}</p>
-          <div className="mt-2 flex flex-col gap-2">
-            <RowDisclosures row={row} />
+          {disclosures.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {disclosures.map((disclosure: Disclosure) => (
+                <li key={disclosure.summary} className={cn(hasWatch([disclosure]) ? 'text-watch' : 'text-ink-2')}>
+                  {disclosure.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <EvidenceCell row={row} current={current} />
+            {receipts.map((group) => (
+              <ReceiptLinks key={group.label} jobs={group.jobs} label={group.label} />
+            ))}
           </div>
-        </li>
-      ))}
-    </ol>
+        </div>
+      </details>
+    </li>
   );
 }
 
-/* ------------------------------------------------------------------ *
- * Responsiveness
- * ------------------------------------------------------------------ */
-
-/*
- * Two columns at phone width, five above `sm`.
- *
- * The mobile half used to be left implicit: a bare `grid` with three cells
- * carrying `col-start-2`, which conjures a second column whose width comes
- * from whatever happens to be in it. Each row sized its own columns, so the
- * avatars stepped left and right down the list by thirty or forty pixels and
- * the rate under each name started at a different place on every row. Naming
- * the mobile template fixes the rank gutter and lines the rows up.
- */
-const RESPONSIVENESS_GRID =
-  'grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 sm:grid-cols-[2.5rem_minmax(0,1fr)_6rem_11rem_6.5rem]';
+const RESPONSIVENESS_GRID = BOARD_GRID;
 
 /**
  * The column names, outside the list rather than as its first item.
@@ -800,84 +498,86 @@ function ResponsivenessHeader() {
     <div className={cn(RESPONSIVENESS_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
       <span className="t-label">#</span>
       <span className="t-label">Agent</span>
-      <span className="t-label flex items-center justify-end gap-1 text-right text-ink">
+      <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
         Answer rate <Icon.ChevronDown size={12} aria-hidden />
       </span>
-      <span className="t-label text-right">Checks answered</span>
-      <span className="t-label">Evidence</span>
+      <span className="t-label whitespace-nowrap text-right">Checks answered</span>
+      <span className="sr-only">Details</span>
     </div>
   );
 }
 
+/**
+ * One agent, at one rank.
+ *
+ * The span and the declared protocol used to print on every row, which is
+ * two extra lines of small text per agent for facts most readers never
+ * need and nobody needs on all twelve at once. They are a disclosure, not
+ * a decoration, so they are one press away rather than gone — a `details`
+ * rather than a tooltip, because a tooltip is a thing phones do not have.
+ *
+ * The row is the summary, so the whole row is the target: on a phone that
+ * is a 56px press rather than a chevron, and on a keyboard it is one tab
+ * stop that opens with Enter.
+ */
 function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: number | null }) {
+  const span = row.checks > 0 ? formatObservedSpan(row.observedDays) : null;
   return (
-    /* The fourth column holds two lines — the denominator and the span it
-       was taken over — so it is wide enough for "over 29.9 of 30 days" to sit
-       on one line. Wrapped, the span read as two ragged fragments and stopped
-       looking like one statement about one row. */
-    <li className={cn(RESPONSIVENESS_GRID, 'py-3 sm:items-center')}>
-      <span className="t-readout text-[13px] text-ink-3">{rank === null ? '—' : String(rank).padStart(2, '0')}</span>
-      <span className="flex min-w-0 items-center gap-2.5">
-        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={32} />
-        <span className="min-w-0">
-          <Link
-            href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-            className="block truncate text-[13.5px] font-medium hover:underline"
-          >
-            {row.agent.name}
-          </Link>
-          <span className="mt-0.5 block truncate text-[11.5px] text-ink-3">
-            Declared protocol: {row.protocol ?? 'none declared'}
-          </span>
-        </span>
-      </span>
-      <span className="t-readout col-start-2 text-[15px] sm:col-start-auto sm:text-right">
-        {/*
-          One decimal, because nought rounded 349 of 350 up to "100%".
-          That was the top row of the production board: a check had failed
-          and the headline figure said none had. The denominator beside it
-          kept the row honest, but "100%" is what gets quoted once it is
-          separated from "349 of 350" — the same defect as the nought on the
-          share card, a number that becomes a claim when it travels alone.
-
-          A genuine 350 of 350 still reads 100%. Display only: the ordering
-          and the tie-break read the unrounded rate, so rows that tie here
-          tie on the real figure.
-        */}
-        {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
-      </span>
-      {/*
-        "0 of 0 checks" read as an agent that answered nothing, when the fact
-        is that Pokter asked nothing of it inside the window. Said in words,
-        because a row whose rate is already an em dash needs to say which of
-        the two it is.
-      */}
-      <span className="t-readout col-start-2 flex flex-col gap-0.5 text-[12px] text-ink-3 sm:col-start-auto sm:items-end sm:text-right">
-        <span>
-          {row.checks === 0
-            ? 'No check in this window'
-            : `${formatCount(row.answered)} of ${formatCount(row.checks)} checks`}
-        </span>
-        {/*
-          The span sits under the denominator, not under the name, because the
-          denominator is where a reader is already weighing how much is behind
-          the rate — and the two are one fact. "349 of 350 checks" alone reads
-          as a full 30-day record on every row it appears on, and on this data
-          the rows above and below it can cover a twelfth of that period. A
-          row with no check has no span to report and says nothing here rather
-          than printing a nought, which would read as a measured zero-length
-          history instead of an absent one.
-        */}
-        {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
-      </span>
-      <span className="col-start-2 sm:col-start-auto">
-        <Link
-          href={`/agents/${row.agent.chainId}/${row.agent.tokenId}#history`}
-          className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ink hover:underline"
+    <li>
+      <details className="group">
+        <summary
+          className={cn(
+            RESPONSIVENESS_GRID,
+            'min-h-[56px] cursor-pointer list-none py-2.5 transition-colors hover:bg-sunken/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal/40 sm:min-h-[60px] [&::-webkit-details-marker]:hidden',
+          )}
         >
-          Check history <Icon.ArrowUpRight size={12} className="text-ink-3" />
-        </Link>
-      </span>
+          <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+            {rank === null ? '—' : String(rank).padStart(2, '0')}
+          </span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+            <Link
+              href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
+              className="truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+            >
+              {row.agent.name}
+            </Link>
+          </span>
+          {/*
+            One decimal, because nought rounded 349 of 350 up to "100%".
+            That was the top row of the production board: a check had
+            failed and the headline figure said none had. Display only —
+            the ordering and the tie-break read the unrounded rate.
+          */}
+          <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+            {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
+          </span>
+          {/*
+            "0 of 0 checks" read as an agent that answered nothing, when
+            the fact is that Pokter asked nothing of it inside the window.
+          */}
+          <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+            {row.checks === 0
+              ? 'No check in this window'
+              : `${formatCount(row.answered)} of ${formatCount(row.checks)}`}
+          </span>
+          <Icon.ChevronRight
+            size={14}
+            aria-hidden
+            className="col-start-4 row-start-1 justify-self-end text-ink-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none sm:col-start-5"
+          />
+        </summary>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pb-3 text-[12.5px] text-ink-2 sm:pl-[3.25rem]">
+          {span && <span className="t-readout">Observed {span}</span>}
+          <span>Declared protocol: {row.protocol ?? 'none declared'}</span>
+          <Link
+            href={`/agents/${row.agent.chainId}/${row.agent.tokenId}#history`}
+            className="inline-flex items-center gap-1 font-medium text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+          >
+            Check history <Icon.ArrowUpRight size={12} className="text-ink-3" />
+          </Link>
+        </div>
+      </details>
     </li>
   );
 }
@@ -905,14 +605,21 @@ function ResponsivenessCategory({
   return (
     <section aria-labelledby={`responsiveness-${entry.category}`} className="pt-10">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule pb-3">
-        <div>
-          <span className="t-label">{category.label}</span>
-          <h3 id={`responsiveness-${entry.category}`} className="t-h3 mt-1">
-            {formatCount(entry.ranked.length)} agent{entry.ranked.length === 1 ? '' : 's'} with at least{' '}
-            {MIN_RESPONSIVENESS_CHECKS} checks in the window
+        {/*
+          The category is the title. It used to be a label above a heading
+          that was really a sentence about the eligibility rule — so every
+          section shouted the rule and whispered which category it was
+          about. The rule is on the methodology page; the count is what a
+          reader wants beside the name.
+        */}
+        <div className="flex items-baseline gap-2.5">
+          <h3 id={`responsiveness-${entry.category}`} className="text-[16px] font-semibold tracking-[-0.01em]">
+            {category.label}
           </h3>
+          <span className="text-[13px] text-ink-3">
+            {formatCount(entry.ranked.length)} agent{entry.ranked.length === 1 ? '' : 's'}
+          </span>
         </div>
-        <span className="text-[12px] text-ink-3">Compared only against others in this category.</span>
       </div>
       {/*
         Said where the rows are missing from, not only at the top of the page.
@@ -1053,91 +760,79 @@ export default async function LeaderboardPage({
   const outcomeSummary = browseSummary(outcomePage, browse);
 
   return (
-    <div className="frame pb-24 pt-10 sm:pt-16">
-      {/*
-        The board is the page. This header used to run to a lede, a side
-        card and two links before a reader reached a single row, and the
-        rows are the only thing here anybody came for. Everything the page
-        owes a reader about how the figures were made is still on it — it
-        now sits under the table it qualifies, where it is read after the
-        number rather than instead of it.
-      */}
-      {/*
-        Title, one line, the two boards, and the controls that pick which
-        one you are looking at. Everything that explains how the figures
-        are made is on the methodology page now, linked from the row below
-        the tabs — the board leads with its rows, which is the only thing
-        anyone opens it for.
-      */}
-      <header className="flex flex-col gap-2 pb-6">
-        <h1 className="t-display">Leaderboard</h1>
-        <p className="text-[15px] text-ink-2">Compare agents by observed results.</p>
+    /*
+      One centred column, not the full page frame. The board is a list and
+      a list has a comfortable reading width; stretched to the frame the
+      rank sat a screen away from the figure it ranked. Top padding is
+      small because the page already has a banner and a nav above it, and
+      a reader arriving at a leaderboard has arrived to read rows.
+    */
+    <div className="mx-auto w-full max-w-[1060px] px-4 pb-20 pt-6 sm:px-6 sm:pt-8">
+      <header className="flex flex-col gap-1.5">
+        <h1 className="text-[26px] font-semibold tracking-[-0.02em] sm:text-[34px]">Leaderboard</h1>
+        <p className="text-[14px] text-ink-2 sm:text-[15px]">Compare agents by observed results.</p>
       </header>
 
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-rule">
-        <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <ul className="flex min-w-max gap-6">
-            {(
-              [
-                { id: 'outcomes', label: 'Customer outcomes' },
-                { id: 'responsiveness', label: 'Responsiveness' },
-              ] as ReadonlyArray<{ id: BoardView; label: string }>
-            ).map((tab) => (
-              <li key={tab.id}>
-                <Link
-                  href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
-                  scroll={false}
-                  aria-current={tab.id === view ? 'page' : undefined}
-                  className={cn(
-                    'relative -mb-px flex h-11 items-center border-b-2 text-sm font-medium transition-colors',
-                    tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="flex flex-wrap items-center gap-2 pb-2.5">
-          <LinkMenu<BoardNetwork>
-            label="Network"
-            value={network}
-            options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
-            href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
+      {/* The two boards, on their own row, as the first choice a reader makes. */}
+      <nav aria-label="What is measured" className="mt-5 border-b border-rule">
+        <ul className="flex gap-5">
+          {(
+            [
+              { id: 'outcomes', label: 'Customer outcomes' },
+              { id: 'responsiveness', label: 'Responsiveness' },
+            ] as ReadonlyArray<{ id: BoardView; label: string }>
+          ).map((tab) => (
+            <li key={tab.id}>
+              <Link
+                href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
+                scroll={false}
+                aria-current={tab.id === view ? 'page' : undefined}
+                className={cn(
+                  'relative -mb-px flex h-10 items-center border-b-2 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40',
+                  tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+                )}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {/*
+        One toolbar, one height. Network, category and search were a
+        dropdown row, a label and a submit button at three different
+        baselines; on a phone they took a third of the screen before any
+        data. They wrap here rather than scroll, and search takes its own
+        row at the width where sharing one would squeeze both.
+      */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <LinkMenu<BoardNetwork>
+          label="Network"
+          value={network}
+          options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
+          href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
+        />
+        {categoryOptions.length > 1 && (
+          <LinkMenu<Classification | typeof ALL_CATEGORIES>
+            label="Category"
+            value={browse.category}
+            options={categoryOptions}
+            href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
           />
-          {categoryOptions.length > 1 && (
-            <LinkMenu<Classification | typeof ALL_CATEGORIES>
-              label="Category"
-              value={browse.category}
-              options={categoryOptions}
-              href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
-            />
-          )}
-          {/* Kept. What was asked to go was the explanation, not the
-              controls — and a board of this many rows with a filter in the
-              URL and no field to clear it is a trap. */}
-          <SearchForm current={current} browse={browse} />
+        )}
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <SearchField />
         </div>
       </div>
 
       {/*
-        One line, and it is the line the figures would be misread without:
-        the window they were taken in and the sample an agent needs before
-        it is ranked at all. Everything else that used to stand here —
-        the coverage strip, the serving note, the spans, the exclusions —
-        is behind the link on the right, which is where the design asks for
-        it and where it is actually read.
+        The window the figures were taken in and how fresh they are, said
+        once and quietly. These are facts about the data, not headings:
+        printed large they competed with the rows, and a reader scanning a
+        leaderboard does not need a counter in bold.
       */}
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3 text-[12.5px] text-ink-3">
-        <p>{boardMeta}</p>
-        <Link
-          href={LEADERBOARD_METHOD_HREF}
-          className="inline-flex items-center gap-1 font-medium text-ink-2 hover:text-ink hover:underline"
-        >
-          How rankings work <Icon.ArrowUpRight size={12} />
-        </Link>
-      </div>
+      <p className="mt-3 border-b border-rule pb-3 text-[12px] text-ink-3">{boardMeta}</p>
 
       {view === 'outcomes' && outcomes && (
         <section aria-labelledby="outcomes-title">
@@ -1151,11 +846,10 @@ export default async function LeaderboardPage({
           */}
 
           {outcomes.state === 'unavailable' ? (
-            <EmptyState tone="bad" title={outcomes.reason}>
+            <BoardUnavailable reason={outcomes.reason} retryHref={leaderboardHref(current, browse)}>
               Pokter could not read the job index or the registry for this board, so it is showing nothing rather than
               a zero. An empty board would claim no buyer has settled a job here, which this read does not establish.
-              Try again shortly.
-            </EmptyState>
+            </BoardUnavailable>
           ) : (
             <>
 
@@ -1175,16 +869,76 @@ export default async function LeaderboardPage({
                 toward.
               */}
               {outcomes.data.coverage.qualifyingJobs === 0 ? (
-                <EmptyState title={NO_QUALIFYING_SETTLEMENTS} className="mt-6">
-                  The query ran and matched nothing. Of the{' '}
-                  {formatCount(outcomes.data.coverage.indexedJobs)} jobs indexed on this escrow,{' '}
-                  {formatCount(outcomes.data.coverage.exclusions.teamFunded)} were funded by Pokter&rsquo;s own
-                  wallets, {formatCount(outcomes.data.coverage.exclusions.selfHire)} were an operator paying their own
-                  agent, {formatCount(outcomes.data.coverage.exclusions.lifecycleDemo)} were lifecycle
-                  demonstrations, and {formatCount(outcomes.data.coverage.exclusions.unattributed)} name no ERC-8004
-                  identity Pokter can attribute them to. This is a statement about Pokter&rsquo;s index on this
-                  network, not about the chain.
-                </EmptyState>
+                /*
+                  Calm, and finished rather than broken.
+
+                  This was a dashed box around a paragraph of counters,
+                  which is a technical report standing where the list
+                  should be. The short sentence is what a reader needs;
+                  the counters are what a sceptic needs, and they are one
+                  press away rather than gone.
+
+                  `NO_QUALIFYING_SETTLEMENTS` is the exact sentence this
+                  board agreed to publish for a query that ran and matched
+                  nothing, and it is still published — first, inside the
+                  disclosure, where it keeps its job of saying this is a
+                  statement about Pokter's index rather than about the
+                  chain. The headline above it says the same thing in the
+                  words the design asks for.
+                */
+                <div className="py-14 text-center">
+                  <p className="text-[15px] font-medium text-ink">
+                    No qualifying customer settlements in this view yet.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    {network === 'mainnet' && (
+                      <Link
+                        href={leaderboardHref({ ...current, network: 'testnet' }, { ...browse, page: 1 })}
+                        className={cn(buttonClass('secondary', 's'))}
+                      >
+                        View testnet
+                      </Link>
+                    )}
+                    <Link
+                      href={leaderboardHref({ ...current, view: 'responsiveness' }, { ...browse, page: 1 })}
+                      className={cn(buttonClass(network === 'mainnet' ? 'ghost' : 'secondary', 's'))}
+                    >
+                      View responsiveness
+                    </Link>
+                  </div>
+                  <details className="group mx-auto mt-6 max-w-xl text-left">
+                    <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40 [&::-webkit-details-marker]:hidden">
+                      <Icon.ChevronRight
+                        size={13}
+                        aria-hidden
+                        className="transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
+                      />
+                      Why no results?
+                    </summary>
+                    <div className="mt-3 rounded-[10px] bg-sunken px-4 py-3 text-[12.5px] leading-relaxed text-ink-2">
+                      <p>{NO_QUALIFYING_SETTLEMENTS}</p>
+                      <p className="mt-2">
+                        Of the {formatCount(outcomes.data.coverage.indexedJobs)} jobs indexed on this escrow,{' '}
+                        {formatCount(outcomes.data.coverage.exclusions.teamFunded)} were funded by Pokter&rsquo;s own
+                        declared wallets, {formatCount(outcomes.data.coverage.exclusions.selfHire)} were an operator
+                        paying their own agent, {formatCount(outcomes.data.coverage.exclusions.lifecycleDemo)} were
+                        lifecycle demonstrations, and{' '}
+                        {formatCount(outcomes.data.coverage.exclusions.unattributed)} name no ERC-8004 identity Pokter
+                        can attribute them to.
+                      </p>
+                      <p className="mt-2">
+                        This is a statement about Pokter&rsquo;s index on this network, not about the chain. The index
+                        holds a job only where the hire was recorded as well as funded.
+                      </p>
+                      <Link
+                        href={LEADERBOARD_METHOD_HREF}
+                        className="mt-2 inline-block font-medium text-ink hover:underline"
+                      >
+                        What counts, and what is excluded
+                      </Link>
+                    </div>
+                  </details>
+                </div>
               ) : outcomePage.matched === 0 ? (
                 /*
                   A search that matched nothing is not an empty board, and it
@@ -1218,8 +972,12 @@ export default async function LeaderboardPage({
                     />
                   </div>
                   <div className="mt-3">
-                    <OutcomeTable board={outcomes.data} page={outcomePage} current={current} browse={browse} />
-                    <OutcomeCards board={outcomes.data} page={outcomePage} current={current} />
+                    <OutcomeHeader active={OUTCOME_METRIC_BY_ID.get(metric)!} />
+                    <ol className="divide-y divide-rule">
+                      {outcomePage.rows.map(({ row, rank }) => (
+                        <OutcomeLine key={row.agent.key} row={row} rank={rank} current={current} />
+                      ))}
+                    </ol>
                   </div>
                   {outcomePage.pages > 1 && (
                     <div className="mt-4 flex justify-end">
@@ -1238,10 +996,10 @@ export default async function LeaderboardPage({
         <section aria-labelledby="responsiveness-title">
 
           {responsiveness.state === 'unavailable' ? (
-            <EmptyState tone="bad" title={responsiveness.reason}>
+            <BoardUnavailable reason={responsiveness.reason} retryHref={leaderboardHref(current, browse)}>
               Pokter could not read the registry for this network, so it is showing nothing rather than a zero. An
-              empty board would claim no agent answers, which this read does not establish. Try again shortly.
-            </EmptyState>
+              empty board would claim no agent answers, which this read does not establish.
+            </BoardUnavailable>
           ) : (
             <>
 
@@ -1294,12 +1052,13 @@ export default async function LeaderboardPage({
         value has already been misled by the time they click a link.
       */}
       <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-[12.5px] text-ink-3">
-        <p className="max-w-2xl">
-          {view === 'responsiveness'
-            ? ANSWER_RATE_DOES_NOT_MEAN
-            : 'A settled job proves the escrow released to the provider. It does not prove the answer was correct, useful, or profitable.'}
+        <p>
+          {view === 'responsiveness' ? ANSWER_RATE_SHORT : 'Settled jobs, not a measure of whether the answer was useful.'}
         </p>
-        <Link href={LEADERBOARD_METHOD_HREF} className="font-medium text-ink-2 hover:text-ink hover:underline">
+        <Link
+          href={LEADERBOARD_METHOD_HREF}
+          className="font-medium text-ink-2 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+        >
           How rankings work
         </Link>
       </footer>

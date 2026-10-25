@@ -33,6 +33,7 @@ import {
 } from '../src/lib/leaderboard/outcomes';
 import { OUTCOMES_PERIOD, periodOf, RESPONSIVENESS_PERIOD } from '../src/lib/leaderboard/period';
 import { LEADERBOARD_METHOD, LEADERBOARD_METHOD_HREF } from '../src/lib/leaderboard/method';
+import { ANSWER_RATE_SHORT } from '../src/lib/leaderboard/responsiveness';
 import { RESPONSIVENESS_WINDOW_DAYS } from '../src/lib/leaderboard/responsiveness';
 
 const page = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -471,7 +472,11 @@ test('settled and unsettled receipts are kept apart', () => {
 test('the board renders the disclosures from the rule, not from its own copy', () => {
   const source = copy(BOARD);
   assert.match(source, /rowDisclosures\(row\)/);
-  assert.match(source, /summaryOf\(rowDisclosures\(row\), rowReceipts\(row\)\)/);
+  assert.match(source, /rowReceipts\(row\)/);
+  /* Rendered from the rule's own text. The summary line went with the
+     closed toggle the rows no longer have — the expansion shows every
+     disclosure in full, so there is nothing left to summarise. */
+  assert.match(source, /\{disclosure\.detail\}/);
   /* The sentences moved into `disclosures.ts`; a second copy on the page
      is how the two come to say different things. */
   assert.doesNotMatch(source, /buyer and reviewer are the same party/);
@@ -578,7 +583,7 @@ test('the board still carries what its figures cannot be read without', () => {
     ['how much was read', /agents read/],
     ['how fresh it is', /updated \$\{timestamp\(lastRead\)\}/],
     ['the outcomes sample it was drawn from', /indexed, \$\{formatCount\(outcomes\.data\.coverage\.qualifyingJobs\)\} qualifying/],
-    ['what the rate is not', /ANSWER_RATE_DOES_NOT_MEAN/],
+    ['what the rate is not', /ANSWER_RATE_SHORT/],
     ['the per-row sample', /formatObservedSpan\(row\.observedDays\)/],
     ['the below-minimum list', /too few checks to rank/],
   ] as ReadonlyArray<[string, RegExp]>) {
@@ -591,4 +596,126 @@ test('the board still combines nothing into one figure', () => {
   assert.doesNotMatch(source, /overall score:|composite|combined rank/i);
   /* And no period control, because no period can be applied. */
   assert.doesNotMatch(source, /name="period"/);
+});
+
+/*
+ * The board as a list, not a landing page above a report.
+ *
+ * One centred column, a compact title, one control row, then rows. The
+ * two boards share a grid rather than each having its own, because the
+ * outcomes board previously rendered a 960px table for desktop and a
+ * separate card list for phones — two renderings of one board, and one of
+ * them only visible at a width the author was not looking at.
+ */
+test('both boards render from one grid, at one row height', () => {
+  const source = copy(BOARD);
+  assert.match(source, /const BOARD_GRID =/);
+  assert.match(source, /const RESPONSIVENESS_GRID = BOARD_GRID;/, 'the two boards use different grids again');
+  /* 56px on a phone, 60px on a desktop: inside the 56–64 the design asks
+     for, and the same number on both boards. */
+  assert.equal((source.match(/min-h-\[56px\][^"]*sm:min-h-\[60px\]/g) ?? []).length, 2);
+  /* And the desktop table and its separate mobile card list are gone. */
+  assert.doesNotMatch(source, /min-w-\[960px\]|function OutcomeCards|function OutcomeTable/);
+});
+
+test('the column is centred and bounded, and the title is not a hero', () => {
+  const source = copy(BOARD);
+  assert.match(source, /mx-auto w-full max-w-\[1060px\] px-4 pb-20 pt-6 sm:px-6 sm:pt-8/);
+  /* 26px on a phone, 34px on a desktop. `t-display` was ~60px. */
+  assert.match(source, /text-\[26px\] font-semibold tracking-\[-0\.02em\] sm:text-\[34px\]/);
+  assert.doesNotMatch(source, /t-display|t-lede/);
+});
+
+/*
+ * The protocol printed on all twelve rows and the span under every
+ * denominator: two lines of small text per agent, for facts nobody needs
+ * on every row at once. They are disclosures, so they are one press away
+ * rather than gone — and in a `details`, because a tooltip is a thing
+ * phones do not have.
+ */
+test('per-row detail is in an expansion, not on every row and not in a tooltip', () => {
+  const source = copy(BOARD);
+  assert.match(source, /Declared protocol: \{row\.protocol \?\? 'none declared'\}/);
+  assert.match(source, /Observed \{span\}/);
+  /* Inside the open half of the row's `details`, never in the summary. */
+  const summaryEnd = source.indexOf('</summary>', source.indexOf('function ResponsivenessLine'));
+  const summary = source.slice(source.indexOf('function ResponsivenessLine'), summaryEnd);
+  assert.doesNotMatch(summary, /Declared protocol|Observed \{span\}/);
+  assert.doesNotMatch(source, /title=\{`Observed|role="tooltip"/);
+});
+
+test('the category is the section title and the rule is not', () => {
+  const source = copy(BOARD);
+  assert.match(source, /\{category\.label\}\s*<\/h3>/);
+  assert.match(source, /agent\{entry\.ranked\.length === 1 \? '' : 's'\}/);
+  /* The eligibility sentence and the comparison note moved to the method. */
+  assert.doesNotMatch(source, /checks in the window\s*<\/h3>/);
+  assert.doesNotMatch(source, /Compared only against others in this category/);
+  assert.match(JSON.stringify(LEADERBOARD_METHOD), /at least \d+ checks inside the window to be ranked/);
+});
+
+/*
+ * A read that failed and a board with nothing on it are different facts,
+ * and the page must never let one wear the other's clothes. Showing a
+ * nought for a failed read asserts the thing the read did not establish.
+ */
+test('a failed read is its own state, with a retry, and is never a nought', () => {
+  const source = copy(BOARD);
+  assert.match(source, /function BoardUnavailable/);
+  assert.match(source, /<BoardUnavailable reason=\{outcomes\.reason\}/);
+  assert.match(source, /<BoardUnavailable reason=\{responsiveness\.reason\}/);
+  assert.equal((source.match(/>\s*Retry\s*</g) ?? []).length, 1);
+  assert.match(source, /showing nothing rather than\s+a zero/);
+});
+
+test('the empty outcomes view is calm, and keeps the agreed sentence inside it', () => {
+  const source = copy(BOARD);
+  assert.match(source, /No qualifying customer settlements in this view yet\./);
+  assert.match(source, /Why no results\?/);
+  /* The exact sentence is still published, inside the disclosure, where
+     it keeps its job of saying this is about Pokter's index. */
+  assert.match(source, /\{NO_QUALIFYING_SETTLEMENTS\}/);
+  assert.match(source, /not about the chain/);
+  /* And the ways out the design asks for. */
+  assert.match(source, /View testnet/);
+  assert.match(source, /View responsiveness/);
+  /* The dashed box it replaced. */
+  assert.doesNotMatch(source, /EmptyState title=\{NO_QUALIFYING_SETTLEMENTS\}/);
+});
+
+test('the clarification under the table is the short one', () => {
+  const source = copy(BOARD);
+  assert.match(source, /ANSWER_RATE_SHORT/);
+  assert.equal(ANSWER_RATE_SHORT, 'Answered checks, not output quality.');
+  /* The long form is still published, on the methodology page. */
+  assert.match(JSON.stringify(LEADERBOARD_METHOD), /not answer quality/);
+});
+
+/*
+ * Search is a field, not a form: one interaction instead of three. The
+ * term still lives in the query string, so a narrowed board is shareable
+ * — and `replace` rather than `push` means Back returns to the page the
+ * reader came from rather than to their own keystrokes.
+ */
+test('search narrows as you type and still leaves a URL behind', () => {
+  const field = copy('src/features/leaderboard/SearchField.tsx');
+  assert.match(field, /'use client'/);
+  assert.match(field, /setTimeout\(/, 'there is no debounce');
+  assert.match(field, /router\.replace\(/);
+  assert.doesNotMatch(field, /router\.push\(/, 'typing would put a history entry behind every keystroke');
+  assert.match(field, /next\.delete\('page'\)/, 'narrowing could land on a page that no longer exists');
+  assert.match(field, /aria-live="polite"/, 'the list changes length with nothing said');
+  assert.match(field, /aria-label="Search agents on this board"/);
+
+  const source = copy(BOARD);
+  assert.match(source, /<SearchField \/>/);
+  assert.doesNotMatch(source, /Search this board|type="submit"/);
+});
+
+test('rows are reachable by keyboard and show where focus is', () => {
+  const source = copy(BOARD);
+  /* The summary is the tab stop, and it has to be visible when it has focus. */
+  assert.match(source, /focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal\/40/);
+  /* The chevron animates, so it has to stop animating when asked to. */
+  assert.match(source, /motion-reduce:transition-none/);
 });
