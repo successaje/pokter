@@ -193,6 +193,7 @@ export function compareRuns(sealed: readonly CheckResult[], fresh: readonly Chec
 
 /** The standing limitations of a replay, said in the artifact rather than in a footnote. */
 export const REPLAY_LIMITATIONS = [
+  'The hash identifies this run, not this job. `checkedAt` is inside it and a run is recomputed on each request, so two copies fetched a moment apart hash differently without either being altered. Compare a copy against itself, not against a fresh fetch.',
   'The artifact hash shows these bytes are unaltered. It says nothing about whether the figures are correct.',
   'Every observed figure comes from an RPC endpoint. A replay against a different node can legitimately disagree, and that is reported as unresolved rather than as a pass.',
   'Historical state is required. Where the node no longer serves the named block, checks are not verified rather than re-read at the head.',
