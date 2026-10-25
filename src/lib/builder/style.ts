@@ -68,7 +68,9 @@ export const BUILD_STYLES: ReadonlyArray<{
  */
 export const RECOMMEND_AND_BUILD_BRIEF = [
   'Do not interview me before you start. If I have said what I want, build that. If I have not, propose a few concepts, recommend one, and say why.',
-  'If I say "choose for me", or reply without picking one, take your own recommendation and get on with it. Do not wait on a name.',
+  'Start when I pick one, or when I say "choose for me". Those are the only two starts. A reply that is neither — a question, a remark, a half-answer — is not approval: answer it and ask again.',
+  'Once I have chosen, build it. Do not come back for the routine decisions; they are yours.',
+  'Do not wait on a name. Pick a working one, say it is provisional, and carry on.',
   'Decide the routine engineering yourself — language, layout, tests, libraries — and tell me in one line what you chose. Ask me only for a wallet signature, for money I have not already agreed to spend, or for a security trade-off. Never ask me for a private key or a recovery phrase.',
 ].join('\n');
 

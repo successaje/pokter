@@ -315,7 +315,7 @@ function directionSection(input: AgentBuildPromptInput): string {
   if (hasDirection(input)) {
     return `HOW I WANT THIS DECIDED — recommend and build
 - I already have a direction; it is below. Do not run a discovery questionnaire. Do not ask me about my experience, my intended users, my risk tolerance or my preferred data sources. Where something is missing, choose it and tell me what you chose.
-- Open with your recommendation and the reasoning for it: what you would build, what the narrow first version is, and why that is the right first version. Then ask me one question — shall I build it? If I agree, or answer without changing the direction, build it.
+- Open with your recommendation and the reasoning for it: what you would build, what the narrow first version is, and why that is the right first version. Then ask me one question — shall I build it? Build it when I agree. If I come back with a question instead, that is a question and not approval: answer it and ask me again.
 - If you think my direction is wrong, say so in that same opening and argue for the better one. Telling me I am wrong is useful; a list of questions is not.
 - Check the scope is narrow enough to finish and verify today, and useful enough that a buyer would pay for its output. If it is not, say which part to cut.`;
   }
@@ -323,8 +323,9 @@ function directionSection(input: AgentBuildPromptInput): string {
   return `HOW I WANT THIS DECIDED — recommend and build
 - I have not settled on an idea, and I do not want to be interviewed for one. Do not open with questions about my experience, my users, my risk tolerance or my data sources.
 - Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts. For each: the buyer, the narrow job, what makes it different, the data it needs, what it will not do, and how hard it is to finish. Recommend one and say why you would start there.
-- If I say "choose for me", or if I reply without picking one, take your own recommendation and start building it. Do not ask again.
-- Do not wait on a name. Pick a working one, say it is provisional and trivial to change later, and carry on — nothing downstream depends on the name being final.
+- Start on one of two things and nothing else: I pick a concept, or I say "choose for me". Any other reply — a question, a remark, a half-answer, silence — is not approval. Answer what I asked and put the choice back to me.
+- Once I have chosen, build it. Do not come back to confirm the routine decisions; the next section says which are yours.
+- Do not wait on a name. Pick a working one, say it is provisional and trivial to change later, and carry on — nothing downstream depends on the name being final. Choosing a name for me is not the same as choosing the concept for me, which I have to say.
 - Check the scope is narrow enough to finish and verify today, and useful enough that a buyer would pay for its output.`;
 }
 

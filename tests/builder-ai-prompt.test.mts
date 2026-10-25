@@ -518,7 +518,15 @@ test('with no idea it proposes options, recommends one, and takes "choose for me
   const prompt = createAgentBuildPrompt({ ...BASE });
   assert.match(prompt, new RegExp(`Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts`));
   assert.match(prompt, /Recommend one and say why you would start there/);
-  assert.match(prompt, /If I say "choose for me", or if I reply without picking one, take your own recommendation and start building it/);
+  /*
+   * Was: start "if I reply without picking one". A clarifying question is
+   * a reply, so that read a question as a yes — and the style panel has
+   * always promised the opposite, in the same words, two screens away:
+   * "Changes nothing until you choose. Saying nothing is not agreement."
+   */
+  assert.doesNotMatch(prompt, /reply without picking one/);
+  assert.match(prompt, /Start on one of two things and nothing else: I pick a concept, or I say "choose for me"/);
+  assert.match(prompt, /is not approval/);
   assert.doesNotMatch(prompt, /Begin by asking about my experience/);
   /* The brief's own fallbacks have to agree with the section above it. The
      direction line used to read "Not defined—discover it with me", which
@@ -744,4 +752,66 @@ test('it says to sanitise the criteria before hashing them', () => {
   assert.doesNotMatch(prompt, /echo the array back unchanged inside the terms you sign/);
   assert.match(prompt, /Apply the kit's character substitutions to each criterion \*\*before hashing\*\*/);
   assert.match(prompt, /refused as terms-mismatch for a signature that was perfectly correct/);
+});
+
+/*
+ * Consent, stated the same way everywhere it is stated.
+ *
+ * Three surfaces said a build could begin on a reply that picked nothing:
+ * the long prompt's two branches and the short brief the MCP section
+ * carries. The style panel said the opposite in the same product — and a
+ * fresh session given the text proved the risk rather than describing it,
+ * signing off with "say go (or nothing in particular) and I'll start".
+ *
+ * The cost is asymmetric. Waiting one extra turn for a yes is a small
+ * delay; building on a misread question spends the builder's time on an
+ * agent they did not choose, and they find out after it exists.
+ */
+test('nothing starts a build except a choice or an explicit go', () => {
+  const noIdea = createAgentBuildPrompt({ ...BASE });
+  const withIdea = createAgentBuildPrompt({ ...BASE, description: 'Reports a Venus position read-only.' });
+
+  for (const [label, prompt] of [['no idea', noIdea], ['a direction', withIdea]] as const) {
+    assert.doesNotMatch(prompt, /reply without picking one/, label);
+    assert.doesNotMatch(prompt, /answer without changing the direction/, label);
+  }
+
+  /* With nothing chosen: two starts, named, and everything else refused. */
+  assert.match(noIdea, /I pick a concept, or I say "choose for me"/);
+  assert.match(noIdea, /a question, a remark, a half-answer, silence — is not approval/);
+  assert.match(noIdea, /Answer what I asked and put the choice back to me/);
+
+  /* With a direction: a question back is a question, not a yes. */
+  assert.match(withIdea, /Build it when I agree/);
+  assert.match(withIdea, /that is a question and not approval: answer it and ask me again/);
+
+  /* And the short form the MCP route carries says the same. */
+  assert.doesNotMatch(RECOMMEND_AND_BUILD_BRIEF, /reply without picking one/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Those are the only two starts/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /is not approval/);
+});
+
+/*
+ * The other half of the instruction: once chosen, get on with it. Needing
+ * a yes to start must not become needing a yes for every decision after
+ * it, which would be the questionnaire again by a different route.
+ */
+test('a choice buys the whole build, not one step of it', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /Once I have chosen, build it\. Do not come back to confirm the routine decisions/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not come back for the routine decisions; they are yours/);
+  /* The four that still come back are unchanged. */
+  assert.match(prompt, /Anything needing my wallet to sign/);
+});
+
+/*
+ * A name is still not a gate. "Pick the name yourself" and "wait for me to
+ * pick the concept" are easy to collapse into each other, and collapsing
+ * them either way loses one of the two instructions.
+ */
+test('choosing a name is still the assistant’s, and is not choosing the concept', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /Do not wait on a name/);
+  assert.match(prompt, /Choosing a name for me is not the same as choosing the concept for me, which I have to say/);
+  assert.match(RECOMMEND_AND_BUILD_BRIEF, /Do not wait on a name/);
 });
