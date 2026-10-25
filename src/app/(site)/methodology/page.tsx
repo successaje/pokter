@@ -7,6 +7,7 @@ import { supplyCensus } from '@/lib/census/supply';
 import { FAILING_MAX_SCORE, PROVEN_MIN_MEASURERS, PROVEN_MIN_PROBES, PROVEN_MIN_SCORE, PROVEN_MIN_WINDOW_DAYS, VERDICT_LABEL, VERDICT_MEANING, type Verdict } from '@/lib/proof/engine';
 import { DIMENSION_LABELS, DIMENSION_WEIGHTS, SCORE_VERSION } from '@/lib/score/types';
 import { Doc, DocSection } from '@/features/content/Doc';
+import { LEADERBOARD_METHOD } from '@/lib/leaderboard/method';
 import { MAINNET_ESCROW } from '@/lib/network/presentation';
 import { teamWalletList } from '@/lib/team/server';
 import { VerdictGlyph } from '@/ui/Verdict';
@@ -39,6 +40,7 @@ export default async function MethodologyPage() {
         { id: 'states', label: 'The six evidence states' },
         { id: 'maturity', label: 'The evidence ladder' },
         { id: 'outcome-rankings', label: 'Outcome rankings' },
+        { id: 'leaderboard', label: 'How the leaderboard ranks' },
         { id: 'probes', label: 'Probing' },
         { id: 'category-checks', label: 'Category checks' },
         { id: 'health-factor-check', label: 'Health factor check' },
@@ -150,6 +152,27 @@ export default async function MethodologyPage() {
         <p>
           The default population is outside-team funding. That means the wallet is absent from Pokter&rsquo;s declared team set; it does not prove independence, lack of subsidy or lack of coordination. The separate all-activity view includes team and legacy work and labels that population directly. One operator can occupy only one position per category.
         </p>
+      </DocSection>
+
+      {/*
+        The board's own rule, in full, where the board links to it.
+        Rendered from `LEADERBOARD_METHOD` rather than written again here,
+        because a leaderboard and a methodology that describe the same rule
+        in two places is how they come to describe it two ways.
+      */}
+      <DocSection id="leaderboard" title="How the leaderboard ranks">
+        <p>
+          The leaderboard shows the figures and the sample behind each one. The rules they are produced by are here,
+          so the board can lead with its rows.
+        </p>
+        {LEADERBOARD_METHOD.map((note) => (
+          <div key={note.heading} className="flex flex-col gap-2">
+            <h3 className="t-h3 mt-2 text-ink">{note.heading}</h3>
+            {note.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+        ))}
       </DocSection>
 
       <DocSection id="probes" title="Probing">

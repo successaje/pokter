@@ -32,6 +32,7 @@ import {
   type OutcomeRow,
 } from '../src/lib/leaderboard/outcomes';
 import { OUTCOMES_PERIOD, periodOf, RESPONSIVENESS_PERIOD } from '../src/lib/leaderboard/period';
+import { LEADERBOARD_METHOD, LEADERBOARD_METHOD_HREF } from '../src/lib/leaderboard/method';
 import { RESPONSIVENESS_WINDOW_DAYS } from '../src/lib/leaderboard/responsiveness';
 
 const page = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -498,20 +499,6 @@ test('the responsiveness board names the window its figures are taken from', () 
   assert.match(RESPONSIVENESS_PERIOD.note, new RegExp(`${RESPONSIVENESS_WINDOW_DAYS} days`));
 });
 
-/*
- * The design study this redesign was drawn from put a "Last 30 days"
- * selector above Customer outcomes. There is no such window: the board is
- * every job the index holds for the escrow chain. A control is a claim that
- * the page filters by it, and this page does not.
- */
-test('no period control is offered where no period can be applied', () => {
-  const source = copy(BOARD);
-  assert.doesNotMatch(source, /name="period"/, 'a period form field would be a filter the board cannot apply');
-  assert.doesNotMatch(source, /Last 30 days<\/option>/);
-  /* The outcomes board prints its period as a fact beside the controls. */
-  assert.match(source, /periodOf\('outcomes'\)\.note/);
-  assert.match(source, /<PeriodFact view=\{view\} \/>/);
-});
 
 /*
  * The responsiveness probe span is a measurement of how long Pokter has been
@@ -529,98 +516,79 @@ test('the probe span appears on responsiveness and nowhere near the outcomes evi
   assert.doesNotMatch(outcomes, /observedDays|Observed \d|Observed \{/);
 });
 
-/* ------------------------------------------------------------------ *
- * What the redesign is not allowed to have dropped.
- * ------------------------------------------------------------------ */
 
-test('every honesty surface the board carried is still on the page', () => {
-  const source = copy(BOARD);
+
+
+
+
+/*
+ * The board leads with its rows, and the rules moved to the methodology
+ * page it links to.
+ *
+ * These guards moved with the text rather than being deleted with it. A
+ * disclosure that is no longer asserted anywhere is a disclosure on its
+ * way out, and the whole reason the previous version of this test existed
+ * was that the page had once quietly lost one.
+ */
+test('every rule the board used to print is published on the methodology page', () => {
+  const method = JSON.stringify(LEADERBOARD_METHOD);
   for (const [name, pattern] of [
-    ['the coverage strip', /Indexed jobs on this escrow/],
-    ['the qualifying count', /Qualifying settled jobs/],
-    ['the agents read', /Listed agents read/],
-    ['the refresh time', /Index last refreshed/],
-    ['the agreed empty sentence', /NO_QUALIFYING_SETTLEMENTS/],
-    ['the unavailable state', /outcomes\.reason/],
-    ['the responsiveness unavailable state', /responsiveness\.reason/],
-    ['the board-level Pokter-owed line', /a Pokter wallet as provider and[\s\S]{0,120}never delivered/],
-    ['its receipts', /label="Pokter-owed receipts"/],
-    ['the consistency note', /CONSISTENT_STANDINGS/],
-    ['what the answer rate is not', /ANSWER_RATE_DOES_NOT_MEAN/],
-    ['the span note', /observedSpanHeadline\(responsiveness\.data\.coverage\)/],
-    ['the rest of the span note', /observedSpanDetail\(responsiveness\.data\.coverage\)/],
-    ['the below-minimum list', /too few checks to rank/],
-    ['the exclusion account', /Excluded from every figure above/],
+    ['no overall score', /There is no overall score/],
+    ['the exclusions', /Excluded from every figure/],
+    ['what a settled job does not prove', /does not prove the answer was correct/],
+    ['what the answer rate is not', /not answer quality/],
+    ['the ranking threshold', /at least \d+ checks inside the window to be ranked/],
+    ['the span limit', /do not all hold the same part/],
+    ['the handshake is not a task', /A handshake is not a task/],
+    ['the refusals', /not a claim about what has happened on BNB Chain/],
+    ['team set is not independence', /not the same as independent/],
+    ['builders are not ranked', /Builders are deliberately not ranked/],
+    ['never a nought for an answer it does not have', /never prints a nought in place of an answer/],
+    ['where the standings come from', /one mounted volume|carry its own index/],
   ] as ReadonlyArray<[string, RegExp]>) {
-    assert.match(source, pattern, `${name} must survive the layout`);
+    assert.match(method, pattern, `${name} is no longer published anywhere`);
   }
 });
 
-test('the page still refuses to combine its metrics into one figure', () => {
+test('the methodology page renders that rule, and the board links to it', () => {
+  const methodology = copy('src/app/(site)/methodology/page.tsx');
+  assert.match(methodology, /id="leaderboard"/, 'the section the board links to does not exist');
+  assert.match(methodology, /LEADERBOARD_METHOD\.map/, 'the page writes the rule out again instead of rendering it');
+
+  const board = copy(BOARD);
+  assert.match(board, /LEADERBOARD_METHOD_HREF/);
+  assert.equal(LEADERBOARD_METHOD_HREF, '/methodology#leaderboard');
+  /* Twice in the render — once by the figures, once under them — so a
+     reader who scrolls past the first still meets the second. */
+  assert.equal((board.match(/href=\{LEADERBOARD_METHOD_HREF\}/g) ?? []).length, 2);
+});
+
+/*
+ * What a figure would be misread without stays on the board. Everything
+ * else is a link away. The test is the line between those two.
+ */
+test('the board still carries what its figures cannot be read without', () => {
   const source = copy(BOARD);
-  assert.match(source, /There is no overall score/);
+  for (const [name, pattern] of [
+    ['the agreed empty sentence', /NO_QUALIFYING_SETTLEMENTS/],
+    ['the unavailable state', /outcomes\.reason/],
+    ['the responsiveness unavailable state', /responsiveness\.reason/],
+    ['the window', /periodOf\(view\)\.value/],
+    ['the ranking threshold', /At least \$\{MIN_RESPONSIVENESS_CHECKS\} checks/],
+    ['how much was read', /agents read/],
+    ['how fresh it is', /updated \$\{timestamp\(lastRead\)\}/],
+    ['the outcomes sample it was drawn from', /indexed, \$\{formatCount\(outcomes\.data\.coverage\.qualifyingJobs\)\} qualifying/],
+    ['what the rate is not', /ANSWER_RATE_DOES_NOT_MEAN/],
+    ['the per-row sample', /formatObservedSpan\(row\.observedDays\)/],
+    ['the below-minimum list', /too few checks to rank/],
+  ] as ReadonlyArray<[string, RegExp]>) {
+    assert.match(source, pattern, `${name} must stay on the board`);
+  }
+});
+
+test('the board still combines nothing into one figure', () => {
+  const source = copy(BOARD);
   assert.doesNotMatch(source, /overall score:|composite|combined rank/i);
-});
-
-/*
- * The board comes first.
- *
- * The page opened with a lede, a side card, a standings notice and three
- * paragraphs of definition before a reader reached a row — 341 words on
- * the live page, against 123 after this. Everything that was there is
- * still on the page; it sits under the table it qualifies rather than in
- * front of it, which is why the honesty-surface test above is written
- * against presence and not position.
- *
- * What stays above the table is what would otherwise be misread: a
- * correction printed below the number it corrects arrives after the
- * reader has taken the number at face value.
- */
-test('what is above the table is only what the figures would be misread without', () => {
-  const source = copy(BOARD);
-
-  /* The answer rate's correction keeps its place in the header block. */
-  const header = source.slice(
-    source.indexOf('responsiveness-title'),
-    source.indexOf("responsiveness.state === 'unavailable'"),
-  );
-  assert.match(header, /ANSWER_RATE_DOES_NOT_MEAN/, 'what the rate is not moved below the table');
-  assert.doesNotMatch(header, /ANSWER_RATE_MEANS/, 'the long definition is still above the table');
-
-  /* The metric definition moved under the table; the column name did not. */
-  const outcomesHead = source.slice(source.indexOf('outcomes-title'), source.indexOf("outcomes.state === 'unavailable'"));
-  assert.match(outcomesHead, /activeMetric\.column/);
-  assert.doesNotMatch(outcomesHead, /activeMetric\.definition/, 'the definition is still above the table');
-
-  /* Both boards fold their explanation into one place under the rows. */
-  assert.match(source, /summary="How these figures are counted, and what they exclude"/);
-  assert.match(source, /summary="How this rate is measured, and what it does not cover"/);
-});
-
-/*
- * A reassurance and a warning are not the same disclosure. "The same
- * standings for every visitor" tells a reader nothing is wrong and cost
- * them a screen to learn it; its opposite is a limit that would mislead
- * them, and that one keeps the position above the table.
- */
-test('the standings notice is shown when it is a warning and folded when it is not', () => {
-  const source = copy(BOARD);
-  assert.match(source, /\{!SERVES_FROM_ONE_INSTANCE && \(/, 'the notice is still printed unconditionally');
-  assert.match(source, /tone="watch" title="Standings may differ between visitors"/);
-  /* And the reassurance is still on the page, under both boards. */
-  assert.equal((source.match(/\{CONSISTENT_STANDINGS\}/g) ?? []).length, 2);
-});
-
-/*
- * The header count is the agents the board read, not the rows it kept.
- * The row count on the mainnet outcomes board is nought while 176 agents
- * were read, and "0 agents on BNB Chain" meeting a reader first reads as
- * a claim about the marketplace — which is the family of sentence this
- * page exists to avoid.
- */
-test('the header counts what was read, and says nothing when the read failed', () => {
-  const source = copy(BOARD);
-  assert.match(source, /coverage\.listedAgents/, 'the header no longer counts what the board read');
-  assert.doesNotMatch(source, /formatCount\(boardAgents\.length\)\} agent/, 'the header counts rows again');
-  assert.match(source, /agentsRead !== null && \(/, 'a failed read would print a nought');
+  /* And no period control, because no period can be applied. */
+  assert.doesNotMatch(source, /name="period"/);
 });
