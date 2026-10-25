@@ -113,7 +113,14 @@ export default async function JobProofRunPage({
     },
   });
 
-  const spec = scenarioSpec();
+  /*
+   * The scenario spec carries `pokter-asserted` deliberately — a scenario
+   * has no agent behind it. A real job may: the binding comes from the
+   * agreement recorded when this job was quoted, checked against the job
+   * the escrow actually holds, and is still `pokter-asserted` unless every
+   * piece of that evidence lines up.
+   */
+  const spec = { ...scenarioSpec(), binding: report.binding };
   const run = proofRun({
     job: { chainId, jobId },
     account: report.subject.account,

@@ -13,6 +13,7 @@ import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
 import { hireCriteria } from '@/lib/proofrun/hire-criteria';
+import { specHashFromCriteria } from '@/lib/proofrun/acceptance';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
@@ -338,6 +339,49 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   } catch {
     /* A record that cannot be written costs recovery, not the quote. */
+  }
+
+  /*
+   * And what the agent agreed to, keyed by the same hash the escrow will
+   * hold. The binding below is returned to this caller and then gone; a
+   * receipt is written days later, from the chain, with the signature and
+   * the terms long out of reach. Without this row the receipt page had
+   * nothing to read and fell back to the scenario default, so a job whose
+   * agent had signed still published `pokter-asserted`.
+   *
+   * Written whenever criteria were sent, including when the agent did not
+   * echo them: "asked and declined" is a different fact from "never
+   * asked", and only the row can tell them apart afterwards.
+   */
+  /*
+   * The spec the criteria name, read from the criteria themselves so a
+   * caller's own set is recorded by the same rule as a composed one.
+   */
+  const specHashSent = specHashFromCriteria(successCriteria);
+  if (successCriteria && specHashSent) {
+    try {
+      getJobStore().recordCriteriaAgreement({
+        negotiationHash: quote.negotiationHash,
+        specHash: specHashSent,
+        sentCriteria: successCriteria,
+        signedCriteria: quote.signedCriteria,
+        /*
+         * Always true for a quote that exists: `requestQuote` refuses a
+         * quote whose signature does not cover its terms, as
+         * `terms-mismatch`, before it is ever returned. Recorded as a
+         * field rather than assumed at read time because `bindingFor`
+         * takes it, and a row that silently meant "probably" would be the
+         * wrong kind of convenient.
+         */
+        termsBound: true,
+        task,
+        provider: agent.agent_wallet ?? quote.signer,
+        escrowChainId,
+        quotedAt: new Date().toISOString(),
+      });
+    } catch {
+      /* Same rule: a row that cannot be written costs the binding, not the hire. */
+    }
   }
 
   noted('quoted', { escrowChainId });

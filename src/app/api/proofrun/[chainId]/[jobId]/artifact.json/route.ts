@@ -7,6 +7,7 @@ import { readVenusFactsAt } from '@/lib/delivery/venus-facts';
 import { checkDeliveredVenusReport } from '@/lib/delivery/venus-report-check';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
 import { jobChainParam } from '@/lib/jobs/href';
+import { venusAcceptanceSpec } from '@/lib/proofrun/acceptance';
 import { proofRun } from '@/lib/proofrun/run';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -108,6 +109,13 @@ export async function GET(
       /* A real job for a real buyer. Fixtures say `fixture`, and nothing
          downstream has to infer which it was looking at. */
       provenance: 'customer',
+      /*
+       * The same spec the page checks against, carrying the same binding
+       * from the same loader. The artifact exists so somebody can stop
+       * trusting Pokter, which it cannot do if it and the page can
+       * disagree about whether the agent agreed to anything.
+       */
+      spec: { ...venusAcceptanceSpec({ deployment: VENUS_COMPTROLLER, chainId: report.subject.chainId }), binding: report.binding },
     });
 
     return NextResponse.json(run.sealed, {

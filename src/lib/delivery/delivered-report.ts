@@ -11,7 +11,12 @@ import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
 import { historyClient } from '@/lib/erc8183/history-client';
 import { decodePokterJobEnvelope, jobTaskFromDescription } from '@/lib/erc8183/job-envelope';
 import { getJobStore } from '@/lib/erc8183/store';
-import { venusHealthJob, venusSubjectFromBrief, type VenusHealthSubject } from './venus-report-check';
+import { VENUS_COMPTROLLER } from '@/lib/assay/venus';
+import { venusAcceptanceSpec } from '@/lib/proofrun/acceptance';
+import { agreementVerdict, negotiationHashOnChain, type AgreementRefusal } from '@/lib/proofrun/agreement';
+import type { AcceptanceSpec } from '@/lib/shared/contracts';
+
+import { VENUS_CHAIN_ID, venusHealthJob, venusSubjectFromBrief, type VenusHealthSubject } from './venus-report-check';
 
 /**
  * Everything a check needs about one delivered job, fetched once.
@@ -53,6 +58,20 @@ export interface DeliveredReport {
   committed: string | null;
   statusName: string;
   submittedAt: bigint | number | null;
+  /**
+   * Whether the agent signed the acceptance criteria for *this* job.
+   *
+   * Decided here rather than by each caller, for the reason this module
+   * exists: the receipt page and the downloadable artifact must say the
+   * same thing about the same delivery, and two places deciding it
+   * separately is how they come to disagree invisibly.
+   *
+   * `pokter-asserted` unless every piece of evidence lines up — see
+   * `agreementVerdict`.
+   */
+  binding: AcceptanceSpec['binding'];
+  /** Null when an agreement was applied; otherwise what stopped it. */
+  agreementRefusal: AgreementRefusal | null;
 }
 
 export type DeliveredReportResult =
@@ -151,6 +170,23 @@ export async function loadDeliveredVenusReport(input: {
     }
   }
 
+  /*
+   * The agreement, found by the one value that is also on chain.
+   *
+   * The job's own description carries the negotiation hash, and the row
+   * was keyed by it at quote time, so a stored agreement cannot drift onto
+   * a job it was not quoted for. Everything else about the job is then
+   * checked against the row rather than assumed to match.
+   */
+  const negotiationHash = negotiationHashOnChain(job.description);
+  const verdict = agreementVerdict({
+    agreement: negotiationHash ? getJobStore().criteriaAgreement(negotiationHash) : null,
+    job: { negotiationHash, provider: job.provider, escrowChainId: input.chainId, task: brief },
+    /* The same spec both callers will check against: Venus Core Pool on
+       the chain the subject is pinned to, which is always mainnet. */
+    spec: venusAcceptanceSpec({ deployment: VENUS_COMPTROLLER, chainId: VENUS_CHAIN_ID }),
+  });
+
   return {
     ok: true,
     report: {
@@ -163,6 +199,8 @@ export async function loadDeliveredVenusReport(input: {
       committed: /^0x0{64}$/.test(job.deliverable) ? null : job.deliverable,
       statusName: job.statusName,
       submittedAt: job.submittedAt ?? null,
+      binding: verdict.binding,
+      agreementRefusal: verdict.refusal,
     },
   };
 }
