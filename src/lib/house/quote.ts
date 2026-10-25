@@ -10,7 +10,7 @@ export interface HouseSignedQuote {
   request: { task_description: string };
   response: {
     accepted: true;
-    terms: { price: string; currency: string; deliverables: string; quality_standards: string };
+    terms: { price: string; currency: string; deliverables: string; quality_standards: string; success_criteria?: string[] };
   };
   negotiated_at: number;
   quote_expires_at: number;
@@ -38,21 +38,48 @@ export async function signHouseQuote(input: {
   task: string;
   deliverables?: string;
   qualityStandards?: string;
+  /**
+   * The acceptance criteria the buyer asked this quote to be bound to.
+   *
+   * Echoed into the signed terms, which is what turns them from something
+   * Pokter recorded into something the agent agreed to: `negotiationContent`
+   * hashes `terms.success_criteria`, so a signature over the negotiation
+   * hash covers them. ProofRun reads that back through `bindingFor` and
+   * reports `signed-terms` instead of `pokter-asserted`.
+   *
+   * Absent is the ordinary case and costs only the binding — it must never
+   * become a requirement that breaks an agent which does not send them.
+   */
+  successCriteria?: readonly string[];
   now?: number;
 }): Promise<HouseSignedQuote> {
   const negotiatedAt = Math.floor((input.now ?? Date.now()) / 1000);
+  const criteria = (input.successCriteria ?? []).map(sanitizeForClaim);
   const expiresAt = negotiatedAt + QUOTE_TTL_SECONDS;
   const terms = {
     price: parseUnits(String(input.definition.priceU), 18).toString(),
     currency: input.paymentToken,
     deliverables: sanitizeForClaim(input.deliverables ?? input.definition.deliverables),
     quality_standards: sanitizeForClaim(input.qualityStandards ?? input.definition.qualityStandards),
+    /*
+     * Sanitised per element, exactly as `negotiationContent` does before
+     * hashing. A criterion carrying a bracket would otherwise hash here one
+     * way and there another, and the quote would be refused as
+     * terms-mismatch for a signature that was perfectly correct.
+     */
+    ...(criteria.length > 0 ? { success_criteria: criteria } : {}),
   };
   const content = {
     version: 1,
     negotiated_at: negotiatedAt,
     task: sanitizeForClaim(input.task),
-    terms: { deliverables: terms.deliverables, quality_standards: terms.quality_standards },
+    terms: {
+      deliverables: terms.deliverables,
+      quality_standards: terms.quality_standards,
+      /* Present in the hash only when sent, matching `negotiationContent`:
+         an empty array there is absent, not an empty list. */
+      ...(criteria.length > 0 ? { success_criteria: criteria } : {}),
+    },
     price: terms.price,
     currency: terms.currency,
     quote_expires_at: expiresAt,
