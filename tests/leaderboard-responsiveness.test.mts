@@ -580,7 +580,10 @@ test('a span near the window floor never claims the whole window', () => {
   assert.equal(spanDecimal(29.9705), '29.9', 'the live maximum printed as 30.0 before this');
   assert.equal(spanDecimal(29.95), '29.9', 'the rounding boundary itself');
   assert.equal(spanDecimal(29.99999), '29.9');
-  assert.equal(formatObservedSpan(29.9705), 'over 29.9 of 30 days');
+  /* Dropped the leading "over": the three words wrapped the column onto a
+     third line and the span stopped reading as one statement. The claim
+     it had to avoid making is unchanged and still asserted below. */
+  assert.equal(formatObservedSpan(29.9705), '29.9 of 30 days');
 
   assert.doesNotMatch(
     formatObservedSpan(29.9705),

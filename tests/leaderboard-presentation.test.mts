@@ -616,7 +616,10 @@ test('all three boards use one row height, and none of them is a wide table', ()
      row height is the same on all three: 56px on a phone, 60px on a
      desktop, inside the 56-64 the design asks for. */
   assert.match(source, /const SCORE_GRID =/);
-  assert.equal((source.match(/min-h-\[56px\][^"]*sm:min-h-\[60px\]/g) ?? []).length, 3);
+  /* 72px on a phone, 84px on a desktop, the same on all three. The
+     earlier 56/60 was inside the brief's range and still read as a
+     spreadsheet; a leaderboard row is a thing you look at, not a cell. */
+  assert.equal((source.match(/min-h-\[72px\][^']*sm:min-h-\[84px\]/g) ?? []).length, 3);
   /* And the desktop table with its separate mobile card list is gone. */
   assert.doesNotMatch(source, /min-w-\[960px\]|function OutcomeCards|function OutcomeTable/);
 });
@@ -624,8 +627,9 @@ test('all three boards use one row height, and none of them is a wide table', ()
 test('the column is centred and bounded, and the title is not a hero', () => {
   const source = copy(BOARD);
   assert.match(source, /mx-auto w-full max-w-\[1060px\] px-4 pb-20 pt-6 sm:px-6 sm:pt-8/);
-  /* 26px on a phone, 34px on a desktop. `t-display` was ~60px. */
-  assert.match(source, /text-\[26px\] font-semibold tracking-\[-0\.02em\] sm:text-\[34px\]/);
+  /* 32px on a phone, 42px on a desktop: a title, not a hero, and not the
+     cramped heading the first pass shrank it to either. */
+  assert.match(source, /text-\[32px\] font-semibold tracking-\[-0\.025em\] sm:text-\[42px\]/);
   assert.doesNotMatch(source, /t-display|t-lede/);
 });
 

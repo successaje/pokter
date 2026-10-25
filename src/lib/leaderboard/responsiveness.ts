@@ -162,7 +162,9 @@ export function spanDecimal(observedDays: number): string {
 }
 
 export function formatObservedSpan(observedDays: number): string {
-  return `over ${spanDecimal(observedDays)} of ${RESPONSIVENESS_WINDOW_DAYS} days`;
+  /* "over 22.4 of 30 days" wrapped to three lines in the column it sits
+     in. The same fact, in half the width, on one line. */
+  return `${spanDecimal(observedDays)} of ${RESPONSIVENESS_WINDOW_DAYS} days`;
 }
 
 /**

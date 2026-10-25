@@ -77,7 +77,10 @@ export const RESPONSIVENESS_PERIOD: BoardPeriod = {
  */
 export const SCORE_PERIOD: BoardPeriod = {
   label: 'Period',
-  value: `Checks from the last ${RESPONSIVENESS_WINDOW_DAYS} days · every indexed job`,
+  /* Two periods, four words. It read "Checks from the last 30 days ·
+     every indexed job", which with the threshold beside it made three
+     facts in a line that is supposed to carry two. */
+  value: `Last ${RESPONSIVENESS_WINDOW_DAYS} days · all jobs`,
   note:
     `The two halves of the score cover different periods and the board says so. Checks older than ` +
     `${RESPONSIVENESS_WINDOW_DAYS} days are outside the responsiveness component; the delivery component counts ` +

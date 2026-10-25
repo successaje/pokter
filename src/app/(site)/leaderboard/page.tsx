@@ -314,7 +314,7 @@ function EvidenceCell({ row, current }: { row: OutcomeRow; current: BoardSelecti
  * so a reader moving between the tabs is reading the same shape.
  */
 const BOARD_GRID =
-  'grid grid-cols-[1.75rem_minmax(0,1fr)_auto_1.25rem] items-center gap-x-3 gap-y-1 sm:grid-cols-[2rem_minmax(0,1fr)_7rem_7.5rem_1.75rem]';
+  'grid grid-cols-[1.5rem_minmax(0,1fr)_auto_1rem] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem_9.5rem_2rem]';
 
 /**
  * A read that failed, told apart from a board with nothing on it.
@@ -351,7 +351,7 @@ function BoardUnavailable({ reason, children, retryHref }: { reason: string; chi
  * So the name is the link and the row carries only what ranks it.
  */
 const SCORE_GRID =
-  'grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[2rem_minmax(0,1fr)_4.5rem_7.5rem_6.5rem]';
+  'grid grid-cols-[1.5rem_minmax(0,1fr)_auto_1rem] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_9rem_7.5rem]';
 
 const STRENGTH_LABEL: Record<EvidenceStrength, string> = {
   limited: 'Limited',
@@ -362,7 +362,7 @@ const STRENGTH_LABEL: Record<EvidenceStrength, string> = {
 function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
   return (
     <>
-      <div className={cn(SCORE_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+      <div className={cn(SCORE_GRID, 'hidden border-b border-rule px-3 pb-2.5 sm:grid')}>
         <span className="t-label">#</span>
         <span className="t-label">Agent</span>
         <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
@@ -373,31 +373,41 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
       </div>
       <ol className="divide-y divide-rule">
         {rows.map((row, index) => (
-          <li key={row.agent.key} className={cn(SCORE_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
-            <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+          <li
+            key={row.agent.key}
+            className={cn(
+              SCORE_GRID,
+              'min-h-[72px] px-3 py-3 transition-colors sm:min-h-[84px] sm:py-4',
+              /* The leader, and only the leader. A restrained wash is the
+                 one piece of emphasis on the page; applied to more than a
+                 single row it stops being emphasis and becomes stripes. */
+              index === 0 ? 'bg-signal-wash' : 'hover:bg-sunken/50',
+            )}
+          >
+            <span className="t-readout text-[13px] tabular-nums text-ink-3">
               {String(index + 1).padStart(2, '0')}
             </span>
             <span className="flex min-w-0 items-center gap-2.5">
-              <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+              <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={38} />
               <span className="min-w-0">
                 <Link
                   href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-                  className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+                  className="block truncate text-[15.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
                 >
                   {row.agent.name}
                 </Link>
                 {/* Where it is registered, because testnet and mainnet
                     evidence are counted alike and the reader decides what
                     that is worth. */}
-                <span className="block truncate text-[11.5px] text-ink-3">
+                <span className="mt-0.5 block truncate text-[13px] text-ink-3">
                   {chainLabel(row.agent.chainId)}
                 </span>
               </span>
             </span>
-            <span className="t-readout col-start-3 row-start-1 text-right text-[15px] font-medium tabular-nums">
+            <span className="t-readout col-start-3 row-start-1 text-right text-[17px] font-medium tabular-nums">
               {Math.round(row.score.overall ?? 0)}
             </span>
-            <span className="col-start-2 row-start-2 text-[12px] text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+            <span className="col-start-2 row-start-2 text-[13px] text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
               {STRENGTH_LABEL[row.score.evidence]}
             </span>
             {/*
@@ -405,7 +415,7 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
               the delivery itself. A job Pokter's courier carried is not
               counted, and nor is a self-hire.
             */}
-            <span className="t-readout col-start-3 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-5 sm:row-start-1 sm:text-right">
+            <span className="t-readout col-start-3 row-start-2 text-[13px] tabular-nums text-ink-3 sm:col-start-5 sm:row-start-1 sm:text-right">
               {formatCount(row.score.delivered)} of {formatCount(row.score.resolvedJobs)}
             </span>
           </li>
@@ -417,7 +427,7 @@ function ScoreTable({ rows }: { rows: readonly ScoreRow[] }) {
 
 function OutcomeHeader({ active }: { active: OutcomeMetricMeta }) {
   return (
-    <div className={cn(BOARD_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+    <div className={cn(BOARD_GRID, 'hidden border-b border-rule px-3 pb-2.5 sm:grid')}>
       <span className="t-label">#</span>
       <span className="t-label">Agent</span>
       <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
@@ -460,16 +470,22 @@ function OutcomeLine({
       which is where a reader who wants the evidence behind a figure is
       going anyway, and the board links to it by name.
     */
-    <li className={cn(BOARD_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
-      <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+    <li
+      className={cn(
+        BOARD_GRID,
+        'min-h-[72px] px-3 py-3 transition-colors sm:min-h-[84px] sm:py-4',
+        rank === 1 ? 'bg-signal-wash' : 'hover:bg-sunken/50',
+      )}
+    >
+      <span className="t-readout text-[13px] tabular-nums text-ink-3">
         {rank === null ? '—' : String(rank).padStart(2, '0')}
       </span>
       <span className="flex min-w-0 items-center gap-2.5">
-        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={38} />
         <span className="min-w-0">
           <Link
             href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-            className="block truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+            className="block truncate text-[15.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
           >
             {row.agent.name}
           </Link>
@@ -483,7 +499,7 @@ function OutcomeLine({
           */}
           <span
             className={cn(
-              'block truncate text-[11.5px]',
+              'mt-0.5 block truncate text-[13px]',
               hasWatch(rowDisclosures(row)) ? 'text-watch' : 'text-ink-3',
             )}
           >
@@ -492,10 +508,10 @@ function OutcomeLine({
           </span>
         </span>
       </span>
-      <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+      <span className="t-readout col-start-3 row-start-1 text-right text-[15px] font-medium tabular-nums">
         {formatCount(outcomeMetricValue(row, current.metric))}
       </span>
-      <span className="t-readout col-start-2 row-start-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
+      <span className="t-readout col-start-2 row-start-2 text-[13px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:text-right">
         {formatCount(row.externalBuyers)} buyer{row.externalBuyers === 1 ? '' : 's'}
       </span>
       <span className="col-start-3 row-start-2 justify-self-end sm:col-start-5 sm:row-start-1">
@@ -518,7 +534,7 @@ const RESPONSIVENESS_GRID = BOARD_GRID;
  */
 function ResponsivenessHeader() {
   return (
-    <div className={cn(RESPONSIVENESS_GRID, 'hidden border-b border-rule pb-2 sm:grid')}>
+    <div className={cn(RESPONSIVENESS_GRID, 'hidden border-b border-rule px-3 pb-2.5 sm:grid')}>
       <span className="t-label">#</span>
       <span className="t-label">Agent</span>
       <span className="t-label flex items-center justify-end gap-1 whitespace-nowrap text-right text-ink">
@@ -550,15 +566,24 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
       qualifies, where it is one glance rather than one press, and the
       protocol lives on the agent's page with the rest of what it declares.
     */
-    <li className={cn(RESPONSIVENESS_GRID, 'min-h-[56px] py-2.5 sm:min-h-[60px]')}>
-      <span className="t-readout text-[12.5px] tabular-nums text-ink-3">
+    <li
+      className={cn(
+        RESPONSIVENESS_GRID,
+        'min-h-[72px] px-3 py-3 transition-colors sm:min-h-[84px] sm:py-4',
+        /* The leader of this category, and nothing else. Unranked rows
+           never take it: the wash says "top of this order" and a row with
+           no rank is not in the order. */
+        rank === 1 ? 'bg-signal-wash' : 'hover:bg-sunken/50',
+      )}
+    >
+      <span className="t-readout text-[13px] tabular-nums text-ink-3">
         {rank === null ? '—' : String(rank).padStart(2, '0')}
       </span>
       <span className="flex min-w-0 items-center gap-2.5">
-        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={30} />
+        <AgentAvatar name={row.agent.name} imageUrl={row.agent.imageUrl} seed={row.agent.key} size={38} />
         <Link
           href={`/agents/${row.agent.chainId}/${row.agent.tokenId}`}
-          className="truncate text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+          className="truncate text-[15.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
         >
           {row.agent.name}
         </Link>
@@ -569,20 +594,25 @@ function ResponsivenessLine({ row, rank }: { row: ResponsivenessRow; rank: numbe
         headline figure said none had. Display only — the ordering and the
         tie-break read the unrounded rate.
       */}
-      <span className="t-readout col-start-3 row-start-1 text-right text-[14px] tabular-nums">
+      <span className="t-readout col-start-3 row-start-1 text-right text-[15px] font-medium tabular-nums">
         {row.ranked ? formatPercent(row.answerRate, { decimals: 1 }) : '—'}
       </span>
       {/*
         "0 of 0 checks" read as an agent that answered nothing, when the
         fact is that Pokter asked nothing of it inside the window.
       */}
-      <span className="t-readout col-start-2 row-start-2 flex flex-wrap gap-x-2 text-[12px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:flex-col sm:items-end sm:gap-0">
-        <span>
-          {row.checks === 0
-            ? 'No check in this window'
-            : `${formatCount(row.answered)} of ${formatCount(row.checks)}`}
+      {/*
+        Two short lines, neither of which wraps. "384 of 386 / over 22.4 of
+        30 days" wrapped to three ragged lines in a 9rem column and the
+        span stopped reading as one statement — the same defect the long
+        form had when it was a paragraph. A slash reads as a ratio and
+        costs four characters less than "of".
+      */}
+      <span className="t-readout col-start-2 row-start-2 flex flex-wrap items-baseline gap-x-2 whitespace-nowrap text-[13px] tabular-nums text-ink-3 sm:col-start-4 sm:row-start-1 sm:flex-col sm:items-end sm:gap-0">
+        <span className="text-ink-2">
+          {row.checks === 0 ? 'No checks' : `${formatCount(row.answered)} / ${formatCount(row.checks)}`}
         </span>
-        {row.checks > 0 && <span>{formatObservedSpan(row.observedDays)}</span>}
+        {row.checks > 0 && <span className="text-[12px]">{formatObservedSpan(row.observedDays)}</span>}
       </span>
     </li>
   );
@@ -742,21 +772,24 @@ export default async function LeaderboardPage({
       : responsiveness?.state === 'ready'
         ? responsiveness.data.coverage.lastCheckedAt
         : null;
-  const boardMeta = [
-    periodOf(view).value,
-    view === 'responsiveness' || view === 'score' ? `At least ${MIN_RESPONSIVENESS_CHECKS} checks` : null,
+  const boardMeta = [periodOf(view).value, view === 'outcomes' ? null : `At least ${MIN_RESPONSIVENESS_CHECKS} checks`]
+    .filter(Boolean)
+    .join(' · ');
+
+  /*
+   * The apparatus: how much was read, how much of it ranked, and when.
+   * Still published, under the table rather than over it — these are facts
+   * about the data, and a reader scanning a list does not need a counter
+   * in front of the list to scan it.
+   */
+  const boardCoverage = [
     view === 'score' && scoreBoard?.state === 'ready'
       ? `${formatCount(scoreBoard.data.coverage.ranked)} of ${formatCount(scoreBoard.data.coverage.listedAgents)} ranked`
       : null,
-    /* The sample the outcomes figures came out of. A count of nought
-       qualifying means something only beside the number of jobs it was
-       drawn from, and that pair is the board's whole coverage claim. */
     view === 'outcomes' && outcomes?.state === 'ready'
       ? `${formatCount(outcomes.data.coverage.indexedJobs)} indexed, ${formatCount(outcomes.data.coverage.qualifyingJobs)} qualifying`
       : null,
     agentsRead !== null ? `${formatCount(agentsRead)} agents read` : null,
-    /* Freshness stays on the board. A board with no time on it reads as
-       current whatever its age, and this one is refreshed by a sweep. */
     lastRead ? `updated ${timestamp(lastRead)}` : null,
   ]
     .filter(Boolean)
@@ -814,79 +847,86 @@ export default async function LeaderboardPage({
       a reader arriving at a leaderboard has arrived to read rows.
     */
     <div className="mx-auto w-full max-w-[1060px] px-4 pb-20 pt-6 sm:px-6 sm:pt-8">
-      <header className="flex flex-col gap-1.5">
-        <h1 className="text-[26px] font-semibold tracking-[-0.02em] sm:text-[34px]">Leaderboard</h1>
-        <p className="text-[14px] text-ink-2 sm:text-[15px]">Compare agents by observed results.</p>
+      {/*
+        Air, deliberately. Every pass before this one bought density: a
+        tighter title, a meta line carrying five facts, a sentence under
+        the controls explaining the category. All of it was true and all of
+        it made the page feel like a report. The rows are the page, so
+        everything above them is title, one line, one choice, and nothing
+        else — and the facts that lost their place moved under the table
+        rather than off it.
+      */}
+      <header className="flex flex-col gap-2">
+        <h1 className="text-[32px] font-semibold tracking-[-0.025em] sm:text-[42px]">Leaderboard</h1>
+        <p className="text-[15px] text-ink-2 sm:text-[17px]">Compare agents by observed results.</p>
       </header>
 
-      {/* The two boards, on their own row, as the first choice a reader makes. */}
-      {/*
-        The strip scrolls, the page does not. Three labels of this length
-        wrap to two lines each at 390px and the tabs stop reading as a row
-        of choices; a strip that slides sideways is the one place a little
-        horizontal movement is right, and it is contained here rather than
-        thrown onto the document.
-      */}
-      <nav aria-label="What is measured" className="no-scrollbar -mx-4 mt-5 overflow-x-auto border-b border-rule px-4 sm:mx-0 sm:px-0">
-        <ul className="flex min-w-max gap-5">
-          {(
-            [
-              { id: 'score', label: 'Pokter Score' },
-              { id: 'outcomes', label: 'Customer outcomes' },
-              { id: 'responsiveness', label: 'Responsiveness' },
-            ] as ReadonlyArray<{ id: BoardView; label: string }>
-          ).map((tab) => (
-            <li key={tab.id}>
-              <Link
-                href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
-                scroll={false}
-                aria-current={tab.id === view ? 'page' : undefined}
-                className={cn(
-                  'relative -mb-px flex h-10 items-center border-b-2 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40',
-                  tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
-                )}
-              >
-                {tab.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <div className="mt-9 flex flex-col gap-4 border-b border-rule sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+        <nav aria-label="What is measured" className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <ul className="flex min-w-max gap-7">
+            {(
+              [
+                { id: 'score', label: 'Pokter Score' },
+                { id: 'outcomes', label: 'Customer outcomes' },
+                { id: 'responsiveness', label: 'Responsiveness' },
+              ] as ReadonlyArray<{ id: BoardView; label: string }>
+            ).map((tab) => (
+              <li key={tab.id}>
+                <Link
+                  href={leaderboardHref({ ...current, view: tab.id }, { ...browse, page: 1 })}
+                  scroll={false}
+                  aria-current={tab.id === view ? 'page' : undefined}
+                  className={cn(
+                    'relative -mb-px flex h-11 items-center whitespace-nowrap border-b-2 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40',
+                    tab.id === view ? 'border-signal text-ink' : 'border-transparent text-ink-3 hover:text-ink',
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-      {/*
-        One toolbar, one height. Network, category and search were a
-        dropdown row, a label and a submit button at three different
-        baselines; on a phone they took a third of the screen before any
-        data. They wrap here rather than scroll, and search takes its own
-        row at the width where sharing one would squeeze both.
-      */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <LinkMenu<BoardNetwork>
-          label="Network"
-          value={network}
-          options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
-          href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
-        />
-        {categoryOptions.length > 1 && (
-          <LinkMenu<Classification | typeof ALL_CATEGORIES>
-            label="Category"
-            value={view === 'score' ? scoreCategory : browse.category}
-            options={categoryOptions}
-            href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
+        {/* Beside the tabs, not under them: one row of choices, not two. */}
+        <div className="flex flex-wrap items-center gap-2 pb-3 sm:pb-2.5">
+          <LinkMenu<BoardNetwork>
+            label="Network"
+            value={network}
+            options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
+            href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
           />
-        )}
-        <div className="w-full sm:ml-auto sm:w-auto">
-          <SearchField />
+          {categoryOptions.length > 1 && (
+            <LinkMenu<Classification | typeof ALL_CATEGORIES>
+              label="Category"
+              value={view === 'score' ? scoreCategory : browse.category}
+              options={categoryOptions}
+              href={(value) => leaderboardHref(current, { search: browse.search, category: value, page: 1 })}
+            />
+          )}
+          <div className="w-full sm:w-52">
+            <SearchField />
+          </div>
         </div>
       </div>
 
       {/*
-        The window the figures were taken in and how fresh they are, said
-        once and quietly. These are facts about the data, not headings:
-        printed large they competed with the rows, and a reader scanning a
-        leaderboard does not need a counter in bold.
+        Two facts, the two a figure here is misread without: the window it
+        was taken in and the sample an agent needs to be ranked at all.
+        This line used to carry five, which is a sentence pretending to be
+        a caption. How much was read and how fresh it is are facts about
+        the data rather than about any row, so they sit under the table
+        with the rest of the apparatus.
       */}
-      <p className="mt-3 border-b border-rule pb-3 text-[12px] text-ink-3">{boardMeta}</p>
+      <div className="mt-6 mb-7 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[13px] text-ink-3">
+        <p>{boardMeta}</p>
+        <Link
+          href={LEADERBOARD_METHOD_HREF}
+          className="inline-flex items-center gap-1 font-medium text-ink-2 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
+        >
+          How rankings work <Icon.ArrowUpRight size={12} />
+        </Link>
+      </div>
 
       {view === 'score' && scoreBoard && (
         <section aria-labelledby="score-title">
@@ -943,11 +983,10 @@ export default async function LeaderboardPage({
               }
               return (
                 <>
-                  <p className="pb-2 text-[12.5px] text-ink-3">
-                    Ranked within{' '}
-                    <span className="text-ink">{categoryLabel(chosen as Classification)}</span>. Agents are compared
-                    only against others in their own category.
-                  </p>
+                  {/* The control above says which category this is, and
+                      every row in the table is that category. A sentence
+                      repeating it was a sentence in the way. The rule it
+                      stated lives in the methodology. */}
                   <ScoreTable rows={page.rows} />
                   {page.pages > 1 && (
                     <div className="mt-4 flex justify-end">
@@ -1189,7 +1228,7 @@ export default async function LeaderboardPage({
         measures the answers, and a reader who takes the column at face
         value has already been misled by the time they click a link.
       */}
-      <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4 text-[12.5px] text-ink-3">
+      <footer className="mt-10 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-rule pt-5 text-[12.5px] text-ink-3">
         <p>
           {view === 'responsiveness'
             ? ANSWER_RATE_SHORT
@@ -1197,12 +1236,7 @@ export default async function LeaderboardPage({
               ? 'An operational record: work delivered and checks answered. Not a measure of whether an answer was correct or useful.'
               : 'Settled jobs, not a measure of whether the answer was useful.'}
         </p>
-        <Link
-          href={LEADERBOARD_METHOD_HREF}
-          className="font-medium text-ink-2 hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal/40"
-        >
-          How rankings work
-        </Link>
+        {boardCoverage && <p className="t-readout text-[12px]">{boardCoverage}</p>}
       </footer>
 
     </div>
