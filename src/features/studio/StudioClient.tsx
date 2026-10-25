@@ -8,7 +8,10 @@ import { getAddress } from 'viem';
 
 import { DRAFTS_KEY, announceDraftsChanged, draftProgress, draftTitle, draftsServerSnapshot, draftsSnapshot, subscribeToDrafts, type DraftRecord } from '@/lib/builder/drafts';
 import type { DiagnosticReport } from '@/lib/diagnostic/checks';
-import { builderReadinessSteps, nextBuilderAction, type BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
+import { builderReadinessMilestones, type BuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
+import { Readiness, ReadinessSkeleton } from './Readiness';
+import { WalletRoles } from './WalletRoles';
+import { CampaignGoal } from './CampaignGoal';
 import { summarizeQuality } from '@/lib/builder/quality';
 import { connectIdentityWallet, hasIdentityWallet, signIdentityMessage } from '@/lib/registry/wallet';
 import { useActiveWallet } from '@/lib/wallet/active';
@@ -339,8 +342,9 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
   }
 
   const quality = report ? summarizeQuality(report.checks) : null;
-  const steps = report?.lifecycle ? builderReadinessSteps(report.lifecycle) : [];
-  const next = report?.lifecycle ? nextBuilderAction(report.lifecycle) : null;
+  const milestones = report?.lifecycle
+    ? builderReadinessMilestones(report.lifecycle, { chainId: report.chainId, tokenId: report.tokenId })
+    : [];
 
   return (
     <div className="flex flex-col gap-8">
@@ -357,11 +361,15 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
         </Button>
       </form>
       {busy && (
-        <ol className="flex flex-col gap-1.5 text-[13px] text-ink-3" role="status">
-          <li>Reading the identity from the registry…</li>
-          <li>Fetching its agent card and probing the endpoint…</li>
-          <li>Asking for a signed quote…</li>
-        </ol>
+        <div className="flex flex-col gap-6">
+          <ol className="flex flex-col gap-1.5 text-[13px] text-ink-3" role="status">
+            <li>Reading the identity from the registry…</li>
+            <li>Fetching its agent card and probing the endpoint…</li>
+            <li>Asking for a signed quote…</li>
+            <li>Reading its funded jobs from escrow…</li>
+          </ol>
+          <ReadinessSkeleton />
+        </div>
       )}
       {error && <Notice tone="bad" title="The check did not run">{error}</Notice>}
 
@@ -404,31 +412,35 @@ export function ImportAgent({ initial }: { initial?: { chainId: '56' | '97'; tok
               </li>
             ))}
           </ul>
-          {steps.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="t-label">Path to first paid job</span>
-              <ol className="grid grid-cols-1 gap-2 sm:grid-cols-5">
-                {steps.map((s) => (
-                  <li key={s.id} className={cn('rounded-[10px] border p-3 text-[12.5px]', s.done ? 'border-ok/40 bg-ok-wash/50' : 'border-rule')}>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {s.done ? <Icon.Check size={13} className="text-ok" /> : <Icon.Dash size={13} className="text-ink-3" />}
-                      {s.label}
-                    </span>
-                    <span className="mt-1 block text-ink-3">{s.detail}</span>
-                  </li>
-                ))}
-              </ol>
-              {next && <p className="text-[13px] text-ink-2">Next: {next.action}</p>}
-            </div>
-          )}
+          {/*
+            Six milestones, replacing a five-up grid whose fourth cell was
+            labelled "Hireable" and lit up on a signed quote. A card that
+            responds and contains the word "negotiate" is not an agent
+            anybody has been paid by, and the two milestones that say so
+            are now their own and read from escrow.
+          */}
+          {milestones.length > 0 && <Readiness milestones={milestones} onRetest={() => void diagnose()} busy={busy} title="Readiness, six milestones" />}
+          <WalletRoles assignment={{ identityOwner: report.owner, agentWallet: report.agentWallet }} compact />
+          <CampaignGoal />
           <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
             <CopyButton value={diagnosticPacket(report, window.location.origin)} label="Copy this check as text" />
             <span>Copy this check as text, to share with whoever runs the agent. Keys and query strings are removed; nothing is sent.</span>
           </div>
-          {report.enrolled && <Notice tone="ok">Its endpoint passed, so Pokter has added it to the probe schedule.</Notice>}
+          {/*
+            What the roster gate actually is.
+
+            This said "Its endpoint passed", and the gate is the published
+            endpoint check — whether the registry names an address Pokter
+            could call — not whether anything answered. So an agent whose
+            liveness check had just failed with ENOTFOUND was told its
+            endpoint passed, two inches under the failure. Enrolling it is
+            still right: a schedule is how an endpoint that comes back up
+            gets noticed.
+          */}
+          {report.enrolled && <Notice tone="ok">It publishes an endpoint Pokter can call, so it is on the probe schedule. Being probed is not the same as answering: the milestones above say which it is.</Notice>}
           {report.enrollmentFailed && (
             <Notice tone="watch" action={<Button size="s" intent="secondary" onClick={() => void diagnose()} busy={busy}>Try again</Button>}>
-              Its endpoint passed, but Pokter could not save it to the probe schedule. The check above stands; running it again retries the save.
+              It publishes an endpoint, but Pokter could not save it to the probe schedule. The checks above stand; running them again retries the save.
             </Notice>
           )}
           <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">

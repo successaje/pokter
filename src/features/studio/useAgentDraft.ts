@@ -6,7 +6,8 @@ import { useAccount } from 'wagmi';
 
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
-import { DRAFTS_KEY, announceDraftsChanged, draftSaveStatus, draftsServerSnapshot, draftsSnapshot, failedSavesServerSnapshot, failedSavesSnapshot, isDraftEmpty, recordDraftSave, subscribeToDrafts, upsertDraft, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
+import { DEFAULT_PLAN, DRAFTS_KEY, announceDraftsChanged, draftSaveStatus, draftsServerSnapshot, draftsSnapshot, failedSavesServerSnapshot, failedSavesSnapshot, isDraftEmpty, readLastStyle, recordDraftSave, rememberStyle, subscribeToDrafts, upsertDraft, type BuildPlan, type BuildStyle, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
+import { applyConcept, type AgentConcept } from '@/lib/builder/concepts';
 import { selectTrialCapability } from '@/lib/builder/trial';
 import { passkeyRegistrySigner } from '@/lib/registry/passkey-signer';
 import { registerIdentityFromWallet, type RegistrationProgress, type RegistrationRecovery, type RegistryChainId } from '@/lib/registry/register';
@@ -156,6 +157,22 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
   });
   const [draft, setDraft] = useState<Draft>(() => ({ ...EMPTY_DRAFT, ...(initial?.draft ?? {}) }));
   const [step, setStep] = useState(initial?.step ?? 0);
+  /*
+   * How much of the deciding the builder wants done for them, saved with
+   * the draft rather than held in this render.
+   *
+   * Switching style must not cost anybody their brief or their place in
+   * the flow, which is why it lives beside the draft and not inside it:
+   * the fields, the step, the preflight and the trial are all untouched
+   * by a change of manner. A reload — including the one a wallet causes
+   * when it switches network — comes back to the same style and the same
+   * accepted concept.
+   */
+  const [plan, setPlan] = useState<BuildPlan>(() => {
+    if (initial?.plan) return { ...DEFAULT_PLAN, ...initial.plan };
+    if (typeof window === 'undefined') return DEFAULT_PLAN;
+    return { ...DEFAULT_PLAN, style: readLastStyle() };
+  });
   const [runtimeChoice, setRuntimeChoice] = useState<{ category: string; target: string; policy: string; output: string }>({ category: '', target: '', policy: '', output: '' });
 
   const [preflight, setPreflight] = useState<EndpointPreflight | null>(null);
@@ -210,7 +227,7 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
       } catch {
         /* Unreadable old data: keep this draft rather than fail every save. */
       }
-      window.localStorage.setItem(DRAFTS_KEY, JSON.stringify(upsertDraft(record, { id: draftId, draft, mode: 'new', step, updatedAt: new Date().toISOString() })));
+      window.localStorage.setItem(DRAFTS_KEY, JSON.stringify(upsertDraft(record, { id: draftId, draft, mode: 'new', step, updatedAt: new Date().toISOString(), plan })));
       recordDraftSave(draftId, true);
       announceDraftsChanged();
       /*
@@ -229,7 +246,7 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
       /* Storage full or blocked: say so, rather than claim it was saved. */
       recordDraftSave(draftId, false);
     }
-  }, [draft, draftId, step, published, onBound]);
+  }, [draft, draftId, step, published, plan, onBound]);
 
   const storedDrafts = useSyncExternalStore(subscribeToDrafts, draftsSnapshot, draftsServerSnapshot);
   const failedSaves = useSyncExternalStore(subscribeToDrafts, failedSavesSnapshot, failedSavesServerSnapshot);
@@ -488,6 +505,31 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
     replace,
     step,
     setStep,
+    plan,
+    /*
+     * A change of manner, and nothing else.
+     *
+     * Nothing about the draft, the step, the preflight or the trial is
+     * touched here, which is the guarantee the switch makes on screen:
+     * switching mid-brief keeps the brief. The choice is also remembered
+     * for the next draft on this device.
+     */
+    setStyle: (style: BuildStyle) => {
+      rememberStyle(style);
+      setPlan((current) => ({ ...current, style }));
+    },
+    /*
+     * Taking a proposed concept fills only what is still blank — a name
+     * the builder already typed is never replaced by a suggestion.
+     */
+    acceptConcept: (concept: AgentConcept) => {
+      setPlan((current) => ({ ...current, conceptId: concept.id }));
+      setDraft((current) => applyConcept(concept, current));
+    },
+    /** "I already know what to build": stop offering, and do not guess what. */
+    dismissProposals: () => setPlan((current) => ({ ...current, proposalsDismissed: true })),
+    /** Back to the proposals, with whatever has been typed left alone. */
+    restoreProposals: () => setPlan((current) => ({ ...current, proposalsDismissed: false, conceptId: null })),
     avatarSeeds,
     image,
     repositoryProblem,
@@ -558,6 +600,9 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
       setClaim(null);
       setDraft({ ...EMPTY_DRAFT });
       setStep(0);
+      /* A second agent is a second idea: the proposals come back, and the
+         style they chose for themselves stays as it is. */
+      setPlan((current) => ({ ...DEFAULT_PLAN, style: current.style }));
     },
     claim,
     claimAccess: async () => {
