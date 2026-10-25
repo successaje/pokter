@@ -4,7 +4,8 @@ import { AgentNotFound, diagnose } from '@/lib/diagnostic/checks';
 import { getProbeStore } from '@/lib/history/store';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
-import { deriveBuilderLifecycle } from '@/lib/diagnostic/builder-lifecycle';
+import { deriveBuilderLifecycle, summariseReadinessDelivery, EMPTY_DELIVERY } from '@/lib/diagnostic/builder-lifecycle';
+import { getJobStore } from '@/lib/erc8183/store';
 import { logAndPublic } from '@/lib/api/public-error';
 
 export const dynamic = 'force-dynamic';
@@ -102,11 +103,33 @@ export async function POST(request: Request): Promise<NextResponse> {
     } catch {
       // A store read failure must not turn a live diagnostic into a false claim.
     }
+    /*
+     * The last two milestones are read from escrow, not inferred from a
+     * quote.
+     *
+     * The readiness ladder used to stop at a signed price and call that
+     * "Hireable", so a delivery and a settlement were claimed without
+     * either being looked at. Both are facts about this agent's jobs, and
+     * the job index already holds them, so the diagnostic reports them
+     * rather than the page guessing. A store that will not open leaves
+     * the two milestones unobserved, which is what they are — never
+     * passed by default.
+     */
+    let delivery = EMPTY_DELIVERY;
+    try {
+      delivery = summariseReadinessDelivery(getJobStore().byAgent(chainId, tokenId), {
+        agentWallet: report.agentWallet,
+        ownerAddresses: report.owner ? [report.owner] : [],
+      });
+    } catch {
+      // A store read failure must not turn a live diagnostic into a false claim.
+    }
     const lifecycle = deriveBuilderLifecycle({
       chainId,
       checks: report.checks,
       enrolled,
       probeCount,
+      delivery,
     });
 
     return NextResponse.json({ ...report, enrolled, enrollmentFailed, lifecycle });

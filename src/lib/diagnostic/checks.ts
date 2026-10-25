@@ -229,11 +229,26 @@ export async function diagnose(
             'Published capabilities',
             `Publishes ${reading.capabilities.length} skill${reading.capabilities.length === 1 ? '' : 's'}: ${reading.capabilities.join(', ')}.`,
           )
-        : unknown(
+        : /*
+           * Two quite different things, and this said the first about both.
+           *
+           * No capabilities means either "it answered and declared none" or
+           * "nothing answered, so there was no card to read". The second is
+           * the ordinary case of an endpoint that is down, and it was being
+           * reported as "The endpoint answered but named no skills" —
+           * directly under a liveness check saying the request failed with
+           * ENOTFOUND. One of the two lines was false on every unreachable
+           * agent, and it was this one.
+           */
+          unknown(
             'card',
             'Published capabilities',
-            'The endpoint answered but named no skills Pokter could read.',
-            'Publish a skills array in your agent card. Pokter reads it to tell buyers what you actually do rather than guessing from your description.',
+            reading.answered > 0
+              ? 'The endpoint answered but named no skills Pokter could read.'
+              : 'Not read: nothing answered at the published endpoint, so there was no agent card to read.',
+            reading.answered > 0
+              ? 'Publish a skills array in your agent card. Pokter reads it to tell buyers what you actually do rather than guessing from your description.'
+              : 'Fix the endpoint first. Pokter reads the skills from the card the endpoint serves.',
           ),
     );
 

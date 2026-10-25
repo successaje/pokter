@@ -20,6 +20,11 @@ import { Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 import { MaturityLabel, MaturityLadder } from '@/ui/Maturity';
 import { LaunchKit } from '@/features/studio/LaunchKit';
+import { ReadinessPanel } from '@/features/studio/ReadinessPanel';
+import { WalletRoles } from '@/features/studio/WalletRoles';
+import { CampaignGoal } from '@/features/studio/CampaignGoal';
+import { getAgent } from '@/lib/scan/client';
+import type { ChainId } from '@/lib/scan/types';
 import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +46,19 @@ function Progress({ label, value, target, met, note }: { label: string; value: n
       {note && <span className="text-[12px] text-ink-3">{note}</span>}
     </div>
   );
+}
+
+/**
+ * The two addresses Pokter can fill in, read from the registry record.
+ *
+ * Suspended on its own: it is one indexer call, and the rest of the panel
+ * has no reason to wait for it. A failed read leaves the agent wallet
+ * blank rather than claiming the owner signs for the agent — the whole
+ * point of the panel is that those are two different keys.
+ */
+async function AgentWalletRoles({ chainId, tokenId, owner }: { chainId: number; tokenId: string; owner: string }) {
+  const detail = await getAgent(chainId as ChainId, tokenId).catch(() => null);
+  return <WalletRoles assignment={{ identityOwner: owner, agentWallet: detail?.agent_wallet ?? null }} />;
 }
 
 export default async function ManageAgent({ params }: { params: Promise<{ chainId: string; tokenId: string }> }) {
@@ -131,6 +149,22 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
       <StudioTabBar />
       <div id="studio-tab-panels" className="pt-8">
         <StudioTabPanel id="health">
+          {/*
+            Readiness leads the page, because it is the only thing here
+            that answers "is this finished?" — and the ladder it replaced
+            answered it wrongly, calling an agent Hireable on the strength
+            of a signed quote with nothing delivered and nothing settled.
+            Run on request rather than on load: each run costs several
+            calls against the builder's own endpoint.
+          */}
+          <div className="mb-10 flex flex-col gap-8">
+            <ReadinessPanel chainId={agent.chainId} tokenId={agent.tokenId} />
+            <Suspense>
+              <AgentWalletRoles chainId={agent.chainId} tokenId={agent.tokenId} owner={owner} />
+            </Suspense>
+            {/* An optional extra goal, folded shut, that adds nothing to the ladder above. */}
+            <CampaignGoal />
+          </div>
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <section aria-labelledby="health-title" className="flex flex-col gap-4">
             <h2 id="health-title" className="t-label">
