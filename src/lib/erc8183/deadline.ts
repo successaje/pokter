@@ -31,8 +31,13 @@ export function jobLifetimeSeconds(disputeWindowSeconds: number | bigint, delive
  * are bounded to 1–30 days where they are made; anything else falls back
  * to the standing window rather than to an unbounded deadline.
  */
+export const PROPOSAL_DELIVER_DAYS = { min: 1, max: 30 } as const;
+
 export function deliverySecondsFor(deliverDays: number | null | undefined): number {
-  return typeof deliverDays === 'number' && Number.isInteger(deliverDays) && deliverDays >= 1 && deliverDays <= 30
+  return typeof deliverDays === 'number'
+    && Number.isInteger(deliverDays)
+    && deliverDays >= PROPOSAL_DELIVER_DAYS.min
+    && deliverDays <= PROPOSAL_DELIVER_DAYS.max
     ? deliverDays * 86_400
     : DELIVERY_WINDOW_SECONDS;
 }

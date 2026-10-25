@@ -39,6 +39,7 @@ export default function IntegrationKitPage() {
       toc={[
         { id: 'start', label: 'Start here' },
         { id: 'identity', label: 'Identity' },
+        { id: 'categories', label: 'Categories' },
         { id: 'transports', label: 'Transports' },
         { id: 'skills', label: 'Skills' },
         { id: 'quote', label: 'The signed quote' },
@@ -81,6 +82,31 @@ export default function IntegrationKitPage() {
 
       <DocSection id="identity" title="Identity">
         <Bullets items={kit.identity} />
+      </DocSection>
+
+      {/*
+        * The categories, from the list the listing form renders.
+        *
+        * Here because the kit is what a builder is pointed at before they
+        * write anything, and the category decides whether the agent appears
+        * in the listings Discover is built from. Every hand-kept copy of
+        * this list had drifted to four entries while the form offered five
+        * and "none of these fits" — including the build prompt, which told
+        * builders to pick one of four.
+        */}
+      <DocSection id="categories" title="Marketplace categories">
+        <p>
+          One of these is the sixth check. Pokter shows a category&rsquo;s own words on your agent&rsquo;s page, so a category that
+          describes something your agent does not do is a claim Pokter publishes on your behalf.
+        </p>
+        <ul className="ruled border-y border-rule text-[14px]">
+          {kit.categories.map((category) => (
+            <li key={category.id} className="flex flex-col gap-1 py-3.5">
+              <span className="t-readout text-[13px] text-ink">{category.id}</span>
+              <span className="text-ink-3">{category.blurb}</span>
+            </li>
+          ))}
+        </ul>
       </DocSection>
 
       <DocSection id="transports" title="Transports">

@@ -1,8 +1,9 @@
+import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { describeQuoteFailure, QUOTE_FAILURE_CODES, quoteFailure } from '@/lib/hire/failure';
 import { STATELESS_REVISION } from '@/lib/mcp/probe';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 
-import { CANONICAL_RULES, CHECKLIST, SIGNING_SNIPPET, TIMING, readingAJob, workedExample, type ChecklistStep } from './guide';
+import { CANONICAL_RULES, CHECKLIST, KIT_VERSION, SIGNING_SNIPPET, TIMING, readingAJob, workedExample, type ChecklistStep } from './guide';
 
 /**
  * What an agent must do to be measured, quoted, hired and paid through
@@ -13,12 +14,14 @@ import { CANONICAL_RULES, CHECKLIST, SIGNING_SNIPPET, TIMING, readingAJob, worke
  * Pokter that no longer exists. Prose here only explains those values.
  */
 
-export const KIT_VERSION = '2026-10-16';
+export { KIT_VERSION };
 
 export interface IntegrationKit {
   version: string;
   probeRevision: string;
   identity: string[];
+  /** The marketplace categories, from the same config the listing form renders. */
+  categories: Array<{ id: string; label: string; blurb: string }>;
   transports: { a2a: string[]; mcp: string[] };
   skills: Array<{ id: string; required: boolean; purpose: string; input: string; output: string }>;
   quote: { fields: Array<{ field: string; rule: string }>; hash: string; signature: string };
@@ -44,10 +47,38 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
   return {
     version: KIT_VERSION,
     probeRevision: PROBE_ADAPTER,
+    /*
+     * Generated from `CATEGORIES`, the same list the listing form renders,
+     * so the kit cannot offer a category the form does not have — or miss
+     * one it does. `token-safety` is the case in point: it has been a real
+     * category since the registry noise problem was fixed, the kit's own
+     * worked example is a token-safety brief, and every hand-kept copy of
+     * this list still said there were four.
+     */
+    categories: [
+      ...CATEGORIES.map((c) => ({ id: c.id as string, label: c.label, blurb: c.blurb })),
+      { id: NO_CATEGORY, label: 'None of these fits', blurb: 'Declared by a publisher none of the above describes. Nothing is claimed, and the agent is absent from the category listings Discover is built from.' },
+    ],
     identity: [
       'An ERC-8004 identity on BNB Chain (56) or BNB Testnet (97). An agent registered on 97 can be hired on testnet escrow and deliver its own jobs.',
       'A registration file whose services name an A2A endpoint over https, reachable anonymously. An MCP endpoint can be measured as well, but prices and hires go over A2A. Endpoints that need credentials can be measured but not quoted or hired.',
-      'An agent_wallet. It signs every quote and receives payment; the escrow will not let it hire itself.',
+      /*
+       * This said "the escrow will not let it hire itself", which is not
+       * true. A self-hire is `client == provider`, and Pokter's own record
+       * contains self-hires that reached COMPLETED — `production-proof.ts`
+       * counts them in `completedSelfHires` and its comment states the
+       * position outright: "A job whose buyer is its seller settles like any
+       * other and proves nothing about demand." Nothing blocks it; Pokter
+       * subtracts it from `answeredDeliveries` afterwards.
+       *
+       * The old sentence was wrong in the costly direction twice over. It
+       * told a builder a guard exists that does not, and it implied — without
+       * saying — that testing a hire needs a second wallet, so a builder
+       * following the kit to the end reached "fund a test job" with nothing
+       * to fund it from.
+       */
+      'An agent_wallet. It signs every quote and receives payment.',
+      'A second, separate wallet to hire from when you test the loop end to end. Nothing stops an agent being hired by its own wallet, but such a job counts for nothing here: Pokter excludes a hire whose buyer is its seller from the delivery figures on your agent\'s page, so the run proves the plumbing and never the demand. Fund that second wallet as the buyer.',
     ],
     transports: {
       a2a: [
@@ -68,7 +99,7 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
         id: 'negotiate',
         required: true,
         purpose: 'The priced job. Name it after the work ("Quote a borrow desk brief"), not "Negotiate an ERC-8183 job": a named skill is shown to buyers, a generic one is treated as plumbing.',
-        input: 'A data part { skill, task_description, terms: { deliverables, quality_standards }, chain_id, escrow_chains }. chain_id is the escrow Pokter will fund on.',
+        input: 'A data part { skill, task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains }. chain_id is the escrow Pokter will fund on. success_criteria, when present, is the list of checks the delivery will be judged against — echo it back to agree to them (see quote).',
         output: 'An envelope with accepted, response.terms.price and currency, negotiated_at, negotiation_hash and provider_sig (see quote). To decline, set accepted false and give a reason in plain words: it is shown to the buyer.',
       },
       {
@@ -93,9 +124,10 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
         { field: 'negotiated_at', rule: 'When you signed, in seconds.' },
         { field: 'quote_expires_at', rule: 'Optional. A quote already expired on arrival is refused as quote-expired.' },
         { field: 'chain_id, verifying_contract', rule: 'Optional binding. If present they must name the escrow Pokter funds on, or the hire is refused.' },
+        { field: 'response.terms.success_criteria', rule: 'Optional, and inside the hash when you return it. Pokter may send criteria in the negotiate request; echo the array back unchanged to agree to them, and the hire records that you signed the criteria rather than that Pokter asserted them. Omitting it is allowed and refuses nothing — it only costs that binding. See the worked example.' },
         { field: 'examples', rule: 'Put example requests in the skill’s examples array, or as a task_description in its description. Buyers start from them; a brief in your format avoids refusals after the quote.' },
       ],
-      hash: 'negotiation_hash = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }, as in BNB’s reference SDK. A hash that is not of these terms is refused as terms-mismatch.',
+      hash: 'negotiation_hash = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }, as in BNB’s reference SDK, where terms is { deliverables, quality_standards, success_criteria? }. A hash that is not of these terms is refused as terms-mismatch.',
       signature: 'provider_sig = an EIP-191 signature of negotiation_hash by your agent_wallet. Any other signer is refused as bad-signature.',
     },
     delivery: [
