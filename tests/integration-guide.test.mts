@@ -100,6 +100,15 @@ test('the documented criteria echo really produces a signed-terms binding', asyn
   // The published hash is of the published content.
   assert.equal(echo.negotiationHash, keccak256(toBytes(canonicalJson({ ...ex.content, terms: echo.signedTerms }))));
 
+  /*
+   * The example must actually exercise the sanitising rule, or it documents
+   * the easy case and hides the one that bites.
+   */
+  const signedCriteriaShown = (echo.signedTerms as { success_criteria: string[] }).success_criteria;
+  assert.notDeepEqual(echo.sent, signedCriteriaShown, 'the example criteria must need sanitising');
+  assert.ok(echo.sent.some((line) => line.includes('[')), 'a sent criterion must carry a bracket');
+  assert.ok(signedCriteriaShown.every((line) => !line.includes('[')), 'the signed form must have none');
+
   const reply = {
     request: { task_description: ex.content.task },
     response: { accepted: true, terms: { price: ex.content.price, currency: ex.content.currency, ...echo.signedTerms } },
@@ -183,7 +192,18 @@ test('a criterion carrying a bracket hashes only when sanitised, as the rules no
  */
 test('the timing rules send the agent to the job for its deadline, not to a fixed window', () => {
   assert.equal(TIMING.deadlineField, 'expiredAt');
-  assert.equal(TIMING.proposalDeliverDays.max, PROPOSAL_DELIVER_DAYS.max);
+
+  /*
+   * The invariant that makes assuming the default a bug, rather than a
+   * restatement of the constant: a proposal can set a window longer than
+   * the default, so an agent that hardcodes the default runs out of time
+   * early. If these ever converge the warning is pointless and this fails.
+   */
+  assert.ok(
+    PROPOSAL_DELIVER_DAYS.max * 24 > TIMING.defaultDeliveryWindowHours,
+    'a proposal must be able to exceed the default window, or the whole warning is moot',
+  );
+  assert.deepEqual({ ...TIMING.proposalDeliverDays }, { ...PROPOSAL_DELIVER_DAYS }, 'the kit must publish the real bounds');
 
   const rules = TIMING.rules.join('\n');
   assert.match(rules, /expiredAt/, 'the rules must name the field that carries the deadline');

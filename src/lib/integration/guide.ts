@@ -150,9 +150,19 @@ export function workedExample(escrow: { chainId: number; commerce: string; payme
    * Computed rather than typed, like the example above, so the hash shown
    * is the hash Pokter would verify.
    */
+  /*
+   * The prose criterion carries a bracket on purpose.
+   *
+   * An example whose strings happen to need no sanitising demonstrates
+   * nothing and hides the rule — which is the same coincidence that let
+   * `canonicalRules` omit `success_criteria` for as long as it did. With a
+   * bracket here, the published `signedTerms` visibly differ from `sent`,
+   * and a change that stopped sanitising the echo fails the test that runs
+   * this example through Pokter's verifier.
+   */
   const criteria = [
     `${SPEC_TERM_PREFIX}0x${'7d'.repeat(32)}`,
-    'collateral: Total collateral value matches Venus, within the larger of ±$1 and 1%',
+    'collateral: Total collateral value matches Venus [within the larger of ±$1 and 1%]',
   ];
   const withCriteria = { ...content, terms: { ...terms, success_criteria: criteria.map(sanitizeForClaim) } };
   const criteriaCanonical = canonicalJson(withCriteria);
