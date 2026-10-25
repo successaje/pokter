@@ -255,7 +255,22 @@ export async function POST(request: Request): Promise<NextResponse> {
    * Its refusals are returned verbatim, so a caller hitting this surface
    * and the hire page is told the same thing in the same words.
    */
-  const quoted = await quoteForBriefRoute(inner('/api/hire/quote', { chainId, tokenId, task: payload }));
+  /* Pokter's own classification, decided once: it goes to the quote so the
+     acceptance criteria match the check, and into the job envelope below
+     so the check reads back the same value. */
+  const classified = classify(agent);
+  const hireCategory = classified === 'unclassified' ? 'Uncategorised' : classified;
+
+  /*
+   * The category travels with the quote so the acceptance criteria the
+   * route composes match the ones ProofRun will check against: it reads
+   * the category from the job envelope, which is built from this same
+   * value. Without it the brief alone decides, and a prepared hire could
+   * be checked under criteria it was never quoted against.
+   */
+  const quoted = await quoteForBriefRoute(
+    inner('/api/hire/quote', { chainId, tokenId, task: payload, category: hireCategory }),
+  );
   const quotedBody = (await quoted.json()) as {
     quote?: { negotiationHash: string; priceRaw: string; currency: string; signer: string; expiresAt: string | null; domain: { chainId: number; verifyingContract: string } | null };
     escrowChainId?: number;
@@ -426,7 +441,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const classified = classify(agent);
   /*
    * The agent's name is text its owner wrote, and it is printed inside the
    * sentence the owner reads before approving a payment. So it is bounded,
@@ -442,7 +456,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       name,
       /* Pokter's own reading of the record, not the caller's: which category
          a hire is filed under is not a field a caller gets to assert. */
-      category: classified === 'unclassified' ? 'Uncategorised' : classified,
+      category: hireCategory,
     },
     provider: quote.signer,
     providerLabel: name,
