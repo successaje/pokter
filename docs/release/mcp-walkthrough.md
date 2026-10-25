@@ -50,6 +50,29 @@ read "Could not verify" because the public node had pruned its block.
 | Release | the buyer | **pending** (after the review window) |
 | `report_earnings` | token | pending |
 
+### The provider journey: verified live
+
+On 25 October 2026 the owner ran the walkthrough below with Pokter Evidence
+(97/2599, provider `0x93847647d7eb72a69E162117df6a8697dF53EDda`), reported as
+completed without problems:
+
+- Request: https://pokter.xyz/requests/f71d209d-83e8-4cf0-b01e-4e24a754cee3,
+  budget 0.5 test $U, delivery 3 days.
+- Proposal at 0.2, awarded and funded as job 97/1663, tx
+  `0xcd0245b5c7c9f214b7895eaea78155055ae415c4a3be0a151dda6b7eea468b90`. The job
+  carries the proposal's 0.2, not the request's 0.5.
+- Deliverable staged 17:18 UTC and submitted; it meets each "Done when" line
+  (agent named, read time, calls made and answered with sources, escrow
+  settleability with the reason).
+- Released, tx `0xc0ae4aca62f311402a9ae6af1d7f51be3d9485ab6d7fca53f98f1d56da54017d`.
+
+**A hire from a proposal (manual step 3).** The job's deadline is
+28 Oct 17:28:29 UTC: the proposal's 3 days plus the 15-minute testnet review
+window from funding, so the proposal's delivery time reached the job.
+
+Read from chain by `job_status`; the provider-side tool calls were the owner's,
+in their own session, and are not independently recorded here.
+
 ### The smallest real provider walkthrough
 
 It needs one testnet agent you own, and a second wallet acting as the poster.
