@@ -9,9 +9,14 @@
  *   - Identity owner and agent wallet as one key means the key that sits
  *     on a server, answering anonymous calls all day, is also the key
  *     that can transfer the identity.
- *   - Agent wallet and test buyer as one key means the escrow refuses to
- *     settle at all: the seller cannot deliver to itself. Two mainnet
- *     jobs were funded that way and can never be completed by anyone.
+ *   - Agent wallet and test buyer as one key means Pokter's hire page
+ *     refuses the hire: `useHire`'s `selfHire` disables the button. The
+ *     escrow does not refuse — testnet job 1444 is a self-hire that
+ *     reached COMPLETED — but of the seven ever funded, six expired
+ *     undelivered, including both mainnet ones. An agent does not tend
+ *     to answer its own hire, which is a different failure from the
+ *     escrow rejecting one, and saying the escrow refuses sends a
+ *     builder looking for a contract error that never happens.
  *   - Identity owner and test buyer as one key means the hire is the
  *     owner paying their own agent, which is honest as a test and is not
  *     demand — and under Set and Earn's rules it counts for nothing.
@@ -53,7 +58,7 @@ export const WALLET_ROLES: ReadonlyArray<WalletRole> = [
     purpose: 'The operational wallet your running agent signs and delivers from. Published on the registry record as the agent wallet, and the escrow pays it.',
     signs: 'Every quote (negotiation_hash, EIP-191) and every delivery submitted to escrow.',
     keyLives: 'On the host running your agent, in an environment variable, a secrets manager or a KMS the process reads at start-up. Never in the repository, never in the agent card, never pasted into a web page.',
-    neverDoes: 'Fund your own test hire. It is the wallet being paid, and the escrow will not settle a job where the payer and the payee match.',
+    neverDoes: 'Fund your own test hire. It is the wallet being paid, so Pokter\'s hire page will not offer it, and a job whose payer and payee match is left out of your delivery figures.',
   },
   {
     id: 'test-buyer',
@@ -98,7 +103,7 @@ export function walletRoleConflicts(assignment: WalletRoleAssignment): WalletCon
       roles: ['agent-wallet', 'test-buyer'],
       severity: 'blocking',
       consequence:
-        'The escrow will not settle a job whose buyer and seller are the same wallet. The hire flow refuses to fund it, and a job funded this way can never be completed by anyone.',
+        'Pokter\'s hire page refuses to fund it: the Hire button is disabled when the connected wallet is the agent\'s provider. The escrow would settle such a job — one testnet self-hire has completed — but six of the seven ever funded expired undelivered, because an agent does not tend to answer its own hire, and Pokter leaves it out of your delivery figures either way.',
       fix: 'Hire from a second wallet. On testnet it costs nothing.',
     });
   }
