@@ -220,6 +220,24 @@ export function isSpecLine(value: string): boolean {
 }
 
 /**
+ * The spec hash a set of criteria is for, from the line that names it.
+ *
+ * Criteria reach the quote route two ways — composed for the vertical, or
+ * supplied by a caller — and an agreement has to record which document was
+ * agreed either way. Reading it back out of the criteria themselves means
+ * one rule for both, and means the recorded hash is the one that was
+ * actually sent rather than one recomputed beside it.
+ *
+ * Null when no line names a spec, which is a criteria set this cannot
+ * bind: `bindingFor` would have nothing to match and the agreement would
+ * be unverifiable, so it is not recorded at all.
+ */
+export function specHashFromCriteria(criteria: readonly string[] | undefined): string | null {
+  const line = criteria?.find(isSpecLine);
+  return line ? (line.split('spec=')[1]?.toLowerCase() ?? null) : null;
+}
+
+/**
  * A spec for the one vertical this version supports.
  *
  * The Venus deployment is a required argument and never defaulted from the

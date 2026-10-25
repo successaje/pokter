@@ -15,6 +15,7 @@ import {
   type PreparedHireRecord,
   type PreparedHireWrite,
 } from '@/lib/assistant/prepared-store';
+import type { CriteriaAgreement } from '@/lib/proofrun/agreement';
 import type { HiredJob, JobStatusName } from './types';
 
 /**
@@ -83,6 +84,10 @@ export interface JobStore {
   recordNotice(input: { chainId: number; jobId: string; status: SellerNoticeStatus; reason: string | null }): SellerNotice;
   recordQuoteIntent(intent: QuoteIntent): void;
   quoteIntent(negotiationHash: string): QuoteIntent | null;
+  /* What an agent signed about the acceptance criteria, kept so a receipt
+     written days later can still say whether they agreed. */
+  recordCriteriaAgreement(agreement: CriteriaAgreement): void;
+  criteriaAgreement(negotiationHash: string): CriteriaAgreement | null;
   noticeFor(chainId: number, jobId: string): SellerNotice | null;
   notices(): SellerNotice[];
   /**
@@ -180,6 +185,18 @@ const SCHEMA = `
     agent_token_id   TEXT NOT NULL,
     agent_name       TEXT NOT NULL,
     created_at       TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS criteria_agreements (
+    negotiation_hash TEXT PRIMARY KEY,
+    spec_hash        TEXT NOT NULL,
+    sent_criteria    TEXT NOT NULL,
+    signed_criteria  TEXT,
+    terms_bound      INTEGER NOT NULL,
+    task             TEXT NOT NULL,
+    provider         TEXT NOT NULL,
+    escrow_chain_id  INTEGER NOT NULL,
+    quoted_at        TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS seller_notices (
@@ -436,6 +453,63 @@ class SqliteJobStore implements JobStore {
       .run(intent.negotiationHash.toLowerCase(), intent.escrowChainId, intent.provider.toLowerCase(), intent.agentChainId, intent.agentTokenId, intent.agentName.slice(0, 120), new Date().toISOString());
   }
 
+  /*
+   * `INSERT OR REPLACE`, unlike the intent above.
+   *
+   * A hash is the agreement: it covers the task, the terms and the
+   * criteria, so two rows under one hash would be two readings of one
+   * signature and the later one is the one that was verified. Quoting the
+   * same brief twice produces a different hash — `negotiated_at` is inside
+   * it — so this does not overwrite one agreement with another.
+   */
+  recordCriteriaAgreement(agreement: CriteriaAgreement): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO criteria_agreements
+           (negotiation_hash, spec_hash, sent_criteria, signed_criteria, terms_bound, task, provider, escrow_chain_id, quoted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        agreement.negotiationHash.toLowerCase(),
+        agreement.specHash.toLowerCase(),
+        JSON.stringify(agreement.sentCriteria),
+        agreement.signedCriteria === null ? null : JSON.stringify(agreement.signedCriteria),
+        agreement.termsBound ? 1 : 0,
+        agreement.task,
+        agreement.provider.toLowerCase(),
+        agreement.escrowChainId,
+        agreement.quotedAt,
+      );
+  }
+
+  criteriaAgreement(negotiationHash: string): CriteriaAgreement | null {
+    const row = this.db.prepare('SELECT * FROM criteria_agreements WHERE negotiation_hash = ?').get(negotiationHash.toLowerCase()) as
+      | { negotiation_hash: string; spec_hash: string; sent_criteria: string; signed_criteria: string | null; terms_bound: number; task: string; provider: string; escrow_chain_id: number; quoted_at: string }
+      | undefined;
+    if (!row) return null;
+    /* A row whose JSON will not parse is a row that cannot be acted on, and
+       a half-read agreement must never become a binding. */
+    try {
+      const sent = JSON.parse(row.sent_criteria) as unknown;
+      const signed = row.signed_criteria === null ? null : (JSON.parse(row.signed_criteria) as unknown);
+      if (!Array.isArray(sent) || !sent.every((c) => typeof c === 'string')) return null;
+      if (signed !== null && (!Array.isArray(signed) || !signed.every((c) => typeof c === 'string'))) return null;
+      return {
+        negotiationHash: row.negotiation_hash,
+        specHash: row.spec_hash,
+        sentCriteria: sent as string[],
+        signedCriteria: signed as string[] | null,
+        termsBound: row.terms_bound === 1,
+        task: row.task,
+        provider: row.provider,
+        escrowChainId: row.escrow_chain_id,
+        quotedAt: row.quoted_at,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   quoteIntent(negotiationHash: string): QuoteIntent | null {
     const row = this.db.prepare('SELECT * FROM quote_intents WHERE negotiation_hash = ?').get(negotiationHash.toLowerCase()) as
       | { negotiation_hash: string; escrow_chain_id: number; provider: string; agent_chain_id: number; agent_token_id: string; agent_name: string }
@@ -550,6 +624,18 @@ export function getJobStore(): JobStore {
   if (cached) return cached;
   cached = new SqliteJobStore(DB_PATH);
   return cached;
+}
+
+/**
+ * A store on a named file, outside the singleton.
+ *
+ * So that "it was written" can be proved by reading it back through a
+ * second connection rather than out of the same object that was just
+ * written to. A durability claim tested against one in-process instance
+ * tests the instance.
+ */
+export function openJobStore(path: string): JobStore {
+  return new SqliteJobStore(path);
 }
 
 

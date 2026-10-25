@@ -71,6 +71,20 @@ export interface AgentQuote {
    * recorded by Pokter (see shared/contracts).
    */
   criteriaSigned: boolean | null;
+  /**
+   * The criteria the agent's signature actually covered, as the hash was
+   * computed over them.
+   *
+   * `criteriaSigned` above answers the question for this quote; this is
+   * what is needed to answer it again later. A receipt is written days
+   * after the quote, from a stored row, and re-deciding then from the
+   * criteria themselves — rather than trusting a boolean a past version of
+   * the rule wrote down — is what lets the rule be tightened without
+   * silently re-blessing old agreements.
+   *
+   * Null when the agent echoed none.
+   */
+  signedCriteria: string[] | null;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -281,6 +295,12 @@ export async function requestQuote(
         ? { ...content, negotiation_hash: data.negotiation_hash, provider_sig: data.provider_sig }
         : null,
       criteriaSigned: criteriaInSignedTerms(enquiry.terms.success_criteria, content),
+      /* From the hashed content, so these are the strings the signature
+         covered rather than the ones the reply happened to display. */
+      signedCriteria: (() => {
+        const signed = (content?.terms as { success_criteria?: unknown } | undefined)?.success_criteria;
+        return Array.isArray(signed) && signed.every((c) => typeof c === 'string') ? (signed as string[]) : null;
+      })(),
     };
   } catch (error) {
     return fail(classifyQuoteError(error));

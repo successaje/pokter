@@ -12,6 +12,8 @@ import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { getJobStore } from '@/lib/erc8183/store';
+import { hireCriteria } from '@/lib/proofrun/hire-criteria';
+import { specHashFromCriteria } from '@/lib/proofrun/acceptance';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { describeQuoteFailure, quoteFailure, type FailureLayer, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { getProbeStore } from '@/lib/history/store';
@@ -73,14 +75,31 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   /*
    * Acceptance criteria to put inside the negotiated terms, which the
-   * agent's signature then covers. Supplied by ProofRun from a spec, never
-   * composed here; bounded so a caller cannot make the negotiation large.
+   * agent's signature then covers. Bounded so a caller cannot make the
+   * negotiation large.
+   *
+   * This used to say they were "supplied by ProofRun from a spec, never
+   * composed here", and nothing ever supplied any: the field was reachable
+   * and unused, so every hire was quoted without one and every receipt
+   * read `pokter-asserted`. A caller's own criteria still win; where none
+   * are sent, `hireCriteria` composes them for the hires ProofRun will
+   * actually check, which is what makes the binding the normal case rather
+   * than something a buyer has to know to ask for.
    */
   const rawCriteria = body.successCriteria;
   if (rawCriteria !== undefined && (!Array.isArray(rawCriteria) || rawCriteria.length > 8 || rawCriteria.some((c) => typeof c !== 'string' || c.length === 0 || c.length > 200))) {
     return NextResponse.json({ error: 'successCriteria must be up to 8 non-empty strings of at most 200 characters.' }, { status: 400 });
   }
-  const successCriteria = Array.isArray(rawCriteria) && rawCriteria.length > 0 ? (rawCriteria as string[]) : undefined;
+  const suppliedCriteria = Array.isArray(rawCriteria) && rawCriteria.length > 0 ? (rawCriteria as string[]) : undefined;
+  /*
+   * The agent's category when the caller knows it, as the hire envelope
+   * records it. `venusHealthJob` reads it there at check time, so passing
+   * it keeps the hire and the check agreeing about which jobs are this
+   * check's; without it the brief alone decides, which is stricter and
+   * never wrong, only narrower.
+   */
+  const hireCategory = typeof body.category === 'string' ? body.category : null;
+  const successCriteria = suppliedCriteria ?? hireCriteria({ category: hireCategory, brief: task });
   if (task.length > 2000) {
     return NextResponse.json(
       { error: 'The brief must be 2000 characters or fewer.' },
@@ -320,6 +339,49 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   } catch {
     /* A record that cannot be written costs recovery, not the quote. */
+  }
+
+  /*
+   * And what the agent agreed to, keyed by the same hash the escrow will
+   * hold. The binding below is returned to this caller and then gone; a
+   * receipt is written days later, from the chain, with the signature and
+   * the terms long out of reach. Without this row the receipt page had
+   * nothing to read and fell back to the scenario default, so a job whose
+   * agent had signed still published `pokter-asserted`.
+   *
+   * Written whenever criteria were sent, including when the agent did not
+   * echo them: "asked and declined" is a different fact from "never
+   * asked", and only the row can tell them apart afterwards.
+   */
+  /*
+   * The spec the criteria name, read from the criteria themselves so a
+   * caller's own set is recorded by the same rule as a composed one.
+   */
+  const specHashSent = specHashFromCriteria(successCriteria);
+  if (successCriteria && specHashSent) {
+    try {
+      getJobStore().recordCriteriaAgreement({
+        negotiationHash: quote.negotiationHash,
+        specHash: specHashSent,
+        sentCriteria: successCriteria,
+        signedCriteria: quote.signedCriteria,
+        /*
+         * Always true for a quote that exists: `requestQuote` refuses a
+         * quote whose signature does not cover its terms, as
+         * `terms-mismatch`, before it is ever returned. Recorded as a
+         * field rather than assumed at read time because `bindingFor`
+         * takes it, and a row that silently meant "probably" would be the
+         * wrong kind of convenient.
+         */
+        termsBound: true,
+        task,
+        provider: agent.agent_wallet ?? quote.signer,
+        escrowChainId,
+        quotedAt: new Date().toISOString(),
+      });
+    } catch {
+      /* Same rule: a row that cannot be written costs the binding, not the hire. */
+    }
   }
 
   noted('quoted', { escrowChainId });
