@@ -13,6 +13,9 @@ primary_region = 'iad'
     # Chain escrow, with real money; everything else stays on testnet.
     # Remove to return to testnet only. See src/lib/network/escrow.ts.
     NEXT_PUBLIC_ESCROW_CHAINS = '97,56'
+    # x402 pay-per-call: one direct payment in U on BNB Chain, no escrow.
+    # Remove to turn it off. See docs/release/x402.md.
+    NEXT_PUBLIC_X402_ENABLED = 'true'
 
 [env]
   PORT = '8080'
