@@ -63,7 +63,8 @@ import {
   ANSWER_RATE_MEANS,
   formatObservedSpan,
   MIN_RESPONSIVENESS_CHECKS,
-  observedSpanNote,
+  observedSpanDetail,
+  observedSpanHeadline,
   RESPONSIVENESS_WINDOW_DAYS,
   type CategoryResponsiveness,
   type ResponsivenessRow,
@@ -1401,7 +1402,7 @@ export default async function LeaderboardPage({
                 className="mt-4"
                 title="The ranked rows are not all measured over the same period"
               >
-                {observedSpanNote(responsiveness.data.coverage)}
+                {observedSpanHeadline(responsiveness.data.coverage)}
               </Notice>
 
               {responsiveness.data.coverage.unreadCategories.length > 0 && (
@@ -1444,6 +1445,11 @@ export default async function LeaderboardPage({
                 </p>
                 {SERVES_FROM_ONE_INSTANCE && (
                   <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{CONSISTENT_STANDINGS}</p>
+                )}
+                {observedSpanDetail(responsiveness.data.coverage) && (
+                  <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
+                    {observedSpanDetail(responsiveness.data.coverage)}
+                  </p>
                 )}
                 <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-ink-2">
                   The check is a protocol handshake against the endpoint the agent&rsquo;s own card publishes, so the

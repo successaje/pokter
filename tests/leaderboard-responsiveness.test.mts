@@ -18,6 +18,8 @@ import {
   formatObservedSpan,
   spanDecimal,
   MIN_RESPONSIVENESS_CHECKS,
+  observedSpanDetail,
+  observedSpanHeadline,
   observedSpanNote,
   RESPONSIVENESS_WINDOW_DAYS,
   RESPONSIVENESS_WINDOW_LABEL,
@@ -548,7 +550,10 @@ test('the loader passes the record’s span through', () => {
 test('the board renders each row’s span and the live note', () => {
   const page = readFileSync(new URL('../src/app/(site)/leaderboard/page.tsx', import.meta.url), 'utf8');
   assert.match(page, /formatObservedSpan\(row\.observedDays\)/);
-  assert.match(page, /observedSpanNote\(responsiveness\.data\.coverage\)/);
+  /* Printed in two places now: the claim above the order it qualifies,
+     the elaboration under the rows it describes. Both must be there. */
+  assert.match(page, /observedSpanHeadline\(responsiveness\.data\.coverage\)/);
+  assert.match(page, /observedSpanDetail\(responsiveness\.data\.coverage\)/);
   assert.doesNotMatch(page, /formatDuration\(row\.observedDays\)/);
   assert.doesNotMatch(page, /Math\.round\(row\.observedDays\)/);
 });
@@ -592,4 +597,36 @@ test('the spread note never claims a ranked row covered the whole window', () =>
   });
   assert.match(note, /4\.1 to 29\.9 of the 30 days/);
   assert.doesNotMatch(note, /30\.0 of the 30 days/, 'the warning itself claimed full coverage');
+});
+
+/*
+ * The span note in two parts, and still one note.
+ *
+ * The whole thing runs to a paragraph, and a hundred words of caveat
+ * above the first row is a caveat most readers skip — which costs the
+ * disclosure the thing it exists for. The claim and its figures stay
+ * above the order they qualify; what the figures mean reads perfectly
+ * well under the rows it describes.
+ */
+test('the span headline carries the claim and the numbers, and the detail carries the rest', () => {
+  const full = observedSpanNote(coverage());
+  const head = observedSpanHeadline(coverage());
+  const detail = observedSpanDetail(coverage());
+
+  assert.ok(detail);
+  assert.equal(full, `${head} ${detail}`, 'the two halves no longer make the whole note');
+
+  /* The reader must meet the spread, and the numbers behind it, first. */
+  assert.match(head, /loads the last \d+ days of checks and no more/);
+  assert.match(head, /spans run from|Every ranked row covers/);
+  /* And must not have to read the elaboration to get them. */
+  assert.doesNotMatch(head, /reaches the edge of what Pokter loads/);
+  assert.match(detail, /Short spans are ranked anyway, and labelled/);
+});
+
+test('with nothing ranked there is no spread, and no detail to print', () => {
+  const none = { ...coverage(), rankedSpanDays: null };
+  assert.match(observedSpanHeadline(none), /no spread to report/i);
+  assert.equal(observedSpanDetail(none), null, 'a board with no ranked row still printed an explanation of spans');
+  assert.equal(observedSpanNote(none), observedSpanHeadline(none));
 });

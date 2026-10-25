@@ -547,7 +547,8 @@ test('every honesty surface the board carried is still on the page', () => {
     ['its receipts', /label="Pokter-owed receipts"/],
     ['the consistency note', /CONSISTENT_STANDINGS/],
     ['what the answer rate is not', /ANSWER_RATE_DOES_NOT_MEAN/],
-    ['the span note', /observedSpanNote\(responsiveness\.data\.coverage\)/],
+    ['the span note', /observedSpanHeadline\(responsiveness\.data\.coverage\)/],
+    ['the rest of the span note', /observedSpanDetail\(responsiveness\.data\.coverage\)/],
     ['the below-minimum list', /too few checks to rank/],
     ['the exclusion account', /Excluded from every figure above/],
   ] as ReadonlyArray<[string, RegExp]>) {
