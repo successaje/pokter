@@ -75,6 +75,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatCount, formatPercent } from '@/lib/ui/format';
 import { AgentAvatar } from '@/ui/Agent';
 import { buttonClass } from '@/ui/Button';
+import { Details } from '@/ui/Data';
 import { EmptyState, Notice } from '@/ui/Feedback';
 import { Icon } from '@/ui/icons';
 
@@ -992,6 +993,15 @@ export default async function LeaderboardPage({
             [...entry.ranked, ...entry.belowMinimum].map((row) => row.agent),
           )
         : [];
+  /* What the board read, from whichever board is showing. Null when the
+     read failed, so the header says nothing rather than nought. */
+  const agentsRead: number | null =
+    outcomes?.state === 'ready'
+      ? outcomes.data.coverage.listedAgents
+      : responsiveness?.state === 'ready'
+        ? responsiveness.data.coverage.listedAgents
+        : null;
+
   const counts = categoryCounts(boardAgents);
   const categoryOptions = [
     { value: ALL_CATEGORIES as Classification | typeof ALL_CATEGORIES, label: 'All', count: boardAgents.length },
@@ -1011,31 +1021,45 @@ export default async function LeaderboardPage({
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-16">
-      <header className="grid gap-8 border-b border-rule pb-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)] lg:items-end">
-        <div className="flex max-w-3xl flex-col gap-4">
-          <span className="t-label flex items-center gap-2">
-            <span className="tile" aria-hidden /> Leaderboard
-          </span>
+      {/*
+        The board is the page. This header used to run to a lede, a side
+        card and two links before a reader reached a single row, and the
+        rows are the only thing here anybody came for. Everything the page
+        owes a reader about how the figures were made is still on it — it
+        now sits under the table it qualifies, where it is read after the
+        number rather than instead of it.
+      */}
+      <header className="flex flex-col gap-3 border-b border-rule pb-6">
+        <span className="t-label flex items-center gap-2">
+          <span className="tile" aria-hidden /> Leaderboard
+        </span>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <h1 className="t-display">{TITLE}</h1>
-          <p className="t-lede max-w-2xl">
-            Two boards, never blended. One counts escrow jobs that external buyers settled with evidence the agent did
-            the work. The other counts whether an agent answered Pokter&rsquo;s scheduled check. Each is sorted by one
-            named metric at a time, and every figure links to the receipt behind it.
-          </p>
+          {/*
+            The agents this board read, not the rows it ended up with.
+            `boardAgents.length` is the row count, which on the mainnet
+            outcomes board is nought while the strip below it says 176
+            agents were read — a reader meets "0 agents on BNB Chain"
+            first and it reads as a claim about the marketplace rather
+            than about qualifying settlements. That is close enough to the
+            sentence this page exists to avoid that it is not worth the
+            one word it saved.
+          */}
+          {agentsRead !== null && (
+            <p className="text-[14px] text-ink-2">
+              {formatCount(agentsRead)} agent{agentsRead === 1 ? '' : 's'} read on{' '}
+              {chainLabel(view === 'outcomes' ? escrowChainId : registryChainOf(network))}
+            </p>
+          )}
         </div>
-        <div className="rounded-[14px] border border-rule bg-raised p-5 text-[13px] leading-relaxed text-ink-2">
-          <p className="font-medium text-ink">There is no overall score</p>
-          <p className="mt-2">
-            Nothing here is combined into a single rank. The column you sorted by is the whole explanation of the
-            order, and a tie on it breaks alphabetically rather than on a second metric.
-          </p>
-          <Link
-            href="/methodology"
-            className="mt-3 inline-flex items-center gap-1 font-medium text-ink hover:underline"
-          >
-            How ranking works <Icon.Arrow size={13} />
+        <p className="text-[13.5px] leading-relaxed text-ink-2">
+          Two boards, never blended: what buyers paid for, and what answered a check.{' '}
+          <span className="text-ink">There is no overall score</span> — the column you sorted by is the whole
+          explanation of the order.{' '}
+          <Link href="/methodology" className="font-medium text-ink hover:underline">
+            How ranking works
           </Link>
-        </div>
+        </p>
       </header>
 
       {/*
@@ -1070,8 +1094,11 @@ export default async function LeaderboardPage({
 
       <section aria-label="Narrow this board" className="flex flex-col gap-4 border-b border-rule py-5">
         <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+          {/* Just "Network". That the two boards are never merged is a
+              guarantee, not a control label, and the header now makes it
+              once for the page instead of inside a form field. */}
           <ChipGroup<BoardNetwork>
-            label="Network (separate boards, never merged)"
+            label="Network"
             value={network}
             options={BOARD_NETWORKS.map((value) => ({ value, label: chainLabel(escrowChainOf(value)) }))}
             href={(value) => leaderboardHref({ ...current, network: value }, { ...browse, page: 1 })}
@@ -1089,36 +1116,45 @@ export default async function LeaderboardPage({
         )}
       </section>
 
-      <div className="py-6">
-        <Notice
-          tone={SERVES_FROM_ONE_INSTANCE ? 'neutral' : 'watch'}
-          title={
-            SERVES_FROM_ONE_INSTANCE
-              ? 'The same standings for every visitor'
-              : 'Standings may differ between visitors'
-          }
-        >
-          {SERVES_FROM_ONE_INSTANCE ? CONSISTENT_STANDINGS : DIVERGENT_STANDINGS}
-        </Notice>
-      </div>
+      {/*
+        Only when it is a warning.
+        
+        "The same standings for every visitor" is a reassurance, and a
+        paragraph of reassurance above the table costs every reader a
+        screen to tell them nothing is wrong. Its opposite is a disclosure
+        that weakens the figures, and that one keeps the position: a reader
+        who would be misled has to meet it before the numbers, not after.
+        Both texts stay on the page either way — the reassurance moves into
+        the explanation under the table.
+      */}
+      {!SERVES_FROM_ONE_INSTANCE && (
+        <div className="py-6">
+          <Notice tone="watch" title="Standings may differ between visitors">
+            {DIVERGENT_STANDINGS}
+          </Notice>
+        </div>
+      )}
 
       {view === 'outcomes' && outcomes && (
         <section aria-labelledby="outcomes-title">
+          {/*
+            Title, then the one line that explains the order, then the
+            table. The definition of the metric, the split and the period
+            are kept — under the table, in `How these figures are counted`,
+            because a reader who wants the rule wants it beside the figure
+            it produced and a reader who wants the figure should not have
+            to read the rule first.
+          */}
           <div className="border-b border-rule pb-4">
             <span className="t-label">Customer outcomes</span>
             <h2 id="outcomes-title" className="t-h2 mt-1">
               Settled on {chainLabel(escrowChainId)}, in {money.money ?? 'this escrow’s currency'}
             </h2>
-            <p className="mt-2 max-w-3xl text-[13.5px] leading-relaxed text-ink-2">
-              Split by the escrow the money settled on, because that is what decides whether it was money. An
-              agent&rsquo;s own registry chain is shown on its row and can differ.
-            </p>
             {outcomes.state === 'ready' && (
-              <p className="mt-3 text-[13px] text-ink-2">
-                <span className="font-medium text-ink">Ordered by:</span> {activeMetric.column}. {activeMetric.definition}
+              <p className="mt-2 text-[13px] text-ink-2">
+                <span className="font-medium text-ink">Ordered by:</span> {activeMetric.column}
               </p>
             )}
-            <p className="mt-2 text-[13px] text-ink-2">{periodOf('outcomes').note}</p>
           </div>
 
           {outcomes.state === 'unavailable' ? (
@@ -1222,7 +1258,22 @@ export default async function LeaderboardPage({
                 </>
               )}
 
-              <ul className="mt-6 flex flex-col gap-2 text-[12.5px] leading-relaxed text-ink-2">
+              <Details
+                className="mt-8 border-t border-rule pt-5"
+                summary="How these figures are counted, and what they exclude"
+              >
+              <p className="max-w-3xl text-[13px] leading-relaxed text-ink-2">
+                {activeMetric.definition}
+              </p>
+              <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
+                Split by the escrow the money settled on, because that is what decides whether it was money. An
+                agent&rsquo;s own registry chain is shown on its row and can differ.
+              </p>
+              <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{periodOf('outcomes').note}</p>
+              {SERVES_FROM_ONE_INSTANCE && (
+                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{CONSISTENT_STANDINGS}</p>
+              )}
+              <ul className="mt-4 flex flex-col gap-2 text-[12.5px] leading-relaxed text-ink-2">
                 <li>
                   Excluded from every figure above:{' '}
                   {formatCount(outcomes.data.coverage.exclusions.teamFunded)} job
@@ -1278,6 +1329,7 @@ export default async function LeaderboardPage({
                   useful, or profitable, and nothing on this board converts one into a return.
                 </li>
               </ul>
+              </Details>
             </>
           )}
         </section>
@@ -1290,19 +1342,17 @@ export default async function LeaderboardPage({
             <h2 id="responsiveness-title" className="t-h2 mt-1">
               {ANSWER_RATE_COLUMN}, on {chainLabel(registryChainOf(network))}
             </h2>
-            <p className="mt-2 max-w-3xl text-[13.5px] leading-relaxed text-ink-2">{ANSWER_RATE_MEANS}</p>
+            {/*
+              What the rate is not stays above the table, alone, while the
+              rest of the explanation moves under it. The automatic reading
+              of an answer rate is that it measures the answers, and a
+              correction printed below the number it corrects is read after
+              the reader has already taken the number at face value. The
+              others describe the figure; this one stops it being
+              misunderstood, so it is the one that keeps the position.
+            */}
             <p className="mt-2 max-w-3xl text-[13.5px] font-medium leading-relaxed text-ink">
               {ANSWER_RATE_DOES_NOT_MEAN}
-            </p>
-            <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-              Split by the chain the agent is registered on, because a check calls the agent&rsquo;s own endpoint and
-              has no escrow in it. That is a different split from the outcomes board above, and the two are not
-              comparable.
-            </p>
-            {/* Both boards state their period in the same place, so a reader
-                moving between them can see that the two are not the same. */}
-            <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-ink-2">
-              {periodOf('responsiveness').note}
             </p>
           </div>
 
@@ -1379,11 +1429,28 @@ export default async function LeaderboardPage({
                 </div>
               )}
 
-              <p className="mt-8 text-[12.5px] leading-relaxed text-ink-2">
-                The check is a protocol handshake against the endpoint the agent&rsquo;s own card publishes, so the
-                declared protocol on each row is what Pokter spoke to it. A handshake is not a task: an agent can
-                answer every check and still be unable to do the work, which is what the outcomes board is for.
-              </p>
+              <Details
+                className="mt-8 border-t border-rule pt-5"
+                summary="How this rate is measured, and what it does not cover"
+              >
+                <p className="max-w-3xl text-[13px] leading-relaxed text-ink-2">{ANSWER_RATE_MEANS}</p>
+                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
+                  Split by the chain the agent is registered on, because a check calls the agent&rsquo;s own endpoint
+                  and has no escrow in it. That is a different split from the outcomes board, and the two are not
+                  comparable.
+                </p>
+                <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">
+                  {periodOf('responsiveness').note}
+                </p>
+                {SERVES_FROM_ONE_INSTANCE && (
+                  <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-ink-2">{CONSISTENT_STANDINGS}</p>
+                )}
+                <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-ink-2">
+                  The check is a protocol handshake against the endpoint the agent&rsquo;s own card publishes, so the
+                  declared protocol on each row is what Pokter spoke to it. A handshake is not a task: an agent can
+                  answer every check and still be unable to do the work, which is what the outcomes board is for.
+                </p>
+              </Details>
             </>
           )}
         </section>
@@ -1397,9 +1464,14 @@ export default async function LeaderboardPage({
             outcomes board printed under the responsiveness one — the same
             kind of mismatch as a column label that outlives its rule, and
             visible only by loading the page on the other view.
+
+            Folded rather than dropped. These three refusals are the ones a
+            reader is most likely to need and least likely to read, and the
+            heading alone carries the warning for everyone who does not
+            open it.
           */}
-          <h2 className="t-h3 text-ink">What these boards refuse to claim</h2>
-          <p className="mt-3">
+          <Details summary={<span className="t-h3 text-ink">What these boards refuse to claim</span>}>
+          <p className="mt-1">
             A network with no qualifying row on the outcomes board means Pokter has indexed no external settlement
             there in this period. It is not a claim about what has happened on BNB Chain, about whether anyone has
             paid an agent, or about who was first to do anything. Pokter can only report what its own index holds,
@@ -1417,6 +1489,7 @@ export default async function LeaderboardPage({
           <Link href="/methodology" className="mt-4 inline-flex items-center gap-1 font-medium text-ink hover:underline">
             Read the methodology <Icon.Arrow size={14} />
           </Link>
+          </Details>
         </div>
         <div className="flex flex-col gap-3 rounded-[16px] border border-[color-mix(in_oklab,var(--signal)_45%,transparent)] bg-signal-wash p-6 sm:p-8">
           <span className="t-label text-ink-2">Nothing here fits?</span>
