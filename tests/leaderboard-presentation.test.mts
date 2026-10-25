@@ -560,3 +560,66 @@ test('the page still refuses to combine its metrics into one figure', () => {
   assert.match(source, /There is no overall score/);
   assert.doesNotMatch(source, /overall score:|composite|combined rank/i);
 });
+
+/*
+ * The board comes first.
+ *
+ * The page opened with a lede, a side card, a standings notice and three
+ * paragraphs of definition before a reader reached a row — 341 words on
+ * the live page, against 123 after this. Everything that was there is
+ * still on the page; it sits under the table it qualifies rather than in
+ * front of it, which is why the honesty-surface test above is written
+ * against presence and not position.
+ *
+ * What stays above the table is what would otherwise be misread: a
+ * correction printed below the number it corrects arrives after the
+ * reader has taken the number at face value.
+ */
+test('what is above the table is only what the figures would be misread without', () => {
+  const source = copy(BOARD);
+
+  /* The answer rate's correction keeps its place in the header block. */
+  const header = source.slice(
+    source.indexOf('responsiveness-title'),
+    source.indexOf("responsiveness.state === 'unavailable'"),
+  );
+  assert.match(header, /ANSWER_RATE_DOES_NOT_MEAN/, 'what the rate is not moved below the table');
+  assert.doesNotMatch(header, /ANSWER_RATE_MEANS/, 'the long definition is still above the table');
+
+  /* The metric definition moved under the table; the column name did not. */
+  const outcomesHead = source.slice(source.indexOf('outcomes-title'), source.indexOf("outcomes.state === 'unavailable'"));
+  assert.match(outcomesHead, /activeMetric\.column/);
+  assert.doesNotMatch(outcomesHead, /activeMetric\.definition/, 'the definition is still above the table');
+
+  /* Both boards fold their explanation into one place under the rows. */
+  assert.match(source, /summary="How these figures are counted, and what they exclude"/);
+  assert.match(source, /summary="How this rate is measured, and what it does not cover"/);
+});
+
+/*
+ * A reassurance and a warning are not the same disclosure. "The same
+ * standings for every visitor" tells a reader nothing is wrong and cost
+ * them a screen to learn it; its opposite is a limit that would mislead
+ * them, and that one keeps the position above the table.
+ */
+test('the standings notice is shown when it is a warning and folded when it is not', () => {
+  const source = copy(BOARD);
+  assert.match(source, /\{!SERVES_FROM_ONE_INSTANCE && \(/, 'the notice is still printed unconditionally');
+  assert.match(source, /tone="watch" title="Standings may differ between visitors"/);
+  /* And the reassurance is still on the page, under both boards. */
+  assert.equal((source.match(/\{CONSISTENT_STANDINGS\}/g) ?? []).length, 2);
+});
+
+/*
+ * The header count is the agents the board read, not the rows it kept.
+ * The row count on the mainnet outcomes board is nought while 176 agents
+ * were read, and "0 agents on BNB Chain" meeting a reader first reads as
+ * a claim about the marketplace — which is the family of sentence this
+ * page exists to avoid.
+ */
+test('the header counts what was read, and says nothing when the read failed', () => {
+  const source = copy(BOARD);
+  assert.match(source, /coverage\.listedAgents/, 'the header no longer counts what the board read');
+  assert.doesNotMatch(source, /formatCount\(boardAgents\.length\)\} agent/, 'the header counts rows again');
+  assert.match(source, /agentsRead !== null && \(/, 'a failed read would print a nought');
+});
