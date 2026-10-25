@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
-import { createAgentBuildPrompt } from '../src/lib/builder/ai-prompt';
+import { createAgentBuildPrompt, promptInputFrom } from '../src/lib/builder/ai-prompt';
+import { PROPOSED_CONCEPT_COUNT } from '../src/lib/builder/concepts';
+import { BUILD_STYLES } from '../src/lib/builder/style';
+import { DEFAULT_PLAN } from '../src/lib/builder/drafts';
+import { RUNTIME_OPTIONS } from '../src/lib/builder/runtime';
 import { FAUCETS } from '../src/lib/network/presentation';
 import { CATEGORIES, NO_CATEGORY } from '../src/lib/agents/categories';
 import { KIT_VERSION } from '../src/lib/integration/guide';
@@ -22,7 +27,14 @@ test('creates a category-aware A2A build prompt with safety constraints', () => 
   assert.match(prompt, /GET \/\.well-known\/agent-card\.json/);
   assert.match(prompt, /Never request, print, store, or hard-code a seed phrase or private key/);
   assert.match(prompt, /public HTTPS URL/);
-  assert.match(prompt, /three meaningfully different agent concepts and original names/);
+  /*
+   * This input carries a direction, so the prompt must not propose
+   * concepts at all. It used to ask for three unconditionally, which meant
+   * a builder who had already written what they wanted was offered three
+   * alternatives to it.
+   */
+  assert.doesNotMatch(prompt, /meaningfully different concepts/);
+  assert.match(prompt, /I already have a direction/);
 });
 
 const BASE = {
@@ -451,4 +463,192 @@ test('it promises no earnings, hosting or production readiness', () => {
       }
     }
   }
+});
+
+
+/*
+ * The five corrections to the building experience, each pinned where it
+ * can actually fail: in the text that gets copied into somebody's
+ * assistant. The mode buttons were already correct on the page while the
+ * copied prompt expressed no style at all and opened with a questionnaire,
+ * so asserting the buttons would have proved nothing.
+ */
+
+test('Recommend and build is the default, in the prompt and not only on the page', () => {
+  /* Omitted entirely — the case both pages hit before they passed a style. */
+  const defaulted = createAgentBuildPrompt({ ...BASE });
+  assert.match(defaulted, /HOW I WANT THIS DECIDED — recommend and build/);
+  assert.equal(promptInputFrom({}).style, 'recommend');
+  assert.equal(DEFAULT_PLAN.style, 'recommend', 'the stored default no longer agrees with the prompt');
+  assert.equal(BUILD_STYLES[0].id, 'recommend', 'the first style offered is no longer the default one');
+
+  /* And the other style is genuinely available, not just listed. */
+  const withMe = createAgentBuildPrompt({ ...BASE, style: 'with-me' });
+  assert.match(withMe, /HOW I WANT THIS DECIDED — build with me/);
+  assert.match(withMe, /offer me the choices you would otherwise take yourself/i);
+});
+
+test('a builder who already has an idea is not sent through discovery', () => {
+  /* A description alone is a direction. A name alone is not — see below. */
+  for (const input of [
+    { ...BASE, description: 'Returns a read-only Venus risk report.' },
+    { ...BASE, category: 'yield' },
+  ]) {
+    const prompt = createAgentBuildPrompt(input);
+    assert.match(prompt, /I already have a direction/);
+    assert.doesNotMatch(prompt, /meaningfully different concepts/);
+    /* The six-part interview the prompt used to open with. */
+    assert.doesNotMatch(prompt, /Begin by asking about my experience/);
+    assert.doesNotMatch(prompt, /DISCOVERY FIRST/);
+    assert.match(prompt, /Do not run a discovery questionnaire/);
+    assert.match(prompt, /Do not ask me about my experience, my intended users, my risk tolerance or my preferred data sources/);
+    /* The target experience: a recommendation and one question. */
+    assert.match(prompt, /Open with your recommendation and the reasoning for it/);
+    assert.match(prompt, /shall I build it\?/);
+  }
+});
+
+test('with no idea it proposes options, recommends one, and takes "choose for me"', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, new RegExp(`Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts`));
+  assert.match(prompt, /Recommend one and say why you would start there/);
+  assert.match(prompt, /If I say "choose for me", or if I reply without picking one, take your own recommendation and start building it/);
+  assert.doesNotMatch(prompt, /Begin by asking about my experience/);
+  /* The brief's own fallbacks have to agree with the section above it. The
+     direction line used to read "Not defined—discover it with me", which
+     invited the discovery the section had just refused. */
+  assert.doesNotMatch(prompt, /discover it with me/);
+  assert.match(prompt, /Do not interview me for it/);
+  assert.match(prompt, /pick a provisional one and keep going/);
+});
+
+/*
+ * The name gate, which was explicit: "do not begin coding until I choose
+ * or refine one concept and name". A name is a label on an idea and the
+ * cheapest thing in the build to change, so nothing waits for it.
+ */
+test('a name never blocks the build, and having only a name is not a direction', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.doesNotMatch(prompt, /begin coding until I choose or refine one concept and name/);
+  assert.match(prompt, /Do not wait on a name/);
+  assert.match(prompt, /provisional and trivial to change later/);
+
+  /* A name with nothing behind it still needs concepts proposing. */
+  const named = createAgentBuildPrompt({ ...BASE, name: 'Position Guardian' });
+  assert.match(named, /Position Guardian/, 'the name was dropped from the brief');
+  assert.match(named, new RegExp(`Put forward ${PROPOSED_CONCEPT_COUNT} meaningfully different concepts`));
+});
+
+test('routine choices are delegated and only four things come back to the builder', () => {
+  const prompt = createAgentBuildPrompt({ ...BASE });
+  assert.match(prompt, /WHAT YOU DECIDE, AND WHAT YOU ASK ME/);
+  for (const routine of [/the framework and language/, /the file layout/, /the test strategy/, /which libraries to use/]) {
+    assert.match(prompt, routine);
+  }
+  assert.match(prompt, /Do not present these as questions/);
+
+  /* The four that are genuinely the builder's, each with its reason. */
+  assert.match(prompt, /Anything needing my wallet to sign/);
+  assert.match(prompt, /Prepare it unsigned/);
+  assert.match(prompt, /spends money I have not already agreed to, including paid hosting/);
+  assert.match(prompt, /trades off security or exposure/);
+  assert.match(prompt, /What the agent is for, if that was never settled/);
+  /* And the line that is never negotiable, in the prompt as well as the UI. */
+  assert.match(prompt, /Never ask me for a private key or a recovery phrase/);
+});
+
+/*
+ * Point 4, and the reason the other four could regress quietly. The prompt
+ * is copied from two pages. Both called `createAgentBuildPrompt`, which
+ * looked like one source, and then built its argument separately — the
+ * standalone builder hardcoded `protocol: 'a2a'` and passed no style. The
+ * same idea produced two different prompts.
+ *
+ * This generates both pages' inputs the way the pages now do and compares
+ * the whole text, so a field added to one and not the other fails here
+ * rather than in a prompt nobody reads twice.
+ */
+test('both pages generate the same prompt for the same idea', () => {
+  const idea = { name: 'Treasury Sentinel', description: 'Returns a sourced treasury risk report.', categoryId: 'yield' } as const;
+
+  /* The standalone prompt builder: three fields and a style. */
+  const standalone = createAgentBuildPrompt(promptInputFrom({ ...idea, style: 'recommend' }));
+
+  /* The guided Configure step: the same fields off a live draft, with the
+     category's first runtime options, which is what its defaults resolve to. */
+  const options = RUNTIME_OPTIONS[idea.categoryId];
+  const guided = createAgentBuildPrompt(
+    promptInputFrom({
+      ...idea,
+      protocol: 'a2a',
+      style: 'recommend',
+      runtime: { target: options.target[0], policy: options.policy[0], output: options.output[0] },
+    }),
+  );
+
+  assert.equal(standalone, guided, 'the two pages describe the same idea differently');
+});
+
+test('the shared derivation fills what a page does not ask for', () => {
+  const input = promptInputFrom({ name: '  Spaced  ', categoryId: 'yield' });
+  assert.equal(input.name, 'Spaced', 'the name was not trimmed');
+  assert.equal(input.category, CATEGORIES.find((c) => c.id === 'yield')!.label, 'the category id was not resolved to its label');
+  assert.equal(input.protocol, 'a2a', 'a page that does not offer a protocol no longer defaults to A2A');
+  /* Runtime defaults come from the category, so neither page carries a copy. */
+  assert.equal(input.target, RUNTIME_OPTIONS.yield.target[0]);
+  assert.equal(input.policy, RUNTIME_OPTIONS.yield.policy[0]);
+  assert.equal(input.output, RUNTIME_OPTIONS.yield.output[0]);
+
+  /* An unknown category must not invent runtime text. */
+  const unknown = promptInputFrom({ categoryId: 'not-a-category' });
+  assert.equal(unknown.category, '');
+  assert.equal(unknown.target, '');
+});
+
+test('the concept count is one number, and the style panel counts its own list', () => {
+  assert.equal(PROPOSED_CONCEPT_COUNT, 3);
+  /* The panel said five while the prompt said three. It now reads from the
+     list it renders, so the two cannot disagree again. */
+  const behaviour = BUILD_STYLES.find((style) => style.id === 'recommend')!.behaviour.join(' ');
+  assert.doesNotMatch(behaviour, /five concepts/);
+  assert.match(behaviour, /puts forward \d+ concepts/);
+});
+
+/*
+ * Both pages are client components, so the wiring is asserted as a source
+ * fact — the pattern `tests/provider-route-wiring.test.mts` uses. Comments
+ * are stripped first, so the comments above these call sites cannot
+ * satisfy the assertions they describe.
+ */
+const source = (path: string) =>
+  readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+test('neither page builds the prompt input itself any more', () => {
+  const standalone = source('features/build/PromptBuilder.tsx');
+  const guided = source('features/studio/useAgentDraft.ts');
+
+  for (const [name, text] of [['the prompt builder', standalone], ['the guided step', guided]] as const) {
+    assert.match(text, /promptInputFrom\(/, `${name} no longer derives its input from the shared helper`);
+    /* The fields each page owns go in; the label lookup and the runtime
+       defaults come out. A page resolving its own category label is the
+       drift this replaced. */
+    assert.doesNotMatch(text, /CATEGORIES\.find\(\(c\) => c\.id === (category|draft\.category)\)/, `${name} resolves the category label itself again`);
+  }
+
+  /* The standalone page hardcoded A2A and passed no style at all. */
+  assert.doesNotMatch(standalone, /protocol: 'a2a'/, 'the prompt builder hardcodes the protocol again');
+  assert.match(standalone, /style/, 'the prompt builder does not pass a style');
+});
+
+test('the prompt page offers the same style switch as the guided flow', () => {
+  const standalone = source('features/build/PromptBuilder.tsx');
+  assert.match(standalone, /<BuildStyleSwitch/, 'the prompt page has no style switch');
+  assert.match(standalone, /useState<BuildStyle>\('recommend'\)/, 'the prompt page does not default to Recommend and build');
+
+  /* And the guided flow's default comes from the stored plan, not a literal. */
+  const guided = source('features/studio/useAgentDraft.ts');
+  assert.match(guided, /style: readLastStyle\(\)/, 'the guided flow no longer restores the remembered style');
+  assert.match(guided, /style: plan\.style/, 'the guided flow does not pass its style into the prompt');
 });

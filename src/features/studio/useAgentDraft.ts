@@ -5,7 +5,8 @@ import type { Erc8004RegistrationFile } from '@altananetwork/sdk';
 import { useAccount } from 'wagmi';
 
 import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
-import { createAgentBuildPrompt } from '@/lib/builder/ai-prompt';
+import { createAgentBuildPrompt, promptInputFrom } from '@/lib/builder/ai-prompt';
+import { RUNTIME_OPTIONS } from '@/lib/builder/runtime';
 import { DEFAULT_PLAN, DRAFTS_KEY, announceDraftsChanged, draftSaveStatus, draftsServerSnapshot, draftsSnapshot, failedSavesServerSnapshot, failedSavesSnapshot, isDraftEmpty, readLastStyle, recordDraftSave, rememberStyle, subscribeToDrafts, upsertDraft, type BuildPlan, type BuildStyle, type DraftFields, type DraftRecord, type StoredDraft } from '@/lib/builder/drafts';
 import { applyConcept, type AgentConcept } from '@/lib/builder/concepts';
 import { selectTrialCapability } from '@/lib/builder/trial';
@@ -58,13 +59,6 @@ export interface BuilderTrial {
   disclaimer: string;
 }
 
-export const RUNTIME_OPTIONS: Record<string, { target: string[]; policy: string[]; output: string[] }> = {
-  'health-factor': { target: ['Venus', 'Lista'], policy: ['Conservative', 'Balanced', 'Custom thresholds'], output: ['Risk report', 'Stress analysis', 'Action plan'] },
-  yield: { target: ['Stablecoins', 'BNB liquid staking', 'All supported assets'], policy: ['Capital preservation', 'Balanced', 'Opportunity seeking'], output: ['Opportunity comparison', 'Allocation research', 'Risk report'] },
-  rebalancing: { target: ['Wallet portfolio', 'Treasury', 'Liquidity positions'], policy: ['Drift threshold', 'Scheduled review', 'Custom mandate'], output: ['Rebalancing plan', 'Exposure report', 'Proposed trade list'] },
-  'grid-trading': { target: ['BNB / USDT', 'BTCB / USDT', 'Custom pair'], policy: ['Wide conservative grid', 'Balanced grid', 'Custom constraints'], output: ['Grid parameters', 'Scenario analysis', 'Risk-bounded plan'] },
-  'token-safety': { target: ['BEP-20 tokens', 'New launches', 'A watchlist'], policy: ['Flag anything uncertain', 'Balanced', 'Only hard failures'], output: ['Safety report', 'Holder risk summary', 'Pass / fail screen'] },
-};
 
 const REGISTRATION_RECOVERY_KEY = 'pokter-agent-registration-recovery-v1';
 
@@ -314,16 +308,17 @@ export function useAgentDraft(initial?: StoredDraft | null, onBound?: (draftId: 
 
   const buildPrompt = useMemo(
     () =>
-      createAgentBuildPrompt({
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        category: CATEGORIES.find((c) => c.id === draft.category)?.label ?? '',
-        protocol: draft.protocol,
-        target: runtime.target,
-        policy: runtime.policy,
-        output: runtime.output,
-      }),
-    [draft, runtime],
+      createAgentBuildPrompt(
+        promptInputFrom({
+          name: draft.name,
+          description: draft.description,
+          categoryId: draft.category,
+          protocol: draft.protocol,
+          style: plan.style,
+          runtime,
+        }),
+      ),
+    [draft, runtime, plan.style],
   );
 
   const registrationFile = useMemo(

@@ -1,3 +1,4 @@
+import { CONCEPTS } from '@/lib/builder/concepts';
 import type { BuildStyle, DraftFields } from '@/lib/builder/drafts';
 
 /**
@@ -29,7 +30,9 @@ export const BUILD_STYLES: ReadonlyArray<{
     summary: 'Pokter proposes and decides; you confirm the things that matter.',
     behaviour: [
       'Uses everything you have already given and never asks for it twice.',
-      'With no idea yet, puts forward five concepts, recommends one, and says why.',
+      /* Counted from the list the picker renders, so the description cannot
+         outlive the list. It said five while the prompt said three. */
+      `With no idea yet, puts forward ${CONCEPTS.length} concepts, recommends one, and says why.`,
       'Takes the routine decisions itself — protocol, skill names, file names — and shows what it chose.',
       'Asks only what genuinely blocks the build, grouped into one message.',
       'Changes nothing until you choose. Saying nothing is not agreement.',
