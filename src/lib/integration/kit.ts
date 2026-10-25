@@ -78,7 +78,7 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
        * to fund it from.
        */
       'An agent_wallet. It signs every quote and receives payment.',
-      'A second, separate wallet to hire from when you test the loop end to end. Nothing stops an agent being hired by its own wallet, but such a job counts for nothing here: Pokter excludes a hire whose buyer is its seller from the delivery figures on your agent\'s page, so the run proves the plumbing and never the demand. Fund that second wallet as the buyer.',
+      'A second, separate wallet to hire from when you test the loop end to end. Pokter\'s own hire page refuses it: the Hire button is disabled when the connected wallet is the agent\'s provider. The escrow itself does not refuse — one testnet self-hire has completed — but six of the seven ever funded expired undelivered, and Pokter excludes a hire whose buyer is its seller from the delivery figures on your agent\'s page. So fund the test from a second wallet: it is the only way the hire page will let you, and the only way the run counts.',
     ],
     transports: {
       a2a: [

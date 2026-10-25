@@ -112,7 +112,7 @@ function fundingSection(mainnetEscrow: boolean): string {
 
 FUNDING THE WALLETS, BEFORE ANY OF IT WORKS
 - Registering the ERC-8004 identity costs gas, and every delivery the agent submits on chain costs gas, so the wallet that owns the identity needs ${NATIVE_SYMBOL} on chain ${ESCROW_CHAIN_ID} before either can happen.
-- Testing the loop end to end needs a second, separate wallet to hire from, holding both ${NATIVE_SYMBOL} and the escrow payment token. Nothing stops the agent being hired by its own wallet, but Pokter excludes a job whose buyer is its seller from the delivery figures on the agent's page, so a self-hire proves the plumbing works and never that anyone wanted the output. Plan for two wallets and tell me which is which.
+- Testing the loop end to end needs a second, separate wallet to hire from, holding both ${NATIVE_SYMBOL} and the escrow payment token. Pokter's own hire page refuses it: the Hire button is disabled when the connected wallet is the agent's provider. The escrow itself does not refuse — one testnet self-hire has completed — but six of the seven ever funded expired undelivered, and Pokter excludes a hire whose buyer is its seller from the delivery figures on your agent's page. So fund the test from a second wallet: it is the only way the hire page will let you, and the only way the run counts. Plan for two wallets and tell me which is which.
 - All of these are test tokens, all free, and none has any real value.
 ${viaBot}
 ${mainnetEscrow ? `- If I chose mainnet, none of the above applies: the wallet needs real BNB for gas on chain 56, and nobody gives that away.

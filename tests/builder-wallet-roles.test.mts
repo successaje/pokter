@@ -34,7 +34,10 @@ test('a test buyer that is the provider is blocking, and nothing else is', () =>
   assert.equal(blocking.length, 1);
   assert.equal(blocking[0].severity, 'blocking');
   assert.deepEqual(blocking[0].roles, ['agent-wallet', 'test-buyer']);
-  assert.match(blocking[0].consequence, /same wallet/i);
+  /* The overlap is real and blocking; the reason given for it is the
+     hire page, not a contract that would have accepted the job. */
+  assert.match(blocking[0].consequence, /hire page refuses to fund it/i);
+  assert.doesNotMatch(blocking[0].consequence, /can never be completed by anyone/i);
 
   for (const assignment of [
     { identityOwner: A, agentWallet: A, testBuyer: B },

@@ -372,9 +372,15 @@ test('it plans for a second wallet to test a hire from', () => {
   if (!FAUCETS) return;
   assert.match(prompt, /second, separate wallet to hire from/);
   assert.match(prompt, /Plan for two wallets and tell me which is which/);
-  // It must not revive the claim that the escrow blocks it.
+  /*
+   * Neither wrong version may come back. "The escrow will not let it hire
+   * itself" is refuted by testnet job 1444, a self-hire that COMPLETED;
+   * "nothing stops it" is refuted by `useHire`, which disables the Hire
+   * button. The block is Pokter's hire page, and that is what it says.
+   */
   assert.doesNotMatch(prompt, /will not let it hire itself/);
-  assert.match(prompt, /Nothing stops the agent being hired by its own wallet/);
+  assert.doesNotMatch(prompt, /Nothing stops the agent being hired by its own wallet/);
+  assert.match(prompt, /hire page refuses it/i);
 });
 
 test('with mainnet hires open, it offers both chains with their exact tokens', () => {

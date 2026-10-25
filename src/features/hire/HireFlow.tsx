@@ -556,7 +556,7 @@ export function HireFlow(props: HireFlowProps) {
           */}
           {hire.selfHire && (
             <Notice tone="bad" title="This wallet is the agent's own provider">
-              You would be paying yourself, and the escrow will not accept a delivery where the seller and the buyer are the same wallet. Hire from a different wallet to test this agent end to end.
+              You would be paying yourself, so Pokter does not offer this hire. The escrow would accept it — one testnet self-hire has completed — but six of the seven ever funded expired undelivered, and a hire whose buyer is its seller is left out of the delivery figures on the agent’s page. Hire from a different wallet to test this agent end to end.
               {props.campaignLive ? ' Set and Earn also requires hirers independent of the agent’s owner, so a hire from here counts for nothing.' : ''}
             </Notice>
           )}

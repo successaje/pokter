@@ -34,8 +34,11 @@ test('the kit names an escrow with all its contracts, and the required skills', 
  */
 test('the kit does not claim the escrow blocks a self-hire', () => {
   const identity = integrationKit('https://pokter.xyz').identity.join('\n');
+  /* Both directions. The escrow does settle such a job — testnet 1444
+     reached COMPLETED — and Pokter's hire page still refuses to offer it. */
   assert.doesNotMatch(identity, /will not let it hire itself/);
-  assert.match(identity, /Nothing stops an agent being hired by its own wallet/);
+  assert.doesNotMatch(identity, /Nothing stops an agent being hired by its own wallet/);
+  assert.match(identity, /hire page refuses it/i);
   // And it names the wallet a builder needs to test a hire from.
   assert.match(identity, /second, separate wallet to hire from/);
   assert.match(identity, /excludes a hire whose buyer is its seller/);
