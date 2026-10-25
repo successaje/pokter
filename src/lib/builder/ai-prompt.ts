@@ -1,6 +1,8 @@
+import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { FAUCETS, MAINNET_ESCROW, NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { ESCROW_PAYMENT_TOKEN } from '@/lib/network/escrow';
 import { BUILT_WITH_KEY, BUILT_WITH_POKTER } from '@/lib/brand/built-with';
+import { CANONICAL_RULES, JOB_DEADLINE_FIELD, KIT_VERSION, TIMING } from '@/lib/integration/guide';
 
 export type AgentBuildPromptInput = {
   name: string;
@@ -28,21 +30,60 @@ export type AgentBuildPromptInput = {
 const ESCROW_CHAIN_ID = 97;
 
 /**
- * A live agent that negotiates and delivers, offered as the reference.
+ * Where the contract comes from, and who owns it.
  *
- * Linked rather than transcribed. A schema copied into this file is a
- * schema that goes stale silently, and the failure it produces — a quote
- * Pokter cannot verify — looks like a bug in the new agent rather than a
- * bug in the instructions it was built from. The card is public and Pokter
- * already reads it every two hours.
+ * This prompt used to send the assistant to a third-party agent card on
+ * somebody else's host — `weigh-ladder-agent.onrender.com` — as its
+ * reference for the wire format, with a comment conceding that the host
+ * sleeps. That made a stranger's deployment the authority on Pokter's own
+ * protocol: when it slept, the assistant had nothing; when it changed, the
+ * assistant learned a contract Pokter never promised; and the first-party
+ * kit, which is live, versioned and generated from the running constants,
+ * was not mentioned anywhere in 174 lines.
  *
- * It is one example, not a dependency: the prompt tells the model what to
- * do when it does not load, because this is somebody else's endpoint on a
- * host that sleeps and it may one day not be there.
+ * So the kit is the authority and the card is an example, clearly labelled
+ * as one. The two surfaces are the same document: the page for a human, the
+ * JSON for a script or an agent.
  */
-const REFERENCE_AGENT_CARD =
-  'https://weigh-ladder-agent.onrender.com/.well-known/agent-card.json';
+const KIT_JSON = 'https://pokter.xyz/api/v1/integration';
+const KIT_PAGE = 'https://pokter.xyz/build/integration';
+
+/**
+ * Where to find a live card to look at, without naming one.
+ *
+ * The prompt used to hardcode `weigh-ladder-agent.onrender.com`. That URL
+ * returns 503 — immediately and repeatedly, so it is not a sleeping host
+ * being slow but a service that is gone. Shipping it was the dead-link
+ * defect this repo keeps making: the one artefact a builder was told to
+ * read, on somebody else's host, down.
+ *
+ * Naming a different third-party card would rot the same way, so the
+ * pointer is first-party and self-healing instead: Pokter's own catalogue,
+ * filtered to agents that have signed a price, which is exactly the set
+ * whose cards work. The kit already carries a complete worked example, so
+ * nothing here is load-bearing — this is for a builder who wants to see a
+ * real implementation beside the spec.
+ */
+const EXAMPLE_AGENT_SOURCE = 'https://pokter.xyz/agents';
 const ESCROW_CHAIN_NAME = 'BNB Smart Chain Testnet';
+
+/**
+ * The categories, from the list the listing form renders.
+ *
+ * Hand-kept here as "rebalancing, grid-trading, yield, health-factor"
+ * while `CATEGORIES` had five and the form also offered "none of these
+ * fits". The prompt therefore told every builder to pick one of four, so
+ * a token-safety agent — a real category, and the subject of the kit's own
+ * worked example — was steered into claiming a category that describes
+ * something it does not do. Generated now, so the set cannot drift again.
+ */
+function categoryChoices(): string {
+  return [...CATEGORIES.map((c) => c.id as string), NO_CATEGORY].join(', ');
+}
+
+function categoryGuide(): string {
+  return CATEGORIES.map((c) => `  - ${c.id}: ${c.blurb}`).join('\n');
+}
 
 /**
  * How to get the two test tokens, written into the prompt rather than left
@@ -69,11 +110,13 @@ function fundingSection(mainnetEscrow: boolean): string {
 
   return `
 
-FUNDING THE WALLET, BEFORE ANY OF IT WORKS
-- Registering the ERC-8004 identity costs gas, and every delivery the agent submits on chain costs gas, so the wallet that owns the identity needs ${NATIVE_SYMBOL} on chain ${ESCROW_CHAIN_ID} before either can happen. If I also want to hire the agent myself to watch the whole loop, that wallet needs the escrow payment token too. Both are test tokens, both are free, and neither has any real value.
+FUNDING THE WALLETS, BEFORE ANY OF IT WORKS
+- Registering the ERC-8004 identity costs gas, and every delivery the agent submits on chain costs gas, so the wallet that owns the identity needs ${NATIVE_SYMBOL} on chain ${ESCROW_CHAIN_ID} before either can happen.
+- Testing the loop end to end needs a second, separate wallet to hire from, holding both ${NATIVE_SYMBOL} and the escrow payment token. Nothing stops the agent being hired by its own wallet, but Pokter excludes a job whose buyer is its seller from the delivery figures on the agent's page, so a self-hire proves the plumbing works and never that anyone wanted the output. Plan for two wallets and tell me which is which.
+- All of these are test tokens, all free, and none has any real value.
 ${viaBot}
 ${mainnetEscrow ? `- If I chose mainnet, none of the above applies: the wallet needs real BNB for gas on chain 56, and nobody gives that away.
-` : ''}- Check with me that the wallet is funded before you tell me to register or to submit anything. An empty wallet fails at exactly the step you have just called finished, and the error it returns looks like a bug in the agent rather than an empty wallet.`;
+` : ''}- Check with me that the wallets are funded before you tell me to register or to submit anything. An empty wallet fails at exactly the step you have just called finished, and the error it returns looks like a bug in the agent rather than an empty wallet.`;
 }
 
 /**
@@ -86,7 +129,7 @@ function chainsSection(mainnetEscrow: boolean): string {
     return `WHICH CHAINS THIS AGENT LIVES ON
 - Identity: register the ERC-8004 agent on BNB Chain mainnet (56) or BNB Smart Chain Testnet (97). Pokter lists both.
 - Money: every escrow settles on ${ESCROW_CHAIN_NAME} (chain ${ESCROW_CHAIN_ID}), whichever chain the identity is on. Payment is a test token with no real value.
-- Therefore: quote in the payment token of chain ${ESCROW_CHAIN_ID}, and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Ask me for the exact payment-token address and do not guess it.
+- Therefore: quote in the payment token of chain ${ESCROW_CHAIN_ID} (${ESCROW_PAYMENT_TOKEN[97]}), and bind the quote's signing domain to chain ${ESCROW_CHAIN_ID}. A quote priced in mainnet currency, or signed for chain 56, verifies correctly and still cannot be paid from this escrow — the agent will reject or never receive the job, and the buyer waits out the deadline for nothing. Confirm the address against the kit's \`escrows\` before you use it, and do not guess it.
 - If the identity is on mainnet while escrow is on testnet, the agent cannot see the job at all and Pokter's own seller delivers on its behalf. Registering on chain ${ESCROW_CHAIN_ID} is what lets the agent earn its own record.`;
   }
   return `WHICH CHAINS THIS AGENT LIVES ON
@@ -97,14 +140,65 @@ function chainsSection(mainnetEscrow: boolean): string {
 - An agent on mainnet that signs no price is hired on testnet, where Pokter's own seller carries the task to it. Signing a price is what lets it be hired, and paid, on its own chain.`;
 }
 
-export function createAgentBuildPrompt(input: AgentBuildPromptInput, { mainnetEscrow = MAINNET_ESCROW }: { mainnetEscrow?: boolean } = {}) {
-  const protocolContract = input.protocol === 'a2a'
-    ? 'Expose an A2A Agent Card at GET /.well-known/agent-card.json and a JSON-RPC 2.0 task endpoint over POST.'
-    : 'Expose an MCP Streamable HTTP JSON-RPC endpoint supporting initialize and tools/list over POST.';
+/**
+ * The paid path is A2A, whatever else the agent also speaks.
+ *
+ * The kit has always said it — "prices and hires go over A2A. MCP alone can
+ * be measured but not priced" — and the prompt did not: picking MCP in the
+ * form produced a prompt describing an MCP server and nothing else, so an
+ * assistant following it built something Pokter could probe, list and never
+ * hire. MCP stays worth building as an additional surface; it is not an
+ * alternative to the one that takes money.
+ */
+function transportSection(protocol: 'a2a' | 'mcp'): string {
+  const a2a = `- Direct hire runs over A2A, and only over A2A. Expose an A2A Agent Card at GET /.well-known/agent-card.json and a JSON-RPC 2.0 endpoint over POST, declared in the card as an HTTPS JSON-RPC interface. Pokter calls the first one the card declares; a card that declares none answers probes and cannot be quoted or hired.
+- Leave the card, \`negotiate\` and \`notify_funded\` open to anonymous calls. Pokter and buyers hold no credentials for your endpoint, so an endpoint behind auth can be measured but never quoted or hired.
+- Declare the skills with task-specific inputs and concrete, complete example briefs — in each skill's \`examples\` array, or as a \`task_description\` in its description. Buyers start from those examples, and a brief in your own format is what stops a refusal arriving after the quote. Name the priced skill after the work ("Quote a borrow desk brief"), not after the plumbing: a named skill is shown to buyers, a generic one reads as infrastructure.`;
+  if (protocol === 'a2a') return `HOW BUYERS REACH IT
+${a2a}
+- You may add an MCP endpoint as well, and Pokter will measure it, but it is additional and never a substitute.`;
+  return `HOW BUYERS REACH IT
+- I picked MCP, so build the MCP server: an MCP Streamable HTTP JSON-RPC endpoint supporting \`initialize\` and \`tools/list\` over POST, declaring the protocol revision it implements in the registry record.
+- MCP alone cannot be priced or hired on Pokter today. It is measured and listed, and the paid path does not run over it, so an MCP-only agent is unsellable here however well it works. Tell me this plainly rather than building to the choice I made, and build the A2A surface too:
+${a2a}
+- If I insist on MCP only, say in one line what it costs — no signed price, no hire, no earnings — and let me decide.`;
+}
 
+/**
+ * The bundled contract, for an assistant that cannot reach the kit.
+ *
+ * Generated from the same constants the kit is built from rather than
+ * retyped, and stamped with the kit version it was generated against, so
+ * an assistant working offline can say what it built to and a reader can
+ * tell whether it is current. It is deliberately the minimum: enough to
+ * keep a model from inventing the wire format, not a replacement for the
+ * document.
+ */
+function fallbackSection(): string {
+  return `IF YOU CANNOT REACH THE KIT
+Say so explicitly — name the URL and what happened — and then proceed on the bundled summary below, which was generated against kit schema ${KIT_VERSION}. Write that version into your notes and into the listing summary, so what you built to is on the record and can be rechecked against the live kit later. Do not ask me for the wire format: I copied this prompt because I do not know it, and a shape I invent on your behalf is worse than the one below. If the summary genuinely does not cover something you need, say exactly which field you are missing and ask me to paste that part of ${KIT_JSON} — never fill the gap by guessing, because a wire format guessed confidently and slightly wrong produces a quote Pokter cannot verify, which looks like a bug in the agent for as long as it takes somebody to check the hash.
+- \`negotiate\` request: a JSON-RPC \`message/send\` whose message carries a data part { skill: "negotiate", task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains }.
+- \`negotiate\` reply: { request: { task_description }, response: { accepted: true, terms: { price, currency, deliverables, quality_standards, success_criteria? } }, negotiated_at, quote_expires_at?, chain_id?, verifying_contract?, negotiation_hash, provider_sig }. To decline, \`accepted: false\` with a plain-language \`reason\`; the buyer reads it.
+- \`negotiation_hash\` = keccak256 of the canonical JSON of { version: 1, negotiated_at, task, terms, price, currency, quote_expires_at?, chain_id?, verifying_contract? }. \`provider_sig\` = an EIP-191 signature of that hash by the registered agent wallet.
+- Canonical JSON, exactly:
+${CANONICAL_RULES.map((rule) => `  - ${rule}`).join('\n')}
+- \`notify_funded\` request: { skill: "notify_funded", job_id }. Reply { status: "accepted" | "rejected", job_id } immediately; do the work afterwards.
+- Delivery: commerce.submit(jobId, deliverable, optParams), where \`deliverable\` is keccak256 of the exact bytes served and \`optParams\` is the UTF-8 bytes of { "deliverable_url": "https://…" }.
+- Deadlines: ${TIMING.rules[0]}`;
+}
+
+export function createAgentBuildPrompt(input: AgentBuildPromptInput, { mainnetEscrow = MAINNET_ESCROW }: { mainnetEscrow?: boolean } = {}) {
   const hasDefinedConcept = Boolean(input.name || input.description || input.category);
 
   return `You are my product strategist and senior protocol engineer. Help me design and build a distinctive, production-quality financial AI agent for Pokter, an evidence-first agent marketplace on BNB Chain.
+
+HOW I WANT YOU TO WORK
+- Understand the goal before proposing a shape, and say what you think the real job is in your own words. If you think my direction is wrong, say so and argue for the better one.
+- Recommend a narrow first version: one job, done well enough that a buyer would pay for its output, and small enough to finish and verify today.
+- Separate your suggestions from what you actually did. Keep two headings — "Implemented" and "Suggested, not implemented" — and never let an idea appear under the first.
+- State your assumptions as you make them, especially about data sources, freshness, and what the buyer already knows.
+- Then carry it through: write the code, write the tests, run what you can run, and report what the run said. Do not stop at a plan, and do not describe a plan as though it were a build.
+- Where you cannot reach a file, run a command, or fetch a URL, say exactly what you could not do and give me the smallest next step that unblocks it — the one command to run or the one value to paste — rather than a general suggestion or a silent assumption.
 
 DISCOVERY FIRST
 ${hasDefinedConcept
@@ -123,19 +217,62 @@ AGENT BRIEF
 - Primary deliverable: ${input.output || 'Return a structured result with evidence, assumptions, timestamps, and limitations'}
 - Service protocol: ${input.protocol.toUpperCase()}
 
+FETCH THE CONTRACT BEFORE YOU SCAFFOLD
+The wire format is published by Pokter and generated from the values Pokter runs on. It is the only authority here, including over anything in this prompt:
+- ${KIT_JSON} — the whole contract as JSON, for you to read directly. Fetch this first, before any scaffolding.
+- ${KIT_PAGE} — the same document as a page, if you want the prose.
+Read its \`version\` field and tell me which version you built against; put that version in your notes and in the listing summary, so the record says what the code was written to. It carries the skills, the quote fields and hashing rules, the escrow addresses per chain, the job lifecycle, every refusal code, and a worked example with the complete JSON-RPC request, the reply, a decline, the canonical JSON, its computed hash and runnable signing code.
+I would rather you read that than take a schema from me: a wire format described in prose is the kind of thing a model reproduces confidently and slightly wrong, and slightly wrong here means a quote Pokter cannot verify or a job the seller never accepts. Note especially that the kit states how the hash is canonicalised — key ordering, escaping, character substitutions — which no agent card can tell you and which is the single thing most likely to be got nearly right.
+So prefer the kit over your own memory of similar protocols, and prefer it over me: if this prompt and the kit disagree, the kit is right and I would like you to tell me where they differ.
+If you want to see a working implementation beside the spec, ${EXAMPLE_AGENT_SOURCE} lists agents on Pokter and the ones showing a signed price have working cards behind them; read one as an example only. Take nothing normative from a third party's card — it describes their skills, not Pokter's requirements — and never copy its schema in place of the kit's.
+
 ${chainsSection(mainnetEscrow)}${fundingSection(mainnetEscrow)}
+
+${transportSection(input.protocol)}
 
 WHAT POKTER CALLS, AND WHAT IT CHECKS
 Pokter lists an agent on six checks: ERC-8004 identity, a published endpoint, answering when called, published capabilities, a signed price quote, and a marketplace category. Passing the first four gets the agent listed and probed; without the fifth it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
 - Probing is an unauthenticated GET of the agent card every two hours. That is what builds the public record, and it proves reachability only — never correctness.
-- \`negotiate\` must return a quote the agent has signed with its registered ERC-8004 wallet: the request and response it is agreeing to, a hash over both, that signature, the price in the escrow token, the currency address, an expiry, and the signing domain (chain id and verifying contract). Pokter recovers the signature and refuses any quote that does not come back to the registered wallet.
-- \`notify_funded\` receives the funded job id, verifies the job on chain carries the agent's own signed quote, answers immediately with accepted or rejected, and does the work afterwards. Do not block the reply on the work.
-- Delivery is an on-chain submit against the ERC-8183 job carrying the deliverable's hash, so a buyer can check the file is the one committed to. Returning JSON over HTTP is not delivery and will not release escrow.
-- A quote is short-lived. State its expiry and honour it.
 
-READ A WORKING AGENT BEFORE YOU WRITE ONE
-Fetch ${REFERENCE_AGENT_CARD} and read its two skill descriptions. It is a live agent on Pokter that negotiates and delivers end to end, and its card states the exact message shape each skill expects and returns. Copy the contract, not the strategy — the agent you build should do a different job.
-I would rather you read that card than take a schema from me: a wire format described in prose is the kind of thing a model reproduces confidently and slightly wrong, and slightly wrong here means a quote Pokter cannot verify or a job the seller never accepts. If the card does not load, say so and ask me for a current one rather than inventing the shape — any agent listed on pokter.xyz/agents showing a signed price has a working card behind it.
+Identity and wallets
+- Register an ERC-8004 identity whose \`agent_wallet\` is the key that signs quotes. Pokter recovers every signature and refuses any quote that does not come back to that registered wallet, so the signing key and the registered wallet must be the same key, and it is the operational key the service actually holds — not a cold address you will swap in later.
+- Payment goes to that same registered wallet. If you intend a different recipient, say so now, because the escrow pays the provider on the job and nothing downstream can redirect it.
+- Keep the key in an environment variable. Never print it, never commit it, never put it in a log line.
+
+The signed quote
+- \`negotiate\` must return a quote the agent has signed: the request and response it is agreeing to, a hash over both, that signature, the price, the currency address, an expiry, and the signing domain.
+- Price is an integer string in the payment token's smallest unit (18 decimals). Not a float, not a decimal string, not a human-readable amount.
+- Currency must be the payment token of an enabled escrow, or the hire is refused as payment-incompatible before the agent is ever called.
+- \`negotiation_hash\` is a keccak256 over the canonical JSON of the agreed terms, and \`provider_sig\` is an EIP-191 signature of that hash. Follow the kit's canonical rules exactly — key ordering, whitespace, escaping and the character substitutions — because a hash computed over nearly-canonical JSON is refused as terms-mismatch, and the signature over it is valid and useless.
+- A quote is short-lived. Return \`quote_expires_at\`, honour it, and refuse your own expired quotes.
+- If \`chain_id\` and \`verifying_contract\` are returned they must name the escrow Pokter funds on, or the hire is refused.
+- If the request carries \`terms.success_criteria\`, echo the array back unchanged inside the terms you sign. It is covered by the hash, and echoing it is what records that the agent agreed to the criteria it will be judged against rather than that Pokter merely asserted them. Omitting it is allowed and refuses nothing; it only loses that binding.
+
+Validating a funded job before doing any work
+- \`notify_funded\` receives the funded job id and must answer \`{ status, job_id }\` immediately. Do not block the reply on the work.
+- Before doing the work, read the job from the commerce contract on chain: \`getJob(job_id)\`. Check that its status is FUNDED, that \`provider\` is your own registered wallet, and that the quote in its description is a quote you actually signed — match \`negotiationHash\` against your own record and refuse anything else. An agent that works on an unverified notification can be made to work for free by anyone who can post a job id at it.
+- If the brief is one you cannot do, answer \`{ status: "rejected", reason }\` and submit nothing.
+
+Doing the work durably
+- Process in the background, with state that survives a restart. Persist each job the moment you accept it, and resume anything unfinished on boot — a process that holds job state only in memory loses the job to a deploy and the buyer waits out the deadline.
+- Expect repeated notifications. The same \`job_id\` may arrive more than once, and the handler must be idempotent: return the same answer rather than starting the work twice.
+- Prevent duplicate submissions. Record that a job has been submitted before you submit, and check it after a restart. A second \`submit\` for the same job wastes gas at best, and at worst commits a different hash for a deliverable the buyer already has.
+
+The deliverable
+- Delivery is an on-chain submit against the ERC-8183 job: \`commerce.submit(jobId, deliverable, optParams)\`, where \`deliverable\` is the keccak256 of the exact bytes you serve and \`optParams\` carries the public URL. Returning JSON over an HTTP response is not delivery and will not release escrow.
+- Serve those bytes at that public URL, unchanged, for as long as the job can be checked. Pokter re-hashes what you serve against what is on chain while the buyer reviews it, so an endpoint that regenerates its output — a new timestamp, re-ordered keys, a recomputed figure — fails verification for a delivery that was correct when it was made. Write the bytes once, store them, and serve the stored copy.
+- Put the answer in \`response.content\`. A payload carrying only an error, a need, a hint or a status counts as no answer.
+
+Deadlines, read and not assumed
+- ${TIMING.rules[0]}
+- ${TIMING.rules[1]}
+- ${TIMING.rules[2]}
+- So compute your own submit margin from the job's own \`${JOB_DEADLINE_FIELD}\` and the policy's own \`disputeWindow()\`, both read at the time you handle the job. Never hardcode either, and never start a timer from when you were notified.
+
+Settlement, and confirming the agent was actually paid
+- Delivering is not being paid. A submitted job enters the policy's review window, and payment happens when \`settle\` is called on the router after that window closes — in that transaction, not before.
+- Track your own jobs through to settlement and call \`settle\` on your own approved jobs. A delivered job left unsettled past the deadline can be reclaimed by the buyer, which means the work was done, accepted, and not paid for.
+- Confirm payment by checking the agent wallet's balance moved, or the settle transaction's receipt, and surface the job's state. Treat a job as earning only once that confirmation exists; do not report a delivery as revenue.
 
 WHERE YOU HOST IT, AND FOR HOW LONG
 - A probe waits ten seconds and no longer. A host that sleeps when idle — the free tier of most platforms — takes far longer than that to wake, so the first probe after a quiet spell is recorded as a failure the agent never saw. Two agents already listed on Pokter are on sleeping hosts and this is what happens to them. Pick a host that stays up, or keep it warm.
@@ -143,30 +280,34 @@ WHERE YOU HOST IT, AND FOR HOW LONG
 - Nothing about the record can be edited, so the honest move is to register the identity when the endpoint is ready to be called, not when the idea is ready.
 
 BUILD REQUIREMENTS
-1. After discovery and my explicit concept choice, ask only essential remaining questions and propose a short implementation plan before writing code.
-2. Build a small, understandable TypeScript service with a health check, structured logging, input validation, timeouts, rate limits, deterministic error responses, and automated tests.
-3. ${protocolContract}
-4. Include a safe preview/simulate/dry-run capability so Pokter can test output without executing trades or moving funds.
-5. Default to read-only behavior. Never request, print, store, or hard-code a seed phrase or private key. Put secrets in environment variables and provide a .env.example containing placeholders only.
-6. Do not claim guaranteed returns, protection, or capabilities the code does not implement. Clearly disclose supported chains, protocols, assets, data sources, freshness, assumptions, and failure modes.
-7. If any onchain action is included, require explicit user approval, use allowlisted contracts and bounded amounts, simulate first, and keep execution isolated from analysis. Do not invent contract addresses.
-8. Return machine-readable JSON results and include sources/evidence wherever possible.
-9. Provide: complete files, setup commands, tests, a local run command, a sample request/response, and deployment steps for a public HTTPS URL.
-10. Implement \`negotiate\` and \`notify_funded\` as described above, and publish both in the agent card's skills so Pokter can read them. Keep the signing key in an environment variable.
-11. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
-12. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Treat the build as unfinished until all seven pass, and do not describe it to me as working on the strength of your own tests alone.
+1. After discovery and my explicit concept choice, ask only essential remaining questions and propose a short implementation plan, then build it in the same session.
+2. Build a small, understandable TypeScript service with a health check, structured logging, input validation, timeouts, rate limits, deterministic error responses, and automated tests. Include a test that signs a quote and verifies the hash and signature the way Pokter does.
+3. Include a safe preview/simulate/dry-run capability so a buyer can run their brief before paying, and so Pokter can test output without executing trades or moving funds.
+4. Default to read-only behavior. Never request, print, store, or hard-code a seed phrase or private key. Put secrets in environment variables and provide a .env.example containing placeholders only.
+5. Do not claim guaranteed returns, protection, or capabilities the code does not implement. Clearly disclose supported chains, protocols, assets, data sources, freshness, assumptions, and failure modes.
+6. If any onchain action is included, require explicit user approval, use allowlisted contracts and bounded amounts, simulate first, and keep execution isolated from analysis. Do not invent contract addresses — take every address from the kit.
+7. Return machine-readable JSON results and include sources/evidence wherever possible.
+8. Provide complete files, setup commands, tests, a local run command, a sample request and response, and deployment steps for a public HTTPS URL. Where a step depends on something only I can do — a funded wallet, a DNS record, a hosting account — name it and say what you need from me.
+9. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
+10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs seven checks of its own — identity, published endpoint, answering when called, published capabilities, a signed price quote, that the quote can actually be paid from the escrow, and a marketplace category. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all seven pass. Do not describe it to me as working on the strength of your own tests alone.
+
+${fallbackSection()}
 
 FINISH WITH THE LISTING, READY TO PASTE
 End your final message with a block headed "Pokter listing" containing exactly these fields and nothing else, each on its own line, filled in with real values — no placeholders, no commentary:
 - Agent name:
 - Description: (one paragraph, 40 characters minimum, saying what it covers, what it needs from the buyer, what it returns, and what it cannot do)
-- Category: (exactly one of rebalancing, grid-trading, yield, health-factor)
+- Category: (exactly one of ${categoryChoices()})
 - Service protocol: (A2A or MCP)
 - Endpoint: (the public HTTPS URL — for A2A the agent card at /.well-known/agent-card.json)
-- Public repository:
+- Source repository: (public, and optional — say "none" if there is not one)
 - Identity chain: (56 or 97)
 - Scope / Operating policy / Primary deliverable: (one line each, matching what the code enforces)
-These are the fields Pokter's listing form asks for, in its order, so they can be copied across without rereading the transcript. Every claim in the description must be something the code actually does: Pokter publishes the description beside its own measurements, and the gap between them is the thing buyers are there to read.
+- Integration kit version built against:
+The categories are:
+${categoryGuide()}
+  - ${NO_CATEGORY}: none of the above describes it. Honest, and it costs the category listings Discover is built from — a quiet listing beats a wrong one.
+Everything above the kit version is a field Pokter's listing form collects, so it can be copied across without rereading the transcript. The kit version is not asked for by the form: it is for my own notes, so the record says which schema the code was written to. Every claim in the description must be something the code actually does: Pokter publishes the description beside its own measurements, and the gap between them is the thing buyers are there to read.
 
 Work step by step. Do not skip unresolved security decisions or replace them with placeholders that look production-ready. I will review and run everything locally before deployment.
 
