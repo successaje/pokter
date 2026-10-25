@@ -70,6 +70,9 @@ const LISTING_CHECKS = [
 
 const CHECK_COUNT_WORD = 'seven';
 
+/** "a, b and c" — a list a person reads, not an array joined by commas. */
+const CHECKS_SENTENCE = `${LISTING_CHECKS.slice(0, -1).join(', ')} and ${LISTING_CHECKS[LISTING_CHECKS.length - 1]}`;
+
 const ESCROW_CHAIN_ID = 97;
 
 /**
@@ -382,7 +385,7 @@ ${chainsSection(mainnetEscrow)}${fundingSection(mainnetEscrow)}
 ${transportSection(input.protocol)}
 
 WHAT POKTER CALLS, AND WHAT IT CHECKS
-Pokter lists an agent on ${CHECK_COUNT_WORD} checks: ${LISTING_CHECKS.join(', ')}. Passing the first four gets the agent listed and probed; without a signed quote it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
+Pokter lists an agent on ${CHECK_COUNT_WORD} checks: ${CHECKS_SENTENCE}. Passing the first four gets the agent listed and probed; without a signed quote it can never be hired, and that is the common way a healthy-looking agent turns out to be unsellable.
 - Probing is an unauthenticated GET of the agent card every two hours. That is what builds the public record, and it proves reachability only — never correctness.
 
 Identity and wallets
@@ -441,7 +444,7 @@ BUILD REQUIREMENTS
 7. Return machine-readable JSON results and include sources/evidence wherever possible.
 8. Provide complete files, setup commands, tests, a local run command, a sample request and response, and deployment steps for a public HTTPS URL. Where a step depends on something only I can do — a funded wallet, a DNS record, a hosting account — name it and say what you need from me.
 9. Say where it was made. Put \`"${BUILT_WITH_KEY}": "${BUILT_WITH_POKTER}"\` in the agent card's \`metadata\` object and in the \`metadata\` of every delivery manifest the agent submits, exactly as written. Other builders' agents name their maker the same way, and buyers on every marketplace read it.
-10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs the same ${CHECK_COUNT_WORD} checks named above — ${LISTING_CHECKS.join(', ')}. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all ${CHECK_COUNT_WORD} pass. Do not describe it to me as working on the strength of your own tests alone.\nPokter's compatibility API reports these at finer grain — it splits published capabilities into notify_funded, a priced skill named for the work, and example briefs — and adds one more, independent attestations, which no code can satisfy because it needs somebody else to hire the agent. Expect that one to read unknown, and do not treat it as a defect in the build.
+10. End with a verification checklist showing how to test the public endpoint in Pokter before ERC-8004 registration. Pokter runs the same ${CHECK_COUNT_WORD} checks named above — ${CHECKS_SENTENCE}. Run what you can against ${KIT_PAGE}'s own preflight tools, report what each said, and treat the build as unfinished until all ${CHECK_COUNT_WORD} pass. Do not describe it to me as working on the strength of your own tests alone.\nPokter's compatibility API reports these at finer grain — it splits published capabilities into notify_funded, a priced skill named for the work, and example briefs — and adds one more, independent attestations, which no code can satisfy because it needs somebody else to hire the agent. Expect that one to read unknown, and do not treat it as a defect in the build.
 
 ${fallbackSection()}
 
