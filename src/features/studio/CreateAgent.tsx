@@ -7,6 +7,11 @@ import { CATEGORIES, NO_CATEGORY } from '@/lib/agents/categories';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { draftFromBrief, EMPTY_BRIEF, type LaunchBrief } from '@/lib/builder/brief';
 import type { DraftSaveStatus, StoredDraft } from '@/lib/builder/drafts';
+import { hasIdea } from '@/lib/builder/style';
+import { WalletRoles } from './WalletRoles';
+import { BuildStyleSwitch } from '@/features/build/BuildStyleSwitch';
+import { ConceptPicker } from '@/features/build/ConceptPicker';
+import { PlanSummary } from '@/features/build/PlanSummary';
 import { NATIVE_SYMBOL } from '@/lib/network/presentation';
 import { avatarUrl } from '@/lib/ui/avatar-art';
 import { cn } from '@/lib/ui/cn';
@@ -93,10 +98,97 @@ function Blueprint({ d }: { d: AgentDraft }) {
   );
 }
 
+/**
+ * What this stage is for, before it asks for anything.
+ *
+ * Build-with-me's half of the deal: the plan up front, with the technical
+ * detail one click away rather than in the way. Recommend-and-build shows
+ * `PlanSummary` in the same slot — what was decided, and the short list of
+ * what genuinely cannot be.
+ */
+const STAGE_LEAD: Record<number, { body: string; detail: string }> = {
+  0: {
+    body: 'Decide what the agent is for and who pays for it. These three fields become your public listing, and the description is what a buyer reads before deciding whether to brief it.',
+    detail:
+      'The name and description go into the ERC-8004 registration file, on chain, where every marketplace reads them. The category is written as both a tag and a category, and Pokter shows that category’s own words on your agent’s page — which is why claiming one your agent does not act in is worse than claiming none.',
+  },
+  1: {
+    body: 'Say where your agent answers, and shape how it behaves. Nothing is called yet; the next stage does the calling.',
+    detail:
+      'A2A is the shape a buyer can hire: prices are negotiated over it. MCP can be measured but not priced. The behaviour choices are written into the build prompt and a runtime config file — your runtime enforces them, and Pokter checks the public endpoint independently rather than trusting the file.',
+  },
+  2: {
+    body: 'Pokter calls your endpoint from its own servers, holding none of your credentials, the way a buyer’s hire calls it. What it finds is what buyers will see.',
+    detail:
+      'The check requires https, refuses credentials in the URL, pins DNS for the request, refuses private networks and does not follow redirects. A probe counts as answered only when the endpoint returns well-formed JSON; HTTP 200 alone is not enough.',
+  },
+  3: {
+    body: 'Register the identity. Two transactions: one mints the ERC-8004 token, the second writes this profile to it. Your wallet shows each before you approve it.',
+    detail:
+      'The wallet that signs owns the identity and can change the registry record afterwards. It is not the wallet your agent should run with, and it is not the wallet you should hire from — the three roles are set out on this step.',
+  },
+};
+
+function StageLead({ step }: { step: number }) {
+  const lead = STAGE_LEAD[step];
+  if (!lead) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-[14px] border border-rule bg-sunken/40 p-4">
+      <p className="text-[13.5px] leading-relaxed text-ink-2">{lead.body}</p>
+      <Details summary="The technical detail">
+        <p className="text-[13px] leading-relaxed text-ink-2">{lead.detail}</p>
+      </Details>
+    </div>
+  );
+}
+
+/** Recommend-and-build shows what it decided; Build-with-me explains the stage. */
+function StepIntro({ d, step }: { d: AgentDraft; step: number }) {
+  return d.plan.style === 'recommend' ? <PlanSummary draft={d.draft} step={step} /> : <StageLead step={step} />;
+}
+
 function StepDefine({ d }: { d: AgentDraft }) {
+  const recommend = d.plan.style === 'recommend';
+  /*
+   * `null` means "decide from the draft": proposals while there is no
+   * idea, and out of the way once there is one. A builder who asks for
+   * them back overrides that, and dismissing them sets it the other way
+   * and is remembered with the draft. An empty form is never read as
+   * agreement to anything.
+   */
+  const [showConcepts, setShowConcepts] = useState<boolean | null>(null);
+  const offerConcepts = recommend && !d.plan.proposalsDismissed && (showConcepts ?? !hasIdea(d.draft));
+
   return (
     <div className="flex flex-col gap-6">
-      <Blueprint d={d} />
+      <StepIntro d={d} step={0} />
+      {offerConcepts ? (
+        <ConceptPicker
+          chosenId={d.plan.conceptId}
+          onChoose={(concept) => {
+            d.acceptConcept(concept);
+            setShowConcepts(false);
+          }}
+          onDismiss={() => {
+            d.dismissProposals();
+            setShowConcepts(false);
+          }}
+        />
+      ) : (
+        recommend && (
+          <button
+            type="button"
+            onClick={() => {
+              d.restoreProposals();
+              setShowConcepts(true);
+            }}
+            className="self-start text-[13px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
+          >
+            {d.plan.conceptId ? 'Look at the other concepts' : 'Show me five agents worth building'}
+          </button>
+        )
+      )}
+      {!recommend && <Blueprint d={d} />}
       <Field label="Name" hint="What buyers will see. Specific beats clever.">
         {(p) => <Input {...p} value={d.draft.name} maxLength={80} onChange={(e) => d.update('name', e.target.value)} placeholder="Position Guardian" />}
       </Field>
@@ -174,6 +266,7 @@ function StepConfigure({ d }: { d: AgentDraft }) {
   const [openBuildHelp] = useState(() => !d.draft.endpoint.trim());
   return (
     <div className="flex flex-col gap-7">
+      <StepIntro d={d} step={1} />
       <div className="flex flex-col gap-3">
         <span className="text-sm font-medium">How buyers reach it</span>
         <Segmented label="Protocol" value={d.draft.protocol} onChange={(v) => d.update('protocol', v)} options={[{ value: 'a2a', label: 'A2A agent' }, { value: 'mcp', label: 'MCP server' }]} />
@@ -284,6 +377,7 @@ function StepTest({ d }: { d: AgentDraft }) {
   const p = d.preflight;
   return (
     <div className="flex flex-col gap-6">
+      <StepIntro d={d} step={2} />
       <div className="flex flex-col gap-3 rounded-[14px] border border-rule bg-raised p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -452,7 +546,19 @@ function StepPublish({ d }: { d: AgentDraft }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <StepIntro d={d} step={3} />
       <BuilderChecklist d={d} />
+
+      {/*
+        Three wallets, named before the first one is used.
+
+        This step said "the wallet that signs owns the agent" and stopped,
+        so the same key ended up owning the identity, signing quotes on a
+        server and funding the test hire — and the escrow refuses the last
+        of those outright. Said here because here is where the first of
+        the three is chosen, and the choice is permanent.
+      */}
+      <WalletRoles assignment={{ identityOwner: d.signingAddress }} compact />
 
       <div className="flex flex-col gap-3">
         <span className="text-sm font-medium">Register on</span>
@@ -575,6 +681,13 @@ export function CreateAgent({ initial, onBound }: { initial?: StoredDraft | null
    */
   return (
     <div className="flex flex-col gap-8">
+      {/*
+        The style switch sits above the steps rather than inside one,
+        because it applies to all four and because somebody who wants to
+        change manner mid-brief should not have to go back to find it.
+        Changing it touches no draft state — see `setStyle`.
+      */}
+      {!d.published && <BuildStyleSwitch style={d.plan.style} onChange={d.setStyle} className="border-b border-rule pb-5" />}
       <div className="flex items-center justify-between gap-3">
         <ol className="no-scrollbar flex min-w-0 gap-1 overflow-x-auto" aria-label="Steps">
           {STEPS.map((s, i) => (

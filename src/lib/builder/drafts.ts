@@ -8,6 +8,34 @@ export interface DraftFields {
   repository: string;
 }
 
+/**
+ * How much of the deciding the builder wants to do.
+ *
+ * Declared here rather than beside its behaviour because it is saved with
+ * the draft, and a stored shape whose type lives in a module that imports
+ * this one would be a cycle. See `builder/style` for what each style
+ * means.
+ */
+export type BuildStyle = 'recommend' | 'with-me';
+
+/** The choices that are about the build rather than about the agent. */
+export interface BuildPlan {
+  style: BuildStyle;
+  /** The concept the builder accepted, when they took one. */
+  conceptId: string | null;
+  /**
+   * The builder said they already know what to build.
+   *
+   * Separate from having typed something, because the two are different
+   * answers: an empty form means "I have not said yet", and this means
+   * "stop offering". Treating silence as the second is the thing this
+   * flow is not allowed to do.
+   */
+  proposalsDismissed: boolean;
+}
+
+export const DEFAULT_PLAN: BuildPlan = { style: 'recommend', conceptId: null, proposalsDismissed: false };
+
 export interface StoredDraft {
   id: string;
   draft: DraftFields;
@@ -15,11 +43,45 @@ export interface StoredDraft {
   mode: 'choose' | 'existing' | 'new' | 'templates';
   step: number;
   updatedAt: string;
+  /**
+   * Saved alongside the fields, so a reload, a wallet that reloads the tab
+   * when it switches network, or a crash mid-brief comes back to the same
+   * style and the same accepted concept rather than to the default.
+   */
+  plan?: BuildPlan;
 }
 
 export type DraftRecord = Record<string, StoredDraft>;
 
 export const DRAFTS_KEY = 'pokter-agent-drafts-v1';
+/**
+ * The style last chosen on this device.
+ *
+ * The plan is saved with the draft, and an empty draft is deliberately
+ * not saved at all — it would put "Untitled draft" in everybody's list.
+ * So a builder who switched style and then reloaded before typing
+ * anything would have been switched back. This remembers the one bit
+ * that is about them rather than about the agent.
+ */
+export const BUILD_STYLE_KEY = 'pokter-build-style-v1';
+
+export function readLastStyle(): BuildStyle {
+  try {
+    const stored = window.localStorage.getItem(BUILD_STYLE_KEY);
+    return stored === 'with-me' || stored === 'recommend' ? stored : DEFAULT_PLAN.style;
+  } catch {
+    return DEFAULT_PLAN.style;
+  }
+}
+
+export function rememberStyle(style: BuildStyle): void {
+  try {
+    window.localStorage.setItem(BUILD_STYLE_KEY, style);
+  } catch {
+    /* Then it lasts this session, which is still better than resetting mid-build. */
+  }
+}
+
 /** The single slot drafts lived in before there could be more than one. */
 export const LEGACY_DRAFT_KEY = 'pokter-agent-draft-v1';
 export const LEGACY_PLACE_KEY = 'pokter-agent-place-v1';
