@@ -26,6 +26,7 @@ import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { describeFundingOutcome, fundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hire/funding-outcome';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
+import { assertEscrowSupportsToken, buildTokenHireCalls, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
 
 export type HireStep =
   | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
@@ -39,6 +40,10 @@ export interface ExternalHireResult {
   transactionHash: Hex | null;
   callsId: string | null;
   atomic: boolean;
+  /** The token the job is bound to, as funded. */
+  paymentToken: Address;
+  /** Exactly the amount funded, in that token's base units. */
+  budgetRaw: bigint;
 }
 export interface ExternalHireInput {
   identityChainId: number;
@@ -215,6 +220,8 @@ async function readFundingOutcome(input: {
 
 async function verifyFundedJob(input: {
   chainId: number; jobId: bigint; account: Address; provider: Address; budget: bigint; description: string;
+  /** For a token hire: the job must be bound to exactly this token. */
+  token?: Address;
 }) {
   const job = await getErc8183Job(walletNetworkFor(input.chainId), input.jobId);
   if (
@@ -223,18 +230,26 @@ async function verifyFundedJob(input: {
     job.budget !== input.budget || job.description !== input.description ||
     job.statusName !== 'FUNDED'
   ) throw new Error('FUNDED_JOB_VERIFICATION_FAILED');
+  if (input.token) {
+    const { read } = clients(input.chainId);
+    const bound = await readJobPaymentToken(read as never, correctedErc8183Addresses(input.chainId).commerce as Address, input.jobId);
+    /* Unread is not "right": the hire is reported unverified, never assumed. */
+    if (bound === null || bound !== getAddress(input.token)) throw new Error('FUNDED_JOB_TOKEN_VERIFICATION_FAILED');
+  }
 }
 
 export async function revokeExternalWalletAllowance(
   expectedAccount: Address,
   chainId: number = WALLET_NETWORK.chainId,
+  /** The token whose approval to revoke; the escrow default when omitted. */
+  token?: Address,
 ): Promise<Hex> {
   await ensureChain(chainId);
   await assertAccount(expectedAccount);
   const { wallet, read } = clients(chainId);
   const addresses = correctedErc8183Addresses(chainId);
   const hash = await wallet.sendTransaction({
-    account: expectedAccount, to: addresses.paymentToken as Address,
+    account: expectedAccount, to: (token ?? addresses.paymentToken) as Address,
     data: encodeFunctionData({
       abi: erc20Abi, functionName: 'approve',
       args: [addresses.commerce as Address, 0n],
@@ -682,7 +697,17 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   if (!rawAccount) throw new Error('NO_ACCOUNT');
   const account = getAddress(rawAccount);
   const addresses = correctedErc8183Addresses(chainId);
-  const budget = parseUnits(String(input.budgetU), 18);
+  /*
+   * The token is the one the seller signed, and nothing else decides it. A
+   * $U price (or no signed price) returns null and the hire below is the
+   * one it has always been. A USDT price funds USDT, for exactly the signed
+   * amount — never `budgetU`, which is a number typed in $U — and a token
+   * Pokter does not offer here throws before any prompt.
+   */
+  const tokenHire = nonDefaultHireToken(chainId, input.intent?.currency);
+  if (tokenHire && !input.intent) throw new Error('TOKEN_HIRE_NEEDS_SIGNED_QUOTE');
+  const payToken = (tokenHire?.address ?? addresses.paymentToken) as Address;
+  const budget = tokenHire ? BigInt(input.intent!.amountRaw) : parseUnits(String(input.budgetU), 18);
   if (budget <= 0n) throw new Error('INVALID_BUDGET');
   if (!Number.isSafeInteger(input.ttlSeconds) || input.ttlSeconds <= 0) throw new Error('INVALID_EXPIRY');
   // The dispute window has to fit after delivery, or the seller's submit reverts.
@@ -696,11 +721,12 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   const report = input.onProgress ?? (() => {});
   await ensureChain(chainId);
   await assertAccount(account);
+  if (tokenHire) await assertEscrowSupportsToken(read as never, addresses.commerce as Address, payToken);
 
   const [allowance, balance] = await Promise.all([
-    read.readContract({ address: addresses.paymentToken as Address, abi: erc20Abi,
+    read.readContract({ address: payToken, abi: erc20Abi,
       functionName: 'allowance', args: [account, addresses.commerce as Address] }),
-    read.readContract({ address: addresses.paymentToken as Address, abi: erc20Abi,
+    read.readContract({ address: payToken, abi: erc20Abi,
       functionName: 'balanceOf', args: [account] }),
   ]);
   /*
@@ -719,6 +745,12 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
    * is quoted and shown before anything is signed — see `planExternalSwap`.
    */
   if (balance < budget) {
+    /*
+     * The swap buys the escrow's default token, so it cannot cover a USDT
+     * hire. Said plainly instead: nothing is swapped into a token the buyer
+     * did not ask for, and nothing has been signed yet.
+     */
+    if (tokenHire) throw new Error('INSUFFICIENT_HIRE_TOKEN');
     await acquireShortfall({
       read, wallet, account, budget, held: balance, addresses, report,
     });
@@ -729,7 +761,10 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
    * ones signed. A mismatch here sends nothing further.
    */
   if (input.intent) {
-    const check = checkPurchaseIntent(input.intent, { provider: input.provider, task: input.task, chainId, commerce: addresses.commerce, paymentToken: addresses.paymentToken });
+    const check = checkPurchaseIntent(input.intent, {
+      provider: input.provider, task: input.task, chainId, commerce: addresses.commerce, paymentToken: payToken,
+      ...(tokenHire ? { amountRaw: budget.toString() } : {}),
+    });
     if (!check.ok) throw new Error(check.reason);
   }
   const counter = await read.readContract({
@@ -738,14 +773,16 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     functionName: 'jobCounter',
   });
   const predictedJobId = counter + 1n;
-  const predicted = buildHireCalls({ addresses, jobId: predictedJobId,
-    provider: input.provider, description, budget, expiredAt });
+  const hireCalls = (jobId: bigint) => tokenHire
+    ? buildTokenHireCalls({ chainId, addresses: addresses as never, jobId, provider: input.provider, description, budget, expiredAt, token: payToken })
+    : buildHireCalls({ addresses, jobId, provider: input.provider, description, budget, expiredAt });
+  const predicted = hireCalls(predictedJobId);
 
   if (await supportsAtomicBatch(account, chainId)) {
     const calls = [...predicted];
     if (allowance >= budget) calls.splice(3, 1);
     else if (allowance > 0n) calls.splice(3, 0, {
-      to: addresses.paymentToken,
+      to: payToken,
       data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
         args: [addresses.commerce as Address, 0n] }),
     });
@@ -781,9 +818,9 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
       transactionHash = null;
     }
     await verifyFundedJob({ chainId, jobId: predictedJobId, account,
-      provider: input.provider, budget, description });
+      provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
     report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
-    return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true };
+    return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true, paymentToken: payToken, budgetRaw: budget };
   }
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
@@ -798,21 +835,20 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   const created = await send('creating', predicted[0].to as Address, predicted[0].data!);
   const jobId = jobCreatedFromReceipt(created.receipt, addresses.commerce as Address,
     account, input.provider);
-  const calls = buildHireCalls({ addresses, jobId, provider: input.provider,
-    description, budget, expiredAt });
+  const calls = hireCalls(jobId);
   await send('registering', calls[1].to as Address, calls[1].data!, jobId);
   await send('budgeting', calls[2].to as Address, calls[2].data!, jobId);
   if (allowance < budget) {
-    if (allowance > 0n) await send('approving', addresses.paymentToken as Address,
+    if (allowance > 0n) await send('approving', payToken,
       encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
         args: [addresses.commerce as Address, 0n] }), jobId);
     await send('approving', calls[3].to as Address, calls[3].data!, jobId);
   }
   const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId);
   report({ step: 'confirming', jobId, hash: funded.hash });
-  await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description });
+  await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
   report({ step: 'done', jobId, hash: funded.hash });
-  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false };
+  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false, paymentToken: payToken, budgetRaw: budget };
 }
 
 export interface ExternalBalances {
@@ -831,7 +867,7 @@ export interface ExternalBalances {
  * A buyer with one and not the other gets a failure part way through a
  * sequence, which is the worst place to discover a funding problem.
  */
-export async function externalBalances(chainId: number = WALLET_NETWORK.chainId): Promise<ExternalBalances | null> {
+export async function externalBalances(chainId: number = WALLET_NETWORK.chainId, token?: Address): Promise<ExternalBalances | null> {
   let account: Address | undefined;
   try {
     const accounts = (await provider().request({
@@ -855,7 +891,7 @@ export async function externalBalances(chainId: number = WALLET_NETWORK.chainId)
     read.getBalance({ address: account }).catch(() => 0n),
     read
       .readContract({
-        address: addresses.paymentToken as Address,
+        address: (token ?? addresses.paymentToken) as Address,
         abi: erc20Abi,
         functionName: 'balanceOf',
         args: [account],

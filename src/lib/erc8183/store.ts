@@ -67,6 +67,13 @@ export interface SellerNotice {
  */
 export interface JobStore {
   record(job: HiredJob): void;
+  /**
+   * The token a job is bound to, from the escrow. Written once per row and
+   * never cleared: a later record that does not know the token keeps it.
+   */
+  setPaymentToken(chainId: number, jobId: string, token: string): number;
+  /** Rows whose token has not been read yet, for the backfill. */
+  withoutPaymentToken(): HiredJob[];
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
@@ -172,7 +179,8 @@ const SCHEMA = `
     settle_tx_hash    TEXT,
     dispute_tx_hash   TEXT,
     reclaim_tx_hash   TEXT,
-    client            TEXT
+    client            TEXT,
+    payment_token     TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_hired ON jobs (hired_at DESC);
@@ -273,6 +281,7 @@ interface JobRow {
   dispute_tx_hash: string | null;
   reclaim_tx_hash: string | null;
   client: string | null;
+  payment_token?: string | null;
 }
 
 function toJob(row: JobRow): HiredJob {
@@ -298,6 +307,8 @@ function toJob(row: JobRow): HiredJob {
     disputeTxHash: row.dispute_tx_hash as `0x${string}` | null,
     reclaimTxHash: row.reclaim_tx_hash as `0x${string}` | null,
     ...(row.client ? { client: row.client as `0x${string}` } : {}),
+    /* Null stays null: a row whose token was never read is unknown, not $U. */
+    paymentToken: (row.payment_token as `0x${string}` | null | undefined) ?? null,
   };
 }
 
@@ -330,6 +341,8 @@ class SqliteJobStore implements JobStore {
       'ALTER TABLE jobs ADD COLUMN dispute_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN reclaim_tx_hash TEXT',
       'ALTER TABLE jobs ADD COLUMN client TEXT',
+      // Unknown until recorded at funding or read from the escrow; never defaulted.
+      'ALTER TABLE jobs ADD COLUMN payment_token TEXT',
       // Owners recorded before this column were read, not proven, and stay hidden until proven.
       'ALTER TABLE job_owners ADD COLUMN proof TEXT',
     ]) {
@@ -367,9 +380,10 @@ class SqliteJobStore implements JobStore {
            (id, job_id, chain_id, is_testnet, agent_chain_id, agent_token_id,
             agent_name, provider_label, provider, task, budget_raw, expired_at,
             hired_at, hire_tx_hash, status, status_checked_at, deliverable_url,
-            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash, client)
+            settle_tx_hash, dispute_tx_hash, reclaim_tx_hash, client, payment_token)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 COALESCE(?, (SELECT client FROM jobs WHERE id = ?)))`,
+                 COALESCE(?, (SELECT client FROM jobs WHERE id = ?)),
+                 COALESCE(?, (SELECT payment_token FROM jobs WHERE id = ?)))`,
       )
       .run(
         job.id,
@@ -395,7 +409,22 @@ class SqliteJobStore implements JobStore {
         // A caller that did not read the funder must not erase a known one.
         job.client ? job.client.toLowerCase() : null,
         job.id,
+        // Likewise the token: a caller that did not read it must not erase a known one.
+        job.paymentToken ?? null,
+        job.id,
       );
+  }
+
+  setPaymentToken(chainId: number, jobId: string, token: string): number {
+    return Number(
+      this.db
+        .prepare('UPDATE jobs SET payment_token = ? WHERE chain_id = ? AND job_id = ? AND payment_token IS NULL')
+        .run(token, chainId, jobId).changes,
+    );
+  }
+
+  withoutPaymentToken(): HiredJob[] {
+    return (this.db.prepare('SELECT * FROM jobs WHERE payment_token IS NULL ORDER BY hired_at DESC').all() as unknown as JobRow[]).map(toJob);
   }
 
   all(): HiredJob[] {

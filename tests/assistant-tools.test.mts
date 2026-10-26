@@ -218,6 +218,8 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@altananetwork/sdk': ['getErc8183Job'],
     '@/lib/altana/client': ['altanaNetworkFor'],
     '@/lib/erc8183/addresses': ['correctedErc8183Addresses'],
+    /* A decision over `network/tokens`, which encodes and sends nothing; walked when added. */
+    '@/lib/erc8183/hire-token': ['nonDefaultHireToken'],
     '@/lib/erc8183/store': ['getJobStore'],
     viem: ['parseUnits'],
   };
@@ -248,6 +250,7 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@/lib/assistant/mandate',
     '@/lib/assistant/reconcile-hire',
     '@/lib/erc8183/addresses',
+    '@/lib/erc8183/hire-token',
     '@/lib/erc8183/job-envelope',
     '@/lib/erc8183/skill-request',
     '@/lib/erc8183/store',
@@ -346,8 +349,15 @@ test('the escrow chain is the owner’s input, and a quote that settles elsewher
   assert.ok(gate > 0 && gate < route.indexOf('hireRequestKey('), 'refused before a key is derived');
   assert.match(route, /const escrowChainId = escrowChain;/, 'and everything downstream uses the owner’s chain');
   /* The token in the key is Pokter's own for that chain, not the agent's
-     echo of it. */
-  assert.match(route, /token: addresses\.paymentToken,/);
+     echo of it: $U from the deployment, or for a USDT price the token from
+     Pokter's own registry (`nonDefaultHireToken` returns a recorded token,
+     never the string the agent sent). */
+  assert.match(route, /token: hireTokenAddress,/);
+  assert.match(route, /const hireTokenAddress = \(quotedToken\?\.address \?\? addresses\.paymentToken\)/);
+  assert.match(route, /quotedToken = nonDefaultHireToken\(escrowChainId, quote\.currency\)/);
+  /* And a price in other money than the owner named is refused above the key. */
+  const tokenGate = route.indexOf("code: 'token-not-in-mandate'");
+  assert.ok(tokenGate > 0 && tokenGate < route.indexOf('hireRequestKey('), 'a token the owner did not name is refused before a key is derived');
 });
 
 test('the request key reaches the wallet, and the funding reports it back', () => {

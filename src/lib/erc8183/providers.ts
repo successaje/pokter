@@ -3,8 +3,7 @@ import type { Address } from 'viem';
 import type { ScanAgentDetail } from '@/lib/scan/types';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { demoSellerAddress } from '@/lib/erc8183/demo-seller';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith, unpayablePriceNote } from '@/lib/erc8183/payable';
+import { quotePayableOn, unpayablePriceNote } from '@/lib/erc8183/payable';
 
 /**
  * A seller we have verified is live on the escrow chain.
@@ -50,10 +49,7 @@ export async function providerChoicesFor(
      */
     const payable =
       !quote ||
-      quotePayableWith(
-        quote.currency,
-        correctedErc8183Addresses(escrowChainId).paymentToken,
-      );
+      quotePayableOn(escrowChainId, quote.currency);
     choices.push({
       address: agent.agent_wallet,
       label: agent.name,

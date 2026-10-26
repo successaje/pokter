@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 import { getErc8183Job } from '@altananetwork/sdk';
 import {
   createPublicClient,
@@ -102,9 +104,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const jobId = BigInt(jobIdText);
     const rpc = createPublicClient({ chain: network.chain, transport: http(network.publicRpcUrl) });
-    const [onchain, receipt] = await Promise.all([
+    const [onchain, receipt, paymentToken] = await Promise.all([
       getErc8183Job(network, jobId),
       transactionHash ? rpc.getTransactionReceipt({ hash: transactionHash }) : Promise.resolve(null),
+      /* The job's own token; a failed read leaves it unknown for the sweep to fill. */
+      jobPaymentTokenOnChain(chainId, jobIdText),
     ]);
     if (receipt && (receipt.status !== 'success' || !receiptNamesJob(receipt, jobId, chainId))) {
       return NextResponse.json({ error: 'The transaction does not verify creation or funding of this job.' }, { status: 409 });
@@ -132,6 +136,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       provider: onchain.provider,
       task: identity.task,
       budgetRaw: onchain.budget.toString(),
+      paymentToken,
       expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
       hiredAt: now,
       hireTxHash: transactionHash,

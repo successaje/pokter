@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { paymentTokenAt } from '@/lib/network/tokens';
 
 import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
@@ -386,7 +387,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   noted('quoted', { escrowChainId });
 
+  /* The money the price is in, named by address with its scale. `priceU` is that amount in whole units of it, whatever the token. */
+  const token = paymentTokenAt(escrowChainId, quote.currency);
   return NextResponse.json({
+    token: token ? { address: token.address, symbol: token.symbol === 'U' ? '$U' : token.symbol, decimals: token.decimals, chainId: token.chainId } : null,
     quote: {
       negotiationHash: quote.negotiationHash,
       providerSignature: quote.providerSignature,

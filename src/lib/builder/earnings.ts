@@ -1,3 +1,5 @@
+import { isDollarUJob } from '@/lib/erc8183/job-amount';
+
 /**
  * What a builder was paid, kept apart by escrow network.
  *
@@ -6,11 +8,13 @@
  * Chain. Real earnings come only from chain 56; anything else is practice
  * and is reported separately, never summed in.
  */
-export function earnedByNetwork(jobs: ReadonlyArray<{ chainId: number; status: string; budgetRaw: string }>): { real: bigint; test: bigint } {
+export function earnedByNetwork(jobs: ReadonlyArray<{ chainId: number; status: string; budgetRaw: string; paymentToken?: string | null }>): { real: bigint; test: bigint } {
   let real = 0n;
   let test = 0n;
   for (const job of jobs) {
     if (job.status !== 'COMPLETED') continue;
+    /* Both figures are $U. A job in other money is not added to them. */
+    if (!isDollarUJob(job)) continue;
     const amount = BigInt(job.budgetRaw);
     if (job.chainId === 56) real += amount;
     else test += amount;

@@ -6,6 +6,7 @@ import { deadlineSignal } from '@/lib/net/bounded';
 import { criteriaInSignedTerms, negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
+import { decimalsFor, settlementChainOf } from '@/lib/network/tokens';
 import { readA2AReply } from '@/lib/a2a/reply';
 import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
 import { jsonRpcEndpoint } from '@/lib/a2a/card';
@@ -274,7 +275,8 @@ export async function requestQuote(
     const verifyingContract = data.verifying_contract;
     return {
       priceRaw,
-      priceU: Number(priceRaw) / 1e18,
+      /* In the currency's own units: its recorded decimals, eighteen only for a token Pokter has not verified (as before). */
+      priceU: Number(priceRaw) / 10 ** (decimalsFor(settlementChainOf(currency) ?? -1, currency) ?? 18),
       currency,
       quotedAt: new Date().toISOString(),
       negotiationHash: data.negotiation_hash,

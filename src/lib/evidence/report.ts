@@ -1,8 +1,7 @@
 import 'server-only';
 
 import { CATEGORY_BY_ID, categorySignalSource, type Category } from '@/lib/agents/categories';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { quotePayableWith } from '@/lib/erc8183/payable';
+import { quotePayableOn } from '@/lib/erc8183/payable';
 import { getComparison, type Comparison } from '@/lib/marketplace';
 import { isTeamWallet } from '@/lib/alerts/team-wallets';
 import { parseAgentRef } from '@/lib/evidence/refs';
@@ -125,8 +124,7 @@ export function buildReport(
    * signed price without saying whether it can be settled would repeat
    * the mistake this measurement exists to catch.
    */
-  const escrowToken = correctedErc8183Addresses(chainId).paymentToken;
-  const payable = quote ? quotePayableWith(quote.currency, escrowToken) : null;
+  const payable = quote ? quotePayableOn(chainId, quote.currency) : null;
 
   const caveats: string[] = [
     'Pokter measures whether an agent answers and what it quotes. It does not verify that the work is correct, and nothing here is a statement about profitability.',

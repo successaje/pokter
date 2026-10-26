@@ -34,15 +34,30 @@ export interface PaymentToken {
   /** Whether the escrow on this chain accepts it, read from `isPaymentTokenSupported`. */
   escrowSupported: boolean;
   /**
-   * Whether Pokter offers it for a hire today.
+   * Whether Pokter offers it for a hire whatever the flags say.
    *
    * Separate from `escrowSupported` on purpose: the escrow accepting a token
    * is a fact about the contract, and offering it is a decision about the
-   * product. USDT is supported on both chains and offered on neither, because
-   * the hire path still builds `createJob` and approves the default token —
-   * see the note at the end of this file.
+   * product. Only $U is offered unconditionally.
    */
   offered: boolean;
+  /**
+   * Offered only while this flag is on. USDT hiring is built but off: it is
+   * one release (quote, approval, funding, job record, delivery check,
+   * receipt, per-token totals) and is not turned on in parts.
+   */
+  gate?: 'usdt-hiring';
+}
+
+/**
+ * Whether USDT hiring is on, from `NEXT_PUBLIC_USDT_HIRING_ENABLED`.
+ *
+ * Exactly "true", nothing looser, and off when unset. Public because the hire
+ * page decides in the browser which token it may fund, and compiled in at
+ * build time like the other public flags: a Fly secret does not reach it.
+ */
+export function usdtHiringEnabled(raw: string | undefined = process.env.NEXT_PUBLIC_USDT_HIRING_ENABLED): boolean {
+  return raw === 'true';
 }
 
 /**
@@ -68,8 +83,8 @@ const TOKENS: readonly PaymentToken[] = [
   /* USDT — supported by both escrows, and the only candidate that is, which
      makes it the one that can be exercised on testnet before mainnet. One
      agent in the catalogue already signs prices in BNB Chain USDT. */
-  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false },
-  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false },
+  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, gate: 'usdt-hiring' },
+  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, gate: 'usdt-hiring' },
 
   /* USDC — supported on mainnet, *not* on testnet, and six decimals there
      against eighteen on mainnet. Both facts are reasons to leave it alone:
@@ -134,9 +149,28 @@ export function requireDecimals(chainId: number, address: string): number {
   return decimals;
 }
 
-/** The tokens Pokter offers for a hire on this chain. Today: $U, and only $U. */
-export function offeredTokens(chainId: number): PaymentToken[] {
-  return TOKENS.filter((t) => t.chainId === chainId && t.offered);
+const isOffered = (t: PaymentToken, usdt: boolean) => t.offered || (t.gate === 'usdt-hiring' && usdt);
+
+/** The tokens Pokter offers for a hire on this chain: $U, and USDT while USDT hiring is on. */
+export function offeredTokens(chainId: number, usdt: boolean = usdtHiringEnabled()): PaymentToken[] {
+  return TOKENS.filter((t) => t.chainId === chainId && isOffered(t, usdt));
+}
+
+/**
+ * The offered token a hire on this chain would fund, matched by address, or
+ * null. The one question every funding path asks before it encodes a call:
+ * a currency that is not exactly an offered token on this chain is refused,
+ * never replaced with the escrow's default.
+ */
+export function hireTokenAt(chainId: number, address: string | null | undefined, usdt: boolean = usdtHiringEnabled()): PaymentToken | null {
+  if (!address) return null;
+  const token = paymentTokenAt(chainId, address);
+  return token && isOffered(token, usdt) ? token : null;
+}
+
+/** $U, the token the escrow defaults to and every pre-existing hire path funds. */
+export function isDefaultHireToken(token: Pick<PaymentToken, 'offered'> | null): boolean {
+  return token?.offered === true;
 }
 
 /** Every token recorded for a chain, offered or not, for tests and diagnostics. */
@@ -144,27 +178,15 @@ export function knownTokens(chainId: number): PaymentToken[] {
   return TOKENS.filter((t) => t.chainId === chainId);
 }
 
-/**
- * What still stands between this file and a USDT hire.
- *
- * The escrow is ready: both deployments carry `createJobWithToken`,
- * `setPaymentTokenSupported` and `jobPaymentToken`, and both already report
- * USDT as supported. Nothing on chain needs deploying or upgrading.
- *
- * What is not ready is the call Pokter sends. `buildHireCalls` in
- * `@altananetwork/sdk@0.9` encodes `createJob` — the five-argument form with
- * no token — and approves `addresses.paymentToken`, so every hire funds in
- * the deployment's default whatever a quote says. Offering USDT means either
- * the SDK gaining `createJobWithToken` or Pokter encoding that batch itself,
- * and it means a buyer-facing choice of token, a re-quote when the choice
- * changes, and balances read per token. None of that is in this change.
+/*
+ * How a USDT hire is funded (`lib/erc8183/hire-calls`). Both escrows carry
+ * `createJobWithToken`, `jobPaymentToken` and `isPaymentTokenSupported`, and
+ * report USDT as supported, so nothing on chain is deployed or upgraded.
+ * `@altananetwork/sdk@0.9` encodes only `createJob` and approves the default
+ * token, so Pokter encodes the token batch itself. The token is never the
+ * buyer's choice: it is the currency the seller signed, and the amount is
+ * exactly the signed amount.
  */
-export const USDT_HIRE_BLOCKERS = [
-  'SDK buildHireCalls encodes createJob, not createJobWithToken',
-  'SDK buildHireCalls approves addresses.paymentToken, not the chosen token',
-  'no buyer-facing token choice, and no re-quote when it changes',
-  'balances, approvals and funding are read for one token only',
-] as const;
 
 /**
  * An amount in the token it is actually in.

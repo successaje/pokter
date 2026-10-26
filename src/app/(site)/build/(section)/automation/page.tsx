@@ -184,11 +184,14 @@ export default async function AutomationPage() {
           ) : (
             <div className="flex flex-col gap-4">
               {earnings.map((line) => (
-                <div key={line.chainId} className="flex flex-col gap-2">
+                <div key={`${line.chainId}:${line.token ?? 'unknown'}`} className="flex flex-col gap-2">
                   <p className="text-[12.5px] text-ink-3">
                     {chainLabel(line.chainId)} ·{' '}
                     <span className={line.realMoney ? 'font-medium text-ink-2' : undefined}>
-                      {line.realMoney ? 'real $U' : 'test $U, no value'}
+                      {/* The line's own money; an unknown token is said, not called $U. */}
+                      {line.symbol
+                        ? line.realMoney ? `real ${line.symbol}` : `test ${line.symbol}, no value`
+                        : 'currency not yet read, amounts in base units'}
                     </span>
                   </p>
                   <StatStrip

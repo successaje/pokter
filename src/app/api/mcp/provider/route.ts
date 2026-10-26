@@ -778,7 +778,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             'Only released is earned. In escrow is money a buyer has committed and nobody has been paid. Awaiting review is delivered and not paid: the escrow pays out when the review window closes undisputed. Refunded expired undelivered; rejected lost a dispute.',
           perChain: earningsByChain(counted).map((line) => ({ ...line, money: moneyOf(line.chainId) })),
           ...(earningsByChain(counted).length > 1
-            ? { noTotal: 'The chains are not added together: 56 settles in real $U and 97 in a test token with no value, so one combined figure would not be a number about money.' }
+            ? { noTotal: 'The lines are not added together: each is one chain and one token. 56 settles in real money and 97 in test tokens with no value, and $U and USDT are different money, so one combined figure would not be a number about money.' }
             : {}),
           jobsCounted: counted.length,
           ...ownershipNotes(fleet),

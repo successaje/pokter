@@ -20,6 +20,8 @@ import { usePasskeySigner, usePasskeyWallet } from '@/lib/wallet/PasskeyProvider
 import { WALLET_NETWORK, walletClient, walletNetworkFor } from '@/lib/wallet/passkey';
 import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
+import type { PaymentToken } from '@/lib/network/tokens';
 import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
@@ -499,6 +501,20 @@ export function useHire({
    * re-quotes. A swap nobody was told about is a swap that happened to
    * them; a swap promised and not possible is worse.
    */
+  /*
+   * The token the seller's price is in, when it is not $U. Read from the
+   * quote under review; `commission` decides again from the quote it funds.
+   * A price in a token Pokter does not fund here is carried as the reason,
+   * and the hire refuses rather than funding $U instead.
+   */
+  const quotedToken: { token: PaymentToken | null; error: string | null } = (() => {
+    try {
+      return { token: nonDefaultHireToken(escrowChainId, preQuote?.quote.intent.currency), error: null };
+    } catch (problem) {
+      return { token: null, error: (problem as Error).message };
+    }
+  })();
+  const hireToken = quotedToken.token;
   const swapPlan = useQuery({
     queryKey: ['shortfall-swap-plan', escrowChainId, active.address, budget],
     queryFn: () => planShortfallSwap(active.address!, budget, escrowChainId),
@@ -506,6 +522,8 @@ export function useHire({
       active.mode !== null &&
       Boolean(active.address) &&
       funding.paymentLow &&
+      /* The swap buys $U; a USDT hire is never offered one. */
+      hireToken === null &&
       budget > 0,
     staleTime: 30_000,
   });
@@ -546,7 +564,15 @@ export function useHire({
   );
   const commerceAddresses = correctedErc8183Addresses(escrowChainId);
   const budgetValid = Number.isFinite(budget) && budget >= BUDGET_MIN && budget <= BUDGET_MAX;
-  const authority = budgetValid
+  const authority = hireToken && preQuote
+    ? commissionAuthority({
+        /* Exactly the signed amount, in the signed token. */
+        paymentToken: hireToken.address,
+        tokenSymbol: hireToken.symbol,
+        escrowContract: commerceAddresses.commerce,
+        budgetU: Number(formatUnits(BigInt(preQuote.quote.intent.amountRaw), hireToken.decimals)),
+      })
+    : budgetValid
     ? commissionAuthority({
         paymentToken: commerceAddresses.paymentToken,
         escrowContract: commerceAddresses.commerce,
@@ -988,7 +1014,14 @@ export function useHire({
             changed.kind === 'price' ? 'price-changed' : 'terms-changed',
           );
         }
-        if (Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {
+        /*
+         * A USDT price funds exactly what was signed, so the $U budget is not
+         * compared with it — it is not used at all. Throws for a token Pokter
+         * does not fund here (or USDT with USDT hiring off): refused, never
+         * funded in $U instead.
+         */
+        const tokenHire = nonDefaultHireToken(escrowChainId, signedQuote.intent.currency);
+        if (!tokenHire && Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {
           throw new Error(
             `${agent.name} signed a price of ${signedQuote.priceU} $U for this brief and the budget is ${budget} $U. Raise the budget to at least the signed price.`,
           );
@@ -997,7 +1030,9 @@ export function useHire({
         const funding = correctedErc8183Addresses(escrowChainId);
         const check = checkPurchaseIntent(
           { ...signedQuote.intent, provider: providerAddress as `0x${string}` },
-          { provider: providerAddress as string, task: sending, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
+          tokenHire
+            ? { provider: providerAddress as string, task: sending, chainId: escrowChainId, commerce: funding.commerce, paymentToken: tokenHire.address, amountRaw: signedQuote.intent.amountRaw }
+            : { provider: providerAddress as string, task: sending, chainId: escrowChainId, commerce: funding.commerce, paymentToken: funding.paymentToken },
         );
         if (!check.ok) throw new Error(check.reason);
       } else {
@@ -1046,7 +1081,9 @@ export function useHire({
           providerLabel: provider?.label,
           provider: providerAddress as `0x${string}`,
           task: sending,
-          budgetRaw: parseUnits(String(budget), 18).toString(),
+          /* As funded: the signed amount for a token hire, the budget for $U. */
+          budgetRaw: outcome.budgetRaw.toString(),
+          paymentToken: outcome.paymentToken,
           // As written on chain: delivery time plus the escrow's dispute window.
           expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
           hiredAt: at,
@@ -1068,6 +1105,18 @@ export function useHire({
       }
 
       if (!wallet || !signer) throw new Error('A passkey wallet is required.');
+      /*
+       * The passkey wallet funds through the SDK's `hireErc8183Agent`, which
+       * builds a $U job. Rather than let a USDT price reach it and become a
+       * $U job the seller never priced, it is refused here by name.
+       */
+      if (signedQuote && nonDefaultHireToken(escrowChainId, signedQuote.intent.currency)) {
+        throw new HireFailure(
+          `${agent.name} priced this in USDT, and the passkey wallet funds $U only. Nothing was sent. Connect a browser wallet to fund a USDT hire.`,
+          'payment',
+          'token-not-supported-by-wallet',
+        );
+      }
       if (escrowChainId !== WALLET_NETWORK.chainId) {
         throw new Error(`This hire is funded on ${chainLabel(escrowChainId)}, where the passkey wallet does not act yet. Connect a browser wallet to fund it.`);
       }
@@ -1180,6 +1229,8 @@ export function useHire({
         provider: outcome.provider,
         task: sending,
         budgetRaw: outcome.budget.toString(),
+        /* `hireErc8183Agent` encodes `createJob`, which binds the job to the escrow default. */
+        paymentToken: correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken as `0x${string}`,
         expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
         hiredAt: now,
         hireTxHash: outcome.transactionHash ?? null,
@@ -1207,7 +1258,8 @@ export function useHire({
     if (!active.address) return;
     setRevoking(true);
     try {
-      await revokeExternalWalletAllowance(active.address as `0x${string}`, escrowChainId);
+      /* The approval of the token this hire used, which for USDT is not the escrow default. */
+      await revokeExternalWalletAllowance(active.address as `0x${string}`, escrowChainId, (job?.paymentToken ?? hireToken?.address ?? undefined) as `0x${string}` | undefined);
       setRevoked(true);
     } catch (caught) {
       setError(walletActionError(caught, 'Revoking the approval'));
@@ -1283,6 +1335,10 @@ export function useHire({
     task,
     setTask,
     budget,
+    /** The non-$U token the quoted price is in, or null for $U. */
+    hireToken,
+    /** Why the quoted price cannot be funded here, when its token is not one Pokter funds. */
+    hireTokenError: quotedToken.error,
     swapPlan: swapPlan.data ?? null,
     setBudget,
     budgetValid,

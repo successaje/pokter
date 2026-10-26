@@ -1,6 +1,9 @@
 export interface CommissionAuthority {
   paymentToken: string;
+  /** How the token is named to the buyer: "$U", or "USDT" for a USDT hire. */
+  tokenSymbol: string;
   escrowContract: string;
+  /** The amount, in whole units of `paymentToken` (the field predates other tokens). */
   budgetU: number;
   deliveryWindowHours: number;
   walletAuthority: 'none';
@@ -12,6 +15,7 @@ export interface CommissionAuthority {
 /** The authority created by Pokter's current one-job ERC-8183 hire path. */
 export function commissionAuthority(input: {
   paymentToken: string;
+  tokenSymbol?: string;
   escrowContract: string;
   budgetU: number;
   deliveryWindowHours?: number;
@@ -21,6 +25,7 @@ export function commissionAuthority(input: {
   }
   return {
     paymentToken: input.paymentToken,
+    tokenSymbol: input.tokenSymbol ?? '$U',
     escrowContract: input.escrowContract,
     budgetU: input.budgetU,
     deliveryWindowHours: input.deliveryWindowHours ?? 24,

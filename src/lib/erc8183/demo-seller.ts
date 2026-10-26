@@ -13,6 +13,7 @@ import { adminSigner, ALTANA_NETWORK, altanaClient } from '@/lib/altana/client';
 import { decodePokterJobEnvelope } from './job-envelope';
 import { askAgentByIdentity } from './courier';
 import { verifyReferenceDelivery } from './reference-delivery';
+import { jobPaymentTokenOnChain } from './job-onchain';
 import { getJobStore } from '@/lib/erc8183/store';
 import { getAgent } from '@/lib/scan/client';
 import { classify } from '@/lib/agents/categories';
@@ -273,7 +274,8 @@ async function referenceBrief(
   const verdict = await verifyReferenceDelivery({
     description: job.description,
     job: { provider: job.provider, budget: job.budget, expiredAt: job.expiredAt, statusName: job.statusName },
-    escrow: { chainId, commerce: addresses.commerce, paymentToken: addresses.paymentToken },
+    /* The job's own token from the escrow; a USDT job is not in the deployment default. */
+    escrow: { chainId, commerce: addresses.commerce, paymentToken: await jobPaymentTokenOnChain(chainId, jobId) },
     fundedAtMs: await fundingBlockTimestampMs(indexed?.hireTxHash ?? null),
     indexed: indexed
       ? { agentChainId: indexed.agentChainId ?? null, agentTokenId: indexed.agentTokenId ?? null, agentName: indexed.agentName }

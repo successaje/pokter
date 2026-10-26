@@ -1,4 +1,5 @@
 import { uniformOfferedDecimals } from '@/lib/network/tokens';
+import { isDollarUJob, serializableTotals, totalsByToken } from './job-amount';
 import { formatUnits } from 'viem';
 
 import type { HiredJob } from './types';
@@ -79,6 +80,8 @@ export interface AgentEconomicHistory {
   pending: number;
   unresolved: number;
   totalFundedU: string;
+  /** Funded value per chain and token; unknown tokens in their own bucket. */
+  fundedByToken: ReturnType<typeof serializableTotals>;
   latestCheckedAt: string | null;
   recent: HiredJob[];
   /** Distinct known funding wallets across all indexed jobs. */
@@ -139,7 +142,8 @@ export function summariseEconomicHistory(
   // FUNDED, so requiring a hash here would silently erase valid paid work.
   const demos = isLifecycleDemo ? jobs.filter((job) => job.status !== 'OPEN' && isLifecycleDemo(job)) : [];
   const funded = jobs.filter((job) => job.status !== 'OPEN' && !demos.includes(job));
-  const total = funded.reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
+  /* $U only; other money is in `fundedByToken` and never added to it. */
+  const total = funded.filter((job) => isDollarUJob(job)).reduce((sum, job) => sum + BigInt(job.budgetRaw), 0n);
   // Only an undelivered job can have been refused; a later delivery outranks the refusal.
   const refused = (job: HiredJob) =>
     Boolean(refusedAtNotice) && ['FUNDED', 'EXPIRED'].includes(job.status) && refusedAtNotice!(job);
@@ -221,6 +225,7 @@ export function summariseEconomicHistory(
      * published shape.
      */
     totalFundedU: formatUnits(total, uniformOfferedDecimals()),
+    fundedByToken: serializableTotals(totalsByToken(funded)),
     latestCheckedAt:
       funded
         .map((job) => job.statusCheckedAt)

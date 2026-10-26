@@ -100,6 +100,27 @@ export function walletActionError(error: unknown, action: string): string {
     return `${action} was signed, but the network has no record of the transaction — it was never broadcast. Nothing was sent and no fee was paid. Try again.`;
   }
 
+  /*
+   * A USDT hire: the swap only buys $U, so it is never offered, and the
+   * shortfall is said before anything is signed.
+   */
+  if (/INSUFFICIENT_HIRE_TOKEN/.test(message)) {
+    return `${action} needs the full signed price in USDT, and this wallet holds less. Nothing was signed or sent. Add USDT to this wallet and try again; Pokter does not swap into USDT.`;
+  }
+
+  if (/TOKEN_HIRE_NEEDS_SIGNED_QUOTE/.test(message)) {
+    return `${action} in USDT needs the agent's signed price, and there is none for this brief. Nothing was sent.`;
+  }
+
+  /*
+   * Funded, and the escrow did not confirm the job is bound to the token the
+   * seller signed (or could not be read). Not called a success, and not
+   * retried: retrying could fund a second job.
+   */
+  if (/FUNDED_JOB_TOKEN_VERIFICATION_FAILED/.test(message)) {
+    return `${action} was sent, but Pokter could not confirm the job is held in the token the agent priced. Do not fund it again: open the job on the explorer and check its payment token first.`;
+  }
+
   if (/INSUFFICIENT_PAYMENT_TOKEN/.test(message)) {
     return `${action} needs more $U than this wallet holds, and the swap did not cover it. Check the balance and try again.`;
   }

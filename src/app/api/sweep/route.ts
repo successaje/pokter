@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
+
 import { runSweep } from '@/lib/history/sweep';
 import { runBudget } from '@/lib/history/budget';
 import { mapWithConcurrency } from '@/lib/concurrency';
@@ -343,11 +345,14 @@ export async function POST(request: Request): Promise<NextResponse> {
             // The local row is only an index. Repair it from ERC-8183 during every
             // sweep so Activity and Builder never depend on somebody opening a
             // card to refresh a stale status.
+            /* The job's token, once, while it is unknown; a failed read leaves it for the next sweep. */
+            const paymentToken = job.paymentToken ?? (await jobPaymentTokenOnChain(job.chainId, job.jobId));
             getJobStore().record({
               ...job,
               client: onchain.client,
               provider: onchain.provider,
               budgetRaw: onchain.budget.toString(),
+              paymentToken,
               expiredAt: new Date(Number(onchain.expiredAt) * 1000).toISOString(),
               status: onchain.statusName,
               statusCheckedAt: new Date().toISOString(),

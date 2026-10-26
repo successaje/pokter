@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { parseUnits } from 'viem';
 import { getErc8183Job } from '@altananetwork/sdk';
 
@@ -160,6 +162,12 @@ export async function POST(request: Request): Promise<NextResponse> {
    * nothing on it ever asks for one.
    */
   const ownerAddress = typeof body.owner === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.owner) ? body.owner : null;
+  /*
+   * The money the owner authorised, when it is not $U: an address, never a
+   * symbol. Only a USDT price needs it, and a USDT price without it is
+   * refused below. `maxBudget` is then counted in this token.
+   */
+  const ownerToken = typeof body.paymentToken === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.paymentToken) ? body.paymentToken : null;
   if (!ownerAddress) {
     return NextResponse.json(
       {
@@ -308,9 +316,40 @@ export async function POST(request: Request): Promise<NextResponse> {
   const escrowChainId = escrowChain;
 
   const addresses = correctedErc8183Addresses(escrowChainId);
+  /*
+   * The token is the one the seller signed. A $U price is prepared as it
+   * always was. A USDT price is prepared only when USDT hiring is on and the
+   * owner named exactly that token: otherwise the agent priced money the
+   * owner did not authorise, which is refused, never prepared in $U.
+   */
+  let quotedToken: ReturnType<typeof nonDefaultHireToken>;
+  try {
+    quotedToken = nonDefaultHireToken(escrowChainId, quote.currency);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message, layer: 'payment', code: 'token-not-offered', retryable: false }, { status: 409 });
+  }
+  if (quotedToken && (!ownerToken || ownerToken.toLowerCase() !== quotedToken.address.toLowerCase())) {
+    return NextResponse.json(
+      {
+        error: `${agent.name || `Agent #${tokenId}`} signed a price in ${quotedToken.symbol} (${quotedToken.address}), and the owner ${ownerToken ? `authorised ${ownerToken}` : 'named no token, which means $U'}. Nothing was prepared. Ask the owner whether to pay in ${quotedToken.symbol}, then pass payment_token ${quotedToken.address} with a ceiling in ${quotedToken.symbol}.`,
+        layer: 'payment',
+        code: 'token-not-in-mandate',
+        retryable: false,
+        quotedToken: quotedToken.address,
+      },
+      { status: 409 },
+    );
+  }
+  if (!quotedToken && ownerToken && ownerToken.toLowerCase() !== addresses.paymentToken.toLowerCase()) {
+    return NextResponse.json(
+      { error: `The owner authorised ${ownerToken}, and ${agent.name || `Agent #${tokenId}`} signed a price in $U. Nothing was prepared.`, layer: 'payment', code: 'token-not-in-mandate', retryable: false },
+      { status: 409 },
+    );
+  }
+  const hireTokenAddress = (quotedToken?.address ?? addresses.paymentToken) as `0x${string}`;
   let decimals: number;
   try {
-    decimals = requireDecimals(escrowChainId, addresses.paymentToken);
+    decimals = requireDecimals(escrowChainId, hireTokenAddress);
   } catch (error) {
     /* A token Pokter has not verified has no safe scale, so no amount can be
        stated: `lib/network/tokens` refuses rather than assume eighteen. */
@@ -332,7 +371,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     /* Pokter's own token for the chain the owner named, not the agent's
        echo of it. The mandate below asserts the quoted currency is this
        token; the key must not be a string the counterparty spells. */
-    token: addresses.paymentToken,
+    token: hireTokenAddress,
     owner: ownerAddress,
     task: payload,
   };
@@ -466,13 +505,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       maxAmountRaw: parseUnits(String(maxBudget), decimals).toString(),
       chainId: escrowChainId,
       escrow: addresses.commerce,
-      token: addresses.paymentToken,
+      token: hireTokenAddress,
       task: payload,
     },
     escrow: {
       chainId: escrowChainId,
       commerce: addresses.commerce,
-      paymentToken: addresses.paymentToken,
+      paymentToken: hireTokenAddress,
       decimals,
       testnet: escrowChainId === 97,
       label: networkOf(escrowChainId)?.label ?? `chain ${escrowChainId}`,

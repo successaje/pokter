@@ -25,6 +25,8 @@
  * claim worth checking on every build.
  */
 
+import { usdtHiringEnabled } from '@/lib/network/tokens';
+
 export interface AssistantToolSpec {
   name: string;
   title: string;
@@ -112,6 +114,20 @@ export const PREPARE_HIRE: AssistantToolSpec = {
         description:
           'The most the OWNER has authorised for this one job, in whole $U on escrow_chain_id — real $U on 56, test $U on 97. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
       },
+      /*
+       * Only in the schema while USDT hiring is on, so the published tool is
+       * byte-for-byte what it was until then.
+       */
+      ...(usdtHiringEnabled()
+        ? {
+            payment_token: {
+              type: 'string',
+              pattern: '^0x[0-9a-fA-F]{40}$',
+              description:
+                'The token the OWNER authorised, by contract address, when it is not $U. Only USDT is accepted (BNB Chain 0x55d398326f99059fF775485246999027B3197955; BNB Testnet 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd). Omit it for $U. An agent that prices in USDT is prepared only when this names exactly that token, and max_budget is then counted in USDT; a price in any other money than the one named here is refused, never converted.',
+            },
+          }
+        : {}),
       request_id: {
         type: 'string',
         maxLength: 64,

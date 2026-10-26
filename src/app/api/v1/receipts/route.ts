@@ -3,6 +3,8 @@ import { formatUnits } from 'viem';
 import { apiJson, apiOptions, apiRateLimit } from '@/lib/api/respond';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
+import { isDollarUJob, jobToken } from '@/lib/erc8183/job-amount';
+import { paymentTokenAt } from '@/lib/network/tokens';
 import { enabledEscrowChains } from '@/lib/network/escrow';
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { teamWalletList, teamWalletSet } from '@/lib/team/server';
@@ -56,7 +58,22 @@ export function GET(request: Request) {
       escrow: correctedErc8183Addresses(job.chainId).commerce,
       status: job.status,
       provider: job.provider,
-      budget: { raw: job.budgetRaw, amountU: formatUnits(BigInt(job.budgetRaw), 18) },
+      /*
+       * In the job's own token. `amountU` is kept for $U jobs, as published;
+       * for any other money it is null and `amount`/`symbol` say what it is.
+       * An unknown token is `token: null`, never presented as $U.
+       */
+      budget: (() => {
+        const token = jobToken(job);
+        const known = token ? paymentTokenAt(job.chainId, token) : null;
+        return {
+          raw: job.budgetRaw,
+          amountU: isDollarUJob(job) ? formatUnits(BigInt(job.budgetRaw), 18) : null,
+          token: token ?? null,
+          symbol: known ? (known.symbol === 'U' ? '$U' : known.symbol) : null,
+          amount: known ? formatUnits(BigInt(job.budgetRaw), known.decimals) : null,
+        };
+      })(),
       agent: {
         chainId: job.agentChainId ?? null,
         tokenId: job.agentTokenId,

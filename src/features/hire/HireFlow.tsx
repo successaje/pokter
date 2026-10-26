@@ -430,7 +430,7 @@ export function HireFlow(props: HireFlowProps) {
             )}
             <p className="text-[13px] text-ink-2">
               {network.options.length <= 1 && <>{networkLabel} · </>}
-              {testnet ? 'Test tokens' : 'Real $U'} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
+              {testnet ? 'Test tokens' : `Real ${hire.hireToken?.symbol ?? '$U'}`} · {deliveredByAgent ? `Delivered by ${props.agent.name}` : relayBlocked ? 'No one can deliver here' : 'Delivery relayed by Pokter'}
             </p>
           </div>
 
@@ -872,6 +872,18 @@ export function HireFlow(props: HireFlowProps) {
           )}
 
           <div className="flex flex-col gap-1.5">
+            {/*
+              A USDT price funds exactly what was signed, so there is no budget
+              to choose: the field would be a number in $U that is never used.
+              The signed amount is shown in its own money instead.
+            */}
+            {hire.hireToken && hire.authority ? (
+              <>
+                <span className="text-sm font-medium">Price for this job</span>
+                <p className="t-readout text-lg">{hire.authority.budgetU} {hire.hireToken.symbol}</p>
+              </>
+            ) : (
+            <>
             <label htmlFor="budget" className="text-sm font-medium">
               Budget for this job
             </label>
@@ -906,8 +918,14 @@ export function HireFlow(props: HireFlowProps) {
                         : 'No signed price; you set it')}
               </span>
             </div>
+            </>
+            )}
             <p className="text-[12.5px] text-ink-3">
-              {hire.reviewQuote
+              {hire.hireTokenError
+                ? hire.hireTokenError
+                : hire.reviewQuote && hire.hireToken && hire.authority
+                ? `The agent signed ${hire.authority.budgetU} ${hire.hireToken.symbol} for this exact task. That exact amount is what is funded, in ${hire.hireToken.symbol}, and nothing else is converted or added.`
+                : hire.reviewQuote
                 ? `The agent signed ${hire.reviewQuote.priceU} $U for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} $U it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
                 : hire.needsQuote
                   ? 'The agent is asked to sign a quote for this exact task before funding. If its price is above your budget, the hire stops before any payment.'
@@ -924,12 +942,14 @@ export function HireFlow(props: HireFlowProps) {
                 ...(hire.reviewQuote
                   ? [[
                       'Agent accepted',
-                      `This exact brief, for ${hire.reviewQuote.priceU} $U${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
+                      `This exact brief, for ${hire.hireToken && hire.authority ? `${hire.authority.budgetU} ${hire.hireToken.symbol}` : `${hire.reviewQuote.priceU} $U`}${testnet ? ' (test token)' : ''} on ${networkLabel}, signed by its registered wallet${hire.reviewQuote.expiresAt ? `. Valid until ${new Date(hire.reviewQuote.expiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}; renewed if it lapses, and you are asked again if the price changes` : ''}`,
                     ]]
                   : []),
                 ['Service', `${service.label}. ${service.basis}`],
                 ['You receive', service.deliverable],
-                ['You pay', `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
+                ['You pay', hire.hireToken && hire.authority
+                  ? `${hire.authority.budgetU} ${hire.hireToken.symbol}${testnet ? ' (test token)' : ''}, exactly the signed price`
+                  : `${Number.isFinite(hire.budget) ? hire.budget : '—'} $U${testnet ? ' (test token)' : ''}`],
                 ['Held by', `ERC-8183 escrow on ${networkLabel}`],
                 ['Agent is paid', 'After it delivers and the review window passes without a successful dispute'],
                 ['If the delivery is wrong', 'Dispute it on the job page before the review window closes. The escrow does not judge quality itself: the escrow policy’s voters decide a dispute, not Pokter. Delivery and payment are separate steps; nothing is paid at delivery'],
@@ -949,7 +969,7 @@ export function HireFlow(props: HireFlowProps) {
             <Details summary="What this hire can and cannot do">
               <ul className="flex flex-col gap-1.5 text-[13px] text-ink-2">
                 <li className="flex gap-2">
-                  <Icon.Check size={15} className="mt-0.5 shrink-0 text-ok" /> Move exactly {hire.authority.budgetU} $U into the escrow contract <span className="t-readout">{shortAddress(props.escrow.commerce)}</span>
+                  <Icon.Check size={15} className="mt-0.5 shrink-0 text-ok" /> Move exactly {hire.authority.budgetU} {hire.authority.tokenSymbol} into the escrow contract <span className="t-readout">{shortAddress(props.escrow.commerce)}</span>
                 </li>
                 {hire.authority.prohibited.map((p) => (
                   <li key={p} className="flex gap-2">
