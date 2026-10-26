@@ -155,15 +155,19 @@ Briefs and bids written before this change keep a null token, which reads as $U,
 
 ## 7. Rollback procedure
 
-1. **Preferred: turn a currency off.** Remove its pair from `NEXT_PUBLIC_HIRE_TOKENS` (a build argument in `fly.toml`) and redeploy.
+1. **The rollback: turn a currency off.** Remove its pair from `NEXT_PUBLIC_HIRE_TOKENS` (a build argument in `fly.toml`) and redeploy, keeping this token-aware code.
    - New hires and requests can no longer use it.
    - Existing jobs keep their token, labels, totals, settlement and "Finish funding" recovery, none of which reads the flag.
    - Nothing is relabelled.
-2. **Last resort: revert the code.** Tested across versions: main runs on the migrated databases, because the added columns are nullable and the tables are new. But main has no notion of currency:
+2. **A genuine failure in the release code: fix forward** on the token-aware code and redeploy, with the new currencies off.
+3. **Old main is not a routine rollback.** Tested across versions, it runs on the migrated databases (the added columns are nullable and the tables are new), but it has no notion of currency:
    - it shows every job as $U, including a USDT, USDC or USD1 job;
    - its `INSERT OR REPLACE` on a job's status update clears that job's recorded token.
 
-   After re-releasing, run the backfill again. Cleared tokens read as unknown, never $U, until it does. Avoid a code revert once non-$U jobs exist, unless the release itself is broken.
+   If it ever has to run temporarily:
+   - take a backup first (`scripts/backup-databases.mjs`);
+   - after re-releasing, run the backfill again. Each token is read back from the escrow (`jobPaymentToken`, the authoritative record), so cleared records are recoverable; until then they read as unknown, never $U.
+4. **Backups** are taken before the backfill (`docs/release/test-session.md`, step 3), checked for integrity and row counts, and copied off the machine. Restoring one over a live file is a last resort: stop the app first, because jobs indexed after the backup would be lost.
 
 ## 8. Test evidence
 
@@ -288,7 +292,7 @@ These are all in `npm test`. The final counts are in the PR body.
 
 The separate staging plan is **dropped**. Validation is a production release with currencies off, the backfill, then the currencies turned on for a short owner-led test session in which you approve every payment. **No owner-only gate exists**, so new currencies are public for the length of that test. The plan, the test list, what is checked and what stays pending are in `docs/release/test-session.md`.
 
-**Local end-to-end checks, done before merging.** These ran on a production build of this branch with the test configuration (mainnet escrow, Binance-Peg USDT, Binance-Peg USDC and USD1 on), against real mainnet agents and a wallet that cannot sign.
+**Local checks up to the wallet prompt, done before merging.** These are not a payment end-to-end test: the wallet was a stand-in that cannot sign, so nothing was signed, mined or funded, and the live wallet session is still required. They ran on a production build of this branch with the test configuration (mainnet escrow, Binance-Peg USDT, Binance-Peg USDC and USD1 on), against real mainnet agents and a wallet that cannot sign.
 
 - **The deploy workflow's checks**, mirrored by `scripts/release-smoke.mjs`: all pass.
   - Locally, health reads "degraded" only because local disk is not a persistent volume.
@@ -320,10 +324,10 @@ The separate staging plan is **dropped**. Validation is a production release wit
 
 | # | Blocker | Blocks |
 | --- | --- | --- |
-| 1 | GitGuardian incident 39048303: you confirm in the dashboard that the matched value is the public testnet USDT address, then mark it a false positive (or approve squashing the branch) | merging |
+| 1 | GitGuardian incident 39048303: you reveal the matched value in the dashboard, confirm it is the public testnet USDT address, then close it as a false positive. Squashing is not a substitute | merging |
 | 2 | Your go-ahead to merge #322 with currencies off (a production deploy) | release |
-| 3 | Production currency backfill: dry run, write run, audit review (section 6) | trustworthy $U figures |
-| 4 | Your go-ahead to turn on Binance-Peg USDT, Binance-Peg USDC and USD1 for the test (public while on) | the test session |
+| 3 | Database backup, then the production currency backfill: dry run, inspection, write run, audit review (section 6) | trustworthy $U figures |
+| 4 | Your go-ahead for each currency in turn: Binance-Peg USDT first, then Binance-Peg USDC, then USD1, each only after the previous one passed (public while on) | the test session |
 | 5 | The owner-led test session passing, per currency (`docs/release/test-session.md`); recovery included | keeping that currency on |
 | 6 | Settlement, earnings and "settled" receipts | 7 days after each delivery (the mainnet review window); not shortened |
 | 7 | Publish the receipt-verifier migration note (section 11) with the release | release |
