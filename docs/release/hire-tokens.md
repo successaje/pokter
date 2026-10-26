@@ -5,7 +5,7 @@ Status on 26 October 2026: **code-complete and off.** It is tested on local fork
 | Stage | State |
 | --- | --- |
 | Code-complete | **Yes.** Everything below is built and tested as described, and an independent review's findings are resolved (section 8). |
-| Staging-validated | **No.** It needs the staging app and the wallet rehearsal of section 9, option A. |
+| Validated with real funds | **No.** That is the owner-led production test session (section 9, `docs/release/test-session.md`). |
 | Production-enabled | **No.** No currency is turned on, and nothing is funded or broadcast. |
 
 ## 1. Supported currencies, from evidence
@@ -155,11 +155,15 @@ Briefs and bids written before this change keep a null token, which reads as $U,
 
 ## 7. Rollback procedure
 
-1. Remove the pairs from `NEXT_PUBLIC_HIRE_TOKENS` (from `[build.args]` in `fly.toml`, once they are ever added) and redeploy.
-   - New hires and requests can then only be in $U.
-   - Existing jobs keep their token, labels and totals, and nothing is relabelled.
-   - Open attempts finish on their own job.
-2. To revert the code as well, revert the merge. The added columns (`payment_token`, `budget_raw`, `price_raw`) and tables (`funding_attempts`, `currency_backfill_audit`) are additive and nullable, and older code ignores them. No down-migration is needed.
+1. **Preferred: turn a currency off.** Remove its pair from `NEXT_PUBLIC_HIRE_TOKENS` (a build argument in `fly.toml`) and redeploy.
+   - New hires and requests can no longer use it.
+   - Existing jobs keep their token, labels, totals, settlement and "Finish funding" recovery, none of which reads the flag.
+   - Nothing is relabelled.
+2. **Last resort: revert the code.** Tested across versions: main runs on the migrated databases, because the added columns are nullable and the tables are new. But main has no notion of currency:
+   - it shows every job as $U, including a USDT, USDC or USD1 job;
+   - its `INSERT OR REPLACE` on a job's status update clears that job's recorded token.
+
+   After re-releasing, run the backfill again. Cleared tokens read as unknown, never $U, until it does. Avoid a code revert once non-$U jobs exist, unless the release itself is broken.
 
 ## 8. Test evidence
 
@@ -203,7 +207,7 @@ The fork lifecycle covers:
 The wallet was a stand-in injected into the page. It answers account and chain reads, proxies reads to public BNB Testnet RPC, and **rejects every signing method with 4001**, so nothing could be signed or sent.
 
 - **Preference not honoured.** Real path, production agent endpoint: asked for USDT, the agent signed 0.01 $U, and the notice was shown (`01`).
-- **USDT hire: an integration test with intercepted quote delivery, not an end-to-end pass.** The quote is a **real** USDT quote signed by the local Evidence handler with the agent's registered key. **Mocked:** the `/api/hire/quote` transport in the page, because the hire page sends quotes to the agent's registered production endpoint, which does not run this branch. Agent discovery and the live quote hop are therefore not covered here; option A covers them.
+- **USDT hire: an integration test with intercepted quote delivery, not an end-to-end pass.** The quote is a **real** USDT quote signed by the local Evidence handler with the agent's registered key. **Mocked:** the `/api/hire/quote` transport in the page, because the hire page sends quotes to the agent's registered production endpoint, which does not run this branch. Agent discovery and the live quote hop are not covered by this check; the production build checks in section 9 cover them with live quotes.
   - Review: "0.01 USDT … nothing else is converted" (`02`).
   - Fund step: "paid in test USDT … from a browser or mobile wallet" (`03`).
   - The passkey option is disabled with its reason (`04`).
@@ -270,150 +274,46 @@ These are all in `npm test`. The final counts are in the PR body.
 
 ## 9. Release validation
 
-### Option A: staging app with its own testnet agent (the release-validation route)
+The separate staging plan is **dropped**. Validation is a production release with currencies off, the backfill, then the currencies turned on for a short owner-led test session in which you approve every payment. **No owner-only gate exists**, so new currencies are public for the length of that test. The plan, the test list, what is checked and what stays pending are in `docs/release/test-session.md`.
 
-Every hop is real: discovery, the live quote from the agent's **registered** endpoint, the wallet, funding, delivery, settlement, receipt and earnings. **Nothing below has been provisioned, deployed or registered.** Each step needs your approval, and the wallet actions are yours.
+**Local end-to-end checks, done before merging.** These ran on a production build of this branch with the test configuration (mainnet escrow, Binance-Peg USDT, Binance-Peg USDC and USD1 on), against real mainnet agents and a wallet that cannot sign.
 
-**What it is**
+- **The deploy workflow's checks**, mirrored by `scripts/release-smoke.mjs`: all pass.
+  - Locally, health reads "degraded" only because local disk is not a persistent volume.
+  - The kit is asked with the proxy's forwarded headers.
+- **IVL Rebalancer (an outside agent)**, with a live quote and no interception:
+  - it signed **1 Binance-Peg USDT**;
+  - the payment screen showed the real balance (6.19), escrow `0xEa4D…EBA6` and an exact approval;
+  - the first wallet request was the job creation to the escrow;
+  - a rejection left nothing open.
+- **Touchstone (production) asked for Binance-Peg USDC:** it signed 0.05 $U, because production does not run this branch yet. The page said so, by full name.
+- **Touchstone in $U** with a wallet short of $U: the shortfall swap reaches the wallet (the PancakeSwap v3 router), and the rejection is clean.
+- **The release's own house-agent handler** (Touchstone code, a throwaway key) signs in $U, Binance-Peg USDT, Binance-Peg USDC and USD1. Each was checked for the exact 0.05 in the token's own units, the mainnet escrow binding, the signer, and terms bound to the brief.
+- **Defects found by these checks and fixed:**
+  1. Errors raised before the wallet opens were hidden behind a pending check, so Fund looped.
+  2. The $U shortfall swap quoted for "chain 0". This is **a live bug on main**: a browser-wallet $U hire short of $U fails.
+  3. The preference notice said "USDC".
+- **Backfill** (`scripts/currency-backfill.mjs`, the script's own payload, against the local server and real chain reads):
+  - the dry run read 2 of 3 and wrote nothing;
+  - the write run wrote 2 and audited all 3 (`written`, `written`, `unread` with its reason);
+  - the second dry run showed only the unreadable job remaining, still unknown.
+- **Migration, across versions** (main's code and this branch's code alternately on the same database file):
+  - the forward migration keeps every row;
+  - main reads and writes the migrated file;
+  - main's `INSERT OR REPLACE` on a status update clears a job's recorded token, which then reads as unknown in this release until the backfill runs again.
 
-- **App.** A separate Fly app, `pokter-staging`, built from this branch with `fly.staging.toml`. The file is in the repository and is not used by any workflow; production deploys only from `fly.toml`. Settings:
-  - testnet only (`NEXT_PUBLIC_ESCROW_CHAINS='97'`);
-  - testnet USDT on (`NEXT_PUBLIC_HIRE_TOKENS='97:0x3376…4dDd'`);
-  - no scheduled sweeps;
-  - a 1GB volume of its own;
-  - origin `https://pokter-staging.fly.dev`.
-- **Agent.** A dedicated testnet agent: Touchstone, a Pokter house agent (token safety check, priced 0.05). It is run by the staging app with a **new key** and registered fresh on BNB Testnet. Its A2A endpoint is therefore the staging app's, written into its registration. It honours `preferred_currency`, signs its own quotes, delivers its own jobs, and is paid into its own new wallet. It is a different identity from production's Touchstone.
-
-**Keys and secrets: all new, none from production**
-
-| Secret | What it is | Source |
-| --- | --- | --- |
-| `HOUSE_AGENT_TOUCHSTONE_KEY` | The staging agent's wallet: it mints its identity, signs quotes, submits deliveries, and is paid | **new**, generated locally |
-| `ALTANA_ADMIN_KEY` | Staging operator key: sponsorship, seals and team. Unused by a USDT browser-wallet hire, but read at start | **new**, generated locally, never funded |
-| `SWEEP_SECRET`, `NOTIFICATION_UNSUBSCRIBE_SECRET`, `POKTER_DEMO_WRITE_SECRET` | Server secrets | **new** random values |
-| `SCAN_BASE_URL`, `SCAN_API_KEY` | Registry index (read) | Needed for the hire page to read the agent. Not a signing key; use a separate key if the provider issues one, otherwise your decision |
-| `BSC_RPC_URL`, `NODEREAL_API_KEY` | RPC (read and send) | Optional; public endpoints work. Not signing keys |
-| `RESEND_API_KEY`, `TELEGRAM_BOT_TOKEN` | Notifications | **Leave unset**, so staging sends nothing real |
-
-To generate a key without displaying it, this writes it to a file only you can read and prints only the address:
-
-```bash
-node -e "const{generatePrivateKey,privateKeyToAccount}=require('viem/accounts');const k=generatePrivateKey();require('fs').writeFileSync(process.argv[1],k,{mode:0o600});console.log(privateKeyToAccount(k).address)" ~/.pokter-staging-touchstone.key
-```
-
-Run it from the repository, once per key, with its own file name. Load the files with `fly secrets import` (stdin), never on a command line.
-
-**Costs and the spending cap** (Fly pricing for iad, read on 26 October 2026 from docs.fly.io/about/pricing and docs.fly.io/about/billing)
-
-- **There is no spending cap.** Fly documents no spending cap or budget alert. Billing is monthly per organisation, and prepaid credits (minimum $25) are offered to accounts without a card. The figures below are an **estimate** from the published prices for what this plan creates. Spend is limited in practice only by creating nothing else and removing everything on a fixed date.
-- **What is created, and its estimated cost:**
-
-  | Resource | Price | Estimate for this rehearsal |
-  | --- | --- | --- |
-  | One machine, `shared-cpu-1x`, 2GB | $6.70 for 1GB + $6.00 for the second GB = $12.70 a month if always on; billed only while running (it stops when idle) | about $12.70 a month if left running; a few days' rehearsal should cost well under that |
-  | One volume, 1GB, created with **automatic snapshots off** | $0.15 a month | $0.15 a month |
-  | Volume snapshots | Billed by storage; the first 10GB a month are free | **none created**: `--scheduled-snapshots=false`. With the default, daily snapshots are kept 5 days and outlive the volume |
-  | IP addresses | Shared IPv4 and IPv6 are free | **no dedicated IPv4** is allocated ($2 a month if it were) |
-  | Certificates | The first 10 are free | none beyond the `fly.dev` default |
-  | Testnet tBNB and test USDT | faucets | $0 |
-
-- **Estimate if forgotten for a whole month: about $12.85** (machine and volume). This is a quote from published prices, **not a guaranteed limit**. Anything created beyond this plan, or price changes, would add to it. The rehearsal plan removes everything the same week.
-- **Mainnet rehearsal** (later, separately approved): real gas for about six transactions per hire, plus the signed amount (at most 5 units of the token per job).
-
-**Cleanup, verified resource by resource.** Fly's docs do not promise that destroying an app removes volumes or snapshots, so each is removed and checked:
-
-1. `fly volumes list -a pokter-staging`, then `fly volumes destroy <id>` for each volume.
-2. `fly volumes snapshots list <id>` for each volume. With automatic snapshots off this is empty; delete any that exist. Snapshots outlive their volume until retention ends.
-3. `fly ips list -a pokter-staging`: release any dedicated IPv4 with `fly ips release <ip>`. Shared addresses cost nothing.
-4. `fly certs list -a pokter-staging`: remove any custom certificate.
-5. `fly apps destroy pokter-staging`.
-6. Confirm `fly apps list` no longer shows it, and the organisation's billing page shows no `pokter-staging` usage on the next day.
-7. **Off chain, nothing else is billed.** The staging agent's on-chain registration stays on BNB Testnet; it costs nothing to leave.
-
-**Wallet actions before provisioning (yours)**
-
-1. Generate the three keys above. They are not transactions.
-2. **One testnet transfer, from your wallet (one wallet prompt):** send 0.005 tBNB to the new Touchstone address. It pays the gas for the two registry transactions below and the agent's delivery submissions.
-3. Prepare the buyer wallet with about 0.01 tBNB and at least 0.15 test USDT (three 0.05 hires), from the BNB Chain testnet faucet. Confirm the faucet's USDT is `0x337610d27c682E347C9cD60BD4b3b107C9d34dDd`; any other address is a different token and will be refused.
-4. WalletConnect is optional: add `pokter-staging.fly.dev` to the project's allowed origins only if you want to test a phone wallet.
-
-**Provisioning commands** (prepared, not run; each needs your go-ahead)
-
-```bash
-fly apps create pokter-staging
-```
-
-```bash
-fly volumes create pokter_staging_data --app pokter-staging --region iad --size 1 --scheduled-snapshots=false
-```
-
-```bash
-fly secrets import --app pokter-staging < ~/.pokter-staging.env
-```
-
-```bash
-fly deploy --config fly.staging.toml --app pokter-staging
-```
-
-```bash
-FLY_APP=pokter-staging node scripts/house-register.mjs touchstone 97
-```
-
-**The registry transactions** (part of the setup, and needing your go-ahead like the rest). The last command makes the staging server send **two transactions on BNB Testnet**, to the ERC-8004 identity registry `0x8004A818BFB912233c491871b3d84c89A494BD9e`:
-
-1. `register(agentURI)`: mints the agent's identity. Its owner and wallet are the new Touchstone key.
-2. `setAgentURI(agentId, uri)`: publishes the completed registration file, with the staging endpoint and the new id.
-
-**Both are signed by the new staging agent key**, which runs on the staging server and pays gas from the 0.005 tBNB you sent. **There is no prompt in your wallet for them.** This is how every Pokter house agent is registered: the agent owns its identity, signs its own quotes, and is paid into its own wallet.
-
-The staging identity is disposable: a test agent owned by its own staging key is what this rehearsal needs, and ownership stays with that key.
-
-After the transactions, wait until `https://pokter-staging.fly.dev/agents/97/<new id>` shows the agent: the registry index needs to catch up.
-
-**The rehearsal: real quote → wallet → funding → delivery → settlement → receipt and earnings**
-
-Use your browser wallet. All approvals and funding are yours. After each stage, run the read-only check below. It compares the escrow's own state with what was signed and with what Pokter shows.
-
-```bash
-ORIGIN=https://pokter-staging.fly.dev npx tsx scripts/rehearsal-verify.mts --chain 97 --job <id> --currency 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd --amount <signed raw> --buyer <your address> --provider <Touchstone address> --status <FUNDED|SUBMITTED|COMPLETED>
-```
-
-1. **Hire A, the clean path.** Open `/hire/97/<id>?pay=0x337610d27c682E347C9cD60BD4b3b107C9d34dDd` and use a token brief from Touchstone's card.
-   - **Check:** the review says it signed 0.05 USDT and the preference was honoured.
-   - **Five wallet prompts:** create, register, set budget, **approve exactly the signed amount**, fund.
-   - The success screen shows the job id. Run the verifier with `--status FUNDED`, which checks job id, token, raw amount, parties, deadline and no leftover allowance.
-2. **Delivery.** Touchstone submits on its own. Run the verifier with `--status SUBMITTED`, then open the job page and the deliverable.
-3. **Settlement.** After the review window (about 15 minutes on testnet), release from your job page in the workspace ("Release … to Touchstone"). That is **one wallet prompt**.
-   - Then force one status refresh: `curl -X POST "https://pokter-staging.fly.dev/api/sweep?force=1" -H "authorization: Bearer $SWEEP_SECRET"`.
-   - Run the verifier with `--status COMPLETED`. It also checks the receipt.
-   - Earnings, without the agent's key: check that `/api/v1/activity` shows the job in `valueByToken` under testnet USDT, and that `/proof` lists it in USDT, "never added to $U". The provider's own `/build` earnings line needs the agent wallet to sign in, so on staging it is read through the agent page instead.
-4. **Hire B, interruption recovery.** Start a second hire, and **reject the approval prompt**.
-   - Reload: the page says an earlier attempt is being checked.
-   - Use **Finish funding job N**: two prompts, approve and fund, on **the same job id** (no second job).
-   - Verify with `--status FUNDED`.
-   - While it is pending, open a second tab: it must refuse to start another hire.
-5. **Hire C, the passkey and cross-device check.** Connect a passkey: it must be refused for the USDT price, by name. Then, with a hire left pending on one device, open the hire page on another browser with the same wallet: it must be blocked once the first device's create transaction is on chain.
-
-**Pass:** every verifier run passes, and no stage needed a second payment or showed $U for a USDT job. Any failure is reported with the verifier output and the job id.
-
-### Option B: local branch with intercepted quote delivery (supplementary integration test only)
-
-This is **not an end-to-end pass.**
-- It runs this branch locally (`pokter2-usdt-rehearsal`).
-- The quote is real, signed by the local Evidence handler with the agent's registered key, but its delivery into the hire page is **intercepted**: part 2 of `docs/release/hire-tokens-page.js`, with a quote from `scripts/rehearsal-page-quote.mts`.
-- Escrow, token, approvals and funding would be real. Discovery and the live quote hop are not tested.
-- Use it only to repeat the payment path quickly. It does not count toward staging validation.
+  Briefs, bids, staged proposals and campaign jobs keep their columns under main, because those writes name their columns or update in place.
 
 ## 10. Blockers, consolidated
 
 | # | Blocker | Blocks |
 | --- | --- | --- |
-| 1 | Your approval to provision option A (app, volume, secrets, deploy), and the house-agent registration | staging-validated |
-| 2 | Wallet actions for option A: generate keys, 0.005 tBNB to the staging agent, buyer test USDT and tBNB, then the rehearsal's approvals, funding and release | staging-validated |
-| 3 | The option A rehearsal passing every verifier run, including the recovery and cross-device steps | staging-validated |
-| 4 | Mainnet rehearsal with real funds, per token to enable (USDT, USDC, USD1) | production-enabled for that token |
-| 5 | Production currency backfill: dry run, write run, audit review (section 6) | production-enabled (published $U figures count only identified jobs until it runs) |
-| 6 | Binance-Peg USDT and Binance-Peg USDC are **proposed**: verified, named as such everywhere they are chosen or confirmed, and off. Each is enabled only after its own real-wallet rehearsal on mainnet passes (blocker 4) | production-enabled for each |
+| 1 | GitGuardian incident 39048303: you confirm in the dashboard that the matched value is the public testnet USDT address, then mark it a false positive (or approve squashing the branch) | merging |
+| 2 | Your go-ahead to merge #322 with currencies off (a production deploy) | release |
+| 3 | Production currency backfill: dry run, write run, audit review (section 6) | trustworthy $U figures |
+| 4 | Your go-ahead to turn on Binance-Peg USDT, Binance-Peg USDC and USD1 for the test (public while on) | the test session |
+| 5 | The owner-led test session passing, per currency (`docs/release/test-session.md`); recovery included | keeping that currency on |
+| 6 | Settlement, earnings and "settled" receipts | 7 days after each delivery (the mainnet review window); not shortened |
 | 7 | Publish the receipt-verifier migration note (section 11) with the release | release |
 | 8 | Atomic batch for other tokens: off, not tested | nothing (falls back); a later enhancement |
 | 9 | Agents outside Pokter must implement `preferred_currency` themselves; until then they sign in their own currency and the buyer is told | nothing (by design) |

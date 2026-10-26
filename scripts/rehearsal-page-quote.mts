@@ -1,7 +1,7 @@
 /**
  * A hire-page quote response built around a REAL quote from the local
  * Evidence handler, for the browser rehearsal in docs/release/hire-tokens.md
- * (sections 8 and 9B). Nothing is signed by a wallet, sent or paid.
+ * (section 8). Nothing is signed by a wallet, sent or paid.
  *
  * The hire page asks agents at their registered endpoint, which for Pokter
  * Evidence is production; this asks the local handler instead, in the token

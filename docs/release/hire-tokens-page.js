@@ -5,7 +5,6 @@
  *
  * Part 1 is a NON-SIGNING stand-in wallet: reads go to public testnet RPC and
  * every signing method is rejected with 4001, so nothing can be signed or sent.
- * For section 9B (your own wallet), omit part 1 and keep only part 2.
  *
  * Part 2 replaces only the page's /api/hire/quote transport with that real quote.
  */
