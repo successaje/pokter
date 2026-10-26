@@ -1,4 +1,4 @@
-import { fundingOutcome, type FundedJobFields } from './funding-outcome';
+import type { FundedJobFields } from './funding-outcome';
 
 /**
  * A funding attempt, owned by the tab that drives it, written down before the
@@ -64,6 +64,8 @@ export interface FundingAttempt {
   /** The most recent wallet request issued. Null before the first prompt. */
   prompt: PromptStep | null;
   state: 'sending' | 'pending';
+  /** The server's id for this attempt's cross-device record, once it accepted it (`remote-attempts`). */
+  remotePublicId?: string | null;
 }
 
 export interface KeyValue {
@@ -92,7 +94,7 @@ export type BeginInput = Omit<FundingAttempt, 'attemptId' | 'ownerTab' | 'state'
 export interface AttemptSession {
   readonly attemptId: string;
   /** Add what is now known. Throws `AttemptOwnershipLost` if the record is no longer this attempt. */
-  note(patch: { predictedJobId?: string; jobId?: string; callsId?: string; txHash?: string; fundableUntil?: number; description?: string }): FundingAttempt;
+  note(patch: { predictedJobId?: string; jobId?: string; callsId?: string; txHash?: string; fundableUntil?: number; description?: string; remotePublicId?: string }): FundingAttempt;
   /** Call before every wallet request. Throws `AttemptOwnershipLost` if the record is no longer this attempt. */
   beforePrompt(step: PromptStep): FundingAttempt;
   /** The attempt resolved as funded and recorded by its owner. */
@@ -127,6 +129,46 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
     return locks.request(lockName(wallet, chainId), { ifAvailable: true }, async (lock) => (lock ? { held: true as const, value: await fn() } : { held: false as const }));
   };
 
+  const sessionFor = (wallet: string, chainId: number, attemptId: string): AttemptSession => {
+    const mine = (): FundingAttempt => {
+      const current = read(wallet, chainId);
+      if (!current || current.attemptId !== attemptId) throw new AttemptOwnershipLost();
+      return current;
+    };
+    const update = (next: FundingAttempt) => {
+      write({ ...next, updatedAt: now().toISOString() });
+      return read(wallet, chainId)!;
+    };
+    return {
+      attemptId,
+      note(patch) {
+        const current = mine();
+        return update({
+          ...current,
+          predictedJobId: patch.predictedJobId ?? current.predictedJobId,
+          jobId: patch.jobId ?? current.jobId,
+          callsId: patch.callsId ?? current.callsId,
+          fundableUntil: patch.fundableUntil ?? current.fundableUntil,
+          description: patch.description ?? current.description,
+          remotePublicId: patch.remotePublicId ?? current.remotePublicId ?? null,
+          txHashes: patch.txHash && !current.txHashes.includes(patch.txHash) ? [...current.txHashes, patch.txHash] : current.txHashes,
+        });
+      },
+      beforePrompt(step) {
+        return update({ ...mine(), prompt: step });
+      },
+      close() {
+        const current = read(wallet, chainId);
+        if (current?.attemptId === attemptId) remove(wallet, chainId);
+      },
+      leavePending() {
+        const current = read(wallet, chainId);
+        if (current?.attemptId !== attemptId) return null;
+        return update({ ...current, state: 'pending' });
+      },
+    };
+  };
+
   return {
     read,
 
@@ -143,46 +185,30 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
         const attemptId = `${tabId}:${at}:${Math.random().toString(36).slice(2, 10)}`;
         const attempt: FundingAttempt = { ...input, fundableUntil: input.fundableUntil ?? null, attemptId, ownerTab: tabId, state: 'sending', updatedAt: at, txHashes: [], jobId: null, callsId: null, prompt: null };
         write(attempt);
-        const mine = (): FundingAttempt => {
-          const current = read(input.wallet, input.chainId);
-          if (!current || current.attemptId !== attemptId) throw new AttemptOwnershipLost();
-          return current;
-        };
-        const update = (next: FundingAttempt) => {
-          write({ ...next, updatedAt: now().toISOString() });
-          return read(input.wallet, input.chainId)!;
-        };
-        const session: AttemptSession = {
-          attemptId,
-          note(patch) {
-            const current = mine();
-            return update({
-              ...current,
-              predictedJobId: patch.predictedJobId ?? current.predictedJobId,
-              jobId: patch.jobId ?? current.jobId,
-              callsId: patch.callsId ?? current.callsId,
-              fundableUntil: patch.fundableUntil ?? current.fundableUntil,
-              description: patch.description ?? current.description,
-              txHashes: patch.txHash && !current.txHashes.includes(patch.txHash) ? [...current.txHashes, patch.txHash] : current.txHashes,
-            });
-          },
-          beforePrompt(step) {
-            return update({ ...mine(), prompt: step });
-          },
-          close() {
-            const current = read(input.wallet, input.chainId);
-            if (current?.attemptId === attemptId) remove(input.wallet, input.chainId);
-          },
-          leavePending() {
-            const current = read(input.wallet, input.chainId);
-            if (current?.attemptId !== attemptId) return null;
-            return update({ ...current, state: 'pending' });
-          },
-        };
+        const session = sessionFor(input.wallet, input.chainId, attemptId);
         return { ok: true, value: await drive(session) };
       };
       if (!locks) return go();
       const held = await exclusive(input.wallet, input.chainId, go);
+      return held.held ? held.value : { ok: false, reason: 'in-progress-elsewhere' };
+    },
+
+    /**
+     * Take over an attempt whose owner is gone, to finish it rather than start
+     * another: the safe recovery for a created, unfunded job. Under the lock,
+     * only if the record is still exactly `snapshot`; the session then drives
+     * it like a new attempt (ownership checked before every prompt).
+     */
+    async resume<T>(snapshot: FundingAttempt, drive: (session: AttemptSession) => Promise<T>): Promise<RunResult<T> | { ok: false; reason: 'stale' }> {
+      const go = async (): Promise<RunResult<T> | { ok: false; reason: 'stale' }> => {
+        const current = read(snapshot.wallet, snapshot.chainId);
+        if (!current || current.attemptId !== snapshot.attemptId || current.updatedAt !== snapshot.updatedAt) return { ok: false, reason: 'stale' };
+        const attemptId = `${tabId}:${now().toISOString()}:resume`;
+        write({ ...current, attemptId, ownerTab: tabId, state: 'sending', updatedAt: now().toISOString() });
+        return { ok: true, value: await drive(sessionFor(snapshot.wallet, snapshot.chainId, attemptId)) };
+      };
+      if (!locks) return go();
+      const held = await exclusive(snapshot.wallet, snapshot.chainId, go);
       return held.held ? held.value : { ok: false, reason: 'in-progress-elsewhere' };
     },
 
@@ -198,7 +224,7 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
       verdict: Reconciled,
       chainNowSeconds: number,
       onFunded?: (jobId: string) => Promise<void>,
-    ): Promise<'closed-funded' | 'closed-not-funded' | 'kept' | 'kept-may-still-pay' | 'busy' | 'stale'> {
+    ): Promise<'closed-funded' | 'closed-not-funded' | 'closed-mismatch' | 'kept' | 'kept-may-still-pay' | 'busy' | 'stale'> {
       const held = await exclusive(snapshot.wallet, snapshot.chainId, async () => {
         const current = read(snapshot.wallet, snapshot.chainId);
         if (!current || current.attemptId !== snapshot.attemptId || current.updatedAt !== snapshot.updatedAt) return 'stale' as const;
@@ -209,6 +235,20 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
         }
         if (verdict.outcome === 'not-funded') {
           if (!paymentImpossible(current, chainNowSeconds)) return 'kept-may-still-pay' as const;
+          remove(snapshot.wallet, snapshot.chainId);
+          return 'closed-not-funded' as const;
+        }
+        /*
+         * Money moved, into this attempt's job, under terms that differ. It is
+         * shown, never funded again, and no longer blocks the wallet: nothing
+         * more can be paid into a job that is already funded.
+         */
+        if (verdict.outcome === 'mismatch') {
+          remove(snapshot.wallet, snapshot.chainId);
+          return 'closed-mismatch' as const;
+        }
+        /* Past the job's own expiry, nothing in flight can fund or create it: the escrow refuses both. */
+        if (pastFundable(current, chainNowSeconds)) {
           remove(snapshot.wallet, snapshot.chainId);
           return 'closed-not-funded' as const;
         }
@@ -223,14 +263,35 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
  * Whether an attempt whose owner is gone can no longer pay: no request that
  * moves money was ever issued, or the chain is past the expiry it encoded.
  */
-export function paymentImpossible(attempt: Pick<FundingAttempt, 'prompt' | 'fundableUntil'>, chainNowSeconds: number): boolean {
+export function paymentImpossible(attempt: Pick<FundingAttempt, 'prompt' | 'fundableUntil' | 'startedAt'>, chainNowSeconds: number): boolean {
   if (attempt.prompt === null || !MOVES_MONEY.has(attempt.prompt)) return true;
-  return attempt.fundableUntil !== null && chainNowSeconds > attempt.fundableUntil;
+  return pastFundable(attempt, chainNowSeconds);
+}
+
+/**
+ * The longest a job Pokter creates can stay fundable: delivery is at most 30
+ * days (`PROPOSAL_DELIVER_DAYS`), plus a dispute window allowance of 7 days
+ * and a margin. Used only when an attempt's own expiry was never learned, so
+ * that no record can block a wallet forever.
+ */
+export const MAX_FUNDABLE_SECONDS = 38 * 86_400;
+
+/** Whether the chain is past the last moment this attempt's job could be funded or created. */
+export function pastFundable(attempt: Pick<FundingAttempt, 'fundableUntil' | 'startedAt'>, chainNowSeconds: number): boolean {
+  const until = attempt.fundableUntil ?? Math.floor(Date.parse(attempt.startedAt) / 1000) + MAX_FUNDABLE_SECONDS;
+  return Number.isFinite(until) && chainNowSeconds > until;
 }
 
 export interface AttemptChainReader {
   /** A mined receipt's status and logs, or null while it is not mined (or unknown to the node). */
   receipt(hash: string): Promise<{ status: 'success' | 'reverted'; logs: unknown[] } | null>;
+  /**
+   * For a hash with no receipt: still pending, replaced (another transaction
+   * from the same account took its nonce: sped up, cancelled or dropped and
+   * superseded), or unknown to the node. Optional; without it every hash
+   * with no receipt counts as in flight.
+   */
+  txState?(hash: string): Promise<'pending' | 'replaced' | 'unknown'>;
   /** A batch's receipts, or null when the wallet cannot say. */
   calls?(callsId: string): Promise<{ status: 'pending' | 'success' | 'failure'; logs: unknown[] } | null>;
   job(jobId: bigint): Promise<FundedJobFields | null>;
@@ -254,6 +315,7 @@ export type Reconciled =
 export const RECONCILE_WINDOW = 6;
 
 const OPEN = new Set(['OPEN', 'CREATED']);
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptChainReader): Promise<Reconciled> {
   const expected = { account: attempt.wallet, provider: attempt.provider, budget: BigInt(attempt.amountRaw), description: attempt.description };
@@ -262,7 +324,13 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
   for (const hash of attempt.txHashes) {
     const receipt = await read.receipt(hash).catch(() => null);
     if (!receipt) {
-      unmined += 1;
+      /*
+       * A replaced transaction will never be mined under this hash; its nonce
+       * went to another (whose effect, if it funded, is found by the job
+       * reads below). Pending or unknown still counts as in flight.
+       */
+      const state = read.txState ? await read.txState(hash).catch(() => 'unknown' as const) : 'unknown';
+      if (state !== 'replaced') unmined += 1;
       continue;
     }
     if (!jobId) {
@@ -284,6 +352,15 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
     : attempt.predictedJobId
       ? Array.from({ length: RECONCILE_WINDOW }, (_, i) => BigInt(attempt.predictedJobId!) + BigInt(i))
       : [];
+  /*
+   * Each candidate is judged as *this attempt's* job: the same client,
+   * provider and description (the description carries the brief and the
+   * signed quote, so another hire of the same agent never matches). A job
+   * that is still open holds no money whatever its budget says — `createJob`
+   * starts at budget 0 and `setBudget` comes later — so it is unfunded and
+   * resumable, never a mismatch. Only a job past OPEN in a different amount is.
+   */
+  let openJob: string | null = null;
   for (const id of candidates) {
     let onchain: FundedJobFields | null;
     try {
@@ -291,11 +368,18 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
     } catch {
       return { outcome: 'pending', detail: 'The escrow could not be read just now.' };
     }
-    const verdict = fundingOutcome(onchain && { ...onchain, statusName: OPEN.has(onchain.statusName) ? 'CREATED' : onchain.statusName }, expected);
-    if (verdict === 'funded') return { outcome: 'funded', jobId: id.toString() };
-    if (verdict === 'mismatch') return { outcome: 'mismatch', jobId: id.toString(), detail: 'A job from this wallet to this provider exists with terms that differ from this attempt.' };
+    if (!onchain || !onchain.client || /^0x0{40}$/i.test(onchain.client)) continue;
+    const ours = same(onchain.client, expected.account) && same(onchain.provider, expected.provider) && onchain.description === expected.description;
+    if (!ours) continue;
+    if (OPEN.has(onchain.statusName)) {
+      openJob ??= id.toString();
+      continue;
+    }
+    if (onchain.budget === expected.budget) return { outcome: 'funded', jobId: id.toString() };
+    return { outcome: 'mismatch', jobId: id.toString(), detail: `Job ${id} from this wallet was funded with an amount that differs from this attempt. It is not funded again; open the job and check it.` };
   }
   if (unmined > 0) return { outcome: 'pending', detail: 'A transaction from this attempt is not mined yet.' };
+  jobId = openJob ?? jobId;
   return {
     outcome: 'not-funded',
     jobId,

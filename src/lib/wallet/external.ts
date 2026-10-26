@@ -865,7 +865,8 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     const hash = await wallet.sendTransaction({ account, to, data, chain: null });
     /* Reported before waiting: a receipt that never comes must not lose the hash. */
     report({ step, jobId, sentHash: hash });
-    const receipt = await read.waitForTransactionReceipt({ hash });
+    /* A wallet that speeds up or replaces it hands back another hash; that one is recorded too. */
+    const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId, sentHash: replacement.transaction.hash }) });
     if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
     report({ step, jobId, hash });
     return { hash, receipt };
@@ -894,8 +895,8 @@ export interface ExternalBalances {
   address: Address;
   /** Gas token, raw wei. */
   native: bigint;
-  /** Payment token, raw units (18 decimals). */
-  payment: bigint;
+  /** The token asked for, raw units at its own decimals; null when the read failed (unknown, never zero). */
+  payment: bigint | null;
 }
 
 /**
@@ -935,7 +936,7 @@ export async function externalBalances(chainId: number = WALLET_NETWORK.chainId,
         functionName: 'balanceOf',
         args: [account],
       })
-      .catch(() => 0n),
+      .catch(() => null),
   ]);
 
   return { address: account, native, payment };
@@ -1042,6 +1043,13 @@ export function attemptReader(chainId: number, account: Address, providerAddress
         return null;
       }
     },
+    /** A hash with no receipt: pending, replaced by another transaction on its nonce, or unknown to the node. */
+    async txState(hash: string): Promise<'pending' | 'replaced' | 'unknown'> {
+      const tx = await read.getTransaction({ hash: hash as Hex }).catch(() => null);
+      if (!tx) return 'unknown';
+      const mined = await read.getTransactionCount({ address: tx.from, blockTag: 'latest' }).catch(() => null);
+      return mined !== null && mined > tx.nonce ? 'replaced' : 'pending';
+    },
     /** The chain's clock, in seconds: what an attempt's expiry is compared against. */
     async chainNow() {
       return Number((await read.getBlock({ blockTag: 'latest' })).timestamp);
@@ -1051,4 +1059,77 @@ export function attemptReader(chainId: number, account: Address, providerAddress
       return readJobPaymentToken(read as never, commerce, jobId);
     },
   };
+}
+
+
+/**
+ * Finish funding a job this wallet already created and never funded, instead
+ * of creating another. The recovery for an attempt that stopped after its
+ * job existed: the only job that can ever be paid is this one, and paying it
+ * twice is impossible (the escrow refuses a second `fund`).
+ *
+ * Every step is read from the chain first and only the missing ones are
+ * sent: a budget not yet set, a registration the router does not have
+ * (simulated; a revert means it is already registered), an approval short
+ * of the amount, then `fund`. The job must be OPEN, this wallet's, for this
+ * provider, description and amount, and not yet expired.
+ */
+export async function resumeExternalFunding(input: {
+  chainId: number;
+  jobId: bigint;
+  provider: Address;
+  description: string;
+  budget: bigint;
+  token: Address;
+  beforePrompt: (step: 'registering' | 'budgeting' | 'approving' | 'funding') => void;
+  onProgress?: (progress: ExternalHireProgress) => void;
+}): Promise<ExternalHireResult> {
+  const { chainId } = input;
+  const { wallet, read } = clients(chainId);
+  const [rawAccount] = await wallet.getAddresses();
+  if (!rawAccount) throw new Error('NO_ACCOUNT');
+  const account = getAddress(rawAccount);
+  await ensureChain(chainId);
+  await assertAccount(account);
+  const addresses = correctedErc8183Addresses(chainId);
+  const report = input.onProgress ?? (() => {});
+  const job = await getErc8183Job(walletNetworkFor(chainId), input.jobId);
+  if (getAddress(job.client) !== account || getAddress(job.provider) !== getAddress(input.provider) || job.description !== input.description) throw new Error('RESUME_NOT_THIS_JOB');
+  if (job.statusName !== 'OPEN') throw new Error(`RESUME_JOB_${job.statusName}`);
+  if (job.expiredAt <= BigInt(Math.floor(Date.now() / 1000))) throw new Error('RESUME_JOB_EXPIRED');
+  const bound = await readJobPaymentToken(read as never, addresses.commerce as Address, input.jobId);
+  if (bound === null || bound !== getAddress(input.token)) throw new Error('RESUME_TOKEN_MISMATCH');
+  const commerceAbi = [
+    { type: 'function', name: 'setBudget', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }], outputs: [] },
+    { type: 'function', name: 'fund', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }], outputs: [] },
+  ] as const;
+  const routerAbi = [{ type: 'function', name: 'registerJob', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'address' }], outputs: [] }] as const;
+  const send = async (step: 'registering' | 'budgeting' | 'approving' | 'funding', to: Address, data: Hex) => {
+    await ensureChain(chainId); await assertAccount(account);
+    input.beforePrompt(step);
+    report({ step, jobId: input.jobId });
+    const hash = await wallet.sendTransaction({ account, to, data, chain: null });
+    report({ step, jobId: input.jobId, sentHash: hash });
+    const receipt = await read.waitForTransactionReceipt({ hash, onReplaced: (replacement) => report({ step, jobId: input.jobId, sentHash: replacement.transaction.hash }) });
+    if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
+    return hash;
+  };
+  /* A read-only call: succeeds only if the transaction would. */
+  const simulate = (to: Address, data: Hex) => (read as unknown as { call: (a: { account: Address; to: Address; data: Hex }) => Promise<unknown> }).call({ account, to, data });
+  const register = encodeFunctionData({ abi: routerAbi, functionName: 'registerJob', args: [input.jobId, addresses.policy as Address] });
+  const unregistered = await simulate(addresses.router as Address, register).then(() => true).catch(() => false);
+  if (unregistered) await send('registering', addresses.router as Address, register);
+  if (job.budget !== input.budget) await send('budgeting', addresses.commerce as Address, encodeFunctionData({ abi: commerceAbi, functionName: 'setBudget', args: [input.jobId, input.budget, '0x'] }));
+  const allowance = (await read.readContract({ address: input.token, abi: erc20Abi, functionName: 'allowance', args: [account, addresses.commerce as Address] })) as bigint;
+  if (allowance < input.budget) {
+    if (allowance > 0n) await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, 0n] }));
+    await send('approving', input.token, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [addresses.commerce as Address, input.budget] }));
+  }
+  const fund = encodeFunctionData({ abi: commerceAbi, functionName: 'fund', args: [input.jobId, input.budget, '0x'] });
+  /* Simulated first: a fund that would revert is not put in front of the wallet. */
+  await simulate(addresses.commerce as Address, fund);
+  const funded = await send('funding', addresses.commerce as Address, fund);
+  const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId: input.jobId, account, provider: input.provider, budget: input.budget, description: input.description, token: input.token });
+  report({ step: 'done', jobId: input.jobId, hash: funded });
+  return { jobId: input.jobId, expiredAt: job.expiredAt, transactionHash: funded, callsId: null, atomic: false, paymentToken: input.token, budgetRaw: input.budget, tokenConfirmed };
 }

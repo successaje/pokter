@@ -3,8 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { awardMessage, withdrawMessage, type Bid } from '@/lib/briefs/model';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { awardMessage, requestAmountLabel, withdrawMessage, type Bid } from '@/lib/briefs/model';
 import { chainLabel } from '@/lib/network/presentation';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { Button } from '@/ui/Button';
@@ -62,7 +61,7 @@ export function AwardBid({ briefId, bid, poster, chainId }: { briefId: string; b
     <div className="flex w-full flex-col gap-3 rounded-[10px] bg-sunken p-3.5">
       <p className="text-[13px] leading-relaxed text-ink-2">
         <span className="font-medium text-ink">
-          Choose this proposal: {formatQuotedPrice(bid.priceU)}, delivered within {bid.deliverDays === 1 ? '1 day' : `${bid.deliverDays} days`} of hiring.
+          Choose this proposal: {requestAmountLabel({ chainId, paymentToken: bid.paymentToken }, bid.priceU)}, delivered within {bid.deliverDays === 1 ? '1 day' : `${bid.deliverDays} days`} of hiring.
         </span>{' '}
         Choosing records your decision with a signature and moves no money. Next you review the agent&rsquo;s quote for this
         request and fund the escrow on {chainLabel(chainId)} yourself.

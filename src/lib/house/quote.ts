@@ -1,5 +1,6 @@
 import { getAddress, keccak256, parseUnits, toBytes, type LocalAccount } from 'viem';
 
+import { requireDecimals } from '@/lib/network/tokens';
 import { canonicalJson, sanitizeForClaim } from '@/lib/erc8183/negotiation';
 import { MAX_TERM_LENGTH, MAX_TERM_STRINGS } from '@/lib/proofrun/acceptance';
 
@@ -93,7 +94,8 @@ export async function signHouseQuote(input: {
   const criteria = (input.successCriteria ?? []).map(sanitizeForClaim);
   const expiresAt = negotiatedAt + QUOTE_TTL_SECONDS;
   const terms = {
-    price: parseUnits(String(input.definition.priceU), 18).toString(),
+    /* At the priced token's own decimals, never an assumed eighteen. */
+    price: parseUnits(String(input.definition.priceU), requireDecimals(input.chainId, input.paymentToken)).toString(),
     currency: input.paymentToken,
     deliverables: sanitizeForClaim(input.deliverables ?? input.definition.deliverables),
     quality_standards: sanitizeForClaim(input.qualityStandards ?? input.definition.qualityStandards),

@@ -49,7 +49,30 @@ export interface PaymentToken {
    * not on: `NEXT_PUBLIC_HIRE_TOKENS` turns a token on, by chain and address.
    */
   hireEligible: boolean;
+  /**
+   * Who stands behind this contract, and the evidence for its address. A
+   * symbol or `name()` is self-declared and is never the evidence.
+   *
+   * - `issuer`: the issuer's own site or docs lists this address.
+   * - `bridged-peg`: the brand's issuer does not issue on this chain; this is
+   *   a bridged/pegged token whose address is canonical by ecosystem
+   *   convention, not issuer documentation. Said to the buyer.
+   * - `test-token`: a testnet token with no value; no issuer confirms it.
+   */
+  identity: { kind: 'issuer' | 'bridged-peg' | 'test-token'; issuer: string; evidence: string };
+  /** Shown beside the symbol where the money is named in full (review and payment screens). */
+  disclosure?: string;
 }
+
+/**
+ * Candidates that are not hireable, and exactly why. Listed so the support
+ * matrix and the release notes say it, rather than the token silently not
+ * appearing.
+ */
+export const UNSUPPORTED_TOKENS: ReadonlyArray<{ chainId: EscrowChainId; symbol: string; address: string | null; reason: string }> = [
+  { chainId: 97, symbol: 'USDC', address: '0xEC1C60D64a06896Df296438c12edD14E974FDE47', reason: 'The testnet escrow rejects it (isPaymentTokenSupported is false; createJobWithToken reverts UnsupportedPaymentToken). It is also an unofficial 6-decimal test token: Circle lists no BNB Chain deployment.' },
+  { chainId: 97, symbol: 'USD1', address: null, reason: 'No USD1 contract exists on BNB Testnet (no code at the mainnet address) and World Liberty lists no testnet deployment. Validated on a mainnet fork only; live validation must be on mainnet.' },
+];
 
 /**
  * The non-default tokens hiring is turned on for, from
@@ -93,32 +116,38 @@ export const VERIFIED_AT = {
   97: 138113102,
 } as const satisfies Record<EscrowChainId, number>;
 
+/*
+ * Read from the chains on 26 October 2026 (blocks 129913201 on 56 and
+ * 139053312 on 97): name, decimals, `isPaymentTokenSupported` on each escrow,
+ * and a simulated `createJobWithToken`. Lifecycle-tested on a local fork of
+ * each escrow (`tests/fork/usdt-lifecycle.fork.mts`, 22/22): USDT on 56 and
+ * 97, USDC and USD1 on 56.
+ */
 const TOKENS: readonly PaymentToken[] = [
-  /* $U — United Stables, the token both escrows default to. The only token
-     Pokter offers, and the denomination of every job that exists today. */
-  { chainId: 56, address: getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true },
-  { chainId: 97, address: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true },
+  /* $U — United Stables, the token both escrows default to. */
+  { chainId: 56, address: getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true,
+    identity: { kind: 'issuer', issuer: 'United Stables', evidence: 'https://www.u.tech/ecosystem/multichain/ lists this address for BNB Smart Chain' } },
+  { chainId: 97, address: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true,
+    identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'The testnet escrow’s default paymentToken; United Stables lists no testnet address' } },
 
-  /* USDT — supported by both escrows, and the only candidate that is, which
-     makes it the one that can be exercised on testnet before mainnet. One
-     agent in the catalogue already signs prices in BNB Chain USDT. */
-  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true },
-  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true },
+  /* USDT — Tether does not issue on BNB Chain; this is Binance-Peg BSC-USD. */
+  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
+    identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Tether’s supported-protocols page lists only XAU₮ for BNB Smart Chain; this is the Binance-Peg BSC-USD contract used across BNB Chain' },
+    disclosure: 'Binance-Peg BSC-USD, not issued by Tether' },
+  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
+    identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Supported by the testnet escrow; no issuer or BNB Chain source lists the address' },
+    disclosure: 'test token with no value' },
 
-  /* USDC — supported on mainnet, *not* on testnet, and six decimals there
-     against eighteen on mainnet. Both facts are reasons to leave it alone:
-     it cannot be rehearsed on testnet, and it is the case that breaks a
-     hardcoded 18. It is listed so the decimals are recorded where the code
-     can see them rather than discovered by a wrong transfer. */
-  { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false, hireEligible: false },
-  { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false, hireEligible: false },
+  /* USDC — Circle does not issue on BNB Chain; this is Binance-Peg USD Coin. */
+  { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
+    identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Circle’s USDC contract-address page lists no BNB Smart Chain deployment; this is the Binance-Peg USD Coin contract (18 decimals, unlike Circle’s 6)' },
+    disclosure: 'Binance-Peg USD Coin, not issued by Circle' },
+  { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false, hireEligible: false,
+    identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Unofficial test token; see UNSUPPORTED_TOKENS' } },
 
-  /* USD1 is deliberately absent. `isPaymentTokenSupported` returns true for
-     `0x8d0D000E…8B0d` on chain 56, but that address is corroborated only by a
-     comment in the upstream deployment script and by the token's own
-     `symbol()`, which is self-declared. There is no token at that address on
-     testnet at all. An address worth moving money to needs a better source
-     than a comment, so it is not written down here as though verified. */
+  /* USD1 — World Liberty Financial, issued natively. Mainnet only. */
+  { chainId: 56, address: getAddress('0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d'), symbol: 'USD1', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
+    identity: { kind: 'issuer', issuer: 'World Liberty Financial', evidence: 'https://docs.worldlibertyfinancial.com/usd1-token/contract-addresses lists this address for BNB Smart Chain (BEP20)' } },
 ];
 
 const key = (chainId: number, address: string) => `${chainId}:${address.toLowerCase()}`;
@@ -314,4 +343,34 @@ export function uniformOfferedDecimals(): number {
     );
   }
   return scales[0];
+}
+
+/** The escrow default ($U) on a chain, as a registry entry. */
+export function defaultHireToken(chainId: number): PaymentToken | null {
+  return TOKENS.find((t) => t.chainId === chainId && t.offered) ?? null;
+}
+
+/** A token's symbol as the product writes it: "$U" for United Stables, otherwise its symbol. */
+export function displaySymbol(token: Pick<PaymentToken, 'symbol'>): string {
+  return token.symbol === 'U' ? '$U' : token.symbol;
+}
+
+/**
+ * Which money a chain's escrow pays in, in words: "real USDT on BNB Chain",
+ * "test USDT on BNB Testnet (no value)". The one place that says whether an
+ * amount is real money, so testnet value is never written as revenue.
+ */
+export function escrowMoney(chainId: number, token: Pick<PaymentToken, 'symbol'> | null): string {
+  const symbol = token ? displaySymbol(token) : 'an unknown token';
+  return chainId === 56 ? `real ${symbol} on BNB Chain` : chainId === 97 ? `test ${symbol} on BNB Testnet (no value)` : `${symbol} on chain ${chainId}`;
+}
+
+/**
+ * The token a request or proposal is priced in. Rows written before requests
+ * carried a token were made by a form that offered $U only, so a null there
+ * is $U by construction — unlike a job, whose token is a fact on chain.
+ */
+export function requestToken(chainId: number, paymentToken: string | null | undefined): PaymentToken | null {
+  if (paymentToken) return paymentTokenAt(chainId, paymentToken);
+  return defaultHireToken(chainId);
 }

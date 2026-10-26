@@ -6,7 +6,6 @@ import { notFound, redirect } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 
 import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
 import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
@@ -817,7 +816,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                           </span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="t-readout text-[13px]">{formatQuotedPrice(job.budgetU)}</span>
+                          <span className="t-readout text-[13px]">{job.amountLabel}</span>
                           {/* Named for what it opens. A transaction is a receipt;
                               the escrow's read page is not, and calling it one
                               would be the claim this list exists to avoid. */}
@@ -881,10 +880,22 @@ export default async function AgentPage({ params, searchParams }: { params: Para
               <Facts
                 rows={[
                   { label: 'Signed price', value: <span className="t-readout">{p.quote.label}</span> },
+                  /* The money, said once and plainly: a hire is funded in the
+                     token the agent signed, so a buyer holding only $U has to
+                     learn that here and not at the wallet. */
+                  ...(p.pricesIn ? [{ label: 'Prices in', value: p.pricesIn.currencies.map((c) => c.symbol).join(', '), hint: p.pricesIn.sentence }] : []),
                   { label: 'Signed by', value: <Address address={p.quote.signer} chainExplorer={false} />, hint: 'Recovered from the signature; must match the registered agent wallet' },
                   { label: 'Signed', value: new Date(p.quote.quotedAt).toUTCString().slice(5, 22) + ' UTC' },
                   { label: 'Valid until', value: p.quote.expiresAt ? `${new Date(p.quote.expiresAt).toUTCString().slice(5, 22)} UTC${p.quote.current ? '' : ' (expired; Pokter asks for a fresh signed quote when you hire, and stops if it is above your budget)'}` : 'No expiry stated' },
-                  { label: 'Payable by this escrow', value: p.quote.payable === false ? <span className="text-bad">No, wrong token</span> : <span className="text-ok">Yes</span> },
+                  {
+                    label: 'Payable by this escrow',
+                    value: p.quote.payable === false
+                      ? <span className="text-bad">No: signed in {p.quote.symbol ?? 'a token Pokter has not verified'}</span>
+                      : <span className="text-ok">Yes, in {p.quote.symbol ?? 'its signed token'}</span>,
+                    hint: p.escrowTokens.length
+                      ? `The ${chainLabel(p.escrow.chainId)} escrow funds hires in ${p.escrowTokens.map((t) => t.symbol).join(', ')}.`
+                      : undefined,
+                  },
                   { label: 'Network fee', value: 'Covered by Pokter for passkey wallets where available; otherwise a few cents of BNB' },
                 ]}
               />

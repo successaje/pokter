@@ -82,12 +82,15 @@ test('a brief is refused on a chain with no escrow, and on an impossible budget'
   assert.equal(readBriefContent({ ...CONTENT, deliverDays: 0 }), null);
 });
 
+/* A request from before requests carried a token: $U on its chain. */
+const LEGACY_REQUEST = { chainId: 97, paymentToken: null };
+
 test('a bid names an agent that could exist', () => {
   const ok = { agentChainId: 97, agentTokenId: '2554', priceU: 1, deliverDays: 3, note: '' };
-  assert.ok(readBidContent(ok));
-  assert.equal(readBidContent({ ...ok, agentTokenId: 'not-a-token' }), null);
-  assert.equal(readBidContent({ ...ok, agentChainId: 1 }), null);
-  assert.equal(readBidContent({ ...ok, priceU: 0 }), null);
+  assert.ok(readBidContent(ok, LEGACY_REQUEST));
+  assert.equal(readBidContent({ ...ok, agentTokenId: 'not-a-token' }, LEGACY_REQUEST), null);
+  assert.equal(readBidContent({ ...ok, agentChainId: 1 }, LEGACY_REQUEST), null);
+  assert.equal(readBidContent({ ...ok, priceU: 0 }, LEGACY_REQUEST), null);
 });
 
 test('a closing date is signed when set, and a request without one signs what it always did', () => {
@@ -162,8 +165,8 @@ test('a budget or a proposal above what one hire can be funded with is refused',
   assert.equal(readBriefContent({ ...CONTENT, budgetU: 5.01 }), null);
   assert.equal(readBriefContent({ ...CONTENT, budgetU: 0.001 }), null);
   const ok = { agentChainId: 97, agentTokenId: '2554', priceU: 5, deliverDays: 3, note: '' };
-  assert.ok(readBidContent(ok));
-  assert.equal(readBidContent({ ...ok, priceU: 25 }), null);
+  assert.ok(readBidContent(ok, LEGACY_REQUEST));
+  assert.equal(readBidContent({ ...ok, priceU: 25 }, LEGACY_REQUEST), null);
 });
 
 test('a list the server would trim is caught before it is signed', () => {
@@ -199,11 +202,14 @@ test('a request signed with an earlier category id keeps it, and reads as todayâ
 
 test('a proposal may not ask more than the requestâ€™s budget', () => {
   // The budget is what the poster said they would fund; a higher price is one they already declined.
-  assert.equal(withinBudget(2.5, 2.5), true);
-  assert.equal(withinBudget(1, 2.5), true);
-  assert.equal(withinBudget(2.51, 2.5), false);
-  assert.equal(withinBudget(0.1 + 0.2, 0.3), true, 'compared to the cent, not to float noise');
-  assert.equal(withinBudget(Number.NaN, 2.5), false);
+  // Compared exactly, in base units of the request's one token ($U, 18 decimals, here).
+  const request = { ...LEGACY_REQUEST, budgetRaw: '2500000000000000000' };
+  const price = (raw: string) => ({ paymentToken: null, priceRaw: raw });
+  assert.equal(withinBudget(price('2500000000000000000'), request), true);
+  assert.equal(withinBudget(price('1000000000000000000'), request), true);
+  assert.equal(withinBudget(price('2510000000000000000'), request), false);
+  assert.equal(withinBudget(price('2500000000000000001'), request), false, 'one base unit over is over');
+  assert.equal(withinBudget(price('not a number'), request), false);
 });
 
 test('an old signed proposal cannot be replayed over a newer one', () => {

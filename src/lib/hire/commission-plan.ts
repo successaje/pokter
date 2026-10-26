@@ -2,7 +2,8 @@ import { parseUnits } from 'viem';
 
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { pathFundsToken, type HirePath } from '@/lib/network/hire-paths';
-import { formatAmount, type HireTokenSet, type PaymentToken } from '@/lib/network/tokens';
+import { defaultHireToken, formatAmount, type HireTokenSet, type PaymentToken } from '@/lib/network/tokens';
+import { amountWithinLimits } from './budget-limits';
 
 /**
  * What a hire will fund, in which money, through which wallet path — decided
@@ -31,7 +32,7 @@ export type CommissionPlan =
       /** Whether this hire may be sent as one atomic batch. */
       atomicAllowed: boolean;
     }
-  | { ok: false; code: 'token-not-offered' | 'needs-signed-quote' | 'wallet-cannot-fund-token'; message: string; token: PaymentToken | null };
+  | { ok: false; code: 'token-not-offered' | 'needs-signed-quote' | 'wallet-cannot-fund-token' | 'above-limit' | 'below-limit'; message: string; token: PaymentToken | null };
 
 export function planCommission(input: {
   escrowChainId: number;
@@ -50,8 +51,10 @@ export function planCommission(input: {
   }
   const path: HirePath = input.walletMode === 'passkey' ? 'passkey-wallet' : 'browser-wallet';
   if (token === null) {
-    const amountRaw = parseUnits(String(input.budgetU), 18);
-    return { ok: true, token: null, symbol: '$U', decimals: 18, amountRaw, amountLabel: `${input.budgetU} $U`, signedAmount: false, path, atomicAllowed: true };
+    const dollarU = defaultHireToken(input.escrowChainId);
+    const decimals = dollarU?.decimals ?? 18;
+    const amountRaw = parseUnits(String(input.budgetU), decimals);
+    return { ok: true, token: null, symbol: '$U', decimals, amountRaw, amountLabel: `${input.budgetU} $U`, signedAmount: false, path, atomicAllowed: true };
   }
   if (!input.quote) {
     return { ok: false, code: 'needs-signed-quote', message: `A hire in ${token.symbol} funds the agent's signed price, and there is none for this brief. Nothing was sent.`, token };
@@ -65,6 +68,15 @@ export function planCommission(input: {
     };
   }
   const amountRaw = BigInt(input.quote.amountRaw);
+  /*
+   * The same per-job range as a $U hire, in this token's own units. A signed
+   * price above it is refused — not trimmed to fit, which would fund an
+   * amount the agent never signed.
+   */
+  const limit = amountWithinLimits(token, amountRaw);
+  if (!limit.ok) {
+    return { ok: false, code: limit.side === 'above' ? 'above-limit' : 'below-limit', message: `${input.agentName} signed ${formatAmount(token.chainId, token.address, amountRaw)?.label ?? `${amountRaw} base units`}. ${limit.reason} Nothing was sent.`, token };
+  }
   return {
     ok: true,
     token,

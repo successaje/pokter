@@ -2,6 +2,7 @@ import 'server-only';
 
 import { CATEGORY_BY_ID, categorySignalSource, type Category } from '@/lib/agents/categories';
 import { quotePayableOn } from '@/lib/erc8183/payable';
+import { formatQuotedRaw } from '@/lib/erc8183/pricing';
 import { getComparison, type Comparison } from '@/lib/marketplace';
 import { isTeamWallet } from '@/lib/alerts/team-wallets';
 import { parseAgentRef } from '@/lib/evidence/refs';
@@ -165,7 +166,8 @@ export function buildReport(
     ),
     price: claim(
       {
-        signed: quote ? `${quote.priceU} $U` : null,
+        /* Exact, in the quote's own token: a USDT price is not reported as $U, and an unknown token is named as unknown. */
+        signed: quote ? formatQuotedRaw(quote.currency ?? null, quote.priceRaw) : null,
         payableOnEscrowChain: payable,
       },
       quote ? 'onchain' : 'pokter-measured',

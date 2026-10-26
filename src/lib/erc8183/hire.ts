@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { randomUUID } from 'node:crypto';
 import {
   settleErc8183Job,
@@ -255,6 +256,11 @@ export async function hireAgent(input: HireInput): Promise<HiredJob> {
   const hireToken = tokenHire?.address ?? correctedErc8183Addresses(ALTANA_NETWORK.chainId).paymentToken;
   const decimals = requireDecimals(ALTANA_NETWORK.chainId, hireToken);
   const budget = tokenHire ? BigInt(input.amountRaw!) : parseUnits(String(input.budgetU), decimals);
+  /* The same per-token limits as every other path, in the token's own units. */
+  if (tokenHire) {
+    const within = amountWithinLimits(tokenHire, budget);
+    if (!within.ok) throw new Error(`${within.reason} Nothing was sent.`);
+  }
   if (tokenHire) await assertEscrowSupportsToken(publicClient() as never, correctedErc8183Addresses(ALTANA_NETWORK.chainId).commerce, hireToken);
   const held = await paymentTokenBalance(wallet.address, hireToken);
 

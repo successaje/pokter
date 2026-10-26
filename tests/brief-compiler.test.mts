@@ -869,7 +869,7 @@ test('the hire funds, records and delivers the one text the buyer approved', () 
   assert.match(hook, /const outboundTask = approvedRequest\?\.payload \?\? task;/);
   assert.match(hook, /const sending = outboundTask;/);
   for (const site of [
-    /negotiateForHire\(agent\.chainId, agent\.tokenId, sending\)/,
+    /negotiateForHire\(agent\.chainId, agent\.tokenId, sending(, \{ escrowChainId, token: preferredToken \})?\)/,
     /preflightBrief\(agent\.chainId, agent\.tokenId, sending, agent\.name\)/,
     /task: sending, chainId: escrowChainId, commerce: funding\.commerce/,
     /hireFromExternalWallet\(\{[\s\S]{0,400}task: sending,/,

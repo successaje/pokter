@@ -3,7 +3,7 @@ import 'server-only';
 import { hashMessage, keccak256, parseUnits, toBytes, type Address } from 'viem';
 
 import { adminSigner } from '@/lib/altana/client';
-import { hireTokenAt } from '@/lib/network/tokens';
+import { hireTokenAt, requireDecimals } from '@/lib/network/tokens';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { canonicalJson } from '@/lib/erc8183/negotiation';
 import { EVIDENCE_AGENT } from '@/lib/evidence/agent';
@@ -123,7 +123,7 @@ export async function signEvidenceQuote(input: {
   const priced = input.currency ? hireTokenAt(input.chainId, input.currency) : null;
   if (input.currency && !priced) throw new Error(`Evidence quotes are not priced in ${input.currency} on chain ${input.chainId}.`);
   const currency = priced?.address ?? (addresses.paymentToken as string);
-  const decimals = priced?.decimals ?? 18;
+  const decimals = priced?.decimals ?? requireDecimals(input.chainId, addresses.paymentToken);
   const negotiatedAt = Math.floor(Date.now() / 1000);
   const expiresAt = negotiatedAt + QUOTE_TTL_SECONDS;
 

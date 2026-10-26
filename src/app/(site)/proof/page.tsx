@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { formatUnits } from 'viem';
 
 import {
   filterCurrentProductionJobs,
@@ -11,6 +10,8 @@ import {
   type ProofWindow,
 } from '@/lib/erc8183/production-proof';
 import { getJobStore } from '@/lib/erc8183/store';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { defaultHireToken, formatAmount } from '@/lib/network/tokens';
 import { isLifecycleDemo } from '@/lib/agent/credited-history';
 import { listSearchable } from '@/lib/marketplace';
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
@@ -157,13 +158,30 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
     return { name: recorded ?? `Agent #${job.agentTokenId}`, registered: true };
   };
   const rate = summary.completionRate === null ? '—' : `${Math.round(summary.completionRate * 100)}%`;
-  const mainnetValue = formatUnits(BigInt(mainnetSummary.completedValueRaw), 18);
-  const testnetValue = formatUnits(BigInt(testnetSummary.completedValueRaw), 18);
+  /*
+   * The headline stays a $U figure, scaled by the registry's decimals for
+   * $U, because that is what `completedValueRaw` counts. Every other token's
+   * settled value is named beside it from `completedByToken`, one line per
+   * token, so a USDT settlement is shown and never added to $U. Jobs whose
+   * token has not been read are counted, not converted.
+   */
+  const dollarU = (chainId: number, raw: string) => formatAmount(chainId, defaultHireToken(chainId)?.address, raw)?.amount ?? `${raw} base units`;
+  const otherTokens = (lines: typeof summary.completedByToken, test: boolean) =>
+    lines
+      .filter((line) => line.token === null || line.token.toLowerCase() !== defaultHireToken(line.chainId)?.address.toLowerCase())
+      .map((line) => (line.label && line.symbol
+        ? test ? `${line.label.slice(0, line.label.length - line.symbol.length).trim()} test ${line.symbol}` : line.label
+        : `${line.jobs} job${line.jobs === 1 ? '' : 's'} in a currency not yet read${test ? ' (test)' : ''}`));
+  const mainnetValue = dollarU(56, mainnetSummary.completedValueRaw);
+  const testnetValue = dollarU(97, testnetSummary.completedValueRaw);
+  const mainnetOther = otherTokens(mainnetSummary.completedByToken, false);
+  const testnetOther = otherTokens(testnetSummary.completedByToken, true);
+  const also = (lines: string[]) => (lines.length ? ` Also settled, never added to $U: ${lines.join(' · ')}.` : '');
   const valueMetric = filters.network === 'testnet'
-    ? { value: testnetValue, label: 'Settled test value', note: 'Test $U has no real value.' }
+    ? { value: testnetValue, label: 'Settled test value ($U)', note: `Test $U has no real value.${also(testnetOther)}` }
     : filters.network === 'mainnet'
-      ? { value: mainnetValue, label: 'Settled value ($U)', note: 'Real $U settled on BNB Chain.' }
-      : { value: mainnetValue, label: 'Mainnet settled ($U)', note: `${testnetValue} test $U shown separately.` };
+      ? { value: mainnetValue, label: 'Settled value ($U)', note: `Real $U settled on BNB Chain.${also(mainnetOther)}` }
+      : { value: mainnetValue, label: 'Mainnet settled ($U)', note: `${testnetValue} test $U shown separately.${also([...mainnetOther, ...testnetOther])}` };
 
   return (
     <div className="frame pb-24 pt-10 sm:pt-16">
@@ -317,7 +335,7 @@ export default async function ProductionProofPage({ searchParams }: { searchPara
                           </>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 align-top"><span className="text-ink">{formatUnits(BigInt(job.budgetRaw), 18)} $U</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{money.money} · {chainLabel(job.chainId)}</span></td>
+                      <td className="px-4 py-3.5 align-top"><span className="text-ink">{jobAmountLabel(job)}</span><span className="mt-0.5 block text-[11.5px] text-ink-3">{money.money} · {chainLabel(job.chainId)}</span></td>
                       <td className="px-4 py-3.5 align-top text-ink-2">{isTeam(job) ? 'Pokter team' : 'Outside-team'}</td>
                       <td className="px-4 py-3.5 align-top font-medium text-ink">
                         {STATUS_COPY[job.status]}

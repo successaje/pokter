@@ -19,10 +19,9 @@ import {
 } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 
-import { buildTokenHireCalls, COMMERCE_TOKEN_ABI } from '../../src/lib/erc8183/hire-calls';
+import { COMMERCE_TOKEN_ABI, encodeTokenHireCalls } from '../../src/lib/erc8183/hire-calls';
 import { jobCreatedFromReceipt } from '../../src/lib/wallet/external-receipt';
 import { checkPurchaseIntent } from '../../src/lib/hire/purchase-intent';
-import { enabledHireTokens } from '../../src/lib/network/tokens';
 
 /* FORK_CHAIN=56 forks BNB Chain mainnet instead: the real escrow, real USDT, still nothing broadcast. */
 const CHAIN = process.env.FORK_CHAIN === '56' ? 56 : 97;
@@ -43,9 +42,8 @@ const A = CHAIN === 56
       policy: getAddress('0xd6a4217588F6B1F5657a92A3e94E6422aD771cEA'),
       paymentToken: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'),
     };
-const USDT = getAddress(CHAIN === 56 ? '0x55d398326f99059fF775485246999027B3197955' : '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd');
-/* Turned on exactly as a build would: by chain and address. */
-const TOKENS_ON = enabledHireTokens(`${CHAIN}:${USDT}`);
+/* FORK_TOKEN picks the token under test (default USDT); a candidate need not be eligible yet. */
+const USDT = getAddress(process.env.FORK_TOKEN ?? (CHAIN === 56 ? '0x55d398326f99059fF775485246999027B3197955' : '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'));
 const BUYER = getAddress('0x00000000000000000000000000000000b0b0b0b0');
 /* Pokter Evidence's registered wallet, as the provider of every job here. */
 const PROVIDER = getAddress('0x93847647d7eb72a69E162117df6a8697dF53EDda');
@@ -92,10 +90,13 @@ async function main() {
     }
     const forkBlock = await client.getBlockNumber();
     console.log(`forked ${CHAIN === 56 ? 'BNB Chain mainnet' : 'BNB Testnet'} at block ${forkBlock}`);
+    /* Step names carry the token's own symbol, read from the contract, so a USD1 run never reads as USDT. */
+    const SYM = await client.readContract({ address: USDT, abi: erc20Abi, functionName: 'symbol' }).catch(() => USDT);
+    console.log(`token under test: ${SYM} ${USDT}`);
 
     await client.setBalance({ address: BUYER, value: 10n ** 18n });
     await client.setBalance({ address: PROVIDER, value: 10n ** 18n });
-    await dealUsdt(client as unknown as Storage, BUYER, 10n ** 18n);
+    await dealUsdt(client as unknown as Storage, BUYER, 10n ** 18n, [A.commerce]);
     const balance = (who: Address, token: Address = USDT) => client.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [who] });
     const job = async (id: bigint) => client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'getJob', args: [id] });
     const send = async (from: Address, to: Address, data: Hex) => {
@@ -119,11 +120,11 @@ async function main() {
       const now = BigInt((await client.getBlock()).timestamp);
       const expiredAt = now + BigInt(deliverySeconds + windowSeconds);
       const counter = await client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'jobCounter' });
-      const predicted = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId: counter + 1n, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, tokens: TOKENS_ON });
+      const predicted = encodeTokenHireCalls({ chainId: CHAIN, addresses: A, jobId: counter + 1n, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT });
       const created = await send(BUYER, predicted[0].to, predicted[0].data);
       const jobId = jobCreatedFromReceipt(created, A.commerce, BUYER, PROVIDER);
       const bound = created.logs.find((l) => l.topics[0] === TOKEN_BOUND);
-      const calls = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, tokens: TOKENS_ON });
+      const calls = encodeTokenHireCalls({ chainId: CHAIN, addresses: A, jobId, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT });
       await send(BUYER, calls[1].to, calls[1].data);
       await send(BUYER, calls[2].to, calls[2].data);
       /* The token is an indexed topic or the data word, whichever the event declares. */
@@ -142,17 +143,18 @@ async function main() {
       const { jobId, calls, boundToken, boundTopic } = await createUsdtJob(3600);
       note('JobCreated parses with Pokter’s existing decoder', jobId > 0n, `job ${jobId}`);
       const boundAddress = boundToken ?? (boundTopic && boundTopic[2] ? getAddress(`0x${boundTopic[2].slice(-40)}`) : null);
-      note('the creation receipt carries JobPaymentTokenBound for USDT', boundAddress === USDT || (boundTopic?.some((t) => t.toLowerCase().endsWith(USDT.slice(2).toLowerCase())) ?? false), String(boundAddress));
+      note('the creation receipt carries JobPaymentTokenBound for the token', boundAddress === USDT || (boundTopic?.some((t) => t.toLowerCase().endsWith(USDT.slice(2).toLowerCase())) ?? false), String(boundAddress));
       await fund(calls);
       const funded = await job(jobId);
       const bound = await client.readContract({ address: A.commerce, abi: COMMERCE_TOKEN_ABI, functionName: 'jobPaymentToken', args: [jobId] });
       note('funded job is FUNDED with the exact budget', STATUS[funded.status] === 'FUNDED' && funded.budget === BUDGET, `${STATUS[funded.status]} ${funded.budget}`);
-      note('jobPaymentToken is USDT', getAddress(bound) === USDT);
-      note('exactly the budget left the buyer in USDT', before - (await balance(BUYER)) === BUDGET);
-      note('the escrow holds it in USDT', (await balance(A.commerce)) - escrowBefore === BUDGET);
-      note('no $U was touched', (await balance(BUYER, A.paymentToken)) === 0n);
+      note('jobPaymentToken is the token', getAddress(bound) === USDT);
+      note(`exactly the budget left the buyer in ${SYM}`, before - (await balance(BUYER)) === BUDGET);
+      note(`the escrow holds it in ${SYM}`, (await balance(A.commerce)) - escrowBefore === BUDGET);
+      /* Only meaningful for another token: a $U run moves $U by design. */
+      if (getAddress(A.paymentToken) !== USDT) note('no $U was touched', (await balance(BUYER, A.paymentToken)) === 0n);
       const allowance = await client.readContract({ address: USDT, abi: erc20Abi, functionName: 'allowance', args: [BUYER, A.commerce] });
-      note('no USDT allowance is left behind', allowance === 0n, String(allowance));
+      note(`no ${SYM} allowance is left behind`, allowance === 0n, String(allowance));
 
       // 2. Delivery and release.
       const deliverable = keccak256(toHex('deliverable'));
@@ -166,7 +168,7 @@ async function main() {
       await send(BUYER, A.router, encodeFunctionData({ abi: ROUTER, functionName: 'settle', args: [jobId, '0x'] }));
       const paid = (await balance(PROVIDER)) - providerBefore;
       const fee = (BUDGET * BigInt(feeBp)) / 10_000n;
-      note('release pays the provider in USDT', STATUS[(await job(jobId)).status] === 'COMPLETED' && paid === BUDGET - fee, `paid ${paid}, fee ${fee}`);
+      note(`release pays the provider in ${SYM}`, STATUS[(await job(jobId)).status] === 'COMPLETED' && paid === BUDGET - fee, `paid ${paid}, fee ${fee}`);
     }
 
     // 3. Dispute, rejected by the voters, refunded in USDT.
@@ -200,7 +202,7 @@ async function main() {
         status = STATUS[(await job(jobId)).status];
         refunded = (await balance(BUYER)) - before;
       }
-      note('a quorum of rejections refunds the buyer in USDT', status === 'REJECTED' && refunded === BUDGET, `${status}, refunded ${refunded} (quorum ${quorum})`);
+      note(`a quorum of rejections refunds the buyer in ${SYM}`, status === 'REJECTED' && refunded === BUDGET, `${status}, refunded ${refunded} (quorum ${quorum})`);
     }
 
     // 4. Never delivered, expired, reclaimed in USDT.
@@ -214,7 +216,7 @@ async function main() {
       await client.mine({ blocks: 1 });
       const before = await balance(BUYER);
       await send(BUYER, A.commerce, encodeFunctionData({ abi: COMMERCE, functionName: 'claimRefund', args: [jobId] }));
-      note('after expiry the buyer reclaims the full amount in USDT', (await balance(BUYER)) - before === BUDGET && STATUS[(await job(jobId)).status] === 'EXPIRED');
+      note(`after expiry the buyer reclaims the full amount in ${SYM}`, (await balance(BUYER)) - before === BUDGET && STATUS[(await job(jobId)).status] === 'EXPIRED');
     }
 
     // 5. A partial failure: created and budgeted, funding fails, nothing moved; the retry funds the same job.
@@ -232,6 +234,17 @@ async function main() {
       note('the retry funds the same job, and no second job exists', STATUS[(await job(jobId)).status] === 'FUNDED' && counterAfter === counterBefore + 1n, `counter ${counterBefore} → ${counterAfter}`);
       const again = await reverts(BUYER, calls[4].to, calls[4].data);
       note('a repeated fund of a funded job is refused, so a double click cannot pay twice', again !== null, again ?? 'it did not revert');
+    }
+
+    // 6a. Resume: a created, budgeted job left unfunded is finished, not replaced. What `resumeExternalFunding` relies on.
+    {
+      const { jobId, calls } = await createUsdtJob(3600);
+      const registerAgain = await reverts(BUYER, calls[1].to, calls[1].data);
+      note('registering an already registered job reverts, so resume can tell it is done by simulating', registerAgain !== null, registerAgain ?? 'it did not revert');
+      const counterBefore = await client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'jobCounter' });
+      await fund(calls);
+      const counterAfter = await client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'jobCounter' });
+      note('resuming funds the existing job and creates none', STATUS[(await job(jobId)).status] === 'FUNDED' && counterAfter === counterBefore);
     }
 
     // 6. Money the escrow does not accept never makes a job.
@@ -266,7 +279,7 @@ type Storage = {
   setStorageAt: (args: { address: Address; index: Hex; value: Hex }) => Promise<void>;
   readContract: (args: { address: Address; abi: typeof erc20Abi; functionName: 'balanceOf'; args: readonly [Address] }) => Promise<bigint>;
 };
-async function dealUsdt(client: Storage, who: Address, amount: bigint) {
+async function dealUsdt(client: Storage, who: Address, amount: bigint, lastResort: Address[] = []) {
   for (let slot = 0n; slot < 20n; slot++) {
     const key = keccak256(`0x${pad(who, { size: 32 }).slice(2)}${pad(toHex(slot), { size: 32 }).slice(2)}` as Hex);
     const old = await client.getStorageAt({ address: USDT, slot: key });
@@ -275,7 +288,38 @@ async function dealUsdt(client: Storage, who: Address, amount: bigint) {
     if (got === amount) return;
     await client.setStorageAt({ address: USDT, index: key, value: old ?? pad('0x0', { size: 32 }) });
   }
-  throw new Error('could not find the USDT balance slot');
+  /*
+   * Some tokens keep balances in namespaced proxy storage (USD1). Then a
+   * holder seen in recent Transfer logs is impersonated on the fork and pays
+   * the buyer, which is still nothing on the real chain.
+   */
+  const full = client as unknown as {
+    getBlockNumber: () => Promise<bigint>;
+    getLogs: (a: object) => Promise<Array<{ topics: string[] }>>;
+    impersonateAccount: (a: { address: Address }) => Promise<void>;
+    setBalance: (a: { address: Address; value: bigint }) => Promise<void>;
+    sendTransaction: (a: object) => Promise<Hex>;
+    waitForTransactionReceipt: (a: { hash: Hex }) => Promise<unknown>;
+  };
+  const latest = await full.getBlockNumber();
+  const logs = await full.getLogs({ address: USDT, event: { type: 'event', name: 'Transfer', inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] }, fromBlock: latest - 40n, toBlock: latest }).catch(() => []);
+  /*
+   * A quiet token (testnet $U has had no transfer in tens of thousands of
+   * blocks) leaves no recent holder in the logs. Then the escrow itself, which
+   * holds every funded budget, is impersonated on the fork as a last resort.
+   * Still a fork: nothing on the real chain moves.
+   */
+  const holders = [...new Set([...logs.map((log) => getAddress(`0x${log.topics[2].slice(-40)}`)), ...lastResort.map((a) => getAddress(a))])];
+  for (const holder of holders) {
+    const held = await client.readContract({ address: USDT, abi: erc20Abi, functionName: 'balanceOf', args: [holder] });
+    if (held < amount) continue;
+    await full.setBalance({ address: holder, value: 10n ** 18n });
+    await full.impersonateAccount({ address: holder });
+    const hash = await full.sendTransaction({ account: holder, to: USDT, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [who, amount] }), chain: null });
+    await full.waitForTransactionReceipt({ hash });
+    if ((await client.readContract({ address: USDT, abi: erc20Abi, functionName: 'balanceOf', args: [who] })) >= amount) return;
+  }
+  throw new Error('could not fund the buyer with the token on the fork');
 }
 
 await main();

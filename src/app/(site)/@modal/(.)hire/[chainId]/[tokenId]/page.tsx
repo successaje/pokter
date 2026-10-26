@@ -1,4 +1,4 @@
-import { briefFromLink, HireContents, hireSheetAgent } from '@/features/hire/HireContents';
+import { briefFromLink, currencyFromLink, HireContents, hireSheetAgent } from '@/features/hire/HireContents';
 import { HireSheet } from '@/features/hire/HireSheet';
 import { WalletRoot } from '@/shell/wallet/WalletRoot';
 
@@ -17,14 +17,14 @@ export default async function HireInSheet({
   searchParams,
 }: {
   params: Promise<{ chainId: string; tokenId: string }>;
-  searchParams: Promise<{ escrow?: string; task?: string; proposal?: string }>;
+  searchParams: Promise<{ escrow?: string; task?: string; proposal?: string; pay?: string }>;
 }) {
-  const [{ chainId, tokenId }, { escrow, task, proposal }] = await Promise.all([params, searchParams]);
+  const [{ chainId, tokenId }, { escrow, task, proposal, pay }] = await Promise.all([params, searchParams]);
   const agent = await hireSheetAgent(Number(chainId), tokenId, escrow);
   return (
     <HireSheet agent={agent}>
       <WalletRoot>
-        <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} proposalId={proposal} embedded />
+        <HireContents chainId={Number(chainId)} tokenId={tokenId} escrow={escrow} initialTask={briefFromLink(task)} initialCurrency={currencyFromLink(pay)} proposalId={proposal} embedded />
       </WalletRoot>
     </HireSheet>
   );

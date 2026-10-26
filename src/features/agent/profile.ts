@@ -18,7 +18,10 @@ import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import type { AssayRun } from '@/lib/assay/store';
 import type { AssayDefinition } from '@/lib/assay/catalog';
 import { unpayablePriceNote } from '@/lib/erc8183/payable';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { tokenLabel } from '@/lib/erc8183/pricing';
+import { quotePriceLabel } from '@/lib/find/price';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
+import { displaySymbol, offeredTokens, paymentTokenAt, settlementChainOf } from '@/lib/network/tokens';
 import { providerChoicesFor } from '@/lib/erc8183/providers';
 import { daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
 import type { TrackRecord } from '@/lib/history/record';
@@ -111,7 +114,24 @@ export interface AgentProfile {
   defects: string[];
   defectsByMeasurer: Array<{ measurer: string; defects: string[] }>;
   score: { overall: number | null; measured: number; total: number; dimensions: Array<{ label: string; earned: number | null; weight: number; explanation: string }> };
-  quote: { priceU: number; label: string; currency: string; signer: string; quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
+  /**
+   * The last signed price. `priceU` is the number in the quote's own token
+   * (`symbol`), not necessarily $U; `priceRaw` is the signed amount exact,
+   * in that token's base units. `symbol` is null for a token Pokter has not
+   * verified, which the page says rather than guesses.
+   */
+  quote: { priceU: number; priceRaw: string; label: string; currency: string; symbol: string | null; settlementChainId: number | null; signer: string; quotedAt: string; expiresAt: string | null; current: boolean; payable: boolean | null } | null;
+  /**
+   * Which money this agent signs prices in, as observed — never as assumed.
+   *
+   * Pokter keeps one signed quote per agent, so today this lists at most
+   * one currency. It is a list because a hire is funded in the currency the
+   * agent signs, and an agent seen signing in two would have to be shown
+   * as two, not averaged into one. Null when it has never signed a price.
+   */
+  pricesIn: { currencies: Array<{ address: string; symbol: string }>; sentence: string } | null;
+  /** The tokens the hire escrow (`escrow.chainId`) offers, $U first. A quote in any other token cannot be funded there. */
+  escrowTokens: Array<{ address: string; symbol: string }>;
   suggestion: { label: string; note: string; u: number } | null;
   providers: ProviderChoice[];
   deliveredByPokter: boolean;
@@ -131,7 +151,14 @@ export interface AgentProfile {
     chainId: number;
     jobId: string;
     status: string;
-    budgetU: number;
+    /**
+     * The escrowed amount in the job's own token, e.g. "0.5 USDT", or a
+     * base-unit amount marked unread when the job's token is not yet known.
+     * Never a $U figure by default: a USDT job is not a $U one.
+     */
+    amountLabel: string;
+    /** The token the escrow holds for this job; null until it is read. */
+    paymentToken: string | null;
     hiredAt: string;
     delivered: boolean;
     /** A Pokter wallet was the provider: the work is Pokter's, not the agent's. */
@@ -272,6 +299,25 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     .filter((s) => s.endpoint);
 
   const description = clean(agent.description);
+  const quoteSettles = d.quote ? settlementChainOf(d.quote.currency) : null;
+  const quoteToken = d.quote && quoteSettles !== null ? paymentTokenAt(quoteSettles, d.quote.currency) : null;
+  const escrowTokens = offeredTokens(escrowChain).map((t) => ({ address: t.address, symbol: displaySymbol(t) }));
+  /*
+   * Only the currency actually signed. A sentence that said "prices in $U"
+   * because $U is the default would be the assumption this whole change is
+   * removing; the quote names its token, so that is what is said.
+   */
+  const pricesIn = d.quote
+    ? (() => {
+        const currencies = [{ address: d.quote.currency, symbol: tokenLabel(d.quote.currency) }];
+        const names = currencies.map((c) => c.symbol).join(' and ');
+        return {
+          currencies,
+          /* One observed quote shows what it signed, not everything it accepts. */
+          sentence: `Its last signed price was in ${names}. When you hire, you can ask for another currency; the agent either signs a new price in it or keeps its own, and the hire is funded in whatever it signs.`,
+        };
+      })()
+    : null;
   const suggested = suggestion ? { label: suggestionLabel(suggestion), note: suggestionNote(suggestion, meta?.label), u: suggestion.u } : null;
 
   return {
@@ -352,8 +398,12 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
     quote: d.quote
       ? {
           priceU: Number(d.quote.priceU),
-          label: formatQuotedPrice(Number(d.quote.priceU), d.quote.currency),
+          priceRaw: d.quote.priceRaw,
+          /* Exact, in its own token, and the same label the card shows. */
+          label: quotePriceLabel(d.quote),
           currency: d.quote.currency,
+          symbol: quoteToken ? displaySymbol(quoteToken) : null,
+          settlementChainId: quoteSettles,
           signer: d.quote.signer,
           quotedAt: d.quote.quotedAt,
           expiresAt: d.quote.expiresAt ?? null,
@@ -361,6 +411,8 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           payable,
         }
       : null,
+    pricesIn,
+    escrowTokens,
     corrections: getProbeStore().correctionsFor(agent.chain_id, agent.token_id),
     hireBlocker: currentHireBlocker(agent, d.quote, payable, { problem: cardRead.problem, readAt: cardReadAt }),
     readiness: readinessRows({
@@ -391,7 +443,9 @@ async function toProfile(d: AgentDossier, requestedEscrow: number | null): Promi
           chainId: job.chainId,
           jobId: job.jobId,
           status: job.status,
-          budgetU: Number(job.budgetRaw) / 1e18,
+          /* In the job's own token, from its own decimals: not budgetRaw / 1e18 in $U. */
+          amountLabel: jobAmountLabel({ chainId: job.chainId, paymentToken: job.paymentToken ?? null, budgetRaw: job.budgetRaw }),
+          paymentToken: job.paymentToken ?? null,
           hiredAt: job.hiredAt,
           delivered: job.status === 'SUBMITTED' || job.status === 'COMPLETED',
           byOperator: Boolean(job.provider) && team.has(String(job.provider).toLowerCase()),

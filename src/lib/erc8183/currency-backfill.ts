@@ -35,6 +35,11 @@ export async function backfillJobCurrencies(input: {
   read: (chainId: number, jobId: string) => Promise<string | null>;
   write: boolean;
   set: (chainId: number, jobId: string, token: string) => number;
+  /**
+   * One line per job read, on a write run: which token was stored, or why
+   * nothing was. The audit trail of what the backfill changed and when.
+   */
+  audit?: (entry: { chainId: number; jobId: string; token: string | null; outcome: 'written' | 'already-set' | 'unread'; detail: string | null }) => void;
 }): Promise<CurrencyBackfillReport> {
   const readings: CurrencyReading[] = [];
   const seen = new Set<string>();
@@ -58,7 +63,15 @@ export async function backfillJobCurrencies(input: {
   }
   let written = 0;
   if (input.write) {
-    for (const r of readings) if (r.outcome === 'read') written += input.set(r.chainId, r.jobId, r.token);
+    for (const r of readings) {
+      if (r.outcome === 'read') {
+        const changed = input.set(r.chainId, r.jobId, r.token);
+        written += changed;
+        input.audit?.({ chainId: r.chainId, jobId: r.jobId, token: r.token, outcome: changed > 0 ? 'written' : 'already-set', detail: null });
+      } else {
+        input.audit?.({ chainId: r.chainId, jobId: r.jobId, token: null, outcome: 'unread', detail: r.reason });
+      }
+    }
   }
   const byToken: Record<string, number> = {};
   for (const r of readings) if (r.outcome === 'read') byToken[`${r.chainId}:${r.token}`] = (byToken[`${r.chainId}:${r.token}`] ?? 0) + 1;

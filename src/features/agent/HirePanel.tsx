@@ -8,11 +8,34 @@ import { NetworkRow } from '@/ui/Network';
 import { PAYMENT_TERMS } from '@/lib/erc8183/payment-terms';
 import type { AgentProfile } from './profile';
 import { mainnetHireBlocked } from '@/lib/hire/mainnet-blocked';
+import { defaultHireToken, escrowMoney as tokenMoney, paymentTokenAt } from '@/lib/network/tokens';
 
 export function priceSummary(p: AgentProfile) {
   if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Signed by the agent' : 'Last signed price expired · a fresh quote is signed when you hire', signed: true };
   if (p.suggestion) return { headline: p.suggestion.label, caption: 'Suggested budget · it has not signed a price', signed: false };
   return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default budget · it has not signed a price', signed: false };
+}
+
+/**
+ * The money a hire from this panel is funded in, as one sentence.
+ *
+ * It read "Paid in real $U on BNB Chain" for every agent, including the one
+ * that signs in USDT — a buyer holding only $U would learn otherwise at the
+ * wallet. A hire is funded in the token the agent signed, so that is what
+ * is named. $U is named only where it is true: no signed price, so the hire
+ * is a $U budget the buyer sets. A price signed on another chain (the
+ * testnet trial of a mainnet-priced agent) is not the money spent here, so
+ * it is not named as if it were.
+ */
+export function hireMoneySentence(p: Pick<AgentProfile, 'quote' | 'escrow'>): string {
+  const chainId = p.escrow.chainId;
+  if (p.quote) {
+    const token = p.quote.settlementChainId === chainId ? paymentTokenAt(chainId, p.quote.currency) : null;
+    if (token) return `Paid in ${tokenMoney(chainId, token)}.`;
+    return chainId === 97 ? 'Test tokens only.' : 'Its signed price is not in a token this escrow funds.';
+  }
+  const budget = defaultHireToken(chainId);
+  return budget ? `Paid in ${tokenMoney(chainId, budget)}.` : 'Test tokens only.';
 }
 
 /*
@@ -29,8 +52,6 @@ export function priceSummary(p: AgentProfile) {
 export function HirePanel({ profile }: { profile: AgentProfile }) {
   const price = priceSummary(profile);
   const hireHref = `/hire/${profile.chainId}/${profile.tokenId}`;
-  // The escrow this agent is hired on, chosen from its signed price.
-  const testnet = profile.escrow.chainId === 97;
   const blocked = mainnetHireBlocked(profile);
   /*
    * Nowhere to send a brief at all: no endpoint, or a card naming no
@@ -150,7 +171,7 @@ export function HirePanel({ profile }: { profile: AgentProfile }) {
           </a>
         )}
         <p className="pt-1 text-center text-[11.5px] text-ink-3">
-          You review everything before any wallet opens.{testnet ? ' Test tokens only.' : ' Paid in real $U on BNB Chain.'}
+          You review everything before any wallet opens. {hireMoneySentence(profile)}
         </p>
       </div>
     </aside>

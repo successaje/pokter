@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
 import { matchRequests, type MatchableAgent, type MatchableRequest } from '@/lib/briefs/matching';
-import { requestCategoryLabel } from '@/lib/briefs/model';
+import { amountText, requestCategoryLabel, requestUnit } from '@/lib/briefs/model';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { Icon } from '@/ui/icons';
 
@@ -68,7 +68,7 @@ export function RequestsForYourAgents() {
               </span>
               <span className="flex shrink-0 items-center gap-3">
                 <span className="t-readout text-[14px]">
-                  {request.budgetU.toFixed(2)} {request.chainId === 97 ? 'test $U' : '$U'}
+                  {amountText(request.budgetU)} {requestUnit(request)}
                 </span>
                 <Icon.Arrow size={14} className="text-ink-3 transition-transform group-hover:translate-x-0.5" />
               </span>

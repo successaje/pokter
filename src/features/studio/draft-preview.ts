@@ -34,6 +34,9 @@ export function draftPreviewRow(draft: { name: string; description: string; cate
     hireChainId: null,
     priceState: 'none',
     priceU: null,
+    /* No signed price, so no currency: never assumed to be $U. */
+    priceCurrency: null,
+    priceRaw: null,
     priceLabel: 'No signed price yet',
     suggested: null,
     priceFresh: false,

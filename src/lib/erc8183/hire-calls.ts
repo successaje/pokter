@@ -79,14 +79,24 @@ export interface HireCall {
 export { nonDefaultHireToken, UnsupportedHireTokenError } from './hire-token';
 
 export function buildTokenHireCalls(input: TokenHireCallsInput): HireCall[] {
-  if (new TextEncoder().encode(input.description).length > 4096) {
-    throw new Error('erc8183: description exceeds 4096 bytes (kernel limit — do not truncate signed quotes).');
-  }
   const token = hireTokenAt(input.chainId, input.token, input.tokens);
   if (!token || isDefaultHireToken(token)) {
     throw new UnsupportedHireTokenError(`${input.token} is not an offered non-default token on chain ${input.chainId}; a $U hire is built by the SDK.`);
   }
+  return encodeTokenHireCalls({ ...input, token: token.address });
+}
+
+/**
+ * The five calls, with no check of which tokens Pokter offers. Only for
+ * validating a candidate token before it is eligible (the fork lifecycle);
+ * every hire goes through `buildTokenHireCalls`.
+ */
+export function encodeTokenHireCalls(input: Omit<TokenHireCallsInput, 'tokens'>): HireCall[] {
+  if (new TextEncoder().encode(input.description).length > 4096) {
+    throw new Error('erc8183: description exceeds 4096 bytes (kernel limit — do not truncate signed quotes).');
+  }
   if (input.budget <= 0n) throw new Error('INVALID_BUDGET');
+  const token = { address: getAddress(input.token) };
   const a = input.addresses;
   return [
     {
@@ -127,7 +137,8 @@ export async function assertEscrowSupportsToken(read: Reader, commerce: Address,
 export async function readJobPaymentToken(read: Reader, commerce: Address, jobId: bigint): Promise<Address | null> {
   try {
     const token = await read.readContract({ address: commerce, abi: COMMERCE_TOKEN_ABI, functionName: 'jobPaymentToken', args: [jobId] });
-    return typeof token === 'string' ? getAddress(token) : null;
+    /* A zero address is not a token: unread, never filled in. */
+    return typeof token === 'string' && !/^0x0{40}$/i.test(token) ? getAddress(token) : null;
   } catch {
     return null;
   }

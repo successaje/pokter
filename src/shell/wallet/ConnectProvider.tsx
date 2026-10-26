@@ -12,8 +12,13 @@ import { useWalletState } from './useWalletState';
 import { connectErrorMessage } from '@/lib/wallet/errors';
 
 interface ConnectContextValue {
-  /** Opens the connect sheet. `reason` says why, in the person's terms. */
-  openConnect: (reason?: string) => void;
+  /**
+   * Opens the connect sheet. `reason` says why, in the person's terms.
+   * `passkeyUnavailable`, when set, is why a passkey wallet cannot do what is
+   * being connected for (a hire in a token it cannot fund): the option is
+   * shown disabled with that reason, before anyone creates one.
+   */
+  openConnect: (reason?: string, options?: { passkeyUnavailable?: string }) => void;
 }
 
 const ConnectContext = createContext<ConnectContextValue>({ openConnect: () => {} });
@@ -31,8 +36,10 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(0);
   const [reason, setReason] = useState<string | null>(null);
-  const openConnect = useCallback((why?: string) => {
+  const [passkeyUnavailable, setPasskeyUnavailable] = useState<string | null>(null);
+  const openConnect = useCallback((why?: string, options?: { passkeyUnavailable?: string }) => {
     setReason(why ?? null);
+    setPasskeyUnavailable(options?.passkeyUnavailable ?? null);
     setSession((n) => n + 1);
     setOpen(true);
   }, []);
@@ -42,12 +49,12 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
   return (
     <ConnectContext.Provider value={value}>
       {children}
-      <ConnectSheet key={session} open={open} reason={reason} onClose={close} onReopen={reopen} />
+      <ConnectSheet key={session} open={open} reason={reason} passkeyUnavailable={passkeyUnavailable} onClose={close} onReopen={reopen} />
     </ConnectContext.Provider>
   );
 }
 
-function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reason: string | null; onClose: () => void; onReopen: () => void }) {
+function ConnectSheet({ open, reason, passkeyUnavailable, onClose, onReopen }: { open: boolean; reason: string | null; passkeyUnavailable: string | null; onClose: () => void; onReopen: () => void }) {
   const w = useWalletState();
   const [view, setView] = useState<'choose' | 'passkey'>('choose');
 
@@ -137,8 +144,8 @@ function ConnectSheet({ open, reason, onClose, onReopen }: { open: boolean; reas
             title="Passkey wallet"
             detail="Face ID, Touch ID or your device PIN, nothing to install, and Pokter covers the fee for hires. Its address only works on Pokter, not on other marketplaces."
             onClick={() => setView('passkey')}
-            disabled={w.ready && !w.passkey.supported}
-            disabledReason="This browser cannot create passkeys."
+            disabled={Boolean(passkeyUnavailable) || (w.ready && !w.passkey.supported)}
+            disabledReason={passkeyUnavailable ?? 'This browser cannot create passkeys.'}
           />
           {w.connectError && (
             <Notice tone="bad" title="The wallet did not connect">

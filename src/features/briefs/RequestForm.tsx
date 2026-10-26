@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
-import { briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
+import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
+import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
 import { escrowMoney } from '@/lib/network/presentation';
+import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
@@ -31,6 +32,12 @@ interface Draft {
   failSignals: string;
   budget: string;
   chainId: number;
+  /**
+   * The token the budget is in, by address; null is the chain's $U. Drafts
+   * saved before requests had a token have none, and $U is the only thing
+   * that form could have meant.
+   */
+  paymentToken?: string | null;
   deliverDays: number;
   closesInDays: number;
   category: RequestCategory | null;
@@ -60,7 +67,7 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
 
-  const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, deliverDays: 3, closesInDays: 0, category: null };
+  const empty: Draft = { title: initialTitle, brief: '', acceptance: '', failSignals: '', budget: '', chainId: networks[0] ?? 97, paymentToken: null, deliverDays: 3, closesInDays: 0, category: null };
   const [draft, setDraft] = useState<Draft>(empty);
   const [restored, setRestored] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -85,6 +92,8 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
        */
       if (initialTitle && !saved.title?.trim() && !saved.brief?.trim()) return;
       if (!networks.includes(saved.chainId)) saved.chainId = networks[0] ?? 97;
+      /* A token turned off since the draft was saved, or one on the other network, is dropped rather than kept unpayable. */
+      if (saved.paymentToken && !hireTokenAt(saved.chainId, saved.paymentToken)) saved.paymentToken = null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from browser storage
       setDraft({ ...empty, ...saved });
       setRestored(saved.savedAt ?? null);
@@ -94,8 +103,19 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* The money the budget is in: the chosen token if it is offered on the chosen network, else that network's $U. */
+  const token: PaymentToken | null = (draft.paymentToken ? hireTokenAt(draft.chainId, draft.paymentToken) : null) ?? defaultHireToken(draft.chainId);
+  const tokens = offeredTokens(draft.chainId);
+  const limits = token ? budgetLimitsFor(token) : null;
+  const symbol = token ? displaySymbol(token) : '';
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setDraft((d) => {
+      const next = { ...d, [key]: value };
+      /* Switching network keeps the token only where it is offered on the new one. */
+      if (key === 'chainId' && next.paymentToken && !hireTokenAt(next.chainId, next.paymentToken)) next.paymentToken = null;
+      return next;
+    });
     setSavedAt(null);
     if (key in problems) setProblems((p) => ({ ...p, [key]: undefined }));
   };
@@ -107,12 +127,14 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
       acceptance: lines(draft.acceptance),
       failSignals: lines(draft.failSignals),
       budgetU: Number(draft.budget) > 0 ? Number(draft.budget) : 0,
+      paymentToken: token?.address ?? null,
+      budgetRaw: (token && Number(draft.budget) > 0 ? amountToRaw(Number(draft.budget), token.decimals) : null)?.toString() ?? '0',
       chainId: draft.chainId,
       deliverDays: draft.deliverDays,
       closesAt: draft.closesInDays > 0 ? closingFromNow(draft.closesInDays) : null,
       category: draft.category,
     }),
-    [draft],
+    [draft, token],
   );
 
   const saveDraft = () => {
@@ -144,8 +166,10 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
     if (content.acceptance.length === 0) found.acceptance = 'Add at least one line: what the result must include.';
     else if (listProblem(content.acceptance)) found.acceptance = listProblem(content.acceptance)!;
     if (listProblem(content.failSignals)) found.failSignals = listProblem(content.failSignals)!;
-    const budgetU = Number(draft.budget);
-    if (!(budgetU >= BUDGET_MIN && budgetU <= BUDGET_MAX)) found.budget = `Propose between ${BUDGET_MIN} and ${BUDGET_MAX} $U, the most one hire can be funded with today.`;
+    /* The limits in the chosen token's own units, checked on the exact amount that will be signed. */
+    const raw = token ? amountToRaw(Number(draft.budget), token.decimals) : null;
+    if (!token || !limits) found.budget = 'This network has no token Pokter can fund a hire with.';
+    else if (raw === null || !draft.budget || !amountWithinLimits(token, raw).ok) found.budget = `Propose between ${limits.min} and ${limits.max} ${symbol}, the most one hire can be funded with today.`;
     setProblems(found);
     if (Object.keys(found).length > 0) {
       /* A problem under More options is opened up, or the focus below would land on a hidden field. */
@@ -306,22 +330,28 @@ export function RequestForm({ networks, initialTitle = '' }: { networks: number[
           hint={
             <>
               <span className={escrowMoney(draft.chainId).real === false ? 'font-medium text-watch' : undefined}>
-                {escrowMoney(draft.chainId).real === false ? 'Test tokens, no real value.' : 'Real $U on BNB Chain.'}
+                {escrowMoney(draft.chainId).real === false ? 'Test tokens, no real value.' : `Real ${symbol} on BNB Chain.`}
               </span>{' '}
-              Up to {BUDGET_MAX} $U per job. Builders may propose another price; you fund only the one you choose.
+              {token?.disclosure ? `${symbol} here is ${token.disclosure}. ` : ''}
+              Up to {limits?.max} {symbol} per job. Builders propose in the same token; you fund only the one you choose.
             </>
           }
         >
           {(p) => (
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <div className="relative">
-                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="1.00" className="t-readout pr-12 text-[17px]" />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">$U</span>
+                <Input {...p} value={draft.budget} inputMode="decimal" onChange={(e) => set('budget', decimalOnly(e.target.value))} placeholder="1.00" className="t-readout pr-16 text-[17px]" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-ink-3">{symbol}</span>
               </div>
               <NetworkChoice networks={networks} value={draft.chainId} onChange={(id) => set('chainId', id)} />
             </div>
           )}
         </Field>
+
+        {/* Only when there is a choice: with $U alone offered, a one-option picker is noise. */}
+        {tokens.length > 1 && token && (
+          <TokenChoice tokens={tokens} value={token.address} onChange={(address) => set('paymentToken', address)} />
+        )}
 
         <Field label="Delivery time" hint="How soon after hiring do you need the result?">
           {(p) => (
@@ -451,6 +481,49 @@ function NetworkChoice({ networks, value, onChange }: { networks: number[]; valu
         );
       })}
     </div>
+  );
+}
+
+/**
+ * The money the budget is in, when this network offers more than $U.
+ *
+ * Separate from the amount on purpose: the proposals answering the request,
+ * and the hire that follows, are all in this token, so it is a term of the
+ * request and not a display unit. Each option is named by symbol and the
+ * contract it is, since a symbol alone is only a label.
+ */
+function TokenChoice({ tokens, value, onChange }: { tokens: PaymentToken[]; value: string; onChange: (address: string) => void }) {
+  const selected = tokens.find((t) => t.address === value);
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1.5 text-sm font-medium text-ink">Paid in</legend>
+      <div role="radiogroup" aria-label="Paid in" className="flex flex-wrap gap-2">
+        {tokens.map((t) => {
+          const on = t.address === value;
+          return (
+            <button
+              key={t.address}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              title={t.address}
+              onClick={() => onChange(t.address)}
+              className={cn(
+                'h-8 rounded-full border px-3.5 text-[13px] font-medium transition-colors',
+                on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink-3 hover:text-ink',
+              )}
+            >
+              {displaySymbol(t)}
+            </button>
+          );
+        })}
+      </div>
+      {selected && (
+        <span className="t-readout break-all text-[12px] text-ink-3">
+          {displaySymbol(selected)} · {selected.address}
+        </span>
+      )}
+    </fieldset>
   );
 }
 

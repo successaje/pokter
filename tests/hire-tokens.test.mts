@@ -44,9 +44,11 @@ test('a token is turned on only by chain and address, and only when it is eligib
   assert.equal(enabledHireTokens(undefined).size, 0, 'unset is $U only');
   assert.equal(enabledHireTokens().size, 0, 'the test environment turns nothing on');
   assert.deepEqual([...enabledHireTokens(`97:${USDT97}`)], [`97:${USDT97.toLowerCase()}`]);
-  for (const raw of ['true', 'USDT', `${USDT97}`, `56:${USDT97}`, `56:${USDC56}`, `97:0xEC1C60D64a06896Df296438c12edD14E974FDE47`, `56:${USD1_56}`, `56:${U56}`, '97:not-an-address']) {
+  for (const raw of ['true', 'USDT', `${USDT97}`, `56:${USDT97}`, `97:${USDC56}`, `97:0xEC1C60D64a06896Df296438c12edD14E974FDE47`, `97:${USD1_56}`, `56:${U56}`, '97:not-an-address']) {
     assert.equal(enabledHireTokens(raw).size, 0, `ignored: ${raw}`);
   }
+  /* Eligible on mainnet after the fork lifecycle: USDC (Binance-Peg) and USD1 (issuer-listed). */
+  assert.equal(enabledHireTokens(`56:${USDC56},56:${USD1_56}`).size, 2);
 });
 
 test('off, Pokter offers $U alone; on, USDT is added by address, and USDC and USD1 never are', () => {
@@ -272,14 +274,15 @@ test('the currency backfill reads each unknown job once, writes only what it rea
   assert.equal(dry.written, 0);
 });
 
-test('the Evidence agent prices in USDT only when configured, offered, and listed by the buyer', () => {
-  const listed = [{ chain_id: 97, token: U97 }, { chain_id: 97, token: USDT97 }];
-  assert.equal(evidenceQuoteToken(97, listed, undefined), undefined, 'unset: the default, as in production');
-  /* `hireTokenAt` reads the flag, which is off in tests: USDT is not offered, so not quoted. */
-  assert.equal(evidenceQuoteToken(97, listed, USDT97), undefined);
-  assert.equal(evidenceQuoteToken(97, listed, U97), U97, 'the default is always allowed');
-  assert.equal(evidenceQuoteToken(97, [{ chain_id: 97, token: U97 }], U97), U97);
-  assert.equal(evidenceQuoteToken(97, [{ chain_id: 56, token: U97 }], U97), undefined, 'listed for another chain only');
+test('Pokter’s own agents price in the buyer’s preferred currency only when Pokter funds it on that chain', async () => {
+  const { quoteTokenFor } = await import('../src/lib/network/currency-preference');
+  const asked = (token: string, chain = 97) => ({ preferred_currency: { chain_id: chain, token } });
+  assert.equal(quoteTokenFor(97, asked(USDT97), U97, ON).address, USDT97, 'offered here: honoured');
+  assert.equal(quoteTokenFor(97, asked(USDT97), U97, OFF).address, U97, 'not turned on: the default');
+  assert.equal(quoteTokenFor(97, asked(USDT97, 56), U97, ON).address, U97, 'a preference for another chain is ignored');
+  assert.equal(quoteTokenFor(97, {}, U97, ON).address, U97, 'no preference: the default');
+  assert.equal(quoteTokenFor(97, asked('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), U97, ON).address, U97, 'unsupported USDC on testnet: never honoured');
+  assert.equal(evidenceQuoteToken(97, asked(USDT97), U97), undefined, 'the environment turns nothing on in tests');
 });
 
 test('nothing here defaults a token: every reader of the job’s money goes through the job’s own token', () => {

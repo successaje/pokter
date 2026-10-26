@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { defaultHireToken, escrowMoney, paymentTokenAt } from '@/lib/network/tokens';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { parseUnits } from 'viem';
 import { getErc8183Job } from '@altananetwork/sdk';
@@ -136,7 +137,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!Number.isFinite(maxBudget) || maxBudget < BUDGET_MIN || maxBudget > BUDGET_MAX) {
     return NextResponse.json(
       {
-        error: `maxBudget is required and must be a number: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX} in whole $U on chain ${escrowChain}${escrowChain === 56 ? ' (real funds)' : ' (test tokens)'}. Pokter sets no budget of its own.`,
+        error: `maxBudget is required and must be a number: the most the owner has authorised for this job, between ${BUDGET_MIN} and ${BUDGET_MAX} in whole units of the money the owner authorised on chain ${escrowChain} — $U, or the token named in paymentToken${escrowChain === 56 ? ' (real funds)' : ' (test tokens)'}. Pokter sets no budget of its own.`,
         layer: 'input',
         code: 'no-owner-budget',
       },
@@ -300,7 +301,7 @@ export async function POST(request: Request): Promise<NextResponse> {
    * other one has declined the hire the owner asked for.
    */
   if (quotedBody.escrowChainId !== escrowChain) {
-    const real = (id: number) => (id === 56 ? 'real $U on BNB Chain' : 'test $U on BNB Testnet');
+    const real = (id: number) => escrowMoney(id, paymentTokenAt(id, quote.currency) ?? defaultHireToken(id));
     return NextResponse.json(
       {
         error: `${agent.name || `Agent #${tokenId}`} signed a price that settles on chain ${quotedBody.escrowChainId} (${real(quotedBody.escrowChainId)}), and the owner authorised chain ${escrowChain} (${real(escrowChain)}). Nothing was prepared. Ask the owner for chain ${quotedBody.escrowChainId} explicitly if that is what they want.`,

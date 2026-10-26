@@ -6,6 +6,7 @@ import { deadlineSignal } from '@/lib/net/bounded';
 import { criteriaInSignedTerms, negotiationContent, negotiationTermsBound, verifyNegotiationSignature } from '@/lib/erc8183/negotiation';
 import { negotiationSkillOf } from '@/lib/erc8183/courier-parse';
 import { settlementHint } from '@/lib/network/escrow';
+import type { PreferredCurrency } from '@/lib/network/currency-preference';
 import { decimalsFor, settlementChainOf } from '@/lib/network/tokens';
 import { readA2AReply } from '@/lib/a2a/reply';
 import { classifyQuoteError, quoteFailure, type QuoteFailure } from '@/lib/hire/failure';
@@ -131,7 +132,14 @@ export async function requestQuote(
     onRefused,
     onFailure,
     signal,
+    preferredCurrency = null,
   }: {
+    /**
+     * The buyer's preferred currency, sent beside the brief (outside the
+     * signed terms). The agent may sign in it or not; the quote is whatever
+     * it signs.
+     */
+    preferredCurrency?: PreferredCurrency | null;
     timeoutMs?: number;
     /*
      * The brief to negotiate over, when it is not the standing price
@@ -207,7 +215,7 @@ export async function requestQuote(
               parts: [
                 {
                   kind: 'data',
-                  data: { skill: negotiateSkill, ...enquiry, ...settlementHint(agent) },
+                  data: { skill: negotiateSkill, ...enquiry, ...settlementHint(agent, undefined, undefined, preferredCurrency) },
                 },
               ],
             },

@@ -1,6 +1,6 @@
 import { getDossier } from '@/lib/marketplace';
 import type { ChainId } from '@/lib/scan/types';
-import { API_VERSION } from '@/lib/api/v1';
+import { API_VERSION, wirePrice } from '@/lib/api/v1';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import { deliveryAdjustedVerdict } from '@/lib/search/match';
 import { dossierLadder } from '@/lib/agents/dossier-ladder';
@@ -175,8 +175,8 @@ export async function GET(
      */
     price: quote
       ? {
-          amountU: quote.priceU,
-          currency: quote.currency,
+          /* In its own token; `amountU` only when that token is $U (`wirePrice`). */
+          ...wirePrice(quote),
           signer: quote.signer,
           quotedAt: quote.quotedAt,
           expiresAt: quote.expiresAt ?? null,
@@ -192,7 +192,7 @@ export async function GET(
            */
           escrowChainId: payable === false ? null : escrowChain,
           provenance: 'attested',
-          source: 'Quoted by the agent and signed by its registered wallet.',
+          source: 'Quoted by the agent and signed by its registered wallet, in the token named by `currency`. `amount` is exact in that token; `amountU` is null unless it is $U.',
         }
       : null,
 

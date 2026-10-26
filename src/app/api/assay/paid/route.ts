@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { STATIC_SUITES, type StaticAssayCategory } from '@/lib/assay/category-suites';
 import { checkBrief, hfCheckBrief, v3CheckBrief, V3_SUITE_ID } from '@/lib/assay/paid-brief';
 import { currentV3Sample, fixtureJobsForAgent, gradePaidCategoryCheck, gradePaidHealthFactorCheck, gradePaidV3Check } from '@/lib/assay/paid-run';
@@ -58,7 +59,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (typeof category !== 'string' || !(category === 'health-factor' || category === 'rebalancing' || category in STATIC_SUITES)) {
     return NextResponse.json({ error: `category must be health-factor, rebalancing, or one of ${Object.keys(STATIC_SUITES).join(', ')}.` }, { status: 400 });
   }
-  const budgetU = typeof body.budgetU === 'number' && body.budgetU > 0 && body.budgetU <= 5 ? body.budgetU : 0.1;
+  /* Fixtures fund $U through `hireAgent`, within the same $U range as any hire. */
+  const budgetU = typeof body.budgetU === 'number' && body.budgetU >= BUDGET_MIN && body.budgetU <= BUDGET_MAX ? body.budgetU : 0.1;
   const apply = body.apply === true;
   /*
    * Fund a scenario again even though it has been hired before.

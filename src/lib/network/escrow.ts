@@ -1,3 +1,4 @@
+import type { PreferredCurrency } from './currency-preference';
 import { enabledHireTokens, hireTokenAt, offeredTokens, type HireTokenSet } from './tokens';
 
 /**
@@ -146,9 +147,12 @@ export function settlementHint(
   agent: { chain_id: number },
   enabled: EscrowChainId[] = enabledEscrowChains(),
   tokens: HireTokenSet = enabledHireTokens(),
+  /** The buyer's preferred currency for this quote, already checked as fundable (`currency-preference`). */
+  preferredCurrency: PreferredCurrency | null = null,
 ) {
   const preferred = isEscrowChain(agent.chain_id, enabled) ? agent.chain_id : enabled[0];
-  if (tokens.size === 0) return { chain_id: preferred, escrow_chains: enabled };
+  const ask = preferredCurrency ? { preferred_currency: preferredCurrency } : {};
+  if (tokens.size === 0) return { chain_id: preferred, escrow_chains: enabled, ...ask };
   /*
    * With other tokens on, the hint also says which money Pokter can fund on
    * each escrow, by address, so a seller that can price in several picks one
@@ -158,5 +162,5 @@ export function settlementHint(
   const currencies = enabled.flatMap((chainId) =>
     offeredTokens(chainId, tokens).map((t) => ({ chain_id: chainId, token: t.address, symbol: t.symbol, decimals: t.decimals })),
   );
-  return { chain_id: preferred, escrow_chains: enabled, currencies };
+  return { chain_id: preferred, escrow_chains: enabled, currencies, ...ask };
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { formatQuotedPrice, tokenLabel } from '@/lib/erc8183/pricing';
+
 export const SAVED_AGENTS_KEY = 'pokter.saved-agents.v1';
 export const SAVED_AGENTS_EVENT = 'pokter:saved-agents-changed';
 const SAVED_SNAPSHOTS_KEY = 'pokter.saved-agents.snapshots.v1';
@@ -20,7 +22,14 @@ export interface SavedAgentSnapshot {
   tokenId: string;
   evidence: string;
   response: 'responding' | 'not-responding' | 'unmeasured';
+  /** The current signed price as a number in `currency`, not necessarily $U; null when there is none. */
   priceU: number | null;
+  /**
+   * The token that price is signed in, or null when there is no price.
+   * Absent on snapshots stored before prices carried a token: those are
+   * compared on the number alone, never assumed to have been $U.
+   */
+  currency?: string | null;
   checkedAt: string;
 }
 
@@ -93,8 +102,28 @@ export function markSavedAgentAlertsRead(): void {
   window.dispatchEvent(new Event(SAVED_AGENTS_EVENT));
 }
 
-function price(value: number | null): string {
-  return value === null ? 'no current signed price' : `${value.toFixed(2)} $U`;
+/* In the price's own token; a snapshot with no token says so rather than borrowing $U. */
+function price(value: number | null, currency: string | null | undefined): string {
+  return value === null ? 'no current signed price' : formatQuotedPrice(value, currency ?? null);
+}
+
+const sameToken = (a: string | null | undefined, b: string | null | undefined) => a!.toLowerCase() === b!.toLowerCase();
+
+/**
+ * Whether the price moved, compared on (currency, amount).
+ *
+ * The same 0.1 in USDT is not the 0.1 in $U it replaced, so a token change
+ * at an unchanged number is a change. A currency is compared only when both
+ * snapshots name one: older snapshots carry none, and an alert for a token
+ * the earlier snapshot never recorded would be noise, not news.
+ */
+function priceChange(before: SavedAgentSnapshot, after: SavedAgentSnapshot): string | null {
+  const tokenMoved = before.priceU !== null && after.priceU !== null && Boolean(before.currency && after.currency) && !sameToken(before.currency, after.currency);
+  if (tokenMoved) {
+    return `The currency changed from ${tokenLabel(before.currency)} to ${tokenLabel(after.currency)}: ${price(before.priceU, before.currency)} → ${price(after.priceU, after.currency)}`;
+  }
+  if (before.priceU !== after.priceU) return `${price(before.priceU, before.currency)} → ${price(after.priceU, after.currency)}`;
+  return null;
 }
 
 export function savedAgentChanges(
@@ -114,7 +143,8 @@ export function savedAgentChanges(
       created.push({ id: `${id}:${kind}:${snapshot.checkedAt}`, agentId: id, kind, title, body, createdAt: snapshot.checkedAt, readAt: null });
     if (before.evidence !== snapshot.evidence) add('evidence', `${agent.name} evidence changed`, `${before.evidence} → ${snapshot.evidence}`);
     if (before.response !== snapshot.response) add('response', `${agent.name} availability changed`, `${before.response.replace('-', ' ')} → ${snapshot.response.replace('-', ' ')}`);
-    if (before.priceU !== snapshot.priceU) add('price', `${agent.name} price changed`, `${price(before.priceU)} → ${price(snapshot.priceU)}`);
+    const moved = priceChange(before, snapshot);
+    if (moved) add('price', `${agent.name} price changed`, moved);
   }
   return created;
 }

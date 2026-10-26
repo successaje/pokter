@@ -12,6 +12,8 @@ import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
 import { AGENT_CARD_URI, buildAgentCard, MCP_APP_MIME, networkOf } from '@/lib/mcp/agent-card';
 import { formatQuoted } from '@/lib/network/tokens';
+import { formatQuotedRaw, tokenLabel } from '@/lib/erc8183/pricing';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { agentIdentityKey } from '@/lib/agents/distinct';
 import { escrowChainForHire } from '@/lib/network/escrow';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -83,20 +85,38 @@ function tools(request: Request): McpTool[] {
    * the link so an assistant can state it before the user opens it.
    */
   const hireTerms = (record: Record<string, unknown>) => {
-    const price = record.price as { amountU?: number; current?: boolean; expiresAt?: string } | null | undefined;
+    const price = record.price as { priceRaw?: string; currency?: string | null; current?: boolean; expiresAt?: string } | null | undefined;
     const hire = record.hire as { escrowChainId?: number | null } | null | undefined;
     const blocker = record.hireBlocker as { reason?: string } | null | undefined;
     const network = networkOf(hire?.escrowChainId ?? null);
+    /*
+     * Read from the signed units and the quote's own currency. This keyed
+     * on `amountU` and printed "$U" beside it, so a USDT price reached an
+     * assistant as a $U one; `amountU` is null for a non-$U price now, which
+     * would have made a USDT agent look unpriced instead.
+     */
+    const priced = typeof price?.priceRaw === 'string';
     return {
       network: network?.label ?? null,
       money: network?.money ?? null,
-      price: typeof price?.amountU === 'number' ? `${price.amountU} $U` : null,
-      priceCurrent: typeof price?.amountU === 'number' ? Boolean(price.current) : null,
-      ...(typeof price?.amountU === 'number' && !price.current ? { priceNote: 'The stored price has expired. The hire page asks the agent for a fresh one before anything is funded; get_quote shows it now.' } : {}),
-      ...(typeof price?.amountU !== 'number' ? { priceNote: 'No signed price: the user sets the budget on the hire page, and the agent may decline.' } : {}),
+      price: priced ? formatQuotedRaw(price?.currency ?? null, price!.priceRaw!) : null,
+      priceCurrent: priced ? Boolean(price?.current) : null,
+      ...(priced && !price?.current ? { priceNote: 'The stored price has expired. The hire page asks the agent for a fresh one before anything is funded; get_quote shows it now.' } : {}),
+      ...(!priced ? { priceNote: 'No signed price: the user sets the budget on the hire page, and the agent may decline.' } : {}),
       blocker: blocker?.reason ?? null,
     };
   };
+  /*
+   * A job's escrowed amount in words, in its own token. The job route
+   * returns `budgetRaw` with no unit, and an assistant handed a bare
+   * integer will supply one — $U, eighteen decimals — which is the guess
+   * this avoids. With no `paymentToken` the label says the token is not
+   * yet read, rather than naming one.
+   */
+  const amountOf = (job: Record<string, unknown>): string | null =>
+    typeof job.budgetRaw === 'string' && typeof job.chainId === 'number'
+      ? jobAmountLabel({ chainId: job.chainId, paymentToken: typeof job.paymentToken === 'string' ? job.paymentToken : null, budgetRaw: job.budgetRaw })
+      : null;
   /** A signed price in words: amount, money, network and how long it holds. */
   const termsOf = (priceRaw: string, currency: string | undefined, expiresAt: string | undefined) => {
     /*
@@ -171,7 +191,8 @@ function tools(request: Request): McpTool[] {
               verdict: row.verdict,
               evidence: row.maturity.label,
               answeredToday: row.answeringToday,
-              price: row.priceU !== null ? `${row.priceU} $U, signed by the agent` : null,
+              /* `priceLabel` is in the quote's own token (`toFindRow`), never "$U" by default. */
+              price: row.priceU !== null ? `${row.priceLabel}, signed by the agent` : null,
               // A signed price holds for minutes; an expired one is a guide, and get_quote asks for a current one.
               priceCurrent: row.priceU !== null ? row.priceFresh : null,
               ...(row.priceU === null
@@ -212,14 +233,15 @@ function tools(request: Request): McpTool[] {
       title: 'Ask an agent for a signed price',
       description:
         'Get a price quote from an agent for a specific job before hiring it: the agent answers with a price signed by its registered wallet, which Pokter verifies against the exact brief. To get it, Pokter sends the brief to the agent’s own endpoint, run by its builder; only agents with an A2A endpoint can quote. Free: no wallet, no payment, nothing executed. A fresh quote each call, at most 5 a minute from one network address. Use the agent’s own example format when it declares one (see get_agent).',
-      inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it: at least 10 characters, unless it is one of the agent’s published examples.' } } },
+      inputSchema: { type: 'object', required: ['chain_id', 'token_id', 'task'], properties: { ...agentArgs, task: { type: 'string', minLength: 1, maxLength: 500, description: 'The brief, exactly as the user would hire it: at least 10 characters, unless it is one of the agent’s published examples.' }, preferred_currency: { type: 'object', required: ['escrow_chain_id', 'token'], properties: { escrow_chain_id: { type: 'integer', enum: [56, 97] }, token: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$' } }, description: 'Optional: the token the user would rather pay in, by address, on the escrow chain they will fund (get_agent lists what that escrow funds). The agent is asked to price in it and may decline: the result says whether it did. A signed price is never converted.' } } },
       async run(args) {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t || typeof args.task !== 'string') return { data: { error: 'chain_id, token_id and task are required.' }, isError: true };
-        const answered = await read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task }) })));
+        const pref = args.preferred_currency as { escrow_chain_id?: unknown; token?: unknown } | undefined;
+        const answered = await read(await trial(forward(new URL('/api/trial', local).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chainId: c, tokenId: t, task: args.task, ...(pref && typeof pref.token === 'string' ? { escrowChainId: pref.escrow_chain_id, preferredToken: pref.token } : {}) }) })));
         if (answered.isError) return answered;
-        const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string; currency?: string } }; quote_expires_at?: string }; verifiedSigner?: string; termsBound?: boolean };
+        const quoted = answered.data as { receipt?: { response?: { terms?: { price?: string; currency?: string } }; quote_expires_at?: string }; verifiedSigner?: string; termsBound?: boolean; preference?: unknown };
         const priceRaw = quoted.receipt?.response?.terms?.price;
         // The raw receipt is wei and a token address; say it in words too, so an assistant does not convert it.
         /*
@@ -253,13 +275,14 @@ function tools(request: Request): McpTool[] {
       title: 'Link to hire an agent',
       description:
         'Get the link to hire an agent on BNB Chain with this brief. The user opens it, reviews the terms, the signed price and any warnings, and funds escrow in their own wallet; the agent is paid only after it delivers and the review window passes without a successful dispute. Use it whenever the user asks to hire, buy or commission an agent’s work. You cannot hire on their behalf.',
-      inputSchema: { type: 'object', required: ['chain_id', 'token_id'], properties: { ...agentArgs, task: { type: 'string', maxLength: 2000, description: 'The brief to pre-fill; the user can still edit it.' } } },
+      inputSchema: { type: 'object', required: ['chain_id', 'token_id'], properties: { ...agentArgs, task: { type: 'string', maxLength: 2000, description: 'The brief to pre-fill; the user can still edit it.' }, preferred_token: { type: 'string', pattern: '^0x[0-9a-fA-F]{40}$', description: 'Optional: the token address the user would rather pay in. The hire page asks the agent to price in it when that escrow funds it; the agent may decline, and the page says so.' } } },
       async run(args) {
         const c = chain(args.chain_id);
         const t = token(args.token_id);
         if (!c || !t) return { data: { error: 'chain_id must be 56 or 97 and token_id a number.' }, isError: true };
         const url = new URL(`/hire/${c}/${t}`, origin);
         if (typeof args.task === 'string' && args.task.trim()) url.searchParams.set('task', args.task.trim().slice(0, 2000));
+        if (typeof args.preferred_token === 'string' && /^0x[0-9a-fA-F]{40}$/.test(args.preferred_token)) url.searchParams.set('pay', args.preferred_token);
         const record = await detail(c, t);
         /* A link to an agent nobody can read is not a hire link: say so rather than hand one over. */
         if (!record) {
@@ -316,10 +339,12 @@ function tools(request: Request): McpTool[] {
          */
         const escrow = chain(args.escrow_chain_id);
         if (!escrow) {
-          return { data: { error: 'escrow_chain_id is required: 56 to fund with real $U on BNB Chain, or 97 for test tokens on BNB Testnet. Ask the owner which; Pokter will not choose between real and test money for them.' }, isError: true };
+          return { data: { error: 'escrow_chain_id is required: 56 to fund with real money on BNB Chain, or 97 for test tokens on BNB Testnet, in the currency the agent signs. Ask the owner which; Pokter will not choose between real and test money for them.' }, isError: true };
         }
         if (typeof args.max_budget !== 'number') {
-          return { data: { error: `max_budget is required and must be a number: the most the owner has authorised for this job, in whole $U on chain ${escrow}. Ask the owner; Pokter sets no budget of its own.` }, isError: true };
+          /* The ceiling's unit is the payment token when one is named: 5 means five USDT for a USDT hire, never five $U. */
+          const unit = typeof args.payment_token === 'string' ? `in whole units of payment_token (${tokenLabel(args.payment_token)}) on chain ${escrow}` : `in whole $U on chain ${escrow}`;
+          return { data: { error: `max_budget is required and must be a number: the most the owner has authorised for this job, ${unit}. Ask the owner; Pokter sets no budget of its own.` }, isError: true };
         }
         /*
          * And whose hire it is. Optional, this was opt-in protection: the
@@ -364,7 +389,10 @@ function tools(request: Request): McpTool[] {
         if (!job || !escrow) return { data: { error: 'job_id is the numeric ERC-8183 job id, and chain_id the escrow it was funded on (56 or 97).' }, isError: true };
         const url = new URL(`/api/jobs/${job}`, local);
         url.searchParams.set('chain', String(escrow));
-        return read(await jobDetail(forward(url.href), { params: Promise.resolve({ jobId: job }) }));
+        const answered = await read(await jobDetail(forward(url.href), { params: Promise.resolve({ jobId: job }) }));
+        const record = (answered.data as { job?: Record<string, unknown> }).job;
+        const amount = record ? amountOf(record) : null;
+        return amount && record ? { ...answered, data: { ...answered.data, job: { ...record, amount } } } : answered;
       },
     },
     {
@@ -386,9 +414,10 @@ function tools(request: Request): McpTool[] {
           read(await jobReportCheck(forward(checkUrl.href), { params: Promise.resolve({ jobId: job }) })),
         ]);
         const record = (state.data as { job?: { status?: string; deliverableUrl?: string | null; task?: string } }).job ?? null;
+        const amount = record ? amountOf(record as Record<string, unknown>) : null;
         return {
           data: {
-            job: record ? { status: record.status, deliverableUrl: record.deliverableUrl ?? null, task: record.task } : null,
+            job: record ? { status: record.status, deliverableUrl: record.deliverableUrl ?? null, task: record.task, ...(amount ? { amount } : {}) } : null,
             verification: check.data,
             settles: 'Nothing. This is advisory: it releases no escrow, pays nobody and raises no dispute. Only the owner can release or dispute, in their own wallet.',
           },

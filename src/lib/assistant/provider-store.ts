@@ -26,7 +26,14 @@ export interface StagedProposal {
   requestId: string;
   agentChainId: number;
   agentTokenId: string;
+  /** Whole units of `paymentToken`. */
   priceU: number;
+  /**
+   * The request's token the price is in, as staged. Null on a row staged
+   * before proposals carried a token — those were all $U, and the bids
+   * route reads a missing token as $U and refuses it on any other request.
+   */
+  paymentToken: string | null;
   deliverDays: number;
   note: string;
   /** The bid it became, once the owner signed it. */
@@ -102,6 +109,9 @@ export function ensureProviderWork(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_staged_deliveries_owner
       ON staged_deliveries (owner, prepared_at DESC);
   `);
+  /* Added when requests could be priced in more than $U; earlier rows keep NULL (see StagedProposal.paymentToken). */
+  const columns = db.prepare('PRAGMA table_info(staged_proposals)').all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === 'payment_token')) db.exec('ALTER TABLE staged_proposals ADD COLUMN payment_token TEXT');
 }
 
 interface ProposalRow {
@@ -111,6 +121,7 @@ interface ProposalRow {
   agent_chain_id: number;
   agent_token_id: string;
   price_u: number;
+  payment_token: string | null;
   deliver_days: number;
   note: string;
   bid_id: string | null;
@@ -127,6 +138,7 @@ function toProposal(row: ProposalRow): StagedProposal {
     agentChainId: row.agent_chain_id,
     agentTokenId: row.agent_token_id,
     priceU: row.price_u,
+    paymentToken: row.payment_token ?? null,
     deliverDays: row.deliver_days,
     note: row.note,
     bidId: row.bid_id,
@@ -147,6 +159,8 @@ export interface StagedProposalWrite {
   agentChainId: number;
   agentTokenId: string;
   priceU: number;
+  /** The request's token the price is in. Optional only so a caller from before tokens still compiles; it writes NULL. */
+  paymentToken?: string | null;
   deliverDays: number;
   note: string;
   at: string;
@@ -185,8 +199,8 @@ export function stageProposal(db: DatabaseSync, write: StagedProposalWrite): Sta
   const inserted = db
     .prepare(
       `INSERT OR IGNORE INTO staged_proposals
-         (key, owner, request_id, agent_chain_id, agent_token_id, price_u, deliver_days, note, bid_id, prepared_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+         (key, owner, request_id, agent_chain_id, agent_token_id, price_u, payment_token, deliver_days, note, bid_id, prepared_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
     )
     .run(
       write.key,
@@ -195,6 +209,7 @@ export function stageProposal(db: DatabaseSync, write: StagedProposalWrite): Sta
       write.agentChainId,
       write.agentTokenId,
       write.priceU,
+      write.paymentToken ?? null,
       write.deliverDays,
       write.note,
       write.at,
@@ -207,9 +222,9 @@ export function stageProposal(db: DatabaseSync, write: StagedProposalWrite): Sta
   if (!readStagedProposal(db, write.key)) return 'conflict';
   const changed = db
     .prepare(
-      'UPDATE staged_proposals SET price_u = ?, deliver_days = ?, note = ?, last_seen_at = ? WHERE key = ? AND bid_id IS NULL',
+      'UPDATE staged_proposals SET price_u = ?, payment_token = ?, deliver_days = ?, note = ?, last_seen_at = ? WHERE key = ? AND bid_id IS NULL',
     )
-    .run(write.priceU, write.deliverDays, write.note, write.at, write.key);
+    .run(write.priceU, write.paymentToken ?? null, write.deliverDays, write.note, write.at, write.key);
   return Number(changed.changes) === 1 ? 'revised' : 'already-placed';
 }
 

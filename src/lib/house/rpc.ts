@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { quoteTokenFor } from '@/lib/network/currency-preference';
 import { getAddress } from 'viem';
 
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
@@ -72,7 +73,8 @@ export async function handleHouseRpc(definition: HouseAgentDefinition, body: Rec
         definition,
         account: houseAccount(definition),
         chainId,
-        paymentToken: getAddress(addresses.paymentToken),
+        /* The buyer's preferred currency when Pokter funds it on this chain, otherwise the escrow default. */
+        paymentToken: getAddress(quoteTokenFor(chainId, data, addresses.paymentToken).address),
         verifyingContract: addresses.commerce,
         // The enquiry's own words when it sent some: the signature covers what was asked.
         task: brief || `Quote ${definition.name}'s standard deliverable.`,

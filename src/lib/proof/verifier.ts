@@ -1,12 +1,22 @@
 /**
  * Dependency-free receipt verifier. It treats Pokter's ledger as an index and
  * the escrow contracts as the authority, then reports every disagreement.
+ *
+ * The token a job is paid in is read from the escrow too
+ * (`jobPaymentToken(uint256)`), not taken from the index: with USDT hiring a
+ * budget is no longer $U by construction, and a receipt that names the wrong
+ * token is a disagreement like any other. Completed value is totalled per
+ * chain *and* token, because a sum of $U and USDT raw units is a number about
+ * nothing. The verifier holds no token registry, so it reports raw units by
+ * token address and leaves the scale to the reader's own lookup.
  */
 export const RECEIPT_VERIFIER_FILENAME = 'pokter-receipt-verifier.mjs';
 
 export const RECEIPT_VERIFIER_SOURCE = `#!/usr/bin/env node
 const DEFAULT_BASE_URL = 'https://pokter.xyz';
 const GET_JOB_SELECTOR = 'bf22c457';
+/* jobPaymentToken(uint256): the token the escrow holds this job's budget in. */
+const JOB_PAYMENT_TOKEN_SELECTOR = '128e4d73';
 const STATUS = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'EXPIRED'];
 const DEFAULT_RPCS = {
   56: 'https://bsc-dataseed.bnbchain.org',
@@ -18,7 +28,8 @@ const HELP = \`Usage:
     [--mainnet-rpc URL] [--testnet-rpc URL] [--concurrency 6]
 
 Downloads Pokter's receipt index, reads each job from its ERC-8183 escrow,
-and recomputes status, provider, budget and funding provenance. It never signs
+and recomputes status, provider, budget, payment token and funding
+provenance, with completed value totalled per chain and token. It never signs
 or broadcasts a transaction. Exit code 1 means at least one row disagreed.\`;
 
 function argumentsOf(argv) {
@@ -79,6 +90,21 @@ async function rpc(url, method, params) {
   return body.result;
 }
 
+async function paymentTokenOf(receipt, rpcs, id) {
+  try {
+    const result = await rpc(rpcs[receipt.chainId], 'eth_call', [{
+      to: receipt.escrow,
+      data: \`0x\${JOB_PAYMENT_TOKEN_SELECTOR}\${id}\`,
+    }, 'latest']);
+    const token = address(result, 0);
+    /* A zero address is not a token: unread. */
+    return token && /^0x0{40}$/i.test(token) ? null : token;
+  } catch {
+    /* Unread, not assumed: a receipt that names a token then fails its check. */
+    return null;
+  }
+}
+
 async function verify(receipt, team, rpcs) {
   try {
     const id = BigInt(receipt.jobId).toString(16).padStart(64, '0');
@@ -86,12 +112,15 @@ async function verify(receipt, team, rpcs) {
       to: receipt.escrow,
       data: \`0x\${GET_JOB_SELECTOR}\${id}\`,
     }, 'latest']);
-    const chain = decodeJob(result);
+    const chain = { ...decodeJob(result), token: await paymentTokenOf(receipt, rpcs, id) };
     const derivedTeam = team.has(chain.client);
+    const claimedToken = receipt.budget && receipt.budget.token ? String(receipt.budget.token).toLowerCase() : null;
     const checks = {
       status: chain.status === receipt.status,
       provider: chain.provider === String(receipt.provider).toLowerCase(),
       budget: chain.budgetRaw === receipt.budget.raw,
+      /* Only when the receipt names a token; an index that says "unknown" claims nothing to check. */
+      paymentToken: claimedToken === null || chain.token === claimedToken,
       fundingProvenance: derivedTeam === receipt.fundedByPokter,
     };
     return { receipt, chain, derivedTeam, checks, ok: Object.values(checks).every(Boolean) };
@@ -113,6 +142,21 @@ async function mapConcurrent(items, limit, mapper) {
   return output;
 }
 
+/* Completed value per (chainId, token), in raw units, never summed across tokens. */
+function completedByToken(rows) {
+  const buckets = new Map();
+  for (const row of rows) {
+    if (row.chain.status !== 'COMPLETED') continue;
+    const token = row.chain.token ?? null;
+    const key = \`\${row.receipt.chainId}:\${token ?? 'unread'}\`;
+    const bucket = buckets.get(key) ?? { chainId: row.receipt.chainId, token, completed: 0, completedValueRaw: 0n };
+    bucket.completed += 1;
+    bucket.completedValueRaw += BigInt(row.chain.budgetRaw);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()].map((bucket) => ({ ...bucket, completedValueRaw: bucket.completedValueRaw.toString() }));
+}
+
 function summarize(rows) {
   const valid = rows.filter((row) => row.ok);
   const byChain = [56, 97].map((chainId) => {
@@ -122,12 +166,12 @@ function summarize(rows) {
       chainId,
       verified: chain.length,
       completed: completed.length,
-      completedValueRaw: completed.reduce((sum, row) => sum + BigInt(row.chain.budgetRaw), 0n).toString(),
+      completedByToken: completedByToken(chain),
       outsideTeam: chain.filter((row) => !row.derivedTeam).length,
       team: chain.filter((row) => row.derivedTeam).length,
     };
   });
-  return { indexed: rows.length, verified: valid.length, mismatched: rows.length - valid.length, byChain };
+  return { indexed: rows.length, verified: valid.length, mismatched: rows.length - valid.length, byChain, completedByToken: completedByToken(valid) };
 }
 
 const args = argumentsOf(process.argv.slice(2));

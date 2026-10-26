@@ -1,4 +1,5 @@
 import { DEFAULT_BUDGET_U, formatBudget } from '@/lib/erc8183/pricing';
+import { defaultHireToken, settlementChainOf } from '@/lib/network/tokens';
 
 /**
  * A number to put in front of a buyer who has none.
@@ -60,17 +61,35 @@ function toHumanStep(u: number): number {
 }
 
 /**
- * One suggestion per category, from every signed price in the catalogue.
+ * Whether a signed price is in $U: its currency is exactly the escrow
+ * default on the chain that currency belongs to.
+ *
+ * A suggestion is written "~0.10 $U" and funds a $U budget, so it can only
+ * be a median of $U prices. One agent in the catalogue signs in USDT, and a
+ * median over both would be a number in no money at all — the same 0.1 is a
+ * different amount in each, and nothing about the figure would show it. A
+ * price whose currency is missing or unknown is not $U either; it is left
+ * out, never assumed.
+ */
+export function isDollarUPrice(currency: string | null | undefined): boolean {
+  const chainId = settlementChainOf(currency);
+  const dollarU = chainId === null ? null : defaultHireToken(chainId);
+  return Boolean(currency && dollarU && dollarU.address.toLowerCase() === currency.toLowerCase());
+}
+
+/**
+ * One suggestion per category, from every signed $U price in the catalogue.
  *
  * Built once per render of the list rather than per row: with the catalogue
  * in hand this is a single pass, and doing it per row would re-sort the same
  * prices for all 162.
  */
 export function suggestionsByCategory(
-  priced: { category: string; priceU: number }[],
+  priced: { category: string; priceU: number; currency: string | null }[],
 ): Map<string, Suggestion> {
   const byCategory = new Map<string, number[]>();
-  for (const { category, priceU } of priced) {
+  for (const { category, priceU, currency } of priced) {
+    if (!isDollarUPrice(currency)) continue;
     if (!Number.isFinite(priceU) || priceU <= 0) continue;
     const bucket = byCategory.get(category);
     if (bucket) bucket.push(priceU);
@@ -119,12 +138,13 @@ export function suggestionLabel(s: Suggestion): string {
 
 /** The sentence that stops a suggestion being mistaken for a quote. */
 export function suggestionNote(s: Suggestion, categoryLabel?: string): string {
-  const prices = `${s.sample} signed ${s.sample === 1 ? 'price' : 'prices'}`;
+  /* $U prices only (`isDollarUPrice`), and said so: the count is not every signed price. */
+  const prices = `${s.sample} signed $U ${s.sample === 1 ? 'price' : 'prices'}`;
   const where =
     s.basis === 'category' && categoryLabel
       ? `the ${prices} in ${categoryLabel}`
       : s.basis === 'catalogue'
         ? `the ${prices} across the catalogue`
-        : 'nothing — no agent here has signed a price yet';
+        : 'nothing — no agent here has signed a $U price yet';
   return `A starting figure from ${where}. This agent has not quoted it, has not agreed to it, and may decline. Change it to whatever the job is worth to you.`;
 }

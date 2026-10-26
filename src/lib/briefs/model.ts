@@ -1,7 +1,20 @@
-import type { Address, Hex } from 'viem';
+import { getAddress, type Address, type Hex } from 'viem';
 
 import { CATEGORIES, NO_CATEGORY, type Category } from '@/lib/agents/categories';
-import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { amountWithinLimits } from '@/lib/hire/budget-limits';
+import {
+  defaultHireToken,
+  displaySymbol,
+  enabledHireTokens,
+  hireTokenAt,
+  offeredTokens,
+  paymentTokenAt,
+  requestToken,
+  settlementChainOf,
+  type HireTokenSet,
+  type PaymentToken,
+} from '@/lib/network/tokens';
 
 /**
  * A brief is demand, posted before any agent is chosen.
@@ -81,8 +94,24 @@ export interface BriefContent {
    * can be argued about with evidence instead of taste.
    */
   failSignals: string[];
-  /** Budget the poster expects to fund through escrow, in $U. */
+  /**
+   * Budget the poster expects to fund through escrow, in whole units of
+   * `paymentToken` (the name predates other tokens). Kept as the number the
+   * poster signed; `budgetRaw` is the same amount at the token's decimals,
+   * and is what anything compares.
+   */
   budgetU: number;
+  /**
+   * The token the request is priced in, checksummed, and so the token every
+   * proposal on it and the hire it leads to must be in.
+   *
+   * Null only on a request stored before requests carried a token. The form
+   * that wrote those offered $U and nothing else, so null is the chain's $U
+   * by construction — read it through `requestToken`, never as "unknown".
+   */
+  paymentToken: Address | null;
+  /** `budgetU` in base units of `paymentToken`, as a decimal string. */
+  budgetRaw: string;
   /** Which escrow the award would be funded on. */
   chainId: number;
   /** Days from award to delivery. */
@@ -119,8 +148,16 @@ export interface BidContent {
   /** The agent being offered, by its ERC-8004 identity. */
   agentChainId: number;
   agentTokenId: string;
-  /** What the bidder will take for it, in $U. May differ from the budget. */
+  /** What the bidder will take for it, in whole units of the request's token. May differ from the budget. */
   priceU: number;
+  /**
+   * The request's token, checksummed: a proposal is always in the money
+   * its request named (`readBidContent` refuses any other). Null only on a
+   * proposal stored before proposals carried a token, which was $U.
+   */
+  paymentToken: Address | null;
+  /** `priceU` in base units of that token, as a decimal string. */
+  priceRaw: string;
   deliverDays: number;
   /** How it will be done, and anything in the brief the bidder disputes. */
   note: string;
@@ -138,16 +175,40 @@ export interface Bid extends BidContent {
   placedAt: string;
 }
 
+/**
+ * The amount line of a signed message, in the money it is in.
+ *
+ * A $U amount is written exactly as it always was — "2.5 $U" — so every
+ * request and proposal signed before other tokens existed still verifies
+ * against the text its wallet signed. Any other token is named by symbol
+ * *and* address and chain, because a symbol alone is a label anyone can
+ * deploy: "5 USDT" on its own would be a signature over a word, not over a
+ * currency. An address Pokter has not verified cannot be written at all.
+ */
+function signedAmount(amount: number, chainId: number | null, paymentToken: string | null | undefined): { legacy: true } | { legacy: false; text: string } {
+  if (!paymentToken) return { legacy: true };
+  const chain = chainId ?? settlementChainOf(paymentToken);
+  const token = chain === null ? null : paymentTokenAt(chain, paymentToken);
+  if (!token) throw new Error(`No verified token at ${paymentToken}${chain === null ? '' : ` on chain ${chain}`}; refusing to sign an amount in it.`);
+  if (token.offered) return { legacy: true };
+  return { legacy: false, text: `${amount} ${displaySymbol(token)} (${token.address}) on chain ${token.chainId}` };
+}
+
+/** What `briefMessage` reads: the terms, with the token optional so a $U request built by older code signs what it always did. */
+export type BriefMessageInput = Omit<BriefContent, 'paymentToken' | 'budgetRaw'> & { paymentToken?: string | null; poster: string; postedAt: string };
+
 /* A brief's own text, in a fixed order. The signature covers the terms a
    builder reads, so neither side can revise them afterwards and claim the
    other agreed to something else. */
-export function briefMessage(input: BriefContent & { poster: string; postedAt: string }): string {
+export function briefMessage(input: BriefMessageInput): string {
+  const amount = signedAmount(input.budgetU, input.chainId, input.paymentToken);
   return [
     'Pokter posted brief',
     `Posted by: ${input.poster.toLowerCase()}`,
     `At: ${input.postedAt}`,
     `Title: ${input.title}`,
-    `Budget: ${input.budgetU} $U on chain ${input.chainId}`,
+    /* Only a non-default token changes the line, for the same reason as closesAt below. */
+    amount.legacy ? `Budget: ${input.budgetU} $U on chain ${input.chainId}` : `Budget: ${amount.text}`,
     `Deliver within: ${input.deliverDays} days`,
     `Brief: ${input.brief}`,
     `Acceptance: ${input.acceptance.join(' | ')}`,
@@ -159,14 +220,28 @@ export function briefMessage(input: BriefContent & { poster: string; postedAt: s
   ].join('\n');
 }
 
-export function bidMessage(input: BidContent & { briefId: string; bidder: string; placedAt: string }): string {
+/**
+ * What `bidMessage` reads. `chainId` is the request's network, which is the
+ * one a proposal's price is funded on; the token is optional so a $U
+ * proposal built by older code signs what it always did.
+ */
+export type BidMessageInput = Omit<BidContent, 'paymentToken' | 'priceRaw'> & {
+  paymentToken?: string | null;
+  chainId?: number;
+  briefId: string;
+  bidder: string;
+  placedAt: string;
+};
+
+export function bidMessage(input: BidMessageInput): string {
+  const amount = signedAmount(input.priceU, input.chainId ?? null, input.paymentToken);
   return [
     'Pokter bid on a brief',
     `Brief: ${input.briefId}`,
     `Bidder: ${input.bidder.toLowerCase()}`,
     `At: ${input.placedAt}`,
     `Agent: ${input.agentChainId}:${input.agentTokenId}`,
-    `Price: ${input.priceU} $U`,
+    amount.legacy ? `Price: ${input.priceU} $U` : `Price: ${amount.text}`,
     `Deliver within: ${input.deliverDays} days`,
     `Note: ${input.note}`,
   ].join('\n');
@@ -209,7 +284,12 @@ export function requestStatus(brief: Pick<Brief, 'state' | 'closesAt'> & { hired
 export interface ProposalForHire {
   requestId: string;
   requestTitle: string;
+  /** Whole units of `paymentToken`, as signed. */
   priceU: number;
+  /** The same price in base units of `paymentToken`: what a quote or a budget is compared with. */
+  priceRaw: string;
+  /** The request's token, resolved (a legacy request's $U is written out), checksummed. */
+  paymentToken: Address;
   deliverDays: number;
   /** The network the request asked to be funded on. */
   chainId: number;
@@ -240,14 +320,98 @@ export function hireTaskFromRequest(brief: Pick<BriefContent, 'brief' | 'accepta
 }
 
 /**
- * The most a proposal for this request may ask: its budget.
+ * The most a proposal for this request may ask: its budget, in its token.
  *
  * A request's budget is what its poster said they would fund, so a price
  * above it is one they have already said no to. A proposal may come in
- * under it. Floating-point budgets are compared to the cent.
+ * under it. Compared in base units of one token, exactly: a price in
+ * another token is not "under" anything, it is a different money, and is
+ * refused rather than converted.
  */
-export function withinBudget(priceU: number, budgetU: number): boolean {
-  return Number.isFinite(priceU) && Math.round(priceU * 100) <= Math.round(budgetU * 100);
+export function withinBudget(
+  price: { paymentToken: string | null; priceRaw: string },
+  request: { chainId: number; paymentToken: string | null; budgetRaw: string },
+): boolean {
+  const asked = requestToken(request.chainId, request.paymentToken);
+  const offered = requestToken(request.chainId, price.paymentToken);
+  if (!asked || !offered || asked.address !== offered.address) return false;
+  const priceRaw = rawOf(price.priceRaw);
+  const budgetRaw = rawOf(request.budgetRaw);
+  return priceRaw !== null && budgetRaw !== null && priceRaw <= budgetRaw;
+}
+
+const rawOf = (value: string): bigint | null => {
+  try {
+    return /^\d+$/.test(value) ? BigInt(value) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A whole-unit amount in a token's base units, from the number as it is
+ * written — which is the text the wallet signs — so the raw amount is the
+ * signed amount exactly, never a float rounded on the way.
+ *
+ * Null for anything that is not a plain positive decimal, or that has more
+ * fractional digits than the token can hold: rounding those away would
+ * store an amount nobody signed.
+ */
+export function amountToRaw(amount: number, decimals: number): bigint | null {
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  const text = String(amount);
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!match) return null;
+  const fraction = match[2] ?? '';
+  if (fraction.length > decimals) return null;
+  return BigInt(match[1]) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0') || '0');
+}
+
+/** The token a request (or a proposal on it) is priced in; a legacy null reads as the chain's $U. */
+export function requestTokenOf(request: { chainId: number; paymentToken?: string | null }): PaymentToken | null {
+  return requestToken(request.chainId, request.paymentToken ?? null);
+}
+
+/**
+ * An amount on a request, in its own money, as the interface states it:
+ * "2.5 $U", "5 USDT". A token Pokter cannot name is said to be unknown,
+ * never shown as $U.
+ */
+export function requestAmountLabel(request: { chainId: number; paymentToken?: string | null }, amount: number): string {
+  const token = requestTokenOf(request);
+  return formatQuotedPrice(amount, token?.address ?? null);
+}
+
+/**
+ * A signed amount for reading: to the cent when that loses nothing
+ * ("2.50"), and every digit when it would ("1.234"), so a figure is never
+ * rounded into an amount nobody signed.
+ */
+export function amountText(amount: number): string {
+  return Number(amount.toFixed(2)) === amount ? amount.toFixed(2) : String(amount);
+}
+
+/** The unit beside an amount field or a figure: "$U", "USDT", and "test …" on the testnet so test money is never unmarked. */
+export function requestUnit(request: { chainId: number; paymentToken?: string | null }): string {
+  const token = requestTokenOf(request);
+  const symbol = token ? displaySymbol(token) : 'unknown token';
+  return request.chainId === 97 ? `test ${symbol}` : symbol;
+}
+
+/**
+ * Why a request may not be priced in this token, or null.
+ *
+ * Only a token offered for hiring on the request's own chain: a request in
+ * any other could be chosen and then never funded. The sentence names the
+ * token, so a poster is told which money was refused and not just "invalid".
+ */
+export function requestTokenProblem(chainId: number, paymentToken: string, enabled: HireTokenSet = enabledHireTokens()): string | null {
+  if (hireTokenAt(chainId, paymentToken, enabled)) return null;
+  const home = settlementChainOf(paymentToken);
+  const known = paymentTokenAt(chainId, paymentToken) ?? (home === null ? null : paymentTokenAt(home, paymentToken));
+  const name = known ? `${displaySymbol(known)} (${known.address}${known.chainId !== chainId ? ` on chain ${known.chainId}` : ''})` : paymentToken.slice(0, 64);
+  const offered = offeredTokens(chainId, enabled).map(displaySymbol);
+  return `${name} is not offered for hiring on chain ${chainId}, so a request cannot be priced in it.${offered.length ? ` Offered there: ${offered.join(', ')}.` : ''}`;
 }
 
 /** A proposal is accepted for this long after it was signed. */
@@ -287,8 +451,22 @@ export function listProblem(lines: readonly string[]): string | null {
 }
 
 /** Rejects what cannot be stored or displayed, before any signature work. */
-export function readBriefContent(raw: unknown, now: number = Date.now()): BriefContent | null {
-  if (!raw || typeof raw !== 'object') return null;
+export function readBriefContent(raw: unknown, now: number = Date.now(), enabled?: HireTokenSet): BriefContent | null {
+  const read = parseBriefContent(raw, now, enabled);
+  return read.ok ? read.content : null;
+}
+
+const INVALID_BRIEF = 'The brief payload is invalid.';
+
+/**
+ * `readBriefContent`, with the sentence a poster can act on when the
+ * problem is the money: a token not offered on that chain, or an amount
+ * outside what one hire in that token can be funded with. Everything else
+ * is a payload the form would never have sent, and gets the plain refusal.
+ */
+export function parseBriefContent(raw: unknown, now: number = Date.now(), enabled: HireTokenSet = enabledHireTokens()): { ok: true; content: BriefContent } | { ok: false; error: string } {
+  const fail = (error = INVALID_BRIEF) => ({ ok: false as const, error });
+  if (!raw || typeof raw !== 'object') return fail();
   const b = raw as Record<string, unknown>;
   const title = typeof b.title === 'string' ? b.title.trim() : '';
   const brief = typeof b.brief === 'string' ? b.brief.trim() : '';
@@ -299,41 +477,96 @@ export function readBriefContent(raw: unknown, now: number = Date.now()): BriefC
     Array.isArray(value)
       ? value.map((v) => String(v).trim()).filter(Boolean).slice(0, LIMITS.lines).map((v) => v.slice(0, LIMITS.line))
       : [];
-  if (!title || title.length > LIMITS.title) return null;
-  if (!brief || brief.length > LIMITS.brief) return null;
-  /* Within what one hire can be funded with; a request above it could be chosen and never paid. */
-  if (!Number.isFinite(budgetU) || budgetU < BUDGET_MIN || budgetU > BUDGET_MAX) return null;
-  if (chainId !== 56 && chainId !== 97) return null;
-  if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
+  if (!title || title.length > LIMITS.title) return fail();
+  if (!brief || brief.length > LIMITS.brief) return fail();
+  if (chainId !== 56 && chainId !== 97) return fail();
+  /*
+   * The money. Absent means $U, and that is not a default chosen here: a
+   * client that sends no token signs the legacy text, which says "$U" in
+   * so many words, so the currency is in the signature either way. Any
+   * token named must be one offered for hiring on this chain.
+   */
+  let token: PaymentToken | null;
+  if (b.paymentToken === undefined || b.paymentToken === null || b.paymentToken === '') {
+    token = defaultHireToken(chainId);
+  } else {
+    if (typeof b.paymentToken !== 'string') return fail();
+    const problem = requestTokenProblem(chainId, b.paymentToken, enabled);
+    if (problem) return fail(problem);
+    token = hireTokenAt(chainId, b.paymentToken, enabled);
+  }
+  if (!token) return fail();
+  /* Within what one hire in this token can be funded with; a request above it could be chosen and never paid. */
+  const budgetRaw = amountToRaw(budgetU, token.decimals);
+  if (budgetRaw === null) return fail();
+  const limits = amountWithinLimits(token, budgetRaw);
+  if (!limits.ok) return fail(limits.reason);
+  if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return fail();
   const acceptance = lines(b.acceptance);
-  if (acceptance.length === 0) return null;
+  if (acceptance.length === 0) return fail();
   let closesAt: string | null = null;
   if (b.closesAt !== undefined && b.closesAt !== null && b.closesAt !== '') {
     const at = typeof b.closesAt === 'string' ? Date.parse(b.closesAt) : NaN;
     /* In the future, and not so far out that the request is open in name only. */
-    if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return null;
+    if (!Number.isFinite(at) || at <= now || at > now + MAX_CLOSING_DAYS * 86_400_000) return fail();
     closesAt = new Date(at).toISOString();
   }
   let category: string | null = null;
   if (b.category !== undefined && b.category !== null && b.category !== '') {
     /* Today's ids, or a legacy one from a client still on the earlier form; stored as sent, because it is signed as sent. */
-    if (typeof b.category !== 'string' || requestCategoryOf(b.category) === null) return null;
+    if (typeof b.category !== 'string' || requestCategoryOf(b.category) === null) return fail();
     category = b.category;
   }
-  return { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, chainId, deliverDays, closesAt, category };
+  return {
+    ok: true,
+    content: { title, brief, acceptance, failSignals: lines(b.failSignals), budgetU, paymentToken: getAddress(token.address), budgetRaw: budgetRaw.toString(), chainId, deliverDays, closesAt, category },
+  };
 }
 
-export function readBidContent(raw: unknown): BidContent | null {
-  if (!raw || typeof raw !== 'object') return null;
+/** The request a proposal answers, as far as reading the proposal needs it. */
+export type BidRequest = { chainId: number; paymentToken: string | null };
+
+export function readBidContent(raw: unknown, request: BidRequest): BidContent | null {
+  const read = parseBidContent(raw, request);
+  return read.ok ? read.content : null;
+}
+
+const INVALID_BID = 'The bid payload is invalid.';
+
+/**
+ * A proposal, read against the request it answers.
+ *
+ * Its price is in the request's token or it is refused: a proposal in
+ * another money is not cheaper or dearer than the budget, it is not
+ * comparable to it, and the hire it led to would fund something the
+ * poster never priced. Absent means $U, as for a request, so a proposal
+ * built by older code on a $U request still reads — and is refused on a
+ * request in any other token, with a sentence that names it.
+ */
+export function parseBidContent(raw: unknown, request: BidRequest): { ok: true; content: BidContent } | { ok: false; error: string } {
+  const fail = (error = INVALID_BID) => ({ ok: false as const, error });
+  if (!raw || typeof raw !== 'object') return fail();
   const b = raw as Record<string, unknown>;
   const agentChainId = Number(b.agentChainId);
   const agentTokenId = String(b.agentTokenId ?? '');
   const priceU = Number(b.priceU);
   const deliverDays = Number(b.deliverDays);
   const note = typeof b.note === 'string' ? b.note.trim().slice(0, LIMITS.note) : '';
-  if (agentChainId !== 56 && agentChainId !== 97) return null;
-  if (!/^\d{1,12}$/.test(agentTokenId)) return null;
-  if (!Number.isFinite(priceU) || priceU < BUDGET_MIN || priceU > BUDGET_MAX) return null;
-  if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return null;
-  return { agentChainId, agentTokenId, priceU, deliverDays, note };
+  if (agentChainId !== 56 && agentChainId !== 97) return fail();
+  if (!/^\d{1,12}$/.test(agentTokenId)) return fail();
+  if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) return fail();
+  const asked = requestTokenOf(request);
+  if (!asked) return fail('This request is priced in a token Pokter cannot read, so no proposal can be placed on it.');
+  const named = b.paymentToken === undefined || b.paymentToken === null || b.paymentToken === '' ? null : b.paymentToken;
+  if (named !== null && typeof named !== 'string') return fail();
+  const offered = named === null ? defaultHireToken(request.chainId) : paymentTokenAt(request.chainId, named);
+  if (!offered || offered.address !== asked.address) {
+    const what = offered ? displaySymbol(offered) : named ?? 'another token';
+    return fail(`This request is priced in ${displaySymbol(asked)} (${asked.address}) on chain ${request.chainId}, so a proposal has to be in ${displaySymbol(asked)} too, not ${what}.`);
+  }
+  const priceRaw = amountToRaw(priceU, asked.decimals);
+  if (priceRaw === null) return fail();
+  const limits = amountWithinLimits(asked, priceRaw);
+  if (!limits.ok) return fail(limits.reason);
+  return { ok: true, content: { agentChainId, agentTokenId, priceU, paymentToken: getAddress(asked.address), priceRaw: priceRaw.toString(), deliverDays, note } };
 }

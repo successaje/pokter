@@ -3,7 +3,8 @@
  *
  * Nothing here signs a transaction, asks for an approval or broadcasts.
  * It asks Pokter Evidence's own quote handler, on a local dev server started
- * with testnet USDT turned on (REHEARSAL_ORIGIN; see docs/release/hire-tokens.md),
+ * with testnet USDT turned on (REHEARSAL_ORIGIN; see docs/release/hire-tokens.md)
+ * and asks for a price in USDT through `preferred_currency`,
  * so the price is signed by the agent's registered wallet exactly as the live
  * endpoint would sign it once configured, then checks that price the way the
  * quote route does, and writes down the five calls the buyer's wallet would be
@@ -27,6 +28,7 @@ const AGENT = { chainId: 97, tokenId: '2599' };
 const TASK = 'Report what Pokter has measured about agent 97/2618 (Brinkwatch by Pokter) on BNB Chain Testnet: calls made, calls answered, and whether its signed price can be settled by the escrow, with the source of each number.';
 
 const { settlementHint, escrowChainForCurrency } = await import('../src/lib/network/escrow');
+const { preferredCurrency } = await import('../src/lib/network/currency-preference');
 const { negotiationTermsBound, quoteUsableForEscrow, verifyNegotiationSignature } = await import('../src/lib/erc8183/negotiation');
 const { buildTokenHireCalls, COMMERCE_TOKEN_ABI } = await import('../src/lib/erc8183/hire-calls');
 const { checkPurchaseIntent } = await import('../src/lib/hire/purchase-intent');
@@ -47,8 +49,14 @@ const log = (s: string) => {
   console.log(s);
 };
 
-/* 1. The quote, from the agent's own handler, asked the way Pokter asks. */
-const hint = settlementHint({ chain_id: 97 });
+/*
+ * 1. The quote, from the agent's own handler, asked the way Pokter asks: the
+ * buyer's preferred currency rides in the settlement hint, and the agent signs
+ * a fresh quote in it. Nothing converts a price after it is signed.
+ */
+const preference = preferredCurrency(97, USDT);
+if (!preference) throw new Error('USDT is not offered on 97 in this process; check NEXT_PUBLIC_HIRE_TOKENS.');
+const hint = settlementHint({ chain_id: 97 }, undefined, undefined, preference);
 const reply = await fetch(new Request(`${ORIGIN}/api/evidence/a2a?chain=97`, {
   method: 'POST',
   headers: { 'content-type': 'application/json', 'x-forwarded-for': '127.0.0.1' },
@@ -58,7 +66,7 @@ const body = (await reply.json()) as { result?: Record<string, unknown>; error?:
 if (!body.result) throw new Error(`The agent did not quote: ${body.error?.message ?? reply.status}`);
 const envelope = (body.result.parts as Array<{ data?: Record<string, unknown> }> | undefined)?.find((p) => p.data)?.data ?? body.result;
 const terms = ((envelope.response as Record<string, unknown>)?.terms ?? {}) as { price: string; currency: string };
-log(`Quote: ${formatUnits(BigInt(terms.price), 18)} in ${terms.currency}, signed for escrow ${String(envelope.verifying_contract)} on chain ${String(envelope.chain_id)}`);
+log(`Quote: ${formatUnits(BigInt(terms.price), preference.decimals)} in ${terms.currency}, signed for escrow ${String(envelope.verifying_contract)} on chain ${String(envelope.chain_id)}`);
 
 /* 2. Checked as the quote route checks it. */
 const detail = (await fetch(`https://pokter.xyz/api/v1/agents/${AGENT.chainId}/${AGENT.tokenId}`).then((r) => r.json())) as Record<string, unknown>;

@@ -106,13 +106,13 @@ export const PREPARE_HIRE: AssistantToolSpec = {
         type: 'integer',
         enum: [56, 97],
         description:
-          'The escrow the OWNER authorised: 56 for BNB Chain, which spends real $U, or 97 for BNB Testnet, which spends test tokens. Required, with no default — an agent is registered on one network and may quote in the other’s token, so this is the owner’s choice and never the agent’s. A quote that settles anywhere else is refused.',
+          'The escrow the OWNER authorised: 56 for BNB Chain, which spends real money (in $U, or in payment_token when given), or 97 for BNB Testnet, which spends test tokens. Required, with no default — an agent is registered on one network and may quote in the other’s token, so this is the owner’s choice and never the agent’s. A quote that settles anywhere else is refused.',
       },
       max_budget: {
         type: 'number',
         exclusiveMinimum: 0,
         description:
-          'The most the OWNER has authorised for this one job, in whole $U on escrow_chain_id — real $U on 56, test $U on 97. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
+          'The most the OWNER has authorised for this one job, in whole units of the escrow chain’s $U (real $U on 56, test $U on 97), or of payment_token when it is given — 5 then means five of that token, never five $U. Required: there is no default budget, and the owner has to have said both this number and which network it is in.',
       },
       /*
        * Only in the schema while USDT hiring is on, so the published tool is

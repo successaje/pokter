@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 
-import { REQUEST_CATEGORIES, requestCategoryOf, type RequestCategory } from '@/lib/briefs/model';
+import { REQUEST_CATEGORIES, requestCategoryOf, requestTokenOf, type RequestCategory } from '@/lib/briefs/model';
+import { displaySymbol } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { Button } from '@/ui/Button';
 import { Select } from '@/ui/Field';
@@ -16,6 +17,35 @@ const SORTS: Array<{ id: Sort; label: string }> = [
   { id: 'closing', label: 'Closing soonest' },
   { id: 'fewest', label: 'Fewest proposals' },
 ];
+
+/** The money a request is in: one token on one chain. Testnet $U and mainnet $U are different money. */
+const moneyKey = (r: RequestRowData) => `${r.chainId}:${requestTokenOf(r)?.address ?? 'unknown'}`;
+const moneyName = (r: RequestRowData) => {
+  const token = requestTokenOf(r);
+  return `${r.chainId === 97 ? 'test ' : ''}${token ? displaySymbol(token) : 'unknown token'}`;
+};
+const rawOf = (r: RequestRowData) => {
+  try {
+    return BigInt(r.budgetRaw);
+  } catch {
+    return 0n;
+  }
+};
+
+/**
+ * Highest budget first, but only within one token: requests are grouped by
+ * their money (in a fixed order, so the groups do not shuffle) and ordered
+ * by exact base units inside each group. Two amounts in different tokens
+ * are never compared, even at the same decimals.
+ */
+function byBudget(a: RequestRowData, b: RequestRowData): number {
+  const ka = moneyKey(a);
+  const kb = moneyKey(b);
+  if (ka !== kb) return ka < kb ? -1 : 1;
+  const ra = rawOf(a);
+  const rb = rawOf(b);
+  return ra === rb ? 0 : ra > rb ? -1 : 1;
+}
 
 /**
  * The open requests, searchable and filtered in place.
@@ -43,7 +73,7 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
     const closingAt = (r: RequestRowData) => (r.closesAt ? Date.parse(r.closesAt) : Number.POSITIVE_INFINITY);
     return rows.sort((a, b) =>
       sort === 'budget'
-        ? b.budgetU - a.budgetU
+        ? byBudget(a, b)
         : sort === 'closing'
           ? closingAt(a) - closingAt(b)
           : sort === 'fewest'
@@ -53,6 +83,9 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
   }, [requests, query, network, category, sort]);
 
   const open = filtered.filter((r) => r.taking);
+  /* More than one money on the board: "highest budget" orders within each token, and says so. */
+  const moneys = [...new Set(open.map(moneyKey))];
+  const mixedMoney = moneys.length > 1;
   const closed = filtered.filter((r) => !r.taking);
   const filtering = query.trim() !== '' || network !== 'all' || category !== 'all';
   const clear = () => {
@@ -89,12 +122,19 @@ export function RequestsBoard({ requests, now, networks }: { requests: Array<Req
           <Select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="sm:w-44">
             {SORTS.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.label}
+                {s.id === 'budget' && mixedMoney ? 'Highest budget, per token' : s.label}
               </option>
             ))}
           </Select>
         </div>
       </div>
+
+      {sort === 'budget' && mixedMoney && (
+        <p className="text-[12.5px] text-ink-3">
+          These requests are priced in different tokens ({[...new Set(open.map(moneyName))].join(', ')}). Each token is sorted on its own, highest first; amounts in
+          different tokens are not compared.
+        </p>
+      )}
 
       <div role="radiogroup" aria-label="Category" className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
         {[{ id: 'all' as const, label: 'All requests' }, ...REQUEST_CATEGORIES].map((c) => {

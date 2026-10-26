@@ -7,7 +7,7 @@ import { getAddress } from 'viem';
 import { confirmJobToken } from '../src/lib/erc8183/hire-calls';
 import { planCommission } from '../src/lib/hire/commission-plan';
 import { fundedJobRecord } from '../src/lib/hire/funded-job';
-import { AttemptOwnershipLost, fundingCoordinator, paymentImpossible, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
+import { AttemptOwnershipLost, fundingCoordinator, paymentImpossible, MAX_FUNDABLE_SECONDS, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
 import { paymentCopy } from '../src/lib/hire/payment-copy';
 import { HIRE_PATHS, hireSupportMatrix, pathFundsToken } from '../src/lib/network/hire-paths';
 import { enabledHireTokens, hireTokenAt } from '../src/lib/network/tokens';
@@ -70,7 +70,7 @@ test('the support table: which paths fund which token', () => {
   const usdt = hireTokenAt(97, USDT97, ON)!;
   assert.deepEqual(
     Object.fromEntries((Object.keys(HIRE_PATHS) as Array<keyof typeof HIRE_PATHS>).map((p) => [p, pathFundsToken(p, usdt)])),
-    { 'browser-wallet': true, 'browser-wallet-batch': false, 'passkey-wallet': false, 'server-hire': true, 'prepared-hire': true, 'requests-board': false },
+    { 'browser-wallet': true, 'browser-wallet-batch': false, 'passkey-wallet': false, 'server-hire': true, 'prepared-hire': true, 'requests-board': true },
   );
   assert.ok(Object.keys(HIRE_PATHS).every((p) => pathFundsToken(p as keyof typeof HIRE_PATHS, null)), '$U on every path');
   assert.deepEqual(hireSupportMatrix(97, ON).map((r) => r.symbol), ['U', 'USDT']);
@@ -124,7 +124,7 @@ test('the hire hook plans from the signed quote it funds, and records the token 
   assert.match(hook, /budgetRaw: outcome\.budgetRaw,\s*paymentToken: outcome\.paymentToken,\s*tokenConfirmed: outcome\.tokenConfirmed/);
   const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
   assert.match(wallet, /if \(!tokenHire && await supportsAtomicBatch\(account, chainId\)\)/, 'no batch for another token');
-  assert.match(wallet, /report\(\{ step, jobId, sentHash: hash \}\);\s*const receipt = await read\.waitForTransactionReceipt/, 'the hash is reported before waiting');
+  assert.match(wallet, /report\(\{ step, jobId, sentHash: hash \}\);\s*(?:\/\*[^]*?\*\/\s*)?const receipt = await read\.waitForTransactionReceipt\(\{ hash, onReplaced/, 'the hash is reported before waiting');
 });
 
 test('a funded hire records the confirmed token; one whose token read failed is recorded with the token unknown', () => {
@@ -280,11 +280,14 @@ test('a stale reconciliation cannot delete a newer attempt, or a changed one', a
 });
 
 test('abandoned attempts: closed only when no payment can follow, never on a timeout', async () => {
-  assert.equal(paymentImpossible({ prompt: null, fundableUntil: null }, 0), true, 'no prompt ever issued');
-  assert.equal(paymentImpossible({ prompt: 'approving', fundableUntil: null }, 0), true, 'an approval alone moves no money');
-  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 1_999), false, 'a fund prompt may still be open');
-  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 2_001), true, 'past the encoded expiry the escrow refuses it');
-  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null }, 9_999_999_999), false, 'an unknown expiry is never assumed past');
+  const at = '2026-10-26T10:00:00.000Z';
+  const start = Date.parse(at) / 1000;
+  assert.equal(paymentImpossible({ prompt: null, fundableUntil: null, startedAt: at }, 0), true, 'no prompt ever issued');
+  assert.equal(paymentImpossible({ prompt: 'approving', fundableUntil: null, startedAt: at }, 0), true, 'an approval alone moves no money');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000, startedAt: at }, 1_999), false, 'a fund prompt may still be open');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000, startedAt: at }, 2_001), true, 'past the encoded expiry the escrow refuses it');
+  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null, startedAt: at }, start + 86_400), false, 'an unknown expiry is not assumed past early');
+  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null, startedAt: at }, start + MAX_FUNDABLE_SECONDS + 1), true, 'but it has a ceiling: no record blocks a wallet forever');
 
   const kv = memory();
   const lm = locks();

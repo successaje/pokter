@@ -65,6 +65,30 @@ export interface SellerNotice {
  * without scanning the chain. `refreshJob` always re-reads from the kernel
  * rather than trusting a row here.
  */
+/** A funding attempt as the server keeps it, for other devices of the same wallet. */
+export interface RemoteAttemptRow {
+  publicId: string;
+  secretHash: string;
+  wallet: string;
+  chainId: number;
+  provider: string;
+  description: string;
+  token: string;
+  amountRaw: string;
+  predictedJobId: string | null;
+  jobId: string | null;
+  callsId: string | null;
+  txHashes: string[];
+  prompt: string | null;
+  fundableUntil: number | null;
+  /** True once the chain shows the wallet acted: a transaction it sent, or a job it is the client of. */
+  verified: boolean;
+  state: 'open' | 'closed';
+  closeReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface JobStore {
   record(job: HiredJob): void;
   /**
@@ -72,8 +96,15 @@ export interface JobStore {
    * never cleared: a later record that does not know the token keeps it.
    */
   setPaymentToken(chainId: number, jobId: string, token: string): number;
-  /** Rows whose token has not been read yet, for the backfill. */
-  withoutPaymentToken(): HiredJob[];
+  /** Rows whose token has not been read yet, for the backfill, in a stable order after `after` (a row id), at most `limit`. */
+  withoutPaymentToken(after?: string | null, limit?: number): HiredJob[];
+  /** Cross-device funding attempts (see `hire/remote-attempts`). */
+  openFundingAttempt(wallet: string, chainId: number): RemoteAttemptRow | null;
+  insertFundingAttempt(row: RemoteAttemptRow): boolean;
+  updateFundingAttempt(publicId: string, patch: Partial<Pick<RemoteAttemptRow, 'predictedJobId' | 'jobId' | 'callsId' | 'txHashes' | 'prompt' | 'fundableUntil' | 'verified'>>, at: string): void;
+  closeFundingAttempt(publicId: string, reason: string, at: string): boolean;
+  /** One line per job the currency backfill read, written or not: its audit trail. */
+  auditCurrencyBackfill(entry: { runId: string; chainId: number; jobId: string; token: string | null; outcome: string; detail: string | null; at: string }): void;
   all(): HiredJob[];
   byId(id: string): HiredJob | null;
   byAgent(chainId: number, tokenId: string): HiredJob[];
@@ -226,6 +257,40 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_job_owners_owner ON job_owners (owner);
+
+  CREATE TABLE IF NOT EXISTS funding_attempts (
+    public_id        TEXT PRIMARY KEY,
+    secret_hash      TEXT NOT NULL,
+    wallet           TEXT NOT NULL,
+    chain_id         INTEGER NOT NULL,
+    provider         TEXT NOT NULL,
+    description      TEXT NOT NULL,
+    token            TEXT NOT NULL,
+    amount_raw       TEXT NOT NULL,
+    predicted_job_id TEXT,
+    job_id           TEXT,
+    calls_id         TEXT,
+    tx_hashes        TEXT NOT NULL,
+    prompt           TEXT,
+    fundable_until   INTEGER,
+    verified         INTEGER NOT NULL DEFAULT 0,
+    state            TEXT NOT NULL,
+    close_reason     TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_funding_attempts_open ON funding_attempts (wallet, chain_id, state);
+
+  CREATE TABLE IF NOT EXISTS currency_backfill_audit (
+    run_id     TEXT NOT NULL,
+    chain_id   INTEGER NOT NULL,
+    job_id     TEXT NOT NULL,
+    token      TEXT,
+    outcome    TEXT NOT NULL,
+    detail     TEXT,
+    at         TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS relay_probes (
     chain_id INTEGER NOT NULL,
@@ -415,6 +480,50 @@ class SqliteJobStore implements JobStore {
       );
   }
 
+  openFundingAttempt(wallet: string, chainId: number): RemoteAttemptRow | null {
+    const row = this.db.prepare("SELECT * FROM funding_attempts WHERE wallet = ? AND chain_id = ? AND state = 'open' ORDER BY created_at DESC LIMIT 1").get(wallet.toLowerCase(), chainId) as Record<string, unknown> | undefined;
+    return row ? toRemoteAttempt(row) : null;
+  }
+
+  /* Refused (false) while another attempt for the wallet and chain is open: one at a time, across devices. */
+  insertFundingAttempt(row: RemoteAttemptRow): boolean {
+    if (this.openFundingAttempt(row.wallet, row.chainId)) return false;
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO funding_attempts (public_id, secret_hash, wallet, chain_id, provider, description, token, amount_raw, predicted_job_id, job_id, calls_id, tx_hashes, prompt, fundable_until, verified, state, close_reason, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)`,
+      )
+      .run(row.publicId, row.secretHash, row.wallet.toLowerCase(), row.chainId, row.provider, row.description, row.token, row.amountRaw, row.predictedJobId, row.jobId, row.callsId, JSON.stringify(row.txHashes), row.prompt, row.fundableUntil, row.verified ? 1 : 0, row.createdAt, row.updatedAt);
+    return this.openFundingAttempt(row.wallet, row.chainId)?.publicId === row.publicId;
+  }
+
+  updateFundingAttempt(publicId: string, patch: Partial<Pick<RemoteAttemptRow, 'predictedJobId' | 'jobId' | 'callsId' | 'txHashes' | 'prompt' | 'fundableUntil' | 'verified'>>, at: string): void {
+    const sets: string[] = [];
+    const args: Array<string | number | null> = [];
+    const put = (column: string, value: string | number | null) => {
+      sets.push(`${column} = ?`);
+      args.push(value);
+    };
+    if (patch.predictedJobId !== undefined) put('predicted_job_id', patch.predictedJobId);
+    if (patch.jobId !== undefined) put('job_id', patch.jobId);
+    if (patch.callsId !== undefined) put('calls_id', patch.callsId);
+    if (patch.txHashes !== undefined) put('tx_hashes', JSON.stringify(patch.txHashes));
+    if (patch.prompt !== undefined) put('prompt', patch.prompt);
+    if (patch.fundableUntil !== undefined) put('fundable_until', patch.fundableUntil);
+    /* Verified only ever becomes true: evidence on chain is not taken back. */
+    if (patch.verified) put('verified', 1);
+    put('updated_at', at);
+    this.db.prepare(`UPDATE funding_attempts SET ${sets.join(', ')} WHERE public_id = ? AND state = 'open'`).run(...args, publicId);
+  }
+
+  closeFundingAttempt(publicId: string, reason: string, at: string): boolean {
+    return Number(this.db.prepare("UPDATE funding_attempts SET state = 'closed', close_reason = ?, updated_at = ? WHERE public_id = ? AND state = 'open'").run(reason, at, publicId).changes) === 1;
+  }
+
+  auditCurrencyBackfill(entry: { runId: string; chainId: number; jobId: string; token: string | null; outcome: string; detail: string | null; at: string }): void {
+    this.db.prepare('INSERT INTO currency_backfill_audit (run_id, chain_id, job_id, token, outcome, detail, at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(entry.runId, entry.chainId, entry.jobId, entry.token, entry.outcome, entry.detail, entry.at);
+  }
+
   setPaymentToken(chainId: number, jobId: string, token: string): number {
     return Number(
       this.db
@@ -423,8 +532,8 @@ class SqliteJobStore implements JobStore {
     );
   }
 
-  withoutPaymentToken(): HiredJob[] {
-    return (this.db.prepare('SELECT * FROM jobs WHERE payment_token IS NULL ORDER BY hired_at DESC').all() as unknown as JobRow[]).map(toJob);
+  withoutPaymentToken(after: string | null = null, limit = 100_000): HiredJob[] {
+    return (this.db.prepare('SELECT * FROM jobs WHERE payment_token IS NULL AND id > ? ORDER BY id ASC LIMIT ?').all(after ?? '', limit) as unknown as JobRow[]).map(toJob);
   }
 
   all(): HiredJob[] {
@@ -668,3 +777,27 @@ export function openJobStore(path: string): JobStore {
 }
 
 
+
+function toRemoteAttempt(r: Record<string, unknown>): RemoteAttemptRow {
+  return {
+    publicId: String(r.public_id),
+    secretHash: String(r.secret_hash),
+    wallet: String(r.wallet),
+    chainId: Number(r.chain_id),
+    provider: String(r.provider),
+    description: String(r.description),
+    token: String(r.token),
+    amountRaw: String(r.amount_raw),
+    predictedJobId: (r.predicted_job_id as string | null) ?? null,
+    jobId: (r.job_id as string | null) ?? null,
+    callsId: (r.calls_id as string | null) ?? null,
+    txHashes: JSON.parse(String(r.tx_hashes ?? '[]')) as string[],
+    prompt: (r.prompt as string | null) ?? null,
+    fundableUntil: r.fundable_until === null || r.fundable_until === undefined ? null : Number(r.fundable_until),
+    verified: Number(r.verified) === 1,
+    state: r.state as 'open' | 'closed',
+    closeReason: (r.close_reason as string | null) ?? null,
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+  };
+}

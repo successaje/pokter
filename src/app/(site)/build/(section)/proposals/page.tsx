@@ -5,7 +5,7 @@ import { studioOwner } from '@/features/studio/data';
 import { BuildingSignedOut } from '@/features/studio/SignedOut';
 import { PageHeader } from '@/features/workspace/parts';
 import { getBriefStore } from '@/lib/briefs/store';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { requestAmountLabel } from '@/lib/briefs/model';
 import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
 import { EmptyState } from '@/ui/Feedback';
@@ -64,7 +64,7 @@ export default async function MyProposalsPage() {
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-sm font-medium">{request?.title ?? 'A request no longer listed'}</span>
                     <span className="text-[12.5px] text-ink-3">
-                      Your price {formatQuotedPrice(bid.priceU)} · deliver in {bid.deliverDays} days · agent <span className="t-readout">{bid.agentChainId}:{bid.agentTokenId}</span>
+                      Your price {request ? requestAmountLabel({ chainId: request.chainId, paymentToken: bid.paymentToken ?? request.paymentToken }, bid.priceU) : `${bid.priceU} (currency unknown)`} · deliver in {bid.deliverDays} days · agent <span className="t-readout">{bid.agentChainId}:{bid.agentTokenId}</span>
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-3">

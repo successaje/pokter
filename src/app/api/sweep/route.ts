@@ -518,6 +518,7 @@ export async function POST(request: Request): Promise<NextResponse> {
                 state: {
                   answering: day && day.probes > 0 ? (day.ratio ?? 0) > 0 : null,
                   priceU: current ? Number(quote.priceU) : null,
+                  currency: current ? quote.currency : null,
                   delivered: entry.history?.delivered ?? 0,
                   missed: entry.history?.missed ?? 0,
                 },

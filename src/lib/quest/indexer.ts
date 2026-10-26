@@ -16,6 +16,7 @@ export type QuestChainId = keyof typeof QUEST_CHAINS;
 export const COMMERCE_ABI = parseAbi([
   'function jobCounter() view returns (uint256)',
   'function getJob(uint256) view returns ((uint256 id, address client, address provider, address evaluator, string description, uint256 budget, uint256 expiredAt, uint8 status, address hook, uint256 submittedAt, bytes32 deliverable))',
+  'function jobPaymentToken(uint256) view returns (address)',
 ]);
 export const JOB_STATUS = ['OPEN', 'FUNDED', 'SUBMITTED', 'COMPLETED', 'REJECTED', 'EXPIRED'] as const;
 
@@ -30,6 +31,18 @@ type Client = ReturnType<typeof questClient>;
 
 function readJob(client: Client, chainId: QuestChainId, id: bigint) {
   return client.readContract({ address: QUEST_CHAINS[chainId].commerce, abi: COMMERCE_ABI, functionName: 'getJob', args: [id] });
+}
+
+/*
+ * The token a job is paid in. Recorded so a row is never read as $U by
+ * default; a failed read is stored as null (unknown) and does not stop the
+ * batch, since the token is shown, not summed.
+ */
+function readPaymentToken(client: Client, chainId: QuestChainId, id: bigint): Promise<string | null> {
+  return client
+    .readContract({ address: QUEST_CHAINS[chainId].commerce, abi: COMMERCE_ABI, functionName: 'jobPaymentToken', args: [id] })
+    .then((token) => (/^0x0{40}$/i.test(token as string) ? null : (token as string)))
+    .catch(() => null);
 }
 
 /**
@@ -71,9 +84,10 @@ export async function indexEscrowJobs(
     const ids: bigint[] = [];
     for (let id = next; id <= counter && ids.length < BATCH; id += 1n) ids.push(id);
     const jobs = await Promise.all(ids.map((id) => readJob(client, chainId, id)));
-    const rows: EscrowJob[] = jobs
-      .filter((j) => j.expiredAt >= BigInt(CAMPAIGN_START))
-      .map((j) => ({
+    const inWindow = jobs.filter((j) => j.expiredAt >= BigInt(CAMPAIGN_START));
+    const tokens = await Promise.all(inWindow.map((j) => readPaymentToken(client, chainId, j.id)));
+    const rows: EscrowJob[] = inWindow
+      .map((j, i) => ({
         chainId,
         jobId: Number(j.id),
         client: j.client,
@@ -82,6 +96,7 @@ export async function indexEscrowJobs(
         expiredAt: Number(j.expiredAt),
         status: j.status,
         description: j.description.slice(0, 4000),
+        paymentToken: tokens[i],
       }));
     next = ids[ids.length - 1] + 1n;
     store.advance(chainId, rows, Number(first), Number(next));

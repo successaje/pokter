@@ -5,6 +5,7 @@ import { hireTaskFromRequest, type ProposalForHire } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
+import { requestToken } from '@/lib/network/tokens';
 import { loadProfile } from '@/features/agent/profile';
 import { deliversItself } from '@/features/hire/delivery';
 import { HireNetworks, type HireNetwork } from '@/features/hire/HireNetworks';
@@ -27,6 +28,7 @@ export async function HireContents({
   tokenId,
   escrow,
   initialTask,
+  initialCurrency = null,
   proposalId,
   embedded = false,
 }: {
@@ -34,6 +36,8 @@ export async function HireContents({
   tokenId: string;
   escrow?: string;
   initialTask: string | null;
+  /** A currency to ask the agent to price in, from the link (`?pay=`); ignored unless offered on the escrow chain. */
+  initialCurrency?: string | null;
   /** A proposal chosen on a request (`?proposal=`); ignored unless it is the chosen one, for this agent. */
   proposalId?: string;
   /** Inside the sheet, where the sheet already draws the chrome. */
@@ -124,6 +128,7 @@ export async function HireContents({
       answeredTasks={answeredTasksFor(p.agentWallet)}
       campaignLive={isCampaignLive()}
       initialTask={initialTask ?? fromRequest?.task ?? null}
+      initialCurrency={initialCurrency}
       proposal={fromRequest?.proposal ?? null}
     />
   );
@@ -141,8 +146,24 @@ function chosenProposal(id: string | undefined, chainId: number, tokenId: string
   if (!bid || bid.agentChainId !== chainId || bid.agentTokenId !== tokenId) return null;
   const request = store.get(bid.briefId);
   if (!request || request.awardedBidId !== bid.id) return null;
+  /*
+   * The proposal's money, resolved once here: its own token, else its
+   * request's, else (rows from before either carried one) the chain's $U.
+   * A token Pokter cannot name drops the proposal rather than letting the
+   * hire assume one — the hire then runs without a price to hold it to.
+   */
+  const token = requestToken(request.chainId, bid.paymentToken ?? request.paymentToken);
+  if (!token) return null;
   return {
-    proposal: { requestId: request.id, requestTitle: request.title, priceU: bid.priceU, deliverDays: bid.deliverDays, chainId: request.chainId },
+    proposal: {
+      requestId: request.id,
+      requestTitle: request.title,
+      priceU: bid.priceU,
+      priceRaw: bid.priceRaw,
+      paymentToken: token.address,
+      deliverDays: bid.deliverDays,
+      chainId: request.chainId,
+    },
     task: hireTaskFromRequest(request),
   };
 }
@@ -151,6 +172,8 @@ function chosenProposal(id: string | undefined, chainId: number, tokenId: string
 export function briefFromLink(task: string | undefined): string | null {
   return typeof task === 'string' && task.trim() ? task.trim().slice(0, 2000) : null;
 }
+
+export { currencyFromLink } from './currency-link';
 
 /**
  * The agent's name for the sheet's title, read from the same profile the

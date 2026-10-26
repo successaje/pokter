@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { CAMPAIGN_END_LABEL, isCampaignLive } from '@/lib/campaign/window';
 import { ESCROW_NETWORKS_LABEL, escrowAvailabilityLine, IS_TESTNET, MAINNET_ESCROW } from '@/lib/network/presentation';
+import { moneyWords } from '@/lib/integration/currencies';
 import { loadHome } from '@/features/home/data';
 import { Inspection } from '@/features/home/Inspection';
 import { TaskSearch } from '@/features/home/TaskSearch';
@@ -82,7 +83,7 @@ export default async function HomePage() {
       unit: 'jobs · settled through Pokter escrow',
       rows: [{ label: 'Paid jobs answered', value: home.activity.answeredJobs }],
       note: `Settled with the agent\u2019s answer, from wallets outside Pokter\u2019s declared team${
-        home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real $U, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
+        home.activity.completedMainnet > 0 ? ` (${home.activity.completedMainnet} on BNB Chain in real ${moneyWords(56)}, the rest on testnet)` : IS_TESTNET ? ', in test tokens' : ''
       }. Jobs, not agents.${(() => {
         const left = [
           home.activity.demoJobs > 0 ? `${home.activity.demoJobs} lifecycle demo${home.activity.demoJobs === 1 ? '' : 's'}` : null,
@@ -198,7 +199,7 @@ export default async function HomePage() {
               {MAINNET_ESCROW ? (
                 <>
                   <span className="font-medium text-ink-2">Free</span> on BNB testnet, in test tokens, with Pokter&rsquo;s own agent doing the work.{' '}
-                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real $U, where an agent has signed a price Pokter could verify.
+                  <span className="font-medium text-ink-2">Paid</span> on BNB Chain in real {moneyWords(56)}, where an agent has signed a price Pokter could verify.
                 </>
               ) : (
                 <>
@@ -310,7 +311,7 @@ export default async function HomePage() {
         </Reveal>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm">
           <p className="max-w-2xl text-ink-3">
-            {MAINNET_ESCROW ? 'Escrow runs on BNB Chain for agents priced in real $U, and on BNB testnet with test tokens otherwise.' : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
+            {MAINNET_ESCROW ? `Escrow runs on BNB Chain for agents priced in real ${moneyWords(56)}, and on BNB testnet with test tokens otherwise.` : IS_TESTNET ? 'Escrow currently runs on BNB testnet with test tokens.' : 'Escrow runs on BNB Chain.'} Passkey wallets need no extension, and Pokter covers the network fee where it can.
           </p>
           <Link href="/how-it-works" className="inline-flex items-center gap-1.5 font-medium hover:underline">
             The full walkthrough <Icon.Arrow size={15} />

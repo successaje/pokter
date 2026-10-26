@@ -36,7 +36,8 @@ export async function jobPaymentTokenOnChain(chainId: number, jobId: string): Pr
   if ((chainId !== 56 && chainId !== 97) || !/^\d+$/.test(jobId)) return null;
   try {
     const token = await historyClient(chainId).readContract({ address: getAddress(correctedErc8183Addresses(chainId).commerce) as Address, abi: JOB_TOKEN_ABI, functionName: 'jobPaymentToken', args: [BigInt(jobId)] });
-    return getAddress(token);
+    /* A zero address is not a token: unread, never stored. */
+    return /^0x0{40}$/i.test(token) ? null : getAddress(token);
   } catch {
     return null;
   }

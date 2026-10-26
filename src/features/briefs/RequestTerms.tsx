@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
-import type { BriefContent } from '@/lib/briefs/model';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { requestAmountLabel, type BriefContent } from '@/lib/briefs/model';
 import { escrowMoney } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { Icon } from '@/ui/icons';
@@ -94,12 +93,12 @@ export function RequestTerms({
 }
 
 /** Budget, delivery, network and closing date: the four things a builder prices against. */
-export function RequestFacts({ content }: { content: Pick<BriefContent, 'budgetU' | 'deliverDays' | 'chainId' | 'closesAt'> }) {
+export function RequestFacts({ content }: { content: Pick<BriefContent, 'budgetU' | 'paymentToken' | 'deliverDays' | 'chainId' | 'closesAt'> }) {
   const money = escrowMoney(content.chainId);
   return (
     <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] border border-rule bg-rule sm:grid-cols-4">
       <Fact label="Proposed budget">
-        <span className="t-readout text-[15px] text-ink">{content.budgetU > 0 ? formatQuotedPrice(content.budgetU) : '—'}</span>
+        <span className="t-readout text-[15px] text-ink">{content.budgetU > 0 ? requestAmountLabel(content, content.budgetU) : '—'}</span>
       </Fact>
       <Fact label="Delivery">{content.deliverDays === 1 ? '1 day after hiring' : `${content.deliverDays} days after hiring`}</Fact>
       <Fact label="Network">

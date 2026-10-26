@@ -7,6 +7,7 @@ import { studioOwner } from '@/features/studio/data';
 import { BuildingSignedOut } from '@/features/studio/SignedOut';
 import { PageHeader, StatStrip } from '@/features/workspace/parts';
 import { automationTokensOf } from '@/lib/builders/store';
+import { getBriefStore } from '@/lib/briefs/store';
 import { lastSeen, tokenState } from '@/lib/builders/automation-token';
 import { providerOnboardingPrompt } from '@/lib/builders/automation-prompt';
 import { earningsByChain, providerWorkload, reconcileStagedWork } from '@/lib/builders/provider-work-view';
@@ -206,8 +207,9 @@ export default async function AutomationPage() {
               ))}
               <p className="text-[12.5px] text-ink-3">
                 Only <em>released</em> is earned. Escrow is money a buyer has committed and nobody has been paid, and a
-                delivered job is not paid until its review window closes undisputed. The two networks are never added
-                together: chain 56 settles in real $U and chain 97 in a test token with no value. Read from
+                delivered job is not paid until its review window closes undisputed. Each network and each token is its
+                own line and is never added to another: chain 56 settles in real money and chain 97 in test tokens with
+                no value. Read from
                 Pokter&rsquo;s own index of jobs it verified against the chain; the escrow is the authority.
               </p>
             </div>
@@ -228,6 +230,9 @@ export default async function AutomationPage() {
                 agentChainId: p.agentChainId,
                 agentTokenId: p.agentTokenId,
                 priceU: p.priceU,
+                /* The request's escrow chain and the proposal's token; see `stagedPriceLabel`. */
+                chainId: getBriefStore().get(p.requestId)?.chainId ?? null,
+                paymentToken: p.paymentToken ?? null,
                 deliverDays: p.deliverDays,
                 note: p.note,
                 preparedAt: p.preparedAt,
