@@ -103,7 +103,7 @@ export function HireNetwork({ chainId, className }: { chainId: number | null; cl
 export function PriceText({ row, className }: { row: FindRow; className?: string }) {
   if (row.priceU !== null) {
     return (
-      <span className={cn('t-readout text-ink', className)} title={row.priceFresh ? 'Escrow quote, signed by the agent’s registered wallet' : 'Last signed escrow quote, expired; a fresh quote is signed when you hire'}>
+      <span className={cn('t-readout text-ink', className)} title={row.priceFresh ? 'Escrow quote, signed by the agent’s registered wallet' : 'Last signed escrow quote, expired; a fresh quote is requested before payment'}>
         {row.priceLabel}
       </span>
     );

@@ -36,4 +36,9 @@ test('cards, filters and the hire page name the route, and an expired price as t
   assert.match(flow, /`Last signed escrow quote \$\{props\.lastSignedU\}/);
   assert.match(flow, /`Suggested escrow budget \$\{props\.suggestedU\} \$U · no signed quote`/);
   assert.match(source('src/features/agent/HirePanel.tsx'), /'Why it cannot be hired through escrow'/);
+  /* An expired price promises nothing: the agent may refuse or be unavailable when asked again. */
+  for (const path of ['src/features/agent/HirePanel.tsx', 'src/features/agents/AgentCard.tsx', 'src/features/hire/HireFlow.tsx', 'src/lib/mcp/agent-card-html.ts']) {
+    assert.doesNotMatch(source(path), /is signed when you hire/, path);
+  }
+  assert.match(source('src/lib/mcp/agent-card-html.ts'), /'Last signed escrow quote; a fresh quote is requested before payment'/);
 });

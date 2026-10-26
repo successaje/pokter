@@ -18,7 +18,7 @@ import { defaultHireToken, escrowMoney as tokenMoney, paymentTokenAt } from '@/l
  * does not take, so an amount here never stands for it.
  */
 export function priceSummary(p: AgentProfile) {
-  if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Escrow quote · signed by the agent' : 'Last signed escrow quote · expired; a fresh quote is signed when you hire', signed: true };
+  if (p.quote) return { headline: p.quote.label, caption: p.quote.current ? 'Escrow quote · signed by the agent' : 'Last signed escrow quote · expired; a fresh quote is requested before payment', signed: true };
   if (p.suggestion) return { headline: p.suggestion.label, caption: 'Suggested escrow budget · it has not signed a quote', signed: false };
   return { headline: DEFAULT_BUDGET_LABEL, caption: 'Default escrow budget · it has not signed a quote', signed: false };
 }

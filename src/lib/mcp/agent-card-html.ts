@@ -64,7 +64,7 @@ export const AGENT_CARD_HTML = `<!doctype html>
     p.appendChild(el('div', 'price', card.quote ? card.quote.price : card.price ? card.price.label : 'No signed price'));
     priceRow.appendChild(p);
     if (card.quote) priceRow.appendChild(el('div', 'meta', (card.quote.termsBound ? 'Signature covers these terms · ' : '') + 'by ' + card.quote.signer));
-    else if (card.price) priceRow.appendChild(el('div', 'meta', card.price.current ? 'Signed by the agent' : 'Last signed price; a fresh quote is signed when you hire'));
+    else if (card.price) priceRow.appendChild(el('div', 'meta', card.price.current ? 'Escrow quote · signed by the agent' : 'Last signed escrow quote; a fresh quote is requested before payment'));
     root.appendChild(priceRow);
 
     if (card.network) { var net = el('div', 'row'); var left = el('div', 'net'); left.appendChild(el('span', 'diamond')); left.appendChild(el('span', null, card.network.label)); net.appendChild(left); net.appendChild(el('span', 'money' + (card.network.real ? '' : ' test'), card.network.money)); root.appendChild(net); }

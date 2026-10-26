@@ -38,7 +38,8 @@ test('pay-per-call is said as a declaration, only while x402 is off, and not as 
   const { PAY_PER_CALL_DECLARED } = await import('../../src/features/x402/PayPerCallDeclared');
   assert.equal(PAY_PER_CALL_DECLARED, 'Declares pay-per-call; payments not supported on Pokter.');
   const component = source('src/features/x402/PayPerCallDeclared.tsx');
-  assert.match(component, /not that the endpoint works, or what it charges/);
+  assert.match(component, /Declared in registration; availability and price aren’t verified here\./);
+  assert.doesNotMatch(component, /has not called|works/, 'claims nothing about what Pokter did or whether it works');
   assert.doesNotMatch(component, /readX402Terms|fetch\(/, 'nothing is called');
   const page = source('src/app/(site)/agents/[chainId]/[tokenId]/page.tsx');
   assert.match(page, /\{!x402Enabled\(\) && p\.chainId === 56 && \(\s*<Suspense fallback=\{null\}>\s*<PayPerCallDeclared/);

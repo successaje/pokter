@@ -16,7 +16,7 @@ export async function PayPerCallDeclared({ chainId, tokenId }: { chainId: number
       <span className="t-label">Pay per call (x402)</span>
       <p className="text-[14px] text-ink">{PAY_PER_CALL_DECLARED}</p>
       <p className="text-[12.5px] leading-snug text-ink-3">
-        Its registration names an x402 endpoint. Pokter has not called it, so this says only what is declared: not that the endpoint works, or what it charges. Prices on this page are for hiring through escrow.
+        Declared in registration; availability and price aren’t verified here. Prices on this page are for hiring through escrow.
       </p>
     </div>
   );
