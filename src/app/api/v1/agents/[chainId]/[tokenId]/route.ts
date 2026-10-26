@@ -191,6 +191,8 @@ export async function GET(
            * Where a hire would actually run is `hire`, below.
            */
           escrowChainId: payable === false ? null : escrowChain,
+          /* Additive: which payment route this price is for. Always escrow; pay-per-call (x402) prices are not reported here. */
+          route: 'escrow',
           provenance: 'attested',
           source: 'Quoted by the agent and signed by its registered wallet, in the token named by `currency`. `amount` is exact in that token; `amountU` is null unless it is $U.',
         }

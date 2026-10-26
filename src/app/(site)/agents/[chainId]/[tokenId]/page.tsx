@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { X402Island } from '@/features/x402/X402Island';
+import { PayPerCallDeclared } from '@/features/x402/PayPerCallDeclared';
 import { x402Enabled } from '@/lib/x402/flags';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -616,6 +617,12 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                 </div>
                 <TrialPanel agent={{ chainId: p.chainId, tokenId: p.tokenId, name: p.name }} defaultTask={templates[0]?.task ?? 'Produce a read-only assessment. State every assumption and data source; execute no transaction.'} />
               </div>
+            )}
+            {/* While x402 is off: what the registration declares, as a route Pokter does not take payments on. Streamed, so a slow registration never holds the page. */}
+            {!x402Enabled() && p.chainId === 56 && (
+              <Suspense fallback={null}>
+                <PayPerCallDeclared chainId={p.chainId} tokenId={p.tokenId} />
+              </Suspense>
             )}
             {/* Off unless the operator turns x402 on; then only for agents on the one network it supports. */}
             {x402Enabled() && p.chainId === 56 && (

@@ -59,7 +59,7 @@ export async function HireContents({
   if (!p.hireable) {
     return (
       <EmptyState
-        title={`${p.name} cannot be hired through Pokter`}
+        title={`${p.name} cannot be hired through escrow on Pokter`}
         action={
           <>
             <LinkButton href={`/agents/${chainId}/${tokenId}`} size="s" intent="secondary">Back to the agent</LinkButton>

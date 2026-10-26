@@ -62,7 +62,8 @@ export interface AgentSummary {
    * What the agent quoted for itself, or null when it has never named a price.
    * Null is a fact about the agent, not a missing field.
    */
-  price: Measured<(WirePrice & { quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null }) | null>;
+  /** `route` is always 'escrow': every price here is an ERC-8183 escrow quote, never a pay-per-call price. Added; nothing else changed. */
+  price: Measured<(WirePrice & { quotedAt: string; expiresAt: string | null; current: boolean | null; payable: boolean | null; route: 'escrow' }) | null>;
   availability: Measured<number | null>;
   probes: Measured<{ total: number; answered: number; observedDays: number }>;
   attestations: Measured<number>;
@@ -133,6 +134,7 @@ export function toAgentSummary(
             // An expired price read beside `payable: true` looked like terms a buyer could take.
             current: listing.quote.expiresAt ? Date.parse(listing.quote.expiresAt) > Date.now() : null,
             payable: listing.quotePayable ?? null,
+            route: 'escrow',
           }
         : null,
       'attested',

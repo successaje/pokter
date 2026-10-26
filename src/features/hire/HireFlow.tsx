@@ -1032,15 +1032,15 @@ export function HireFlow(props: HireFlowProps) {
               <span id="budget-hint" className={cn('text-[12.5px]', budgetError ? 'text-bad' : 'text-ink-3')}>
                 {budgetError
                   ?? (props.signedQuoteU !== null
-                    ? `Signed price ${props.signedQuoteU} ${priceSymbol}`
+                    ? `Escrow quote ${props.signedQuoteU} ${priceSymbol}`
                     : props.lastSignedU != null
                       /* Expired, which almost every stored quote is: they last
                          fifteen minutes. Saying so beats hiding the number the
                          hire will be measured against. */
-                      ? `Last signed price ${props.lastSignedU} ${priceSymbol} · a fresh quote is signed when you hire`
+                      ? `Last signed escrow quote ${props.lastSignedU} ${priceSymbol} · a fresh quote is signed when you hire`
                       : props.suggestedU !== null
-                        ? `Suggested ${props.suggestedU} $U · no signed price`
-                        : 'No signed price; you set it')}
+                        ? `Suggested escrow budget ${props.suggestedU} $U · no signed quote`
+                        : 'No signed escrow quote; you set the budget')}
               </span>
             </div>
             </>
