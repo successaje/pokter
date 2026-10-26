@@ -10,6 +10,7 @@ import test from 'node:test';
 import { jobAmountLabel } from '../src/lib/erc8183/job-amount';
 import { enabledHireTokens } from '../src/lib/network/tokens';
 import { totalLines } from '../src/features/workspace/totals';
+import { mergeWalletJobs } from '../src/features/workspace/merge-jobs';
 import { earnedByNetwork, earnedByToken, earnedLineText } from '../src/lib/builder/earnings';
 import { RECEIPT_VERIFIER_SOURCE } from '../src/lib/proof/verifier';
 import { buildIntegrationKit } from '../src/lib/integration/kit';
@@ -59,6 +60,32 @@ test('workspace totals never combine tokens or chains, and count unknown tokens 
   /* No line is ever a sum across tokens: 1.5 + 3 = 4.5 appears nowhere. */
   assert.ok(lines.every((l) => !/4\.5/.test(l.text)));
   assert.deepEqual(totalLines([]), []);
+});
+
+test('a job this browser saved before its token was recorded takes the token Pokter read from the escrow', () => {
+  const hired = (chainId: number, jobId: string, paymentToken: string | null | undefined, hiredAt: string, extra: Record<string, unknown> = {}) =>
+    ({ id: `${chainId}-${jobId}`, chainId, jobId, paymentToken, budgetRaw: (E18 / 5n).toString(), hiredAt, expiredAt: hiredAt, status: 'COMPLETED', agentChainId: chainId, task: 'brief', hireTxHash: null, ...extra }) as never;
+
+  /* Saved on this device before the release: no token, and a local transaction the index does not have. */
+  const saved = [hired(97, '1663', undefined, '2026-10-25T10:00:00Z', { settleTxHash: '0xlocal' }), hired(56, '57097', USDT56, '2026-10-26T20:38:58Z')];
+  const indexed = [hired(97, '1663', U97, '2026-10-25T10:00:00Z'), hired(56, '57097', USDT56, '2026-10-26T20:38:58Z'), hired(56, '57098', USDT56, '2026-10-26T21:00:00Z'), hired(56, '50000', null, '2026-10-01T00:00:00Z')];
+  const merged = mergeWalletJobs(saved, indexed) as unknown as Array<{ jobId: string; paymentToken?: string | null; settleTxHash?: string; chainId: number; budgetRaw: string }>;
+
+  assert.deepEqual(merged.map((j) => j.jobId), ['57098', '57097', '1663', '50000'], 'every job once, newest first');
+  const old = merged.find((j) => j.jobId === '1663')!;
+  assert.equal(old.paymentToken, U97, 'the escrow token fills the saved record');
+  assert.equal(old.settleTxHash, '0xlocal', 'the rest of the saved record is kept');
+  assert.equal(jobAmountLabel(old), '0.2 $U');
+  assert.equal(merged.find((j) => j.jobId === '50000')!.paymentToken, null, 'a token the index could not read stays unknown, never $U');
+
+  /* Saved and never indexed: nothing to take, so it stays as saved. */
+  assert.equal(mergeWalletJobs([hired(97, '9', undefined, '2026-10-01T00:00:00Z')], [])[0].paymentToken, undefined);
+  /* Indexed without a token: a saved token is not erased. */
+  assert.equal(mergeWalletJobs([hired(56, '7', USDT56, '2026-10-01T00:00:00Z')], [hired(56, '7', null, '2026-10-01T00:00:00Z')])[0].paymentToken, USDT56);
+
+  /* The hook routes through it. */
+  const hooks = readFileSync(new URL('../src/features/workspace/hooks.ts', import.meta.url), 'utf8');
+  assert.match(hooks, /mergeWalletJobs\(stored, indexed\.data/);
 });
 
 test('the overview, wallet page and Studio sum through totalLines, not as eighteen-decimal $U', () => {

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob, JobStatusName } from '@/lib/erc8183/types';
 import { jobsForWallet, noJobs, subscribeToJobs } from '@/lib/wallet/activity';
+import { mergeWalletJobs } from './merge-jobs';
 import { notificationsForWallet, subscribeToNotifications, type ActivityNotification } from '@/lib/wallet/notifications';
 import {
   readSavedAgentAlerts,
@@ -24,7 +25,8 @@ const NO_ALERTS: SavedAgentAlert[] = [];
  * Jobs this wallet has funded, newest first: the ones remembered on this
  * device, plus any Pokter's index has for the same wallet, so a hire made
  * in another browser shows up here too. The device's copy wins where both
- * have a job, because it holds the brief and the latest local actions.
+ * have a job, because it holds the brief and the latest local actions,
+ * except for the job's token, which the index reads from the escrow.
  */
 export function useMyJobs(): { jobs: HiredJob[]; address: string | null; ready: boolean } {
   const { address } = useActiveWallet();
@@ -45,13 +47,7 @@ export function useMyJobs(): { jobs: HiredJob[]; address: string | null; ready: 
       return ((await response.json()) as { jobs?: HiredJob[] }).jobs ?? [];
     },
   });
-  const jobs = useMemo(() => {
-    const local = new Set(stored.map((j) => `${j.chainId}:${j.jobId}`));
-    const merged = [...stored, ...(indexed.data ?? []).filter((j) => !local.has(`${j.chainId}:${j.jobId}`))];
-    merged.sort((a, b) => Date.parse(b.hiredAt) - Date.parse(a.hiredAt));
-    // Jobs remembered before agentChainId existed are mainnet identities.
-    return merged.map((j) => (j.agentChainId ? j : { ...j, agentChainId: 56 }));
-  }, [stored, indexed.data]);
+  const jobs = useMemo(() => mergeWalletJobs(stored, indexed.data ?? []), [stored, indexed.data]);
   return { jobs, address, ready: hydrated && (!address || !indexed.isPending) };
 }
 
