@@ -305,19 +305,19 @@ Run it from the repository, once per key, with its own file name. Load the files
 
 **Costs and the spending cap** (Fly pricing for iad, read on 26 October 2026 from docs.fly.io/about/pricing and docs.fly.io/about/billing)
 
-- **Fly has no spending cap or budget alert** that it documents. Billing is monthly per organisation. Prepaid credits (minimum $25) are offered to accounts without a card. The cap is therefore set by what is created, and by removing it on a fixed date.
-- **What is created, and its ceiling:**
+- **There is no spending cap.** Fly documents no spending cap or budget alert. Billing is monthly per organisation, and prepaid credits (minimum $25) are offered to accounts without a card. The figures below are an **estimate** from the published prices for what this plan creates. Spend is limited in practice only by creating nothing else and removing everything on a fixed date.
+- **What is created, and its estimated cost:**
 
-  | Resource | Price | Ceiling for this rehearsal |
+  | Resource | Price | Estimate for this rehearsal |
   | --- | --- | --- |
-  | One machine, `shared-cpu-1x`, 2GB | $6.70 for 1GB + $6.00 for the second GB = $12.70 a month if always on; billed only while running (it stops when idle) | **$12.70 a month at most**; a few days' rehearsal costs well under that |
+  | One machine, `shared-cpu-1x`, 2GB | $6.70 for 1GB + $6.00 for the second GB = $12.70 a month if always on; billed only while running (it stops when idle) | about $12.70 a month if left running; a few days' rehearsal should cost well under that |
   | One volume, 1GB, created with **automatic snapshots off** | $0.15 a month | $0.15 a month |
   | Volume snapshots | Billed by storage; the first 10GB a month are free | **none created**: `--scheduled-snapshots=false`. With the default, daily snapshots are kept 5 days and outlive the volume |
   | IP addresses | Shared IPv4 and IPv6 are free | **no dedicated IPv4** is allocated ($2 a month if it were) |
   | Certificates | The first 10 are free | none beyond the `fly.dev` default |
   | Testnet tBNB and test USDT | faucets | $0 |
 
-- **Worst case if forgotten for a whole month: about $12.85.** The rehearsal plan removes everything the same week.
+- **Estimate if forgotten for a whole month: about $12.85** (machine and volume). This is a quote from published prices, **not a guaranteed limit**. Anything created beyond this plan, or price changes, would add to it. The rehearsal plan removes everything the same week.
 - **Mainnet rehearsal** (later, separately approved): real gas for about six transactions per hire, plus the signed amount (at most 5 units of the token per job).
 
 **Cleanup, verified resource by resource.** Fly's docs do not promise that destroying an app removes volumes or snapshots, so each is removed and checked:
@@ -366,7 +366,7 @@ FLY_APP=pokter-staging node scripts/house-register.mjs touchstone 97
 
 **Both are signed by the new staging agent key**, which runs on the staging server and pays gas from the 0.005 tBNB you sent. **There is no prompt in your wallet for them.** This is how every Pokter house agent is registered: the agent owns its identity, signs its own quotes, and is paid into its own wallet.
 
-If you would rather the identity be owned by your wallet, the registration must be minted from your wallet instead. That is **one wallet prompt**, `register(agentURI)` with a file Pokter prepares, followed by a second prompt setting the staging agent key as its wallet. The house-agent path does not support it today, so it would be a small separate change; say if you want it.
+The staging identity is disposable: a test agent owned by its own staging key is what this rehearsal needs, and ownership stays with that key.
 
 After the transactions, wait until `https://pokter-staging.fly.dev/agents/97/<new id>` shows the agent: the registry index needs to catch up.
 
@@ -413,9 +413,25 @@ This is **not an end-to-end pass.**
 | 3 | The option A rehearsal passing every verifier run, including the recovery and cross-device steps | staging-validated |
 | 4 | Mainnet rehearsal with real funds, per token to enable (USDT, USDC, USD1) | production-enabled for that token |
 | 5 | Production currency backfill: dry run, write run, audit review (section 6) | production-enabled (published $U figures count only identified jobs until it runs) |
-| 6 | A decision on whether to offer Binance-Peg USDT and Binance-Peg USDC at all (they are named as such everywhere they are chosen or confirmed) | production-enabled for those two |
-| 7 | Announce the verifier format change (`completedByToken` replaces `byChain[].completedValueRaw`) | release |
+| 6 | Binance-Peg USDT and Binance-Peg USDC are **proposed**: verified, named as such everywhere they are chosen or confirmed, and off. Each is enabled only after its own real-wallet rehearsal on mainnet passes (blocker 4) | production-enabled for each |
+| 7 | Publish the receipt-verifier migration note (section 11) with the release | release |
 | 8 | Atomic batch for other tokens: off, not tested | nothing (falls back); a later enhancement |
 | 9 | Agents outside Pokter must implement `preferred_currency` themselves; until then they sign in their own currency and the buyer is told | nothing (by design) |
 
 Nothing in this release adds card payments, new swaps or x402 changes.
+
+## 11. Migration note: receipt verifier output
+
+For anyone consuming the receipt verifier's summary (`/api/v1/receipts/verifier` and `src/lib/proof/verifier.ts`):
+
+- **Removed:** `byChain[].completedValueRaw`. It added together the raw budgets of every completed job on a chain, whatever its token, which is wrong as soon as a chain has two tokens.
+- **Added:**
+  - `byChain[].completedByToken`: one entry per token on that chain, `{ chainId, token, completed, completedValueRaw }`;
+  - a top-level `completedByToken`: the same entries across both chains.
+- **Token values:**
+  - `token` is the address the escrow reports through `jobPaymentToken`;
+  - `null` means unread, never $U;
+  - `completedValueRaw` is in that token's own base units.
+- **To migrate:** read `byChain[].completedByToken`. For the old $U-only figure, take the entry whose `token` is that chain's $U (`0xcE24…6666` on 56, `0xc70B…5565` on 97). Never sum entries with different tokens.
+- **New check:** receipts that name a token are now also checked against the escrow (`paymentToken`). A receipt naming the wrong token fails verification.
+- **Unchanged:** `verified`, `completed`, `outsideTeam`, `team`, `indexed` and `mismatched`.
