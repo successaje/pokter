@@ -106,7 +106,7 @@ Every step costs **0.05** of its currency (raw 50000000000000000; each of these 
    2. **Reload.** The attempt is picked up, and nothing new can be funded.
    3. **Open a second tab.** It refuses to start another hire.
    4. **Click "Finish funding job N".** Only the fund prompt is asked (the exact approval is in place), and it funds the **same job id**. No second job is created. Its delivery follows.
-   5. **On step B only, connect a passkey.** It is refused for the token hire, by name.
+   5. **On step B only, connect a passkey.** It is refused. On BNB Chain the passkey wallet cannot fund any hire, so the refusal names the chain ("where the passkey wallet does not act yet"). The refusal that names the token is reached only on testnet, where the passkey wallet does act, and is covered by unit tests.
 
 So each new currency costs 0.10 (two hires), and with the optional $U hire the session spends 0.10 each of USDT, USDC and USD1 plus 0.05 $U, plus well under 0.001 BNB in gas.
 
