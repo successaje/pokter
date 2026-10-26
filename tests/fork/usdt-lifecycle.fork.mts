@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  createTestClient, encodeFunctionData, erc20Abi, getAddress, http, keccak256,
+  createPublicClient, createTestClient, encodeFunctionData, erc20Abi, getAddress, http, keccak256,
   pad, parseAbi, toHex, publicActions, walletActions, type Address, type Hex,
 } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
@@ -42,6 +42,9 @@ const RPC = `http://127.0.0.1:${PORT}`;
  * upstream call so a stall is told apart from a test that hangs.
  */
 const PROXY_PORT = 8548;
+/* Where token holders are looked up (logs only, no state). */
+/* Checked: publicnode serves recent logs (though not old state); the dataseeds and the fork upstream rate-limit eth_getLogs. */
+const FORK_LOGS_URL = process.env.FORK_LOGS_URL ?? (CHAIN === 56 ? 'https://bsc-rpc.publicnode.com' : 'https://bsc-testnet-rpc.publicnode.com');
 const FORK_LOG_DIR = process.env.FORK_LOG_DIR ?? join(tmpdir(), `pokter-fork-${CHAIN}-${Date.now()}`);
 mkdirSync(FORK_LOG_DIR, { recursive: true });
 const UPSTREAM_LOG = join(FORK_LOG_DIR, 'upstream.jsonl');
@@ -62,7 +65,15 @@ function startUpstreamProxy(): Promise<() => void> {
         const parsed = JSON.parse(body);
         calls = Array.isArray(parsed) ? parsed : [parsed];
       } catch {}
-      const describe = () => calls.map((c) => ({ method: c.method, block: (c.params ?? []).find((p) => typeof p === 'string' && (/^0x[0-9a-f]+$/i.test(p) && p.length < 20 || p === 'latest')) ?? null }));
+      /* The block each call reads, from the parameter that names it for that method. */
+      const blockOf = (c: { method?: string; params?: unknown[] }): string | null => {
+        const p = c.params ?? [];
+        const at = c.method === 'eth_getStorageAt' ? p[2] : ['eth_getBalance', 'eth_getCode', 'eth_getTransactionCount', 'eth_call', 'eth_getProof'].includes(c.method ?? '') ? p[1] : c.method === 'eth_getBlockByNumber' ? p[0] : null;
+        if (typeof at === 'string') return at;
+        if (c.method === 'eth_getLogs' && p[0] && typeof p[0] === 'object') return `${(p[0] as { fromBlock?: string }).fromBlock}..${(p[0] as { toBlock?: string }).toBlock}`;
+        return null;
+      };
+      const describe = () => calls.map((c) => ({ method: c.method, block: blockOf(c) }));
       try {
         const upstream = await fetch(FORK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
         const text = await upstream.text();
@@ -93,7 +104,9 @@ function stallReport(): string {
   try {
     lines = readFileSync(UPSTREAM_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   } catch {}
-  const recent = lines.slice(-12);
+  /* anvil probes `eth_getAccountInfo` and falls back to ordinary calls when an endpoint refuses it: not a failure. */
+  const benign = (l: (typeof lines)[number]) => l.calls.every((c) => c.method === 'eth_getAccountInfo');
+  const recent = lines.filter((l) => !benign(l)).slice(-12);
   const failing = recent.filter((l) => l.errors.length || l.status !== 200);
   const lastAt = lines.length ? Date.parse(lines[lines.length - 1].at) : 0;
   const verdict = failing.length
@@ -399,8 +412,17 @@ async function dealUsdt(client: Storage, who: Address, amount: bigint, lastResor
     sendTransaction: (a: object) => Promise<Hex>;
     waitForTransactionReceipt: (a: { hash: Hex }) => Promise<unknown>;
   };
+  /*
+   * Holders are read from a separate log endpoint, up to the pinned block:
+   * logs are not state, a pruned node serves recent ones, and the fork's
+   * upstream rate-limits `eth_getLogs` (seen: HTTP 429 on every try).
+   */
   const latest = await full.getBlockNumber();
-  const logs = await full.getLogs({ address: USDT, event: { type: 'event', name: 'Transfer', inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] }, fromBlock: latest - 40n, toBlock: latest }).catch(() => []);
+  const logsClient = createPublicClient({ transport: http(FORK_LOGS_URL, { timeout: UPSTREAM_TIMEOUT_MS }) });
+  const logs = await logsClient.getLogs({ address: USDT, event: { type: 'event', name: 'Transfer', inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'value', type: 'uint256', indexed: false }] }, fromBlock: latest - 40n, toBlock: latest }).catch((error) => {
+    console.log(`holder search: eth_getLogs ${latest - 40n}..${latest} on ${FORK_LOGS_URL} failed: ${String((error as Error).message).split('\n')[0]}`);
+    return [];
+  });
   /*
    * A quiet token (testnet $U has had no transfer in tens of thousands of
    * blocks) leaves no recent holder in the logs. Then the escrow itself, which
