@@ -12,6 +12,10 @@
  * to fork from.
  */
 import { spawn } from 'node:child_process';
+import { appendFileSync, createWriteStream, mkdirSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   createTestClient, encodeFunctionData, erc20Abi, getAddress, http, keccak256,
@@ -25,9 +29,81 @@ import { checkPurchaseIntent } from '../../src/lib/hire/purchase-intent';
 
 /* FORK_CHAIN=56 forks BNB Chain mainnet instead: the real escrow, real USDT, still nothing broadcast. */
 const CHAIN = process.env.FORK_CHAIN === '56' ? 56 : 97;
-const FORK_URL = process.env.FORK_URL ?? (CHAIN === 56 ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com');
+/* Mainnet default serves historical state (checked: storage and code 50,000 blocks back); the dataseeds and publicnode do not. */
+const FORK_URL = process.env.FORK_URL ?? (CHAIN === 56 ? 'https://bsc-mainnet.public.blastapi.io' : 'https://bsc-testnet-rpc.publicnode.com');
 const PORT = 8547;
 const RPC = `http://127.0.0.1:${PORT}`;
+/*
+ * The fork's upstream must serve state at the pinned block for the whole run.
+ * A pruned node keeps only recent state: on BNB Chain (sub-second blocks)
+ * publicnode and the dataseeds refuse state 200 blocks old, about 2.5
+ * minutes, so a run that outlived that window stalled mid-way on a state
+ * fetch. Pin the block, use an endpoint that serves it, and log every
+ * upstream call so a stall is told apart from a test that hangs.
+ */
+const PROXY_PORT = 8548;
+const FORK_LOG_DIR = process.env.FORK_LOG_DIR ?? join(tmpdir(), `pokter-fork-${CHAIN}-${Date.now()}`);
+mkdirSync(FORK_LOG_DIR, { recursive: true });
+const UPSTREAM_LOG = join(FORK_LOG_DIR, 'upstream.jsonl');
+const ANVIL_LOG = join(FORK_LOG_DIR, 'anvil.log');
+const UPSTREAM_TIMEOUT_MS = Number(process.env.FORK_RPC_TIMEOUT_MS ?? 20_000);
+const RECEIPT_TIMEOUT_MS = Number(process.env.FORK_RECEIPT_TIMEOUT_MS ?? 90_000);
+
+/** Forwards anvil's upstream requests with a bounded timeout, one JSON line per call: method, block, latency, outcome. */
+function startUpstreamProxy(): Promise<() => void> {
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', async () => {
+      const body = Buffer.concat(chunks).toString();
+      const started = Date.now();
+      let calls: Array<{ method?: string; params?: unknown[] }> = [];
+      try {
+        const parsed = JSON.parse(body);
+        calls = Array.isArray(parsed) ? parsed : [parsed];
+      } catch {}
+      const describe = () => calls.map((c) => ({ method: c.method, block: (c.params ?? []).find((p) => typeof p === 'string' && (/^0x[0-9a-f]+$/i.test(p) && p.length < 20 || p === 'latest')) ?? null }));
+      try {
+        const upstream = await fetch(FORK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+        const text = await upstream.text();
+        const errors = (() => {
+          try {
+            const j = JSON.parse(text);
+            return (Array.isArray(j) ? j : [j]).filter((x) => x?.error).map((x) => `${x.error.code} ${String(x.error.message).slice(0, 120)}`);
+          } catch {
+            return upstream.ok ? [] : [`HTTP ${upstream.status}`];
+          }
+        })();
+        appendFileSync(UPSTREAM_LOG, JSON.stringify({ at: new Date().toISOString(), calls: describe(), ms: Date.now() - started, status: upstream.status, errors }) + '\n');
+        res.writeHead(upstream.status, { 'content-type': 'application/json' });
+        res.end(text);
+      } catch (error) {
+        appendFileSync(UPSTREAM_LOG, JSON.stringify({ at: new Date().toISOString(), calls: describe(), ms: Date.now() - started, status: 0, errors: [String((error as Error).name === 'TimeoutError' ? `timed out after ${UPSTREAM_TIMEOUT_MS} ms` : (error as Error).message)] }) + '\n');
+        res.writeHead(504, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'upstream timed out or failed' } }));
+      }
+    });
+  });
+  return new Promise((resolve) => server.listen(PROXY_PORT, '127.0.0.1', () => resolve(() => server.close())));
+}
+
+/** The upstream calls just before a stall, and a verdict on whether the upstream or the test is the cause. */
+function stallReport(): string {
+  let lines: Array<{ at: string; calls: Array<{ method?: string; block: string | null }>; ms: number; status: number; errors: string[] }> = [];
+  try {
+    lines = readFileSync(UPSTREAM_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {}
+  const recent = lines.slice(-12);
+  const failing = recent.filter((l) => l.errors.length || l.status !== 200);
+  const lastAt = lines.length ? Date.parse(lines[lines.length - 1].at) : 0;
+  const verdict = failing.length
+    ? `UPSTREAM: ${failing.length} of the last ${recent.length} upstream calls failed or timed out`
+    : Date.now() - lastAt > 30_000
+      ? 'TEST OR ANVIL: no upstream call for over 30 s, and none failing'
+      : 'UNCLEAR: upstream calls are succeeding';
+  const sample = (failing.length ? failing : recent).slice(-5).map((l) => `  ${l.at} ${l.calls.map((c) => `${c.method}@${c.block}`).join(',')} ${l.ms}ms status ${l.status} ${l.errors.join(' | ')}`).join('\n');
+  return `${verdict}\n${sample}\nlogs: ${FORK_LOG_DIR}`;
+}
 
 const A = CHAIN === 56
   ? {
@@ -77,7 +153,20 @@ const note = (step: string, ok: boolean, detail = '') => {
 };
 
 async function main() {
-  const anvil = spawn('anvil', ['--fork-url', FORK_URL, '--port', String(PORT), '--chain-id', String(CHAIN), '--auto-impersonate', '--silent'], { stdio: 'ignore' });
+  /* Pinned explicitly, a few blocks behind the head, and recorded with the logs. */
+  const head = await fetch(FORK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }), signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }).then((r) => r.json());
+  const pinned = process.env.FORK_BLOCK ? BigInt(process.env.FORK_BLOCK) : BigInt(head.result) - 5n;
+  const stopProxy = await startUpstreamProxy();
+  const anvilLog = createWriteStream(ANVIL_LOG);
+  const anvil = spawn('anvil', [
+    '--fork-url', `http://127.0.0.1:${PROXY_PORT}`, '--fork-block-number', pinned.toString(),
+    '--port', String(PORT), '--chain-id', String(CHAIN), '--auto-impersonate',
+    /* Bounded: a failing upstream surfaces as an error, not an endless wait. */
+    '--retries', '3', '--fork-retry-backoff', '1000', '--timeout', String(UPSTREAM_TIMEOUT_MS),
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  anvil.stdout.pipe(anvilLog);
+  anvil.stderr.pipe(anvilLog);
+  console.log(`upstream ${FORK_URL}, pinned block ${pinned}, logs in ${FORK_LOG_DIR}`);
   try {
     const client = createTestClient({ chain: CHAIN === 56 ? bsc : bscTestnet, mode: 'anvil', transport: http(RPC) }).extend(publicActions).extend(walletActions);
     for (let i = 0; i < 60; i++) {
@@ -101,7 +190,11 @@ async function main() {
     const job = async (id: bigint) => client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'getJob', args: [id] });
     const send = async (from: Address, to: Address, data: Hex) => {
       const hash = await client.sendTransaction({ account: from, to, data, chain: null });
-      return client.waitForTransactionReceipt({ hash });
+      try {
+        return await client.waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT_MS });
+      } catch (error) {
+        throw new Error(`receipt for ${hash} not mined within ${RECEIPT_TIMEOUT_MS} ms\n${stallReport()}`, { cause: error });
+      }
     };
     const reverts = async (from: Address, to: Address, data: Hex) => {
       try {
@@ -265,8 +358,13 @@ async function main() {
       );
       note('a quote expiring inside the funding margin stops the hire', !lapsed.ok);
     }
+  } catch (error) {
+    console.log(`\nSTOPPED: ${(error as Error).message.split('\n')[0]}\n${stallReport()}`);
+    process.exitCode = 2;
   } finally {
     anvil.kill();
+    stopProxy();
+    anvilLog.end();
   }
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} passed on the fork; nothing was broadcast.`);
