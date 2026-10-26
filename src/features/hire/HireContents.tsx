@@ -88,6 +88,7 @@ export async function HireContents({
       providers: profile.providers,
       signedQuoteU: profile.quote && profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
       lastSignedU: profile.quote && !profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
+      quoteCurrency: profile.quote?.currency ?? null,
       suggestedU: profile.suggestion?.u ?? null,
       warnings: profile.warnings,
     }));

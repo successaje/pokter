@@ -25,7 +25,7 @@
  * claim worth checking on every build.
  */
 
-import { usdtHiringEnabled } from '@/lib/network/tokens';
+import { enabledHireTokens } from '@/lib/network/tokens';
 
 export interface AssistantToolSpec {
   name: string;
@@ -118,13 +118,13 @@ export const PREPARE_HIRE: AssistantToolSpec = {
        * Only in the schema while USDT hiring is on, so the published tool is
        * byte-for-byte what it was until then.
        */
-      ...(usdtHiringEnabled()
+      ...(enabledHireTokens().size > 0
         ? {
             payment_token: {
               type: 'string',
               pattern: '^0x[0-9a-fA-F]{40}$',
               description:
-                'The token the OWNER authorised, by contract address, when it is not $U. Only USDT is accepted (BNB Chain 0x55d398326f99059fF775485246999027B3197955; BNB Testnet 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd). Omit it for $U. An agent that prices in USDT is prepared only when this names exactly that token, and max_budget is then counted in USDT; a price in any other money than the one named here is refused, never converted.',
+                'The token the OWNER authorised, by contract address, when it is not $U. It must be a token Pokter has turned on for hiring on escrow_chain_id (integration_kit lists them). Omit it for $U. An agent that prices in another token is prepared only when this names exactly that token, and max_budget is then counted in it; a price in any other money than the one named here is refused, never converted.',
             },
           }
         : {}),

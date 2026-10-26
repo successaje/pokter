@@ -9,18 +9,18 @@ import { isDollarUJob, jobAmountLabel, jobToken, totalsByToken } from '../src/li
 import { backfillJobCurrencies } from '../src/lib/erc8183/currency-backfill';
 import { quotePayableOn } from '../src/lib/erc8183/payable';
 import { escrowChainForCurrency, settlementHint } from '../src/lib/network/escrow';
-import { hireTokenAt, offeredTokens, uniformOfferedDecimals, usdtHiringEnabled } from '../src/lib/network/tokens';
+import { enabledHireTokens, hireTokenAt, offeredTokens, uniformOfferedDecimals } from '../src/lib/network/tokens';
 import { checkPurchaseIntent, type PurchaseIntent } from '../src/lib/hire/purchase-intent';
 import { evidenceQuoteToken } from '../src/lib/evidence/quote-token';
 import { earningsByChain } from '../src/lib/builders/provider-earnings';
 
 /*
- * USDT hiring, as one release behind one flag.
+ * Hiring in verified tokens other than $U, as one shared flow.
  *
- * The flag is read from the environment by default and passed explicitly
- * here, so every case states which world it is in: off is today's product,
- * byte for byte, and on is the release. Addresses are the recorded ones in
- * `network/tokens`, never a symbol.
+ * Which tokens are on is read from `NEXT_PUBLIC_HIRE_TOKENS` by default and
+ * passed explicitly here, so every case states which world it is in: none on
+ * is today's product, and on is the release. Addresses are the recorded ones
+ * in `network/tokens`, never a symbol.
  */
 
 const U56 = getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666');
@@ -37,47 +37,51 @@ const ADDR97 = {
   paymentToken: U97,
 };
 const PROVIDER = getAddress('0x93847647d7eb72a69E162117df6a8697dF53EDda');
+const OFF = enabledHireTokens('');
+const ON = enabledHireTokens(`56:${USDT56},97:${USDT97}`);
 
-test('the flag is on only for exactly "true", and is off when unset', () => {
-  assert.equal(usdtHiringEnabled(undefined), false);
-  for (const v of ['', 'false', '1', 'TRUE', 'true ', 'yes']) assert.equal(usdtHiringEnabled(v), false, v);
-  assert.equal(usdtHiringEnabled('true'), true);
-  assert.equal(usdtHiringEnabled(), false, 'the test environment does not turn it on');
+test('a token is turned on only by chain and address, and only when it is eligible', () => {
+  assert.equal(enabledHireTokens(undefined).size, 0, 'unset is $U only');
+  assert.equal(enabledHireTokens().size, 0, 'the test environment turns nothing on');
+  assert.deepEqual([...enabledHireTokens(`97:${USDT97}`)], [`97:${USDT97.toLowerCase()}`]);
+  for (const raw of ['true', 'USDT', `${USDT97}`, `56:${USDT97}`, `56:${USDC56}`, `97:0xEC1C60D64a06896Df296438c12edD14E974FDE47`, `56:${USD1_56}`, `56:${U56}`, '97:not-an-address']) {
+    assert.equal(enabledHireTokens(raw).size, 0, `ignored: ${raw}`);
+  }
 });
 
 test('off, Pokter offers $U alone; on, USDT is added by address, and USDC and USD1 never are', () => {
   for (const chainId of [56, 97]) {
-    assert.deepEqual(offeredTokens(chainId, false).map((t) => t.symbol), ['U']);
-    assert.deepEqual(offeredTokens(chainId, true).map((t) => t.symbol), ['U', 'USDT']);
+    assert.deepEqual(offeredTokens(chainId, OFF).map((t) => t.symbol), ['U']);
+    assert.deepEqual(offeredTokens(chainId, ON).map((t) => t.symbol), ['U', 'USDT']);
   }
-  assert.equal(hireTokenAt(56, USDT56, false), null);
-  assert.equal(hireTokenAt(56, USDT56, true)?.address, USDT56);
+  assert.equal(hireTokenAt(56, USDT56, OFF), null);
+  assert.equal(hireTokenAt(56, USDT56, ON)?.address, USDT56);
   /* An address is a token on one chain: mainnet USDT is not offered on testnet. */
-  assert.equal(hireTokenAt(97, USDT56, true), null);
-  assert.equal(hireTokenAt(97, USDT97, true)?.decimals, 18);
-  assert.equal(hireTokenAt(56, USDC56, true), null, 'supported by the escrow, not offered');
-  assert.equal(hireTokenAt(56, USD1_56, true), null, 'not recorded at all');
-  assert.equal(hireTokenAt(56, 'USDT', true), null, 'a symbol is not a token');
+  assert.equal(hireTokenAt(97, USDT56, ON), null);
+  assert.equal(hireTokenAt(97, USDT97, ON)?.decimals, 18);
+  assert.equal(hireTokenAt(56, USDC56, ON), null, 'supported by the escrow, not offered');
+  assert.equal(hireTokenAt(56, USD1_56, ON), null, 'not recorded at all');
+  assert.equal(hireTokenAt(56, 'USDT', ON), null, 'a symbol is not a token');
   /* Still one scale across everything offered, so existing sums keep working. */
   assert.equal(uniformOfferedDecimals(), 18);
 });
 
 test('the escrow a price settles on: $U as before, USDT only with the flag, unknown money nowhere', () => {
-  assert.equal(escrowChainForCurrency(U56, [97, 56], false), 56);
-  assert.equal(escrowChainForCurrency(U97, [97, 56], false), 97);
-  assert.equal(escrowChainForCurrency(USDT56, [97, 56], false), null, 'off: a USDT price is unpayable, as today');
-  assert.equal(escrowChainForCurrency(USDT56, [97, 56], true), 56);
-  assert.equal(escrowChainForCurrency(USDT56, [97], true), null, 'mainnet USDT needs the mainnet escrow enabled');
-  assert.equal(escrowChainForCurrency(USDT97, [97], true), 97);
-  assert.equal(escrowChainForCurrency(USDC56, [97, 56], true), null);
-  assert.equal(quotePayableOn(56, USDT56, false), false);
-  assert.equal(quotePayableOn(56, USDT56, true), true);
-  assert.equal(quotePayableOn(56, U56, false), true);
+  assert.equal(escrowChainForCurrency(U56, [97, 56], OFF), 56);
+  assert.equal(escrowChainForCurrency(U97, [97, 56], OFF), 97);
+  assert.equal(escrowChainForCurrency(USDT56, [97, 56], OFF), null, 'off: a USDT price is unpayable, as today');
+  assert.equal(escrowChainForCurrency(USDT56, [97, 56], ON), 56);
+  assert.equal(escrowChainForCurrency(USDT56, [97], ON), null, 'mainnet USDT needs the mainnet escrow enabled');
+  assert.equal(escrowChainForCurrency(USDT97, [97], ON), 97);
+  assert.equal(escrowChainForCurrency(USDC56, [97, 56], ON), null);
+  assert.equal(quotePayableOn(56, USDT56, OFF), false);
+  assert.equal(quotePayableOn(56, USDT56, ON), true);
+  assert.equal(quotePayableOn(56, U56, OFF), true);
 });
 
 test('the settlement hint is unchanged while off, and lists payable money by address while on', () => {
-  assert.deepEqual(settlementHint({ chain_id: 97 }, [97], false), { chain_id: 97, escrow_chains: [97] });
-  const on = settlementHint({ chain_id: 97 }, [97], true) as { currencies: Array<{ chain_id: number; token: string; symbol: string; decimals: number }> };
+  assert.deepEqual(settlementHint({ chain_id: 97 }, [97], OFF), { chain_id: 97, escrow_chains: [97] });
+  const on = settlementHint({ chain_id: 97 }, [97], ON) as { currencies: Array<{ chain_id: number; token: string; symbol: string; decimals: number }> };
   assert.deepEqual(on.currencies, [
     { chain_id: 97, token: U97, symbol: 'U', decimals: 18 },
     { chain_id: 97, token: USDT97, symbol: 'USDT', decimals: 18 },
@@ -85,17 +89,17 @@ test('the settlement hint is unchanged while off, and lists payable money by add
 });
 
 test('the token a hire funds comes from the signed currency: $U is the old path, USDT is refused while off', () => {
-  assert.equal(nonDefaultHireToken(97, U97, true), null, '$U goes through the SDK as always');
-  assert.equal(nonDefaultHireToken(97, null, true), null, 'no signed price, no token hire');
-  assert.equal(nonDefaultHireToken(97, USDT97, true)?.address, USDT97);
-  assert.throws(() => nonDefaultHireToken(97, USDT97, false), UnsupportedHireTokenError, 'off: refused, never funded in $U instead');
-  assert.throws(() => nonDefaultHireToken(97, USDC56, true), UnsupportedHireTokenError);
-  assert.throws(() => nonDefaultHireToken(56, USD1_56, true), /does not fund/);
+  assert.equal(nonDefaultHireToken(97, U97, ON), null, '$U goes through the SDK as always');
+  assert.equal(nonDefaultHireToken(97, null, ON), null, 'no signed price, no token hire');
+  assert.equal(nonDefaultHireToken(97, USDT97, ON)?.address, USDT97);
+  assert.throws(() => nonDefaultHireToken(97, USDT97, OFF), UnsupportedHireTokenError, 'off: refused, never funded in $U instead');
+  assert.throws(() => nonDefaultHireToken(97, USDC56, ON), UnsupportedHireTokenError);
+  assert.throws(() => nonDefaultHireToken(56, USD1_56, ON), /does not fund/);
 });
 
 test('the USDT batch is the SDK batch with createJobWithToken and the approval in USDT, for exactly the budget', () => {
   const budget = 123_000_000_000_000_000n;
-  const calls = buildTokenHireCalls({ chainId: 97, addresses: ADDR97, jobId: 42n, provider: PROVIDER, description: 'brief', budget, expiredAt: 1_800_000_000n, token: USDT97, usdt: true });
+  const calls = buildTokenHireCalls({ chainId: 97, addresses: ADDR97, jobId: 42n, provider: PROVIDER, description: 'brief', budget, expiredAt: 1_800_000_000n, token: USDT97, tokens: ON });
   assert.equal(calls.length, 5);
   assert.deepEqual(calls.map((c) => c.to), [ADDR97.commerce, ADDR97.router, ADDR97.commerce, USDT97, ADDR97.commerce]);
 
@@ -116,12 +120,12 @@ test('the USDT batch is the SDK batch with createJobWithToken and the approval i
 });
 
 test('the token batch refuses $U, unoffered tokens, a zero budget and an oversized description', () => {
-  const base = { chainId: 97, addresses: ADDR97, jobId: 1n, provider: PROVIDER, description: 'x', budget: 1n, expiredAt: 1n, usdt: true };
+  const base = { chainId: 97, addresses: ADDR97, jobId: 1n, provider: PROVIDER, description: 'x', budget: 1n, expiredAt: 1n, tokens: ON };
   assert.throws(() => buildTokenHireCalls({ ...base, token: U97 }), { name: 'UnsupportedHireTokenError' }, '$U is built by the SDK');
   assert.throws(() => buildTokenHireCalls({ ...base, token: USDT56 }), { name: 'UnsupportedHireTokenError' }, 'mainnet USDT on the testnet escrow');
   assert.throws(() => buildTokenHireCalls({ ...base, token: USDT97, budget: 0n }), /INVALID_BUDGET/);
   assert.throws(() => buildTokenHireCalls({ ...base, token: USDT97, description: 'x'.repeat(4097) }), /4096/);
-  assert.throws(() => buildTokenHireCalls({ ...base, token: USDT97, usdt: false }), { name: 'UnsupportedHireTokenError' }, 'and USDT with the flag off');
+  assert.throws(() => buildTokenHireCalls({ ...base, token: USDT97, tokens: OFF }), { name: 'UnsupportedHireTokenError' }, 'and USDT with the flag off');
 });
 
 test('the escrow is asked before anything is signed, and an unreadable answer is a refusal', async () => {
@@ -166,17 +170,48 @@ test('a USDT hire funds exactly the signed amount in the signed token, and a lap
   assert.deepEqual(checkPurchaseIntent({ ...intent, currency: U97 }, { ...funding, paymentToken: U97 }, now), { ok: true });
 });
 
-test('amounts are labelled in the job’s own token, and an unknown token is never called $U once USDT is on', () => {
-  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: USDT97, budgetRaw: '100000000000000000' }, false), '0.1 USDT');
-  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: U97, budgetRaw: '100000000000000000' }, false), '0.1 $U');
-  /* Off: rows only `createJob` can have funded keep the label they always had. */
-  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: null, budgetRaw: '100000000000000000' }, true), '0.1 $U');
-  /* On: unknown is unknown. */
-  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: null, budgetRaw: '100000000000000000' }, false), '100000000000000000 base units (currency not yet read)');
-  assert.equal(jobToken({ chainId: 97, paymentToken: null }, false), null);
-  assert.equal(isDollarUJob({ chainId: 97, paymentToken: USDT97 }, true), false, 'a USDT job is never in a $U figure');
-  assert.equal(isDollarUJob({ chainId: 56, paymentToken: U56 }, false), true);
-  assert.equal(isDollarUJob({ chainId: 56, paymentToken: null }, false), false);
+test('amounts are labelled in the job’s own token, and an unknown token is unknown with any tokens on or off', () => {
+  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: USDT97, budgetRaw: '100000000000000000' }), '0.1 USDT');
+  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: U97, budgetRaw: '100000000000000000' }), '0.1 $U');
+  assert.equal(jobAmountLabel({ chainId: 97, paymentToken: null, budgetRaw: '100000000000000000' }), '100000000000000000 base units (currency not yet read)');
+  assert.equal(jobToken({ chainId: 97, paymentToken: null }), null);
+  assert.equal(isDollarUJob({ chainId: 97, paymentToken: USDT97 }), false, 'a USDT job is never in a $U figure');
+  assert.equal(isDollarUJob({ chainId: 56, paymentToken: U56 }), true);
+  assert.equal(isDollarUJob({ chainId: 56, paymentToken: null }), false, 'unknown is not $U');
+});
+
+test('rollback: turning every extra token off relabels nothing — unread stays unknown, a USDT job stays USDT', () => {
+  /*
+   * The defect this pins: an "unknown means $U while the flag is off" rule
+   * would turn real USDT jobs whose token had not been read yet into $U the
+   * moment the flag was turned off, and fold them into the $U totals.
+   * Nothing in the labels or totals reads the flag now; this proves it by
+   * computing the same rows with the environment set each way.
+   */
+  const rows = [
+    { chainId: 56, paymentToken: USDT56, budgetRaw: '2000000000000000000' },
+    { chainId: 56, paymentToken: null, budgetRaw: '3000000000000000000' },
+    { chainId: 56, paymentToken: U56, budgetRaw: '1000000000000000000' },
+  ];
+  const read = () => ({
+    labels: rows.map((r) => jobAmountLabel(r)),
+    dollarU: rows.filter((r) => isDollarUJob(r)).length,
+    totals: totalsByToken(rows).map((t) => `${t.symbol ?? 'unknown'}:${t.raw}`).sort(),
+  });
+  const saved = process.env.NEXT_PUBLIC_HIRE_TOKENS;
+  try {
+    process.env.NEXT_PUBLIC_HIRE_TOKENS = `56:${USDT56}`;
+    const on = read();
+    delete process.env.NEXT_PUBLIC_HIRE_TOKENS;
+    const off = read();
+    assert.deepEqual(off, on, 'the flag changes no label and no total');
+    assert.deepEqual(off.labels, ['2 USDT', '3000000000000000000 base units (currency not yet read)', '1 $U']);
+    assert.equal(off.dollarU, 1, 'only the positively identified $U job counts as $U');
+    assert.deepEqual(off.totals, ['$U:1000000000000000000', 'USDT:2000000000000000000', 'unknown:3000000000000000000']);
+  } finally {
+    if (saved === undefined) delete process.env.NEXT_PUBLIC_HIRE_TOKENS;
+    else process.env.NEXT_PUBLIC_HIRE_TOKENS = saved;
+  }
 });
 
 test('totals are per chain and token, unknown in its own bucket, and never one combined figure', () => {
@@ -186,7 +221,7 @@ test('totals are per chain and token, unknown in its own bucket, and never one c
     { chainId: 56, paymentToken: USDT56, budgetRaw: '500000000000000000' },
     { chainId: 97, paymentToken: U97, budgetRaw: '300000000000000000' },
     { chainId: 56, paymentToken: null, budgetRaw: '7' },
-  ], false);
+  ]);
   const by = Object.fromEntries(totals.map((t) => [`${t.chainId}:${t.symbol ?? 'unknown'}`, t]));
   assert.equal(totals.length, 4);
   assert.equal(by['56:$U'].label, '1 $U');

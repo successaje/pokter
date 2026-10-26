@@ -164,8 +164,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   const ownerAddress = typeof body.owner === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.owner) ? body.owner : null;
   /*
    * The money the owner authorised, when it is not $U: an address, never a
-   * symbol. Only a USDT price needs it, and a USDT price without it is
-   * refused below. `maxBudget` is then counted in this token.
+   * symbol. Only a non-$U price needs it, and one without it is refused
+   * below. `maxBudget` is then counted in this token.
    */
   const ownerToken = typeof body.paymentToken === 'string' && /^0x[0-9a-fA-F]{40}$/.test(body.paymentToken) ? body.paymentToken : null;
   if (!ownerAddress) {
@@ -318,9 +318,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const addresses = correctedErc8183Addresses(escrowChainId);
   /*
    * The token is the one the seller signed. A $U price is prepared as it
-   * always was. A USDT price is prepared only when USDT hiring is on and the
-   * owner named exactly that token: otherwise the agent priced money the
-   * owner did not authorise, which is refused, never prepared in $U.
+   * always was. Another token's price is prepared only when that token is
+   * turned on for hiring and the owner named exactly it: otherwise the agent
+   * priced money the owner did not authorise, which is refused, never
+   * prepared in $U.
    */
   let quotedToken: ReturnType<typeof nonDefaultHireToken>;
   try {

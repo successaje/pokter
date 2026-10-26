@@ -1,6 +1,6 @@
 import { formatUnits } from 'viem';
 
-import { usdtHiringEnabled } from '@/lib/network/tokens';
+import { enabledHireTokens } from '@/lib/network/tokens';
 import { apiJson, apiOptions, apiRateLimit } from '@/lib/api/respond';
 import { summarizeMarketplaceActivity } from '@/lib/erc8183/activity-stats';
 import { getJobStore } from '@/lib/erc8183/store';
@@ -26,7 +26,7 @@ function summary(jobs: ReturnType<ReturnType<typeof getJobStore>['all']>) {
     indexedValue: { raw: stats.indexedValueRaw, amountU: formatUnits(BigInt(stats.indexedValueRaw), 18) },
     completedValue: { raw: stats.completedValueRaw, amountU: formatUnits(BigInt(stats.completedValueRaw), 18) },
     /* The two values above are $U only. Every token's own figure, published once there is more than one money. */
-    ...(usdtHiringEnabled() ? { valueByToken: stats.valueByToken } : {}),
+    ...(enabledHireTokens().size > 0 ? { valueByToken: stats.valueByToken } : {}),
     lastCheckedAt: stats.lastCheckedAt,
   };
 }

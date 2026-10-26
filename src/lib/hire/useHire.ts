@@ -22,6 +22,9 @@ import { rememberJob } from '@/lib/wallet/activity';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
 import type { PaymentToken } from '@/lib/network/tokens';
+import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
+import { fundingJournal, reconcileAttempt, type FundingAttempt, type KeyValue } from '@/lib/hire/funding-journal';
+import { fundedJobRecord } from '@/lib/hire/funded-job';
 import {
   encodePokterJobEnvelope,
   type PokterJobQuote,
@@ -35,7 +38,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useWalletFunding } from '@/lib/wallet/use-funding';
 import { planShortfallSwap } from '@/lib/wallet/external';
 import type { HireStep } from '@/lib/wallet/external';
-import { hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
+import { attemptReader, hireFromExternalWallet, revokeExternalWalletAllowance } from '@/lib/wallet/external';
 import { briefSourceFor, commissionTaskTemplates, templatesFromSkills, type CommissionTaskTemplate } from '@/lib/hire/taskTemplates';
 import { commissionAuthority } from '@/lib/hire/commission-authority';
 import { chainLabel } from '@/lib/network/presentation';
@@ -74,6 +77,35 @@ export interface HireAgent {
 
 export type HireScreen = 'describe' | 'fund';
 export type HireState = 'idle' | 'hiring' | 'hired' | 'error';
+
+/* Local storage that never throws: a private window or a full quota must not stop a hire being journaled in memory. */
+const memoryKv = new Map<string, string>();
+const journalKv: KeyValue = {
+  getItem: (k) => {
+    try {
+      return window.localStorage.getItem(k) ?? memoryKv.get(k) ?? null;
+    } catch {
+      return memoryKv.get(k) ?? null;
+    }
+  },
+  setItem: (k, v) => {
+    memoryKv.set(k, v);
+    try {
+      window.localStorage.setItem(k, v);
+    } catch {
+      /* Kept in memory for this page. */
+    }
+  },
+  removeItem: (k) => {
+    memoryKv.delete(k);
+    try {
+      window.localStorage.removeItem(k);
+    } catch {
+      /* Nothing stored there. */
+    }
+  },
+};
+const journal = fundingJournal(journalKv);
 export type NotificationState =
   | 'idle'
   | 'notifying'
@@ -470,6 +502,30 @@ export function useHire({
   const [stage, setStage] = useState<'sponsoring' | 'swapping' | 'hiring'>('hiring');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [state, setState] = useState<HireState>('idle');
+  /*
+   * A funding attempt from this wallet that has not resolved: read from the
+   * journal on load, set when a hire ends without a definite answer. While it
+   * is set nothing new is funded; it is checked against the chain instead.
+   */
+  const [pendingAttempt, setPendingAttempt] = useState<FundingAttempt | null>(null);
+  const [reconcileNote, setReconcileNote] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  /*
+   * On load, and whenever the wallet or network changes: an attempt this
+   * wallet left open (a reload mid-funding, a closed tab, another tab) is
+   * picked up and checked against the chain before anything else is funded.
+   */
+  const journalWallet = active.address ?? wallet?.address ?? null;
+  useEffect(() => {
+    if (!journalWallet) return;
+    const open = journal.read(journalWallet, escrowChainId);
+    if (!open) return;
+    const pending = journal.note(journalWallet, escrowChainId, { state: 'pending' }) ?? open;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- adopting what storage holds, once per wallet and network
+    setPendingAttempt(pending);
+    void recheckFunding(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per wallet and network
+  }, [journalWallet, escrowChainId]);
   const [job, setJob] = useState<HiredJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** Which layer the last failure came from; only 'wallet' may say the buyer declined. */
@@ -483,7 +539,26 @@ export function useHire({
   const [notification, setNotification] = useState<NotificationState>('idle');
   const [notificationDetail, setNotificationDetail] = useState<string | null>(null);
 
-  const funding = useWalletFunding(active.address ?? wallet?.address ?? null, budget, escrowChainId);
+  /*
+   * The token the seller's price is in, when it is not $U. Read from the
+   * quote under review; `commission` decides again from the quote it funds.
+   * A price in a token Pokter does not fund here is carried as the reason,
+   * and the hire refuses rather than funding $U instead.
+   */
+  const quotedToken: { token: PaymentToken | null; error: string | null } = (() => {
+    try {
+      return { token: nonDefaultHireToken(escrowChainId, preQuote?.quote.intent.currency), error: null };
+    } catch (problem) {
+      return { token: null, error: (problem as Error).message };
+    }
+  })();
+  const hireToken = quotedToken.token;
+  const funding = useWalletFunding(
+    active.address ?? wallet?.address ?? null,
+    budget,
+    escrowChainId,
+    hireToken && preQuote ? { address: hireToken.address, requiredRaw: BigInt(preQuote.quote.intent.amountRaw) } : null,
+  );
 
   /*
    * What the swap will cost, quoted before anything is signed.
@@ -501,20 +576,6 @@ export function useHire({
    * re-quotes. A swap nobody was told about is a swap that happened to
    * them; a swap promised and not possible is worse.
    */
-  /*
-   * The token the seller's price is in, when it is not $U. Read from the
-   * quote under review; `commission` decides again from the quote it funds.
-   * A price in a token Pokter does not fund here is carried as the reason,
-   * and the hire refuses rather than funding $U instead.
-   */
-  const quotedToken: { token: PaymentToken | null; error: string | null } = (() => {
-    try {
-      return { token: nonDefaultHireToken(escrowChainId, preQuote?.quote.intent.currency), error: null };
-    } catch (problem) {
-      return { token: null, error: (problem as Error).message };
-    }
-  })();
-  const hireToken = quotedToken.token;
   const swapPlan = useQuery({
     queryKey: ['shortfall-swap-plan', escrowChainId, active.address, budget],
     queryFn: () => planShortfallSwap(active.address!, budget, escrowChainId),
@@ -564,6 +625,14 @@ export function useHire({
   );
   const commerceAddresses = correctedErc8183Addresses(escrowChainId);
   const budgetValid = Number.isFinite(budget) && budget >= BUDGET_MIN && budget <= BUDGET_MAX;
+  /* What funding would do now, from the quote under review; `commission` plans again from the quote it funds. */
+  const plan: CommissionPlan = planCommission({
+    escrowChainId,
+    walletMode: active.mode === 'passkey' ? 'passkey' : 'external',
+    quote: preQuote ? { currency: preQuote.quote.intent.currency, amountRaw: preQuote.quote.intent.amountRaw } : null,
+    budgetU: Number.isFinite(budget) && budget > 0 ? budget : 0,
+    agentName: agent.name,
+  });
   const authority = hireToken && preQuote
     ? commissionAuthority({
         /* Exactly the signed amount, in the signed token. */
@@ -967,10 +1036,24 @@ export function useHire({
     setExternalStep(null);
     setRevoked(false);
     let acquired = 0n;
+    /* The wallet this attempt is journaled under, once it has begun. */
+    let attemptWallet: string | null = null;
     try {
+      /*
+       * An earlier attempt from this wallet that never resolved blocks this
+       * one: it may have paid, and a second hire would pay again. Checked
+       * against the chain instead of funding anything.
+       */
+      const walletAddress = active.address ?? wallet?.address ?? null;
+      const open = walletAddress ? journal.read(walletAddress, escrowChainId) : null;
+      if (open) {
+        setPendingAttempt({ ...open, state: 'pending' });
+        void recheckFunding(open);
+        throw new HireFailure('An earlier funding attempt from this wallet has not resolved yet. Nothing new was sent; Pokter is checking the chain for it first.', 'payment', 'funding-pending');
+      }
       // Guards belong here, not only in the UI: any caller of commission()
       // gets the same refusal before a wallet is touched.
-      if (!budgetValid) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
+      if (!budgetValid && !(plan.ok && plan.signedAmount)) throw new Error(`The budget must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.`);
       if (!riskAccepted) throw new Error('Accept the warnings about this agent before funding.');
       if (!task.trim()) throw new Error('Describe the work before funding escrow.');
       if (!providerCanDeliver) {
@@ -1020,7 +1103,15 @@ export function useHire({
          * does not fund here (or USDT with USDT hiring off): refused, never
          * funded in $U instead.
          */
-        const tokenHire = nonDefaultHireToken(escrowChainId, signedQuote.intent.currency);
+        const signedPlan = planCommission({
+          escrowChainId,
+          walletMode: active.mode === 'passkey' ? 'passkey' : 'external',
+          quote: { currency: signedQuote.intent.currency, amountRaw: signedQuote.intent.amountRaw },
+          budgetU: budget,
+          agentName: agent.name,
+        });
+        if (!signedPlan.ok) throw new HireFailure(signedPlan.message, 'payment', signedPlan.code);
+        const tokenHire = signedPlan.token;
         if (!tokenHire && Number.isFinite(signedQuote.priceU) && budget < signedQuote.priceU) {
           throw new Error(
             `${agent.name} signed a price of ${signedQuote.priceU} $U for this brief and the budget is ${budget} $U. Raise the budget to at least the signed price.`,
@@ -1063,38 +1154,60 @@ export function useHire({
           budgetU: budget,
           ttlSeconds: deliverySeconds,
           escrowChainId,
-          onProgress: ({ step: reached, jobId: reachedId }) => {
+          onProgress: ({ step: reached, jobId: reachedId, sentHash, callsId, predictedJobId, description, paymentToken: fundingToken, budgetRaw: fundingAmount }) => {
+            const address = active.address!;
+            /* Journaled before the first wallet prompt; refused (and the hire stopped) if another attempt is open. */
+            if (!attemptWallet && description && fundingToken && fundingAmount !== undefined) {
+              const begun = journal.begin({
+                wallet: address, chainId: escrowChainId, provider: providerAddress as string,
+                agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
+                task: sending, description, token: fundingToken, amountRaw: fundingAmount.toString(),
+                expiredAt: null, startedAt: new Date().toISOString(),
+                predictedJobId: predictedJobId?.toString() ?? null,
+              });
+              if (!begun.ok) {
+                setPendingAttempt({ ...begun.blocking, state: 'pending' });
+                throw new HireFailure('An earlier funding attempt from this wallet has not resolved yet. Nothing new was sent.', 'payment', 'funding-pending');
+              }
+              attemptWallet = address;
+            }
+            if (attemptWallet) {
+              journal.note(address, escrowChainId, {
+                ...(sentHash ? { txHash: sentHash } : {}),
+                ...(callsId ? { callsId } : {}),
+                ...(predictedJobId !== undefined ? { predictedJobId: predictedJobId.toString() } : {}),
+                /* A job id proved by a receipt, not the batch's prediction. */
+                ...(reachedId !== undefined && predictedJobId === undefined && reached !== 'creating' ? { jobId: reachedId.toString() } : {}),
+              });
+            }
             setExternalStep(reached);
             if (reachedId) setExternalJobId(reachedId);
           },
         });
 
         const at = new Date().toISOString();
-        const externalJob: HiredJob = {
+        const externalJob: HiredJob = fundedJobRecord({
           id: crypto.randomUUID(),
-          jobId: outcome.jobId.toString(),
+          jobId: outcome.jobId,
           chainId: escrowChainId,
-          isTestnet: escrowChainId === 97,
-          agentChainId: agent.chainId,
-          agentTokenId: agent.tokenId,
-          agentName: agent.name,
+          agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
           providerLabel: provider?.label,
           provider: providerAddress as `0x${string}`,
           task: sending,
           /* As funded: the signed amount for a token hire, the budget for $U. */
-          budgetRaw: outcome.budgetRaw.toString(),
+          budgetRaw: outcome.budgetRaw,
           paymentToken: outcome.paymentToken,
+          tokenConfirmed: outcome.tokenConfirmed,
           // As written on chain: delivery time plus the escrow's dispute window.
-          expiredAt: new Date(Number(outcome.expiredAt) * 1000).toISOString(),
-          hiredAt: at,
+          expiredAt: outcome.expiredAt,
           hireTxHash: outcome.transactionHash,
-          status: 'FUNDED',
-          statusCheckedAt: at,
-          deliverableUrl: null,
-          settleTxHash: null,
-        };
+          at,
+        });
 
         rememberJob(active.address, externalJob);
+        /* Recorded, so the attempt is resolved: funded, and never funded again. */
+        journal.close(active.address, escrowChainId);
+        attemptWallet = null;
         // Not awaited: its retries must not hold up the seller's notice, which indexes too.
         void indexFundedJob(externalJob);
         setJob(externalJob);
@@ -1210,6 +1323,26 @@ export function useHire({
         setStage('hiring');
       }
 
+      /*
+       * The passkey hire is one SDK call; the job id is predicted from the
+       * counter and journaled first, so an answer lost in the relay is found
+       * on chain by the same reconciliation as a browser-wallet hire.
+       */
+      const passkeyCounter = await readClient(escrowChainId)
+        .readContract({ address: correctedErc8183Addresses(escrowChainId).commerce as `0x${string}`, abi: [{ name: 'jobCounter', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const, functionName: 'jobCounter' })
+        .catch(() => null);
+      const begun = journal.begin({
+        wallet: wallet.address, chainId: escrowChainId, provider: providerAddress as string,
+        agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
+        task: sending, description: committedTask, token: paymentToken, amountRaw: budgetRaw.toString(),
+        expiredAt: null, startedAt: new Date().toISOString(),
+        predictedJobId: passkeyCounter === null ? null : (passkeyCounter + 1n).toString(),
+      });
+      if (!begun.ok) {
+        setPendingAttempt({ ...begun.blocking, state: 'pending' });
+        throw new HireFailure('An earlier funding attempt from this wallet has not resolved yet. Nothing new was sent.', 'payment', 'funding-pending');
+      }
+      attemptWallet = wallet.address;
       const outcome = await hireErc8183Agent(
         { address: wallet.address },
         signer,
@@ -1240,6 +1373,8 @@ export function useHire({
         settleTxHash: null,
       };
       rememberJob(wallet.address, hired);
+      journal.close(wallet.address, escrowChainId);
+      attemptWallet = null;
       // Not awaited: its retries must not hold up the seller's notice, which indexes too.
       void indexFundedJob(hired);
       setJob(hired);
@@ -1247,12 +1382,90 @@ export function useHire({
       setState('hired');
       await notifySeller(hired);
     } catch (caught) {
+      /*
+       * An attempt that reached the wallet ends one of two ways. Refused in
+       * the wallet before anything was handed back: nothing was sent, so it is
+       * closed and the buyer may try again. Anything else — a timeout, a
+       * receipt that never came, a lost reply — may have paid: it stays open
+       * as pending reconciliation, is checked against the chain, and blocks a
+       * new hire. It is never shown as a failure to retry.
+       */
+      const open = attemptWallet ? journal.read(attemptWallet, escrowChainId) : null;
+      if (attemptWallet && open) {
+        const sentNothing = open.txHashes.length === 0 && open.callsId === null && open.jobId === null;
+        if (sentNothing && isWalletRejection(caught)) {
+          journal.close(attemptWallet, escrowChainId);
+        } else {
+          const pending = journal.note(attemptWallet, escrowChainId, { state: 'pending' }) ?? open;
+          setPendingAttempt(pending);
+          setReconcileNote(`The funding did not report a clear result (${caught instanceof Error ? caught.message.split('\n')[0].slice(0, 160) : 'no detail'}). It may have gone through. Pokter is checking the chain; nothing new can be funded from this wallet until it does.`);
+          setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
+          setState('idle');
+          void recheckFunding(pending);
+          return;
+        }
+      }
       setErrorLayer(caught instanceof HireFailure ? caught.layer : isWalletRejection(caught) ? 'wallet' : null);
       setError(caught instanceof HireFailure ? caught.message : walletActionError(caught, 'Commissioning'));
       setHeldAfterFailure(acquired > 0n ? formatUnits(acquired, 18) : null);
       setState('error');
     }
   };
+
+  /**
+   * Settle an open attempt from the chain. Funded: the job is adopted —
+   * recorded, indexed, the seller told — and the attempt closed; it is never
+   * funded again. Not funded: closed, and the buyer may hire. Otherwise it
+   * stays pending and keeps new hires from this wallet blocked.
+   */
+  async function recheckFunding(attempt: FundingAttempt | null = pendingAttempt) {
+    if (!attempt) return;
+    setReconciling(true);
+    try {
+      const reader = attemptReader(attempt.chainId, attempt.wallet as `0x${string}`, attempt.provider as `0x${string}`);
+      const verdict = await reconcileAttempt(attempt, reader);
+      if (verdict.outcome === 'funded') {
+        const onchain = await reader.job(BigInt(verdict.jobId)).catch(() => null);
+        const bound = await reader.token(BigInt(verdict.jobId));
+        const at = new Date().toISOString();
+        const adopted = fundedJobRecord({
+          jobId: verdict.jobId,
+          chainId: attempt.chainId,
+          agent: attempt.agent,
+          provider: attempt.provider as `0x${string}`,
+          task: attempt.task,
+          budgetRaw: onchain?.budget ?? attempt.amountRaw,
+          /* The token the escrow reports, when it answered; unknown otherwise, never the plan's. */
+          paymentToken: (bound ?? attempt.token) as `0x${string}`,
+          tokenConfirmed: bound !== null,
+          expiredAt: attempt.expiredAt ?? at,
+          hireTxHash: (attempt.txHashes.at(-1) ?? null) as `0x${string}` | null,
+          at,
+        });
+        rememberJob(attempt.wallet, adopted);
+        journal.close(attempt.wallet, attempt.chainId);
+        setPendingAttempt(null);
+        setReconcileNote(null);
+        void indexFundedJob(adopted);
+        setJob(adopted);
+        setState('hired');
+        await notifySeller(adopted);
+        return;
+      }
+      if (verdict.outcome === 'not-funded') {
+        journal.close(attempt.wallet, attempt.chainId);
+        setPendingAttempt(null);
+        setReconcileNote(`${verdict.detail} You can fund this hire now.`);
+        return;
+      }
+      setPendingAttempt({ ...attempt, state: 'pending' });
+      setReconcileNote(verdict.detail);
+    } catch {
+      setReconcileNote('The chain could not be read just now. Nothing new can be funded from this wallet until this attempt is resolved; check again shortly.');
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   const revokeAllowance = async () => {
     if (!active.address) return;
@@ -1335,6 +1548,13 @@ export function useHire({
     task,
     setTask,
     budget,
+    /** What funding would do: the token, the exact amount and the wallet path, or why it cannot. */
+    plan,
+    /** An unresolved funding attempt from this wallet, and what the chain said about it last. */
+    pendingAttempt,
+    reconcileNote,
+    reconciling,
+    recheckFunding: () => recheckFunding(),
     /** The non-$U token the quoted price is in, or null for $U. */
     hireToken,
     /** Why the quoted price cannot be funded here, when its token is not one Pokter funds. */

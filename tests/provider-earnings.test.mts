@@ -6,11 +6,14 @@ import { cleanUntrusted, cleanUntrustedLines, untrusted, UNTRUSTED_KEY } from '.
 
 const U = (whole: number) => (BigInt(whole) * 10n ** 18n).toString();
 
+/* Positively identified $U on the job's chain: an unread token would be its own line, not $U. */
+const DOLLAR_U: Record<number, string> = { 56: '0xcE24439F2D9C6a2289F741120FE202248B666666', 97: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565' };
 const job = (over: Partial<EarningsJob>): EarningsJob => ({
   chainId: 97,
   status: 'COMPLETED',
   budgetRaw: U(10),
   ...over,
+  paymentToken: over.paymentToken ?? DOLLAR_U[over.chainId ?? 97],
 });
 
 /*

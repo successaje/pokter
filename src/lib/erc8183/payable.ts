@@ -1,6 +1,6 @@
 import { getAddress } from 'viem';
 
-import { hireTokenAt } from '@/lib/network/tokens';
+import { hireTokenAt, type HireTokenSet } from '@/lib/network/tokens';
 
 /**
  * Whether a quoted price is in money a given escrow can actually pay.
@@ -29,11 +29,12 @@ export function quotePayableWith(
 
 /**
  * Whether a quoted price is in money the escrow on `chainId` can be funded
- * with by Pokter: a token it offers there. $U always; USDT only while USDT
- * hiring is on. With it off this is `quotePayableWith(currency, default)`.
+ * with by Pokter: a token it offers there. $U always; another token only
+ * when it is eligible and turned on. With none on this is
+ * `quotePayableWith(currency, default)`.
  */
-export function quotePayableOn(chainId: number, currency: string, usdt?: boolean): boolean {
-  return hireTokenAt(chainId, currency, usdt) !== null;
+export function quotePayableOn(chainId: number, currency: string, tokens?: HireTokenSet): boolean {
+  return hireTokenAt(chainId, currency, tokens) !== null;
 }
 
 /** BNB Chain mainnet $U, the token most sellers quote in. */

@@ -26,13 +26,19 @@ import { WALLET_NETWORK, walletNetworkFor } from '@/lib/wallet/passkey';
 import { describeFundingOutcome, fundingOutcome, retrySafe, type FundingOutcome } from '@/lib/hire/funding-outcome';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
 import { checkPurchaseIntent, type PurchaseIntent } from '@/lib/hire/purchase-intent';
-import { assertEscrowSupportsToken, buildTokenHireCalls, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
+import { assertEscrowSupportsToken, buildTokenHireCalls, confirmJobToken, nonDefaultHireToken, readJobPaymentToken } from '@/lib/erc8183/hire-calls';
 
 export type HireStep =
   | 'connecting' | 'swapping' | 'creating' | 'registering' | 'budgeting'
   | 'approving' | 'funding' | 'confirming' | 'done';
 
-export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex }
+/*
+ * Every identifier is reported the moment it exists — before any waiting —
+ * so the caller can persist it (`hire/funding-journal`). `sentHash` is a
+ * transaction the wallet handed back, mined or not; `predictedJobId` is the id
+ * a batch expects; `jobId` is the job a receipt proved.
+ */
+export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex; sentHash?: Hex; callsId?: string; predictedJobId?: bigint; description?: string; paymentToken?: Address; budgetRaw?: bigint }
 export interface ExternalHireResult {
   jobId: bigint;
   /** Seconds since the epoch, as written on chain. */
@@ -44,6 +50,8 @@ export interface ExternalHireResult {
   paymentToken: Address;
   /** Exactly the amount funded, in that token's base units. */
   budgetRaw: bigint;
+  /** False when the escrow could not be read back for the job's token; the hire is still funded and recorded. */
+  tokenConfirmed: boolean;
 }
 export interface ExternalHireInput {
   identityChainId: number;
@@ -230,12 +238,19 @@ async function verifyFundedJob(input: {
     job.budget !== input.budget || job.description !== input.description ||
     job.statusName !== 'FUNDED'
   ) throw new Error('FUNDED_JOB_VERIFICATION_FAILED');
-  if (input.token) {
-    const { read } = clients(input.chainId);
-    const bound = await readJobPaymentToken(read as never, correctedErc8183Addresses(input.chainId).commerce as Address, input.jobId);
-    /* Unread is not "right": the hire is reported unverified, never assumed. */
-    if (bound === null || bound !== getAddress(input.token)) throw new Error('FUNDED_JOB_TOKEN_VERIFICATION_FAILED');
-  }
+  if (!input.token) return { tokenConfirmed: true };
+  /*
+   * The job is funded by now: the money has moved. A read that fails here is
+   * the RPC, not the job, and treating it as a failed hire would leave a paid
+   * job unrecorded and the buyer invited to pay again. So it is retried, and
+   * if it still cannot be read the hire is recorded as funded with its token
+   * unconfirmed (shown as unknown, filled in by the sweep). Only a token that
+   * reads back as something else is an error, and its message says not to
+   * fund again.
+   */
+  const { read } = clients(input.chainId);
+  const commerce = correctedErc8183Addresses(input.chainId).commerce as Address;
+  return { tokenConfirmed: (await confirmJobToken(read as never, commerce, input.jobId, input.token)) === 'confirmed' };
 }
 
 export async function revokeExternalWalletAllowance(
@@ -777,8 +792,20 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
     ? buildTokenHireCalls({ chainId, addresses: addresses as never, jobId, provider: input.provider, description, budget, expiredAt, token: payToken })
     : buildHireCalls({ addresses, jobId, provider: input.provider, description, budget, expiredAt });
   const predicted = hireCalls(predictedJobId);
+  /*
+   * Everything a reconciliation needs, reported before the first prompt so
+   * the caller can persist the attempt first. A caller that throws here (an
+   * attempt already open for this wallet) stops the hire before any wallet
+   * is asked.
+   */
+  report({ step: 'creating', predictedJobId, description, paymentToken: payToken, budgetRaw: budget });
 
-  if (await supportsAtomicBatch(account, chainId)) {
+  /*
+   * One atomic batch only for $U. For another token the batch is the same
+   * calls, but that path has not been run end to end, so it is sent one
+   * transaction at a time (`network/hire-paths`).
+   */
+  if (!tokenHire && await supportsAtomicBatch(account, chainId)) {
     const calls = [...predicted];
     if (allowance >= budget) calls.splice(3, 1);
     else if (allowance > 0n) calls.splice(3, 0, {
@@ -786,14 +813,14 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
       data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve',
         args: [addresses.commerce as Address, 0n] }),
     });
-    report({ step: 'creating', jobId: predictedJobId });
+    report({ step: 'creating', jobId: predictedJobId, predictedJobId });
     const callsId = (await provider().request({ method: 'wallet_sendCalls', params: [{
       version: '2.0.0', chainId: `0x${chainId.toString(16)}`,
       from: account, atomicRequired: true,
       calls: calls.map((call) => ({ to: call.to, data: call.data,
         value: call.value ? `0x${call.value.toString(16)}` : '0x0' })),
     }] })) as string;
-    report({ step: 'confirming', jobId: predictedJobId });
+    report({ step: 'confirming', jobId: predictedJobId, predictedJobId, callsId });
     let transactionHash: Hex | null;
     try {
       transactionHash = await waitForCalls(callsId);
@@ -817,15 +844,17 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
        */
       transactionHash = null;
     }
-    await verifyFundedJob({ chainId, jobId: predictedJobId, account,
+    const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId: predictedJobId, account,
       provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
     report({ step: 'done', jobId: predictedJobId, hash: transactionHash ?? undefined });
-    return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true, paymentToken: payToken, budgetRaw: budget };
+    return { jobId: predictedJobId, expiredAt, transactionHash, callsId, atomic: true, paymentToken: payToken, budgetRaw: budget, tokenConfirmed };
   }
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
     await ensureChain(chainId); await assertAccount(account); report({ step, jobId });
     const hash = await wallet.sendTransaction({ account, to, data, chain: null });
+    /* Reported before waiting: a receipt that never comes must not lose the hash. */
+    report({ step, jobId, sentHash: hash });
     const receipt = await read.waitForTransactionReceipt({ hash });
     if (receipt.status !== 'success') throw new Error(`${step.toUpperCase()}_REVERTED`);
     report({ step, jobId, hash });
@@ -846,9 +875,9 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
   }
   const funded = await send('funding', calls[4].to as Address, calls[4].data!, jobId);
   report({ step: 'confirming', jobId, hash: funded.hash });
-  await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
+  const { tokenConfirmed } = await verifyFundedJob({ chainId, jobId, account, provider: input.provider, budget, description, ...(tokenHire ? { token: payToken } : {}) });
   report({ step: 'done', jobId, hash: funded.hash });
-  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false, paymentToken: payToken, budgetRaw: budget };
+  return { jobId, expiredAt, transactionHash: funded.hash, callsId: null, atomic: false, paymentToken: payToken, budgetRaw: budget, tokenConfirmed };
 }
 
 export interface ExternalBalances {
@@ -963,4 +992,48 @@ export async function submitExternalDeliverable(input: {
     throw new Error('SUBMISSION_VERIFICATION_FAILED');
   }
   return hash;
+}
+
+
+/**
+ * The chain reads a funding attempt is reconciled with (`hire/funding-journal`):
+ * receipts by hash, a batch's status from the wallet, and jobs from the
+ * escrow. Public RPC for everything but the batch, which only the wallet
+ * that sent it can describe.
+ */
+export function attemptReader(chainId: number, account: Address, providerAddress: Address) {
+  const network = walletNetworkFor(chainId);
+  const read = createPublicClient({ chain: network as never, transport: fallback(browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url))) });
+  const commerce = correctedErc8183Addresses(chainId).commerce as Address;
+  return {
+    async receipt(hash: string) {
+      const receipt = await read.getTransactionReceipt({ hash: hash as Hex }).catch(() => null);
+      return receipt ? { status: receipt.status === 'success' ? ('success' as const) : ('reverted' as const), logs: receipt.logs as unknown[] } : null;
+    },
+    async calls(callsId: string) {
+      const result = (await provider().request({ method: 'wallet_getCallsStatus', params: [callsId] }).catch(() => null)) as { status?: number | string; receipts?: { status?: string; logs?: unknown[] }[] } | null;
+      if (!result) return null;
+      if (result.status === 200 || result.status === 'CONFIRMED') {
+        const failed = result.receipts?.some((r) => r.status && r.status !== '0x1');
+        return { status: failed ? ('failure' as const) : ('success' as const), logs: (result.receipts ?? []).flatMap((r) => r.logs ?? []) };
+      }
+      if (result.status === 400 || result.status === 500 || result.status === 'FAILED') return { status: 'failure' as const, logs: [] };
+      return { status: 'pending' as const, logs: [] };
+    },
+    async job(jobId: bigint) {
+      const job = await getErc8183Job(network, jobId);
+      return { client: job.client, provider: job.provider, budget: job.budget, description: job.description, statusName: job.statusName };
+    },
+    jobIdFrom(logs: unknown[]) {
+      try {
+        return jobCreatedFromReceipt({ logs } as never, commerce, account, providerAddress);
+      } catch {
+        return null;
+      }
+    },
+    /** The token a recovered job is bound to; unread stays unknown. */
+    async token(jobId: bigint) {
+      return readJobPaymentToken(read as never, commerce, jobId);
+    },
+  };
 }

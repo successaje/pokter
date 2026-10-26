@@ -3,7 +3,7 @@
  *
  * Nothing here signs a transaction, asks for an approval or broadcasts.
  * It asks Pokter Evidence's own quote handler, on a local dev server started
- * with USDT hiring on (REHEARSAL_ORIGIN; see docs/release/usdt-hiring.md),
+ * with testnet USDT turned on (REHEARSAL_ORIGIN; see docs/release/hire-tokens.md),
  * so the price is signed by the agent's registered wallet exactly as the live
  * endpoint would sign it once configured, then checks that price the way the
  * quote route does, and writes down the five calls the buyer's wallet would be
@@ -17,9 +17,9 @@ import { createPublicClient, decodeFunctionData, erc20Abi, formatUnits, getAddre
 import { bscTestnet } from 'viem/chains';
 
 /* This process decides as the flag-on build would. */
-process.env.NEXT_PUBLIC_USDT_HIRING_ENABLED = 'true';
-process.env.NEXT_PUBLIC_ESCROW_CHAINS = '97';
 const USDT = getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd');
+process.env.NEXT_PUBLIC_HIRE_TOKENS = `97:${USDT}`;
+process.env.NEXT_PUBLIC_ESCROW_CHAINS = '97';
 const ORIGIN = process.env.REHEARSAL_ORIGIN ?? 'http://localhost:4318';
 
 const BUYER = getAddress(process.env.BUYER ?? '0xdAb12cf15F4385188bE62bda9F00877AF4C1b32f');

@@ -1,6 +1,6 @@
 import { encodeFunctionData, erc20Abi, getAddress, type Address, type Hex } from 'viem';
 
-import { hireTokenAt, isDefaultHireToken } from '@/lib/network/tokens';
+import { hireTokenAt, isDefaultHireToken, type HireTokenSet } from '@/lib/network/tokens';
 
 import { UnsupportedHireTokenError } from './hire-token';
 
@@ -65,8 +65,8 @@ export interface TokenHireCallsInput {
   expiredAt: bigint;
   /** The token the seller signed. Must be an offered, non-default token on `chainId`. */
   token: Address;
-  /** USDT hiring, when the caller states it; otherwise read from the flag. */
-  usdt?: boolean;
+  /** The tokens turned on, when the caller states them; otherwise `NEXT_PUBLIC_HIRE_TOKENS`. */
+  tokens?: HireTokenSet;
 }
 
 export interface HireCall {
@@ -82,7 +82,7 @@ export function buildTokenHireCalls(input: TokenHireCallsInput): HireCall[] {
   if (new TextEncoder().encode(input.description).length > 4096) {
     throw new Error('erc8183: description exceeds 4096 bytes (kernel limit — do not truncate signed quotes).');
   }
-  const token = hireTokenAt(input.chainId, input.token, input.usdt);
+  const token = hireTokenAt(input.chainId, input.token, input.tokens);
   if (!token || isDefaultHireToken(token)) {
     throw new UnsupportedHireTokenError(`${input.token} is not an offered non-default token on chain ${input.chainId}; a $U hire is built by the SDK.`);
   }
@@ -131,4 +131,30 @@ export async function readJobPaymentToken(read: Reader, commerce: Address, jobId
   } catch {
     return null;
   }
+}
+
+/**
+ * After funding: whether the escrow bound the job to the signed token.
+ *
+ * The money has moved by now, so a read that fails is the RPC, not the job.
+ * It is retried; still unread, the answer is `unread` and the hire is
+ * recorded as funded with its token unknown (the sweep reads it later). It is
+ * never a failed hire, because a failed hire invites a second payment. Only a
+ * token that reads back as something else throws.
+ */
+export async function confirmJobToken(
+  read: Reader,
+  commerce: Address,
+  jobId: bigint,
+  token: Address,
+  { attempts = 3, sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)), delayMs = 1_500 }: { attempts?: number; sleep?: (ms: number) => Promise<void>; delayMs?: number } = {},
+): Promise<'confirmed' | 'unread'> {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(delayMs);
+    const bound = await readJobPaymentToken(read, commerce, jobId);
+    if (bound === null) continue;
+    if (bound !== getAddress(token)) throw new Error('FUNDED_JOB_TOKEN_VERIFICATION_FAILED');
+    return 'confirmed';
+  }
+  return 'unread';
 }

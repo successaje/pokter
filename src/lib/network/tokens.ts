@@ -34,30 +34,49 @@ export interface PaymentToken {
   /** Whether the escrow on this chain accepts it, read from `isPaymentTokenSupported`. */
   escrowSupported: boolean;
   /**
-   * Whether Pokter offers it for a hire whatever the flags say.
+   * The escrow default ($U): offered always, funded by the SDK's `createJob`.
    *
    * Separate from `escrowSupported` on purpose: the escrow accepting a token
    * is a fact about the contract, and offering it is a decision about the
-   * product. Only $U is offered unconditionally.
+   * product.
    */
   offered: boolean;
   /**
-   * Offered only while this flag is on. USDT hiring is built but off: it is
-   * one release (quote, approval, funding, job record, delivery check,
-   * receipt, per-token totals) and is not turned on in parts.
+   * Whether this token *may* be turned on for hiring: its address and
+   * decimals are recorded from the contract, the escrow reports it
+   * supported, and the whole job lifecycle has been run against the deployed
+   * escrow in that token (`tests/fork/usdt-lifecycle.fork.mts`). Eligible is
+   * not on: `NEXT_PUBLIC_HIRE_TOKENS` turns a token on, by chain and address.
    */
-  gate?: 'usdt-hiring';
+  hireEligible: boolean;
 }
 
 /**
- * Whether USDT hiring is on, from `NEXT_PUBLIC_USDT_HIRING_ENABLED`.
+ * The non-default tokens hiring is turned on for, from
+ * `NEXT_PUBLIC_HIRE_TOKENS`: comma-separated `chainId:address` pairs.
  *
- * Exactly "true", nothing looser, and off when unset. Public because the hire
- * page decides in the browser which token it may fund, and compiled in at
- * build time like the other public flags: a Fly secret does not reach it.
+ * Unset is $U only, which is every hire today. An entry that is not an
+ * eligible token in this registry (unknown address, unverified, not
+ * lifecycle-tested, or the default itself) is ignored, so a typo or an
+ * unvetted token cannot become payable. Public and compiled in at build time
+ * like the other public flags; a Fly secret does not reach it.
  */
-export function usdtHiringEnabled(raw: string | undefined = process.env.NEXT_PUBLIC_USDT_HIRING_ENABLED): boolean {
-  return raw === 'true';
+export type HireTokenSet = ReadonlySet<string>;
+
+export function enabledHireTokens(raw: string | undefined = process.env.NEXT_PUBLIC_HIRE_TOKENS): HireTokenSet {
+  const on = new Set<string>();
+  for (const entry of (raw ?? '').split(',')) {
+    const [chain, address] = entry.trim().split(':');
+    if (!chain || !address) continue;
+    const token = paymentTokenAt(Number(chain), address);
+    if (token && token.hireEligible && token.escrowSupported && !token.offered) on.add(key(token.chainId, token.address));
+  }
+  return on;
+}
+
+/** The registry key a token is enabled under. */
+export function hireTokenKey(token: Pick<PaymentToken, 'chainId' | 'address'>): string {
+  return key(token.chainId, token.address);
 }
 
 /**
@@ -77,22 +96,22 @@ export const VERIFIED_AT = {
 const TOKENS: readonly PaymentToken[] = [
   /* $U — United Stables, the token both escrows default to. The only token
      Pokter offers, and the denomination of every job that exists today. */
-  { chainId: 56, address: getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true },
-  { chainId: 97, address: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true },
+  { chainId: 56, address: getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true },
+  { chainId: 97, address: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'), symbol: 'U', decimals: 18, escrowSupported: true, offered: true, hireEligible: true },
 
   /* USDT — supported by both escrows, and the only candidate that is, which
      makes it the one that can be exercised on testnet before mainnet. One
      agent in the catalogue already signs prices in BNB Chain USDT. */
-  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, gate: 'usdt-hiring' },
-  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, gate: 'usdt-hiring' },
+  { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true },
+  { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true },
 
   /* USDC — supported on mainnet, *not* on testnet, and six decimals there
      against eighteen on mainnet. Both facts are reasons to leave it alone:
      it cannot be rehearsed on testnet, and it is the case that breaks a
      hardcoded 18. It is listed so the decimals are recorded where the code
      can see them rather than discovered by a wrong transfer. */
-  { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false },
-  { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false },
+  { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false, hireEligible: false },
+  { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false, hireEligible: false },
 
   /* USD1 is deliberately absent. `isPaymentTokenSupported` returns true for
      `0x8d0D000E…8B0d` on chain 56, but that address is corroborated only by a
@@ -149,11 +168,11 @@ export function requireDecimals(chainId: number, address: string): number {
   return decimals;
 }
 
-const isOffered = (t: PaymentToken, usdt: boolean) => t.offered || (t.gate === 'usdt-hiring' && usdt);
+const isOffered = (t: PaymentToken, enabled: HireTokenSet) => t.offered || (t.hireEligible && t.escrowSupported && enabled.has(key(t.chainId, t.address)));
 
-/** The tokens Pokter offers for a hire on this chain: $U, and USDT while USDT hiring is on. */
-export function offeredTokens(chainId: number, usdt: boolean = usdtHiringEnabled()): PaymentToken[] {
-  return TOKENS.filter((t) => t.chainId === chainId && isOffered(t, usdt));
+/** The tokens Pokter offers for a hire on this chain: $U, and each eligible token that is turned on. */
+export function offeredTokens(chainId: number, enabled: HireTokenSet = enabledHireTokens()): PaymentToken[] {
+  return TOKENS.filter((t) => t.chainId === chainId && isOffered(t, enabled));
 }
 
 /**
@@ -162,10 +181,10 @@ export function offeredTokens(chainId: number, usdt: boolean = usdtHiringEnabled
  * a currency that is not exactly an offered token on this chain is refused,
  * never replaced with the escrow's default.
  */
-export function hireTokenAt(chainId: number, address: string | null | undefined, usdt: boolean = usdtHiringEnabled()): PaymentToken | null {
+export function hireTokenAt(chainId: number, address: string | null | undefined, enabled: HireTokenSet = enabledHireTokens()): PaymentToken | null {
   if (!address) return null;
   const token = paymentTokenAt(chainId, address);
-  return token && isOffered(token, usdt) ? token : null;
+  return token && isOffered(token, enabled) ? token : null;
 }
 
 /** $U, the token the escrow defaults to and every pre-existing hire path funds. */

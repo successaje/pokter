@@ -1,7 +1,7 @@
 import { getAddress } from 'viem';
 
 import { ESCROW_PAYMENT_TOKEN, type EscrowChainId } from '@/lib/network/escrow';
-import { formatAmount, paymentTokenAt, usdtHiringEnabled } from '@/lib/network/tokens';
+import { formatAmount, paymentTokenAt } from '@/lib/network/tokens';
 
 /**
  * A job's amount in the money it is actually in.
@@ -11,11 +11,12 @@ import { formatAmount, paymentTokenAt, usdtHiringEnabled } from '@/lib/network/t
  * being true, so the label comes from the job's own token: recorded at
  * funding, or read from the escrow's `jobPaymentToken` by the backfill.
  *
- * A job whose token is not known yet is not called $U. While USDT hiring is
- * off nothing but `createJob` has funded a Pokter job, so those rows keep the
- * label they have always had (`legacyDefault`) and no page changes; once it is
- * on, an unknown token is shown as unknown. The backfill runs before it is
- * turned on, so that state is the exception, and visible when it happens.
+ * A job whose token is not known is not called $U — whatever the flags say.
+ * Only a token positively identified (recorded at funding, or read from the
+ * escrow) gets a label. A fallback to "$U while other tokens are off" would
+ * relabel real USDT jobs the moment the flag was turned off during a
+ * rollback, and corrupt every total built from them. Unknown is fixed by
+ * reading the chain (the sweep and the currency backfill), never by guessing.
  */
 export interface JobAmountInput {
   chainId: number;
@@ -23,17 +24,16 @@ export interface JobAmountInput {
   budgetRaw: string;
 }
 
-const legacyToken = (chainId: number): string | null =>
+const dollarUOn = (chainId: number): string | null =>
   chainId === 56 || chainId === 97 ? ESCROW_PAYMENT_TOKEN[chainId as EscrowChainId] : null;
 
 /** The token to read a job's amount in, or null when it is not known. */
-export function jobToken(job: Pick<JobAmountInput, 'chainId' | 'paymentToken'>, legacyDefault: boolean = !usdtHiringEnabled()): string | null {
-  if (job.paymentToken) return job.paymentToken;
-  return legacyDefault ? legacyToken(job.chainId) : null;
+export function jobToken(job: Pick<JobAmountInput, 'chainId' | 'paymentToken'>): string | null {
+  return job.paymentToken || null;
 }
 
-export function jobAmountLabel(job: JobAmountInput, legacyDefault: boolean = !usdtHiringEnabled()): string {
-  const token = jobToken(job, legacyDefault);
+export function jobAmountLabel(job: JobAmountInput): string {
+  const token = jobToken(job);
   if (!token) return `${job.budgetRaw} base units (currency not yet read)`;
   return formatAmount(job.chainId, token, job.budgetRaw)?.label ?? `${job.budgetRaw} base units of ${token}`;
 }
@@ -57,7 +57,7 @@ export interface TokenTotal {
  * "revenue" figure over them is a number about nothing. Unknown tokens get
  * their own bucket with no label, so they are counted and not converted.
  */
-export function totalsByToken(jobs: JobAmountInput[], legacyDefault: boolean = !usdtHiringEnabled()): TokenTotal[] {
+export function totalsByToken(jobs: JobAmountInput[]): TokenTotal[] {
   const buckets = new Map<string, TokenTotal>();
   for (const job of jobs) {
     let raw: bigint;
@@ -66,7 +66,7 @@ export function totalsByToken(jobs: JobAmountInput[], legacyDefault: boolean = !
     } catch {
       continue;
     }
-    const tokenRaw = jobToken(job, legacyDefault);
+    const tokenRaw = jobToken(job);
     let token: string | null = null;
     try {
       token = tokenRaw ? getAddress(tokenRaw) : null;
@@ -84,14 +84,13 @@ export function totalsByToken(jobs: JobAmountInput[], legacyDefault: boolean = !
 }
 
 /**
- * Whether a job counts toward a figure published as "$U": its token is the
- * escrow default on its chain. A USDT job never does, and neither does an
- * unknown one once USDT hiring is on — it is counted in its own bucket by
- * `totalsByToken` instead of being folded into $U.
+ * Whether a job counts toward a figure published as "$U": its token is known
+ * to be the escrow default on its chain. Neither a USDT job nor an unknown one
+ * does; both are counted in their own bucket by `totalsByToken`.
  */
-export function isDollarUJob(job: Pick<JobAmountInput, 'chainId' | 'paymentToken'>, legacyDefault: boolean = !usdtHiringEnabled()): boolean {
-  const token = jobToken(job, legacyDefault);
-  const dollarU = legacyToken(job.chainId);
+export function isDollarUJob(job: Pick<JobAmountInput, 'chainId' | 'paymentToken'>): boolean {
+  const token = jobToken(job);
+  const dollarU = dollarUOn(job.chainId);
   return Boolean(token && dollarU && token.toLowerCase() === dollarU.toLowerCase());
 }
 

@@ -11,6 +11,8 @@ function job(id: string, status: JobStatusName, budgetRaw: string, checked: stri
     task: 'private', budgetRaw, expiredAt: checked, hiredAt: checked,
     hireTxHash: null, status, statusCheckedAt: checked, deliverableUrl: null,
     settleTxHash: null, disputeTxHash: null,
+    /* Positively identified $U: an unread token is not counted as $U. */
+    paymentToken: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565',
   };
 }
 

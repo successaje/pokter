@@ -22,6 +22,7 @@ import { bsc, bscTestnet } from 'viem/chains';
 import { buildTokenHireCalls, COMMERCE_TOKEN_ABI } from '../../src/lib/erc8183/hire-calls';
 import { jobCreatedFromReceipt } from '../../src/lib/wallet/external-receipt';
 import { checkPurchaseIntent } from '../../src/lib/hire/purchase-intent';
+import { enabledHireTokens } from '../../src/lib/network/tokens';
 
 /* FORK_CHAIN=56 forks BNB Chain mainnet instead: the real escrow, real USDT, still nothing broadcast. */
 const CHAIN = process.env.FORK_CHAIN === '56' ? 56 : 97;
@@ -43,6 +44,8 @@ const A = CHAIN === 56
       paymentToken: getAddress('0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565'),
     };
 const USDT = getAddress(CHAIN === 56 ? '0x55d398326f99059fF775485246999027B3197955' : '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd');
+/* Turned on exactly as a build would: by chain and address. */
+const TOKENS_ON = enabledHireTokens(`${CHAIN}:${USDT}`);
 const BUYER = getAddress('0x00000000000000000000000000000000b0b0b0b0');
 /* Pokter Evidence's registered wallet, as the provider of every job here. */
 const PROVIDER = getAddress('0x93847647d7eb72a69E162117df6a8697dF53EDda');
@@ -116,11 +119,11 @@ async function main() {
       const now = BigInt((await client.getBlock()).timestamp);
       const expiredAt = now + BigInt(deliverySeconds + windowSeconds);
       const counter = await client.readContract({ address: A.commerce, abi: COMMERCE, functionName: 'jobCounter' });
-      const predicted = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId: counter + 1n, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, usdt: true });
+      const predicted = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId: counter + 1n, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, tokens: TOKENS_ON });
       const created = await send(BUYER, predicted[0].to, predicted[0].data);
       const jobId = jobCreatedFromReceipt(created, A.commerce, BUYER, PROVIDER);
       const bound = created.logs.find((l) => l.topics[0] === TOKEN_BOUND);
-      const calls = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, usdt: true });
+      const calls = buildTokenHireCalls({ chainId: CHAIN, addresses: A, jobId, provider: PROVIDER, description: 'usdt fork rehearsal', budget: BUDGET, expiredAt, token: USDT, tokens: TOKENS_ON });
       await send(BUYER, calls[1].to, calls[1].data);
       await send(BUYER, calls[2].to, calls[2].data);
       /* The token is an indexed topic or the data word, whichever the event declares. */

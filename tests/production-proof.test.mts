@@ -31,6 +31,8 @@ function job(id: string, status: JobStatusName, options: Partial<HiredJob> = {})
     deliverableUrl: null,
     settleTxHash: null,
     ...options,
+    /* Positively identified $U on whichever chain the job is on: an unread token is not counted as $U. */
+    paymentToken: options.paymentToken ?? ((options.chainId ?? 56) === 97 ? '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565' : '0xcE24439F2D9C6a2289F741120FE202248B666666'),
   };
 }
 

@@ -1,6 +1,6 @@
 import { getAddress } from 'viem';
 
-import { hireTokenAt, isDefaultHireToken, type PaymentToken } from '@/lib/network/tokens';
+import { hireTokenAt, isDefaultHireToken, type HireTokenSet, type PaymentToken } from '@/lib/network/tokens';
 
 /*
  * Which money a hire funds, decided from the seller's signed currency alone.
@@ -21,13 +21,13 @@ export class UnsupportedHireTokenError extends Error {
  * The token this hire funds in, decided from the signed currency alone.
  *
  * Null for $U — the caller funds exactly as it always has. A token that is
- * not offered on this chain (unknown, or USDT with USDT hiring off) throws:
+ * not offered on this chain (unknown, unverified, or not turned on) throws:
  * a hire is never quietly funded in the default token instead of the one the
  * seller signed.
  */
-export function nonDefaultHireToken(chainId: number, currency: string | null | undefined, usdt?: boolean): PaymentToken | null {
+export function nonDefaultHireToken(chainId: number, currency: string | null | undefined, tokens?: HireTokenSet): PaymentToken | null {
   if (!currency) return null;
-  const token = hireTokenAt(chainId, currency, usdt);
+  const token = hireTokenAt(chainId, currency, tokens);
   if (!token) {
     const named = (() => {
       try {
@@ -37,7 +37,7 @@ export function nonDefaultHireToken(chainId: number, currency: string | null | u
       }
     })();
     throw new UnsupportedHireTokenError(
-      `The seller priced this in ${named}, which Pokter does not fund on chain ${chainId}${usdt === false ? ' while USDT hiring is off' : ''}. Nothing was sent, and it was not switched to another token.`,
+      `The seller priced this in ${named}, which Pokter does not fund on chain ${chainId}${' (it is not a token Pokter has verified and turned on for hiring there)'}. Nothing was sent, and it was not switched to another token.`,
     );
   }
   return isDefaultHireToken(token) ? null : token;

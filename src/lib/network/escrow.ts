@@ -1,4 +1,4 @@
-import { hireTokenAt, offeredTokens, usdtHiringEnabled } from './tokens';
+import { enabledHireTokens, hireTokenAt, offeredTokens, type HireTokenSet } from './tokens';
 
 /**
  * Which escrow a hire is funded on.
@@ -50,15 +50,16 @@ export function isEscrowChain(chainId: number, enabled: EscrowChainId[] = enable
  * The enabled escrow that settles in this token, or null when none does.
  *
  * Matched by address against the tokens Pokter offers on each chain
- * (`offeredTokens`): $U always, USDT only while USDT hiring is on. With it
- * off this is exactly the old rule, one default token per escrow.
+ * (`offeredTokens`): $U always, and any eligible token turned on in
+ * `NEXT_PUBLIC_HIRE_TOKENS`. With none on this is exactly the old rule,
+ * one default token per escrow.
  */
 export function escrowChainForCurrency(
   currency: string,
   enabled: EscrowChainId[] = enabledEscrowChains(),
-  usdt: boolean = usdtHiringEnabled(),
+  tokens: HireTokenSet = enabledHireTokens(),
 ): EscrowChainId | null {
-  return enabled.find((chainId) => hireTokenAt(chainId, currency, usdt) !== null) ?? null;
+  return enabled.find((chainId) => hireTokenAt(chainId, currency, tokens) !== null) ?? null;
 }
 
 /**
@@ -144,18 +145,18 @@ export function escrowOptionsForHire(
 export function settlementHint(
   agent: { chain_id: number },
   enabled: EscrowChainId[] = enabledEscrowChains(),
-  usdt: boolean = usdtHiringEnabled(),
+  tokens: HireTokenSet = enabledHireTokens(),
 ) {
   const preferred = isEscrowChain(agent.chain_id, enabled) ? agent.chain_id : enabled[0];
-  if (!usdt) return { chain_id: preferred, escrow_chains: enabled };
+  if (tokens.size === 0) return { chain_id: preferred, escrow_chains: enabled };
   /*
-   * With USDT hiring on, the hint also says which money Pokter can fund on
+   * With other tokens on, the hint also says which money Pokter can fund on
    * each escrow, by address, so a seller that can price in several picks one
    * that pays. Still outside `terms`: it changes nothing a seller signs, and
    * the currency the seller does sign is the one the job is funded in.
    */
   const currencies = enabled.flatMap((chainId) =>
-    offeredTokens(chainId, true).map((t) => ({ chain_id: chainId, token: t.address, symbol: t.symbol, decimals: t.decimals })),
+    offeredTokens(chainId, tokens).map((t) => ({ chain_id: chainId, token: t.address, symbol: t.symbol, decimals: t.decimals })),
   );
   return { chain_id: preferred, escrow_chains: enabled, currencies };
 }

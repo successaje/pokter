@@ -13,6 +13,8 @@ function job(status: HiredJob['status'], budgetRaw = '100000000000000000', clien
     expiredAt: new Date().toISOString(), hiredAt: new Date().toISOString(),
     hireTxHash: '0x01', status, statusCheckedAt: new Date().toISOString(),
     deliverableUrl: null, settleTxHash: null, client,
+    /* Positively identified $U: an unread token is not counted as $U. */
+    paymentToken: '0xc70B8741B8B07A6d61E54fd4B20f22Fa648E5565',
   };
 }
 
