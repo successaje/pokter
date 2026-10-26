@@ -137,7 +137,12 @@ function clients(chainId: number = WALLET_NETWORK.chainId) {
      * been approved — see `browser-rpc`.
      */
     read: createPublicClient({
-      chain: network as never,
+      /*
+       * The viem chain, not the network record around it. Handed the record,
+       * `read.chain.id` was undefined, and the $U shortfall swap looked up
+       * the wrapped native token for "chain 0" and threw on both networks.
+       */
+      chain: network.chain,
       transport: fallback(
         browserRpcUrls(chainId, network.publicRpcUrl).map((url) => http(url)),
       ),

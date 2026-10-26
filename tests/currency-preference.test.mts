@@ -68,3 +68,12 @@ test('a bridged peg is chosen and confirmed by its full name, chain and contract
   assert.match(form, /\{tokenName\(t\)\}/, 'a request’s "Paid in" choice');
   assert.match(form, /\{tokenIdentity\(selected\)\}/);
 });
+
+test('the preference notice names a peg in full, never as the issuer’s coin', () => {
+  const USDC56 = getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
+  const U56 = getAddress('0xcE24439F2D9C6a2289F741120FE202248B666666');
+  const asked = preferredCurrency(56, USDC56, enabledHireTokens(`56:${USDC56}`))!;
+  const report = preferenceReport(asked, U56, 'Touchstone by Pokter')!;
+  assert.deepEqual(report.asked, { token: USDC56, symbol: 'Binance-Peg USDC' });
+  assert.equal(report.note, 'You asked for Binance-Peg USDC; Touchstone by Pokter signed its price in $U, so it may accept only certain currencies. The hire is funded in $U at exactly that price, or you can choose another agent.');
+});

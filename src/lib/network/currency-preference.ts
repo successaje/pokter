@@ -1,6 +1,6 @@
 import { getAddress } from 'viem';
 
-import { hireTokenAt, paymentTokenAt, type HireTokenSet, type PaymentToken } from './tokens';
+import { hireTokenAt, paymentTokenAt, tokenName, type HireTokenSet, type PaymentToken } from './tokens';
 
 /**
  * A buyer's preferred currency for a quote, as it travels to the agent.
@@ -63,8 +63,10 @@ export function preferenceReport(
 ): { asked: { token: string; symbol: string }; honoured: boolean; note: string | null } | null {
   if (!preferred) return null;
   const signed = paymentTokenAt(preferred.chain_id, signedCurrency);
-  const signedSymbol = signed ? (signed.symbol === 'U' ? '$U' : signed.symbol) : signedCurrency;
-  const askedSymbol = preferred.symbol === 'U' ? '$U' : preferred.symbol;
+  const asked = paymentTokenAt(preferred.chain_id, preferred.token);
+  /* Named in full ("Binance-Peg USDC"), as everywhere a currency is chosen or confirmed. */
+  const signedSymbol = signed ? tokenName(signed) : signedCurrency;
+  const askedSymbol = asked ? tokenName(asked) : preferred.symbol === 'U' ? '$U' : preferred.symbol;
   const honoured = preferred.token.toLowerCase() === signedCurrency.toLowerCase();
   return {
     asked: { token: preferred.token, symbol: askedSymbol },

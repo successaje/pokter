@@ -23,7 +23,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
 import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
-import { AttemptOwnershipLost, DeadlineNotRecorded, fundingCoordinator, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
+import { AttemptOwnershipLost, DeadlineNotRecorded, fundingCoordinator, promptMovesMoney, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
 import { fundedJobRecord } from '@/lib/hire/funded-job';
 import { fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
 import {
@@ -1170,8 +1170,15 @@ export function useHire({
           const mine = current?.attemptId === session.attemptId;
           /* From this session's own record of what it sent, never from whether the journal is still ours. */
           const sentNothing = !sentByThisSession && (!mine || (current!.txHashes.length === 0 && current!.callsId === null && current!.jobId === null));
-          /* Nothing left the wallet: refused there, or stopped before any prompt. Closed, and the buyer may try again. */
-          if (sentNothing && (caught instanceof AttemptOwnershipLost || caught instanceof DeadlineNotRecorded || isWalletRejection(caught) || current?.prompt === null)) {
+          /*
+           * Nothing was handed to the chain and no prompt that moves escrow
+           * money (fund, batch) was outstanding: whatever failed — a refusal
+           * in the wallet, or an error before it was asked, such as a swap
+           * quote — cannot have paid. Closed, and the real error is shown
+           * rather than hidden behind a reconciliation that finds nothing.
+           * A fund or batch prompt stays pending: it may still be approved.
+           */
+          if (sentNothing && (caught instanceof AttemptOwnershipLost || caught instanceof DeadlineNotRecorded || isWalletRejection(caught) || !promptMovesMoney(current?.prompt))) {
             localSession.close();
             remote.close('nothing-sent');
             throw caught;

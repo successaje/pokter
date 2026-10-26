@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { encodeFunctionData, getAddress } from 'viem';
@@ -215,4 +216,25 @@ test('a funded attempt closed by its owner also spends its quote', async () => {
   const begin = { wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'once', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:00:00.000Z', predictedJobId: '100' };
   await C.run(begin, async (s) => { s.note({ fundableUntil: 2_000_000_000, jobId: '100' }); s.beforePrompt('funding'); s.close(); });
   assert.deepEqual(await C.run(begin, async () => 'twice'), { ok: false, reason: 'already-funded', jobId: '100' });
+});
+
+test('an error before the wallet is asked closes the attempt and is shown; only a fund or batch prompt stays pending', async () => {
+  const { promptMovesMoney } = await import('../src/lib/hire/funding-journal');
+  assert.equal(promptMovesMoney('swapping'), false, 'a swap quote failing cannot have paid the escrow');
+  assert.equal(promptMovesMoney('creating'), false);
+  assert.equal(promptMovesMoney('approving'), false);
+  assert.equal(promptMovesMoney('funding'), true);
+  assert.equal(promptMovesMoney('batch'), true);
+  assert.equal(promptMovesMoney(null), false);
+  const hook = readFileSync('src/lib/hire/useHire.ts', 'utf8');
+  assert.match(hook, /if \(sentNothing && \(caught instanceof AttemptOwnershipLost \|\| caught instanceof DeadlineNotRecorded \|\| isWalletRejection\(caught\) \|\| !promptMovesMoney\(current\?\.prompt\)\)\)/, 'closed and rethrown, so the buyer sees why');
+});
+
+test('the browser-wallet read client carries the real chain, so the $U shortfall swap quotes on 56 and 97', async () => {
+  const { wrappedNative } = await import('../src/lib/pancakeswap/swap');
+  assert.equal(wrappedNative(56), '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c');
+  assert.equal(wrappedNative(97), '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd');
+  assert.throws(() => wrappedNative(0), /chain 0/, 'what a client without a chain id produced');
+  const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
+  assert.match(wallet, /read: createPublicClient\(\{[^}]*chain: network\.chain,/s, 'the read client is built from the viem chain, whose `id` the swap reads');
 });

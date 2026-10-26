@@ -36,6 +36,11 @@ import type { FundedJobFields } from './funding-outcome';
 export type PromptStep = 'swapping' | 'creating' | 'registering' | 'budgeting' | 'approving' | 'funding' | 'batch';
 const MOVES_MONEY: ReadonlySet<PromptStep> = new Set(['funding', 'batch']);
 
+/** Whether a prompt can move escrow money: only a fund or a batch can. */
+export function promptMovesMoney(step: PromptStep | null | undefined): boolean {
+  return step != null && MOVES_MONEY.has(step);
+}
+
 export interface FundingAttempt {
   /** This attempt, distinct from any earlier or later one for the same wallet. */
   attemptId: string;
