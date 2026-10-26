@@ -21,10 +21,19 @@ type Stage =
   | { kind: 'unsupported'; reason: string }
   | { kind: 'terms'; terms: X402Terms }
   | { kind: 'signing'; terms: X402Terms }
-  | { kind: 'sending'; terms: X402Terms; nonce: string }
-  | { kind: 'done'; terms: X402Terms; outcome: CallOutcome | { kind: 'lost' }; nonce: string | null };
+  | { kind: 'sending'; terms: X402Terms; nonce: string; validBefore: number }
+  | { kind: 'done'; terms: X402Terms; outcome: CallOutcome | { kind: 'lost' }; nonce: string | null; validBefore: number | null };
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const clock = (seconds: number) => new Date(seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/* What the token says, in words. Only `expired-unused` lets this wallet pay this seller again. */
+const SETTLEMENT_SAYS: Record<NonNullable<Receipt['settlement']>, (validBefore?: number) => string> = {
+  settled: () => 'On chain: the payment was taken. Do not pay again for this call.',
+  'expired-unused': () => 'On chain: the payment was not taken, and it has expired, so it never can be. You can sign again.',
+  'may-still-settle': (v) => `On chain: not taken yet, but it can be until ${v ? clock(v) : 'it expires'}. Check again after then; do not pay again before.`,
+  unread: () => 'The token could not be asked just now. Check again shortly; do not pay again.',
+};
 
 function randomNonce(): `0x${string}` {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -47,6 +56,13 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [body, setBody] = useState('{\n  "task": ""\n}');
   const [error, setError] = useState<string | null>(null);
+  /* The clock a second signature waits on: it can be offered once the first has expired. */
+  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    if (stage.kind !== 'done') return;
+    const tick = setInterval(() => setNowSeconds(Math.floor(Date.now() / 1000)), 1_000);
+    return () => clearInterval(tick);
+  }, [stage.kind]);
   /* Mounted on the buyer's click, so the terms are read at once, and once. */
   const started = useRef(false);
 
@@ -79,18 +95,20 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
     setStage({ kind: 'signing', terms });
     let nonce: `0x${string}`;
     let header: { name: string; value: string };
+    let validBefore: number;
     try {
       if (chain?.id !== X402_CHAIN_ID) await switchChainAsync({ chainId: X402_CHAIN_ID });
       nonce = randomNonce();
       const { typedData, authorization } = authorizationTypedData(terms, address, Math.floor(Date.now() / 1000), nonce);
       const signature = await signTypedDataAsync(typedData);
       header = paymentHeader(terms, signature, authorization);
+      validBefore = Number(authorization.validBefore);
     } catch (reason) {
       setStage({ kind: 'terms', terms });
       setError(`Not signed: ${(reason as Error).message.split('\n')[0]}. Nothing was paid.`);
       return;
     }
-    setStage({ kind: 'sending', terms, nonce });
+    setStage({ kind: 'sending', terms, nonce, validBefore });
     try {
       const response = await fetch('/api/x402/call', {
         method: 'POST',
@@ -104,11 +122,11 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
         return;
       }
       setReceipt({ kind: 'idle' });
-      setStage({ kind: 'done', terms, outcome, nonce });
+      setStage({ kind: 'done', terms, outcome, nonce, validBefore });
     } catch {
       /* The answer to our own request was lost: the seller may have been paid. Never resend. */
       setReceipt({ kind: 'idle' });
-      setStage({ kind: 'done', terms, nonce, outcome: { kind: 'lost' } });
+      setStage({ kind: 'done', terms, nonce, validBefore, outcome: { kind: 'lost' } });
     }
   };
 
@@ -201,7 +219,7 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
             </>
           )}
           {stage.outcome.kind === 'refused' && (
-            <Notice tone="bad" title="The seller did not answer the call">
+            <Notice tone="bad" title="The seller refused the payment">
               {stage.outcome.call.error}
               {stage.outcome.call.responseText ? ` It said: ${stage.outcome.call.responseText.slice(0, 300)}` : ''}
             </Notice>
@@ -215,6 +233,11 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
                   : 'This payment is still being sent by an earlier request. Wait a moment, then check the receipt. Do not sign again.'}
             </Notice>
           )}
+          {stage.outcome.kind === 'unresolved' && (
+            <Notice tone="watch" title="Not sent: an earlier payment is not settled yet">
+              {stage.outcome.reason}
+            </Notice>
+          )}
           {stage.outcome.kind === 'terms-changed' && (
             <Notice tone="watch" title="The seller’s terms changed" action={<Button size="s" intent="secondary" onClick={() => setStage({ kind: 'terms', terms: (stage.outcome as { fresh: X402Terms }).fresh })}>Review the new terms</Button>}>
               {stage.outcome.reason}
@@ -223,20 +246,26 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
           {(stage.outcome.kind === 'unavailable' || stage.outcome.kind === 'invalid') && <Notice tone="bad" title="Not sent">{stage.outcome.reason}</Notice>}
           {stage.outcome.kind === 'not-sent' && <Notice tone="bad" title="Not sent">{stage.outcome.call.error}</Notice>}
 
-          {stage.nonce && stage.outcome.kind !== 'answered' && stage.outcome.kind !== 'terms-changed' && (
+          {stage.nonce && stage.outcome.kind !== 'answered' && stage.outcome.kind !== 'terms-changed' && stage.outcome.kind !== 'unresolved' && (
             <div className="flex flex-col gap-2">
               <Button size="s" intent="secondary" className="self-start" busy={receipt.kind === 'checking'} onClick={() => void checkReceipt(stage.nonce!)}>
                 Check the receipt
               </Button>
-              {receipt.kind === 'missing' && <p className="text-[13px] text-ink-2">Pokter never received this payment, so nothing was sent to the seller.</p>}
+              {receipt.kind === 'missing' && (
+                <p className="text-[13px] text-ink-2">
+                  Pokter never received this payment, so it sent nothing to the seller.
+                  {stage.validBefore && nowSeconds < stage.validBefore ? ` Your signature lasts until ${clock(stage.validBefore)}; you can sign again after that.` : ''}
+                </p>
+              )}
               {receipt.kind === 'failed' && <p className="text-[13px] text-bad">The receipt could not be read: {receipt.reason}. Try again; do not pay again.</p>}
               {receipt.kind === 'seen' && (
                 <div className="flex flex-col gap-2 text-[13px]">
                   <p>
                     Receipt: <span className="t-readout">{receipt.receipt.state}</span>
                     {receipt.receipt.httpStatus ? ` · HTTP ${receipt.receipt.httpStatus}` : ''}
-                    {receipt.receipt.settlementTx ? ` · settled in ${short(receipt.receipt.settlementTx)}` : ''}
+                    {receipt.receipt.settlementTx ? ` · the seller reported ${short(receipt.receipt.settlementTx)}` : ''}
                   </p>
+                  {receipt.receipt.settlement && <p className="text-[13px] text-ink-2">{SETTLEMENT_SAYS[receipt.receipt.settlement](receipt.receipt.validBefore)}</p>}
                   {receipt.receipt.state === 'answered' && receipt.receipt.responseText === undefined && (
                     <Button size="s" intent="secondary" className="self-start" onClick={() => void showAnswer(stage.nonce!)}>
                       Show the answer (sign with the paying wallet; moves nothing)
@@ -248,7 +277,7 @@ export function X402Panel({ chainId, tokenId }: { chainId: number; tokenId: stri
             </div>
           )}
 
-          {maySignAgain(stage.outcome, receipt) && (
+          {maySignAgain(stage.outcome, receipt, nowSeconds, stage.validBefore) && (
             <Button size="s" intent="ghost" className="self-start" onClick={() => setStage({ kind: 'terms', terms: stage.terms })}>
               Back to the terms (your request is kept)
             </Button>
