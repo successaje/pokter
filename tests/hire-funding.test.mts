@@ -7,7 +7,7 @@ import { getAddress } from 'viem';
 import { confirmJobToken } from '../src/lib/erc8183/hire-calls';
 import { planCommission } from '../src/lib/hire/commission-plan';
 import { fundedJobRecord } from '../src/lib/hire/funded-job';
-import { fundingJournal, reconcileAttempt, UNSEEN_GRACE_MS, type AttemptChainReader, type FundingAttempt, type KeyValue } from '../src/lib/hire/funding-journal';
+import { AttemptOwnershipLost, fundingCoordinator, paymentImpossible, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
 import { paymentCopy } from '../src/lib/hire/payment-copy';
 import { HIRE_PATHS, hireSupportMatrix, pathFundsToken } from '../src/lib/network/hire-paths';
 import { enabledHireTokens, hireTokenAt } from '../src/lib/network/tokens';
@@ -148,48 +148,41 @@ test('funded but the token read fails: retried, then "unread" — not an error; 
   await assert.rejects(confirmJobToken(wrong as never, COMMERCE, 1n, USDT97, { sleep: async () => {} }), /FUNDED_JOB_TOKEN_VERIFICATION_FAILED/);
 });
 
-/* ---------- the journal: reload, repeated clicks, ambiguous outcomes ---------- */
+/* ---------- the journal: ownership across tabs, reload, ambiguous outcomes ---------- */
 
+/*
+ * Two tabs of one browser share local storage and the Web Locks namespace.
+ * These stand-ins share both, so the races below run in a fixed order.
+ */
 function memory(): KeyValue & { data: Map<string, string> } {
   const data = new Map<string, string>();
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) };
 }
+function locks(): LockManagerLike & { held: Set<string> } {
+  const held = new Set<string>();
+  return {
+    held,
+    async request(name, _options, callback) {
+      if (held.has(name)) return callback(null);
+      held.add(name);
+      try {
+        return await callback({ name });
+      } finally {
+        held.delete(name);
+      }
+    },
+  };
+}
+function gate() {
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => (open = resolve));
+  return { open, opened };
+}
 const START = '2026-10-26T10:00:00.000Z';
-const attempt = (over: Partial<FundingAttempt> = {}) => ({
+const begin = (over: Partial<FundingAttempt> = {}) => ({
   wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '2599', name: 'Pokter Evidence' },
-  task: 't', description: 'desc', token: USDT97, amountRaw: '10000000000000000', expiredAt: null, startedAt: START, predictedJobId: '100', ...over,
+  task: 't', description: 'desc', token: USDT97, amountRaw: '10000000000000000', startedAt: START, predictedJobId: '100', ...over,
 });
-
-test('repeated clicks: a second attempt from the same wallet is refused while the first is open', () => {
-  const journal = fundingJournal(memory());
-  assert.equal(journal.begin(attempt()).ok, true);
-  const second = journal.begin(attempt({ startedAt: '2026-10-26T10:00:01.000Z' }));
-  assert.equal(second.ok, false);
-  assert.equal(!second.ok && second.blocking.predictedJobId, '100');
-  /* Another wallet, or the same wallet on another chain, is its own attempt. */
-  assert.equal(journal.begin(attempt({ wallet: PROVIDER })).ok, true);
-  assert.equal(journal.begin(attempt({ chainId: 56 })).ok, true);
-});
-
-test('reload: identifiers noted as they arrive survive a new page, which is still blocked', () => {
-  const kv = memory();
-  const first = fundingJournal(kv);
-  first.begin(attempt());
-  first.note(BUYER, 97, { txHash: '0xaa' });
-  first.note(BUYER, 97, { txHash: '0xaa' });
-  first.note(BUYER, 97, { jobId: '101', txHash: '0xbb' });
-  first.note(BUYER, 97, { callsId: 'batch-1' });
-  const reloaded = fundingJournal(kv);
-  const open = reloaded.read(BUYER, 97)!;
-  assert.deepEqual(open.txHashes, ['0xaa', '0xbb'], 'each hash once, in order');
-  assert.equal(open.jobId, '101');
-  assert.equal(open.callsId, 'batch-1');
-  assert.equal(open.predictedJobId, '100', 'nothing known is erased');
-  assert.equal(reloaded.begin(attempt()).ok, false, 'the reloaded page cannot start a second hire');
-  reloaded.close(BUYER, 97);
-  assert.equal(reloaded.begin(attempt()).ok, true);
-});
-
 function chain(over: Partial<AttemptChainReader> & { jobs?: Record<string, { client: string; provider: string; budget: bigint; description: string; statusName: string }> } = {}): AttemptChainReader {
   return {
     receipt: over.receipt ?? (async () => null),
@@ -199,38 +192,191 @@ function chain(over: Partial<AttemptChainReader> & { jobs?: Record<string, { cli
   };
 }
 const funded = { client: BUYER, provider: PROVIDER, budget: 10_000_000_000_000_000n, description: 'desc', statusName: 'FUNDED' };
-const NOW = Date.parse(START) + 60_000;
+/* Every hash mined; the creation receipt names job 105. */
+const allMined = (jobStatus: string) => chain({ receipt: async (h) => ({ status: 'success', logs: h === '0xcreate' ? ['105'] : [] }), jobs: { '105': { ...funded, statusName: jobStatus } } });
 
-test('receipt timeout: the hash was kept, the receipt arrives later, and the funded job is recovered — not re-funded', async () => {
-  const pending = { ...attempt(), state: 'pending' as const, updatedAt: START, jobId: null, callsId: null, txHashes: ['0xcreate', '0xfund'] };
-  const still = await reconcileAttempt(pending, chain(), NOW);
-  assert.equal(still.outcome, 'pending', 'no receipt yet: pending, never "failed"');
-  const later = await reconcileAttempt(pending, chain({ receipt: async (h) => ({ status: 'success', logs: h === '0xcreate' ? ['103'] : [] }), jobs: { '103': funded } }), NOW);
-  assert.deepEqual(later, { outcome: 'funded', jobId: '103' });
+test('two tabs: B cannot clear A’s attempt or start a duplicate while A waits at the fund prompt; A then completes', async () => {
+  const kv = memory();
+  const lm = locks();
+  const tabA = fundingCoordinator(kv, lm, 'A');
+  const tabB = fundingCoordinator(kv, lm, 'B');
+  const atFundPrompt = gate();
+  const resumeA = gate();
+  let aFunded = false;
+
+  const a = tabA.run(begin(), async (session) => {
+    session.note({ fundableUntil: 2_000 });
+    session.beforePrompt('creating');
+    session.note({ txHash: '0xcreate', jobId: '105' });
+    session.beforePrompt('registering');
+    session.note({ txHash: '0xregister' });
+    session.beforePrompt('budgeting');
+    session.note({ txHash: '0xbudget' });
+    session.beforePrompt('approving');
+    session.note({ txHash: '0xapprove' });
+    atFundPrompt.open();
+    await resumeA.opened; // A sits at the wallet's approval/fund prompt
+    session.beforePrompt('funding'); // still the owner
+    session.note({ txHash: '0xfund' });
+    aFunded = true;
+    session.close();
+    return 'funded';
+  });
+  await atFundPrompt.opened;
+
+  /* B opens: the job is OPEN and every recorded transaction is mined. */
+  const snapshot = tabB.read(BUYER, 97)!;
+  const verdict = await reconcileAttempt(snapshot, allMined('OPEN'));
+  assert.equal(verdict.outcome, 'not-funded', 'the chain alone cannot tell an active attempt from a dead one');
+  assert.equal(await tabB.settle(snapshot, verdict, 1_000), 'busy', 'but B cannot close what A still owns');
+  assert.equal(tabB.read(BUYER, 97)?.attemptId, snapshot.attemptId, 'A’s record is untouched');
+  const duplicate = await tabB.run(begin({ startedAt: '2026-10-26T10:01:00.000Z' }), async () => assert.fail('B must not drive a second hire'));
+  assert.deepEqual(duplicate, { ok: false, reason: 'in-progress-elsewhere' });
+
+  resumeA.open();
+  assert.deepEqual(await a, { ok: true, value: 'funded' });
+  assert.equal(aFunded, true, 'A completed the payment it was waiting on');
+  assert.equal(tabB.read(BUYER, 97), null, 'and closed its own attempt');
 });
 
-test('a lost batch reply: the batch id finds the job, or the predicted window does', async () => {
-  const batch = { ...attempt(), state: 'pending' as const, updatedAt: START, jobId: null, callsId: 'b1', txHashes: [] };
-  assert.deepEqual(await reconcileAttempt(batch, chain({ calls: async () => ({ status: 'success', logs: ['104'] }), jobs: { '104': funded } }), NOW), { outcome: 'funded', jobId: '104' });
-  assert.equal((await reconcileAttempt(batch, chain({ calls: async () => ({ status: 'pending', logs: [] }) }), NOW)).outcome, 'pending');
-  /* Ids 100–101 taken by other buyers; ours landed at 102. */
+test('simultaneous starts from two tabs: exactly one begins, one record exists', async () => {
+  const kv = memory();
+  const lm = locks();
+  const hold = gate();
+  const results = await Promise.all([
+    fundingCoordinator(kv, lm, 'A').run(begin(), async () => { await hold.opened; return 'A'; }),
+    fundingCoordinator(kv, lm, 'B').run(begin(), async () => 'B'),
+  ].map(async (p, i) => { if (i === 1) hold.open(); return p; }));
+  const began = results.filter((r) => r.ok);
+  assert.equal(began.length, 1);
+  assert.deepEqual(results.filter((r) => !r.ok), [{ ok: false, reason: 'in-progress-elsewhere' }]);
+  assert.equal([...kv.data.keys()].filter((k) => k.startsWith('pokter:funding-attempt:')).length, 1, 'one record, the winner’s');
+  assert.equal(fundingCoordinator(kv, lm, 'C').read(BUYER, 97)?.ownerTab, 'A');
+});
+
+test('a stale reconciliation cannot delete a newer attempt, or a changed one', async () => {
+  const kv = memory();
+  const lm = locks();
+  const A = fundingCoordinator(kv, lm, 'A');
+  const B = fundingCoordinator(kv, lm, 'B');
+  /* Attempt X ends unclear: pending, lock released. B reads it. */
+  await A.run(begin(), async (session) => { session.beforePrompt('funding'); session.note({ txHash: '0xx' }); session.leavePending(); return null; });
+  const staleX = B.read(BUYER, 97)!;
+  /* Meanwhile X is settled as funded elsewhere, and a new attempt Y begins and ends pending. */
+  assert.equal(await A.settle(staleX, { outcome: 'funded', jobId: '105' }, 1_000), 'closed-funded');
+  await A.run(begin({ startedAt: '2026-10-26T10:05:00.000Z' }), async (session) => { session.beforePrompt('approving'); session.leavePending(); return null; });
+  const y = B.read(BUYER, 97)!;
+  assert.notEqual(y.attemptId, staleX.attemptId);
+  /* B's result for X arrives late. */
+  assert.equal(await B.settle(staleX, { outcome: 'not-funded', jobId: null, detail: '' }, 1_000), 'stale');
+  assert.equal(B.read(BUYER, 97)?.attemptId, y.attemptId, 'Y survives');
+  /* A snapshot of Y taken before Y changed is stale too. */
+  const kv2 = memory();
+  const C = fundingCoordinator(kv2, locks(), 'C');
+  await C.run(begin(), async (session) => { session.beforePrompt('funding'); session.leavePending(); return null; });
+  const before = C.read(BUYER, 97)!;
+  kv2.setItem(`pokter:funding-attempt:97:${BUYER.toLowerCase()}`, JSON.stringify({ ...before, txHashes: ['0xlate'], updatedAt: '2026-10-26T11:00:00.000Z' }));
+  assert.equal(await C.settle(before, { outcome: 'not-funded', jobId: null, detail: '' }, 9_999_999_999), 'stale');
+});
+
+test('abandoned attempts: closed only when no payment can follow, never on a timeout', async () => {
+  assert.equal(paymentImpossible({ prompt: null, fundableUntil: null }, 0), true, 'no prompt ever issued');
+  assert.equal(paymentImpossible({ prompt: 'approving', fundableUntil: null }, 0), true, 'an approval alone moves no money');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 1_999), false, 'a fund prompt may still be open');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 2_001), true, 'past the encoded expiry the escrow refuses it');
+  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null }, 9_999_999_999), false, 'an unknown expiry is never assumed past');
+
+  const kv = memory();
+  const lm = locks();
+  const A = fundingCoordinator(kv, lm, 'A');
+  /* A's tab dies at the fund prompt: the lock is gone, the record stays. */
+  await A.run(begin(), async (session) => { session.note({ fundableUntil: 2_000 }); session.beforePrompt('creating'); session.note({ txHash: '0xcreate', jobId: '105' }); session.beforePrompt('funding'); session.leavePending(); return null; });
+  const B = fundingCoordinator(kv, lm, 'B');
+  const snap = B.read(BUYER, 97)!;
+  const verdict = await reconcileAttempt(snap, allMined('OPEN'));
+  assert.equal(await B.settle(snap, verdict, 1_500), 'kept-may-still-pay');
+  assert.ok(B.read(BUYER, 97), 'still blocking new hires');
+  assert.equal(await B.settle(B.read(BUYER, 97)!, verdict, 2_001), 'closed-not-funded', 'after the expiry no payment can follow');
+  assert.equal(B.read(BUYER, 97), null);
+});
+
+test('ownership is checked before every prompt: a lost record stops the flow', async () => {
+  const kv = memory();
+  const A = fundingCoordinator(kv, locks(), 'A');
+  const result = A.run(begin(), async (session) => {
+    session.beforePrompt('creating');
+    kv.removeItem(`pokter:funding-attempt:97:${BUYER.toLowerCase()}`); // cleared out from under it
+    session.beforePrompt('funding');
+    return 'should not get here';
+  });
+  await assert.rejects(result, AttemptOwnershipLost);
+});
+
+test('reload: what the owner noted survives, the new page cannot begin, and recovery adopts the funded job', async () => {
+  const kv = memory();
+  const lm = locks();
+  await fundingCoordinator(kv, lm, 'A').run(begin(), async (session) => {
+    session.beforePrompt('creating');
+    session.note({ txHash: '0xcreate' });
+    session.note({ txHash: '0xcreate' });
+    session.beforePrompt('funding');
+    session.note({ txHash: '0xfund', callsId: 'b1' });
+    session.leavePending(); // the page went away mid-funding
+    return null;
+  });
+  const reloaded = fundingCoordinator(kv, lm, 'A-reloaded');
+  const open = reloaded.read(BUYER, 97)!;
+  assert.deepEqual(open.txHashes, ['0xcreate', '0xfund'], 'each hash once, in order');
+  assert.equal(open.callsId, 'b1');
+  assert.equal(open.prompt, 'funding');
+  const blocked = await reloaded.run(begin(), async () => assert.fail('no second hire'));
+  assert.equal(!blocked.ok && blocked.reason, 'open-attempt');
+  /* Receipt timeout: the receipts arrive later and name the funded job. */
+  const verdict = await reconcileAttempt(open, allMined('FUNDED'));
+  assert.deepEqual(verdict, { outcome: 'funded', jobId: '105' });
+  let adopted: string | null = null;
+  assert.equal(await reloaded.settle(open, verdict, 1_000, async (jobId) => { adopted = jobId; }), 'closed-funded');
+  assert.equal(adopted, '105', 'adopted once, under the lock');
+  assert.equal(reloaded.read(BUYER, 97), null);
+});
+
+test('without Web Locks nothing is closed on another’s behalf', async () => {
+  const kv = memory();
+  const A = fundingCoordinator(kv, null, 'A');
+  await A.run(begin(), async (session) => { session.beforePrompt('approving'); session.leavePending(); return null; });
+  const snap = A.read(BUYER, 97)!;
+  assert.equal(await A.settle(snap, { outcome: 'not-funded', jobId: null, detail: '' }, 1_000), 'busy');
+});
+
+test('reconciliation reads: a lost batch reply, the predicted window, an unreadable escrow, a mismatch', async () => {
+  const base = { ...begin(), attemptId: 'x', ownerTab: 'A', updatedAt: START, jobId: null, callsId: null, txHashes: [] as string[], prompt: 'batch' as const, fundableUntil: null, state: 'pending' as const };
+  assert.deepEqual(await reconcileAttempt({ ...base, callsId: 'b1' }, chain({ calls: async () => ({ status: 'success', logs: ['104'] }), jobs: { '104': funded } })), { outcome: 'funded', jobId: '104' });
+  assert.equal((await reconcileAttempt({ ...base, callsId: 'b1' }, chain({ calls: async () => ({ status: 'pending', logs: [] }) }))).outcome, 'pending');
   const other = { ...funded, client: PROVIDER };
-  assert.deepEqual(await reconcileAttempt({ ...batch, callsId: null }, chain({ jobs: { '100': other, '101': other, '102': funded } }), NOW), { outcome: 'funded', jobId: '102' });
+  assert.deepEqual(await reconcileAttempt(base, chain({ jobs: { '100': other, '101': other, '102': funded } })), { outcome: 'funded', jobId: '102' });
+  assert.equal((await reconcileAttempt({ ...base, txHashes: ['0xc'] }, chain({ job: async () => { throw new Error('rpc'); } }))).outcome, 'pending');
+  assert.equal((await reconcileAttempt({ ...base, txHashes: ['0xc'] }, chain({ receipt: async () => ({ status: 'success', logs: ['106'] }), jobs: { '106': { ...funded, budget: 1n } } }))).outcome, 'mismatch');
+  assert.equal((await reconcileAttempt({ ...base, txHashes: ['0xc', '0xf'] }, chain({ receipt: async (h) => (h === '0xc' ? { status: 'success', logs: ['105'] } : null), jobs: { '105': { ...funded, statusName: 'OPEN' } } }))).outcome, 'pending', 'a transaction still unmined');
 });
 
-test('only a definite answer closes an attempt; an unreadable escrow keeps it pending', async () => {
-  const sent = { ...attempt(), state: 'pending' as const, updatedAt: START, jobId: null, callsId: null, txHashes: ['0xc'] };
-  assert.equal((await reconcileAttempt(sent, chain({ job: async () => { throw new Error('rpc'); } }), NOW)).outcome, 'pending');
-  /* Created, never funded, and nothing in flight: nothing was taken. */
-  const created = await reconcileAttempt(sent, chain({ receipt: async () => ({ status: 'success', logs: ['105'] }), jobs: { '105': { ...funded, statusName: 'OPEN' } } }), NOW);
-  assert.equal(created.outcome, 'not-funded');
-  /* A fund transaction still unmined keeps it pending. */
-  const inFlight = await reconcileAttempt({ ...sent, txHashes: ['0xc', '0xf'] }, chain({ receipt: async (h) => (h === '0xc' ? { status: 'success', logs: ['105'] } : null), jobs: { '105': { ...funded, statusName: 'OPEN' } } }), NOW);
-  assert.equal(inFlight.outcome, 'pending');
-  /* Terms differ: shown, not closed. */
-  assert.equal((await reconcileAttempt(sent, chain({ receipt: async () => ({ status: 'success', logs: ['106'] }), jobs: { '106': { ...funded, budget: 1n } } }), NOW)).outcome, 'mismatch');
-  /* The wallet never returned anything: only after the grace period, and only with no matching job, is it closed. */
-  const silent = { ...attempt(), state: 'pending' as const, updatedAt: START, jobId: null, callsId: null, txHashes: [] };
-  assert.equal((await reconcileAttempt(silent, chain(), NOW)).outcome, 'pending');
-  assert.equal((await reconcileAttempt(silent, chain(), Date.parse(START) + UNSEEN_GRACE_MS + 1)).outcome, 'not-funded');
+test('recovery records the escrow’s own deadline, not the time it was recovered', () => {
+  const hook = readFileSync('src/lib/hire/useHire.ts', 'utf8');
+  assert.match(hook, /expiredAt: onchain\.expiredAt,/);
+  assert.ok(!/expiredAt: (snapshot|attempt)\.expiredAt \?\? at/.test(hook), 'no fallback to the recovery time');
+  const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
+  assert.match(wallet, /expiredAt: job\.expiredAt \}/, 'the reader returns the on-chain deadline');
+  const record = fundedJobRecord({ jobId: 1n, chainId: 97, agent: { chainId: 97, tokenId: '1', name: 'a' }, provider: PROVIDER, task: 't', budgetRaw: 1n, paymentToken: USDT97, tokenConfirmed: true, expiredAt: 1_800_000_000n, hireTxHash: null, at: '2026-10-26T00:00:00.000Z' });
+  assert.equal(record.expiredAt, new Date(1_800_000_000 * 1000).toISOString());
+});
+
+test('the hire hook drives every attempt as its owner and settles only through the coordinator', () => {
+  const hook = readFileSync('src/lib/hire/useHire.ts', 'utf8');
+  assert.match(hook, /beforePrompt: \(step\) => \{\s*session\.beforePrompt\(step\);/, 'browser wallet: ownership before every prompt');
+  assert.match(hook, /session\.beforePrompt\('batch'\);\s*const outcome = await hireErc8183Agent/, 'passkey: ownership before its one prompt');
+  assert.match(hook, /await coordinator\.settle\(snapshot, verdict, chainNow/);
+  assert.ok(!/journal\.close|journal\.note|journal\.begin/.test(hook), 'nothing writes the journal outside the coordinator');
+  const wallet = readFileSync('src/lib/wallet/external.ts', 'utf8');
+  assert.match(wallet, /ask\('batch'\);\s*const callsId/);
+  assert.match(wallet, /ask\(step as Parameters<typeof ask>\[0\]\);\s*const hash = await wallet\.sendTransaction/);
+  assert.match(wallet, /input\.beforePrompt\?\.\('swapping'\);\s*await acquireShortfall/);
 });

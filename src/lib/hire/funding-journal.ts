@@ -1,44 +1,68 @@
 import { fundingOutcome, type FundedJobFields } from './funding-outcome';
 
 /**
- * A funding attempt, written down before the wallet is asked and kept until
- * the chain says how it ended.
+ * A funding attempt, owned by the tab that drives it, written down before the
+ * wallet is asked, and closed only when the chain proves how it ended.
  *
- * The hire flow used to hold the attempt in memory only. A wallet that
- * stopped reporting, a receipt that timed out, a token read that failed after
- * the money moved, or simply a reload, all left the buyer on an error with a
- * retry beside it — and a retry after a funding that landed is a second job
- * and a second payment. So:
+ * Why ownership, not just a record. A record in shared storage can be read by
+ * any tab. Without an owner, a second tab could reconcile an attempt the first
+ * was still driving — see a created job still OPEN, every recorded transaction
+ * mined, call it "not funded" and clear it — while the first tab sat at the
+ * approve or fund prompt and could still pay. The second tab could then start
+ * another hire. An OPEN job proves only that nothing has been funded *yet*.
  *
- * - the attempt is persisted (per wallet and chain) before the first prompt,
- *   and every identifier is added the moment it exists: the predicted job id,
- *   the batch id, each transaction hash, the real job id;
- * - while one is open, no new commission from that wallet starts (`begin`
- *   refuses), across clicks, tabs and reloads;
- * - it is closed only by a definite answer: funded (the job is adopted, never
- *   re-funded), or not funded (nothing moved). Anything else is pending
- *   reconciliation, said as that, and checked again — never shown as a failed
- *   hire to be retried.
+ * So:
+ * - The driving tab holds an exclusive cross-tab lock (Web Locks) for the
+ *   wallet and chain for the whole attempt. The browser releases it when the
+ *   tab ends, which is the only liveness signal trusted here.
+ * - `run` refuses to begin while the lock is held elsewhere, or while any
+ *   attempt is recorded: concurrent starts cannot both begin.
+ * - Before every wallet request the driver calls `beforePrompt(step)`, which
+ *   checks the record is still this attempt (`attemptId`) and records the
+ *   prompt now outstanding. A lost or replaced record stops the flow before
+ *   the wallet is asked.
+ * - `settle` closes an attempt only while holding the lock (so never while its
+ *   owner is alive) and only if the record is exactly the snapshot that was
+ *   reconciled (so a stale result cannot delete a newer attempt).
+ * - An abandoned attempt (lock free, owner gone) is closed as not funded only
+ *   when no payment can follow: no prompt that moves money was outstanding,
+ *   or the chain's clock is past the expiry the attempt encoded, after which
+ *   the escrow refuses both `fund` and `createJobWithToken`. A timeout alone
+ *   proves nothing; a funding prompt left open in a wallet can still be
+ *   approved.
  */
+
+/** The wallet request a driver is waiting on. `funding` and `batch` move money; the rest do not. */
+export type PromptStep = 'swapping' | 'creating' | 'registering' | 'budgeting' | 'approving' | 'funding' | 'batch';
+const MOVES_MONEY: ReadonlySet<PromptStep> = new Set(['funding', 'batch']);
+
 export interface FundingAttempt {
+  /** This attempt, distinct from any earlier or later one for the same wallet. */
+  attemptId: string;
+  /** The tab that created it. Informational: the lock, not this field, decides who may act. */
+  ownerTab: string;
   wallet: string;
   chainId: number;
   provider: string;
   agent: { chainId: number; tokenId: string; name: string };
-  /** The brief as the agent reads it, and the description committed on chain. */
   task: string;
   description: string;
-  /** The token and exact amount this attempt funds. */
   token: string;
   amountRaw: string;
-  expiredAt: string | null;
+  /**
+   * The latest chain time (seconds) any request of this attempt could still
+   * fund a job: the expiry encoded in it. Past it, `fund` and creation revert.
+   * Null while not yet known, which is treated as "could still pay".
+   */
+  fundableUntil: number | null;
   startedAt: string;
   updatedAt: string;
   predictedJobId: string | null;
   jobId: string | null;
   callsId: string | null;
   txHashes: string[];
-  /** `sending` while this page is driving it; `pending` once it ended without a definite answer. */
+  /** The most recent wallet request issued. Null before the first prompt. */
+  prompt: PromptStep | null;
   state: 'sending' | 'pending';
 }
 
@@ -48,9 +72,41 @@ export interface KeyValue {
   removeItem(key: string): void;
 }
 
-const storageKey = (wallet: string, chainId: number) => `pokter:funding-attempt:${chainId}:${wallet.toLowerCase()}`;
+/** The subset of the Web Locks API this needs; injectable, so two tabs can be simulated deterministically. */
+export interface LockManagerLike {
+  request<T>(name: string, options: { ifAvailable: true }, callback: (lock: unknown | null) => Promise<T> | T): Promise<T>;
+}
 
-export function fundingJournal(kv: KeyValue) {
+export class AttemptOwnershipLost extends Error {
+  constructor() {
+    super('ATTEMPT_OWNERSHIP_LOST');
+    this.name = 'AttemptOwnershipLost';
+  }
+}
+
+const storageKey = (wallet: string, chainId: number) => `pokter:funding-attempt:${chainId}:${wallet.toLowerCase()}`;
+const lockName = (wallet: string, chainId: number) => `pokter:funding-lock:${chainId}:${wallet.toLowerCase()}`;
+
+export type BeginInput = Omit<FundingAttempt, 'attemptId' | 'ownerTab' | 'state' | 'updatedAt' | 'txHashes' | 'jobId' | 'callsId' | 'prompt' | 'fundableUntil'> & { fundableUntil?: number | null };
+
+export interface AttemptSession {
+  readonly attemptId: string;
+  /** Add what is now known. Throws `AttemptOwnershipLost` if the record is no longer this attempt. */
+  note(patch: { predictedJobId?: string; jobId?: string; callsId?: string; txHash?: string; fundableUntil?: number; description?: string }): FundingAttempt;
+  /** Call before every wallet request. Throws `AttemptOwnershipLost` if the record is no longer this attempt. */
+  beforePrompt(step: PromptStep): FundingAttempt;
+  /** The attempt resolved as funded and recorded by its owner. */
+  close(): void;
+  /** The attempt ended without a definite answer: keep it, as pending. */
+  leavePending(): FundingAttempt | null;
+}
+
+export type RunResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: 'in-progress-elsewhere' }
+  | { ok: false; reason: 'open-attempt'; blocking: FundingAttempt };
+
+export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, tabId: string, now: () => Date = () => new Date()) {
   const read = (wallet: string, chainId: number): FundingAttempt | null => {
     try {
       const raw = kv.getItem(storageKey(wallet, chainId));
@@ -60,41 +116,116 @@ export function fundingJournal(kv: KeyValue) {
     }
   };
   const write = (attempt: FundingAttempt) => kv.setItem(storageKey(attempt.wallet, attempt.chainId), JSON.stringify(attempt));
+  const remove = (wallet: string, chainId: number) => kv.removeItem(storageKey(wallet, chainId));
+  /*
+   * Without Web Locks there is no trustworthy cross-tab liveness signal, so
+   * nothing is ever closed on another's behalf: `settle` reports busy, and an
+   * attempt closes only through its own tab or a funded adoption by the owner.
+   */
+  const exclusive = async <T>(wallet: string, chainId: number, fn: () => Promise<T>): Promise<{ held: true; value: T } | { held: false }> => {
+    if (!locks) return { held: false };
+    return locks.request(lockName(wallet, chainId), { ifAvailable: true }, async (lock) => (lock ? { held: true as const, value: await fn() } : { held: false as const }));
+  };
+
   return {
     read,
-    /** Open an attempt, or refuse while another from this wallet is unresolved. */
-    begin(attempt: Omit<FundingAttempt, 'state' | 'updatedAt' | 'txHashes' | 'jobId' | 'callsId'> & Partial<Pick<FundingAttempt, 'jobId' | 'callsId' | 'txHashes'>>): { ok: true; attempt: FundingAttempt } | { ok: false; blocking: FundingAttempt } {
-      const open = read(attempt.wallet, attempt.chainId);
-      if (open) return { ok: false, blocking: open };
-      const full: FundingAttempt = { jobId: null, callsId: null, txHashes: [], ...attempt, state: 'sending', updatedAt: attempt.startedAt };
-      write(full);
-      return { ok: true, attempt: full };
-    },
-    /** Add what is now known. A hash is appended once; nothing already known is erased. */
-    note(wallet: string, chainId: number, patch: { predictedJobId?: string; jobId?: string; callsId?: string; txHash?: string; state?: FundingAttempt['state'] }, at: string = new Date().toISOString()): FundingAttempt | null {
-      const open = read(wallet, chainId);
-      if (!open) return null;
-      const next: FundingAttempt = {
-        ...open,
-        predictedJobId: patch.predictedJobId ?? open.predictedJobId,
-        jobId: patch.jobId ?? open.jobId,
-        callsId: patch.callsId ?? open.callsId,
-        txHashes: patch.txHash && !open.txHashes.includes(patch.txHash) ? [...open.txHashes, patch.txHash] : open.txHashes,
-        state: patch.state ?? open.state,
-        updatedAt: at,
+
+    /**
+     * Run one funding attempt while owning it. `drive` is called with a
+     * session only after the lock is taken and the attempt is recorded; the
+     * lock is held until `drive` settles, success or failure.
+     */
+    async run<T>(input: BeginInput, drive: (session: AttemptSession) => Promise<T>): Promise<RunResult<T>> {
+      const go = async (): Promise<RunResult<T>> => {
+        const open = read(input.wallet, input.chainId);
+        if (open) return { ok: false, reason: 'open-attempt', blocking: open };
+        const at = now().toISOString();
+        const attemptId = `${tabId}:${at}:${Math.random().toString(36).slice(2, 10)}`;
+        const attempt: FundingAttempt = { ...input, fundableUntil: input.fundableUntil ?? null, attemptId, ownerTab: tabId, state: 'sending', updatedAt: at, txHashes: [], jobId: null, callsId: null, prompt: null };
+        write(attempt);
+        const mine = (): FundingAttempt => {
+          const current = read(input.wallet, input.chainId);
+          if (!current || current.attemptId !== attemptId) throw new AttemptOwnershipLost();
+          return current;
+        };
+        const update = (next: FundingAttempt) => {
+          write({ ...next, updatedAt: now().toISOString() });
+          return read(input.wallet, input.chainId)!;
+        };
+        const session: AttemptSession = {
+          attemptId,
+          note(patch) {
+            const current = mine();
+            return update({
+              ...current,
+              predictedJobId: patch.predictedJobId ?? current.predictedJobId,
+              jobId: patch.jobId ?? current.jobId,
+              callsId: patch.callsId ?? current.callsId,
+              fundableUntil: patch.fundableUntil ?? current.fundableUntil,
+              description: patch.description ?? current.description,
+              txHashes: patch.txHash && !current.txHashes.includes(patch.txHash) ? [...current.txHashes, patch.txHash] : current.txHashes,
+            });
+          },
+          beforePrompt(step) {
+            return update({ ...mine(), prompt: step });
+          },
+          close() {
+            const current = read(input.wallet, input.chainId);
+            if (current?.attemptId === attemptId) remove(input.wallet, input.chainId);
+          },
+          leavePending() {
+            const current = read(input.wallet, input.chainId);
+            if (current?.attemptId !== attemptId) return null;
+            return update({ ...current, state: 'pending' });
+          },
+        };
+        return { ok: true, value: await drive(session) };
       };
-      write(next);
-      return next;
+      if (!locks) return go();
+      const held = await exclusive(input.wallet, input.chainId, go);
+      return held.held ? held.value : { ok: false, reason: 'in-progress-elsewhere' };
     },
-    close(wallet: string, chainId: number) {
-      kv.removeItem(storageKey(wallet, chainId));
+
+    /**
+     * Close a reconciled attempt, or keep it. Only under the lock (never
+     * while its owner is alive), only if the record is still exactly
+     * `snapshot`, and for "not funded" only when no payment can follow.
+     * `onFunded` runs under the lock before the record is removed, so a
+     * funded job is adopted exactly once.
+     */
+    async settle(
+      snapshot: FundingAttempt,
+      verdict: Reconciled,
+      chainNowSeconds: number,
+      onFunded?: (jobId: string) => Promise<void>,
+    ): Promise<'closed-funded' | 'closed-not-funded' | 'kept' | 'kept-may-still-pay' | 'busy' | 'stale'> {
+      const held = await exclusive(snapshot.wallet, snapshot.chainId, async () => {
+        const current = read(snapshot.wallet, snapshot.chainId);
+        if (!current || current.attemptId !== snapshot.attemptId || current.updatedAt !== snapshot.updatedAt) return 'stale' as const;
+        if (verdict.outcome === 'funded') {
+          await onFunded?.(verdict.jobId);
+          remove(snapshot.wallet, snapshot.chainId);
+          return 'closed-funded' as const;
+        }
+        if (verdict.outcome === 'not-funded') {
+          if (!paymentImpossible(current, chainNowSeconds)) return 'kept-may-still-pay' as const;
+          remove(snapshot.wallet, snapshot.chainId);
+          return 'closed-not-funded' as const;
+        }
+        return 'kept' as const;
+      });
+      return held.held ? held.value : 'busy';
     },
   };
 }
 
-/** Whether nothing could have left the wallet: no hash, no batch, no job id ever reported. */
-export function nothingSent(attempt: FundingAttempt): boolean {
-  return attempt.txHashes.length === 0 && attempt.callsId === null && attempt.jobId === null;
+/**
+ * Whether an attempt whose owner is gone can no longer pay: no request that
+ * moves money was ever issued, or the chain is past the expiry it encoded.
+ */
+export function paymentImpossible(attempt: Pick<FundingAttempt, 'prompt' | 'fundableUntil'>, chainNowSeconds: number): boolean {
+  if (attempt.prompt === null || !MOVES_MONEY.has(attempt.prompt)) return true;
+  return attempt.fundableUntil !== null && chainNowSeconds > attempt.fundableUntil;
 }
 
 export interface AttemptChainReader {
@@ -107,6 +238,12 @@ export interface AttemptChainReader {
   jobIdFrom(logs: unknown[]): bigint | null;
 }
 
+/**
+ * What the chain says about an attempt *now*. `not-funded` means only that no
+ * funded job exists and nothing recorded is in flight; whether that may close
+ * the attempt is `settle`'s decision, which also needs the lock and the
+ * outstanding prompt.
+ */
 export type Reconciled =
   | { outcome: 'funded'; jobId: string }
   | { outcome: 'not-funded'; jobId: string | null; detail: string }
@@ -115,27 +252,19 @@ export type Reconciled =
 
 /** How far past the predicted id to look: other buyers' hires can take the ids in between. */
 export const RECONCILE_WINDOW = 6;
-/** How long a transaction may stay unseen before "not mined" is read as "never sent". */
-export const UNSEEN_GRACE_MS = 15 * 60_000;
 
 const OPEN = new Set(['OPEN', 'CREATED']);
 
-/**
- * Ask the chain how an attempt ended. Only `funded` and `not-funded` close
- * it; the rest keep it open and keep further commissions blocked.
- */
-export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptChainReader, nowMs: number = Date.now()): Promise<Reconciled> {
+export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptChainReader): Promise<Reconciled> {
   const expected = { account: attempt.wallet, provider: attempt.provider, budget: BigInt(attempt.amountRaw), description: attempt.description };
   let jobId = attempt.jobId;
   let unmined = 0;
-  let reverted = 0;
   for (const hash of attempt.txHashes) {
     const receipt = await read.receipt(hash).catch(() => null);
     if (!receipt) {
       unmined += 1;
       continue;
     }
-    if (receipt.status === 'reverted') reverted += 1;
     if (!jobId) {
       const id = read.jobIdFrom(receipt.logs);
       if (id !== null) jobId = id.toString();
@@ -148,7 +277,6 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
       const id = read.jobIdFrom(batch.logs);
       if (id !== null) jobId = id.toString();
     }
-    if (batch?.status === 'failure') reverted += 1;
   }
 
   const candidates = jobId
@@ -166,18 +294,11 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
     const verdict = fundingOutcome(onchain && { ...onchain, statusName: OPEN.has(onchain.statusName) ? 'CREATED' : onchain.statusName }, expected);
     if (verdict === 'funded') return { outcome: 'funded', jobId: id.toString() };
     if (verdict === 'mismatch') return { outcome: 'mismatch', jobId: id.toString(), detail: 'A job from this wallet to this provider exists with terms that differ from this attempt.' };
-    if (jobId) {
-      /* Our job, created and not funded. Funded later only if a transaction is still in flight. */
-      if (unmined > 0) return { outcome: 'pending', detail: `Job ${jobId} exists and is not funded yet; a transaction from this attempt is not mined.` };
-      return { outcome: 'not-funded', jobId, detail: `Job ${jobId} was created and never funded, so nothing was taken. It holds no money.` };
-    }
   }
-
-  const age = nowMs - Date.parse(attempt.startedAt);
-  if (unmined > 0 && age < UNSEEN_GRACE_MS) return { outcome: 'pending', detail: 'A transaction from this attempt is not mined yet.' };
-  if (nothingSent(attempt) && age >= UNSEEN_GRACE_MS) return { outcome: 'not-funded', jobId: null, detail: 'The wallet never reported a transaction, and no matching job exists.' };
-  if (attempt.txHashes.length > 0 && unmined === 0 && reverted > 0) return { outcome: 'not-funded', jobId: null, detail: 'The attempt’s transactions reverted, and no matching job is funded.' };
-  /* Every transaction is mined and none of them created a job for this buyer and provider: none exists to fund. */
-  if (attempt.txHashes.length > 0 && unmined === 0 && !attempt.callsId) return { outcome: 'not-funded', jobId: null, detail: 'The attempt’s transactions are mined and none of them created this job.' };
-  return { outcome: 'pending', detail: 'No matching funded job yet. Check your wallet activity; Pokter checks again before anything else can be funded.' };
+  if (unmined > 0) return { outcome: 'pending', detail: 'A transaction from this attempt is not mined yet.' };
+  return {
+    outcome: 'not-funded',
+    jobId,
+    detail: jobId ? `Job ${jobId} exists and is not funded.` : 'No funded job from this attempt exists.',
+  };
 }

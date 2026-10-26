@@ -38,7 +38,7 @@ export type HireStep =
  * transaction the wallet handed back, mined or not; `predictedJobId` is the id
  * a batch expects; `jobId` is the job a receipt proved.
  */
-export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex; sentHash?: Hex; callsId?: string; predictedJobId?: bigint; description?: string; paymentToken?: Address; budgetRaw?: bigint }
+export interface ExternalHireProgress { step: HireStep; jobId?: bigint; hash?: Hex; sentHash?: Hex; callsId?: string; predictedJobId?: bigint; description?: string; paymentToken?: Address; budgetRaw?: bigint; expiredAt?: bigint }
 export interface ExternalHireResult {
   jobId: bigint;
   /** Seconds since the epoch, as written on chain. */
@@ -71,6 +71,12 @@ export interface ExternalHireInput {
   /** The escrow to fund, chosen per hire. Omitted, the site's default network. */
   escrowChainId?: number;
   onProgress?: (progress: ExternalHireProgress) => void;
+  /**
+   * Called before every wallet request, with the step it is for. The caller
+   * throws here when it no longer owns the attempt (`hire/funding-journal`),
+   * which stops the hire before the wallet is asked.
+   */
+  beforePrompt?: (step: 'swapping' | 'creating' | 'registering' | 'budgeting' | 'approving' | 'funding' | 'batch') => void;
 }
 
 type InjectedProvider = {
@@ -766,6 +772,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
      * did not ask for, and nothing has been signed yet.
      */
     if (tokenHire) throw new Error('INSUFFICIENT_HIRE_TOKEN');
+    input.beforePrompt?.('swapping');
     await acquireShortfall({
       read, wallet, account, budget, held: balance, addresses, report,
     });
@@ -798,7 +805,8 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
    * attempt already open for this wallet) stops the hire before any wallet
    * is asked.
    */
-  report({ step: 'creating', predictedJobId, description, paymentToken: payToken, budgetRaw: budget });
+  report({ step: 'creating', predictedJobId, description, paymentToken: payToken, budgetRaw: budget, expiredAt });
+  const ask = input.beforePrompt ?? (() => {});
 
   /*
    * One atomic batch only for $U. For another token the batch is the same
@@ -814,6 +822,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
         args: [addresses.commerce as Address, 0n] }),
     });
     report({ step: 'creating', jobId: predictedJobId, predictedJobId });
+    ask('batch');
     const callsId = (await provider().request({ method: 'wallet_sendCalls', params: [{
       version: '2.0.0', chainId: `0x${chainId.toString(16)}`,
       from: account, atomicRequired: true,
@@ -852,6 +861,7 @@ export async function hireFromExternalWallet(input: ExternalHireInput): Promise<
 
   const send = async (step: HireStep, to: Address, data: Hex, jobId?: bigint) => {
     await ensureChain(chainId); await assertAccount(account); report({ step, jobId });
+    ask(step as Parameters<typeof ask>[0]);
     const hash = await wallet.sendTransaction({ account, to, data, chain: null });
     /* Reported before waiting: a receipt that never comes must not lose the hash. */
     report({ step, jobId, sentHash: hash });
@@ -1022,7 +1032,8 @@ export function attemptReader(chainId: number, account: Address, providerAddress
     },
     async job(jobId: bigint) {
       const job = await getErc8183Job(network, jobId);
-      return { client: job.client, provider: job.provider, budget: job.budget, description: job.description, statusName: job.statusName };
+      /* `expiredAt` too: a recovered job keeps the deadline the escrow holds, not the time it was recovered. */
+      return { client: job.client, provider: job.provider, budget: job.budget, description: job.description, statusName: job.statusName, expiredAt: job.expiredAt };
     },
     jobIdFrom(logs: unknown[]) {
       try {
@@ -1030,6 +1041,10 @@ export function attemptReader(chainId: number, account: Address, providerAddress
       } catch {
         return null;
       }
+    },
+    /** The chain's clock, in seconds: what an attempt's expiry is compared against. */
+    async chainNow() {
+      return Number((await read.getBlock({ blockTag: 'latest' })).timestamp);
     },
     /** The token a recovered job is bound to; unread stays unknown. */
     async token(jobId: bigint) {

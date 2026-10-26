@@ -52,6 +52,20 @@ The browser keeps a funding journal (`src/lib/hire/funding-journal.ts`), per wal
 - **A refusal in the wallet before anything was handed back** closes the attempt, because nothing was sent.
 - **Funded, but the token read fails.** It is retried three times. If it still cannot be read, the hire is recorded as funded with its token unknown, and the sweep reads it later. Only a token that reads back as different is an error, and its message says not to fund again.
 
+## Who may act on an attempt (cross-tab ownership)
+
+- **The tab funding an attempt holds an exclusive Web Lock** for that wallet and chain for the whole attempt; the browser releases it when the tab ends.
+- **While the lock is held, no other tab can begin a hire or close the attempt.** It is shown as being funded in another tab.
+- **Before every wallet request** (swap, create, register, budget, approve, fund, batch), the driver proves the record is still its own attempt, and records which prompt is now outstanding. A lost or replaced record stops the flow before the wallet is asked.
+- **Closing compares, then deletes.** It happens only under the lock, and only if the record is exactly the snapshot that was reconciled, so a stale result cannot delete a newer attempt.
+- **An abandoned attempt** (lock free, owner gone) is closed as not funded only when no payment can follow:
+  - no money-moving prompt (fund or batch) was outstanding; or
+  - the chain is past the expiry the attempt encoded. The escrow then refuses both `fund` and `createJobWithToken`, which was checked on a fork.
+
+  A timeout proves nothing; a fund prompt left open in a wallet can still be approved.
+- **Without Web Locks** nothing is closed on another tab's behalf.
+- **Recovered jobs take their deadline from the escrow**, never from the recovery time.
+
 ## Records, receipts and totals; rollback
 
 - Each job stores its token: recorded at funding, read from `jobPaymentToken` when indexed, and filled by the sweep and by `POST /api/jobs/backfill-currency`. The backfill is a dry run unless `{"write": true}` is sent, and it reports unread rows.
@@ -73,7 +87,7 @@ The browser keeps a funding journal (`src/lib/hire/funding-journal.ts`), per wal
   - refusals, the escrow support check, and the exact amount and expiry
   - labels, per-token totals and the **rollback** case
   - provider earnings, the backfill, and the Evidence agent's token choice
-- **`tests/hire-funding.test.mts`** (16):
+- **`tests/hire-funding.test.mts`** (21), including the **two-tab race** (A paused at the fund prompt; B can neither close A's attempt nor start a duplicate; A then completes), **simultaneous starts**, **stale reconciliation**, **abandoned attempts**, **ownership loss**, recovery with the on-chain deadline, and:
   - the planner: a USDT price plans the signed amount with batching off, and $U is unchanged
   - **passkey refusal** and ineligible tokens
   - the support table
@@ -90,6 +104,7 @@ The browser keeps a funding journal (`src/lib/hire/funding-journal.ts`), per wal
   - IVL Rebalancer's (56/341628) signed 1 USDT carried through review to the **final payment screen**: "USDT to pay with 0.00" (the wallet's real balance), "Short of the signed price. Pokter does not swap into USDT", "Pay 1 USDT into the escrow contract 0xEa4D…EBA6", and "Fund escrow · 1 USDT".
   - The header named "Real USDT" before the quote.
   - After a reload with an open attempt in the journal, the page showed "An earlier funding attempt is being checked" with the expected job and transaction, and funding was blocked.
+  - **Two real tabs with the real Web Locks API.** Tab 1 held the funding lock with an attempt at the fund prompt. Tab 2 said the wallet "is funding a hire in another tab or window" and left the record untouched. After tab 1 released the lock, tab 2 kept the attempt, because its transaction was not mined, rather than closing it.
 
 ## Release checklist (in order; nothing here is done yet)
 
@@ -105,7 +120,7 @@ The browser keeps a funding journal (`src/lib/hire/funding-journal.ts`), per wal
 
 ## Remaining gaps
 
-- The funding journal is per browser. Another device sees a recovered job through the index (the sweep finds it), but its own new hire is not blocked by an attempt open elsewhere.
+- The funding journal and its lock are per browser profile. Another device sees a recovered job through the index (the sweep finds it), but its own new hire is not blocked by an attempt open elsewhere.
 - The connect dialog still offers a passkey wallet on a signed-token hire. The payment screen then refuses it by name before anything is asked.
 - Atomic batches for other tokens are switched off, not tested.
 - No swap into another token.
