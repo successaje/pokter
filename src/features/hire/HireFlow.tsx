@@ -176,7 +176,7 @@ function CurrencyChoice({ choices, preferredToken, onChange }: {
   const listed = [...choices.seen, ...(expanded ? choices.unknown : [])];
   const chosen = listed.find((c) => same(c.token.address, preferredToken)) ?? null;
   const defaultWords = choices.lastSigned
-    ? `Its last signed quote here was in ${tokenName(choices.lastSigned)}. That is provisional until it signs a fresh quote for this brief.`
+    ? `Its last signed quote here was in ${tokenName(choices.lastSigned)}. That is provisional: a fresh quote is requested for this brief before anything is paid.`
     : 'Pokter has not seen it sign a price here; it chooses when it signs a quote for this brief.';
   const askLink = !expanded && choices.unknown.length > 0 && (
     <button type="button" onClick={() => setAskOther(true)} className="self-start text-[12.5px] text-ink-2 underline underline-offset-2">
@@ -192,7 +192,7 @@ function CurrencyChoice({ choices, preferredToken, onChange }: {
         <span className="text-[13px] text-ink-2">Currency: the agent’s default{known ? `, seen in ${tokenName(known.token)}` : ''}</span>
         <span className="text-[12px] text-ink-3">
           {known
-            ? `${tokenName(known.token)}: ${known.seen}. That is history, not a promise; the agent signs a fresh quote for this brief, in its own currency.`
+            ? `${tokenName(known.token)}: ${known.seen}. That is history, not a promise; a fresh quote is requested for this brief, and the agent may answer in its own currency.`
             : defaultWords}
         </span>
         {askLink}
@@ -222,7 +222,7 @@ function CurrencyChoice({ choices, preferredToken, onChange }: {
               chosen.seen
                 ? `Seen before: ${chosen.seen}. That is history, not a promise.`
                 : 'Pokter has not seen this agent price in it.'
-            } The agent signs a fresh quote and may answer in another currency; you see its price, in its money, before anything is paid.`}
+            } A fresh quote is requested; the agent may answer in another currency, or not at all. You see its price, in its money, before anything is paid.`}
       </span>
       {askLink}
     </div>
