@@ -13,6 +13,11 @@ primary_region = 'iad'
     # Chain escrow, with real money; everything else stays on testnet.
     # Remove to return to testnet only. See src/lib/network/escrow.ts.
     NEXT_PUBLIC_ESCROW_CHAINS = '97,56'
+    # New currencies for hires on BNB Chain, enabled one at a time for the
+    # owner-led test session (docs/release/test-session.md). Public while on.
+    # Remove a pair and redeploy to stop new hires in it; funded jobs keep
+    # their token, settlement and recovery.
+    NEXT_PUBLIC_HIRE_TOKENS = '56:0x55d398326f99059fF775485246999027B3197955'
 
 [env]
   PORT = '8080'
