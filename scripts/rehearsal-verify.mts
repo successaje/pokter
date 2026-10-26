@@ -14,7 +14,7 @@
  * Nothing is signed, sent or approved.
  *
  *   ORIGIN=https://pokter-staging.fly.dev npx tsx scripts/rehearsal-verify.mts \
- *     --chain 97 --job <id> --token <address> --amount <raw> --buyer <address> --provider <address> \
+ *     --chain 97 --job <id> --currency <token address> --amount <raw> --buyer <address> --provider <address> \
  *     [--status FUNDED|SUBMITTED|COMPLETED|REJECTED|EXPIRED]
  */
 import { createPublicClient, erc20Abi, getAddress, http, parseAbi, type Address } from 'viem';
@@ -26,14 +26,14 @@ const arg = (name: string) => {
 };
 const chainId = Number(arg('chain'));
 const jobId = arg('job');
-const token = arg('token');
+const token = arg('currency');
 const amount = arg('amount');
 const buyer = arg('buyer');
 const provider = arg('provider');
 const status = arg('status');
 const origin = process.env.ORIGIN;
 if ((chainId !== 56 && chainId !== 97) || !jobId || !/^\d+$/.test(jobId) || !token || !amount || !/^\d+$/.test(amount) || !buyer || !provider) {
-  console.error('Usage: rehearsal-verify.mts --chain 56|97 --job <id> --token <address> --amount <raw> --buyer <address> --provider <address> [--status NAME]');
+  console.error('Usage: rehearsal-verify.mts --chain 56|97 --job <id> --currency <token address> --amount <raw> --buyer <address> --provider <address> [--status NAME]');
   process.exit(2);
 }
 

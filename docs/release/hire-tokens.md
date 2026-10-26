@@ -337,7 +337,7 @@ The last command mints the identity from the new Touchstone wallet itself, throu
 Use your browser wallet. All approvals and funding are yours. After each stage, run the read-only check below. It compares the escrow's own state with what was signed and with what Pokter shows.
 
 ```bash
-ORIGIN=https://pokter-staging.fly.dev npx tsx scripts/rehearsal-verify.mts --chain 97 --job <id> --token 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd --amount <signed raw> --buyer <your address> --provider <Touchstone address> --status <FUNDED|SUBMITTED|COMPLETED>
+ORIGIN=https://pokter-staging.fly.dev npx tsx scripts/rehearsal-verify.mts --chain 97 --job <id> --currency 0x337610d27c682E347C9cD60BD4b3b107C9d34dDd --amount <signed raw> --buyer <your address> --provider <Touchstone address> --status <FUNDED|SUBMITTED|COMPLETED>
 ```
 
 1. **Hire A, the clean path.** Open `/hire/97/<id>?pay=0x337610d27c682E347C9cD60BD4b3b107C9d34dDd` and use a token brief from Touchstone's card.
