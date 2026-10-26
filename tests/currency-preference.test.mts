@@ -61,7 +61,7 @@ test('a bridged peg is chosen and confirmed by its full name, chain and contract
   assert.equal(tokenName(byChain(56, 'USD1')), 'USD1', 'issued by its issuer: its own symbol');
   assert.equal(tokenName(byChain(56, 'U')), '$U');
   const flow = readFileSync('src/features/hire/HireFlow.tsx', 'utf8');
-  assert.match(flow, /\{tokenName\(option\)\}/, 'the currency choice');
+  assert.match(flow, /\{tokenName\(c\.token\)\}/, 'the currency choice');
   assert.match(flow, /\{tokenIdentity\(hire\.hireToken\)\}/, 'the review: chain and contract under the price');
   assert.match(flow, /tokenIdentity\(hire\.plan\.token\)/, 'the payment confirmation');
   const form = readFileSync('src/features/briefs/RequestForm.tsx', 'utf8');
