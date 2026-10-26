@@ -3,7 +3,8 @@ import { getAddress, verifyMessage, type Hex } from 'viem';
 
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { X402_DISABLED, x402Enabled } from '@/lib/x402/flags';
-import { effectiveState, readX402Call, type X402Call } from '@/lib/x402/receipts';
+import { effectiveState, readX402Call, recordX402Settlement, type X402Call } from '@/lib/x402/receipts';
+import { latestValidBefore, readAuthorizationOnChain, settlementOf, type Settlement } from '@/lib/x402/reconcile';
 import { x402Db } from '@/lib/x402/receipts-db';
 import { receiptProofMessage } from '@/lib/x402/receipt-proof';
 
@@ -19,11 +20,31 @@ export const dynamic = 'force-dynamic';
  * wallet that paid, proved by signing `receiptProofMessage(nonce)`.
  */
 
-const summary = (call: X402Call, now: number) => ({
+/*
+ * For a call whose reply does not settle it (refused, unknown, or stuck
+ * sending), the token is asked whether the payment was taken. A chain that
+ * cannot be read is `unread`, never "not taken".
+ */
+async function settlementFor(call: X402Call, now: number): Promise<Settlement | 'unread' | null> {
+  if (call.settlement) return call.settlement;
+  const state = effectiveState(call, now);
+  if (state !== 'refused' && state !== 'unknown') return null;
+  try {
+    const settlement = settlementOf(call, await readAuthorizationOnChain(call.payer, call.nonce));
+    if (settlement !== 'may-still-settle') recordX402Settlement(x402Db(), call.nonce, settlement, new Date(now).toISOString());
+    return settlement;
+  } catch {
+    return 'unread';
+  }
+}
+
+const summary = async (call: X402Call, now: number) => ({
   nonce: call.nonce,
   state: effectiveState(call, now),
   httpStatus: call.httpStatus,
   settlementTx: call.settlementTx,
+  settlement: await settlementFor(call, now),
+  validBefore: latestValidBefore(call),
   amountRaw: call.amountRaw,
   network: call.network,
   createdAt: call.createdAt,
@@ -43,7 +64,7 @@ function load(request: Request, nonce: string): { call: X402Call } | NextRespons
 export async function GET(request: Request, { params }: { params: Promise<{ nonce: string }> }): Promise<NextResponse> {
   const loaded = load(request, (await params).nonce);
   if (loaded instanceof NextResponse) return loaded;
-  return NextResponse.json({ receipt: summary(loaded.call, Date.now()) }, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json({ receipt: await summary(loaded.call, Date.now()) }, { headers: { 'cache-control': 'no-store' } });
 }
 
 /** The full receipt, answer included, for the wallet that paid. */
@@ -57,5 +78,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ non
     ? await verifyMessage({ address: getAddress(loaded.call.payer), message: receiptProofMessage(nonce), signature }).catch(() => false)
     : false;
   if (!valid) return NextResponse.json({ error: 'Only the wallet that paid can read the answer. Sign the receipt message with it.' }, { status: 403 });
-  return NextResponse.json({ receipt: { ...summary(loaded.call, Date.now()), payer: loaded.call.payer, endpoint: loaded.call.endpoint, responseText: loaded.call.responseText, error: loaded.call.error } }, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json({ receipt: { ...(await summary(loaded.call, Date.now())), payer: loaded.call.payer, endpoint: loaded.call.endpoint, responseText: loaded.call.responseText, error: loaded.call.error } }, { headers: { 'cache-control': 'no-store' } });
 }
