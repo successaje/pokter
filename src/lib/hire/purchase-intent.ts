@@ -44,7 +44,13 @@ export type IntentCheck = { ok: true } | { ok: false; reason: string };
 
 export function checkPurchaseIntent(
   intent: PurchaseIntent,
-  funding: { provider: string; task: string; chainId: number; commerce: string; paymentToken: string },
+  /*
+   * `amountRaw` is the exact amount about to be funded. A token hire passes
+   * it and must fund the signed amount to the unit: it is never derived from
+   * a budget typed in another token, rounded, or converted. A $U hire leaves
+   * it out and keeps its existing rule (a budget at or above the price).
+   */
+  funding: { provider: string; task: string; chainId: number; commerce: string; paymentToken: string; amountRaw?: string },
   nowMs: number = Date.now(),
 ): IntentCheck {
   if (funding.chainId !== intent.chainId) {
@@ -52,6 +58,9 @@ export function checkPurchaseIntent(
   }
   if (!same(funding.paymentToken, intent.currency)) {
     return { ok: false, reason: 'The price is in a different token from the one this escrow holds. Nothing was sent; ask for a fresh quote.' };
+  }
+  if (funding.amountRaw !== undefined && funding.amountRaw !== intent.amountRaw) {
+    return { ok: false, reason: `The hire would fund ${funding.amountRaw} base units, and the seller signed ${intent.amountRaw}. Nothing was sent; the signed amount is funded exactly or not at all.` };
   }
   if (intent.verifyingContract && !same(funding.commerce, intent.verifyingContract)) {
     return { ok: false, reason: `The seller signed this price for escrow ${intent.verifyingContract}, not the escrow this hire would fund (${funding.commerce}). The seller would refuse the job. Nothing was sent.` };

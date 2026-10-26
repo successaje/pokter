@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { chainLabel } from '@/lib/network/presentation';
 import { loadAgentOps, loadFleet, studioOwner } from '@/features/studio/data';
+import type { TotalLine } from '@/features/workspace/totals';
 import { LatencyTrend, ProbeLog, WeeklyJobs } from '@/features/studio/OpsCharts';
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { Diagnostics, DiagnosticsSkeleton } from '@/features/studio/Diagnostics';
@@ -30,6 +31,20 @@ import { MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } fro
 export const dynamic = 'force-dynamic';
 // Personal or step-by-step builder pages: kept out of search, as they were under Studio.
 export const metadata: Metadata = { title: 'Manage agent', robots: { index: false } };
+
+/** Money lines, one per chain and token, stacked; "0" when there are none. */
+function moneyLines(lines: TotalLine[]) {
+  if (!lines.length) return '0';
+  return (
+    <span className="flex flex-col gap-0.5">
+      {lines.map((line) => (
+        <span key={line.key} className={lines.length > 1 ? 'text-[14px]' : undefined}>
+          {line.text}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function Progress({ label, value, target, met, note }: { label: string; value: number; target: number; met: boolean; note?: string }) {
   return (
@@ -299,8 +314,9 @@ export default async function ManageAgent({ params }: { params: Promise<{ chainI
               Operations
             </h2>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Readout label="Released to you" value={`${ops.money.releasedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
-              <Readout label="In escrow now" value={`${ops.money.escrowedU.toLocaleString('en-US', { maximumFractionDigits: 2 })} $U`} />
+              {/* One line per chain and token: real and test money, $U and USDT, are never one figure. */}
+              <Readout label="Released to you" value={moneyLines(ops.money.released)} muted={!ops.money.released.length} />
+              <Readout label="In escrow now" value={moneyLines(ops.money.escrowed)} muted={!ops.money.escrowed.length} />
               <Readout label="Expired or refunded" value={ops.money.refundedJobs} muted={!ops.money.refundedJobs} />
               <Readout label="Disputed jobs" value={ops.money.disputedJobs} muted={!ops.money.disputedJobs} />
             </dl>

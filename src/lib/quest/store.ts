@@ -61,7 +61,18 @@ export interface EscrowJob {
   expiredAt: number;
   status: number;
   description: string;
+  /**
+   * The token the escrow holds this job's budget in, from `jobPaymentToken`.
+   * Null when not read (rows indexed before the column, or a read that
+   * failed) — unknown, never $U. Recorded for display; nothing here sums
+   * budgets, and anything that ever does must sum per chain and token.
+   */
+  paymentToken?: string | null;
 }
+
+type EscrowJobRow = { chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string; payment_token?: string | null };
+
+const fromRow = (r: EscrowJobRow): EscrowJob => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description, paymentToken: r.payment_token ?? null });
 
 export interface JobCursor {
   chainId: number;
@@ -80,6 +91,12 @@ class QuestStore {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec(SCHEMA);
+    /* `CREATE TABLE IF NOT EXISTS` adds no column to an existing table; the same tolerant migration the job store uses. */
+    try {
+      this.db.exec('ALTER TABLE escrow_jobs ADD COLUMN payment_token TEXT');
+    } catch (error) {
+      if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) throw error;
+    }
   }
 
   cursor(chainId: number): JobCursor | null {
@@ -92,13 +109,14 @@ class QuestStore {
   /** Record a batch of jobs and move the cursor past it, together. */
   advance(chainId: number, jobs: EscrowJob[], firstJob: number, nextJob: number): void {
     const upsert = this.db.prepare(
-      `INSERT INTO escrow_jobs (chain_id, job_id, client, provider, budget, expired_at, status, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (chain_id, job_id) DO UPDATE SET status = excluded.status`,
+      `INSERT INTO escrow_jobs (chain_id, job_id, client, provider, budget, expired_at, status, description, payment_token)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (chain_id, job_id) DO UPDATE SET status = excluded.status,
+         payment_token = COALESCE(excluded.payment_token, escrow_jobs.payment_token)`,
     );
     this.db.exec('BEGIN');
     try {
-      for (const j of jobs) upsert.run(chainId, j.jobId, j.client.toLowerCase(), j.provider.toLowerCase(), j.budget, j.expiredAt, j.status, j.description);
+      for (const j of jobs) upsert.run(chainId, j.jobId, j.client.toLowerCase(), j.provider.toLowerCase(), j.budget, j.expiredAt, j.status, j.description, j.paymentToken ? j.paymentToken.toLowerCase() : null);
       this.db
         .prepare(
           `INSERT INTO job_cursors (chain_id, first_job, next_job, updated_at) VALUES (?, ?, ?, ?)
@@ -158,8 +176,8 @@ class QuestStore {
            LEFT JOIN task_answers a ON a.chain_id = e.chain_id AND a.job_id = e.job_id
           WHERE e.provider = ? ORDER BY e.job_id DESC LIMIT ?`,
       )
-      .all(provider.toLowerCase(), limit) as Array<{ chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string; verdict: string | null }>;
-    return rows.map((r) => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description, verdict: r.verdict }));
+      .all(provider.toLowerCase(), limit) as Array<EscrowJobRow & { verdict: string | null }>;
+    return rows.map((r) => ({ ...fromRow(r), verdict: r.verdict }));
   }
 
   /**
@@ -176,8 +194,8 @@ class QuestStore {
           WHERE a.verdict IS NULL OR (a.verdict IN ('pending', 'unreadable') AND a.checked_at < ?)
           ORDER BY e.job_id DESC LIMIT ?`,
       )
-      .all(recheckBefore, limit) as Array<{ chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string }>;
-    return rows.map((r) => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description }));
+      .all(recheckBefore, limit) as EscrowJobRow[];
+    return rows.map(fromRow);
   }
 
   saveTaskVerdict(chainId: number, jobId: number, verdict: string): void {
@@ -192,8 +210,8 @@ class QuestStore {
   byClient(client: string): EscrowJob[] {
     const rows = this.db
       .prepare('SELECT * FROM escrow_jobs WHERE client = ? ORDER BY chain_id, job_id')
-      .all(client.toLowerCase()) as Array<{ chain_id: number; job_id: number; client: string; provider: string; budget: string; expired_at: number; status: number; description: string }>;
-    return rows.map((r) => ({ chainId: r.chain_id, jobId: r.job_id, client: r.client, provider: r.provider, budget: r.budget, expiredAt: r.expired_at, status: r.status, description: r.description }));
+      .all(client.toLowerCase()) as EscrowJobRow[];
+    return rows.map(fromRow);
   }
 }
 

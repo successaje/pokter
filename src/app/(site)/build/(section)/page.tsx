@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { formatUnits } from 'viem';
 
 import { DeliveryInbox } from '@/features/studio/DeliveryInbox';
 import { RequestsForYourAgents } from '@/features/briefs/RequestsForYourAgents';
@@ -11,7 +10,7 @@ import { BuilderAlerts, DraftsList, OwnedAgents, SignOutStudio } from '@/feature
 import { loadFleet, studioOwner } from '@/features/studio/data';
 import { EmailLinkNotice } from '@/features/workspace/EmailLinkNotice';
 import { PageHeader, StatStrip } from '@/features/workspace/parts';
-import { earnedByNetwork } from '@/lib/builder/earnings';
+import { earnedByToken, earnedLineText } from '@/lib/builder/earnings';
 import { chainLabel } from '@/lib/network/presentation';
 import { shareMetadata } from '@/lib/og/share';
 import { shortAddress } from '@/lib/ui/format';
@@ -109,7 +108,7 @@ function Start() {
       </div>
 
       <p className="t-readout mt-12 text-[12px] leading-relaxed text-ink-3">
-        Figures load once you verify the wallet that owns your agents; signing moves no funds. Earnings are $U released on {chainLabel(56)}, with test tokens shown beside them and never counted.
+        Figures load once you verify the wallet that owns your agents; signing moves no funds. Earnings are real money released on {chainLabel(56)}, one line per token and never added across tokens, with test tokens shown beside them and never counted.
       </p>
     </>
   );
@@ -119,8 +118,14 @@ function Start() {
 async function Overview({ owner }: { owner: string }) {
   const { agents, jobs, unavailable } = await loadFleet(owner);
   const toDeliver = jobs.filter((j) => j.status === 'FUNDED').length;
-  const earned = earnedByNetwork(jobs);
-  const amount = (raw: bigint) => Number(formatUnits(raw, 18)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  /*
+   * One line per chain and token. Real money is the figure; test money and
+   * jobs whose token has not been read are shown beside it and never added
+   * in. $U and USDT are both real and both shown, never folded into one.
+   */
+  const earned = earnedByToken(jobs);
+  const realEarned = earned.filter((line) => line.realMoney && line.token !== null && line.raw > 0n).map(earnedLineText);
+  const asideEarned = earned.filter((line) => !(line.realMoney && line.token !== null) && (line.raw > 0n || line.token === null)).map(earnedLineText);
   const missing = unavailable.map(chainLabel).join(' and ');
   const answering = agents.filter((a) => a.online).length;
 
@@ -146,7 +151,11 @@ async function Overview({ owner }: { owner: string }) {
 
       <StatStrip
         stats={[
-          { label: 'Earnings', value: `${amount(earned.real)} $U`, note: earned.test > 0n ? `+ ${amount(earned.test)} test, not counted` : `released on ${chainLabel(56)}` },
+          {
+            label: 'Earnings',
+            value: realEarned.length ? realEarned.join(' · ') : '0',
+            note: asideEarned.length ? `+ ${asideEarned.join(' · ')}, not counted` : `released on ${chainLabel(56)}`,
+          },
           { label: 'Jobs · lifetime', value: jobs.length, note: `across ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },
           { label: 'Answering now', value: answering, note: unavailable.length > 0 ? `${missing} could not be read` : `of ${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}` },
           { label: 'To deliver', value: toDeliver, note: toDeliver ? 'funded, waiting on you' : 'nothing waiting', tone: toDeliver ? 'watch' : undefined },

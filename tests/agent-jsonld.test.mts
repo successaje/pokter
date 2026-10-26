@@ -78,9 +78,14 @@ test('the provider points at the owner wallet, not at Pokter', () => {
   assert.match(String(ld.provider.url), /\/builders\/0xb72335/);
 });
 
-test('a quote in an unrecognised token names it by address', () => {
+test('a quote in an unrecognised token publishes no offer', () => {
+  /*
+   * It used to publish the shortened address as `priceCurrency`. A symbol
+   * Pokter has not verified is not a currency a reader can check, so there
+   * is no offer at all rather than an offer in an unnamed money.
+   */
   const ld = agentJsonLd(BASE, agent({
     quote: { priceU: 2, currency: '0x1234567890abcdef1234567890abcdef12345678', expiresAt: null, payable: true },
-  })) as { offers: Record<string, unknown> };
-  assert.match(String(ld.offers.priceCurrency), /^0x1234…5678$/, 'never a guessed symbol');
+  }));
+  assert.equal(ld.offers, undefined, 'never a guessed symbol');
 });

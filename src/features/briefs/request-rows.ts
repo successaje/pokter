@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { acceptsProposals } from '@/lib/briefs/model';
-import { hireForProposal } from '@/lib/briefs/hired';
+import { hireForChosenProposal } from '@/lib/briefs/hired';
 import { getBriefStore } from '@/lib/briefs/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import { publicIdentities } from '@/lib/profiles/identity';
@@ -23,7 +23,7 @@ export function requestRows(now: number): Array<RequestRowData & { taking: boole
     if (b.state !== 'awarded' || !b.awardedBidId) return false;
     const bid = store.bidsFor(b.id).find((x) => x.id === b.awardedBidId);
     if (!bid) return false;
-    const hire = hireForProposal(jobs.byClient(b.poster), { poster: b.poster, chainId: b.chainId, agentChainId: bid.agentChainId, agentTokenId: bid.agentTokenId, placedAt: bid.placedAt });
+    const hire = hireForChosenProposal(jobs.byClient(b.poster), b, bid);
     return Boolean(hire && !hire.returned);
   };
   return all.map((b) => ({
@@ -33,6 +33,8 @@ export function requestRows(now: number): Array<RequestRowData & { taking: boole
     title: b.title,
     brief: b.brief,
     budgetU: b.budgetU,
+    budgetRaw: b.budgetRaw,
+    paymentToken: b.paymentToken,
     chainId: b.chainId,
     closesAt: b.closesAt ?? null,
     category: b.category ?? null,

@@ -213,6 +213,17 @@ export default function IntegrationKitPage() {
                   <dd className="t-readout break-all text-ink">{e[k]}</dd>
                 </div>
               ))}
+              {/* Every token a quote may be signed in on this escrow, each priced at its own decimals. */}
+              <div className="contents">
+                <dt className="text-ink-3">tokens funded</dt>
+                <dd className="flex flex-col gap-0.5 text-ink">
+                  {e.tokens.map((t) => (
+                    <span key={t.address} className="t-readout break-all">
+                      {t.symbol} · {t.decimals} decimals{e.chainId === 97 ? ' · test token, no value' : ''} · {t.address}
+                    </span>
+                  ))}
+                </dd>
+              </div>
             </dl>
           </div>
         ))}

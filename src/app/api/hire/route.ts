@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
 import { isAddress } from 'viem';
 
 import { encodePokterJobEnvelope } from '@/lib/erc8183/job-envelope';
@@ -60,9 +61,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  if (!Number.isFinite(budgetU) || budgetU <= 0 || budgetU > 5) {
+  /* The operator hire funds $U only (it passes no token to `hireAgent`), so its range is the $U range. */
+  if (!Number.isFinite(budgetU) || budgetU < BUDGET_MIN || budgetU > BUDGET_MAX) {
     return NextResponse.json(
-      { error: 'budgetU must be between 0 and 5.' },
+      { error: `budgetU must be between ${BUDGET_MIN} and ${BUDGET_MAX} $U.` },
       { status: 400 },
     );
   }

@@ -924,10 +924,11 @@ export const suggestedBudgetFor = cache(async function suggestedBudgetFor(
   const quotes = getProbeStore().quotesFor(
     listings.map((l) => ({ chainId: l.agent.chain_id, tokenId: l.agent.token_id })),
   );
-  const priced: { category: string; priceU: number }[] = [];
+  /* Currency carried through: `suggestionsByCategory` keeps $U prices only. */
+  const priced: { category: string; priceU: number; currency: string | null }[] = [];
   for (const listing of listings) {
     const quote = quotes.get(`${listing.agent.chain_id}:${listing.agent.token_id}`);
-    if (quote) priced.push({ category, priceU: Number(quote.priceU) });
+    if (quote) priced.push({ category, priceU: Number(quote.priceU), currency: quote.currency ?? null });
   }
   const byCategory = suggestionsByCategory(priced);
   return byCategory.get(category) ?? catalogueSuggestion(byCategory);

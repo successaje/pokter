@@ -66,7 +66,12 @@ export interface ReferenceDeliveryInput {
   description: string;
   /** Read live from the kernel, never from the index. */
   job: { provider: Address; budget: bigint; expiredAt: bigint; statusName: string };
-  escrow: { chainId: number; commerce: string; paymentToken: string };
+  /**
+   * `paymentToken` is the token this job is bound to, read from the escrow's
+   * `jobPaymentToken` — not the deployment default, which a USDT job is not
+   * in. Null when that read failed: the delivery is declined, not assumed.
+   */
+  escrow: { chainId: number; commerce: string; paymentToken: string | null };
   /** The funding transaction's block timestamp, in ms. Null when unreadable. */
   fundedAtMs: number | null;
   /** Pokter's own attribution for this job. The documented source of identity here. */
@@ -129,8 +134,11 @@ export async function verifyReferenceDelivery(input: ReferenceDeliveryInput): Pr
     return refuse('wrong-contract', `The quote names escrow ${domain.verifyingContract}, not this one.`);
   }
   const currency = typeof parsed.currency === 'string' ? parsed.currency : null;
+  if (input.escrow.paymentToken === null) {
+    return refuse('currency-mismatch', 'The token this job is funded in could not be read from the escrow, so it cannot be matched to the quote.');
+  }
   if (!currency || !sameAddress(currency, input.escrow.paymentToken)) {
-    return refuse('currency-mismatch', 'The quote is priced in a token this escrow does not settle.');
+    return refuse('currency-mismatch', 'The quote is priced in a different token from the one this job is funded in.');
   }
   if (reference.quote.priceRaw === undefined || BigInt(reference.quote.priceRaw) !== input.job.budget) {
     return refuse('budget-mismatch', `The quote is for ${reference.quote.priceRaw ?? 'no stated price'} and the job is funded with ${input.job.budget}.`);

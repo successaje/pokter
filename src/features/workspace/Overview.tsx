@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { formatUnits } from 'viem';
 
 import { splitNeedsYou } from '@/lib/jobs/needs-you';
 import { FirstVisit } from './FirstVisit';
@@ -14,6 +13,7 @@ import { Icon } from '@/ui/icons';
 import { jobPhase, PHASE, useInbox, useMyJobs, useNow, useSavedAlerts } from './hooks';
 import { JobRow, NeedsWallet, PageHeader, StatStrip, timeLeft } from './parts';
 import { RecoverJob } from './RecoverJob';
+import { totalLines } from './totals';
 import { CampaignProgress } from '@/features/campaign/CampaignProgress';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobHref } from '@/lib/jobs/href';
@@ -46,15 +46,10 @@ export function WorkspaceOverview() {
   );
   const working = phases.filter((p) => p.phase === 'working');
   const recent = phases.filter((p) => p.phase === 'settled' || p.phase === 'refunded' || p.phase === 'disputed' || p.phase === 'rejected').slice(0, 4);
-  // Real and test $U are never added together: mainnet escrow is money and
-  // testnet escrow is not. Real money leads when there is any.
-  const heldOn = (chainId: number) =>
-    phases
-      .filter((p) => p.job.chainId === chainId && (p.phase === 'working' || p.phase === 'review' || p.phase === 'reclaim'))
-      .reduce((sum, p) => sum + Number(formatUnits(BigInt(p.job.budgetRaw), 18)), 0);
-  const heldReal = heldOn(56);
-  const heldTest = heldOn(97);
-  const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // One line per chain and token, never a sum across them: mainnet escrow is
+  // money and testnet escrow is not, and $U and USDT are different moneys.
+  // Real money leads when there is any (`totalLines` orders it first).
+  const held = totalLines(phases.filter((p) => p.phase === 'working' || p.phase === 'review' || p.phase === 'reclaim').map((p) => p.job));
   const agents = Array.from(new Map(jobs.map((j) => [`${j.agentChainId}:${j.agentTokenId}`, j])).values()).slice(0, 6);
   const unread = inbox.filter((n) => !n.readAt).length + alerts.filter((a) => !a.readAt).length;
 
@@ -143,8 +138,8 @@ export function WorkspaceOverview() {
                 { label: 'Completed', value: phases.filter((p) => p.phase === 'settled').length, href: '/workspace/jobs?filter=done' },
                 {
                   label: 'In escrow',
-                  value: fmt(heldReal > 0 ? heldReal : heldTest),
-                  note: heldReal > 0 ? `$U${heldTest > 0 ? ` · plus ${fmt(heldTest)} test` : ''}` : heldTest > 0 ? '$U · test' : '$U',
+                  value: held.length ? held[0].text : '0',
+                  note: held.length > 1 ? `plus ${held.slice(1).map((l) => l.text).join(' · ')}` : undefined,
                   href: '/workspace/wallet',
                 },
               ]}

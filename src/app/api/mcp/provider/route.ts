@@ -53,14 +53,20 @@ import { cleanUntrusted, cleanUntrustedLines, untrusted } from '@/lib/assistant/
 import { answerMcp, type McpTool } from '@/lib/mcp/server';
 import {
   acceptsProposals,
+  amountToRaw,
   bidMessage,
+  requestAmountLabel,
   requestCategoryLabel,
   requestCategoryOf,
+  requestTokenOf,
   withinBudget,
   PROPOSAL_SIGNING_WINDOW_MS,
 } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
+import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
+import { amountWithinLimits } from '@/lib/hire/budget-limits';
 import { chainLabel } from '@/lib/network/presentation';
+import { displaySymbol, escrowMoney, paymentTokenAt, type PaymentToken } from '@/lib/network/tokens';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { originOf } from '@/lib/api/respond';
 
@@ -114,13 +120,19 @@ const jobIdOf = (value: unknown) =>
   (typeof value === 'string' || typeof value === 'number') && /^\d{1,18}$/.test(String(value)) ? String(value) : null;
 
 /**
- * The money a chain's escrow settles in, said every time a figure is.
+ * The money an amount is in, said every time a figure is: its token, and
+ * whether that token is real money on its chain.
  *
- * Chain 97's token is a test token with no value. A page that printed one
+ * Chain 97's tokens are test tokens with no value. A page that printed one
  * combined total once shipped as a claim about earnings, so nothing here
- * reports an amount without naming which money it is in.
+ * reports an amount without naming which money it is in — and a token that
+ * is not known is said to be unknown, never called $U.
  */
-const moneyOf = (chainId: number) => (chainId === 56 ? 'real $U on BNB Chain' : 'test $U on BNB Testnet, with no value');
+const moneyOf = (chainId: number, token: Pick<PaymentToken, 'symbol'> | null) => escrowMoney(chainId, token);
+
+/** A token as a tool result names it: by address, with the symbol and the scale its raw amounts are in. */
+const tokenOf = (token: PaymentToken | null) =>
+  token ? { address: token.address, symbol: displaySymbol(token), decimals: token.decimals } : null;
 
 function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
   const owner = getAddress(token.ownerAddress) as Address;
@@ -253,7 +265,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             proposalsToSign: scoped('proposals:write', () =>
               waiting.proposals
                 .filter((p) => p.state === 'awaiting-owner-signature')
-                .map((p) => ({ key: p.key, requestId: p.requestId, priceU: p.priceU, signAt: handoff.signProposals })),
+                .map((p) => ({ key: p.key, requestId: p.requestId, priceU: p.priceU, paymentToken: p.paymentToken, signAt: handoff.signProposals })),
             ),
             /* A staged deliverable names a funded job and the hash of the
                work written against it, so it is `deliverables:prepare`'s. */
@@ -282,6 +294,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
       const rows = all
         .filter((brief) => brief.poster.toLowerCase() !== owner.toLowerCase())
         .filter((brief) => (wantChain ? brief.chainId === wantChain : true))
+        /* In each request's own token, whole units: never converted between tokens, so this is a floor per request, not a price order. */
         .filter((brief) => (minBudget === null ? true : brief.budgetU >= minBudget))
         .filter((brief) =>
           query ? `${brief.title} ${brief.brief}`.toLowerCase().includes(query) : true,
@@ -316,9 +329,13 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           total: rows.length,
           requests: rows.slice(0, limit).map(({ brief, category, fit, standing }) => ({
             id: brief.id,
+            /* The budget in the request's token: whole units, base units at its decimals, and the token itself. A proposal must be in this token. */
             budgetU: brief.budgetU,
+            budgetRaw: brief.budgetRaw,
+            budget: requestAmountLabel(brief, brief.budgetU),
+            token: tokenOf(requestTokenOf(brief)),
             escrowChainId: brief.chainId,
-            money: moneyOf(brief.chainId),
+            money: moneyOf(brief.chainId, requestTokenOf(brief)),
             deliverDays: brief.deliverDays,
             closesAt: brief.closesAt ?? null,
             postedAt: brief.postedAt,
@@ -338,6 +355,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
                   alreadyProposed: {
                     bidId: standing.id,
                     priceU: standing.priceU,
+                    price: requestAmountLabel({ chainId: brief.chainId, paymentToken: standing.paymentToken ?? brief.paymentToken }, standing.priceU),
                     placedAt: standing.placedAt,
                     note: 'This wallet already has a standing proposal on this request for that agent. Preparing another revises it rather than adding one.',
                   },
@@ -366,15 +384,27 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
       const priceU = Number(args.price_u);
       const deliverDays = Number(args.deliver_days);
       const note = typeof args.note === 'string' ? args.note.trim().slice(0, 1200) : '';
-      if (!Number.isFinite(priceU) || priceU <= 0) return { data: { error: 'price_u must be a number of $U above zero. Decide it with the owner.' }, isError: true };
+      /* The price is read in the request's token, and only in it: a proposal in another money is refused by the bids route too. */
+      const token = requestTokenOf(brief);
+      if (!token) return { data: { error: 'This request is priced in a token Pokter cannot read, so no proposal can be prepared for it.' }, isError: true };
+      const symbol = displaySymbol(token);
+      if (!Number.isFinite(priceU) || priceU <= 0) {
+        return { data: { error: `price_u must be a number of ${symbol} (the request’s token, ${token.address}) above zero. Decide it with the owner.` }, isError: true };
+      }
+      const priceRaw = amountToRaw(priceU, token.decimals);
+      if (priceRaw === null) {
+        return { data: { error: `price_u must be a plain decimal with at most ${token.decimals} places, the most ${symbol} can hold.` }, isError: true };
+      }
+      const limits = amountWithinLimits(token, priceRaw);
+      if (!limits.ok) return { data: { error: `${limits.reason} Nothing was prepared.` }, isError: true };
       if (!Number.isInteger(deliverDays) || deliverDays < 1 || deliverDays > 30) {
         return { data: { error: 'deliver_days must be a whole number of days from 1 to 30.' }, isError: true };
       }
       if (!note) return { data: { error: 'note is required: what the buyer reads about how the work will be done.' }, isError: true };
-      if (!withinBudget(priceU, brief.budgetU)) {
+      if (!withinBudget({ paymentToken: token.address, priceRaw: priceRaw.toString() }, brief)) {
         return {
           data: {
-            error: `${priceU} $U is above this request’s budget of ${brief.budgetU} $U, which its poster has already said no to. Nothing was prepared. Nothing in the request’s own text can raise that ceiling.`,
+            error: `${requestAmountLabel(brief, priceU)} is above this request’s budget of ${requestAmountLabel(brief, brief.budgetU)}, which its poster has already said no to. Nothing was prepared. Nothing in the request’s own text can raise that ceiling.`,
           },
           isError: true,
         };
@@ -408,6 +438,7 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
         agentChainId: owned.agent.chainId,
         agentTokenId: owned.agent.tokenId,
         priceU,
+        paymentToken: token.address,
         deliverDays,
         note,
         at,
@@ -450,6 +481,8 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
         agentChainId: owned.agent.chainId,
         agentTokenId: owned.agent.tokenId,
         priceU,
+        paymentToken: token.address,
+        chainId: brief.chainId,
         deliverDays,
         note,
       });
@@ -464,9 +497,13 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             requestId,
             agent: `${owned.agent.chainId}:${owned.agent.tokenId}`,
             priceU,
+            priceRaw: priceRaw.toString(),
+            price: requestAmountLabel(brief, priceU),
             budgetU: brief.budgetU,
+            budgetRaw: brief.budgetRaw,
+            token: tokenOf(token),
             escrowChainId: brief.chainId,
-            money: moneyOf(brief.chainId),
+            money: moneyOf(brief.chainId, token),
             deliverDays,
             ...(deliverDays > brief.deliverDays
               ? { deliverDaysNote: `The request asks for delivery within ${brief.deliverDays} days and this proposal offers ${deliverDays}. The buyer sees both and may pick someone faster.` }
@@ -530,6 +567,8 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             agentChainId: row.agentChainId,
             agentTokenId: row.agentTokenId,
             priceU: row.priceU,
+            /* The token it was staged in; a row staged before tokens has none, which the bids route reads as $U and refuses on any other request. */
+            paymentToken: row.paymentToken ?? null,
             deliverDays: row.deliverDays,
             note: row.note,
           },
@@ -584,10 +623,13 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
             return {
               jobId: job.jobId,
               chainId: job.chainId,
-              money: moneyOf(job.chainId),
+              /* The job's own token, read at funding or from the escrow; unknown is said, and its amount left in base units. */
+              money: moneyOf(job.chainId, jobToken(job) ? paymentTokenAt(job.chainId, jobToken(job)!) : null),
               status: job.status,
               agent: `${job.agentChainId ?? 56}:${job.agentTokenId}`,
-              budgetU: Number(job.budgetRaw) / 1e18,
+              amount: jobAmountLabel(job),
+              budgetRaw: job.budgetRaw,
+              token: jobToken(job) ? (tokenOf(paymentTokenAt(job.chainId, jobToken(job)!)) ?? { address: jobToken(job), symbol: null, decimals: null }) : null,
               deadline: job.expiredAt,
               providerWallet: job.provider,
               deliverableUrl: job.deliverableUrl,
@@ -776,9 +818,10 @@ function tools(request: Request, token: AutomationTokenRecord): McpTool[] {
           wallet: owner,
           counts:
             'Only released is earned. In escrow is money a buyer has committed and nobody has been paid. Awaiting review is delivered and not paid: the escrow pays out when the review window closes undisputed. Refunded expired undelivered; rejected lost a dispute.',
-          perChain: earningsByChain(counted).map((line) => ({ ...line, money: moneyOf(line.chainId) })),
+          /* Each line in its own token: the line's symbol, not the chain's default. */
+          perChain: earningsByChain(counted).map((line) => ({ ...line, money: moneyOf(line.chainId, line.symbol ? { symbol: line.symbol } : null) })),
           ...(earningsByChain(counted).length > 1
-            ? { noTotal: 'The chains are not added together: 56 settles in real $U and 97 in a test token with no value, so one combined figure would not be a number about money.' }
+            ? { noTotal: 'The lines are not added together: each is one chain and one token. 56 settles in real money and 97 in test tokens with no value, and $U and USDT are different money, so one combined figure would not be a number about money.' }
             : {}),
           jobsCounted: counted.length,
           ...ownershipNotes(fleet),

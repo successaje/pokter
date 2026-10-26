@@ -131,13 +131,23 @@ test('a quote signed for another chain or contract is refused', async () => {
   if (!otherContract.ok) assert.equal(otherContract.code, 'wrong-contract');
 });
 
-test('a currency the escrow does not settle is refused', async () => {
+test('a job funded in a different token from the quote is refused', async () => {
+  /* `paymentToken` is the job's own token from `jobPaymentToken`: here USDT, against a $U quote. */
   const v = await verifyReferenceDelivery({
     ...base(),
     escrow: { ...base().escrow, paymentToken: '0x55d398326f99059fF775485246999027B3197955' },
   });
   assert.equal(v.ok, false);
   if (!v.ok) assert.equal(v.code, 'currency-mismatch');
+});
+
+test('a job whose token could not be read is declined, not assumed to be the quote’s', async () => {
+  const v = await verifyReferenceDelivery({ ...base(), escrow: { ...base().escrow, paymentToken: null } });
+  assert.equal(v.ok, false);
+  if (!v.ok) {
+    assert.equal(v.code, 'currency-mismatch');
+    assert.match(v.reason, /could not be read/);
+  }
 });
 
 test('a budget that is not the quoted price is refused', async () => {

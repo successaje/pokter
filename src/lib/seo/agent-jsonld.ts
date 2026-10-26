@@ -1,4 +1,4 @@
-import { tokenLabel } from '@/lib/erc8183/pricing';
+import { paymentTokenAt, settlementChainOf } from '@/lib/network/tokens';
 
 /**
  * Structured data for one agent's page.
@@ -75,11 +75,20 @@ export function agentJsonLd(base: string, a: AgentJsonLdInput): Record<string, u
    * a hire asks for a fresh one. `priceValidUntil` is the honest way to say
    * so, rather than dropping the only price the agent has ever named.
    */
-  if (a.quote && a.quote.payable === true) {
+  /*
+   * `priceCurrency` is the registry's symbol for the token, found on the
+   * chain the currency belongs to. A token Pokter has not verified gets no
+   * offer at all: its symbol would be the contract's own claim (or a
+   * shortened address), and an offer in an unnamed currency is a price in
+   * nothing a reader can check.
+   */
+  const settles = a.quote ? settlementChainOf(a.quote.currency) : null;
+  const token = a.quote && settles !== null ? paymentTokenAt(settles, a.quote.currency) : null;
+  if (a.quote && a.quote.payable === true && token) {
     const offer: Record<string, unknown> = {
       '@type': 'Offer',
       price: a.quote.priceU,
-      priceCurrency: tokenLabel(a.quote.currency).replace(/^\$/, ''),
+      priceCurrency: token.symbol,
       availability: 'https://schema.org/InStock',
       url,
     };

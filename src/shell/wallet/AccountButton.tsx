@@ -52,6 +52,12 @@ export function AccountButton({ compact }: { compact?: boolean }) {
   }
 
   const lowGas = w.balances.native !== null && w.balances.native < 0.002;
+  /*
+   * $U always, and any other offered token only when this wallet holds some:
+   * a USDT line reading zero beside every $U balance is noise, but a buyer
+   * who holds USDT should see it as spendable. Each in its own decimals.
+   */
+  const extraTokens = w.balances.tokens.filter((t) => !t.isDefault && t.amount !== null && t.amount > 0);
 
   return (
     <div ref={layer} className="relative">
@@ -87,6 +93,11 @@ export function AccountButton({ compact }: { compact?: boolean }) {
               <span className="t-readout text-xl">
                 {amount(w.balances.payment)} <span className="text-[13px] text-ink-3">$U</span>
               </span>
+              {extraTokens.map((t) => (
+                <span key={t.address} className="t-readout text-[13px] text-ink-2">
+                  {amount(t.amount)} <span className="text-ink-3">{t.symbol}</span>
+                </span>
+              ))}
             </div>
             <div className="flex flex-col gap-0.5 bg-raised px-4 py-3">
               <span className="t-label">Network fee</span>

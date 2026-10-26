@@ -15,6 +15,8 @@ export interface HireNetwork {
   providers: ProviderChoice[];
   signedQuoteU: number | null;
   lastSignedU: number | null;
+  /** The currency of the listing's last signed price, so the page can name its money before a fresh quote. */
+  quoteCurrency?: string | null;
   suggestedU: number | null;
   warnings: string[];
   /** The agent's own registration on this chain, hired there instead of through Pokter's relay. */
@@ -71,6 +73,7 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
       providers={current.providers}
       signedQuoteU={current.signedQuoteU}
       lastSignedU={current.lastSignedU}
+      quoteCurrency={current.quoteCurrency ?? null}
       suggestedU={current.suggestedU}
       warnings={current.warnings}
       escrowOptions={networks.map((n) => n.chainId)}

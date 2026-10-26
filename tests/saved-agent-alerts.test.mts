@@ -11,8 +11,8 @@ test('the first saved-agent observation establishes a baseline without noise', (
 });
 
 test('saved-agent alerts report only changed decision facts', () => {
-  const next = [{ ...baseline[0], evidence: 'emerging', response: 'not-responding' as const, priceU: 0.1, checkedAt: '2026-01-02T00:00:00Z' }];
+  const next = [{ ...baseline[0], evidence: 'emerging', response: 'not-responding' as const, priceU: 0.1, currency: '0xcE24439F2D9C6a2289F741120FE202248B666666', checkedAt: '2026-01-02T00:00:00Z' }];
   const alerts = savedAgentChanges(baseline, next, saved);
   assert.deepEqual(alerts.map((alert) => alert.kind), ['evidence', 'response', 'price']);
-  assert.match(alerts[2].body, /no current signed price → 0\.10 \$U/);
+  assert.match(alerts[2].body, /no current signed price → 0\.1 \$U/);
 });

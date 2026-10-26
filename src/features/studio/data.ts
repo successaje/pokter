@@ -6,6 +6,7 @@ import { readAgentAdoption, type AgentAdoption } from '@/lib/builder/adoption-se
 import { BUILDER_SESSION_COOKIE, builderSessionOwner } from '@/lib/builders/store';
 import { getJobStore } from '@/lib/erc8183/store';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { totalLines, type TotalLine } from '@/features/workspace/totals';
 import { buildTrackRecord } from '@/lib/history/record';
 import { getProbeStore } from '@/lib/history/store';
 import { stripCells, type StripCell } from '@/lib/history/strip';
@@ -172,7 +173,8 @@ export interface AgentOps {
   probes: Array<{ at: string; ok: boolean; latencyMs: number | null; status: number | null; detail: string; protocol: string }>;
   latency: Array<{ at: string; ms: number }>;
   weeks: Array<{ start: string; funded: number; completed: number }>;
-  money: { releasedU: number; escrowedU: number; refundedJobs: number; disputedJobs: number };
+  /** One line per chain and token (`totalLines`); never a single figure across them. */
+  money: { released: TotalLine[]; escrowed: TotalLine[]; refundedJobs: number; disputedJobs: number };
 }
 
 const DAY_MS = 86_400_000;
@@ -216,14 +218,19 @@ export function loadAgentOps(chainId: number, tokenId: string, jobs: HiredJob[])
     if (job.status === 'COMPLETED') w.completed += 1;
   }
 
-  const u = (raw: string) => Number(BigInt(raw)) / 1e18;
+  /*
+   * Released and escrowed, one line per chain and token. These were one
+   * number each, every budget divided by 1e18 and called $U, which added
+   * testnet $U to real $U and would add USDT to both. A job whose token has
+   * not been read is counted in its own line, never as $U.
+   */
   return {
     probes,
     latency,
     weeks: weeks.map((w) => ({ ...w, start: new Date(w.start).toISOString().slice(0, 10) })),
     money: {
-      releasedU: jobs.filter((j) => j.status === 'COMPLETED').reduce((s, j) => s + u(j.budgetRaw), 0),
-      escrowedU: jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED').reduce((s, j) => s + u(j.budgetRaw), 0),
+      released: totalLines(jobs.filter((j) => j.status === 'COMPLETED')),
+      escrowed: totalLines(jobs.filter((j) => j.status === 'FUNDED' || j.status === 'SUBMITTED')),
       refundedJobs: jobs.filter((j) => j.status === 'EXPIRED' || Boolean(j.reclaimTxHash)).length,
       disputedJobs: jobs.filter((j) => j.status === 'REJECTED').length,
     },

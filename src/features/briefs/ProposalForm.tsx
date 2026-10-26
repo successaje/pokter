@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
-import { bidMessage, withinBudget, type BidContent } from '@/lib/briefs/model';
-import { BUDGET_MAX, BUDGET_MIN } from '@/lib/hire/budget-limits';
+import { amountToRaw, bidMessage, requestAmountLabel, requestTokenOf, requestUnit, withinBudget, type BidContent } from '@/lib/briefs/model';
+import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { cn } from '@/lib/ui/cn';
 import { shortAddress } from '@/lib/ui/format';
 import { useDismissibleLayer } from '@/lib/ui/useDismissibleLayer';
@@ -19,7 +19,8 @@ import { Notice, Skeleton } from '@/ui/Feedback';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
 import { Icon } from '@/ui/icons';
 
-export type ProposalRequest = { id: string; title: string; chainId: number; deliverDays: number; budgetU: number; poster: string };
+/** `paymentToken` is the request's (null on a request from before tokens, which is $U); the proposal is always in it. */
+export type ProposalRequest = { id: string; title: string; chainId: number; deliverDays: number; budgetU: number; budgetRaw: string; paymentToken: string | null; poster: string };
 type Agent = { chainId: number; tokenId: string; name: string; imageUrl: string | null; category: string | null; owner?: string };
 
 const DELIVERY_OPTIONS = [1, 2, 3, 5, 7, 14, 30];
@@ -41,8 +42,11 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
   const router = useRouter();
   const { openConnect } = useConnect();
   const { address, canSign, sign } = useActiveSigner();
-  const testnet = request.chainId === 97;
-  const unit = testnet ? 'test $U' : '$U';
+  /* The request's money, and only it: a proposal is priced in the token its request named. */
+  const token = requestTokenOf(request);
+  const unit = requestUnit(request);
+  const limits = token ? budgetLimitsFor(token) : null;
+  const budgetLabel = requestAmountLabel(request, request.budgetU);
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [note, setNote] = useState('');
@@ -61,9 +65,10 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
     const found: typeof problems = {};
     if (!agent) found.agent = 'Add the agent that will do the work.';
     if (!note.trim()) found.note = 'Say how it will do the work: buyers compare proposals on this.';
-    const priceU = Number(price);
-    if (!(priceU >= BUDGET_MIN && priceU <= BUDGET_MAX)) found.price = `Between ${BUDGET_MIN} and ${BUDGET_MAX} ${unit}.`;
-    else if (!withinBudget(priceU, request.budgetU)) found.price = `Up to the budget of ${request.budgetU.toFixed(2)} ${unit}.`;
+    const raw = token && price ? amountToRaw(Number(price), token.decimals) : null;
+    if (!token || !limits) found.price = 'This request is priced in a token Pokter cannot read, so it cannot take a proposal.';
+    else if (raw === null || !amountWithinLimits(token, raw).ok) found.price = `Between ${limits.min} and ${limits.max} ${unit}.`;
+    else if (!withinBudget({ paymentToken: token.address, priceRaw: raw.toString() }, request)) found.price = `Up to the budget of ${budgetLabel}.`;
     setProblems(found);
     if (Object.keys(found).length === 0) {
       setError(null);
@@ -80,9 +85,20 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
     setBusy(true);
     setError(null);
     try {
-      const content: BidContent = { agentChainId: agent.chainId, agentTokenId: agent.tokenId, priceU: Number(price), deliverDays, note: note.trim() };
+      if (!token) return;
+      const priceU = Number(price);
+      const content: BidContent = {
+        agentChainId: agent.chainId,
+        agentTokenId: agent.tokenId,
+        priceU,
+        paymentToken: token.address,
+        priceRaw: amountToRaw(priceU, token.decimals)?.toString() ?? '0',
+        deliverDays,
+        note: note.trim(),
+      };
       const placedAt = new Date().toISOString();
-      const signature = await sign(bidMessage({ ...content, briefId: request.id, bidder: address, placedAt }));
+      /* Signed on the request's chain, which is what names a non-$U token in the message. */
+      const signature = await sign(bidMessage({ ...content, chainId: request.chainId, briefId: request.id, bidder: address, placedAt }));
       const response = await fetch(`/api/briefs/${request.id}/bids`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -128,8 +144,10 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
           <div className="bg-raised px-4 py-3">
             <dt className="text-[12px] text-ink-3">Price</dt>
             <dd className="t-readout text-[15px]">
-              {Number(price).toFixed(2)} {unit}
+              {/* The number as it is signed, not rounded for show. */}
+              {Number(price)} {unit}
             </dd>
+            {token && !token.offered && <dd className="t-readout break-all text-[11.5px] text-ink-3">{token.address}</dd>}
           </div>
           <div className="bg-raised px-4 py-3">
             <dt className="text-[12px] text-ink-3">Delivery</dt>
@@ -169,10 +187,10 @@ export function ProposalForm({ request }: { request: ProposalRequest }) {
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Your price" hint={`Up to the budget, ${request.budgetU.toFixed(2)} ${unit}.`} error={problems.price}>
+        <Field label="Your price" hint={`Up to the budget, ${budgetLabel}${request.chainId === 97 ? ' (test tokens)' : ''}.`} error={problems.price}>
           {(p) => (
             <div className="relative">
-              <Input {...p} value={price} inputMode="decimal" onChange={(e) => setPrice(decimalOnly(e.target.value))} placeholder={request.budgetU.toFixed(2)} className="t-readout pr-16" />
+              <Input {...p} value={price} inputMode="decimal" onChange={(e) => setPrice(decimalOnly(e.target.value))} placeholder={String(request.budgetU)} className="t-readout pr-20" />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-ink-3">{unit}</span>
             </div>
           )}

@@ -1,10 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { formatEther, formatUnits } from 'viem';
+import { formatEther, formatUnits, type Address } from 'viem';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
+import { displaySymbol, offeredTokens } from '@/lib/network/tokens';
 import { useActiveWallet } from '@/lib/wallet/active';
 import { ESCROW_CHAIN, walletConnectConfigured } from '@/lib/wallet/config';
 import { externalBalances, hasInjectedWallet } from '@/lib/wallet/external';
@@ -14,9 +14,32 @@ import { usePasskeyWallet } from '@/lib/wallet/PasskeyProvider';
 import { useHydrated } from '@/lib/ui/use-hydrated';
 import { useLiveSwitchChain } from '@/lib/wallet/use-live-switch-chain';
 
+/**
+ * One offered payment token's balance. The decimals are the registry's, read
+ * from the contract once and recorded — never a literal 18, which is wrong
+ * for a six-decimal token by a factor of 10^12.
+ */
+export interface TokenBalance {
+  address: Address;
+  /** As the product writes it: "$U", "USDT". */
+  symbol: string;
+  decimals: number;
+  /** Whether this is the escrow default ($U) on the chain. */
+  isDefault: boolean;
+  raw: bigint | null;
+  /** As a decimal number, for display only. */
+  amount: number | null;
+}
+
 export interface WalletBalances {
-  /** The payment token ($U), as a decimal number. */
+  /** The escrow default ($U), as a decimal number. Kept for callers that only show $U. */
   payment: number | null;
+  /**
+   * Every token Pokter offers for a hire on `chainId`, $U first. With only
+   * $U offered this is one entry; a USDT balance appears when USDT hiring is
+   * on, so a buyer paying in USDT sees what they can spend.
+   */
+  tokens: TokenBalance[];
   /** Native gas (tBNB / BNB). */
   native: number | null;
   loading: boolean;
@@ -51,17 +74,18 @@ export function useWalletState() {
   const injected = injectedAvailable ? (connectors.find((c) => c.id === 'injected') ?? null) : null;
   const walletConnect = connectors.find((c) => c.id === 'walletConnect') ?? null;
 
-  const paymentToken = correctedErc8183Addresses(WALLET_NETWORK.chainId).paymentToken;
+  const passkeyTokens = offeredTokens(WALLET_NETWORK.chainId);
 
   const passkeyBalances = useQuery({
-    queryKey: ['wallet-balances', 'passkey', passkey.wallet?.address, paymentToken],
+    queryKey: ['wallet-balances', 'passkey', passkey.wallet?.address, passkeyTokens.map((t) => t.address).join(',')],
     queryFn: async () => {
-      const result = await walletClient().balances({ wallet: passkey.wallet!.address, tokens: [paymentToken] });
-      const token = result.tokens?.[0];
-      return {
-        native: Number(formatEther(result.native)),
-        payment: token && token.ok ? Number(formatUnits(token.raw, token.decimals)) : null,
-      };
+      const result = await walletClient().balances({ wallet: passkey.wallet!.address, tokens: passkeyTokens.map((t) => t.address) });
+      /* One entry per requested token, in order. Scaled by the registry's decimals, not the one the contract call returned. */
+      const raws = passkeyTokens.map((_, i) => {
+        const read = result.tokens?.[i];
+        return read && read.ok ? read.raw : null;
+      });
+      return { native: Number(formatEther(result.native)), raws };
     },
     enabled: active.mode === 'passkey' && Boolean(passkey.wallet),
     refetchInterval: 30_000,
@@ -75,15 +99,19 @@ export function useWalletState() {
    */
   const scope = balanceScope({ connectedChainId: chain?.id ?? null, connected: isConnected });
 
+  const externalTokens = scope.readable ? offeredTokens(scope.chainId) : [];
+
   const externalBalance = useQuery({
     // Read on the chain the wallet is on, when hires can be funded there, so a
     // wallet on mainnet shows its mainnet balance rather than its testnet one.
-    queryKey: ['wallet-balances', 'external', externalAddress, scope.readable ? scope.chainId : 'unreadable'],
+    queryKey: ['wallet-balances', 'external', externalAddress, scope.readable ? scope.chainId : 'unreadable', externalTokens.map((t) => t.address).join(',')],
     queryFn: async () => {
       if (!scope.readable) return null;
-      const result = await externalBalances(scope.chainId);
-      if (!result) return null;
-      return { native: Number(formatEther(result.native)), payment: Number(formatUnits(result.payment, 18)) };
+      /* One read per offered token; a token whose read fails is shown as unknown, not as zero. */
+      const reads = await Promise.all(externalTokens.map((t) => externalBalances(scope.chainId, t.address).catch(() => null)));
+      const first = reads.find((r) => r !== null);
+      if (!first) return null;
+      return { native: Number(formatEther(first.native)), raws: reads.map((r) => (r ? r.payment : null)) };
     },
     enabled: active.mode === 'external' && scope.readable,
     refetchInterval: 30_000,
@@ -96,8 +124,15 @@ export function useWalletState() {
    * wallet happens to be pointing at.
    */
   const balanceChainId = active.mode === 'passkey' ? WALLET_NETWORK.chainId : scope.readable ? scope.chainId : null;
+  const tokenList = active.mode === 'passkey' ? passkeyTokens : externalTokens;
+  const raws = source?.data?.raws ?? [];
+  const tokens: TokenBalance[] = balanceChainId === null ? [] : tokenList.map((t, i) => {
+    const raw = raws[i] ?? null;
+    return { address: t.address, symbol: displaySymbol(t), decimals: t.decimals, isDefault: t.offered, raw, amount: raw === null ? null : Number(formatUnits(raw, t.decimals)) };
+  });
   const balances: WalletBalances = {
-    payment: source?.data?.payment ?? null,
+    payment: tokens.find((t) => t.isDefault)?.amount ?? null,
+    tokens,
     native: source?.data?.native ?? null,
     loading: Boolean(source?.isLoading),
     /** Null when no figure may be shown: the caller offers the switch instead. */

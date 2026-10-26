@@ -4,7 +4,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import type { Bid, Brief, BriefState } from './model';
+import { requestToken } from '@/lib/network/tokens';
+
+import { amountToRaw, type Bid, type Brief, type BriefState } from './model';
 
 const DB_PATH = process.env.BRIEF_DB_PATH ?? './data/briefs.db';
 
@@ -61,6 +63,38 @@ class BriefStore {
     const columns = this.db.prepare('PRAGMA table_info(briefs)').all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === 'closes_at')) this.db.exec('ALTER TABLE briefs ADD COLUMN closes_at TEXT');
     if (!columns.some((c) => c.name === 'category')) this.db.exec('ALTER TABLE briefs ADD COLUMN category TEXT');
+    /*
+     * The money, added when requests could be priced in more than $U. Rows
+     * from before keep NULL in both: their token is the chain's $U by
+     * construction (the form offered nothing else), and their raw amount is
+     * computed from the signed number at that token's decimals on read
+     * (`legacyRaw`), never stored as a guess.
+     */
+    if (!columns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE briefs ADD COLUMN payment_token TEXT');
+    if (!columns.some((c) => c.name === 'budget_raw')) this.db.exec('ALTER TABLE briefs ADD COLUMN budget_raw TEXT');
+    const bidColumns = this.db.prepare('PRAGMA table_info(bids)').all() as Array<{ name: string }>;
+    if (!bidColumns.some((c) => c.name === 'payment_token')) this.db.exec('ALTER TABLE bids ADD COLUMN payment_token TEXT');
+    if (!bidColumns.some((c) => c.name === 'price_raw')) this.db.exec('ALTER TABLE bids ADD COLUMN price_raw TEXT');
+  }
+
+  /*
+   * A bid is read with its request's chain and token, because a bid row
+   * written before bids carried a token has only the number it signed: its
+   * raw amount is that number at its request's token's decimals.
+   */
+  private static readonly BID_COLUMNS = 'bids.*, briefs.chain_id AS brief_chain_id, briefs.payment_token AS brief_payment_token';
+  private static readonly BID_FROM = 'bids LEFT JOIN briefs ON briefs.id = bids.brief_id';
+
+  /**
+   * The raw amount of a row stored before amounts were, from the number it
+   * signed. '0' only if that number cannot be written in the token's
+   * decimals, which the range those rows were validated against rules out;
+   * it fits no budget rather than inventing one.
+   */
+  private static legacyRaw(amount: number, chainId: number | null, paymentToken: string | null): string {
+    const token = chainId === null ? null : requestToken(chainId, paymentToken);
+    if (!token) return '0';
+    return amountToRaw(amount, token.decimals)?.toString() ?? '0';
   }
 
   private static toBrief(row: Record<string, unknown>): Brief {
@@ -72,6 +106,10 @@ class BriefStore {
       acceptance: JSON.parse(row.acceptance as string) as string[],
       failSignals: JSON.parse(row.fail_signals as string) as string[],
       budgetU: row.budget_u as number,
+      paymentToken: (row.payment_token as Brief['paymentToken']) ?? null,
+      budgetRaw:
+        (row.budget_raw as string | null) ??
+        BriefStore.legacyRaw(row.budget_u as number, row.chain_id as number, (row.payment_token as string | null) ?? null),
       chainId: row.chain_id as number,
       deliverDays: row.deliver_days as number,
       signature: row.signature as Brief['signature'],
@@ -91,6 +129,14 @@ class BriefStore {
       agentChainId: row.agent_chain_id as number,
       agentTokenId: row.agent_token_id as string,
       priceU: row.price_u as number,
+      paymentToken: (row.payment_token as Bid['paymentToken']) ?? null,
+      priceRaw:
+        (row.price_raw as string | null) ??
+        BriefStore.legacyRaw(
+          row.price_u as number,
+          (row.brief_chain_id as number | null) ?? null,
+          (row.payment_token as string | null) ?? (row.brief_payment_token as string | null) ?? null,
+        ),
       deliverDays: row.deliver_days as number,
       note: row.note as string,
       signature: row.signature as Bid['signature'],
@@ -101,8 +147,8 @@ class BriefStore {
   add(brief: Brief): void {
     this.db
       .prepare(
-        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        `INSERT INTO briefs (id, poster, title, brief, acceptance, fail_signals, budget_u, chain_id, deliver_days, signature, state, posted_at, awarded_bid_id, closes_at, category, payment_token, budget_raw)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
       )
       .run(
         brief.id,
@@ -119,6 +165,8 @@ class BriefStore {
         brief.postedAt,
         brief.closesAt ?? null,
         brief.category ?? null,
+        brief.paymentToken ?? null,
+        brief.budgetRaw,
       );
   }
 
@@ -137,10 +185,11 @@ class BriefStore {
   placeBid(bid: Bid): void {
     this.db
       .prepare(
-        `INSERT INTO bids (id, brief_id, bidder, agent_chain_id, agent_token_id, price_u, deliver_days, note, signature, placed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO bids (id, brief_id, bidder, agent_chain_id, agent_token_id, price_u, deliver_days, note, signature, placed_at, payment_token, price_raw)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (brief_id, agent_chain_id, agent_token_id) DO UPDATE SET
            id = excluded.id, bidder = excluded.bidder, price_u = excluded.price_u,
+           payment_token = excluded.payment_token, price_raw = excluded.price_raw,
            deliver_days = excluded.deliver_days, note = excluded.note,
            signature = excluded.signature, placed_at = excluded.placed_at`,
       )
@@ -155,11 +204,14 @@ class BriefStore {
         bid.note,
         bid.signature,
         bid.placedAt,
+        bid.paymentToken ?? null,
+        bid.priceRaw,
       );
   }
 
   bidsFor(briefId: string): Bid[] {
-    const rows = this.db.prepare('SELECT * FROM bids WHERE brief_id = ? ORDER BY price_u ASC, placed_at ASC').all(briefId);
+    /* Cheapest first. Every bid on one request is in that request's token, so the order is a price order. */
+    const rows = this.db.prepare(`SELECT ${BriefStore.BID_COLUMNS} FROM ${BriefStore.BID_FROM} WHERE bids.brief_id = ? ORDER BY bids.price_u ASC, bids.placed_at ASC`).all(briefId);
     return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
   }
 
@@ -171,18 +223,20 @@ class BriefStore {
 
   /** Bids one wallet signed, newest first: the Building view's "My proposals". */
   bidsBy(bidder: string): Bid[] {
-    const rows = this.db.prepare('SELECT * FROM bids WHERE bidder = ? ORDER BY placed_at DESC').all(bidder.toLowerCase());
+    const rows = this.db.prepare(`SELECT ${BriefStore.BID_COLUMNS} FROM ${BriefStore.BID_FROM} WHERE bids.bidder = ? ORDER BY bids.placed_at DESC`).all(bidder.toLowerCase());
     return (rows as Record<string, unknown>[]).map(BriefStore.toBid);
   }
 
   /** The standing proposal for one agent on one request, if any. */
   bidFor(briefId: string, agentChainId: number, agentTokenId: string): Bid | null {
-    const row = this.db.prepare('SELECT * FROM bids WHERE brief_id = ? AND agent_chain_id = ? AND agent_token_id = ?').get(briefId, agentChainId, agentTokenId);
+    const row = this.db
+      .prepare(`SELECT ${BriefStore.BID_COLUMNS} FROM ${BriefStore.BID_FROM} WHERE bids.brief_id = ? AND bids.agent_chain_id = ? AND bids.agent_token_id = ?`)
+      .get(briefId, agentChainId, agentTokenId);
     return row ? BriefStore.toBid(row as Record<string, unknown>) : null;
   }
 
   bid(id: string): Bid | null {
-    const row = this.db.prepare('SELECT * FROM bids WHERE id = ?').get(id);
+    const row = this.db.prepare(`SELECT ${BriefStore.BID_COLUMNS} FROM ${BriefStore.BID_FROM} WHERE bids.id = ?`).get(id);
     return row ? BriefStore.toBid(row as Record<string, unknown>) : null;
   }
 

@@ -10,6 +10,7 @@ import {
 import { POKTER_TERMS, requestQuote } from '@/lib/erc8183/quote';
 import { describeQuoteFailure, quoteFailure, type QuoteFailure, withRecentQuote } from '@/lib/hire/failure';
 import { escrowChainForCurrency } from '@/lib/network/escrow';
+import { preferenceReport, preferredCurrency } from '@/lib/network/currency-preference';
 import { getProbeStore } from '@/lib/history/store';
 import { canonicalTokenId } from '@/lib/builder/diagnostics/attempt';
 import { recordHireAttempt } from '@/lib/builder/diagnostics/store';
@@ -64,6 +65,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 },
     );
   }
+  /* A preferred currency, checked as the hire quote route checks it: only a token Pokter funds on that escrow chain can be asked for. */
+  const preferred = typeof body.preferredToken === 'string' && body.preferredToken ? preferredCurrency(Number(body.escrowChainId), body.preferredToken) : null;
+  if (typeof body.preferredToken === 'string' && body.preferredToken && !preferred) {
+    return NextResponse.json({ error: `Pokter does not fund ${body.preferredToken} on chain ${String(body.escrowChainId)}, so it cannot be asked for.`, code: 'preference-not-offered' }, { status: 400 });
+  }
 
   try {
     const agent = await getAgent(chainId, tokenId);
@@ -99,6 +105,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const quote = await requestQuote(agent, {
       timeoutMs: 12_000,
       enquiry: { task_description: task, terms: POKTER_TERMS },
+      preferredCurrency: preferred,
       onRefused: (reason) => {
         refusal = reason;
       },
@@ -166,6 +173,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         quote_expires_at: quote.expiresAt,
       },
       verifiedSigner: quote.signer,
+      preference: preferenceReport(preferred, quote.currency, agent.name),
       // requestQuote refuses a signature that does not cover these terms.
       termsBound: true,
       latencyMs: Date.now() - startedAt,

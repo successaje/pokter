@@ -1,3 +1,4 @@
+import { isDollarUJob, serializableTotals, totalsByToken } from './job-amount';
 import type { HiredJob, JobStatusName } from './types';
 
 export type ProofNetwork = 'all' | 'mainnet' | 'testnet';
@@ -26,6 +27,8 @@ export interface ProductionProofSummary {
   /** Distinct registry identities (chain and token id) behind `agentsHired`. */
   agentRegistrationsHired: number;
   completedValueRaw: string;
+  /** Completed value per chain and token. */
+  completedByToken: ReturnType<typeof serializableTotals>;
   outsideTeamJobs: number;
   /**
    * Of the outside-funded jobs, the ones whose buyer and seller are the same
@@ -207,7 +210,8 @@ export function summarizeProductionProof(
       names.add(`${job.provider.toLowerCase()}|${name}`);
       registrationNames.set(registration, names);
     }
-    if (job.status === 'COMPLETED') completedValue += BigInt(job.budgetRaw);
+    /* $U only: a USDT job's value is in `completedByToken`, never added to a $U figure. */
+    if (job.status === 'COMPLETED' && isDollarUJob(job)) completedValue += BigInt(job.budgetRaw);
     if (!lastCheckedAt || job.statusCheckedAt > lastCheckedAt) lastCheckedAt = job.statusCheckedAt;
   }
 
@@ -225,6 +229,7 @@ export function summarizeProductionProof(
     agentsHired: distinctAgents(registrations, registrationNames),
     agentRegistrationsHired: registrations.size,
     completedValueRaw: completedValue.toString(),
+    completedByToken: serializableTotals(totalsByToken(jobs.filter((job) => job.status === 'COMPLETED'))),
     outsideTeamJobs,
     selfHireJobs,
     lifecycleDemoJobs,

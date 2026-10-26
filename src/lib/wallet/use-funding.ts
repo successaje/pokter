@@ -26,11 +26,16 @@ export function useWalletFunding(
   address: Address | null | undefined,
   requiredBudgetU: number,
   chainId: number = WALLET_NETWORK.chainId,
+  /*
+   * A hire in another token (USDT): the balance is read in that token and
+   * measured against exactly the signed amount, not against a $U budget.
+   */
+  tokenHire?: { address: Address; requiredRaw: bigint } | null,
 ) {
-  const paymentToken = correctedErc8183Addresses(chainId).paymentToken;
+  const paymentToken = tokenHire?.address ?? correctedErc8183Addresses(chainId).paymentToken;
 
   const balance = useQuery({
-    queryKey: ['wallet-funding', chainId, address, paymentToken, requiredBudgetU],
+    queryKey: ['wallet-funding', chainId, address, paymentToken, requiredBudgetU, tokenHire?.requiredRaw.toString() ?? null],
     queryFn: () =>
       createClient({ chains: [walletNetworkFor(chainId)] }).balances({ wallet: address!, tokens: [paymentToken] }),
     enabled: Boolean(address),
@@ -39,7 +44,7 @@ export function useWalletFunding(
 
   const token = balance.data?.tokens?.[0];
   const native = balance.data?.native;
-  const budgetRaw = parseUnits(String(requiredBudgetU), 18);
+  const budgetRaw = tokenHire ? tokenHire.requiredRaw : parseUnits(String(requiredBudgetU), 18);
 
   const gasKnown = balance.isSuccess && native !== undefined;
   const paymentKnown = balance.isSuccess && Boolean(token?.ok);

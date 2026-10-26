@@ -3,8 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
-import type { Brief } from '@/lib/briefs/model';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { requestAmountLabel, type Brief } from '@/lib/briefs/model';
 import { chainLabel } from '@/lib/network/presentation';
 import { cn } from '@/lib/ui/cn';
 import { LinkButton } from '@/ui/Button';
@@ -81,7 +80,7 @@ export function PostedRequestsPage() {
                 <span className="flex min-w-0 flex-col gap-1">
                   <span className="truncate text-sm font-medium">{request.title}</span>
                   <span className="text-[12.5px] text-ink-3">
-                    {formatQuotedPrice(request.budgetU)} · deliver in {request.deliverDays} days · {chainLabel(request.chainId)}
+                    {requestAmountLabel(request, request.budgetU)} · deliver in {request.deliverDays} days · {chainLabel(request.chainId)}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-3">

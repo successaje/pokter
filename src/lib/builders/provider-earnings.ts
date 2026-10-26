@@ -1,5 +1,7 @@
 import { formatUnits } from 'viem';
 
+import { jobToken } from '@/lib/erc8183/job-amount';
+import { paymentTokenAt } from '@/lib/network/tokens';
 import type { JobStatusName } from '@/lib/erc8183/types';
 
 /**
@@ -29,12 +31,22 @@ import type { JobStatusName } from '@/lib/erc8183/types';
 export interface EarningsJob {
   chainId: number;
   status: JobStatusName;
-  /** Raw $U units, 18 decimals, as the escrow holds it. */
+  /** Raw units of the job's token, as the escrow holds it. */
   budgetRaw: string;
+  /** The job's token; null or absent is unknown (see `job-amount`). */
+  paymentToken?: string | null;
 }
 
 export interface EarningsLine {
   chainId: number;
+  /**
+   * The money this line is in. One line per chain *and* token: a USDT line
+   * is never added to a $U line. The `…U` amounts are whole units of this
+   * token (the names predate other tokens); with `token` null they are raw
+   * base units, because an unknown token has no known scale.
+   */
+  token: string | null;
+  symbol: string | null;
   /** Whether this chain's token is real money. Carried per line so the two are never summed. */
   realMoney: boolean;
   releasedU: string;
@@ -60,22 +72,24 @@ export interface EarningsLine {
   didNotPayJobs: number;
 }
 
-/* Summed as BigInt and formatted once. Raw $U is 18 decimals, so adding
-   these as JavaScript numbers loses cents on amounts a hire can reach. */
-const U = (raw: bigint) => formatUnits(raw, 18);
-
 export function earningsByChain(jobs: readonly EarningsJob[]): EarningsLine[] {
-  const byChain = new Map<number, EarningsJob[]>();
+  const byChain = new Map<string, EarningsJob[]>();
   for (const job of jobs) {
-    const list = byChain.get(job.chainId);
+    const key = `${job.chainId}|${(jobToken(job) ?? '').toLowerCase()}`;
+    const list = byChain.get(key);
     if (list) list.push(job);
-    else byChain.set(job.chainId, [job]);
+    else byChain.set(key, [job]);
   }
   const sum = (list: readonly EarningsJob[]) => list.reduce((total, job) => total + BigInt(job.budgetRaw), 0n);
   const of = (list: readonly EarningsJob[], status: JobStatusName) => list.filter((job) => job.status === status);
   return [...byChain.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([chainId, list]) => {
+    .sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))
+    .map(([key, list]) => {
+      const chainId = Number(key.split('|')[0]);
+      const tokenAddress = key.split('|')[1] || null;
+      const known = tokenAddress ? paymentTokenAt(chainId, tokenAddress) : null;
+      /* Summed as BigInt and formatted once, at the token's own scale; raw when the scale is unknown. */
+      const U = (raw: bigint) => (known ? formatUnits(raw, known.decimals) : raw.toString());
       const released = of(list, 'COMPLETED');
       const funded = of(list, 'FUNDED');
       const submitted = of(list, 'SUBMITTED');
@@ -83,6 +97,8 @@ export function earningsByChain(jobs: readonly EarningsJob[]): EarningsLine[] {
       const rejected = of(list, 'REJECTED');
       return {
         chainId,
+        token: known?.address ?? tokenAddress,
+        symbol: known ? (known.symbol === 'U' ? '$U' : known.symbol) : null,
         realMoney: chainId === 56,
         releasedU: U(sum(released)),
         releasedJobs: released.length,

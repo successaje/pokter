@@ -1,6 +1,6 @@
 import { CATEGORY_BY_ID, type Category } from '@/lib/agents/categories';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { quotePriceLabel } from '@/lib/find/price';
 import { STALE_AFTER_DAYS, daysSinceLastAnswer, stripCells, type StripCell } from '@/lib/history/strip';
 import { paidHireChain } from '@/lib/network/escrow';
 import type { Verdict } from '@/lib/proof/engine';
@@ -58,8 +58,17 @@ export interface FindRow {
    * only place that reads the sweep's failure code.
    */
   priceState: 'signed' | 'unverified' | 'none';
-  /** The last price the agent signed, in $U, or null when it never has. */
+  /**
+   * The last price the agent signed, as a number in its own token (see
+   * `priceCurrency`), or null when it never has. The name is historical: it
+   * is $U only when `priceCurrency` is the $U contract, and it is never to be
+   * compared or summed across rows without checking that first.
+   */
   priceU: number | null;
+  /** The token address the price is signed in; null when there is no price or it was not recorded. */
+  priceCurrency: string | null;
+  /** The signed amount in the token's base units, exact; null when there is no price. */
+  priceRaw: string | null;
   priceLabel: string;
   /**
    * What to put in the budget box when the agent has never signed a price.
@@ -124,7 +133,10 @@ export function toFindRow(
     hireChainId: paidHireChain({ quoteCurrency: quote?.currency, payable: listing.quotePayable }),
     priceState: priceU !== null ? 'signed' : record.totalAnswered > 0 ? 'unverified' : 'none',
     priceU,
-    priceLabel: priceU !== null ? formatQuotedPrice(priceU) : 'No signed price yet',
+    priceCurrency: quote?.currency ?? null,
+    priceRaw: quote?.priceRaw ?? null,
+    /* In the quote's own money (`quotePriceLabel`): the card and the profile must name the same token. */
+    priceLabel: quote && priceU !== null ? quotePriceLabel(quote) : 'No signed price yet',
     suggested: priceU !== null ? null : suggested,
     priceFresh,
     hirable,
@@ -147,7 +159,7 @@ export function findRows(entries: SearchableAgent[]): FindRow[] {
   const byCategory = suggestionsByCategory(
     entries.flatMap((entry) =>
       entry.listing.quote
-        ? [{ category: entry.listing.category, priceU: Number(entry.listing.quote.priceU) }]
+        ? [{ category: entry.listing.category, priceU: Number(entry.listing.quote.priceU), currency: entry.listing.quote.currency ?? null }]
         : [],
     ),
   );

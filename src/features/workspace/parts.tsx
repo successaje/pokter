@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { formatUnits } from 'viem';
-
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import type { HiredJob } from '@/lib/erc8183/types';
 import { cn } from '@/lib/ui/cn';
 import { formatElapsed } from '@/lib/ui/format';
@@ -42,9 +41,14 @@ export function PhaseLabel({ job, className }: { job: HiredJob; className?: stri
   );
 }
 
+/**
+ * A job's budget in the token it was funded in: "0.1 $U", "2 USDT", or
+ * "… base units (currency not yet read)" when the job's token is not known.
+ * Never "$U" by default — an unknown token is said to be unknown.
+ */
 export function budgetOf(job: HiredJob) {
   try {
-    return `${Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 })} $U`;
+    return jobAmountLabel(job);
   } catch {
     return '—';
   }

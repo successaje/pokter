@@ -1,3 +1,5 @@
+import { formatQuotedRaw, tokenLabel } from '@/lib/erc8183/pricing';
+
 /**
  * What changed between the quote a buyer reviewed and the one about to be funded.
  *
@@ -25,6 +27,8 @@
 export interface ComparableQuote {
   priceRaw?: string;
   priceU?: number;
+  /** `AgentQuote` carries it at the top level; read before the anchor's. */
+  currency?: string | null;
   anchor?: Record<string, unknown> | null;
 }
 
@@ -42,17 +46,28 @@ function termsOf(quote: ComparableQuote): Record<string, unknown> {
   return terms && typeof terms === 'object' && !Array.isArray(terms) ? (terms as Record<string, unknown>) : {};
 }
 
-/** The token the signed content names, or null when it names none. */
+/** The token the quote names, or null when it names none. Lowercased, so checksum case is never a change. */
 function currencyOf(quote: ComparableQuote): string | null {
+  const top = quote.currency;
+  if (typeof top === 'string' && top.trim()) return top.trim().toLowerCase();
   const anchor = quote.anchor;
   if (!anchor || typeof anchor !== 'object') return null;
   const currency = anchor.currency;
   return typeof currency === 'string' && currency.trim() ? currency.trim().toLowerCase() : null;
 }
 
-/** The price as a buyer read it, for the sentence. */
+/**
+ * The price as a buyer read it, for the sentence, in the quote's own token.
+ *
+ * It printed `priceU` beside a literal "$U", so a renewed USDT quote told the
+ * buyer its new price in money it was not in. From the raw units and the
+ * token's own decimals where both are known; a quote that names no token
+ * says so rather than borrowing one.
+ */
 function shown(quote: ComparableQuote): string {
-  return quote.priceU !== undefined ? `${quote.priceU} $U` : `${quote.priceRaw ?? 'an unstated amount'}`;
+  const currency = currencyOf(quote);
+  if (quote.priceRaw !== undefined) return formatQuotedRaw(currency, quote.priceRaw);
+  return quote.priceU !== undefined ? `${quote.priceU} ${tokenLabel(currency)}` : 'an unstated amount';
 }
 
 /* Order-insensitive for arrays of criteria; otherwise exact. */
@@ -78,18 +93,23 @@ export interface QuoteChange {
  * the replacement commits to the same work at the same price.
  */
 export function materialQuoteChange(reviewed: ComparableQuote, replacement: ComparableQuote): QuoteChange | null {
-  if (reviewed.priceRaw !== replacement.priceRaw) {
-    return { kind: 'price', what: `its new price is ${shown(replacement)}, not the ${shown(reviewed)} you reviewed` };
-  }
   /*
-   * Only when both name one. An anchor without a currency is the seller
-   * saying nothing, which is not the same as saying something different,
-   * and stopping a hire over it would block every quote that omits it.
+   * The currency first, and named. The same figure in another token is a
+   * different price, and checked after the amount it was reported as a new
+   * amount whenever both moved — so "its new price is 0.5" hid that the
+   * money itself had changed. Only when both name one: an anchor without
+   * a currency is the seller saying nothing, which is not the same as
+   * saying something different, and stopping a hire over it would block
+   * every quote that omits it.
    */
   const before = currencyOf(reviewed);
   const after = currencyOf(replacement);
   if (before && after && before !== after) {
-    return { kind: 'price', what: 'it now wants paying in a different token' };
+    const amounts = reviewed.priceRaw !== replacement.priceRaw ? `; its new price is ${shown(replacement)}, not the ${shown(reviewed)} you reviewed` : '';
+    return { kind: 'price', what: `the currency changed from ${tokenLabel(before)} to ${tokenLabel(after)}${amounts}` };
+  }
+  if (reviewed.priceRaw !== replacement.priceRaw) {
+    return { kind: 'price', what: `its new price is ${shown(replacement)}, not the ${shown(reviewed)} you reviewed` };
   }
 
   const beforeTerms = termsOf(reviewed);

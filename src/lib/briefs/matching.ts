@@ -8,7 +8,10 @@ export interface MatchableRequest {
   state: BriefState;
   closesAt?: string | null;
   category?: string | null;
+  /** Whole units of `paymentToken`. */
   budgetU: number;
+  /** The request's token; null or absent on a request from before tokens, which is $U (`requestToken`). */
+  paymentToken?: string | null;
   chainId: number;
   postedAt: string;
 }

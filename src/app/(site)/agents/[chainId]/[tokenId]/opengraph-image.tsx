@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 import { CATEGORY_BY_ID } from '@/lib/agents/categories';
+import { quotePriceLabel } from '@/lib/find/price';
 import { loadDossier } from '@/lib/marketplace';
 import { VERDICT_LABEL } from '@/lib/proof/engine';
 import type { ChainId } from '@/lib/scan/types';
@@ -61,10 +62,13 @@ export default async function AgentImage({ params }: { params: Promise<{ chainId
   const meta = category === 'unclassified' ? null : CATEGORY_BY_ID.get(category);
   const rate = record.totalProbes ? `${Math.round((record.totalAnswered / record.totalProbes) * 100)}%` : 'Not measured';
   const name = agent.name.length > 42 ? `${agent.name.slice(0, 40)}…` : agent.name;
+  /* In the quote's own token: a USDT price on a shared card must not read as $U. */
+  const quote = result.dossier.quote;
+  const signedPrice = quote ? quotePriceLabel(quote) : 'None';
   const facts = [
     { label: 'ANSWERED PROBES', value: rate, note: record.totalProbes ? `of ${record.totalProbes}` : '' },
     { label: 'ATTESTATIONS', value: String(attestations.length), note: 'published on chain' },
-    { label: 'SIGNED PRICE', value: result.dossier.quote ? `${Number(result.dossier.quote.priceU)} $U` : 'None', note: result.dossier.quote ? 'signed by its wallet' : 'not signed' },
+    { label: 'SIGNED PRICE', value: signedPrice, note: result.dossier.quote ? 'signed by its wallet' : 'not signed' },
   ];
 
   return new ImageResponse(

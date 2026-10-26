@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { EVIDENCE_AGENT, evidenceCard } from '@/lib/evidence/agent';
 import { deliverEvidenceJob } from '@/lib/evidence/deliver';
 import { signEvidenceQuote } from '@/lib/evidence/negotiate';
+import { evidenceQuoteToken } from '@/lib/evidence/quote-token';
+import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { siteOrigin } from '@/lib/evidence/origin';
 import { evidenceFor, parseAgentRef } from '@/lib/evidence/report';
 import { EVIDENCE_CHAINS, evidenceChain, quoteChainFor } from '@/lib/evidence/refs';
@@ -123,6 +125,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       const quote = await signEvidenceQuote({
         chainId,
+        currency: evidenceQuoteToken(chainId, data, correctedErc8183Addresses(chainId).paymentToken),
         taskDescription: String(data.task_description ?? text ?? 'Quote an evidence report.'),
         deliverables:
           typeof askedTerms?.deliverables === 'string' ? askedTerms.deliverables : undefined,

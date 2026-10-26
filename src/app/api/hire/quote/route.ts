@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { preferenceReport, preferredCurrency } from '@/lib/network/currency-preference';
+import { paymentTokenAt } from '@/lib/network/tokens';
 
 import { unpayablePriceNote } from '@/lib/erc8183/payable';
 import { quoteUsableForEscrow } from '@/lib/erc8183/negotiation';
@@ -99,6 +101,19 @@ export async function POST(request: Request): Promise<NextResponse> {
    * never wrong, only narrower.
    */
   const hireCategory = typeof body.category === 'string' ? body.category : null;
+  /*
+   * The buyer's preferred currency, before negotiation: a token Pokter funds
+   * on the escrow chain the buyer chose. Sent to the agent beside the brief;
+   * the agent signs in whatever it accepts, and the hire funds exactly that.
+   * Anything Pokter cannot fund there is refused here rather than asked for.
+   */
+  const preferredEscrow = Number(body.escrowChainId);
+  const preferred = typeof body.preferredToken === 'string' && body.preferredToken
+    ? preferredCurrency(preferredEscrow, body.preferredToken)
+    : null;
+  if (typeof body.preferredToken === 'string' && body.preferredToken && !preferred) {
+    return NextResponse.json({ error: `Pokter does not fund ${body.preferredToken} on chain ${body.escrowChainId}, so it cannot be asked for.`, layer: 'input', code: 'preference-not-offered' }, { status: 400 });
+  }
   const successCriteria = suppliedCriteria ?? hireCriteria({ category: hireCategory, brief: task });
   if (task.length > 2000) {
     return NextResponse.json(
@@ -209,6 +224,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   let failure: QuoteFailure | null = null;
   const quote = await requestQuote(agent, {
     timeoutMs: 20_000,
+    preferredCurrency: preferred,
     enquiry: { task_description: task, terms: successCriteria ? { ...POKTER_TERMS, success_criteria: successCriteria } : POKTER_TERMS },
     onRefused: (reason) => {
       refusal = reason;
@@ -386,7 +402,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   noted('quoted', { escrowChainId });
 
+  /* The money the price is in, named by address with its scale. `priceU` is that amount in whole units of it, whatever the token. */
+  const token = paymentTokenAt(escrowChainId, quote.currency);
+  const signedSymbol = token ? (token.symbol === 'U' ? '$U' : token.symbol) : quote.currency;
   return NextResponse.json({
+    token: token ? { address: token.address, symbol: signedSymbol, decimals: token.decimals, chainId: token.chainId, disclosure: token.disclosure ?? null } : null,
+    /* Whether the agent signed in the currency asked for; never converted when it did not. */
+    preference: preferenceReport(preferred, quote.currency, agent.name),
     quote: {
       negotiationHash: quote.negotiationHash,
       providerSignature: quote.providerSignature,

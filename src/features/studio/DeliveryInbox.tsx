@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { formatUnits, getAddress } from 'viem';
+import { getAddress } from 'viem';
 import { useAccount } from 'wagmi';
 
+import { jobAmountLabel, jobToken } from '@/lib/erc8183/job-amount';
 import type { HiredJob } from '@/lib/erc8183/types';
+import { displaySymbol, paymentTokenAt } from '@/lib/network/tokens';
 import { chainLabel } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { readDisputeState, readReviewTiming, settleFromExternalWallet, submitExternalDeliverable, transactionExists } from '@/lib/wallet/external';
@@ -266,7 +268,7 @@ function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   if (done) {
     return (
       <Notice tone="ok" title="Paid">
-        The escrow released {amountOf(job)} $U to {shortAddress(account)}.{' '}
+        The escrow released {amountOf(job)} to {shortAddress(account)}.{' '}
         <TxLink chainId={job.chainId} hash={done} label="View the transaction" />
       </Notice>
     );
@@ -333,7 +335,7 @@ function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
         */}
       {summary.state !== 'waiting' && (
         <Button size="s" busy={busy} disabled={busy} onClick={() => void collect()} className="self-start">
-          {summary.state === 'racing' ? `Collect ${amountOf(job)} $U now` : `Release ${amountOf(job)} $U to yourself`}
+          {summary.state === 'racing' ? `Collect ${amountOf(job)} now` : `Release ${amountOf(job)} to yourself`}
         </Button>
       )}
       {error && <Notice tone="watch">{error}</Notice>}
@@ -341,8 +343,17 @@ function Collect({ job, account }: { job: HiredJob; account: `0x${string}` }) {
   );
 }
 
+/** The job's budget with its own token's symbol and decimals; an unread token is said to be unread, never called $U. */
 function amountOf(job: HiredJob): string {
-  return Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 });
+  return jobAmountLabel(job);
+}
+
+/** "real $U", "test USDT", or that the currency has not been read — from the job's token, not the chain. */
+function moneyOf(job: HiredJob): string {
+  const address = jobToken(job);
+  const token = address ? paymentTokenAt(job.chainId, address) : null;
+  if (!token) return address ? 'unrecognised token' : 'currency not yet read';
+  return `${job.chainId === 56 ? 'real' : 'test'} ${displaySymbol(token)}`;
 }
 
 /**
@@ -380,14 +391,14 @@ export function DeliveryInbox({ jobs, staged = {} }: { jobs: HiredJob[]; staged?
                 <p className="line-clamp-2 text-[13px] text-ink-2">{job.task}</p>
                 {/* Which network, real or test money, the deadline, and the job itself: a row is no longer just a number. */}
                 <p className="mt-1 flex flex-wrap gap-x-2 text-[12px] text-ink-3">
-                  <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>{chainLabel(job.chainId)} · {job.chainId === 56 ? 'real $U' : 'test $U'}</span>
+                  <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>{chainLabel(job.chainId)} · {moneyOf(job)}</span>
                   {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <span>· deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</span>}
                   <Link href={jobHref(job)} className="font-medium text-ink-2 hover:text-ink hover:underline">· View job</Link>
                 </p>
               </div>
               <div className="flex flex-col items-end gap-0.5">
                 <span className={cn('text-[13px] font-medium', s.tone)}>{s.label}</span>
-                <span className="t-readout text-[12.5px] text-ink-3">{Number(formatUnits(BigInt(job.budgetRaw), 18)).toLocaleString('en-US', { maximumFractionDigits: 4 })} $U</span>
+                <span className="t-readout text-[12.5px] text-ink-3">{amountOf(job)}</span>
               </div>
             </div>
             {job.status === 'SUBMITTED' && isProvider && !wrongChain && <Collect job={job} account={connected!} />}

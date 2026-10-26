@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { HiredJob } from '@/lib/erc8183/types';
-import { formatUnits } from 'viem';
 
-import { formatQuotedPrice } from '@/lib/erc8183/pricing';
+import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { jobTimeline } from '@/lib/jobs/timeline';
 import { useJobActions } from '@/lib/jobs/useJobActions';
 import { disputeSummary, reviewWindowSummary, settleOpensAt } from '@/lib/erc8183/settle-window';
@@ -156,9 +155,12 @@ function SellerAnswerNotice({ job, answer }: { job: HiredJob; answer: SellerAnsw
   );
 }
 
-/** The escrowed amount, as the buyer agreed it. */
-function escrowedAmount(job: HiredJob): string {
-  return formatQuotedPrice(Number(formatUnits(BigInt(job.budgetRaw), 18)));
+/**
+ * The escrowed amount, as the buyer agreed it, in the job's own token. A job
+ * whose token has not been read says so rather than being called $U.
+ */
+export function escrowedAmount(job: HiredJob): string {
+  return jobAmountLabel(job);
 }
 
 function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: boolean; connected: boolean }) {

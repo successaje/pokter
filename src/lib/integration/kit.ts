@@ -3,6 +3,7 @@ import { describeQuoteFailure, QUOTE_FAILURE_CODES, quoteFailure } from '@/lib/h
 import { STATELESS_REVISION } from '@/lib/mcp/probe';
 import { PROBE_ADAPTER } from '@/lib/proof/probe-target';
 
+import { kitTokens, PREFERRED_CURRENCY_RULE, PRICE_UNITS_RULE, type KitToken } from './currencies';
 import { CANONICAL_RULES, CHECKLIST, KIT_VERSION, SIGNING_SNIPPET, TIMING, readingAJob, workedExample, type ChecklistStep } from './guide';
 
 /**
@@ -26,7 +27,12 @@ export interface IntegrationKit {
   skills: Array<{ id: string; required: boolean; purpose: string; input: string; output: string }>;
   quote: { fields: Array<{ field: string; rule: string }>; hash: string; signature: string };
   delivery: string[];
-  escrows: Array<{ chainId: number; network: string; commerce: string; router: string; policy: string; paymentToken: string }>;
+  /**
+   * `paymentToken` is the escrow default ($U), kept as published. `tokens`
+   * is every token Pokter funds on that escrow, each with its own decimals:
+   * the currencies a quote may be signed in.
+   */
+  escrows: Array<{ chainId: number; network: string; commerce: string; router: string; policy: string; paymentToken: string; tokens: KitToken[] }>;
   lifecycle: Array<{ state: string; meaning: string }>;
   refusals: Array<{ code: string; layer: string; retryable: boolean; status: number; meaning: string }>;
   preflight: Array<{ name: string; url: string; what: string }>;
@@ -40,10 +46,14 @@ export interface IntegrationKit {
 
 export type KitEscrow = IntegrationKit['escrows'][number];
 
-/** The kit, given the escrows it describes (see `integration/escrows.ts` for the live ones). */
-export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): IntegrationKit {
+/** An escrow as given to the kit; `tokens` defaults to what Pokter offers on that chain. */
+export type KitEscrowInput = Omit<KitEscrow, 'tokens'> & { tokens?: KitToken[] };
+
+/** The kit, given the escrows it describes (see `integration/live.ts` for the live ones). */
+export function buildIntegrationKit(origin: string, input: KitEscrowInput[]): IntegrationKit {
+  const escrows: KitEscrow[] = input.map((e) => ({ ...e, tokens: e.tokens ?? kitTokens(e.chainId) }));
   // The worked example is on mainnet when it is enabled; a deployment with no escrow still gets one to read.
-  const example = escrows.find((e) => e.chainId === 56) ?? escrows[0] ?? { chainId: 56, commerce: '0xEa4DAa3100A767e86FDed867729ae7446476EBA6', paymentToken: '0xcE24439F2D9C6a2289F741120FE202248B666666' };
+  const example = escrows.find((e) => e.chainId === 56) ?? escrows[0] ?? { chainId: 56, commerce: '0xEa4DAa3100A767e86FDed867729ae7446476EBA6', paymentToken: '0xcE24439F2D9C6a2289F741120FE202248B666666', tokens: [] };
   return {
     version: KIT_VERSION,
     probeRevision: PROBE_ADAPTER,
@@ -99,7 +109,7 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
         id: 'negotiate',
         required: true,
         purpose: 'The priced job. Name it after the work ("Quote a borrow desk brief"), not "Negotiate an ERC-8183 job": a named skill is shown to buyers, a generic one is treated as plumbing.',
-        input: 'A data part { skill, task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains }. chain_id is the escrow Pokter will fund on. success_criteria, when present, is the list of checks the delivery will be judged against — echo it back to agree to them (see quote).',
+        input: 'A data part { skill, task_description, terms: { deliverables, quality_standards, success_criteria? }, chain_id, escrow_chains, preferred_currency? }. chain_id is the escrow Pokter will fund on. success_criteria, when present, is the list of checks the delivery will be judged against — echo it back to agree to them (see quote). preferred_currency, when present, is the buyer\u2019s preferred token (see quote).',
         output: 'An envelope with accepted, response.terms.price and currency, negotiated_at, negotiation_hash and provider_sig (see quote). To decline, set accepted false and give a reason in plain words: it is shown to the buyer.',
       },
       {
@@ -119,8 +129,9 @@ export function buildIntegrationKit(origin: string, escrows: KitEscrow[]): Integ
     ],
     quote: {
       fields: [
-        { field: 'response.terms.price', rule: 'An integer string in the payment token’s smallest unit (18 decimals).' },
-        { field: 'response.terms.currency', rule: 'The token you want paying in. It must be the payment token of an enabled escrow, or the hire is refused as payment-incompatible.' },
+        { field: 'response.terms.price', rule: PRICE_UNITS_RULE },
+        { field: 'response.terms.currency', rule: 'The token you want paying in, by address. It must be one of the tokens Pokter funds on an enabled escrow (escrows[].tokens), or the hire is refused as payment-incompatible.' },
+        { field: 'preferred_currency (in the request)', rule: PREFERRED_CURRENCY_RULE },
         { field: 'negotiated_at', rule: 'When you signed, in seconds.' },
         { field: 'quote_expires_at', rule: 'Optional. A quote already expired on arrival is refused as quote-expired.' },
         { field: 'chain_id, verifying_contract', rule: 'Optional binding. If present they must name the escrow Pokter funds on, or the hire is refused.' },
