@@ -184,6 +184,18 @@ Every case is marked: **E** executed against real code and chain state, **S** si
 | Prepared hire, MCP `get_quote` / `hire_link` | unit | unit | unit | unit | unit | unit + E (`?pay=`) |
 | Requests and proposals, provider MCP | unit + route | unit + route | unit | unit | unit + route | unit + route |
 
+**Fork harness.** The mainnet runs used to stall part-way. The cause, from logged upstream calls: anvil forks at a block, then lazily reads state at it for the whole run. Pruned public nodes refuse state about 200 blocks old (publicnode: "Archive requests require a personal token"; the dataseeds: "missing trie node"), which is about 2.5 minutes on BNB Chain.
+
+The harness now:
+- pins the block;
+- defaults mainnet to an endpoint that serves historical state (`bsc-mainnet.public.blastapi.io`, checked 50,000 blocks back);
+- logs every upstream call (method, block, latency, error) with anvil's own log;
+- bounds anvil's retries, upstream timeouts and receipt waits;
+- reports a stall as upstream or test;
+- finds token holders on a separate log endpoint, because the fork upstream rate-limits `eth_getLogs`.
+
+On `b27b701e`, all six lifecycles passed on their first run.
+
 The fork lifecycle covers:
 
 - creating the job with the token, and `JobPaymentTokenBound`;

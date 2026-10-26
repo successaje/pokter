@@ -31,7 +31,15 @@ Building such a gate would be new work. While the currencies are on, **anyone** 
    ```
 
    Then run the smoke script again.
-5. **Pre-flight, right before you pay.** I ask production for fresh signed quotes: Touchstone in each currency (`get_quote` with `preferred_currency`), and IVL Rebalancer for USDT. A currency whose agent does not sign in it is marked pending and skipped. No agent is assumed to support a token from its listing.
+5. **Pre-flight, right before you pay:**
+
+   ```bash
+   node scripts/test-session-preflight.mjs
+   ```
+
+   It asks production for fresh signed quotes: Touchstone in each currency (`get_quote` with `preferred_currency`), and IVL Rebalancer for USDT. Each line reads READY only if the quote is in that token, for the expected raw amount, signed by the agent's registered wallet, and fundable. Anything else reads **PENDING (do not pay)** and is skipped. No agent is assumed to support a token from its listing.
+
+   Run today against production, before the release, it rightly reported $U as READY and the rest as PENDING. Touchstone signed $U for every currency, and IVL's USDT was not fundable.
 6. **The session** (below).
 7. **After it:** keep only the currencies whose checks passed. Remove any that failed from `fly.toml` and redeploy. Existing jobs keep their token, labels, settlement and "Finish funding" recovery, none of which reads the flag.
 
