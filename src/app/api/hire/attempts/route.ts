@@ -7,7 +7,6 @@ import { hasEvidence, publicIdFor, publicView, secretHash, settleRemote, type Ev
 import type { AttemptChainReader } from '@/lib/hire/funding-journal';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { jobCreatedFromReceipt } from '@/lib/wallet/external-receipt';
-import { MAX_FUNDABLE_SECONDS } from '@/lib/hire/funding-journal';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +26,7 @@ async function readers(chainId: 56 | 97, wallet: string, provider: string): Prom
   const commerce = getAddress(correctedErc8183Addresses(chainId).commerce) as Address;
   const job = async (jobId: bigint) => {
     const j = await rpc.readContract({ address: commerce, abi: GET_JOB_ABI, functionName: 'getJob', args: [jobId] });
-    return { client: j.client, provider: j.provider, budget: j.budget, description: j.description, statusName: STATUS[j.status] ?? 'UNKNOWN' };
+    return { client: j.client, provider: j.provider, budget: j.budget, description: j.description, expiredAt: j.expiredAt, statusName: STATUS[j.status] ?? 'UNKNOWN' };
   };
   const onchain = async (jobId: bigint) => {
     const j = await rpc.readContract({ address: commerce, abi: GET_JOB_ABI, functionName: 'getJob', args: [jobId] });
@@ -67,9 +66,13 @@ async function readers(chainId: 56 | 97, wallet: string, provider: string): Prom
 }
 
 const PROMPTS = new Set(['swapping', 'creating', 'registering', 'budgeting', 'approving', 'funding', 'batch']);
-/* An expiry in whole seconds, no later than the longest a job can stay fundable. */
+/*
+ * A client's expiry, kept only as a hint while a record is unverified (and
+ * unverified records never block). Verification replaces it with the one
+ * decoded from the wallet's own create call.
+ */
 const fundableOf = (raw: unknown): number | null =>
-  typeof raw === 'number' && Number.isInteger(raw) && raw > 0 && raw <= Math.floor(Date.now() / 1000) + MAX_FUNDABLE_SECONDS ? raw : null;
+  typeof raw === 'number' && Number.isInteger(raw) && raw > 0 && raw <= Math.floor(Date.now() / 1000) + 400 * 86_400 ? raw : null;
 const chainOf = (raw: unknown): 56 | 97 | null => (Number(raw) === 56 ? 56 : Number(raw) === 97 ? 97 : null);
 const walletOf = (raw: unknown): string | null => {
   try {
@@ -92,15 +95,18 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!open) return NextResponse.json({ open: null }, { headers: { 'cache-control': 'no-store' } });
   const read = await readers(chainId, wallet, open.provider);
   const at = new Date().toISOString();
-  if (!open.verified && (await hasEvidence(open, read, read.commerce))) store.updateFundingAttempt(open.publicId, { verified: true }, at);
+  if (!open.verified) {
+    const evidence = await hasEvidence(open, read, read.commerce);
+    if (evidence.verified) store.updateFundingAttempt(open.publicId, { verified: true, fundableUntil: evidence.expiredAt }, at);
+  }
   try {
-    const settled = await settleRemote(open, read, await read.chainNow());
-    if (settled.outcome === 'funded') {
-      store.closeFundingAttempt(open.publicId, `funded:${settled.jobId}`, at);
+    const settled = await settleRemote(store.openFundingAttempt(wallet, chainId) ?? open, read, await read.chainNow());
+    if (settled.outcome === 'funded' || settled.outcome === 'mismatch') {
+      store.closeFundingAttempt(open.publicId, `${settled.outcome}:${settled.jobId}`, at);
       /* Adopted for every device: indexed with its token, as the funding device would have. */
       const { indexIfMissing } = await import('@/lib/erc8183/job-identity');
       await indexIfMissing({ chainId, jobId: settled.jobId, onchain: await read.onchain(BigInt(settled.jobId)) }).catch(() => false);
-      return NextResponse.json({ open: null, closed: { reason: 'funded', jobId: settled.jobId } }, { headers: { 'cache-control': 'no-store' } });
+      return NextResponse.json({ open: null, closed: { reason: settled.outcome, jobId: settled.jobId } }, { headers: { 'cache-control': 'no-store' } });
     }
     if (settled.outcome === 'impossible') {
       store.closeFundingAttempt(open.publicId, 'no-payment-can-follow', at);
@@ -172,7 +178,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const updated = store.openFundingAttempt(wallet, chainId)!;
     if (!updated.verified && hashes?.length) {
       const read = await readers(chainId, wallet, updated.provider);
-      if (await hasEvidence(updated, read, read.commerce)) store.updateFundingAttempt(updated.publicId, { verified: true }, at);
+      const evidence = await hasEvidence(updated, read, read.commerce);
+      if (evidence.verified) store.updateFundingAttempt(updated.publicId, { verified: true, fundableUntil: evidence.expiredAt }, at);
     }
     return NextResponse.json({ ok: true });
   }

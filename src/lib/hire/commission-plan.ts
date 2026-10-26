@@ -2,7 +2,7 @@ import { parseUnits } from 'viem';
 
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-token';
 import { pathFundsToken, type HirePath } from '@/lib/network/hire-paths';
-import { defaultHireToken, formatAmount, type HireTokenSet, type PaymentToken } from '@/lib/network/tokens';
+import { defaultHireToken, formatAmount, tokenName, type HireTokenSet, type PaymentToken } from '@/lib/network/tokens';
 import { amountWithinLimits } from './budget-limits';
 
 /**
@@ -57,13 +57,13 @@ export function planCommission(input: {
     return { ok: true, token: null, symbol: '$U', decimals, amountRaw, amountLabel: `${input.budgetU} $U`, signedAmount: false, path, atomicAllowed: true };
   }
   if (!input.quote) {
-    return { ok: false, code: 'needs-signed-quote', message: `A hire in ${token.symbol} funds the agent's signed price, and there is none for this brief. Nothing was sent.`, token };
+    return { ok: false, code: 'needs-signed-quote', message: `A hire in ${tokenName(token)} funds the agent's signed price, and there is none for this brief. Nothing was sent.`, token };
   }
   if (!pathFundsToken(path, token)) {
     return {
       ok: false,
       code: 'wallet-cannot-fund-token',
-      message: `${input.agentName} priced this in ${token.symbol}, and the passkey wallet funds $U only. Nothing was sent. Connect a browser wallet to fund a ${token.symbol} hire.`,
+      message: `${input.agentName} priced this in ${tokenName(token)}, and the passkey wallet funds $U only. Nothing was sent. Connect a browser wallet to fund a ${tokenName(token)} hire.`,
       token,
     };
   }
@@ -75,15 +75,18 @@ export function planCommission(input: {
    */
   const limit = amountWithinLimits(token, amountRaw);
   if (!limit.ok) {
-    return { ok: false, code: limit.side === 'above' ? 'above-limit' : 'below-limit', message: `${input.agentName} signed ${formatAmount(token.chainId, token.address, amountRaw)?.label ?? `${amountRaw} base units`}. ${limit.reason} Nothing was sent.`, token };
+    return { ok: false, code: limit.side === 'above' ? 'above-limit' : 'below-limit', message: `${input.agentName} signed ${(() => { const f = formatAmount(token.chainId, token.address, amountRaw); return f ? `${f.amount} ${tokenName(token)}` : `${amountRaw} base units of ${tokenName(token)}`; })()}. ${limit.reason} Nothing was sent.`, token };
   }
+  /* Named in full where it is chosen and confirmed: "Binance-Peg USDT", never a bare symbol that passes for the issuer's coin. */
+  const name = tokenName(token);
+  const formatted = formatAmount(token.chainId, token.address, amountRaw);
   return {
     ok: true,
     token,
-    symbol: token.symbol,
+    symbol: name,
     decimals: token.decimals,
     amountRaw,
-    amountLabel: formatAmount(token.chainId, token.address, amountRaw)?.label ?? `${amountRaw} base units of ${token.symbol}`,
+    amountLabel: formatted ? `${formatted.amount} ${name}` : `${amountRaw} base units of ${name}`,
     signedAmount: true,
     path,
     /* The batch path is not exercised for other tokens yet; see `hire-paths`. */

@@ -34,6 +34,8 @@ export interface FundedJobFields {
   budget: bigint;
   description: string;
   statusName: string;
+  /** The job's deadline on chain, when the reader has it: proof of when it can no longer be funded. */
+  expiredAt?: bigint;
 }
 
 export interface FundingExpectation {

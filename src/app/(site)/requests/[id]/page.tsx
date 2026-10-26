@@ -14,7 +14,7 @@ import { cn } from '@/lib/ui/cn';
 import { acceptsProposals, requestStatus } from '@/lib/briefs/model';
 import { getBriefStore } from '@/lib/briefs/store';
 import { hireForChosenProposal } from '@/lib/briefs/hired';
-import { displaySymbol } from '@/lib/network/tokens';
+import { displaySymbol, tokenIdentity } from '@/lib/network/tokens';
 import { getJobStore } from '@/lib/erc8183/store';
 import { Address } from '@/ui/Data';
 import { AvatarImage } from '@/ui/AvatarImage';
@@ -150,7 +150,7 @@ function RequestSummary({ brief, proposals, now }: { brief: Brief; proposals: nu
     ['Posted at', `${new Date(brief.postedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`],
     ['Network', <span key="n" className={cn(testnet && 'text-watch')}>{testnet ? 'BNB Testnet · test tokens' : `BNB Chain · real ${symbol}`}</span>],
     ...(token && !token.offered
-      ? ([['Paid in', <span key="t" className="t-readout break-all text-[12px]" title={token.address}>{symbol} · {token.address.slice(0, 6)}…{token.address.slice(-4)}</span>]] as Array<[string, React.ReactNode]>)
+      ? ([['Paid in', <span key="t" className="t-readout wrap-anywhere text-[12px]">{tokenIdentity(token)}{token.disclosure ? ` · ${token.disclosure}` : ''}</span>]] as Array<[string, React.ReactNode]>)
       : []),
     ['Delivery', `${days(brief.deliverDays)} after hiring`],
     ['Proposals close', brief.closesAt ? closingDate(brief.closesAt) : 'When one is chosen'],

@@ -27,6 +27,8 @@ A token can be hired in only when every check passes. There is one registry (`sr
 | $U | 97 | `0xc70B…5565` | 18 | Test token: the testnet escrow's default; no issuer lists it | default | 23/23 (the "$U untouched" step does not apply) | always |
 | USDT | 97 | `0x3376…4dDd` | 18 | Test token with no value; no issuer lists it | yes | 24/24 | no |
 
+**How the pegs are named.** Wherever a currency is chosen or confirmed, the BNB Chain pegs are called **Binance-Peg USDT** and **Binance-Peg USDC**, never plain "USDT" or "USDC". That covers the hire page's currency choice, the review, the payment confirmation and fund button, a request's "Paid in" choice, the request page, and the limit and shortage messages. The chain and the full contract address are shown beside the name (`tokenIdentity`). They are not presented as interchangeable with Tether's or Circle's own coins.
+
 **Unsupported, and why:**
 
 - **USDC on 97** (`0xEC1C…DE47`). The testnet escrow rejects it: `isPaymentTokenSupported` is false, and `createJobWithToken` reverts with `UnsupportedPaymentToken`. It is also an unofficial 6-decimal test token.
@@ -90,9 +92,11 @@ Identifiers are persisted **before** any waiting. The browser journal (`src/lib/
 | RPC failure, receipt timeout, lost batch reply | **Pending, not failed.** The chain is checked by hash, batch status, job id and a window after the prediction. An unknown outcome never invites a fresh payment |
 | Transaction replaced (speed-up or cancel) | The replacement hash is recorded. A replaced hash is not treated as in flight, and the job read decides |
 | Funded, but the token read fails | Recorded as funded with the token **unknown**. The sweep and the backfill read it later |
-| Abandoned attempt | Closed only when no payment can follow: no money-moving prompt was issued, or the chain is past the expiry the attempt encoded (the escrow then refuses `fund` and `createJobWithToken`, as checked on a fork). An expiry that was never learned is bounded by `MAX_FUNDABLE_SECONDS` (38 days: 30 days of delivery, 7 of dispute window, a margin), so no record lasts forever |
+| Abandoned attempt | Closed only on **proof** that no payment can follow: no money-moving prompt was issued, or the chain is past a deadline proven for this attempt (the escrow then refuses `fund` and `createJobWithToken`, as checked on a fork). **Elapsed time alone never unlocks anything.** |
+| Where the deadline comes from | Exactly what the wallet was asked to sign. A browser-wallet hire records the `expiredAt` it encodes before the first prompt. A resume records the job's on-chain `expiredAt`. A passkey hire records an upper bound taken just before the SDK computes its own (the SDK's clock plus the dispute window plus delivery, with a 10-minute margin); if the dispute window cannot be read, the hire stops before any prompt. A job found on chain proves its own `expiredAt`. **A fund or batch prompt cannot be issued without a recorded deadline** (`DeadlineNotRecorded`, refused before the wallet is asked) |
 | Another hire of the same agent | Never mistaken for this attempt: a job counts only with the same client, provider **and** description (brief plus signed quote) |
-| Funded in a different amount (mismatch) | Shown to the buyer, never funded again, and the record closes: nothing more can be paid into a funded job |
+| Funded in a different amount (mismatch) | The job is **kept**: adopted, recorded and indexed with the amount the escrow actually holds, and shown as the hire's result with a warning. Its signed quote is marked spent, so the same quote can never fund another job, even after a reload (`already-funded`). Only then does the record stop blocking |
+| Funded, by any path | The quote is marked spent in this browser: a later attempt with the same brief and signed quote is refused before any prompt. A fresh quote is a new hire |
 | A transaction stuck past the expiry | Closed: past the expiry nothing in flight can create or fund the job |
 | Recovered funded job | Adopted with the escrow's own `expiredAt`, never the recovery time |
 
@@ -115,13 +119,16 @@ Identifiers are persisted **before** any waiting. The browser journal (`src/lib/
   The description carries the brief and the agent's signed quote, which nobody else can know in advance.
   - An old transaction, an approval, or another hire's job proves nothing.
   - An unverified record never blocks. It is a warning, and the next device to begin **replaces** it, so nobody can lock another person's wallet by posting attempts in its name.
-  - Closing needs the attempt's secret or chain proof. Prompts are checked against the known steps, and expiries are clamped to the ceiling.
+  - Closing needs the attempt's secret or chain proof. Prompts are checked against the known steps.
+  - A verified record's deadline is the `expiredAt` **decoded from that same create call**, never a value a client sent.
   - Other devices see no brief and no secret.
-- **No permanent locks.** The server closes a record once its payment can no longer happen:
+- **No lock without a way out, and no unlock without proof.** The server closes a record only when the chain shows its payment can no longer happen:
   - it was funded;
-  - it was funded in another amount;
+  - it was funded in another amount (the job is indexed and kept);
   - no money-moving prompt is outstanding and nothing is funded;
-  - it is past its expiry, or past the 38-day ceiling when the expiry was never sent.
+  - the chain is past its proven deadline.
+
+  A record that blocks is verified, so its deadline is always known from its create call.
 
 ## 5. Accounting and rollback
 
@@ -226,9 +233,14 @@ It stopped before any approval, signature or broadcast.
 
 The complete diff was reviewed. Every finding was fixed and tested:
 
-- **Blocker 1 — a job created but not yet budgeted locked the wallet forever.** It was read as a "mismatch", and mismatches were kept. Fixed: an OPEN job is unfunded whatever its budget, another hire's job is skipped by description, and a mismatch closes. Tests: `hire-recovery` ("created but not yet budgeted", "another hire of the same agent", "settle never keeps a record forever").
+- **Blocker 1 — a job created but not yet budgeted locked the wallet forever.** It was read as a "mismatch", and mismatches were kept. Fixed: an OPEN job is unfunded whatever its budget, another hire's job is skipped by description, and a real mismatch is adopted as a job (see below). Tests: `hire-recovery` ("created but not yet budgeted", "another hire of the same agent", "settle never keeps a record forever").
 - **Blocker 2 — anyone could lock any wallet through the unauthenticated attempts endpoint.** Fixed: an unverified record never blocks and is superseded by the next begin, and evidence is now this attempt's own create transaction after the record began. Prompt and expiry are validated. Tests: `hire-recovery` (evidence cases), `routes/hire-attempts` (supersede, verified holds, junk ignored).
-- **The passkey path had no expiry when the dispute window could not be read.** Fixed: a 7-day allowance, plus the 38-day ceiling everywhere.
+- **The passkey path had no expiry when the dispute window could not be read.** Fixed: the hire stops before any prompt instead.
+- **Second review (on `33afbaea`): a time-based fallback and a dropped mismatch.**
+  - A 38-day ceiling had been added; it is **removed**. Nothing unlocks because time passed.
+  - The only deadlines used are those encoded in the calls, decoded from the create transaction, or read from the job on chain, and a money-moving prompt is refused unless one is recorded.
+  - A wrong-amount job is now adopted and its quote marked spent.
+  - Tests: `hire-recovery` ("a record closes only on proof…", "a money-moving prompt is refused…", "a wrong-amount job is adopted…", "a funded attempt closed by its owner also spends its quote") and `hire-funding` ("time alone never proves anything").
 - **Zero-address token** (plausible; checked on chain: legacy jobs on both chains report $U and a non-existent id reverts). Hardened anyway: a zero address is unread at every read site.
 - **The server did not adopt a funded job.** Fixed: it indexes it.
 - **Ownership loss could misreport "nothing sent".** Fixed: this is judged from the session's own sent hashes.
@@ -291,20 +303,37 @@ node -e "const{generatePrivateKey,privateKeyToAccount}=require('viem/accounts');
 
 Run it from the repository, once per key, with its own file name. Load the files with `fly secrets import` (stdin), never on a command line.
 
-**Costs** (Fly pricing, iad, read on 26 October 2026 from docs.fly.io/about/pricing)
+**Costs and the spending cap** (Fly pricing for iad, read on 26 October 2026 from docs.fly.io/about/pricing and docs.fly.io/about/billing)
 
-- **Machine:** `shared-cpu-1x` with 2GB costs $6.70 for 1GB plus $6.00 for the second GB, so **$12.70 a month if it runs continuously**. It is billed only while running and stops when idle, so a rehearsal of a few days costs cents to a few dollars.
-- **Volume:** 1GB at **$0.15 a month**.
-- **IP addresses:** shared IPv4 and IPv6 are free; no dedicated IPv4 is needed.
-- **Fly organisation:** an existing one has no extra cost. A new organisation has no general free tier.
-- **Testnet:** tBNB and test USDT come from faucets, so **$0**.
-- **Mainnet rehearsal (later, separately approved):** real gas for about six transactions per hire, plus the signed amount (at most 5 units of the token per job).
-- **Teardown:** `fly apps destroy pokter-staging` stops all charges.
+- **Fly has no spending cap or budget alert** that it documents. Billing is monthly per organisation. Prepaid credits (minimum $25) are offered to accounts without a card. The cap is therefore set by what is created, and by removing it on a fixed date.
+- **What is created, and its ceiling:**
+
+  | Resource | Price | Ceiling for this rehearsal |
+  | --- | --- | --- |
+  | One machine, `shared-cpu-1x`, 2GB | $6.70 for 1GB + $6.00 for the second GB = $12.70 a month if always on; billed only while running (it stops when idle) | **$12.70 a month at most**; a few days' rehearsal costs well under that |
+  | One volume, 1GB, created with **automatic snapshots off** | $0.15 a month | $0.15 a month |
+  | Volume snapshots | Billed by storage; the first 10GB a month are free | **none created**: `--scheduled-snapshots=false`. With the default, daily snapshots are kept 5 days and outlive the volume |
+  | IP addresses | Shared IPv4 and IPv6 are free | **no dedicated IPv4** is allocated ($2 a month if it were) |
+  | Certificates | The first 10 are free | none beyond the `fly.dev` default |
+  | Testnet tBNB and test USDT | faucets | $0 |
+
+- **Worst case if forgotten for a whole month: about $12.85.** The rehearsal plan removes everything the same week.
+- **Mainnet rehearsal** (later, separately approved): real gas for about six transactions per hire, plus the signed amount (at most 5 units of the token per job).
+
+**Cleanup, verified resource by resource.** Fly's docs do not promise that destroying an app removes volumes or snapshots, so each is removed and checked:
+
+1. `fly volumes list -a pokter-staging`, then `fly volumes destroy <id>` for each volume.
+2. `fly volumes snapshots list <id>` for each volume. With automatic snapshots off this is empty; delete any that exist. Snapshots outlive their volume until retention ends.
+3. `fly ips list -a pokter-staging`: release any dedicated IPv4 with `fly ips release <ip>`. Shared addresses cost nothing.
+4. `fly certs list -a pokter-staging`: remove any custom certificate.
+5. `fly apps destroy pokter-staging`.
+6. Confirm `fly apps list` no longer shows it, and the organisation's billing page shows no `pokter-staging` usage on the next day.
+7. **Off chain, nothing else is billed.** The staging agent's on-chain registration stays on BNB Testnet; it costs nothing to leave.
 
 **Wallet actions before provisioning (yours)**
 
 1. Generate the three keys above. They are not transactions.
-2. **One testnet transfer:** send 0.005 tBNB to the new Touchstone address. That covers the registration mint (the route requires at least 0.0005) and delivery submissions.
+2. **One testnet transfer, from your wallet (one wallet prompt):** send 0.005 tBNB to the new Touchstone address. It pays the gas for the two registry transactions below and the agent's delivery submissions.
 3. Prepare the buyer wallet with about 0.01 tBNB and at least 0.15 test USDT (three 0.05 hires), from the BNB Chain testnet faucet. Confirm the faucet's USDT is `0x337610d27c682E347C9cD60BD4b3b107C9d34dDd`; any other address is a different token and will be refused.
 4. WalletConnect is optional: add `pokter-staging.fly.dev` to the project's allowed origins only if you want to test a phone wallet.
 
@@ -315,7 +344,7 @@ fly apps create pokter-staging
 ```
 
 ```bash
-fly volumes create pokter_staging_data --app pokter-staging --region iad --size 1
+fly volumes create pokter_staging_data --app pokter-staging --region iad --size 1 --scheduled-snapshots=false
 ```
 
 ```bash
@@ -330,7 +359,16 @@ fly deploy --config fly.staging.toml --app pokter-staging
 FLY_APP=pokter-staging node scripts/house-register.mjs touchstone 97
 ```
 
-The last command mints the identity from the new Touchstone wallet itself, through the staging server. It is not a transaction from your wallet. Wait until `https://pokter-staging.fly.dev/agents/97/<new id>` shows the agent: the registry index needs to catch up.
+**The registry transactions** (part of the setup, and needing your go-ahead like the rest). The last command makes the staging server send **two transactions on BNB Testnet**, to the ERC-8004 identity registry `0x8004A818BFB912233c491871b3d84c89A494BD9e`:
+
+1. `register(agentURI)`: mints the agent's identity. Its owner and wallet are the new Touchstone key.
+2. `setAgentURI(agentId, uri)`: publishes the completed registration file, with the staging endpoint and the new id.
+
+**Both are signed by the new staging agent key**, which runs on the staging server and pays gas from the 0.005 tBNB you sent. **There is no prompt in your wallet for them.** This is how every Pokter house agent is registered: the agent owns its identity, signs its own quotes, and is paid into its own wallet.
+
+If you would rather the identity be owned by your wallet, the registration must be minted from your wallet instead. That is **one wallet prompt**, `register(agentURI)` with a file Pokter prepares, followed by a second prompt setting the staging agent key as its wallet. The house-agent path does not support it today, so it would be a small separate change; say if you want it.
+
+After the transactions, wait until `https://pokter-staging.fly.dev/agents/97/<new id>` shows the agent: the registry index needs to catch up.
 
 **The rehearsal: real quote → wallet → funding → delivery → settlement → receipt and earnings**
 
@@ -375,7 +413,7 @@ This is **not an end-to-end pass.**
 | 3 | The option A rehearsal passing every verifier run, including the recovery and cross-device steps | staging-validated |
 | 4 | Mainnet rehearsal with real funds, per token to enable (USDT, USDC, USD1) | production-enabled for that token |
 | 5 | Production currency backfill: dry run, write run, audit review (section 6) | production-enabled (published $U figures count only identified jobs until it runs) |
-| 6 | A decision on offering Binance-Peg USDT and USDC under those names, given the disclosure | production-enabled for USDT and USDC |
+| 6 | A decision on whether to offer Binance-Peg USDT and Binance-Peg USDC at all (they are named as such everywhere they are chosen or confirmed) | production-enabled for those two |
 | 7 | Announce the verifier format change (`completedByToken` replaces `byChain[].completedValueRaw`) | release |
 | 8 | Atomic batch for other tokens: off, not tested | nothing (falls back); a later enhancement |
 | 9 | Agents outside Pokter must implement `preferred_currency` themselves; until then they sign in their own currency and the buyer is told | nothing (by design) |

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { amountWithinLimits, budgetLimitsFor } from '@/lib/hire/budget-limits';
 import { amountToRaw, briefMessage, listProblem, REQUEST_CATEGORIES, type BriefContent, type RequestCategory } from '@/lib/briefs/model';
 import { escrowMoney } from '@/lib/network/presentation';
-import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
+import { defaultHireToken, displaySymbol, hireTokenAt, offeredTokens, tokenIdentity, tokenName, type PaymentToken } from '@/lib/network/tokens';
 import { cn } from '@/lib/ui/cn';
 import { useActiveSigner } from '@/lib/wallet/use-active-signer';
 import { useConnect } from '@/shell/wallet/ConnectProvider';
@@ -513,14 +513,14 @@ function TokenChoice({ tokens, value, onChange }: { tokens: PaymentToken[]; valu
                 on ? 'border-ink bg-ink text-paper' : 'border-rule-strong text-ink-2 hover:border-ink-3 hover:text-ink',
               )}
             >
-              {displaySymbol(t)}
+              {tokenName(t)}
             </button>
           );
         })}
       </div>
       {selected && (
-        <span className="t-readout break-all text-[12px] text-ink-3">
-          {displaySymbol(selected)} · {selected.address}
+        <span className="t-readout wrap-anywhere text-[12px] text-ink-3">
+          {tokenIdentity(selected)}{selected.disclosure ? ` · ${selected.disclosure}` : ''}
         </span>
       )}
     </fieldset>

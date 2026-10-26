@@ -39,9 +39,11 @@ export { remoteDecision } from './remote-attempt-client';
  * nothing. A record without that evidence never blocks: it is a warning, and
  * the next device to begin replaces it. Closing needs the attempt's secret
  * (held only by the device that made it) or chain proof the server finds
- * itself. And no record lasts forever: one whose payment can no longer happen
- * — funded, or past its expiry (`MAX_FUNDABLE_SECONDS` when it never said) —
- * is closed by the server.
+ * itself. A verified record's deadline is the `expiredAt` decoded from that
+ * same create call, never a value a client sent, so the server closes it
+ * exactly when the escrow would refuse to fund it: by proof, never because
+ * time passed. A record funded in another amount is kept as a job (indexed,
+ * shown) and stops blocking.
  *
  * A batch (`wallet_sendCalls`) is sent to the wallet's own account, not the
  * escrow, so a batched $U hire is never verified here: it warns, it does not
@@ -90,7 +92,7 @@ export async function hasEvidence(
   row: Pick<RemoteAttemptRow, 'wallet' | 'txHashes' | 'description' | 'createdAt' | 'provider'>,
   read: EvidenceReader,
   commerce: string,
-): Promise<boolean> {
+): Promise<{ verified: true; expiredAt: number } | { verified: false }> {
   const wallet = row.wallet.toLowerCase();
   const began = Math.floor(Date.parse(row.createdAt) / 1000) - EVIDENCE_SKEW_SECONDS;
   for (const hash of row.txHashes.slice(0, 12)) {
@@ -99,12 +101,12 @@ export async function hasEvidence(
     if (tx.timestamp !== null && tx.timestamp < began) continue;
     try {
       const call = decodeFunctionData({ abi: CREATE_ABI, data: tx.input as `0x${string}` });
-      if (call.args[3] === row.description && String(call.args[0]).toLowerCase() === row.provider.toLowerCase()) return true;
+      if (call.args[3] === row.description && String(call.args[0]).toLowerCase() === row.provider.toLowerCase()) return { verified: true, expiredAt: Number(call.args[2]) };
     } catch {
       /* Not a create call: proves nothing. */
     }
   }
-  return false;
+  return { verified: false };
 }
 
 function asAttempt(row: RemoteAttemptRow): FundingAttempt {
@@ -135,13 +137,14 @@ function asAttempt(row: RemoteAttemptRow): FundingAttempt {
  * The server's own reading of an open record. `funded` and `impossible`
  * close it; `open` keeps it. A chain that cannot be read keeps it open.
  */
-export async function settleRemote(row: RemoteAttemptRow, read: AttemptChainReader, chainNowSeconds: number): Promise<{ outcome: 'funded'; jobId: string } | { outcome: 'impossible' } | { outcome: 'open'; detail: string }> {
+export async function settleRemote(row: RemoteAttemptRow, read: AttemptChainReader, chainNowSeconds: number): Promise<{ outcome: 'funded'; jobId: string } | { outcome: 'mismatch'; jobId: string } | { outcome: 'impossible' } | { outcome: 'open'; detail: string }> {
   const verdict = await reconcileAttempt(asAttempt(row), read);
   if (verdict.outcome === 'funded') return { outcome: 'funded', jobId: verdict.jobId };
-  /* Already funded, in another amount: nothing more can be paid into it, so it no longer blocks. */
-  if (verdict.outcome === 'mismatch') return { outcome: 'impossible' };
-  if (verdict.outcome === 'not-funded' && paymentImpossible(asAttempt(row), chainNowSeconds)) return { outcome: 'impossible' };
-  /* Past the job's own expiry nothing in flight can create or fund it. */
-  if (pastFundable(asAttempt(row), chainNowSeconds)) return { outcome: 'impossible' };
+  /* Funded in another amount: kept as a job by the caller (indexed, shown), and nothing more can be paid into it. */
+  if (verdict.outcome === 'mismatch') return { outcome: 'mismatch', jobId: verdict.jobId };
+  const proven = verdict.outcome === 'not-funded' && row.fundableUntil === null && verdict.expiredAt != null ? { ...asAttempt(row), fundableUntil: verdict.expiredAt } : asAttempt(row);
+  if (verdict.outcome === 'not-funded' && paymentImpossible(proven, chainNowSeconds)) return { outcome: 'impossible' };
+  /* Past the deadline proven for this attempt nothing in flight can create or fund its job. */
+  if (pastFundable(proven, chainNowSeconds)) return { outcome: 'impossible' };
   return { outcome: 'open', detail: 'detail' in verdict ? verdict.detail : 'Not resolved yet.' };
 }

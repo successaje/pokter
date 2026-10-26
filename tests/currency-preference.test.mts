@@ -50,3 +50,21 @@ test('every entry point carries the preference the same way', async () => {
   const quote = readFileSync('src/app/api/hire/quote/route.ts', 'utf8');
   assert.match(quote, /preference: preferenceReport\(preferred, quote\.currency, agent\.name\)/, 'the hire page and get_quote report it identically');
 });
+
+test('a bridged peg is chosen and confirmed by its full name, chain and contract — never as the issuer’s coin', async () => {
+  const { knownTokens, tokenIdentity, tokenName } = await import('../src/lib/network/tokens');
+  const byChain = (c: number, s: string) => knownTokens(c).find((t) => t.symbol === s)!;
+  assert.equal(tokenName(byChain(56, 'USDT')), 'Binance-Peg USDT');
+  assert.equal(tokenName(byChain(56, 'USDC')), 'Binance-Peg USDC');
+  assert.equal(tokenIdentity(byChain(56, 'USDT')), 'Binance-Peg USDT on BNB Chain, contract 0x55d398326f99059fF775485246999027B3197955');
+  assert.equal(tokenIdentity(byChain(56, 'USDC')), 'Binance-Peg USDC on BNB Chain, contract 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
+  assert.equal(tokenName(byChain(56, 'USD1')), 'USD1', 'issued by its issuer: its own symbol');
+  assert.equal(tokenName(byChain(56, 'U')), '$U');
+  const flow = readFileSync('src/features/hire/HireFlow.tsx', 'utf8');
+  assert.match(flow, /\{tokenName\(option\)\}/, 'the currency choice');
+  assert.match(flow, /\{tokenIdentity\(hire\.hireToken\)\}/, 'the review: chain and contract under the price');
+  assert.match(flow, /tokenIdentity\(hire\.plan\.token\)/, 'the payment confirmation');
+  const form = readFileSync('src/features/briefs/RequestForm.tsx', 'utf8');
+  assert.match(form, /\{tokenName\(t\)\}/, 'a request’s "Paid in" choice');
+  assert.match(form, /\{tokenIdentity\(selected\)\}/);
+});

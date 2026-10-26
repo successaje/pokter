@@ -23,7 +23,7 @@ import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { nonDefaultHireToken } from '@/lib/erc8183/hire-calls';
 import { displaySymbol, offeredTokens, type PaymentToken } from '@/lib/network/tokens';
 import { planCommission, type CommissionPlan } from '@/lib/hire/commission-plan';
-import { AttemptOwnershipLost, fundingCoordinator, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
+import { AttemptOwnershipLost, DeadlineNotRecorded, fundingCoordinator, reconcileAttempt, type AttemptSession, type BeginInput, type FundingAttempt, type KeyValue, type LockManagerLike } from '@/lib/hire/funding-journal';
 import { fundedJobRecord } from '@/lib/hire/funded-job';
 import { fetchOpenAttempt, remoteAttempt, remoteDecision, type PublicAttempt } from '@/lib/hire/remote-attempt-client';
 import {
@@ -131,6 +131,8 @@ export type NotificationState =
   | 'not-applicable';
 
 const MIN_TRANSACTION_GAS = parseUnits('0.002', 18);
+/** Headroom between the bound recorded here and the SDK computing its own expiry (seconds; it does so within a few). */
+const PASSKEY_EXPIRY_MARGIN_SECONDS = 600;
 
 /**
  * The prepared request this page was opened for, from `?request=`.
@@ -1169,7 +1171,7 @@ export function useHire({
           /* From this session's own record of what it sent, never from whether the journal is still ours. */
           const sentNothing = !sentByThisSession && (!mine || (current!.txHashes.length === 0 && current!.callsId === null && current!.jobId === null));
           /* Nothing left the wallet: refused there, or stopped before any prompt. Closed, and the buyer may try again. */
-          if (sentNothing && (caught instanceof AttemptOwnershipLost || isWalletRejection(caught) || current?.prompt === null)) {
+          if (sentNothing && (caught instanceof AttemptOwnershipLost || caught instanceof DeadlineNotRecorded || isWalletRejection(caught) || current?.prompt === null)) {
             localSession.close();
             remote.close('nothing-sent');
             throw caught;
@@ -1177,6 +1179,9 @@ export function useHire({
           throw new PendingFunding(session.leavePending(), caught);
         }
       });
+      if (!result.ok && result.reason === 'already-funded') {
+        throw new HireFailure(`This exact brief and signed quote already funded job ${result.jobId} from this wallet. Nothing new was sent; open that job, or ask for a fresh quote to hire again.`, 'payment', 'already-funded');
+      }
       if (!result.ok) {
         const blocking = result.reason === 'open-attempt' ? result.blocking : coordinator.read(walletAddress, escrowChainId);
         if (blocking) setPendingAttempt(blocking);
@@ -1510,14 +1515,17 @@ export function useHire({
         .readContract({ address: correctedErc8183Addresses(escrowChainId).commerce as `0x${string}`, abi: [{ name: 'jobCounter', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const, functionName: 'jobCounter' })
         .catch(() => null);
       /*
-       * The SDK sets the job's expiry itself (now + dispute window + delivery
-       * time). Bounded from above here, so an abandoned attempt can be closed
-       * once no prompt of it could still fund; unknown when the window cannot
-       * be read, which keeps it open.
+       * The SDK sets the job's expiry itself: its clock, plus the policy's
+       * dispute window, plus `deadlineSeconds`. Without the window the
+       * deadline cannot be bounded, so the hire stops here, before any prompt.
        */
       const disputeWindow = await readDisputeWindow(escrowChainId).catch(() => null);
-      /* Unknown window: a conservative 7-day allowance, so the record still has an end (`MAX_FUNDABLE_SECONDS`). */
-      const fundableUntil = Math.floor(Date.now() / 1000) + (disputeWindow ?? 7 * 86_400) + deliverySeconds + 600;
+      if (disputeWindow === null) {
+        throw new HireFailure('Pokter could not read the escrow’s dispute window, so it cannot know this payment’s deadline. Nothing was sent; try again in a moment.', 'network', 'deadline-unknown', true);
+      }
+      /* An upper bound on the SDK's expiry, taken again just before its call (below). */
+      const passkeyDeadline = () => Math.floor(Date.now() / 1000) + disputeWindow + deliverySeconds + PASSKEY_EXPIRY_MARGIN_SECONDS;
+      const fundableUntil = passkeyDeadline();
       const hired = await fundOwned(wallet.address, {
         provider: providerAddress as string,
         agent: { chainId: agent.chainId, tokenId: agent.tokenId, name: agent.name },
@@ -1528,6 +1536,12 @@ export function useHire({
         predictedJobId: passkeyCounter === null ? null : (passkeyCounter + 1n).toString(),
         fundableUntil,
       }, async (session) => {
+        /*
+         * The SDK computes its expiry from its own clock a few seconds after
+         * this, within the margin, so this bound is never earlier than the
+         * deadline actually encoded.
+         */
+        session.note({ fundableUntil: passkeyDeadline() });
         /* One prompt, which creates and funds. */
         session.beforePrompt('batch');
         const outcome = await hireErc8183Agent(
@@ -1652,10 +1666,15 @@ export function useHire({
         await notifySeller(job);
         return;
       }
-      if (settled === 'closed-mismatch') {
+      if (settled === 'closed-mismatch' && adopted) {
+        /* Kept, never repaid: the job is recorded with the amount the chain holds and shown as this hire's result. */
+        const job = adopted as HiredJob;
         setPendingAttempt(null);
         setResumableJobId(null);
-        setReconcileNote(`${'detail' in verdict ? verdict.detail : ''} You can start a new hire.`.trim());
+        setReconcileNote(`${'detail' in verdict ? verdict.detail : ''} It is recorded as funded with the amount the escrow holds, and this quote cannot be paid again.`.trim());
+        void indexFundedJob(job);
+        setJob(job);
+        setState('hired');
         return;
       }
       if (settled === 'closed-not-funded') {
@@ -1709,7 +1728,8 @@ export function useHire({
           beforePrompt: (step) => {
             session.beforePrompt(step);
           },
-          onProgress: ({ step: reached, sentHash }) => {
+          onProgress: ({ step: reached, sentHash, expiredAt }) => {
+            if (expiredAt !== undefined) session.note({ fundableUntil: Number(expiredAt) });
             if (sentHash) session.note({ txHash: sentHash });
             setExternalStep(reached);
           },

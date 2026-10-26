@@ -140,15 +140,15 @@ test('limits apply in the request’s own token', () => {
   assert.ok(usdt(5).ok);
   assert.ok(usdt(0.01).ok);
   const over = usdt(5.01);
-  assert.match(!over.ok ? over.error : '', /at most 5 USDT/);
+  assert.match(!over.ok ? over.error : '', /at most 5 Binance-Peg USDT/);
   const under = usdt(0.001);
-  assert.match(!under.ok ? under.error : '', /at least 0\.01 USDT/);
+  assert.match(!under.ok ? under.error : '', /at least 0\.01 Binance-Peg USDT/);
 
   const request = { chainId: 56, paymentToken: USDT56 };
   const bid = (priceU: number) => parseBidContent({ ...BID, priceU, paymentToken: USDT56 }, request);
   assert.ok(bid(5).ok);
   const above = bid(6);
-  assert.match(!above.ok ? above.error : '', /at most 5 USDT/);
+  assert.match(!above.ok ? above.error : '', /at most 5 Binance-Peg USDT/);
 
   // Raw amounts at the token's own decimals, never an assumed 18.
   assert.equal(amountToRaw(1.5, 6), 1_500_000n);
@@ -198,7 +198,7 @@ test('a request from before tokens reads as its chain’s $U', () => {
 test('an alert names the request’s money', () => {
   const request = { id: 'r', title: 'T', poster: POSTER, state: 'open' as const, category: 'yield', budgetU: 2, chainId: 56, postedAt: AT };
   const agents = [{ chainId: 56, tokenId: '1', name: 'A', categoryId: 'yield' }];
-  assert.match(alertCopy({ request: { ...request, paymentToken: USDT56 }, agents }).body, /up to 2\.00 USDT\./);
+  assert.match(alertCopy({ request: { ...request, paymentToken: USDT56 }, agents }).body, /up to 2\.00 Binance-Peg USDT\./);
   assert.match(alertCopy({ request, agents }).body, /up to 2\.00 \$U\./);
 });
 

@@ -19,19 +19,19 @@ export const BUDGET_MAX = 5;
 const pow10 = (n: number) => 10n ** BigInt(n);
 
 /** The range in a token's own base units. */
-export function budgetLimitsFor(token: Pick<PaymentToken, 'decimals' | 'symbol'>): { minRaw: bigint; maxRaw: bigint; min: number; max: number; symbol: string } {
+export function budgetLimitsFor(token: Pick<PaymentToken, 'decimals' | 'symbol'> & { name?: string }): { minRaw: bigint; maxRaw: bigint; min: number; max: number; symbol: string } {
   const unit = pow10(token.decimals);
   return {
     minRaw: (unit * 1n) / 100n,
     maxRaw: unit * BigInt(BUDGET_MAX),
     min: BUDGET_MIN,
     max: BUDGET_MAX,
-    symbol: token.symbol === 'U' ? '$U' : token.symbol,
+    symbol: token.name ?? (token.symbol === 'U' ? '$U' : token.symbol),
   };
 }
 
 /** Whether an exact amount is inside the range, and if not, the sentence that says so. */
-export function amountWithinLimits(token: Pick<PaymentToken, 'decimals' | 'symbol'>, raw: bigint): { ok: true } | { ok: false; side: 'below' | 'above'; reason: string } {
+export function amountWithinLimits(token: Pick<PaymentToken, 'decimals' | 'symbol'> & { name?: string }, raw: bigint): { ok: true } | { ok: false; side: 'below' | 'above'; reason: string } {
   const l = budgetLimitsFor(token);
   if (raw < l.minRaw) return { ok: false, side: 'below', reason: `Pokter funds a job of at least ${l.min} ${l.symbol}.` };
   if (raw > l.maxRaw) return { ok: false, side: 'above', reason: `Pokter funds a job of at most ${l.max} ${l.symbol}, and this one is more.` };

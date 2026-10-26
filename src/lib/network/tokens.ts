@@ -62,6 +62,12 @@ export interface PaymentToken {
   identity: { kind: 'issuer' | 'bridged-peg' | 'test-token'; issuer: string; evidence: string };
   /** Shown beside the symbol where the money is named in full (review and payment screens). */
   disclosure?: string;
+  /**
+   * The name a buyer chooses and confirms, when the symbol alone would pass
+   * a bridged peg off as the issuer's own coin: "Binance-Peg USDT", never
+   * plain "USDT". Amounts may still use the symbol beside it.
+   */
+  name?: string;
 }
 
 /**
@@ -133,7 +139,7 @@ const TOKENS: readonly PaymentToken[] = [
   /* USDT — Tether does not issue on BNB Chain; this is Binance-Peg BSC-USD. */
   { chainId: 56, address: getAddress('0x55d398326f99059fF775485246999027B3197955'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Tether’s supported-protocols page lists only XAU₮ for BNB Smart Chain; this is the Binance-Peg BSC-USD contract used across BNB Chain' },
-    disclosure: 'Binance-Peg BSC-USD, not issued by Tether' },
+    disclosure: 'Binance-Peg BSC-USD, not issued by Tether', name: 'Binance-Peg USDT' },
   { chainId: 97, address: getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd'), symbol: 'USDT', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Supported by the testnet escrow; no issuer or BNB Chain source lists the address' },
     disclosure: 'test token with no value' },
@@ -141,7 +147,7 @@ const TOKENS: readonly PaymentToken[] = [
   /* USDC — Circle does not issue on BNB Chain; this is Binance-Peg USD Coin. */
   { chainId: 56, address: getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'), symbol: 'USDC', decimals: 18, escrowSupported: true, offered: false, hireEligible: true,
     identity: { kind: 'bridged-peg', issuer: 'Binance (peg)', evidence: 'Circle’s USDC contract-address page lists no BNB Smart Chain deployment; this is the Binance-Peg USD Coin contract (18 decimals, unlike Circle’s 6)' },
-    disclosure: 'Binance-Peg USD Coin, not issued by Circle' },
+    disclosure: 'Binance-Peg USD Coin, not issued by Circle', name: 'Binance-Peg USDC' },
   { chainId: 97, address: getAddress('0xEC1C60D64a06896Df296438c12edD14E974FDE47'), symbol: 'USDC', decimals: 6, escrowSupported: false, offered: false, hireEligible: false,
     identity: { kind: 'test-token', issuer: 'unconfirmed', evidence: 'Unofficial test token; see UNSUPPORTED_TOKENS' } },
 
@@ -355,13 +361,28 @@ export function displaySymbol(token: Pick<PaymentToken, 'symbol'>): string {
   return token.symbol === 'U' ? '$U' : token.symbol;
 }
 
+/** The name a buyer chooses and confirms: "Binance-Peg USDT", "$U", "USDT" (testnet). */
+export function tokenName(token: Pick<PaymentToken, 'symbol'> & { name?: string }): string {
+  return token.name ?? displaySymbol(token);
+}
+
+/**
+ * The token named in full, for selection and confirmation: its name, its
+ * chain and its contract, so a peg is never taken for the issuer's coin and
+ * nothing depends on a symbol alone.
+ */
+export function tokenIdentity(token: Pick<PaymentToken, 'symbol' | 'name' | 'chainId' | 'address'>): string {
+  const chain = token.chainId === 56 ? 'BNB Chain' : token.chainId === 97 ? 'BNB Testnet' : `chain ${token.chainId}`;
+  return `${tokenName(token)} on ${chain}, contract ${token.address}`;
+}
+
 /**
  * Which money a chain's escrow pays in, in words: "real USDT on BNB Chain",
  * "test USDT on BNB Testnet (no value)". The one place that says whether an
  * amount is real money, so testnet value is never written as revenue.
  */
-export function escrowMoney(chainId: number, token: Pick<PaymentToken, 'symbol'> | null): string {
-  const symbol = token ? displaySymbol(token) : 'an unknown token';
+export function escrowMoney(chainId: number, token: (Pick<PaymentToken, 'symbol'> & { name?: string }) | null): string {
+  const symbol = token ? tokenName(token) : 'an unknown token';
   return chainId === 56 ? `real ${symbol} on BNB Chain` : chainId === 97 ? `test ${symbol} on BNB Testnet (no value)` : `${symbol} on chain ${chainId}`;
 }
 

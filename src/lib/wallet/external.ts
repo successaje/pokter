@@ -1099,6 +1099,8 @@ export async function resumeExternalFunding(input: {
   if (job.expiredAt <= BigInt(Math.floor(Date.now() / 1000))) throw new Error('RESUME_JOB_EXPIRED');
   const bound = await readJobPaymentToken(read as never, addresses.commerce as Address, input.jobId);
   if (bound === null || bound !== getAddress(input.token)) throw new Error('RESUME_TOKEN_MISMATCH');
+  /* The deadline the escrow holds, recorded before any prompt: the proof of when this job can no longer be funded. */
+  report({ step: 'registering', jobId: input.jobId, expiredAt: job.expiredAt });
   const commerceAbi = [
     { type: 'function', name: 'setBudget', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }], outputs: [] },
     { type: 'function', name: 'fund', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }], outputs: [] },

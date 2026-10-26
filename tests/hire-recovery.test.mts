@@ -7,7 +7,7 @@ import { backfillJobCurrencies } from '../src/lib/erc8183/currency-backfill';
 import { COMMERCE_TOKEN_ABI } from '../src/lib/erc8183/hire-calls';
 import { amountWithinLimits, budgetLimitsFor } from '../src/lib/hire/budget-limits';
 import { planCommission } from '../src/lib/hire/commission-plan';
-import { fundingCoordinator, MAX_FUNDABLE_SECONDS, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
+import { DeadlineNotRecorded, fundingCoordinator, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
 import { hasEvidence, publicIdFor, publicView, secretHash, settleRemote } from '../src/lib/hire/remote-attempts';
 import { remoteDecision, type PublicAttempt } from '../src/lib/hire/remote-attempt-client';
 import { enabledHireTokens } from '../src/lib/network/tokens';
@@ -24,7 +24,7 @@ const PROVIDER = getAddress('0x93847647d7eb72a69E162117df6a8697dF53EDda');
 const USDT56 = getAddress('0x55d398326f99059fF775485246999027B3197955');
 const USDT97 = getAddress('0x337610d27c682E347C9cD60BD4b3b107C9d34dDd');
 const ON = enabledHireTokens(`56:${USDT56},97:${USDT97}`);
-const funded = { client: BUYER, provider: PROVIDER, budget: 10n, description: 'd', statusName: 'FUNDED' };
+const funded: { client: string; provider: string; budget: bigint; description: string; statusName: string; expiredAt?: bigint } = { client: BUYER, provider: PROVIDER, budget: 10n, description: 'd', statusName: 'FUNDED' };
 
 const attempt = (over: Partial<FundingAttempt> = {}): FundingAttempt => ({
   attemptId: 'a', ownerTab: 'A', wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' },
@@ -56,7 +56,7 @@ test('resume: an abandoned attempt is taken over to finish its own job; a stale 
   const kv = memory();
   const lm = locks();
   const A = fundingCoordinator(kv, lm, 'A');
-  await A.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'd', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:00:00.000Z', predictedJobId: '100' }, async (s) => {
+  await A.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'd', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:00:00.000Z', predictedJobId: '100', fundableUntil: 9_000_000_000 }, async (s) => {
     s.beforePrompt('creating'); s.note({ txHash: '0xc', jobId: '105' }); s.beforePrompt('approving'); s.leavePending(); return null;
   });
   const B = fundingCoordinator(kv, lm, 'B');
@@ -67,7 +67,7 @@ test('resume: an abandoned attempt is taken over to finish its own job; a stale 
   assert.deepEqual(await B.resume(snap, async () => 'x'), { ok: false, reason: 'stale' }, 'a snapshot of a record that is gone');
   /* While another tab owns an attempt, resume is refused like any other start. */
   const hold = (() => { let r!: () => void; const p = new Promise<void>((res) => (r = res)); return { r, p }; })();
-  const running = A.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'd', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T11:00:00.000Z', predictedJobId: '200' }, async () => { await hold.p; return null; });
+  const running = A.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'd, a fresh quote', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T11:00:00.000Z', predictedJobId: '200' }, async () => { await hold.p; return null; });
   await new Promise((r) => setTimeout(r, 5));
   assert.deepEqual(await B.resume(B.read(BUYER, 97)!, async () => 'x'), { ok: false, reason: 'in-progress-elsewhere' });
   hold.r();
@@ -93,7 +93,8 @@ test('cross-device: only this attempt’s own create transaction makes a record 
     '0xsomeoneelse': { from: '0x000000000000000000000000000000000000dEaD', to: COMMERCE97, input: createInput('d'), timestamp: began + 30 },
   };
   const read = { tx: async (h: string) => txs[h] ?? null };
-  const has = (hashes: string[]) => hasEvidence(row({ txHashes: hashes }), read, COMMERCE97);
+  const has = async (hashes: string[]) => (await hasEvidence(row({ txHashes: hashes }), read, COMMERCE97)).verified;
+  assert.deepEqual(await hasEvidence(row({ txHashes: ['0xmine'] }), read, COMMERCE97), { verified: true, expiredAt: 2_000 }, 'the deadline comes from the wallet’s own create call, not from the client');
   assert.equal(await has(['0xmine']), true, 'the wallet created this attempt’s job, after the record began');
   assert.equal(await has(['0xpending']), true, 'pending counts: it may still land');
   assert.equal(await has(['0xold']), false, 'an old transaction from the wallet proves nothing about this attempt');
@@ -116,11 +117,11 @@ test('cross-device: the server closes a record only on chain proof — funded, o
   assert.equal((await settleRemote(row({ jobId: '105' }), reader({ jobs: { '105': { ...funded, statusName: 'OPEN' } } }), 1_000)).outcome, 'open', 'a fund prompt may still be open');
   assert.deepEqual(await settleRemote(row({ jobId: '105' }), reader({ jobs: { '105': { ...funded, statusName: 'OPEN' } } }), 2_001), { outcome: 'impossible' }, 'past the encoded expiry');
   assert.deepEqual(await settleRemote(row({ prompt: 'approving' }), reader(), 1_000), { outcome: 'impossible' }, 'no money-moving prompt was ever issued');
-  const began = Date.parse('2026-10-26T10:00:00.000Z') / 1000;
-  assert.equal((await settleRemote(row({ prompt: 'batch', fundableUntil: null }), reader(), began + 86_400)).outcome, 'open', 'an unknown expiry is not assumed past early');
-  assert.deepEqual(await settleRemote(row({ prompt: 'batch', fundableUntil: null }), reader(), began + MAX_FUNDABLE_SECONDS + 1), { outcome: 'impossible' }, 'but nothing blocks forever');
-  assert.deepEqual(await settleRemote(row({ txHashes: ['0xstuck'] }), reader({ txState: async () => 'pending' }), 2_001), { outcome: 'impossible' }, 'a transaction still pending past the expiry can no longer fund it');
-  assert.deepEqual(await settleRemote(row({ jobId: '105' }), reader({ jobs: { '105': { ...funded, budget: 7n } } }), 1_000), { outcome: 'impossible' }, 'funded in another amount: shown, not blocking');
+  assert.equal((await settleRemote(row({ prompt: 'batch', fundableUntil: null }), reader(), 9_999_999_999)).outcome, 'open', 'time alone never closes a record');
+  assert.deepEqual(await settleRemote(row({ txHashes: ['0xstuck'] }), reader({ txState: async () => 'pending' }), 2_001), { outcome: 'impossible' }, 'a transaction still pending past the encoded deadline can no longer fund it');
+  assert.deepEqual(await settleRemote(row({ jobId: '105', fundableUntil: null }), reader({ jobs: { '105': { ...funded, statusName: 'OPEN', expiredAt: 3_000n } } }), 3_001), { outcome: 'impossible' }, 'or past the job’s own on-chain deadline');
+  assert.equal((await settleRemote(row({ jobId: '105', fundableUntil: null }), reader({ jobs: { '105': { ...funded, statusName: 'OPEN', expiredAt: 3_000n } } }), 2_999)).outcome, 'open');
+  assert.deepEqual(await settleRemote(row({ jobId: '105' }), reader({ jobs: { '105': { ...funded, budget: 7n } } }), 1_000), { outcome: 'mismatch', jobId: '105' }, 'funded in another amount: kept as a job by the caller');
 });
 
 test('per-token limits, in each token’s own units; a signed price outside them is refused, never trimmed', () => {
@@ -128,7 +129,7 @@ test('per-token limits, in each token’s own units; a signed price outside them
   assert.deepEqual(amountWithinLimits({ decimals: 18, symbol: 'USDT' }, 5n * 10n ** 18n), { ok: true });
   const over = planCommission({ escrowChainId: 56, walletMode: 'external', quote: { currency: USDT56, amountRaw: (6n * 10n ** 18n).toString() }, budgetU: 1, agentName: 'A', tokens: ON });
   assert.equal(!over.ok && over.code, 'above-limit');
-  assert.match(!over.ok ? over.message : '', /signed 6 USDT\. Pokter funds a job of at most 5 USDT/);
+  assert.match(!over.ok ? over.message : '', /signed 6 Binance-Peg USDT\. Pokter funds a job of at most 5 Binance-Peg USDT/);
   const under = planCommission({ escrowChainId: 56, walletMode: 'external', quote: { currency: USDT56, amountRaw: '1' }, budgetU: 1, agentName: 'A', tokens: ON });
   assert.equal(!under.ok && under.code, 'below-limit');
 });
@@ -169,15 +170,49 @@ test('another hire of the same agent by the same wallet is never mistaken for th
   assert.equal((await reconcileAttempt(a, reader({ jobs: onlyOther }))).outcome, 'not-funded');
 });
 
-test('settle never keeps a record forever: a mismatch closes, and a stuck transaction closes past the expiry', async () => {
+test('a record closes only on proof: its encoded deadline, or its job’s on-chain one — never because time passed', async () => {
   const kv = memory();
   const C = fundingCoordinator(kv, locks(), 'A');
   const key = `pokter:funding-attempt:97:${BUYER.toLowerCase()}`;
   const a = attempt();
   kv.setItem(key, JSON.stringify(a));
   assert.equal(await C.settle(a, { outcome: 'pending', detail: '' }, 1_000), 'kept');
-  assert.equal(await C.settle(a, { outcome: 'pending', detail: '' }, 2_001), 'closed-not-funded');
+  assert.equal(await C.settle(a, { outcome: 'pending', detail: '' }, 2_001), 'closed-not-funded', 'past the deadline its calls encoded, a stuck transaction cannot fund it');
+  const unknown = attempt({ fundableUntil: null });
+  kv.setItem(key, JSON.stringify(unknown));
+  assert.equal(await C.settle(unknown, { outcome: 'pending', detail: '' }, 9_999_999_999), 'kept', 'no deadline, no proof: kept however long');
+  assert.equal(await C.settle(unknown, { outcome: 'not-funded', jobId: '105', detail: '', expiredAt: 3_000 }, 2_999), 'kept-may-still-pay');
+  assert.equal(await C.settle(unknown, { outcome: 'not-funded', jobId: '105', detail: '', expiredAt: 3_000 }, 3_001), 'closed-not-funded', 'the job’s on-chain deadline is proof');
+});
+
+test('a money-moving prompt is refused before the wallet is asked unless its deadline is recorded', async () => {
+  const C = fundingCoordinator(memory(), locks(), 'A');
+  const begin = { wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'd', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:00:00.000Z', predictedJobId: '100' };
+  await assert.rejects(C.run(begin, async (s) => { s.beforePrompt('creating'); s.beforePrompt('funding'); }), DeadlineNotRecorded);
+  /* The refused attempt stays recorded, as an attempt that sent nothing; a fresh browser shows the allowed path. */
+  const ok = await fundingCoordinator(memory(), locks(), 'B').run({ ...begin, description: 'd2' }, async (s) => { s.beforePrompt('creating'); s.note({ fundableUntil: 2_000 }); s.beforePrompt('funding'); s.close(); return 'asked'; });
+  assert.deepEqual(ok, { ok: true, value: 'asked' });
+});
+
+test('a wrong-amount job is adopted, not dropped, and its quote can never be paid again', async () => {
+  const kv = memory();
+  const C = fundingCoordinator(kv, locks(), 'A');
+  const key = `pokter:funding-attempt:97:${BUYER.toLowerCase()}`;
+  const a = attempt();
   kv.setItem(key, JSON.stringify(a));
-  assert.equal(await C.settle(a, { outcome: 'mismatch', jobId: '105', detail: '' }, 1_000), 'closed-mismatch');
+  const adopted: string[] = [];
+  assert.equal(await C.settle(a, { outcome: 'mismatch', jobId: '105', detail: '' }, 1_000, async (id) => void adopted.push(id)), 'closed-mismatch');
+  assert.deepEqual(adopted, ['105'], 'recorded as a funded job, with what the chain holds');
   assert.equal(kv.getItem(key), null);
+  const again = await C.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: a.agent, task: 't', description: a.description, token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:05:00.000Z', predictedJobId: '106' }, async () => 'paid twice');
+  assert.deepEqual(again, { ok: false, reason: 'already-funded', jobId: '105' }, 'the same signed quote is refused');
+  const fresh = await C.run({ wallet: BUYER, chainId: 97, provider: PROVIDER, agent: a.agent, task: 't', description: 'a fresh quote', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:06:00.000Z', predictedJobId: '106' }, async () => 'new hire');
+  assert.deepEqual(fresh, { ok: true, value: 'new hire' }, 'a fresh quote is a new hire');
+});
+
+test('a funded attempt closed by its owner also spends its quote', async () => {
+  const C = fundingCoordinator(memory(), locks(), 'A');
+  const begin = { wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '1', name: 'x' }, task: 't', description: 'once', token: USDT97, amountRaw: '10', startedAt: '2026-10-26T10:00:00.000Z', predictedJobId: '100' };
+  await C.run(begin, async (s) => { s.note({ fundableUntil: 2_000_000_000, jobId: '100' }); s.beforePrompt('funding'); s.close(); });
+  assert.deepEqual(await C.run(begin, async () => 'twice'), { ok: false, reason: 'already-funded', jobId: '100' });
 });

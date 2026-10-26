@@ -7,7 +7,7 @@ import { formatEther, formatUnits } from 'viem';
 import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } from '@/lib/hire/useHire';
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { paymentCopy } from '@/lib/hire/payment-copy';
-import { displaySymbol, hireTokenAt, requestToken } from '@/lib/network/tokens';
+import { displaySymbol, formatAmount, hireTokenAt, requestToken, tokenIdentity, tokenName } from '@/lib/network/tokens';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
@@ -226,7 +226,15 @@ export function HireFlow(props: HireFlowProps) {
   /* A price signed in another token is funded exactly, in that token, under that token's own limits (the plan checks them). */
   const signedTokenPrice = priceSymbol !== '$U';
   /* The signed amount exactly as signed, from its raw units: never a float that could round. */
-  const signedAmountLabel = hire.reviewQuote ? formatQuotedRaw(hire.reviewQuote.intent.currency, hire.reviewQuote.intent.amountRaw) : null;
+  const signedAmountLabel = !hire.reviewQuote
+    ? null
+    : hire.hireToken
+      ? (() => {
+          /* In the token's full name ("Binance-Peg USDT"), exactly as signed, from raw units. */
+          const f = formatAmount(hire.hireToken.chainId, hire.hireToken.address, hire.reviewQuote.intent.amountRaw);
+          return f ? `${f.amount} ${tokenName(hire.hireToken)}` : formatQuotedRaw(hire.reviewQuote.intent.currency, hire.reviewQuote.intent.amountRaw);
+        })()
+      : formatQuotedRaw(hire.reviewQuote.intent.currency, hire.reviewQuote.intent.amountRaw);
   const minBudget = Math.max(BUDGET_MIN, priceFloor ?? 0);
   /* A signed-token hire has no budget: it funds exactly the signed amount, so there is nothing here to be wrong. */
   const budgetError = !hire.plan.ok
@@ -532,7 +540,7 @@ export function HireFlow(props: HireFlowProps) {
                         onClick={() => hire.setPreferredToken(option.offered ? null : option.address)}
                         className={cn('rounded-full border px-3 py-1 text-[13px]', on ? 'border-ink bg-ink text-raised' : 'border-rule-strong text-ink-2')}
                       >
-                        {displaySymbol(option)}
+                        {tokenName(option)}
                       </button>
                     );
                   })}
@@ -540,7 +548,8 @@ export function HireFlow(props: HireFlowProps) {
                 <span className="text-[12px] text-ink-3">
                   {(() => {
                     const chosen = hire.currencyOptions.find((o) => o.address.toLowerCase() === (hire.preferredToken ?? '').toLowerCase());
-                    const note = chosen?.disclosure ? ` ${displaySymbol(chosen)} here is ${chosen.disclosure}.` : '';
+                    /* The chosen money in full: name, chain, contract, and what it is not. */
+                    const note = chosen && !chosen.offered ? ` Asking for ${tokenIdentity(chosen)}${chosen.disclosure ? ` (${chosen.disclosure})` : ''}.` : '';
                     return `The agent may sign in a different currency it accepts; you see the signed price, in its money, before anything is paid.${note}`;
                   })()}
                 </span>
@@ -995,6 +1004,8 @@ export function HireFlow(props: HireFlowProps) {
               <>
                 <span className="text-sm font-medium">Price for this job</span>
                 <p className="t-readout text-lg">{signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`}</p>
+                {/* Which money exactly: name, chain and contract, so a peg is never taken for the issuer's coin. */}
+                <p className="t-readout wrap-anywhere text-[12px] text-ink-3">{tokenIdentity(hire.hireToken)}{hire.hireToken.disclosure ? ` · ${hire.hireToken.disclosure}` : ''}</p>
               </>
             ) : (
             <>
@@ -1042,7 +1053,7 @@ export function HireFlow(props: HireFlowProps) {
               {hire.hireTokenError
                 ? hire.hireTokenError
                 : hire.reviewQuote && hire.hireToken && hire.authority
-                ? `The agent signed ${signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`} for this exact task. That exact amount is what is funded, in ${hire.hireToken.symbol}, and nothing else is converted or added.`
+                ? `The agent signed ${signedAmountLabel ?? `${hire.authority.budgetU} ${hire.hireToken.symbol}`} for this exact task. That exact amount is what is funded, in ${tokenName(hire.hireToken)}, and nothing else is converted or added.`
                 : hire.reviewQuote
                 ? `The agent signed ${hire.reviewQuote.priceU} ${priceSymbol} for this exact task.${proposalHere && hire.reviewQuote.priceU > props.proposal!.priceU ? ` That is more than the ${props.proposal!.priceU} ${proposalSymbol} it proposed on your request, so you can go back and choose another proposal.` : ''} A budget below that is refused before any payment.`
                 : hire.needsQuote
@@ -1228,7 +1239,7 @@ export function HireFlow(props: HireFlowProps) {
               <div className="flex flex-col gap-4 rounded-[14px] border-2 border-ink bg-raised p-5">
                 <span className="t-label">You are about to</span>
                 <p className="text-[15px] leading-relaxed">
-                  Pay <strong className="t-readout">{pay?.amountLabel ?? '—'}</strong>{/* On testnet the amount already says "test token"; the disclosure matters for a bridged peg on mainnet. */ hire.plan.ok && !testnet && hire.plan.token?.disclosure ? <span className="text-ink-3"> ({hire.plan.token.disclosure})</span> : null} into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {networkLabel}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
+                  Pay <strong className="t-readout">{pay?.amountLabel ?? '—'}</strong>{/* On testnet the amount already says "test token"; the disclosure matters for a bridged peg on mainnet. */ hire.plan.ok && hire.plan.token ? <span className="text-ink-3 wrap-anywhere"> ({tokenIdentity(hire.plan.token)}{!testnet && hire.plan.token.disclosure ? `; ${hire.plan.token.disclosure}` : ''})</span> : null} into the escrow contract <span className="t-readout text-[13px]">{shortAddress(props.escrow.commerce)}</span> on {networkLabel}, for one job delivered by <span className="t-readout text-[13px]">{shortAddress(hire.providerAddress)}</span>.
                 </p>
                 <p className="text-[13px] text-ink-3">
                   {hire.active.mode === 'passkey'

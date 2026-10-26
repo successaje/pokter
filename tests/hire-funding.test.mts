@@ -7,7 +7,7 @@ import { getAddress } from 'viem';
 import { confirmJobToken } from '../src/lib/erc8183/hire-calls';
 import { planCommission } from '../src/lib/hire/commission-plan';
 import { fundedJobRecord } from '../src/lib/hire/funded-job';
-import { AttemptOwnershipLost, fundingCoordinator, paymentImpossible, MAX_FUNDABLE_SECONDS, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
+import { AttemptOwnershipLost, fundingCoordinator, paymentImpossible, reconcileAttempt, type AttemptChainReader, type FundingAttempt, type KeyValue, type LockManagerLike } from '../src/lib/hire/funding-journal';
 import { paymentCopy } from '../src/lib/hire/payment-copy';
 import { HIRE_PATHS, hireSupportMatrix, pathFundsToken } from '../src/lib/network/hire-paths';
 import { enabledHireTokens, hireTokenAt } from '../src/lib/network/tokens';
@@ -79,17 +79,17 @@ test('the support table: which paths fund which token', () => {
 
 /* ---------- the final payment screen ---------- */
 
-test('the final payment screen names the signed USDT amount everywhere it names money', () => {
+test('the final payment screen names the signed Binance-Peg USDT amount everywhere it names money, never as plain USDT', () => {
   const plan = planCommission({ escrowChainId: 56, walletMode: 'external', quote: { currency: USDT56, amountRaw: '1000000000000000000' }, budgetU: 0.1, agentName: 'IVL Rebalancer', tokens: ON });
   assert.ok(plan.ok);
   const copy = paymentCopy(plan, { networkLabel: 'BNB Chain', testnet: false, walletMode: 'external', balanceRaw: 250_000_000_000_000_000n, swapHasNoPool: false, nativeSymbol: 'BNB' });
-  assert.equal(copy.amountLabel, '1 USDT');
-  assert.equal(copy.buttonLabel, 'Fund escrow · 1 USDT');
-  assert.equal(copy.balanceLabel, 'USDT to pay with');
+  assert.equal(copy.amountLabel, '1 Binance-Peg USDT');
+  assert.equal(copy.buttonLabel, 'Fund escrow · 1 Binance-Peg USDT');
+  assert.equal(copy.balanceLabel, 'Binance-Peg USDT to pay with');
   assert.equal(copy.balanceValue, '0.25');
-  assert.match(copy.shortNote ?? '', /Short of the signed price\. Pokter does not swap into USDT/);
+  assert.match(copy.shortNote ?? '', /Short of the signed price\. Pokter does not swap into Binance-Peg USDT/);
   assert.equal(copy.topUp, 'add-token');
-  assert.match(copy.connectNote, /paid in real USDT on BNB Chain/);
+  assert.match(copy.connectNote, /paid in real Binance-Peg USDT on BNB Chain/);
   for (const text of Object.values(copy)) assert.ok(!String(text).includes('$U'), `no $U on a USDT payment screen: ${text}`);
 });
 
@@ -181,7 +181,8 @@ function gate() {
 const START = '2026-10-26T10:00:00.000Z';
 const begin = (over: Partial<FundingAttempt> = {}) => ({
   wallet: BUYER, chainId: 97, provider: PROVIDER, agent: { chainId: 97, tokenId: '2599', name: 'Pokter Evidence' },
-  task: 't', description: 'desc', token: USDT97, amountRaw: '10000000000000000', startedAt: START, predictedJobId: '100', ...over,
+  /* The deadline the calls encode, recorded before any money-moving prompt, as the drivers do. */
+  task: 't', description: 'desc', token: USDT97, amountRaw: '10000000000000000', startedAt: START, predictedJobId: '100', fundableUntil: 9_000_000_000, ...over,
 });
 function chain(over: Partial<AttemptChainReader> & { jobs?: Record<string, { client: string; provider: string; budget: bigint; description: string; statusName: string }> } = {}): AttemptChainReader {
   return {
@@ -264,7 +265,8 @@ test('a stale reconciliation cannot delete a newer attempt, or a changed one', a
   const staleX = B.read(BUYER, 97)!;
   /* Meanwhile X is settled as funded elsewhere, and a new attempt Y begins and ends pending. */
   assert.equal(await A.settle(staleX, { outcome: 'funded', jobId: '105' }, 1_000), 'closed-funded');
-  await A.run(begin({ startedAt: '2026-10-26T10:05:00.000Z' }), async (session) => { session.beforePrompt('approving'); session.leavePending(); return null; });
+  /* A new hire: a fresh quote, so a new description (the funded one cannot be paid again). */
+  await A.run(begin({ startedAt: '2026-10-26T10:05:00.000Z', description: 'desc, a fresh quote' }), async (session) => { session.beforePrompt('approving'); session.leavePending(); return null; });
   const y = B.read(BUYER, 97)!;
   assert.notEqual(y.attemptId, staleX.attemptId);
   /* B's result for X arrives late. */
@@ -280,14 +282,11 @@ test('a stale reconciliation cannot delete a newer attempt, or a changed one', a
 });
 
 test('abandoned attempts: closed only when no payment can follow, never on a timeout', async () => {
-  const at = '2026-10-26T10:00:00.000Z';
-  const start = Date.parse(at) / 1000;
-  assert.equal(paymentImpossible({ prompt: null, fundableUntil: null, startedAt: at }, 0), true, 'no prompt ever issued');
-  assert.equal(paymentImpossible({ prompt: 'approving', fundableUntil: null, startedAt: at }, 0), true, 'an approval alone moves no money');
-  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000, startedAt: at }, 1_999), false, 'a fund prompt may still be open');
-  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000, startedAt: at }, 2_001), true, 'past the encoded expiry the escrow refuses it');
-  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null, startedAt: at }, start + 86_400), false, 'an unknown expiry is not assumed past early');
-  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null, startedAt: at }, start + MAX_FUNDABLE_SECONDS + 1), true, 'but it has a ceiling: no record blocks a wallet forever');
+  assert.equal(paymentImpossible({ prompt: null, fundableUntil: null }, 0), true, 'no prompt ever issued');
+  assert.equal(paymentImpossible({ prompt: 'approving', fundableUntil: null }, 0), true, 'an approval alone moves no money');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 1_999), false, 'a fund prompt may still be open');
+  assert.equal(paymentImpossible({ prompt: 'funding', fundableUntil: 2_000 }, 2_001), true, 'past the encoded expiry the escrow refuses it');
+  assert.equal(paymentImpossible({ prompt: 'batch', fundableUntil: null }, 9_999_999_999), false, 'time alone never proves anything: an unknown deadline is never past');
 
   const kv = memory();
   const lm = locks();

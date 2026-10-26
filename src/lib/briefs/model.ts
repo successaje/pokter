@@ -12,6 +12,7 @@ import {
   paymentTokenAt,
   requestToken,
   settlementChainOf,
+  tokenName,
   type HireTokenSet,
   type PaymentToken,
 } from '@/lib/network/tokens';
@@ -391,10 +392,10 @@ export function amountText(amount: number): string {
   return Number(amount.toFixed(2)) === amount ? amount.toFixed(2) : String(amount);
 }
 
-/** The unit beside an amount field or a figure: "$U", "USDT", and "test …" on the testnet so test money is never unmarked. */
+/** The unit beside an amount field or a figure: "$U", "Binance-Peg USDT", and "test …" on the testnet so test money is never unmarked. */
 export function requestUnit(request: { chainId: number; paymentToken?: string | null }): string {
   const token = requestTokenOf(request);
-  const symbol = token ? displaySymbol(token) : 'unknown token';
+  const symbol = token ? tokenName(token) : 'unknown token';
   return request.chainId === 97 ? `test ${symbol}` : symbol;
 }
 

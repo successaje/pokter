@@ -79,6 +79,19 @@ export interface LockManagerLike {
   request<T>(name: string, options: { ifAvailable: true }, callback: (lock: unknown | null) => Promise<T> | T): Promise<T>;
 }
 
+/**
+ * A prompt that could move money was about to be issued without the deadline
+ * encoded in its calls being recorded first. Refused before the wallet is
+ * asked: an attempt whose expiry is unknown could never be proven harmless,
+ * and would hold the wallet forever.
+ */
+export class DeadlineNotRecorded extends Error {
+  constructor() {
+    super('DEADLINE_NOT_RECORDED');
+    this.name = 'DeadlineNotRecorded';
+  }
+}
+
 export class AttemptOwnershipLost extends Error {
   constructor() {
     super('ATTEMPT_OWNERSHIP_LOST');
@@ -106,7 +119,8 @@ export interface AttemptSession {
 export type RunResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: 'in-progress-elsewhere' }
-  | { ok: false; reason: 'open-attempt'; blocking: FundingAttempt };
+  | { ok: false; reason: 'open-attempt'; blocking: FundingAttempt }
+  | { ok: false; reason: 'already-funded'; jobId: string };
 
 export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, tabId: string, now: () => Date = () => new Date()) {
   const read = (wallet: string, chainId: number): FundingAttempt | null => {
@@ -118,6 +132,29 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
     }
   };
   const write = (attempt: FundingAttempt) => kv.setItem(storageKey(attempt.wallet, attempt.chainId), JSON.stringify(attempt));
+  /*
+   * Every job this wallet funded through an attempt, by the attempt's exact
+   * description (brief plus signed quote). A later attempt with the same
+   * description is refused: the same signed quote is never paid twice, even
+   * after its record closed (a wrong-amount job included).
+   */
+  const fundedKey = (wallet: string, chainId: number) => `pokter:funded-attempts:${chainId}:${wallet.toLowerCase()}`;
+  const fundedList = (wallet: string, chainId: number): Array<{ hash: string; jobId: string; until: number | null }> => {
+    try {
+      const raw = kv.getItem(fundedKey(wallet, chainId));
+      return raw ? (JSON.parse(raw) as Array<{ hash: string; jobId: string; until: number | null }>) : [];
+    } catch {
+      return [];
+    }
+  };
+  const rememberFunded = (attempt: Pick<FundingAttempt, 'wallet' | 'chainId' | 'description' | 'fundableUntil'>, jobId: string) => {
+    const nowSeconds = Math.floor(now().getTime() / 1000);
+    /* Kept while the quote's job could still be created or funded; never more than 50 entries. */
+    const kept = fundedList(attempt.wallet, attempt.chainId).filter((e) => e.until === null || e.until > nowSeconds).slice(-49);
+    kv.setItem(fundedKey(attempt.wallet, attempt.chainId), JSON.stringify([...kept, { hash: descriptionHash(attempt.description), jobId, until: attempt.fundableUntil }]));
+  };
+  const alreadyFunded = (wallet: string, chainId: number, description: string) =>
+    fundedList(wallet, chainId).find((e) => e.hash === descriptionHash(description)) ?? null;
   const remove = (wallet: string, chainId: number) => kv.removeItem(storageKey(wallet, chainId));
   /*
    * Without Web Locks there is no trustworthy cross-tab liveness signal, so
@@ -155,11 +192,16 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
         });
       },
       beforePrompt(step) {
-        return update({ ...mine(), prompt: step });
+        const current = mine();
+        if (MOVES_MONEY.has(step) && current.fundableUntil === null) throw new DeadlineNotRecorded();
+        return update({ ...current, prompt: step });
       },
       close() {
         const current = read(wallet, chainId);
-        if (current?.attemptId === attemptId) remove(wallet, chainId);
+        if (current?.attemptId !== attemptId) return;
+        /* `close` is the owner's "funded and recorded": the quote is spent. */
+        if (current.jobId) rememberFunded(current, current.jobId);
+        remove(wallet, chainId);
       },
       leavePending() {
         const current = read(wallet, chainId);
@@ -181,6 +223,8 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
       const go = async (): Promise<RunResult<T>> => {
         const open = read(input.wallet, input.chainId);
         if (open) return { ok: false, reason: 'open-attempt', blocking: open };
+        const funded = alreadyFunded(input.wallet, input.chainId, input.description);
+        if (funded) return { ok: false, reason: 'already-funded', jobId: funded.jobId };
         const at = now().toISOString();
         const attemptId = `${tabId}:${at}:${Math.random().toString(36).slice(2, 10)}`;
         const attempt: FundingAttempt = { ...input, fundableUntil: input.fundableUntil ?? null, attemptId, ownerTab: tabId, state: 'sending', updatedAt: at, txHashes: [], jobId: null, callsId: null, prompt: null };
@@ -230,11 +274,12 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
         if (!current || current.attemptId !== snapshot.attemptId || current.updatedAt !== snapshot.updatedAt) return 'stale' as const;
         if (verdict.outcome === 'funded') {
           await onFunded?.(verdict.jobId);
+          rememberFunded(current, verdict.jobId);
           remove(snapshot.wallet, snapshot.chainId);
           return 'closed-funded' as const;
         }
         if (verdict.outcome === 'not-funded') {
-          if (!paymentImpossible(current, chainNowSeconds)) return 'kept-may-still-pay' as const;
+          if (!paymentImpossible(withProvenDeadline(current, verdict), chainNowSeconds)) return 'kept-may-still-pay' as const;
           remove(snapshot.wallet, snapshot.chainId);
           return 'closed-not-funded' as const;
         }
@@ -244,10 +289,18 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
          * more can be paid into a job that is already funded.
          */
         if (verdict.outcome === 'mismatch') {
+          /*
+           * The job is funded and is kept: adopted and recorded exactly as the
+           * chain holds it (its real amount), and its quote is marked spent so
+           * it can never be paid again. Only then does the record stop
+           * blocking: nothing more can be paid into a funded job.
+           */
+          await onFunded?.(verdict.jobId);
+          rememberFunded(current, verdict.jobId);
           remove(snapshot.wallet, snapshot.chainId);
           return 'closed-mismatch' as const;
         }
-        /* Past the job's own expiry, nothing in flight can fund or create it: the escrow refuses both. */
+        /* Past the deadline encoded in this attempt's own calls, nothing in flight can fund or create its job: the escrow refuses both. */
         if (pastFundable(current, chainNowSeconds)) {
           remove(snapshot.wallet, snapshot.chainId);
           return 'closed-not-funded' as const;
@@ -263,23 +316,41 @@ export function fundingCoordinator(kv: KeyValue, locks: LockManagerLike | null, 
  * Whether an attempt whose owner is gone can no longer pay: no request that
  * moves money was ever issued, or the chain is past the expiry it encoded.
  */
-export function paymentImpossible(attempt: Pick<FundingAttempt, 'prompt' | 'fundableUntil' | 'startedAt'>, chainNowSeconds: number): boolean {
+export function paymentImpossible(attempt: Pick<FundingAttempt, 'prompt' | 'fundableUntil'>, chainNowSeconds: number): boolean {
   if (attempt.prompt === null || !MOVES_MONEY.has(attempt.prompt)) return true;
   return pastFundable(attempt, chainNowSeconds);
 }
 
 /**
- * The longest a job Pokter creates can stay fundable: delivery is at most 30
- * days (`PROPOSAL_DELIVER_DAYS`), plus a dispute window allowance of 7 days
- * and a margin. Used only when an attempt's own expiry was never learned, so
- * that no record can block a wallet forever.
+ * Whether the chain is past the deadline encoded in this attempt's own calls
+ * (or read from its job on chain), after which the escrow refuses to create
+ * or fund the job. Never inferred from elapsed time: an attempt whose
+ * deadline is unknown is never past. A money-moving prompt cannot be issued
+ * without one (`DeadlineNotRecorded`), so such an attempt has nothing in
+ * flight that could pay.
  */
-export const MAX_FUNDABLE_SECONDS = 38 * 86_400;
+export function pastFundable(attempt: Pick<FundingAttempt, 'fundableUntil'>, chainNowSeconds: number): boolean {
+  return attempt.fundableUntil !== null && chainNowSeconds > attempt.fundableUntil;
+}
 
-/** Whether the chain is past the last moment this attempt's job could be funded or created. */
-export function pastFundable(attempt: Pick<FundingAttempt, 'fundableUntil' | 'startedAt'>, chainNowSeconds: number): boolean {
-  const until = attempt.fundableUntil ?? Math.floor(Date.parse(attempt.startedAt) / 1000) + MAX_FUNDABLE_SECONDS;
-  return Number.isFinite(until) && chainNowSeconds > until;
+/** The attempt with its deadline proven by the chain when its own record lacks one: the job's on-chain `expiredAt`. */
+function withProvenDeadline<A extends Pick<FundingAttempt, 'fundableUntil'>>(attempt: A, verdict: Reconciled): A {
+  if (attempt.fundableUntil !== null || verdict.outcome !== 'not-funded' || verdict.expiredAt == null) return attempt;
+  return { ...attempt, fundableUntil: verdict.expiredAt };
+}
+
+/** A short, stable key for a description (FNV-1a, 53 bits); a collision can only refuse a hire, never allow one. */
+export function descriptionHash(text: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
 export interface AttemptChainReader {
@@ -307,7 +378,7 @@ export interface AttemptChainReader {
  */
 export type Reconciled =
   | { outcome: 'funded'; jobId: string }
-  | { outcome: 'not-funded'; jobId: string | null; detail: string }
+  | { outcome: 'not-funded'; jobId: string | null; detail: string; expiredAt?: number | null }
   | { outcome: 'mismatch'; jobId: string; detail: string }
   | { outcome: 'pending'; detail: string };
 
@@ -361,6 +432,7 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
    * resumable, never a mismatch. Only a job past OPEN in a different amount is.
    */
   let openJob: string | null = null;
+  let openExpiredAt: number | null = null;
   for (const id of candidates) {
     let onchain: FundedJobFields | null;
     try {
@@ -372,7 +444,10 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
     const ours = same(onchain.client, expected.account) && same(onchain.provider, expected.provider) && onchain.description === expected.description;
     if (!ours) continue;
     if (OPEN.has(onchain.statusName)) {
-      openJob ??= id.toString();
+      if (openJob === null) {
+        openJob = id.toString();
+        openExpiredAt = onchain.expiredAt !== undefined ? Number(onchain.expiredAt) : null;
+      }
       continue;
     }
     if (onchain.budget === expected.budget) return { outcome: 'funded', jobId: id.toString() };
@@ -383,6 +458,7 @@ export async function reconcileAttempt(attempt: FundingAttempt, read: AttemptCha
   return {
     outcome: 'not-funded',
     jobId,
+    expiredAt: openExpiredAt,
     detail: jobId ? `Job ${jobId} exists and is not funded.` : 'No funded job from this attempt exists.',
   };
 }
