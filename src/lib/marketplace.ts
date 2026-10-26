@@ -765,6 +765,23 @@ export async function searchByName(
     ),
   );
   const found = dedupe(pages.flatMap((page) => page.items)).slice(0, limit);
+  return searchableFrom(found);
+}
+
+/**
+ * An agent typed by its ID ("56/342378", or "342378" on either network),
+ * read from the registry directly. Like a name search, it finds an agent
+ * that is in no category listing; a missing ID is an empty answer, not an
+ * error.
+ */
+export async function searchById(chainId: ChainId | null, tokenId: string): Promise<SearchableWithHistory[]> {
+  const chains = chainId === null ? LISTED_CHAINS : [chainId];
+  const found = await Promise.all(chains.map((chain) => getAgent(chain, tokenId).catch(() => null)));
+  return searchableFrom(found.filter((agent): agent is ScanAgentDetail => agent !== null));
+}
+
+/** Registry rows as Discover's entries, with the evidence Pokter keeps for each. */
+function searchableFrom(found: ScanAgent[]): SearchableWithHistory[] {
   if (found.length === 0) return [];
 
   const store = getProbeStore();

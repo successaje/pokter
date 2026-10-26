@@ -6,12 +6,12 @@ import { catalogueCounts } from '@/lib/agents/catalogue-counts';
 import { distinctAgentCount, mainnetFirstPerAgent } from '@/lib/agents/distinct';
 import { interpretBrief, type BriefReading } from '@/lib/brief/interpret';
 import { findRows, type FindRow } from '@/lib/find/rows';
-import { listSearchableWithStatus, searchByName } from '@/lib/marketplace';
+import { listSearchableWithStatus, searchById, searchByName } from '@/lib/marketplace';
 import { offersDirectHire, matchesQuery, type SearchableAgent } from '@/lib/search/match';
 import { orderMarketplace } from '@/lib/search/order';
 import type { DiscoverParams } from './params';
 import { parseQuery } from '@/lib/search/query';
-import { closestNames, describeNameMatch, nameMatch } from '@/lib/search/names';
+import { closestNames, describeNameMatch, nameMatch, NAME_MATCH, parseAgentId, placeNameMatches } from '@/lib/search/names';
 import { chainLabel } from '@/lib/network/presentation';
 
 const STOP = new Set([
@@ -30,7 +30,7 @@ export interface DiscoverResult {
   /** Agents whose names are close to a query that matched nothing; never unrelated ones. */
   suggestions: { close: FindRow[] } | null;
   /** How a natural-language query was read; null for no query or advanced syntax. */
-  reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean }) | null;
+  reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean; byId: boolean }) | null;
   advanced: { unknown: string[] } | null;
   categoryCounts: Array<{ id: Category; label: string; count: number }>;
   /** The newest listings in the catalogue, whatever the current filters are. */
@@ -82,9 +82,12 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     const brief = interpretBrief(q);
     const terms = textTerms(q);
     const categoryLabel = brief.category ? (CATEGORY_BY_ID.get(brief.category)?.label ?? null) : null;
-    reading = { ...brief, categoryLabel, terms, byName: false };
+    reading = { ...brief, categoryLabel, terms, byName: false, byId: false };
     // One or two letters are a name being typed, not a task being described.
     const describesTask = q.length >= 3;
+    const agentId = parseAgentId(q);
+    /* The whole listing, before the query narrows it: an ID is looked up in all of it. */
+    const everyone = pool;
 
     const scored = pool
       .map((entry) => {
@@ -110,19 +113,24 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
     pool = orderMarketplace(scored.map((s) => s.entry), params.sort).sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
 
     /*
-     * No agent whose name matches: ask the registry by name.
+     * No agent in the pool has exactly this name: ask the registry by name.
      *
      * The pool is built from the category listings, so an agent in no
      * category is not in it, and typing its exact name found nothing:
      * "no such agent" rather than "not in a category". Asked whenever no
-     * name in the pool matches, because the pool is rarely empty and a
-     * page of description matches can hide that the named agent is absent.
+     * name in the pool matches exactly, because the pool is rarely empty
+     * and a page of description or partial-name matches can hide that the
+     * named agent is absent.
      */
-    if (describesTask && !scored.some((s) => s.named > 0)) {
+    const poolNamed = scored.some((s) => s.named > 0);
+    if (describesTask && !agentId && !scored.some((s) => s.named === NAME_MATCH.exact)) {
       const have = new Set(pool.map((entry) => `${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`));
-      const byName = (await searchByName(q)).filter(
+      const found = (await searchByName(q)).filter(
         (entry) => isPromotableAgent(entry.listing.agent) && !have.has(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`),
       );
+      const exactly = (entry: SearchableAgent) => nameMatch(entry.listing.agent.name, q) === NAME_MATCH.exact;
+      /* Where the pool already has name matches, only an exact name is worth adding to them. */
+      const byName = poolNamed ? found.filter(exactly) : found;
       /*
        * A task Pokter recognises ("Monitor my lending risk") is answered by
        * agents in that category first. The registry's name search returned
@@ -130,15 +138,37 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
        * unrelated yield agents, and they were put above every real
        * health-factor agent. Now they follow the matches, labelled. A query
        * that is not a recognised task is still most likely a name, so there
-       * the name results lead.
+       * the name results lead. An exact name leads either way.
        */
-      for (const entry of byName) reasons.set(entry, brief.category ? 'Matched by name only · not shown doing this task' : 'Found by name · not in a category listing');
-      if (brief.category) {
-        for (const entry of byName) nameOnly.add(entry);
-        pool = [...pool, ...orderMarketplace(byName, params.sort)];
-      } else {
-        pool = [...orderMarketplace(byName, params.sort), ...pool];
+      for (const entry of byName) {
+        if (exactly(entry)) {
+          reasons.set(entry, 'Exact name');
+          continue;
+        }
+        reasons.set(entry, brief.category ? 'Matched by name only · not shown doing this task' : 'Found by name · not in a category listing');
+        if (brief.category) nameOnly.add(entry);
       }
+      if (byName.some(exactly)) reading.byName = true;
+      pool = placeNameMatches(pool, orderMarketplace(byName, params.sort), {
+        nameOf: (entry) => entry.listing.agent.name,
+        query: q,
+        taskRecognised: brief.category !== null,
+      });
+    }
+
+    /*
+     * An agent's ID ("342378", "56/342378") is the most exact thing a person
+     * can type. Its agent leads, from the listings or read from the registry
+     * when it is in none.
+     */
+    if (agentId) {
+      const sameId = (entry: SearchableAgent) =>
+        entry.listing.agent.token_id === agentId.tokenId && (agentId.chainId === null || entry.listing.agent.chain_id === agentId.chainId);
+      const listed = everyone.filter(sameId);
+      const byId = listed.length > 0 ? listed : (await searchById(agentId.chainId, agentId.tokenId)).filter((entry) => isPromotableAgent(entry.listing.agent));
+      for (const entry of byId) reasons.set(entry, `Agent ID ${entry.listing.agent.chain_id}/${entry.listing.agent.token_id}`);
+      if (byId.length > 0) reading.byId = true;
+      pool = [...byId, ...pool.filter((entry) => !byId.includes(entry))];
     }
   }
 
