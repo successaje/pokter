@@ -88,3 +88,6 @@ scripts/venus-testnet-position.mts
 
 # Personal permission rules; not shared — see .claude/settings.local.json
 .claude/settings.local.json
+
+# Test screenshots show wallet addresses and balances; keep them on the machine that took them.
+docs/release/*-screens/

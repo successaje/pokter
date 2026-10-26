@@ -234,7 +234,7 @@ The wallet was a stand-in injected into the page. It answers account and chain r
   - Before a fix in this release, the same screen wrongly said another tab was funding.
 - **`?pay=` link.** A testnet USDT address preselects USDT. A mainnet address on testnet is ignored.
 
-Screenshots are in `docs/release/hire-tokens-screens/`. To reproduce: `scripts/rehearsal-page-quote.mts` writes the real quote, and `docs/release/hire-tokens-page.js` installs the stand-in wallet (part 1) and the quote transport (part 2).
+Screenshots (numbered in brackets above) are kept on the machine that took them, not in this public repository, because they show wallet addresses and balances. To reproduce: `scripts/rehearsal-page-quote.mts` writes the real quote, and `docs/release/hire-tokens-page.js` installs the stand-in wallet (part 1) and the quote transport (part 2).
 
 ### Rehearsal script (read-only, live testnet)
 
