@@ -1,3 +1,5 @@
+import { NO_ENDPOINT_DETAIL } from './no-endpoint';
+
 /**
  * Which layer a hire failed in, so the buyer is told the right thing.
  *
@@ -128,10 +130,20 @@ export function describeQuoteFailure(failure: QuoteFailure, agentName: string): 
     case 'seller-not-ready':
       return { status: 409, message: `${agentName} accepted the request but has not produced a price yet. Try again shortly; nothing has been paid.` };
     case 'no-endpoint':
-      if (failure.detail === 'card-without-interface') {
-        return { status: 409, message: `${agentName}'s agent card answers but names no service to send a brief to, so it cannot quote a price. Its operator has listed it without connecting a running agent; nothing has been paid.` };
+      /* Each says what was read and nothing more (see NO_ENDPOINT_DETAIL). */
+      if (failure.detail === NO_ENDPOINT_DETAIL.cardWithoutInterface) {
+        return { status: 409, message: `${agentName}'s agent card answers but names no service to send a brief to, so it cannot quote a price. Nothing has been paid.` };
       }
-      return { status: 409, message: `${agentName} publishes no agent card Pokter can reach, so it cannot quote a price.` };
+      if (failure.detail === NO_ENDPOINT_DETAIL.registryNoA2a) {
+        return { status: 409, message: `No A2A endpoint found for ${agentName} in the registry data Pokter reads, so Pokter cannot ask it for a price. Nothing has been paid.` };
+      }
+      if (failure.detail === NO_ENDPOINT_DETAIL.registryNoWallet) {
+        return { status: 409, message: `No agent wallet found for ${agentName} in the registry data Pokter reads, so a price it signed could not be checked. Nothing has been paid.` };
+      }
+      if (failure.detail === NO_ENDPOINT_DETAIL.cardWithoutJsonRpc) {
+        return { status: 409, message: `${agentName}'s agent card offers no HTTPS JSON-RPC interface, which is the one Pokter calls, so it cannot quote a price. Nothing has been paid.` };
+      }
+      return { status: 409, message: `Pokter found no agent card it could reach for ${agentName}, so it cannot quote a price. Nothing has been paid.` };
     case 'no-price-skill':
       return { status: 409, message: `${agentName} does not offer a priced job (its card has no negotiate skill), so it cannot be hired through escrow.` };
     case 'auth-required':

@@ -1,5 +1,6 @@
 import { a2aCardFallback } from '@/lib/proof/card-access';
 import { cardWithoutInterface, isAgentCard } from '@/lib/a2a/card';
+import { NO_ENDPOINT_DETAIL } from '@/lib/hire/no-endpoint';
 
 /**
  * Reading an agent's card, and the difference between an agent that names no
@@ -151,7 +152,10 @@ export type CardProblem = 'no-endpoint' | 'card-without-interface' | 'no-price-s
 export function blockerCodeForCardProblem(problem: CardProblem): { code: string; detail: string | null } {
   switch (problem) {
     case 'card-without-interface':
-      return { code: 'no-endpoint', detail: 'card-without-interface' };
+      return { code: 'no-endpoint', detail: NO_ENDPOINT_DETAIL.cardWithoutInterface };
+    /* The registry data named no endpoint, so no card was read: said as that, not as a finding about a card. */
+    case 'no-endpoint':
+      return { code: 'no-endpoint', detail: NO_ENDPOINT_DETAIL.registryNoA2a };
     case 'card-unreadable':
       return { code: 'card-unreadable', detail: null };
     default:

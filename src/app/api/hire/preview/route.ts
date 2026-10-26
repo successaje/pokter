@@ -44,7 +44,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const name = agent?.name || `Agent #${tokenId}`;
   const endpoint = agent?.services?.a2a?.endpoint?.replace('{agentId}', tokenId);
   if (!agent || !endpoint) {
-    return NextResponse.json({ error: `${name} publishes no A2A endpoint, so it has no preview to run.`, layer: 'seller', code: 'no-endpoint' }, { status: 409 });
+    return NextResponse.json({ error: `No A2A endpoint found for ${name} in the registry data Pokter reads, so it has no preview to run.`, layer: 'seller', code: 'no-endpoint' }, { status: 409 });
   }
 
   try {
