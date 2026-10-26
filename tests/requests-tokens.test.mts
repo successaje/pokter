@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { privateKeyToAccount } from 'viem/accounts';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
 
 import { hireForChosenProposal, hireForProposal } from '../src/lib/briefs/hired';
@@ -97,7 +97,8 @@ test('a $U proposal signs byte for byte what it signed before tokens', () => {
 });
 
 test('a signature over a legacy $U request still verifies', async () => {
-  const account = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
+  /* A throwaway key: any signer shows the legacy text still verifies. */
+  const account = privateKeyToAccount(generatePrivateKey());
   const before = LEGACY_BRIEF_TEXT.replace(POSTER.toLowerCase(), account.address.toLowerCase());
   const signature = await account.signMessage({ message: before });
   const stored = readBriefContent(CONTENT, NOW, USDT_ON)!;
