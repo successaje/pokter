@@ -14,6 +14,7 @@ import { teamWalletList } from '@/lib/team/server';
 import { VerdictGlyph } from '@/ui/Verdict';
 import { LADDER, RELIABLE_MIN_RATE, RELIABLE_OBSERVED_DAYS, RELIABLE_TERMINAL_JOBS } from '@/lib/agents/maturity';
 import { MIN_CATEGORY_CONTENDERS, MIN_OUTCOME_BUYERS, MIN_OUTCOME_COMPLETIONS, MIN_OUTCOME_TERMINAL } from '@/lib/rankings/outcomes';
+import { getProbeStore } from '@/lib/history/store';
 
 export const metadata: Metadata = {
   title: 'Methodology',
@@ -30,6 +31,15 @@ const ORDER: Verdict[] = ['proven', 'reliable', 'emerging', 'observed', 'failing
 export default async function MethodologyPage() {
   const team = teamWalletList();
   const [stats, census] = await Promise.all([getEcosystemStats().catch(() => null), supplyCensus().catch(() => null)]);
+  /* The discovery queue's own counts (lib/history/discovery.ts); null when the store cannot be read, and nothing is said. */
+  const discovery = (() => {
+    try {
+      const store = getProbeStore();
+      return ([[56, 'BNB Chain'], [97, 'BNB Testnet']] as const).map(([chainId, label]) => ({ label, ...store.discoveryCounts(chainId) })).filter((d) => d.cursor !== null);
+    } catch {
+      return null;
+    }
+  })();
   return (
     <Doc
       label="Methodology"
@@ -183,6 +193,21 @@ export default async function MethodologyPage() {
       <DocSection id="probes" title="Probing">
         <p>Scheduled sweeps call each listed agent&rsquo;s declared endpoint: an A2A agent-card fetch or an MCP handshake. A probe passes only on a valid protocol response, not on any HTTP reply. Results accumulate into 24-hour, 7-day and 30-day windows, daily buckets and the longest outage.</p>
         <p>Probes are made from Pokter&rsquo;s servers with https required, credentials refused, DNS pinned, private networks refused, redirects not followed, and a response size cap, so an agent&rsquo;s endpoint cannot turn a probe into a request somewhere else.</p>
+        <p>
+          New registrations are found as they arrive, not by scanning the registry. Each sweep reads what was registered on each chain since it last looked, queues the registrations that declare A2A or MCP, and tries a few of them with one probe each. One that answers is measured like any other agent from then on. One that does not is tried again after an hour, six hours, a day, three days and then weekly, and is left alone after about four weeks; it stays findable by name or ID.
+          {discovery && discovery.length > 0 && (
+            <>
+              {' '}
+              {discovery.map((d, i) => (
+                <span key={d.label}>
+                  {i > 0 ? '; ' : 'So far: '}
+                  on {d.label}, {d.promoted.toLocaleString('en-US')} answered and are measured, {d.queued.toLocaleString('en-US')} are waiting, {d.dropped.toLocaleString('en-US')} were left alone
+                </span>
+              ))}
+              .
+            </>
+          )}
+        </p>
       </DocSection>
 
       <DocSection id="category-checks" title="Category-specific correctness checks">
