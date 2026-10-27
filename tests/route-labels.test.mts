@@ -41,4 +41,9 @@ test('cards, filters and the hire page name the route, and an expired price as t
     assert.doesNotMatch(source(path), /is signed when you hire/, path);
   }
   assert.match(source('src/lib/mcp/agent-card-html.ts'), /'Last signed escrow quote; a fresh quote is requested before payment'/);
+  /* The agent page's pricing table, the readiness row, the home card and a request's proposals name the route too. */
+  assert.match(source('src/app/(site)/agents/[chainId]/[tokenId]/page.tsx'), /label: p\.quote\.current \? 'Escrow quote' : 'Last signed escrow quote'/);
+  assert.match(source('src/features/home/data.ts'), /!row\.priceFresh \? 'Last signed escrow quote' : 'Escrow quote'/);
+  assert.match(source('src/features/briefs/ProposalList.tsx'), /Last signed escrow quote <span/);
+  assert.doesNotMatch(source('src/lib/agents/readiness.ts'), /label: 'Signed price'/);
 });

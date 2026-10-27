@@ -68,7 +68,7 @@ export function readinessRows(input: ReadinessInput): ReadinessRow[] {
 
   rows.push({
     id: 'price',
-    label: 'Signed price',
+    label: 'Escrow quote',
     value: !quote ? 'None' : quote.current ? 'Current' : 'Expired',
     tone: !quote ? 'unknown' : quote.current ? 'ok' : 'unknown',
     detail: !quote

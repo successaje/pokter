@@ -886,7 +886,7 @@ export default async function AgentPage({ params, searchParams }: { params: Para
             {p.quote ? (
               <Facts
                 rows={[
-                  { label: 'Signed price', value: <span className="t-readout">{p.quote.label}</span> },
+                  { label: p.quote.current ? 'Escrow quote' : 'Last signed escrow quote', value: <span className="t-readout">{p.quote.label}</span> },
                   /* The money, said once and plainly: a hire is funded in the
                      token the agent signed, so a buyer holding only $U has to
                      learn that here and not at the wallet. */

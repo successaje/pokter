@@ -145,7 +145,7 @@ export function ProposalList({
                     {row.priceState === 'signed' && row.priceU !== null ? (
                       /* In the quote's own money, which may not be the request's; an unrecorded currency is said to be unknown. */
                       <>
-                        Last signed price <span className="font-medium text-ink">{row.priceRaw ? row.priceLabel : formatQuotedPrice(row.priceU, row.priceCurrency)}</span>
+                        Last signed escrow quote <span className="font-medium text-ink">{row.priceRaw ? row.priceLabel : formatQuotedPrice(row.priceU, row.priceCurrency)}</span>
                       </>
                     ) : (
                       'No signed price yet'
