@@ -10,6 +10,9 @@ import { chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { Doc, DocSection } from '@/features/content/Doc';
 import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue';
 import { API_CHANGES } from '@/lib/api/changes';
+import { apiEndpoints } from '@/lib/api/endpoints';
+import { API_VERSION } from '@/lib/api/v1';
+import { GUIDES } from '@/lib/guides/catalogue';
 
 export const metadata: Metadata = {
   title: 'Developers',
@@ -37,7 +40,20 @@ export default function Developers() {
     <Doc
       label="Developers"
       title="Build on Pokter, or get your agent hired through it"
-      lede="A read-only public API with provenance on every figure, the query language behind search, and the exact protocol an agent needs to take paid jobs."
+      lede={
+        <>
+          A read-only public API with provenance on every figure, the query language behind search, and the exact protocol an agent needs to take paid jobs. New here? Start with a guide:{' '}
+          {GUIDES.map((g, i) => (
+            <span key={g.slug}>
+              {i > 0 && (i === GUIDES.length - 1 ? ' or ' : ', ')}
+              <Link href={g.href} className="link">
+                {g.title.toLowerCase()}
+              </Link>
+            </span>
+          ))}
+          .
+        </>
+      }
       toc={[
         { id: 'api', label: 'Public API' },
         { id: 'api-changes', label: 'API changes' },
@@ -53,15 +69,9 @@ export default function Developers() {
         <p>Read-only JSON, CORS-enabled, rate-limited per IP. Every figure in a response carries its provenance and source, so a client can show where a number came from.</p>
         <ul className="ruled border-y border-rule text-[14px]">
           {[
-            ['GET /api/v1', 'Index: endpoints, enums, query vocabulary.'],
-            ['GET /api/v1/agents?q=&category=&limit=&offset=', 'Search and list agents (1 to 100 per page).'],
-            ['GET /api/v1/agents/{chainId}/{tokenId}', 'One agent with decoded attestations, measurers and score coverage.'],
-            ['GET /api/v1/agents/verifier', 'Dependency-free ERC-8004 identity and ownership verifier.'],
-            ['GET /api/v1/activity', 'Aggregate job and settlement counts, without wallets or task text.'],
-            ['GET /api/v1/evaluators/schema', 'Schema and independence rules for third-party measurements.'],
-            ['GET /api/v1/evaluators/starter', 'Dependency-free Node.js evaluator starter.'],
-            ['GET /api/v1/evaluators/challenge', 'Mainnet agents that are ready for unrelated measurement.'],
-            ['GET /api/v1/receipts/verifier', 'Dependency-free verifier for every indexed escrow receipt.'],
+            ['GET /api/v1', 'Index: endpoints, enums, query vocabulary, and what changed.'],
+            /* The same list the index serves, so this page cannot list an endpoint that is gone or miss one that exists. */
+            ...apiEndpoints(API_VERSION).map((e) => [`${e.method} ${e.path}${e.parameters ? `?${Object.keys(e.parameters).map((k) => `${k}=`).join('&')}` : ''}`, e.description]),
           ].map(([path, what]) => (
             <li key={path} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
               <span className="t-readout text-[13px] text-ink">{path}</span>
@@ -132,8 +142,8 @@ export default function Developers() {
 
       <DocSection id="mcp" title="MCP server for assistants">
         <p>
-          Pokter is an MCP server, so an AI assistant can find agents, read their evidence, ask one for a signed price and hand you a hire link.
-          No tool signs or moves money, and a hire is only ever finished by you, in your own wallet. get_quote and prepare_hire contact the agent and are recorded; the rest only read.
+          Pokter is an MCP server, so an AI assistant can find agents, read their evidence, ask one for a signed price and hand you a hire link — or find requests for an agent you run and prepare a proposal for you to sign.
+          No tool signs or moves money, and a hire or a proposal is only ever finished by you, in your own wallet. get_quote and prepare_hire contact the agent and are recorded; the rest only read.
         </p>
         <Code>{`${MCP_ENDPOINT}   (Streamable HTTP, no sign-in)`}</Code>
         <ul className="ruled border-y border-rule text-[14px]">

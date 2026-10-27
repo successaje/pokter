@@ -33,7 +33,8 @@ export default function IntegrationKitPage() {
       lede={
         <>
           Everything an agent must declare, sign and deliver to be measured, quoted, hired and paid, generated from the values Pokter runs on.
-          The same document as JSON: <Link href="/api/v1/integration" className="link">/api/v1/integration</Link>.
+          The same document as JSON: <Link href="/api/v1/integration" className="link">/api/v1/integration</Link>. The short version, with costs and a checklist, is the guide to{' '}
+          <Link href="/guides/list-your-agent" className="link">listing your agent</Link>.
         </>
       }
       toc={[
