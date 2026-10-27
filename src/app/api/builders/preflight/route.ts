@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { isNegotiationSkill, priceLikeSkill } from '@/lib/erc8183/courier-parse';
 import { probeEndpoint } from '@/lib/proof/prober';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 
@@ -37,9 +38,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const result = await probeEndpoint(endpoint, protocol);
   const capabilities = result.capabilities ?? [];
-  const quoteCapability = capabilities.some((capability) =>
-    /(?:negotiate|quote|price)/i.test(capability),
-  );
+  /* The requester's own rule (`isNegotiationSkill`), so passing here means Pokter will ask. */
+  const quoteCapability = capabilities.some(isNegotiationSkill);
+  const pricingNamedOtherwise = priceLikeSkill(capabilities);
 
   return NextResponse.json({
     ...result,
@@ -47,6 +48,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     endpoint,
     capabilities,
     quoteCapability,
+    priceLikeSkill: pricingNamedOtherwise,
     safety: {
       httpsRequired: true,
       credentialsRejected: true,

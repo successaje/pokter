@@ -189,9 +189,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   /*
    * Where escrow may pay, from the registry record and from nowhere else.
    *
-   * `requestQuote` will not even ask an agent that lists no wallet, and it
-   * verifies the signature against this address, so a quote that exists
-   * implies this is present and that `quote.signer` equals it. Both are
+   * `requestQuote` verifies the signature against the registered wallet:
+   * this one when the index has it, else the registry's own
+   * `getAgentWallet`. This route still requires the index's, so a quote
+   * that exists here implies `quote.signer` equals it. Both are
    * asserted again below, at the point the money is described: the property
    * is what makes the provider in a prepared request trustworthy, and a
    * change to the quote path must not be able to redirect payment silently.

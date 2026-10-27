@@ -100,6 +100,7 @@ export function workedExample(escrow: { chainId: number; commerce: string; payme
     method: 'message/send',
     params: {
       message: {
+        kind: 'message',
         role: 'user',
         messageId: '7c2e…',
         parts: [{ kind: 'data', data: { skill: 'negotiate', task_description: task, terms, chain_id: escrow.chainId, escrow_chains: [escrow.chainId] } }],
