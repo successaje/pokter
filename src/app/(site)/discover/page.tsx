@@ -208,7 +208,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       {result.reading && result.total > 0 && (
         <div className="anim-fade mt-6 flex flex-col gap-2 rounded-[12px] border border-rule bg-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink-2">
-            {result.reading.byName ? (
+            {result.reading.byId ? (
+              <>The agent with ID &ldquo;{p.q}&rdquo; comes first{result.total > 1 ? ', then other matches' : ''}.</>
+            ) : result.reading.byName ? (
               <>Agents whose names match &ldquo;{p.q}&rdquo; come first{result.reading.categoryLabel ? `, then ${result.reading.categoryLabel} agents` : ''}{result.reading.terms.length ? ', then agents whose descriptions use your words' : ''}.</>
             ) : result.reading.categoryLabel ? (
               <>

@@ -24,6 +24,33 @@ export function nameMatch(name: string, query: string): number {
   return NAME_MATCH.none;
 }
 
+/**
+ * A query that is an agent's ID: "342378", "#342378", "56/342378" or
+ * "97:2618". The chain is null when not given. Anything else is null, so a
+ * number inside a task ("health factor above 1.5") is never read as an ID.
+ */
+export function parseAgentId(query: string): { chainId: 56 | 97 | null; tokenId: string } | null {
+  const m = /^\s*(?:(56|97)\s*[/:]\s*)?#?(\d{1,12})\s*$/.exec(query);
+  if (!m) return null;
+  return { chainId: m[1] ? (Number(m[1]) as 56 | 97) : null, tokenId: String(BigInt(m[2])) };
+}
+
+/**
+ * Where agents found by name in the registry go among the pool's matches.
+ *
+ * An exact match for the whole name leads, whatever the words look like:
+ * "BSC Yield Router" is a name before it is a yield task, and was found
+ * behind some thirty yield agents. The rest keep their place: after the
+ * pool's matches when the query reads as a task Pokter recognises (loose
+ * name matches for task words are not doing that task), before them when
+ * it does not (then the query is most likely a name).
+ */
+export function placeNameMatches<T>(pool: T[], byName: T[], options: { nameOf: (item: T) => string; query: string; taskRecognised: boolean }): T[] {
+  const exact = byName.filter((item) => nameMatch(options.nameOf(item), options.query) === NAME_MATCH.exact);
+  const rest = byName.filter((item) => !exact.includes(item));
+  return options.taskRecognised ? [...exact, ...pool, ...rest] : [...exact, ...rest, ...pool];
+}
+
 export function describeNameMatch(rank: number, query: string): string {
   const q = query.trim();
   if (rank === NAME_MATCH.exact) return 'Exact name';
