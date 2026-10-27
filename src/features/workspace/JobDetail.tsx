@@ -21,6 +21,7 @@ import { rememberJob } from '@/lib/wallet/activity';
 import { AgentAvatar } from '@/ui/Agent';
 import { Button, LinkButton } from '@/ui/Button';
 import { Breadcrumbs } from '@/ui/Controls';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { Address, Details, TxLink } from '@/ui/Data';
 import { EmptyState, Notice, Skeleton } from '@/ui/Feedback';
 import { Checkbox } from '@/ui/Field';
@@ -267,7 +268,11 @@ function JobDetail({ job: initial, owned, connected }: { job: HiredJob; owned: b
 
       {!owned && (
         <Notice tone="neutral" title={connected ? 'This job was funded by a different wallet' : 'Read-only'}>
-          You can see its public record. Only the wallet that funded it can release, dispute or reclaim the escrow.
+          You can see its public record. Only the wallet that funded it can release, dispute or reclaim the escrow. To share it, send its{' '}
+          <Link href={jobEvidencePath(job)} className="underline underline-offset-2">
+            evidence page
+          </Link>
+          , which anyone can read and which shows a buyer&rsquo;s brief only for Pokter&rsquo;s own test jobs.
         </Notice>
       )}
 

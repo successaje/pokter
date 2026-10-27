@@ -11,6 +11,7 @@ import { cn } from '@/lib/ui/cn';
 import { formatDelivery, formatMs, shortAddress } from '@/lib/ui/format';
 import type { ChainId } from '@/lib/scan/types';
 import { commissionTaskTemplates, templatesFromSkills } from '@/lib/hire/taskTemplates';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { clipAtWord } from '@/lib/ui/clip';
 import { FollowButton, SaveButton, ShareButton } from '@/features/agent/AgentActions';
 import { HirePanel, MobileHireBar } from '@/features/agent/HirePanel';
@@ -813,7 +814,9 @@ export default async function AgentPage({ params, searchParams }: { params: Para
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <span className="flex flex-wrap items-baseline gap-x-2">
                             <span className="font-medium">{JOB_STATE[job.status] ?? job.status}</span>
-                            <span className="t-readout text-[11.5px] text-ink-3">#{job.jobId}</span>
+                            <Link href={jobEvidencePath(job)} className="t-readout text-[11.5px] text-ink-3 underline decoration-rule-strong underline-offset-2 hover:text-ink hover:decoration-ink" title={`Job #${job.jobId}: what the escrow records and Pokter's check of the delivery`}>
+                              #{job.jobId}
+                            </Link>
                             {/* Said on the row, not inferred from a total: a job a
                                 Pokter wallet delivered is not the agent's work. */}
                             {job.byOperator && <span className="text-[11.5px] text-watch">Pokter&rsquo;s wallet delivered this</span>}

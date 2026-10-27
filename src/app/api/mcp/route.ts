@@ -19,6 +19,7 @@ import { registryOwner } from '@/lib/registry/onchain';
 import { getAgent } from '@/lib/scan/client';
 import { displaySymbol } from '@/lib/network/tokens';
 import { getAddress } from 'viem';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { CATEGORIES } from '@/lib/agents/categories';
 import { integrationKit } from '@/lib/integration/live';
 import { AGENT_CARD_HTML } from '@/lib/mcp/agent-card-html';
@@ -406,7 +407,9 @@ function tools(request: Request): McpTool[] {
         const answered = await read(await jobDetail(forward(url.href), { params: Promise.resolve({ jobId: job }) }));
         const record = (answered.data as { job?: Record<string, unknown> }).job;
         const amount = record ? amountOf(record) : null;
-        return amount && record ? { ...answered, data: { ...answered.data, job: { ...record, amount } } } : answered;
+        /* Additive: a page anyone can be sent to, with the escrow's state and Pokter's check of the delivery. */
+        const evidencePage = record ? `${origin}${jobEvidencePath({ chainId: escrow, jobId: job })}` : null;
+        return record ? { ...answered, data: { ...answered.data, job: { ...record, ...(amount ? { amount } : {}) }, evidencePage } } : answered;
       },
     },
     {

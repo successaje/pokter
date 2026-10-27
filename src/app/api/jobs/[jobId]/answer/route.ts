@@ -5,13 +5,7 @@ import { keccak256, stringToBytes } from 'viem';
 import { altanaNetworkFor } from '@/lib/altana/client';
 import { logAndPublic } from '@/lib/api/public-error';
 import { readDeliveredAnswer } from '@/lib/delivery/answer';
-import { storedDeliveryText } from '@/lib/erc8183/deliverable-gate';
-import { deliverableKey, readDeliverable } from '@/lib/erc8183/deliverables';
-import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
-import { findDeliverable } from '@/lib/erc8183/deliverable-url';
-import { historyClient } from '@/lib/erc8183/history-client';
-import { fetchDeliverableText } from '@/lib/erc8183/fetch-deliverable';
-import { getJobStore } from '@/lib/erc8183/store';
+import { readDeliveryText } from '@/lib/delivery/read-delivery';
 import { jobChainParam } from '@/lib/jobs/href';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
 import { manifestMatch } from '@/lib/erc8183/manifest-match';
@@ -42,43 +36,10 @@ export async function GET(request: Request, context: { params: Promise<{ jobId: 
     if (!['SUBMITTED', 'COMPLETED', 'REJECTED'].includes(job.statusName)) {
       return NextResponse.json({ delivered: false });
     }
-    /* The stored copy only when it is what was delivered; a draft never stands in for it. */
-    let manifestText = storedDeliveryText(readDeliverable(deliverableKey(chainId, jobId)), job.deliverable);
-    if (!manifestText) {
-      const indexed = getJobStore().all().find((j) => j.chainId === chainId && j.jobId === jobId);
-      // The index, else the submit event found near its own block, within a bound: a slow chain read must not hang the page.
-      /*
-       * Three outcomes, not two. A chain read that errors and one that
-       * runs out of time both used to arrive here as "no url" and were
-       * reported as the agent having published nothing — Pokter's own
-       * failure, stated as a fact about somebody else's agent, on the
-       * page their buyer reads.
-       */
-      type Lookup = { url: string } | { url: null; whose: 'ours' | 'theirs' | 'unfound' };
-      const lookup: Lookup = indexed?.deliverableUrl
-        ? { url: indexed.deliverableUrl }
-        : await Promise.race([
-            findDeliverable(historyClient(chainId === 56 ? 56 : 97), correctedErc8183Addresses(chainId).policy, BigInt(jobId), job.submittedAt)
-              .then((found): Lookup => (found.url ? { url: found.url } : { url: null, whose: found.event ? 'theirs' : 'unfound' }))
-              .catch((): Lookup => ({ url: null, whose: 'ours' })),
-            new Promise<Lookup>((resolve) => setTimeout(() => resolve({ url: null, whose: 'ours' }), 12_000)),
-          ]);
-      const url = lookup.url;
-      if (!url) {
-        return NextResponse.json({
-          delivered: true,
-          readable: false,
-          reason:
-            'whose' in lookup && lookup.whose === 'ours'
-              ? 'We could not retrieve the delivery link just now. The agent may well have published one; this check timed out or the chain read failed.'
-              : 'whose' in lookup && lookup.whose === 'unfound'
-                ? 'We could not find the delivery on chain just now, so its link could not be read. That is usually the node we read from not reaching that far back, not the agent.'
-                : 'The agent published no readable link for its delivery.',
-        });
-      }
-      manifestText = await fetchDeliverableText(url).catch(() => null);
-      if (!manifestText) return NextResponse.json({ delivered: true, readable: false, reason: 'The delivery link could not be read just now.' });
-    }
+    /* Read as the public evidence page reads it (`readDeliveryText`), failures and all. */
+    const read = await readDeliveryText(chainId, jobId, job);
+    if (!read.ok) return NextResponse.json({ delivered: true, readable: false, reason: read.reason });
+    const manifestText = read.text;
     const matchedBy = manifestMatch(manifestText, job.deliverable);
     return NextResponse.json({
       delivered: true,

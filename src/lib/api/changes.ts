@@ -30,6 +30,19 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
+    date: null,
+    release: null,
+    kind: 'added',
+    surfaces: ['GET /api/v1/receipts', 'MCP job_status'],
+    summary: 'Each job links its public evidence page.',
+    details: [
+      'Receipts add `page`: the job’s evidence page at /jobs/{chainId}/{jobId}, which reads the job from the escrow and checks its delivery against the hash on chain.',
+      'MCP job_status adds `evidencePage`, the same page.',
+      'No existing field was removed or changed.',
+    ],
+    migrate: null,
+  },
+  {
     date: '2026-10-27',
     release: 'v556',
     kind: 'added',

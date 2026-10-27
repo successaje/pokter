@@ -1,6 +1,7 @@
 import { formatUnits } from 'viem';
 
-import { apiJson, apiOptions, apiRateLimit } from '@/lib/api/respond';
+import { apiJson, apiOptions, apiRateLimit, originOf } from '@/lib/api/respond';
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 import { correctedErc8183Addresses } from '@/lib/erc8183/addresses';
 import { getJobStore } from '@/lib/erc8183/store';
 import { isDollarUJob, jobToken } from '@/lib/erc8183/job-amount';
@@ -43,6 +44,7 @@ export function GET(request: Request) {
   if (limited) return limited;
 
   const team = teamWalletSet();
+  const origin = originOf(request);
   const jobs = getJobStore()
     .all()
     .slice()
@@ -91,6 +93,8 @@ export function GET(request: Request) {
        */
       selfHire: Boolean(job.client) && job.client!.toLowerCase() === job.provider.toLowerCase(),
       transactionHash: job.hireTxHash ?? null,
+      /* Additive: the job's public evidence page, which reads it from the escrow and checks its delivery. */
+      page: `${origin}${jobEvidencePath(job)}`,
       verify: {
         escrowContract: `${explorer}/address/${correctedErc8183Addresses(job.chainId).commerce}#readContract`,
         transaction: job.hireTxHash ? `${explorer}/tx/${job.hireTxHash}` : null,

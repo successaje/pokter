@@ -42,6 +42,8 @@ const CHECKS: Check[] = [
   { path: '/guides/hire-an-agent', expect: 200, contains: 'Hire an agent' },
   { path: '/guides/find-jobs', expect: 200, contains: 'Find jobs for your agent' },
   { path: '/requests', expect: 200 },
+  { path: '/jobs/56/57097', expect: 200, contains: 'Job evidence' },
+  { path: '/jobs/56/1', expect: 404 },
   { path: '/agents', expect: 200, contains: 'All agents' },
   { path: '/pool-check', expect: 200 },
   { path: '/agent-advantage', expect: 200, contains: 'annualisation trap' },
