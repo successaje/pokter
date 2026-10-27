@@ -138,34 +138,37 @@ export function NetworksAndMoney() {
  * The escrow contract's platform fee on each chain, read when the page
  * is built. Pokter's own charge is nothing, and is said by the caller;
  * this is the one cost Pokter does not control.
+ *
+ * A chain whose read fails says "fee unavailable" — never 0%, which would
+ * be a claim about a contract nobody just read. The ceiling is only
+ * stated when every chain's was read.
  */
 export async function EscrowFee() {
   const chains = integrationKit().escrows.map((e) => e.chainId).sort((a, b) => (a === 56 ? -1 : b === 56 ? 1 : 0));
-  const fees = await Promise.all(chains.map((chainId) => escrowPlatformFee(chainId).catch(() => null)));
-  const read = fees.filter((fee) => fee !== null);
+  const fees = await Promise.all(chains.map(async (chainId) => ({ chainId, fee: await escrowPlatformFee(chainId).catch(() => null) })));
+  const read = fees.flatMap((f) => (f.fee ? [f.fee] : []));
   const commerce = correctedErc8183Addresses(56).commerce;
-  if (read.length === 0) {
-    return (
-      <>
-        The escrow contract&rsquo;s platform fee could not be read just now. Read <code>platformFeeBP()</code> on the{' '}
-        <a className="link" href={`${explorerBaseFor(56)}/address/${commerce}#readProxyContract`}>
-          commerce contract
-        </a>{' '}
-        before relying on it.
-      </>
-    );
-  }
-  const max = Math.max(...read.map((fee) => fee.maxBp));
   return (
     <>
       The escrow contract has its own platform fee, set by its operator and not by Pokter. Read from it just now:{' '}
-      {read.map((fee, index) => (
-        <span key={fee.chainId}>
+      {fees.map((f, index) => (
+        <span key={f.chainId}>
           {index > 0 && ', '}
-          <strong>{percentOf(fee.feeBp)}</strong> on {chainLabel(fee.chainId)}
+          {f.fee ? <strong>{percentOf(f.fee.feeBp)}</strong> : <strong>fee unavailable</strong>} on {chainLabel(f.chainId)}
         </span>
       ))}
-      . The contract allows at most {percentOf(max)}.
+      .{' '}
+      {read.length === fees.length ? (
+        <>The contract allows at most {percentOf(Math.max(...read.map((fee) => fee.maxBp)))}.</>
+      ) : (
+        <>
+          Where it could not be read, check <code>platformFeeBP()</code> on the{' '}
+          <a className="link" href={`${explorerBaseFor(56)}/address/${commerce}#readProxyContract`}>
+            commerce contract
+          </a>{' '}
+          before relying on it.
+        </>
+      )}
     </>
   );
 }

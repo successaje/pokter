@@ -70,7 +70,9 @@ test('fees, review windows and tokens are read, not written down', () => {
   assert.match(shared, /escrowPlatformFee\(chainId\)/);
   assert.match(shared, /disputeWindowSeconds\(chainId\)/);
   assert.match(shared, /integrationKit\(\)\.escrows/);
-  assert.match(shared, /could not be read just now/, 'a failed read says so rather than claiming a fee');
+  assert.match(shared, /<strong>fee unavailable<\/strong>/, 'a failed read says so, per chain');
+  assert.doesNotMatch(shared, /\?\? 0|\|\| 0|feeBp: 0/, 'and never falls back to 0%');
+  assert.match(shared, /escrowPlatformFee\(chainId\)\.catch\(\(\) => null\)/);
   for (const g of GUIDES) assert.doesNotMatch(source(page(g.slug)), /\b(7 days|15 minutes|0%|10%)\b/, `${g.slug} types no value the chain decides`);
 });
 
