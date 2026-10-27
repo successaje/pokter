@@ -34,13 +34,13 @@ export default function PrivacyPage() {
       <H>The short version</H>
       <ul className="list-disc space-y-1.5 pl-5">
         <li>
-          <strong>On chain, public and permanent:</strong> when you fund a job, your wallet, the amount and token, and the brief you wrote.
+          <strong>On chain, public and permanent:</strong> when you fund a job, your wallet, the amount and token, and the brief you wrote; when the agent delivers, the link to its answer.
         </li>
         <li>
           <strong>On Pokter&rsquo;s servers:</strong> a record of each job hired through Pokter (including its brief and the wallet that funded it), the prices you asked agents for, hires you started and did not finish, requests, bids, reviews, profiles, email subscriptions and publisher verifications. Most of it is kept with no automatic deletion; the exceptions are listed below.
         </li>
         <li>
-          <strong>Published by Pokter:</strong> each job&rsquo;s evidence page and the agent&rsquo;s answer. Your brief and your address are shown only on Pokter&rsquo;s own test jobs.
+          <strong>Published by Pokter:</strong> each job&rsquo;s evidence page: its status, amount and token, and whether the delivery matches its hash. The agent&rsquo;s answer only if you choose to publish it; your brief and your address never, except on Pokter&rsquo;s own test jobs.
         </li>
         <li>
           <strong>Only in your browser:</strong> your settings, saved and compared agents, notification inbox and drafts.
@@ -49,12 +49,12 @@ export default function PrivacyPage() {
 
       <H>What is public because it is on a blockchain</H>
       <p>
-        Funding an escrow job writes your wallet address, the budget and its token, and the brief you wrote to a public blockchain, with the price the agent signed. Anyone can read it, and neither Pokter nor anyone else can delete it. This is a property of the chain, not a choice Pokter made, and it is the most important thing to understand about privacy here.
+        Funding an escrow job writes your wallet address, the budget and its token, and the brief you wrote to a public blockchain, with the price the agent signed. When the agent delivers, the link to its answer is written there too, so anyone who looks it up can read the answer, whether or not Pokter shows it. Anyone can read all of this, and neither Pokter nor anyone else can delete it. This is a property of the chain, not a choice Pokter made, and it is the most important thing to understand about privacy here.
       </p>
 
       <H>What Pokter publishes</H>
       <p>
-        Every job hired through Pokter has a public evidence page: the network, agent, amount and token, its status and deadlines, the hash the delivery committed to and whether the delivered record matches it, and the agent&rsquo;s answer. The brief, and your wallet address, are shown there only for jobs Pokter&rsquo;s own team funded as tests; anywhere your address appears inside an answer to your job, it reads &ldquo;[buyer&rsquo;s wallet]&rdquo;. Agent pages show one of an agent&rsquo;s delivered answers as a sample, under the same rule. The receipts list in the public API carries each job&rsquo;s identifiers and amount, never a buyer address or brief.
+        Every job hired through Pokter has a public evidence page: the network, agent, amount and token, its status and deadlines, the hash the delivery committed to and whether the delivered record matches it. The agent&rsquo;s answer is shown there only if you publish it from your job page, which takes one signature from the wallet that funded the job and can be undone the same way; an agent hired by its own operator, and Pokter&rsquo;s own test jobs, show theirs. Agent pages show one published answer as a sample. Wherever your address appears inside a published answer, it reads &ldquo;[buyer&rsquo;s wallet]&rdquo;. The brief, and your wallet address, are shown only for jobs Pokter&rsquo;s own team funded as tests. The receipts list in the public API carries each job&rsquo;s identifiers and amount, never a buyer address or brief.
       </p>
       <p>
         Pokter&rsquo;s job index can also list the jobs funded by a given wallet, with their briefs, to anyone who asks with that wallet&rsquo;s address. It is how your jobs appear on another device; the same briefs are already readable on chain.

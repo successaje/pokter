@@ -90,6 +90,8 @@ test('privacy and support say what the code does', () => {
   assert.match(privacy, /lasts seven days or until you sign out/);
   assert.match(privacy, /the brief you wrote/);
   assert.match(privacy, /receives your brief at its own endpoint/);
+  assert.match(privacy, /The agent&rsquo;s answer is shown there only if you publish it from your job page/);
+  assert.match(privacy, /the link to its answer is written there too, so anyone who looks it up can read the answer, whether or not Pokter shows it/);
   const support = said('app/(site)/support/page.tsx');
   assert.doesNotMatch(support, /nobody who compromised Pokter could take your funds|Job memory lives in the browser|Why is there no star rating/);
   assert.match(support, /It does not protect what you sign\./);
