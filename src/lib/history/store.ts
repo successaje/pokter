@@ -125,6 +125,17 @@ export interface ProbeStore {
   enroll(agents: { chainId: number; tokenId: string }[]): void;
   /** Agents asked to be measured, whether or not they have been yet. */
   enrolledAgents(): { chainId: number; tokenId: string }[];
+  /** The newest registration time discovery has read on a chain (see discovery.ts), or null before its first run. */
+  discoveryCursor(chainId: number): string | null;
+  setDiscoveryCursor(chainId: number, newestCreatedAt: string): void;
+  /** Queues newly seen registrations; one already queued, promoted or dropped is left as it is. Returns how many were added. */
+  enqueueDiscovered(rows: { chainId: number; tokenId: string; registeredAt: string | null }[], now?: string): number;
+  /** Queued agents due a try on a chain, longest waiting first. */
+  dueDiscoveries(chainId: number, now: string, limit: number): { chainId: number; tokenId: string; attempts: number }[];
+  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string }): void;
+  /** Discovered agents that answered: part of the roster from then on. */
+  discoveredAgents(): { chainId: number; tokenId: string }[];
+  discoveryCounts(chainId: number): { queued: number; promoted: number; dropped: number; cursor: string | null };
   /** Every MCP probe row, with whether it is already corrected, for planning corrections. */
   correctableMcpRows(): CorrectableProbe[];
   /** Marks rows as Pokter's measurement error. Idempotent; returns how many were newly marked. */
@@ -270,6 +281,27 @@ const SCHEMA = `
     probes      INTEGER NOT NULL,
     answered    INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS discovery_cursor (
+    chain_id          INTEGER PRIMARY KEY,
+    newest_created_at TEXT    NOT NULL,
+    read_at           TEXT    NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS discovery_queue (
+    chain_id        INTEGER NOT NULL,
+    token_id        TEXT    NOT NULL,
+    registered_at   TEXT,
+    first_seen      TEXT    NOT NULL,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT    NOT NULL,
+    last_attempt_at TEXT,
+    last_outcome    TEXT,
+    state           TEXT    NOT NULL,
+    PRIMARY KEY (chain_id, token_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_discovery_due ON discovery_queue (chain_id, state, next_attempt_at);
 `;
 
 interface ProbeRow {
@@ -631,6 +663,73 @@ class SqliteProbeStore implements ProbeStore {
       .prepare('SELECT chain_id, token_id FROM enrolled')
       .all() as unknown as { chain_id: number; token_id: string }[];
     return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  discoveryCursor(chainId: number): string | null {
+    const row = this.db.prepare('SELECT newest_created_at FROM discovery_cursor WHERE chain_id = ?').get(chainId) as { newest_created_at: string } | undefined;
+    return row?.newest_created_at ?? null;
+  }
+
+  setDiscoveryCursor(chainId: number, newestCreatedAt: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO discovery_cursor (chain_id, newest_created_at, read_at) VALUES (?, ?, ?)
+         ON CONFLICT (chain_id) DO UPDATE SET newest_created_at = excluded.newest_created_at, read_at = excluded.read_at`,
+      )
+      .run(chainId, newestCreatedAt, new Date().toISOString());
+  }
+
+  enqueueDiscovered(rows: { chainId: number; tokenId: string; registeredAt: string | null }[], now = new Date().toISOString()): number {
+    if (rows.length === 0) return 0;
+    const insert = this.db.prepare(
+      `INSERT OR IGNORE INTO discovery_queue (chain_id, token_id, registered_at, first_seen, attempts, next_attempt_at, state)
+       VALUES (?, ?, ?, ?, 0, ?, 'queued')`,
+    );
+    let added = 0;
+    this.db.exec('BEGIN');
+    try {
+      for (const row of rows) added += Number(insert.run(row.chainId, row.tokenId, row.registeredAt, now, now).changes);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return added;
+  }
+
+  dueDiscoveries(chainId: number, now: string, limit: number): { chainId: number; tokenId: string; attempts: number }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT chain_id, token_id, attempts FROM discovery_queue
+         WHERE chain_id = ? AND state = 'queued' AND next_attempt_at <= ?
+         ORDER BY next_attempt_at, first_seen LIMIT ?`,
+      )
+      .all(chainId, now, limit) as unknown as { chain_id: number; token_id: string; attempts: number }[];
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id, attempts: r.attempts }));
+  }
+
+  recordDiscoveryAttempt(input: { chainId: number; tokenId: string; state: string; attempts: number; nextAttemptAt: string | null; outcome: string; at: string }): void {
+    this.db
+      .prepare(
+        `UPDATE discovery_queue SET state = ?, attempts = ?, next_attempt_at = COALESCE(?, next_attempt_at), last_attempt_at = ?, last_outcome = ?
+         WHERE chain_id = ? AND token_id = ?`,
+      )
+      .run(input.state, input.attempts, input.nextAttemptAt, input.at, input.outcome, input.chainId, input.tokenId);
+  }
+
+  discoveredAgents(): { chainId: number; tokenId: string }[] {
+    const rows = this.db
+      .prepare("SELECT chain_id, token_id FROM discovery_queue WHERE state = 'promoted'")
+      .all() as unknown as { chain_id: number; token_id: string }[];
+    return rows.map((r) => ({ chainId: r.chain_id, tokenId: r.token_id }));
+  }
+
+  discoveryCounts(chainId: number): { queued: number; promoted: number; dropped: number; cursor: string | null } {
+    const rows = this.db
+      .prepare('SELECT state, COUNT(*) AS n FROM discovery_queue WHERE chain_id = ? GROUP BY state')
+      .all(chainId) as unknown as { state: string; n: number }[];
+    const count = (state: string) => Number(rows.find((r) => r.state === state)?.n ?? 0);
+    return { queued: count('queued'), promoted: count('promoted'), dropped: count('dropped'), cursor: this.discoveryCursor(chainId) };
   }
 
   recent(limit: number): ProbeRecord[] {

@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 
 import { jobPaymentTokenOnChain } from '@/lib/erc8183/job-onchain';
 
-import { runSweep } from '@/lib/history/sweep';
+import { runDiscovery, runSweep } from '@/lib/history/sweep';
 import { runBudget } from '@/lib/history/budget';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { noteRunStarted } from '@/lib/health/vitals';
-import { BSC_TESTNET } from '@/lib/scan/types';
+import { BSC_MAINNET, BSC_TESTNET } from '@/lib/scan/types';
 import { checkForNewHires } from '@/lib/alerts/hires';
 import { alertChannels, sendOperatorAlert } from '@/lib/alerts/operator';
 import { retryStuckDeliveries } from '@/lib/erc8183/delivery-retry';
@@ -63,6 +63,8 @@ export const maxDuration = 300;
 
 /** Testnet probes a shallower roster, so it takes the smaller share. */
 const TESTNET_BUDGET_MS = 45_000;
+/* Discovery's share of a run: a couple of registry pages and a handful of card reads per chain. */
+const DISCOVERY_STEP_MS = 25_000;
 
 /** Held while a sweep runs in this process (there is one machine). */
 let sweepRunning = false;
@@ -610,6 +612,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     const answeredTasks = await budget.step('answeredTasks', () => checkAnsweredTasks());
 
     /*
+     * New registrations (lib/history/discovery.ts): read what was
+     * registered since the last run on each chain, queue what declares A2A
+     * or MCP, and try a few. Optional and late, after everything that
+     * sends someone an alert; a run without time for it says so in the
+     * budget report, and the stored cursor means the next run reads what
+     * this one did not. Bounded by its own deadline so it ends rather than
+     * being abandoned when the step's time is up.
+     */
+    const discovery = await budget.step(
+      'discovery',
+      () => {
+        const deadlineAt = Date.now() + Math.min(DISCOVERY_STEP_MS, budget.remaining()) - 2_000;
+        return mapWithConcurrency([BSC_MAINNET, BSC_TESTNET] as const, 1, (chain) => runDiscovery(chain, { deadlineAt, signal }).catch(() => null));
+      },
+      { maxMs: DISCOVERY_STEP_MS },
+    );
+
+    /*
      * Recover any job Pokter brokered that never reached its own index.
      *
      * The index was written from the browser, so a hire whose wallet
@@ -716,6 +736,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       tradingScan,
       tradingAlerts,
       relayTests,
+      discovery,
       funders,
       healthFactorChecks,
       categoryChecks,
