@@ -6,6 +6,8 @@ import { withPublicEndpoint } from '@/lib/proof/prober';
 import { registryAddress, registryClient, registryTokenUri } from '@/lib/registry/onchain';
 import { registeredServiceEndpoint, registrationFromDataUri } from '@/lib/x402/endpoint';
 
+import { chooseRegisteredWallet } from './registered-wallet';
+
 /**
  * What the ERC-8004 registry itself says about an agent, read when the
  * indexer's copy is missing a field a quote needs.
@@ -58,16 +60,59 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
 }
 
-async function registeredWallet(chainId: number, tokenId: string): Promise<Address | null> {
+/*
+ * The registry's own answer for the agent wallet, kept briefly. It decides
+ * who an escrow job pays, so it is read often and kept for minutes, not the
+ * half hour the endpoint is kept for. `answered: false` is the chain not
+ * answering, which is not the same as the registry naming no wallet.
+ */
+const WALLET_TTL_MS = 2 * 60_000;
+const walletReads = new Map<string, { read: { answered: boolean; wallet: Address | null }; at: number }>();
+
+export async function registeredWalletRead(chainId: number, tokenId: string, now = Date.now()): Promise<{ answered: boolean; wallet: Address | null }> {
+  const key = `${chainId}:${tokenId}`;
+  const known = walletReads.get(key);
+  if (known && known.read.answered && now - known.at < WALLET_TTL_MS) return known.read;
   const client = registryClient(chainId);
   const address = registryAddress(chainId);
-  if (!client || !address) return null;
+  if (!client || !address || !/^\d+$/.test(tokenId)) return { answered: false, wallet: null };
+  let read: { answered: boolean; wallet: Address | null };
   try {
     const wallet = (await client.readContract({ address, abi: AGENT_WALLET_ABI, functionName: 'getAgentWallet', args: [BigInt(tokenId)] })) as Address;
-    return /^0x0{40}$/i.test(wallet) ? null : getAddress(wallet);
+    read = { answered: true, wallet: /^0x0{40}$/i.test(wallet) ? null : getAddress(wallet) };
   } catch {
-    return null;
+    read = { answered: false, wallet: null };
   }
+  if (read.answered) {
+    if (walletReads.size >= CACHE_LIMIT) walletReads.delete(walletReads.keys().next().value as string);
+    walletReads.set(key, { read, at: now });
+  }
+  return read;
+}
+
+async function registeredWallet(chainId: number, tokenId: string): Promise<Address | null> {
+  return (await registeredWalletRead(chainId, tokenId)).wallet;
+}
+
+/**
+ * The wallet an escrow job for this agent pays, and a quote for it must be
+ * signed by: the registry's own `getAgentWallet`, read now.
+ *
+ * Every hire route read the indexer's copy, so a wallet changed on chain
+ * since the indexer last read it was still the one a quote was checked
+ * against and a job paid. The registry answers first. When it names no
+ * wallet, there is none, whatever the copy says. Only when the chain does
+ * not answer is the indexer's copy used, as before, because refusing every
+ * hire while a public node is slow would be worse than the copy it was
+ * using all along. Never the NFT owner, and never a wallet an agent names.
+ */
+export async function registeredAgentWallet(agent: { chain_id: number; token_id: string; agent_wallet?: string | null }): Promise<string | null> {
+  return chooseRegisteredWallet(await registeredWalletRead(agent.chain_id, agent.token_id), agent.agent_wallet);
+}
+
+/** The same agent, with its agent wallet as the registry names it (`registeredAgentWallet`). */
+export async function withRegisteredWallet<T extends { chain_id: number; token_id: string; agent_wallet?: string | null }>(agent: T): Promise<T> {
+  return { ...agent, agent_wallet: await registeredAgentWallet(agent) };
 }
 
 async function registeredA2a(chainId: number, tokenId: string): Promise<string | null> {

@@ -113,7 +113,7 @@ test('preflight passes exactly the skills the requester asks, and names one that
   assert.match(price.detail, /It declares “get_quote”, but Pokter asks for a price only through a skill with the id negotiate/);
 });
 
-test('a missing endpoint or wallet is read from the registration itself, and only a missing one', async () => {
+test('a missing endpoint is read from the registration itself, and the wallet always from the registry', async () => {
   const { registeredServiceEndpoint, x402EndpointFromRegistration } = await import('../src/lib/x402/endpoint');
   const file = { services: [{ name: 'A2A', endpoint: 'https://agent.example/.well-known/agent-card.json' }, { name: 'x402', endpoint: 'https://agent.example/pay' }, { name: 'web', endpoint: 'http://insecure.example' }] };
   assert.equal(registeredServiceEndpoint(file, 'a2a'), 'https://agent.example/.well-known/agent-card.json');
@@ -121,8 +121,8 @@ test('a missing endpoint or wallet is read from the registration itself, and onl
   assert.equal(registeredServiceEndpoint({ endpoints: [{ name: 'a2a', endpoint: 'https://old.example/card' }] }, 'a2a'), 'https://old.example/card', 'the older field name');
   assert.equal(registeredServiceEndpoint({ services: [{ name: 'A2A', endpoint: 'https://user:pw@x.example/' }] }, 'a2a'), null, 'never one carrying credentials');
   const quote = code('lib/erc8183/quote.ts');
-  assert.match(quote, /if \(!endpoint \|\| !agentWallet\) \{\s*const live = await liveAgentFields\(agent\.chain_id, agent\.token_id\);\s*endpoint \?\?= live\.a2aEndpoint/);
-  assert.match(quote, /agentWallet \?\?= live\.agentWallet;/, 'filled only when the index has none, so the quote and the job it funds name one wallet');
+  assert.match(quote, /if \(!endpoint\) endpoint = \(await liveAgentFields\(agent\.chain_id, agent\.token_id\)\)\.a2aEndpoint/);
+  assert.match(quote, /const agentWallet = await registeredAgentWallet\(agent\);/, 'the wallet every hire route pays, so the quote and the job it funds name one wallet');
   assert.match(quote, /expectedProvider: agentWallet,/);
   const live = code('lib/registry/live-agent.ts');
   assert.match(live, /functionName: 'getAgentWallet'/, 'the registry’s own agent wallet');

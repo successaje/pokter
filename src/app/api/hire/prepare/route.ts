@@ -25,6 +25,7 @@ import { requireDecimals } from '@/lib/network/tokens';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
 import { consumeRateLimit, requestClientKey } from '@/lib/security/rate-limit';
+import { withRegisteredWallet } from '@/lib/registry/live-agent';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 40;
@@ -183,8 +184,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const mandateKey = typeof body.requestId === 'string' ? body.requestId.slice(0, 64) : null;
   const uncertainJobId = typeof body.possiblyFundedJobId === 'string' && /^\d{1,18}$/.test(body.possiblyFundedJobId) ? body.possiblyFundedJobId : null;
 
-  const agent = await getAgent(chainId, tokenId).catch(() => null);
-  if (!agent) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+  const indexed = await getAgent(chainId, tokenId).catch(() => null);
+  if (!indexed) return NextResponse.json({ error: 'No such agent.' }, { status: 404 });
+  /* As the registry names its wallet now, as the quote route reads it (`registeredAgentWallet`). */
+  const agent = await withRegisteredWallet(indexed);
 
   /*
    * Where escrow may pay, from the registry record and from nowhere else.

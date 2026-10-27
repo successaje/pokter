@@ -13,6 +13,7 @@ import { noticeSeller } from '@/lib/erc8183/seller-notice';
 import { ALTANA_NETWORK } from '@/lib/altana/client';
 import { getAgent } from '@/lib/scan/client';
 import type { ChainId } from '@/lib/scan/types';
+import { registeredAgentWallet } from '@/lib/registry/live-agent';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -111,8 +112,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   const agent = await getAgent(chainId as ChainId, tokenId).catch(() => null);
   if (!agent) return NextResponse.json({ error: `Could not read agent ${agentKey} from the registry.` }, { status: 404 });
 
-  const provider = (agent.agent_wallet ?? agent.owner_address) as `0x${string}` | undefined;
-  if (!provider) return NextResponse.json({ error: 'The agent publishes no wallet an escrow could pay.' }, { status: 400 });
+  /*
+   * The registry's agent wallet, as every hire route pays (`registeredAgentWallet`).
+   * This fell back to the NFT owner, which is not a wallet the agent signs
+   * or delivers from: a paid check would have funded someone the agent's
+   * runtime never answers for.
+   */
+  const provider = (await registeredAgentWallet(agent)) as `0x${string}` | null;
+  if (!provider) return NextResponse.json({ error: 'The registry names no agent wallet for it, so there is no wallet an escrow may pay.' }, { status: 409 });
 
   // What is already hired, so a re-run tops up rather than paying twice.
   const already = fixtureJobsForAgent({ chainId, tokenId }, suite.id);

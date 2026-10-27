@@ -221,6 +221,7 @@ test('the prepare route calls no spending function, and imports no binding that 
     /* A decision over `network/tokens`, which encodes and sends nothing; walked when added. */
     '@/lib/erc8183/hire-token': ['nonDefaultHireToken'],
     '@/lib/erc8183/store': ['getJobStore'],
+    '@/lib/registry/live-agent': ['withRegisteredWallet'],
     viem: ['parseUnits'],
   };
   for (const [from, names] of Object.entries(allowed)) {
@@ -258,6 +259,8 @@ test('the prepare route calls no spending function, and imports no binding that 
     '@/lib/hire/brief-compiler',
     '@/lib/mcp/agent-card',
     '@/lib/network/tokens',
+    /* Reads the registry's agent wallet: a public client, an https fetch, no signer. Walked when added (18 modules, none spend-capable). */
+    '@/lib/registry/live-agent',
     '@/lib/scan/client',
     '@/lib/scan/types',
     '@/lib/security/rate-limit',

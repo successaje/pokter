@@ -206,7 +206,7 @@ async function negotiateForHire(
   task: string,
   /* The buyer's preferred currency on the escrow chain, sent beside the brief; null to let the agent choose. */
   preference: { escrowChainId: number; token: string | null } | null = null,
-): Promise<PokterJobQuote & { priceU: number; intent: Omit<PurchaseIntent, 'provider'>; request: SkillRequestPreview; preference: QuotePreference | null }> {
+): Promise<PokterJobQuote & { priceU: number; signer: string | null; intent: Omit<PurchaseIntent, 'provider'>; request: SkillRequestPreview; preference: QuotePreference | null }> {
   const response = await fetch('/api/hire/quote', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -233,6 +233,8 @@ async function negotiateForHire(
     domain: { chainId: number; verifyingContract: string } | null;
     anchor?: Record<string, unknown> | null;
     currency: string;
+    /** The registered wallet the route checked the signature against: the one the job must pay. */
+    signer?: string;
   };
   const expiresAt = q.expiresAt ? Math.floor(Date.parse(q.expiresAt) / 1000) : undefined;
   /*
@@ -251,6 +253,7 @@ async function negotiateForHire(
     preference: payload.preference ?? null,
     negotiationHash: q.negotiationHash,
     providerSignature: q.providerSignature,
+    signer: typeof q.signer === 'string' ? q.signer : null,
     anchor: q.anchor ?? undefined,
     priceRaw: q.priceRaw,
     priceU: q.priceU,
@@ -1284,6 +1287,17 @@ export function useHire({
             'terms',
             changed.kind === 'price' ? 'price-changed' : 'terms-changed',
           );
+        }
+        /*
+         * The job pays `providerAddress`, from the page; the quote was
+         * checked against the wallet the registry named when it was asked.
+         * They are read the same way and agree, unless the agent's wallet
+         * changed on chain since this page loaded. Then nothing is funded:
+         * a job paying the old wallet against a quote from the new one is
+         * one neither side could settle.
+         */
+        if (signedQuote.signer && signedQuote.signer.toLowerCase() !== providerAddress.toLowerCase()) {
+          throw new HireFailure(`${agent.name}'s registered wallet has changed since this page loaded. Nothing was funded. Reload the page to hire it at the wallet it registers now.`, 'seller', 'provider-changed', false);
         }
         /*
          * A USDT price funds exactly what was signed, so the $U budget is not
