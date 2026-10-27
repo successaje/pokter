@@ -1,6 +1,7 @@
 import { FooterAssembly } from './FooterAssembly';
 import Link from 'next/link';
 
+import { GUIDES } from '@/lib/guides/catalogue';
 import { SUPPORT_EMAIL } from '@/lib/support/contact';
 import { Mark } from './Logo';
 
@@ -34,6 +35,8 @@ const GROUPS: Array<{ title: string; links: Array<{ href: string; label: string;
   {
     title: 'Resources',
     links: [
+      /* The three starting points first: they are where somebody new, or an assistant reading for them, should land. */
+      ...GUIDES.map((g) => ({ href: g.href, label: g.title })),
       { href: '/how-it-works', label: 'How it works' },
       { href: '/methodology', label: 'Methodology' },
       { href: '/corrections', label: 'Where we were wrong' },
