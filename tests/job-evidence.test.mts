@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { briefIsPublic, FUNDER_LABEL, fundedWhen, jobEvidencePath, jobFunder, jobStatusWords, wasDelivered } from '../src/lib/jobs/evidence-view';
+import { briefIsPublic, BUYER_WALLET, FUNDER_LABEL, fundedWhen, jobEvidencePath, jobFunder, jobStatusWords, publishableAnswerText, wasDelivered } from '../src/lib/jobs/evidence-view';
 
 /*
  * One job as public evidence: what the escrow records and Pokter's check
@@ -25,18 +25,21 @@ test('who funded a job: the team, the agent’s own operator, an outside buyer, 
   for (const funder of ['team', 'self', 'outside', 'unknown'] as const) assert.ok(FUNDER_LABEL[funder]);
 });
 
-test('the brief and the answer are published only for Pokter’s own test jobs', () => {
+test('the agent’s answer is shown for every delivered job; the brief only for Pokter’s own test jobs', () => {
   assert.equal(briefIsPublic('team'), true);
   for (const funder of ['self', 'outside', 'unknown'] as const) assert.equal(briefIsPublic(funder), false, funder);
   const loader = code('lib/jobs/evidence.ts');
   assert.match(loader, /brief: briefIsPublic\(funder\) \? indexed\.task : null/);
-  assert.match(loader, /if \(matchedBy && briefIsPublic\(funder\)\) answer = readDeliveredAnswer\(read\.text\)/, 'and never an answer that fails its own hash');
+  assert.match(loader, /if \(matchedBy\) answer = readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\);/, 'every real delivery, never one that fails its own hash');
+  const view = code('features/delivery/AnswerView.tsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(view, /\.asked\b/, 'the shared answer view never prints the brief');
   const page = code('app/(site)/jobs/[chainId]/[jobId]/page.tsx');
   assert.match(page, /e\.brief !== null \?/);
-  assert.match(page, /What they asked and what came back is theirs, so it is not\s+published here\./);
+  assert.match(page, /so it is not shown here\. What the agent delivered is its own work, and is shown in full\./);
+  assert.match(page, /<DeliveredAnswerView answer=\{e\.answer\}/);
   /* The buyer's address is never shown, as the receipts API never returns it. */
   assert.doesNotMatch(page, /\.client\b/);
-  assert.match(page, /e\.delivery\.url && \(/, 'the delivered record is linked only inside the published branch');
+  assert.match(page, /\{e\.brief !== null && \(e\.delivery\.state === 'matches' \|\| e\.delivery\.state === 'mismatch'\) && e\.delivery\.url && \(/, 'the raw record repeats the brief, so it is linked only when the brief is shown');
 });
 
 test('only jobs Pokter commissioned have a page, read from the escrow, and anything else is a 404', () => {
@@ -74,4 +77,18 @@ test('the page is linked wherever a job is named: receipts, job_status, agent pa
   assert.match(code('features/workspace/JobDetail.tsx'), /<Link href=\{jobEvidencePath\(job\)\}/);
   assert.match(code('app/sitemap.ts'), /\.filter\(\(job\) => wasDelivered\(job\.status\)\)/);
   assert.match(code('app/llms.txt/route.ts'), /\[Job evidence\]\(\$\{base\}\/jobs\/\{chainId\}\/\{jobId\}\)/);
+});
+
+test('an answer is shown in full, with the buyer’s own address taken out unless it is Pokter’s test', () => {
+  const buyer = '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01';
+  const token = '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82';
+  const text = `{"wallet":"${buyer.toLowerCase()}","healthFactor":1.48,"token":"${token}","note":"for ${buyer}"}`;
+  const shown = publishableAnswerText(text, 'outside', buyer);
+  assert.equal(shown, `{"wallet":"${BUYER_WALLET}","healthFactor":1.48,"token":"${token}","note":"for ${BUYER_WALLET}"}`, 'every casing, and nothing else');
+  assert.doesNotThrow(() => JSON.parse(shown), 'still the same JSON');
+  assert.equal(publishableAnswerText(text, 'self', buyer), shown);
+  assert.equal(publishableAnswerText(text, 'team', buyer), text, 'Pokter’s own test shows what it sent');
+  assert.equal(publishableAnswerText(text, 'outside', null), text);
+  /* Applied wherever an answer is shown; the hash is checked on the original bytes. */
+  assert.match(code('lib/jobs/evidence.ts'), /readDeliveredAnswer\(publishableAnswerText\(read\.text, funder, chain\.client\)\)/);
 });

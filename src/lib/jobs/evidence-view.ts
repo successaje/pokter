@@ -87,3 +87,19 @@ export function fundedWhen(hiredAt: string, deliveredAt: string | null): string 
   if (deliveredAt && Date.parse(hiredAt) > Date.parse(deliveredAt)) return `Before it was delivered. Pokter recorded the job later, ${recorded}.`;
   return `${recorded}, as Pokter recorded it`;
 }
+
+/** What a buyer's own address reads as, inside an answer shown for anyone else's job. */
+export const BUYER_WALLET = '[buyer’s wallet]';
+
+/**
+ * A delivered answer as it may be published: the agent's work in full,
+ * with the buyer's own address taken out unless the job is Pokter's own
+ * test. Answers repeat what they were sent — "wallet 0x…, health factor
+ * 1.48" — so withholding the brief alone still tied a wallet to its hire
+ * and its finances, which the receipts API never does. The hash is
+ * checked on the original bytes; this is only what is shown.
+ */
+export function publishableAnswerText(text: string, funder: JobFunder, client: string | null | undefined): string {
+  if (briefIsPublic(funder) || !client || !/^0x[0-9a-fA-F]{40}$/.test(client)) return text;
+  return text.replace(new RegExp(`0x${client.slice(2)}`, 'gi'), BUYER_WALLET);
+}

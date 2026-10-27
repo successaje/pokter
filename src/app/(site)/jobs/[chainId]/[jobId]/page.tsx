@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { cache, type ReactNode } from 'react';
 
 import { Doc, DocSection } from '@/features/content/Doc';
+import { DeliveredAnswerView } from '@/features/delivery/AnswerView';
 import { loadJobEvidence, type JobEvidence } from '@/lib/jobs/evidence';
 import { FUNDER_LABEL, fundedWhen, jobEvidencePath, jobStatusWords, utcWhen } from '@/lib/jobs/evidence-view';
 import { jobChainParam, jobHref } from '@/lib/jobs/href';
@@ -168,28 +169,33 @@ export default async function JobEvidencePage({ params }: { params: Promise<Para
       <DocSection id="work" title="What was asked, and what came back">
         {e.brief !== null ? (
           <>
-            <p className="text-[13.5px] text-ink-3">Published because Pokter’s own team funded this job as a test.</p>
             <p className="font-medium text-ink">The brief</p>
             <p className="whitespace-pre-wrap break-words rounded-[10px] border border-rule bg-sunken p-4 text-[14px]">{e.brief}</p>
-            {e.answer && (e.answer.result || e.answer.title) && (
-              <>
-                <p className="font-medium text-ink">The answer, in the agent’s words</p>
-                <p className="whitespace-pre-wrap break-words rounded-[10px] border border-rule bg-sunken p-4 text-[14px]">{e.answer.result ?? e.answer.title}</p>
-              </>
-            )}
-            {(e.delivery.state === 'matches' || e.delivery.state === 'mismatch') && e.delivery.url && (
-              <p>
-                The full delivered record:{' '}
-                <a href={e.delivery.url} className="link break-all" target="_blank" rel="noreferrer noopener">
-                  {e.delivery.url}
-                </a>
-              </p>
-            )}
+            <p className="text-[13px] text-ink-3">Shown because Pokter’s own team funded this job as a test.</p>
           </>
         ) : (
           <p>
-            {e.funder === 'self' ? 'This job was funded by the agent’s own operator.' : 'This job was funded by an outside buyer.'} What they asked and what came back is theirs, so it is not
-            published here. Everything above is what the escrow records and what Pokter checked.
+            The brief is {e.funder === 'self' ? 'the agent operator’s own' : 'the buyer’s'}, so it is not shown here. What the agent delivered is its own work, and is shown in full.
+          </p>
+        )}
+        {e.answer ? (
+          <div className="flex flex-col gap-4 rounded-[14px] border border-rule bg-raised p-5 text-sm">
+            <DeliveredAnswerView answer={e.answer} chainId={e.chainId} when={(value) => utcWhen(value) ?? value} />
+          </div>
+        ) : (
+          <p className="text-ink-3">
+            {e.delivery.state === 'not-delivered' && 'Nothing has been delivered yet.'}
+            {e.delivery.state === 'chain-unread' && 'The delivery could not be read just now, because the escrow could not be read.'}
+            {e.delivery.state === 'unread' && `The delivery could not be read: ${e.delivery.reason}`}
+            {e.delivery.state === 'mismatch' && 'The delivered record does not match the hash the agent committed on chain, so it is not shown as its answer.'}
+          </p>
+        )}
+        {e.brief !== null && (e.delivery.state === 'matches' || e.delivery.state === 'mismatch') && e.delivery.url && (
+          <p>
+            The full delivered record:{' '}
+            <a href={e.delivery.url} className="link break-all" target="_blank" rel="noreferrer noopener nofollow">
+              {e.delivery.url}
+            </a>
           </p>
         )}
       </DocSection>
