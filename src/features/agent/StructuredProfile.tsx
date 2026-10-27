@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+
+import { jobEvidencePath } from '@/lib/jobs/evidence-view';
 
 import type { Said, StructuredProfile as Structured } from './structured';
 
@@ -89,6 +92,20 @@ export function StructuredProfile({ s, sampleAnchor, onChain }: { s: Structured;
             <a href={`#${sampleAnchor}`} className="font-medium text-ink-2 hover:text-ink hover:underline">
               See the delivery
             </a>
+          </Missing>
+        ) : s.back.delivered > 0 ? (
+          /*
+           * Delivered, but nothing Pokter may show: no sample is not no
+           * delivery. Said as what it is, with the newest delivery's
+           * evidence one click away.
+           */
+          <Missing>
+            No readable sample available. It has delivered {s.back.delivered === 1 ? 'a paid job' : `${s.back.delivered} paid jobs`} through Pokter, but no delivery could be read and matched to its hash on chain just now.{' '}
+            {s.back.latest && (
+              <Link href={jobEvidencePath({ chainId: s.back.latest.chainId, jobId: s.back.latest.jobId })} className="font-medium text-ink-2 hover:text-ink hover:underline">
+                The newest delivery&rsquo;s evidence
+              </Link>
+            )}
           </Missing>
         ) : (
           <Missing>It has not delivered a paid job through Pokter yet, so there is no real sample to show.</Missing>

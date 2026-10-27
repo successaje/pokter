@@ -30,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: null,
-    release: null,
+    date: '2026-10-27',
+    release: 'v559',
     kind: 'added',
     surfaces: ['GET /api/v1/receipts', 'MCP job_status'],
     summary: 'Each job links its public evidence page.',
