@@ -55,14 +55,15 @@ test('storing a price check rebuilds the catalogue on its next read', () => {
   }
 });
 
-test('responses say when they were built, under a name that means it, and the change is recorded unreleased', async () => {
+test('responses say when they were built, under a name that means it, and the change is recorded with its release', async () => {
   assert.match(code('lib/api/v1.ts'), /generatedAt,\s*observedAt: generatedAt,/);
   assert.match(code('app/api/v1/agents/[chainId]/[tokenId]/route.ts'), /generatedAt,\s*observedAt: generatedAt,/);
   assert.match(code('app/api/v1/agents/[chainId]/[tokenId]/route.ts'), /priceCheck: priceCheck/);
   const { API_CHANGES } = await import('../src/lib/api/changes');
   const entry = API_CHANGES[0];
-  assert.equal(entry.date, null);
-  assert.equal(entry.release, null);
+  /* Recorded unreleased with the change, then dated once v562 carried it. */
+  assert.equal(entry.date, '2026-10-27');
+  assert.equal(entry.release, 'v562');
   assert.equal(entry.kind, 'changed');
   assert.match(entry.details.join(' '), /`generatedAt`/);
 });

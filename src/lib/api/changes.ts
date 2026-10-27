@@ -30,8 +30,8 @@ export interface ApiChange {
 
 export const API_CHANGES: ApiChange[] = [
   {
-    date: null,
-    release: null,
+    date: '2026-10-27',
+    release: 'v562',
     kind: 'changed',
     surfaces: ['GET /api/v1/agents/{chainId}/{tokenId}', 'GET /api/v1/agents', 'MCP get_agent'],
     summary: 'A newer failed price check is no longer hidden by an older signed price, and responses say when they were built.',

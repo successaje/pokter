@@ -32,7 +32,7 @@ export interface DiscoverResult {
   /** How a natural-language query was read; null for no query or advanced syntax. */
   reading: (BriefReading & { categoryLabel: string | null; terms: string[]; byName: boolean; byId: boolean }) | null;
   advanced: { unknown: string[] } | null;
-  categoryCounts: Array<{ id: Category; label: string; count: number }>;
+  categoryCounts: Array<{ id: Category | 'unclassified'; label: string; count: number }>;
   /** The newest listings in the catalogue, whatever the current filters are. */
   recent: FindRow[];
   /** Sizes of the curated shortcuts, over everything listed. */
@@ -201,7 +201,16 @@ export async function discover(params: DiscoverParams): Promise<DiscoverResult> 
   const { items: shown, alsoOn } = perAgent(filtered);
 
   const forTasks = perAgent(applying(pool, 'category')).items;
-  const categoryCounts = CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length }));
+  /*
+   * The five, and then the rest when there is any: signed agents in work
+   * Pokter does not evaluate are listed, so the tasks add up to "All tasks"
+   * and a buyer can find them, under a name that claims no evaluation.
+   */
+  const unclassified = forTasks.filter((e) => e.listing.category === 'unclassified').length;
+  const categoryCounts: DiscoverResult['categoryCounts'] = [
+    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: forTasks.filter((e) => e.listing.category === c.id).length })),
+    ...(unclassified > 0 ? [{ id: 'unclassified' as const, label: 'Unclassified', count: unclassified }] : []),
+  ];
 
   const rows = findRows(shown);
   const distinct = (items: SearchableAgent[]) => distinctAgentCount(items.map((e) => e.listing.agent));

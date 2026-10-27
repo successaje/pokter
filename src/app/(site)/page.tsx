@@ -75,8 +75,9 @@ export default async function HomePage() {
       rows: [
         { label: 'Hireable via escrow', value: home.catalogue.hireable },
         { label: 'Signed a price', value: home.catalogue.priced },
+        { label: 'Of those, in a category Pokter evaluates', value: home.catalogue.pricedInCategories },
       ],
-      note: 'Hireable means answering and fundable through escrow: at a signed price, or on testnet at a budget you set. An agent registered on both chains is counted once.',
+      note: 'Hireable means answering and fundable through escrow: at a signed price, or on testnet at a budget you set. An agent registered on both chains is counted once. Agents whose work fits none of the five categories are listed as unclassified: their price is signed, their work is not evaluated.',
     },
     {
       scope: 'Paid work',

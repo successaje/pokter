@@ -11,6 +11,8 @@ const NON_PRODUCTION_MARKERS = [
   'not for production',
   'retired duplicate',
   'deprecated duplicate',
+  /* An identity registered to test a flow, saying so (testnet 1866, "Testing infrastructure for the browser-wallet ERC-8183 spike; not a marketplace agent."). */
+  'not a marketplace agent',
 ];
 
 /**

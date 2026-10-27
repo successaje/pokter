@@ -147,7 +147,7 @@ export interface HomeData {
   activity: { completedJobs: number; answeredJobs: number; demoJobs: number; selfHireJobs: number; completedMainnet: number; teamCompleted: number; indexedJobs: number; activeJobs: number };
   measured: { monitored: number; answering: number };
   /** The same counts Discover's collections show, so the two never disagree. */
-  catalogue: { hireable: number; priced: number };
+  catalogue: { hireable: number; priced: number; pricedInCategories: number };
 }
 
 export async function loadHome(): Promise<HomeData> {
@@ -165,7 +165,8 @@ export async function loadHome(): Promise<HomeData> {
     // it is not featured as hireable now.
     // An agent that lets paid jobs lapse is not featured either, however well
     // it answers probes.
-    .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry))
+    // Nor one outside the five categories: featuring it would imply Pokter evaluated work it does not evaluate.
+    .filter((entry) => isFeaturableAgent(entry.listing.agent) && entry.listing.requiresAuth !== true && !letsJobsLapse(entry) && entry.listing.category !== 'unclassified')
     .map((entry) => byKey.get(`${entry.listing.agent.chain_id}:${entry.listing.agent.token_id}`)!)
     .filter((row) => row.hirable)
     // A signed price first: a row reading "No signed price" asks the buyer to
