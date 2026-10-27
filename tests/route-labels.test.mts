@@ -31,6 +31,7 @@ test('cards, filters and the hire page name the route, and an expired price as t
   assert.match(card, /Why it cannot be hired through escrow yet/);
   const filters = source('src/features/discover/FilterBar.tsx');
   assert.doesNotMatch(filters, /Hireable now/);
+  for (const path of ['src/app/(site)/page.tsx', 'src/app/(site)/set-and-earn/page.tsx']) assert.doesNotMatch(source(path), /'Hireable now'|>Hireable now</, path);
   assert.match(filters, /Hireable via escrow/);
   const flow = source('src/features/hire/HireFlow.tsx');
   assert.match(flow, /`Last signed escrow quote \$\{props\.lastSignedU\}/);
