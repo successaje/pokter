@@ -251,7 +251,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       )}
 
       <div className="mt-8 flex flex-col gap-6">
-        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} collections={result.collections} />
+        <FilterBar p={base} counts={result.categoryCounts} allTasks={result.allTasksCount} filterCounts={result.filterCounts} />
 
         <section aria-label="Results" className="min-w-0">
           {/* The top few that can be hired, asked for a price on these exact words. Only when there are words, and at least two to compare. */}
