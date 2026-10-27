@@ -8,6 +8,7 @@ import { BUDGET_MAX, BUDGET_MIN, useHire, type HireAgent, type ProviderChoice } 
 import { jobAmountLabel } from '@/lib/erc8183/job-amount';
 import { paymentCopy } from '@/lib/hire/payment-copy';
 import { displaySymbol, formatAmount, hireTokenAt, requestToken, tokenIdentity, tokenName } from '@/lib/network/tokens';
+import { currencyChoices, type CurrencyChoices, type CurrencyEvidence } from '@/lib/hire/currency-choice';
 import { FAUCETS, chainLabel, explorerBaseFor } from '@/lib/network/presentation';
 import { jobHref } from '@/lib/jobs/href';
 import { useGasSponsorship } from '@/lib/wallet/sponsor-client';
@@ -69,6 +70,8 @@ export interface HireFlowProps {
   signedQuoteU: number | null;
   /** The currency of the listing's last signed price; names the money before a fresh quote is taken. */
   quoteCurrency?: string | null;
+  /** What Pokter has seen this agent quote or be funded in on this escrow chain: history, offered as such. */
+  currencyEvidence?: CurrencyEvidence[];
   suggestedU: number | null;
   /** The newest signed price, expired. Used as the budget default. */
   lastSignedU?: number | null;
@@ -110,9 +113,11 @@ const EXTERNAL_STEPS: Array<{ id: string; label: string; hint: string }> = [
   { id: 'connecting', label: 'Checking your wallet', hint: 'Making sure the right account and network are selected.' },
   /*
     Only reached when the wallet is short on $U. The step list is the same
-    for everybody, so this sits dormant for a funded wallet rather than
+    for every $U hire, so this sits dormant for a funded wallet rather than
     being conditionally spliced in — a progress list whose length changes
     while it is on screen is worse than one with a step that never lights.
+    A hire in another token never swaps, and its currency is fixed before
+    the list appears, so the step is left out of it.
   */
   { id: 'swapping', label: 'Swapping for the missing $U', hint: 'One prompt. Spends BNB up to the quoted maximum and refunds the rest.' },
   { id: 'creating', label: 'Creating the job', hint: 'Approve in your wallet. This records the job and its terms.' },
@@ -146,6 +151,81 @@ function Progress({ steps, current }: { steps: Array<{ id: string; label: string
         );
       })}
     </ol>
+  );
+}
+
+/*
+ * The currency to ask this agent for, from what Pokter has seen it do here.
+ *
+ * "Agent's default" asks for nothing, and the agent prices in its own money;
+ * asking for $U by name is a different request, kept apart. Currencies seen
+ * before (its last signed quote, jobs funded through Pokter) are offered as
+ * history, never as what it accepts. The rest wait behind "Ask for another
+ * currency", unclaimed either way. One currency known is shown plainly,
+ * without implying it is the only one.
+ */
+function CurrencyChoice({ choices, preferredToken, onChange }: {
+  choices: CurrencyChoices;
+  preferredToken: string | null;
+  onChange: (token: string | null) => void;
+}) {
+  const same = (a: string | null | undefined, b: string | null | undefined) => Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+  const [askOther, setAskOther] = useState(false);
+  /* A currency from the link that Pokter has not seen this agent use is still shown, as asked. */
+  const expanded = askOther || choices.unknown.some((c) => same(c.token.address, preferredToken));
+  const listed = [...choices.seen, ...(expanded ? choices.unknown : [])];
+  const chosen = listed.find((c) => same(c.token.address, preferredToken)) ?? null;
+  const defaultWords = choices.lastSigned
+    ? `Its last signed quote here was in ${tokenName(choices.lastSigned)}. That is provisional: a fresh quote is requested for this brief before anything is paid.`
+    : 'Pokter has not seen it sign a price here; it chooses when it signs a quote for this brief.';
+  const askLink = !expanded && choices.unknown.length > 0 && (
+    <button type="button" onClick={() => setAskOther(true)} className="self-start text-[12.5px] text-ink-2 underline underline-offset-2">
+      Ask for another currency
+    </button>
+  );
+
+  if (listed.length <= 1 && !chosen) {
+    /* One currency known, or none: said plainly, as what was seen, never as the only one it takes. */
+    const known = choices.seen[0];
+    return (
+      <div className="flex flex-col gap-1.5" role="group" aria-label="Currency to ask for">
+        <span className="text-[13px] text-ink-2">Currency: the agent’s default{known ? `, seen in ${tokenName(known.token)}` : ''}</span>
+        <span className="text-[12px] text-ink-3">
+          {known
+            ? `${tokenName(known.token)}: ${known.seen}. That is history, not a promise; a fresh quote is requested for this brief, and the agent may answer in its own currency.`
+            : defaultWords}
+        </span>
+        {askLink}
+      </div>
+    );
+  }
+
+  const pill = (on: boolean) => cn('rounded-full border px-3 py-1 text-[13px]', on ? 'border-ink bg-ink text-raised' : 'border-rule-strong text-ink-2');
+  return (
+    <div className="flex flex-col gap-1.5" role="group" aria-label="Currency to ask for">
+      <span className="text-[13px] text-ink-2">Ask the agent to price in</span>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" aria-pressed={preferredToken === null} onClick={() => onChange(null)} className={pill(preferredToken === null)}>
+          Agent’s default
+        </button>
+        {listed.map((c) => (
+          <button key={c.token.address} type="button" aria-pressed={same(c.token.address, preferredToken)} onClick={() => onChange(c.token.address)} className={pill(same(c.token.address, preferredToken))}>
+            {tokenName(c.token)}
+          </button>
+        ))}
+      </div>
+      <span className="text-[12px] text-ink-3">
+        {!chosen
+          ? `The agent prices in its own currency. ${defaultWords}`
+          : /* The asked-for money in full: name, chain, contract, and what it is not. */
+            `Asking for ${tokenIdentity(chosen.token)}${chosen.token.disclosure ? ` (${chosen.token.disclosure})` : ''}. ${
+              chosen.seen
+                ? `Seen before: ${chosen.seen}. That is history, not a promise.`
+                : 'Pokter has not seen this agent price in it.'
+            } A fresh quote is requested; the agent may answer in another currency, or not at all. You see its price, in its money, before anything is paid.`}
+      </span>
+      {askLink}
+    </div>
   );
 }
 
@@ -421,7 +501,7 @@ export function HireFlow(props: HireFlowProps) {
           </div>
           <div className="rounded-[14px] border border-rule bg-raised p-5">
             {hire.active.mode === 'external' ? (
-              <Progress steps={[{ id: 'quote', label: 'Getting the agent’s signed quote', hint: 'The price for this exact task, signed by its wallet.' }, ...EXTERNAL_STEPS]} current={hire.externalStep ?? 'quote'} />
+              <Progress steps={[{ id: 'quote', label: 'Getting the agent’s signed quote', hint: 'The price for this exact task, signed by its wallet.' }, ...(hire.hireToken ? EXTERNAL_STEPS.filter((s) => s.id !== 'swapping') : EXTERNAL_STEPS)]} current={hire.externalStep ?? 'quote'} />
             ) : (
               <Progress steps={passkeySteps} current={passkeyCurrent} />
             )}
@@ -527,33 +607,11 @@ export function HireFlow(props: HireFlowProps) {
               the agent signs in what it accepts, and that is what is funded.
             */}
             {hire.currencyOptions.length > 1 && hire.provider?.relationship === 'registry-agent' && !proposalHere && (
-              <div className="flex flex-col gap-1.5" role="group" aria-label="Currency to ask for">
-                <span className="text-[13px] text-ink-2">Ask the agent to price in</span>
-                <div className="flex flex-wrap gap-2">
-                  {hire.currencyOptions.map((option) => {
-                    const on = (hire.preferredToken ?? hire.currencyOptions[0].address).toLowerCase() === option.address.toLowerCase();
-                    return (
-                      <button
-                        key={option.address}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => hire.setPreferredToken(option.offered ? null : option.address)}
-                        className={cn('rounded-full border px-3 py-1 text-[13px]', on ? 'border-ink bg-ink text-raised' : 'border-rule-strong text-ink-2')}
-                      >
-                        {tokenName(option)}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="text-[12px] text-ink-3">
-                  {(() => {
-                    const chosen = hire.currencyOptions.find((o) => o.address.toLowerCase() === (hire.preferredToken ?? '').toLowerCase());
-                    /* The chosen money in full: name, chain, contract, and what it is not. */
-                    const note = chosen && !chosen.offered ? ` Asking for ${tokenIdentity(chosen)}${chosen.disclosure ? ` (${chosen.disclosure})` : ''}.` : '';
-                    return `The agent may sign in a different currency it accepts; you see the signed price, in its money, before anything is paid.${note}`;
-                  })()}
-                </span>
-              </div>
+              <CurrencyChoice
+                choices={currencyChoices(escrowChainId, hire.currencyOptions, props.currencyEvidence ?? [])}
+                preferredToken={hire.preferredToken}
+                onChange={hire.setPreferredToken}
+              />
             )}
           </div>
 
@@ -1045,9 +1103,28 @@ export function HireFlow(props: HireFlowProps) {
             </div>
             </>
             )}
-            {/* The agent was asked for one currency and signed in another: its price, in its money, is what would be funded. */}
-            {hire.reviewQuote && hire.quotePreference?.honoured === false && hire.quotePreference.note && (
-              <Notice tone="watch" title="The agent priced in a different currency">{hire.quotePreference.note}</Notice>
+            {/*
+              The agent was asked for one currency and signed in another. Its
+              price, in its money, is what would be funded, and only once the
+              buyer says so: nothing is converted or relabelled.
+            */}
+            {hire.currencyMismatch && (
+              <Notice
+                tone="watch"
+                title="The agent quoted in another currency"
+                action={
+                  <>
+                    {hire.currencyConfirmed ? (
+                      <span className="self-center text-[12.5px] text-ink-2">Continuing with {hire.currencyMismatch.quoted}.</span>
+                    ) : (
+                      <Button size="s" onClick={hire.confirmQuotedCurrency}>{`Continue with ${hire.currencyMismatch.quoted}`}</Button>
+                    )}
+                    <Button size="s" intent="ghost" onClick={() => setStep('describe')} icon={<Icon.ChevronLeft size={14} />}>Back</Button>
+                  </>
+                }
+              >
+                You requested {hire.currencyMismatch.requested}; the agent quoted {hire.currencyMismatch.quoted}.
+              </Notice>
             )}
             <p className="text-[12.5px] text-ink-3">
               {hire.hireTokenError
@@ -1139,7 +1216,7 @@ export function HireFlow(props: HireFlowProps) {
             </Button>
           </div>
           {/* Said where the notices above do not already say it. */}
-          {hire.fundBlock && hire.fundBlock.code !== 'request-changed' && hire.fundBlock.code !== 'check-unverified' && (
+          {hire.fundBlock && hire.fundBlock.code !== 'request-changed' && hire.fundBlock.code !== 'check-unverified' && hire.fundBlock.code !== 'currency-not-confirmed' && (
             <p className="-mt-4 text-right text-[12.5px] text-ink-3">{hire.fundBlock.message}</p>
           )}
         </div>

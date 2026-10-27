@@ -48,6 +48,7 @@ import type { SkillRequestPreview } from '@/lib/erc8183/skill-request';
 import { materialBriefChange, type BriefAnswers, type CompiledBrief, type MissingInput } from '@/lib/hire/brief-compiler';
 import { taskFields } from '@/lib/hire/task-fields';
 import { checkFromFailure, checkFromPreflight, covers, fundingBlock, type BriefCheck, type HireBinding } from '@/lib/hire/brief-check';
+import { currencyMismatch } from './currency-choice';
 import { withWalletPlaceholder } from './example-chips';
 
 /**
@@ -550,6 +551,12 @@ export function useHire({
   const [preferredToken, setPreferredTokenState] = useState<string | null>(
     proposal?.paymentToken ?? offeredTokens(escrowChainId).find((t) => initialCurrency && t.address.toLowerCase() === initialCurrency.toLowerCase())?.address ?? null,
   );
+  /*
+   * The quote whose currency the buyer agreed to after asking for another
+   * one, by its negotiation hash. Bound to that one signed quote: a new
+   * quote, or a new request, has to be agreed to again.
+   */
+  const [currencyConfirmedFor, setCurrencyConfirmedFor] = useState<string | null>(null);
   /*
    * A funding attempt from this wallet that has not resolved: read from the
    * journal on load, set when a hire ends without a definite answer. While it
@@ -1074,14 +1081,31 @@ export function useHire({
   const unverifiedOverride = covers(overrideFor, bindingFor(outboundTask));
   const setUnverifiedOverride = (on: boolean) => setOverrideFor(on ? bindingFor(outboundTask) : null);
   /** Why this hire cannot be funded yet; the same answer the button and `commission` give. */
-  const fundBlock = fundingBlock({
-    compiled,
-    confirmed: Boolean(approvedRequest),
-    changed: requestChanged,
-    check: reviewCheck,
-    overridden: unverifiedOverride,
-    agentName: agent.name,
-  });
+  /*
+   * Asked for one currency, signed in another. The agent's price stands, in
+   * its own money, and is never converted; it is only funded once the buyer
+   * has said to continue in it. Asking for nothing (the agent's default) is
+   * never a mismatch.
+   */
+  const quotedCurrencyMismatch = reviewQuote
+    ? currencyMismatch(escrowChainId, preferredToken, { currency: reviewQuote.intent.currency, amountRaw: reviewQuote.intent.amountRaw })
+    : null;
+  const currencyConfirmed = !quotedCurrencyMismatch || currencyConfirmedFor === reviewQuote?.negotiationHash;
+  const fundBlock =
+    fundingBlock({
+      compiled,
+      confirmed: Boolean(approvedRequest),
+      changed: requestChanged,
+      check: reviewCheck,
+      overridden: unverifiedOverride,
+      agentName: agent.name,
+    }) ??
+    (quotedCurrencyMismatch && !currencyConfirmed
+      ? {
+          code: 'currency-not-confirmed',
+          message: `You requested ${quotedCurrencyMismatch.requested}; the agent quoted ${quotedCurrencyMismatch.quoted}. Continue with ${quotedCurrencyMismatch.quoted}, or go back and ask again.`,
+        }
+      : null);
   const quoteLive = (quote: Awaited<ReturnType<typeof negotiateForHire>> | null) => Boolean(quote && (!quote.expiresAt || quote.expiresAt * 1000 > Date.now() + 60_000));
 
   const commission = async () => {
@@ -1869,6 +1893,10 @@ export function useHire({
     },
     currencyOptions: offeredTokens(escrowChainId),
     quotePreference: preQuote?.quote.preference ?? null,
+    /** The agent signed in another currency than the one asked for, and whether the buyer agreed to continue in it. */
+    currencyMismatch: quotedCurrencyMismatch,
+    currencyConfirmed,
+    confirmQuotedCurrency: () => setCurrencyConfirmedFor(reviewQuote?.negotiationHash ?? null),
     /** An unresolved funding attempt from this wallet, and what the chain said about it last. */
     pendingAttempt,
     reconcileNote,

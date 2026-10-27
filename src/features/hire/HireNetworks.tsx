@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { recallBrief } from '@/lib/hire/brief-memory';
+import type { CurrencyEvidence } from '@/lib/hire/currency-choice';
 import type { ProviderChoice } from '@/lib/hire/useHire';
 import { deliversItself } from './delivery';
 import { HireFlow, type HireFlowProps } from './HireFlow';
@@ -17,6 +18,8 @@ export interface HireNetwork {
   lastSignedU: number | null;
   /** The currency of the listing's last signed price, so the page can name its money before a fresh quote. */
   quoteCurrency?: string | null;
+  /** The currencies Pokter has seen this agent quote or be funded in, on this network. */
+  currencyEvidence?: CurrencyEvidence[];
   suggestedU: number | null;
   warnings: string[];
   /** The agent's own registration on this chain, hired there instead of through Pokter's relay. */
@@ -74,6 +77,7 @@ export function HireNetworks({ networks, initialChainId, initialTask, ...shared 
       signedQuoteU={current.signedQuoteU}
       lastSignedU={current.lastSignedU}
       quoteCurrency={current.quoteCurrency ?? null}
+      currencyEvidence={current.currencyEvidence ?? []}
       suggestedU={current.suggestedU}
       warnings={current.warnings}
       escrowOptions={networks.map((n) => n.chainId)}

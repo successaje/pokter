@@ -6,6 +6,8 @@ import { getBriefStore } from '@/lib/briefs/store';
 import { isCampaignLive } from '@/lib/campaign/window';
 import { jobChainParam } from '@/lib/jobs/href';
 import { requestToken } from '@/lib/network/tokens';
+import { getJobStore } from '@/lib/erc8183/store';
+import { currencyEvidence } from '@/lib/hire/currency-choice';
 import { loadProfile } from '@/features/agent/profile';
 import { deliversItself } from '@/features/hire/delivery';
 import { HireNetworks, type HireNetwork } from '@/features/hire/HireNetworks';
@@ -84,6 +86,8 @@ export async function HireContents({
       .filter((option) => option !== p.escrow.chainId)
       .map((option) => loadProfile(chainId as ChainId, tokenId, { escrow: option })),
   );
+  /* Every job funded through Pokter for this agent, once; each network reads its own chain's. */
+  const agentJobs = getJobStore().byAgent(chainId, tokenId);
   const networks = [p, ...others.flatMap((r) => (r.state === 'ok' && r.profile.escrow.chainId !== p.escrow.chainId ? [r.profile] : []))]
     .sort((a, b) => p.escrowOptions.indexOf(a.escrow.chainId) - p.escrowOptions.indexOf(b.escrow.chainId))
     .map((profile) => ({
@@ -93,6 +97,12 @@ export async function HireContents({
       signedQuoteU: profile.quote && profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
       lastSignedU: profile.quote && !profile.quote.current && profile.quote.payable !== false ? profile.quote.priceU : null,
       quoteCurrency: profile.quote?.currency ?? null,
+      /* What Pokter has seen this agent price or be funded in, on this escrow chain only. */
+      currencyEvidence: currencyEvidence({
+        escrowChainId: profile.escrow.chainId,
+        quote: profile.quote ? { currency: profile.quote.currency, settlementChainId: profile.quote.settlementChainId } : null,
+        jobs: agentJobs,
+      }),
       suggestedU: profile.suggestion?.u ?? null,
       warnings: profile.warnings,
     }));
