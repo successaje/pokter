@@ -360,8 +360,10 @@ function moneyOf(job: HiredJob): string {
  * @param staged Deliverable text an assistant wrote down for a job, keyed
  * `chainId:jobId`. It pre-fills the composer so the provider reviews and
  * signs rather than retyping; it is never a delivery by itself.
+ * @param empty What to say instead when there are no jobs to show, where
+ * the default ("No commissioned work yet") would not be true.
  */
-export function DeliveryInbox({ jobs, staged = {} }: { jobs: HiredJob[]; staged?: Record<string, string> }) {
+export function DeliveryInbox({ jobs, staged = {}, empty }: { jobs: HiredJob[]; staged?: Record<string, string>; empty?: React.ReactNode }) {
   const { address, isConnected, chain } = useAccount();
   const { openConnect } = useConnect();
   const { switchChain, isPending: switching } = useLiveSwitchChain();
@@ -373,6 +375,7 @@ export function DeliveryInbox({ jobs, staged = {} }: { jobs: HiredJob[]; staged?
   const ordered = [...jobs].sort((a, b) => order(a) - order(b));
 
   if (ordered.length === 0) {
+    if (empty) return empty;
     return <EmptyState title="No commissioned work yet">Jobs appear here when a buyer funds escrow for one of your agents. Agents with a live delivery endpoint receive them automatically.</EmptyState>;
   }
   return (
@@ -383,23 +386,30 @@ export function DeliveryInbox({ jobs, staged = {} }: { jobs: HiredJob[]; staged?
         const wrongChain = wrongChainFor(job);
         return (
           <li key={job.id} className="flex flex-col gap-3 py-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {job.agentName} <span className="t-readout font-normal text-ink-3">#{job.jobId}</span>
-                </p>
-                <p className="line-clamp-2 text-[13px] text-ink-2">{job.task}</p>
-                {/* Which network, real or test money, the deadline, and the job itself: a row is no longer just a number. */}
-                <p className="mt-1 flex flex-wrap gap-x-2 text-[12px] text-ink-3">
-                  <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>{chainLabel(job.chainId)} · {moneyOf(job)}</span>
-                  {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <span>· deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</span>}
-                  <Link href={jobHref(job)} className="font-medium text-ink-2 hover:text-ink hover:underline">· View job</Link>
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className={cn('text-[13px] font-medium', s.tone)}>{s.label}</span>
-                <span className="t-readout text-[12.5px] text-ink-3">{amountOf(job)}</span>
-              </div>
+            {/*
+              Two columns that never wrap into each other: what the job is on
+              the left, where it stands on the right. As a wrapping row, a
+              long brief pushed the status and amount under it, to the left,
+              so every row with a real brief was laid out differently from
+              every row without one. The brief is one line; the job page has
+              all of it, and the name is the way there.
+            */}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-1">
+              <Link href={jobHref(job)} className="truncate text-sm font-medium hover:underline">
+                {job.agentName} <span className="t-readout font-normal text-ink-3">#{job.jobId}</span>
+              </Link>
+              <span className={cn('text-right text-[13px] font-medium', s.tone)}>{s.label}</span>
+              <p className="truncate text-[13px] text-ink-2" title={job.task}>
+                {job.task}
+              </p>
+              <span className="t-readout text-right text-[12.5px] text-ink-2">{amountOf(job)}</span>
+              {/* Which network, real or test money, and while it is open, the deadline. */}
+              <p className="col-span-2 text-[12px] text-ink-3">
+                <span className={job.chainId === 56 ? 'font-medium text-ink-2' : undefined}>
+                  {chainLabel(job.chainId)} · {moneyOf(job)}
+                </span>
+                {job.expiredAt && (job.status === 'FUNDED' || job.status === 'SUBMITTED') && <> · deadline {new Date(job.expiredAt).toUTCString().slice(5, 22)} UTC</>}
+              </p>
             </div>
             {job.status === 'SUBMITTED' && isProvider && !wrongChain && <Collect job={job} account={connected!} />}
             {job.status === 'SUBMITTED' && isProvider && wrongChain && (
