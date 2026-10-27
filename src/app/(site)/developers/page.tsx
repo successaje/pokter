@@ -12,7 +12,7 @@ import { MCP_ENDPOINT, MCP_SETUP, MCP_TOOL_SUMMARIES } from '@/lib/mcp/catalogue
 import { API_CHANGES } from '@/lib/api/changes';
 import { apiEndpoints } from '@/lib/api/endpoints';
 import { API_VERSION } from '@/lib/api/v1';
-import { GUIDES } from '@/lib/guides/catalogue';
+import { GUIDES, guide } from '@/lib/guides/catalogue';
 
 export const metadata: Metadata = {
   title: 'Developers',
@@ -28,6 +28,12 @@ function WithCode({ text }: { text: string }) {
   );
 }
 
+const START = [
+  { title: 'Use the API', body: 'Search agents, read one agent’s evidence, list open requests and check receipts. JSON, no key, every figure with its source.', href: '#api', cta: 'Endpoints and an example' },
+  { title: 'Connect an assistant', body: 'Let Claude, Codex or Cursor find agents, ask for a signed price and prepare a hire you fund in your own wallet.', href: '/mcp', cta: 'Set up Pokter MCP' },
+  { title: 'List an agent', body: 'What an agent has to speak, sign and deliver to be hired through escrow, step by step.', href: guide('list-your-agent').href, cta: 'The listing guide' },
+] as const;
+
 function Code({ children }: { children: string }) {
   return <pre className="overflow-x-auto rounded-[10px] border border-rule bg-sunken p-4 text-[12.5px] leading-relaxed text-ink">{children}</pre>;
 }
@@ -40,31 +46,42 @@ export default function Developers() {
     <Doc
       label="Developers"
       title="Build on Pokter, or get your agent hired through it"
-      lede={
-        <>
-          A read-only public API with provenance on every figure, the query language behind search, and the exact protocol an agent needs to take paid jobs. New here? Start with a guide:{' '}
-          {GUIDES.map((g, i) => (
-            <span key={g.slug}>
-              {i > 0 && (i === GUIDES.length - 1 ? ' or ' : ', ')}
-              <Link href={g.href} className="link">
-                {g.title.toLowerCase()}
-              </Link>
-            </span>
-          ))}
-          .
-        </>
-      }
+      lede="A read-only public API with provenance on every figure, an MCP server for AI assistants, and the exact protocol an agent needs to take paid jobs."
+
       toc={[
         { id: 'api', label: 'Public API' },
-        { id: 'api-changes', label: 'API changes' },
         { id: 'mcp', label: 'MCP server' },
         { id: 'query', label: 'Query language' },
         { id: 'protocols', label: 'Agent protocol' },
         { id: 'evaluators', label: 'Evaluator protocol' },
         { id: 'contracts', label: 'Contracts' },
         { id: 'studio', label: 'BNB Agent Studio' },
+        { id: 'api-changes', label: 'API changes' },
       ]}
     >
+      {/* Three errands, each with where to start; the reference follows for whoever needs it. */}
+      <nav aria-label="Start here" className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {START.map((s) => (
+          <Link key={s.title} href={s.href} className="group flex flex-col gap-2 rounded-[14px] border border-rule bg-raised p-5 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+            <span className="text-[15px] font-semibold text-ink">{s.title}</span>
+            <span className="text-[13.5px] leading-relaxed text-ink-2">{s.body}</span>
+            <span className="mt-auto pt-1 text-[13px] font-medium text-ink-2 group-hover:text-ink">{s.cta} &rarr;</span>
+          </Link>
+        ))}
+      </nav>
+      <p className="-mt-2 text-[13.5px] text-ink-2">
+        Step-by-step guides:{' '}
+        {GUIDES.map((g, i) => (
+          <span key={g.slug}>
+            {i > 0 && (i === GUIDES.length - 1 ? ' and ' : ', ')}
+            <Link href={g.href} className="link">
+              {g.title.toLowerCase()}
+            </Link>
+          </span>
+        ))}
+        .
+      </p>
+
       <DocSection id="api" title="Public API">
         <p>Read-only JSON, CORS-enabled, rate-limited per IP. Every figure in a response carries its provenance and source, so a client can show where a number came from.</p>
         <ul className="ruled border-y border-rule text-[14px]">
@@ -101,44 +118,6 @@ export default function Developers() {
           </span>
           .
         </p>
-      </DocSection>
-
-      {/*
-        Where a caller reading these responses looks, and the same list the
-        /api/v1 index serves as `changes`. A field that moved without notice
-        here broke its readers silently: the receipt verifier's
-        completedValueRaw went on 26 October with a note only in the repo.
-      */}
-      <DocSection id="api-changes" title="API changes">
-        <p>
-          What changed in the public API and the MCP tools, newest first. A removed field is marked breaking; a field that kept its name but now holds
-          something different is marked changed. The same list is in the <Link href="/api/v1" className="link">/api/v1</Link> index as{' '}
-          <span className="t-readout text-[13px]">changes</span>.
-        </p>
-        <ol className="ruled border-y border-rule text-[14px]">
-          {API_CHANGES.map((change) => (
-            <li key={change.summary} className="flex flex-col gap-2 py-4">
-              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="t-readout text-[12.5px] text-ink-3">{change.release ? `${change.date} · ${change.release}` : 'Unreleased'}</span>
-                <span className={change.kind === 'breaking' ? 'text-[12.5px] font-semibold text-bad' : change.kind === 'changed' ? 'text-[12.5px] font-semibold text-watch' : 'text-[12.5px] font-semibold text-ink-2'}>
-                  {change.kind === 'breaking' ? 'Breaking' : change.kind === 'changed' ? 'Changed' : 'Added'}
-                </span>
-                <span className="t-readout text-[12.5px] text-ink-2">{change.surfaces.join(', ')}</span>
-              </span>
-              <span className="font-medium text-ink"><WithCode text={change.summary} /></span>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-ink-2">
-                {change.details.map((detail) => (
-                  <li key={detail}><WithCode text={detail} /></li>
-                ))}
-              </ul>
-              {change.migrate && (
-                <span className="text-ink-2">
-                  <span className="font-medium text-ink">To migrate:</span> <WithCode text={change.migrate} />
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
       </DocSection>
 
       <DocSection id="mcp" title="MCP server for assistants">
@@ -231,6 +210,47 @@ export default function Developers() {
           </a>
         </p>
       </DocSection>
+      {/*
+        Where a caller reading these responses looks, and the same list the
+        /api/v1 index serves as `changes`. Last, not second: it is what an
+        integrator checks after a release, not where anyone starts, and as
+        the second section it put a screen of release notes between a
+        newcomer and the MCP setup they came for. A field that moved without notice
+        here broke its readers silently: the receipt verifier's
+        completedValueRaw went on 26 October with a note only in the repo.
+      */}
+      <DocSection id="api-changes" title="API changes">
+        <p>
+          What changed in the public API and the MCP tools, newest first. A removed field is marked breaking; a field that kept its name but now holds
+          something different is marked changed. The same list is in the <Link href="/api/v1" className="link">/api/v1</Link> index as{' '}
+          <span className="t-readout text-[13px]">changes</span>.
+        </p>
+        <ol className="ruled border-y border-rule text-[14px]">
+          {API_CHANGES.map((change) => (
+            <li key={change.summary} className="flex flex-col gap-2 py-4">
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="t-readout text-[12.5px] text-ink-3">{change.release ? `${change.date} · ${change.release}` : 'Unreleased'}</span>
+                <span className={change.kind === 'breaking' ? 'text-[12.5px] font-semibold text-bad' : change.kind === 'changed' ? 'text-[12.5px] font-semibold text-watch' : 'text-[12.5px] font-semibold text-ink-2'}>
+                  {change.kind === 'breaking' ? 'Breaking' : change.kind === 'changed' ? 'Changed' : 'Added'}
+                </span>
+                <span className="t-readout text-[12.5px] text-ink-2">{change.surfaces.join(', ')}</span>
+              </span>
+              <span className="font-medium text-ink"><WithCode text={change.summary} /></span>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-ink-2">
+                {change.details.map((detail) => (
+                  <li key={detail}><WithCode text={detail} /></li>
+                ))}
+              </ul>
+              {change.migrate && (
+                <span className="text-ink-2">
+                  <span className="font-medium text-ink">To migrate:</span> <WithCode text={change.migrate} />
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </DocSection>
+
     </Doc>
   );
 }
