@@ -115,33 +115,51 @@ function BestMark() {
   );
 }
 
+/**
+ * The agents being compared stay in view while the measures scroll under
+ * them: at the top of the page, under the site header (the page sets
+ * `--compare-top`), or at the top of the sheet. Scrolled past the first
+ * rows, the columns were nameless and the only way to tell them apart was
+ * to scroll back up.
+ *
+ * The table needs 40rem. It is chosen by the room it has, not by the
+ * screen: the sheet is narrower than the page, and a table scrolling
+ * sideways inside it cannot keep a sticky header (a horizontal scroller
+ * is also a vertical one for `position: sticky`). With less room, each
+ * measure is a card that names every agent in it.
+ */
 export function CompareView({ items, images }: { items: readonly Comparison[]; images: readonly (string | null)[] }) {
+  const key = (c: Comparison) => `${c.agent.chain_id}:${c.agent.token_id}`;
   return (
-    <>
-          {/* Wide screens: a table with sticky row labels. */}
-          <div className="hidden overflow-x-auto rounded-[16px] border border-rule md:block">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+    <div className="@container">
+          {/*
+            Separate borders, so each line belongs to its cell and moves
+            with the header when it sticks; `overflow-clip` rounds the
+            corners without becoming a scroller the header would stick to.
+          */}
+          <div className="hidden overflow-clip rounded-[16px] border border-rule @[40rem]:block">
+            <table className="w-full border-separate border-spacing-0 text-left text-sm">
               <thead>
-                <tr className="bg-raised">
-                  <th scope="col" className="w-44 p-4 align-bottom text-ink-3">
+                <tr>
+                  <th scope="col" className="sticky top-[var(--compare-top,0px)] z-10 w-44 border-b border-rule bg-raised px-4 py-3 text-ink-3">
                     <span className="sr-only">Measure</span>
                   </th>
                   {items.map((c, i) => (
-                    <th key={`${c.agent.chain_id}:${c.agent.token_id}`} scope="col" className="border-l border-rule p-4 text-center align-top font-normal">
-                      <Link href={`/agents/${c.agent.chain_id}/${c.agent.token_id}`} className="flex flex-col items-center gap-2 hover:underline">
-                        <AgentAvatar name={c.agent.name} imageUrl={images[i]} seed={`${c.agent.chain_id}:${c.agent.token_id}`} size={40} />
-                        <span className="font-semibold">{c.agent.name}</span>
+                    <th key={key(c)} scope="col" className="sticky top-[var(--compare-top,0px)] z-10 border-b border-l border-rule bg-raised px-3 py-3 text-center align-middle font-normal">
+                      <Link href={`/agents/${c.agent.chain_id}/${c.agent.token_id}`} className="mx-auto flex max-w-full items-center justify-center gap-2 hover:underline">
+                        <AgentAvatar name={c.agent.name} imageUrl={images[i]} seed={key(c)} size={28} />
+                        <span className="truncate font-semibold">{c.agent.name}</span>
                       </Link>
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="[&>tr+tr>*]:border-t [&>tr+tr>*]:border-rule">
                 {ROWS.map((row) => {
                   const differs = row.raw ? new Set(items.map(row.raw)).size > 1 : false;
                   const best = bestOf(row, items);
                   return (
-                    <tr key={row.label} className="border-t border-rule">
+                    <tr key={row.label}>
                       <th scope="row" className="bg-raised/60 p-4 align-middle font-medium">
                         <span className="flex items-center gap-2">
                           {row.label}
@@ -150,7 +168,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                         {row.hint && <span className="block text-[12px] font-normal text-ink-3">{row.hint}</span>}
                       </th>
                       {items.map((c, i) => (
-                        <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('border-l border-rule p-4 text-center align-middle text-ink-2', best.has(i) && 'bg-ok-wash/70 text-ink')}>
+                        <td key={key(c)} className={cn('border-l border-rule p-4 text-center align-middle text-ink-2', best.has(i) && 'bg-ok-wash/70 text-ink')}>
                           {row.value(c, items)}
                           {best.has(i) && <BestMark />}
                         </td>
@@ -158,10 +176,13 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                     </tr>
                   );
                 })}
-                <tr className="border-t border-rule">
-                  <th scope="row" className="bg-raised/60 p-4" />
+                {/* Hire after the evidence, where the reader has finished reading it; the pinned row stays just the names. */}
+                <tr>
+                  <th scope="row" className="bg-raised/60 p-4">
+                    <span className="sr-only">Hire</span>
+                  </th>
                   {items.map((c) => (
-                    <td key={`${c.agent.chain_id}:${c.agent.token_id}`} className="border-l border-rule p-4 text-center">
+                    <td key={key(c)} className="border-l border-rule p-4 text-center">
                       <LinkButton href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s">
                         Hire
                       </LinkButton>
@@ -172,8 +193,8 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
             </table>
           </div>
 
-          {/* Phones: one card per measure, agents stacked inside it. */}
-          <div className="flex flex-col gap-4 md:hidden">
+          {/* Less room: one card per measure, agents stacked inside it. */}
+          <div className="flex flex-col gap-4 @[40rem]:hidden">
             {ROWS.map((row) => {
               const best = bestOf(row, items);
               return (
@@ -181,7 +202,7 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                   <h2 className="t-label mb-2">{row.label}</h2>
                   <dl className="ruled">
                     {items.map((c, i) => (
-                      <div key={`${c.agent.chain_id}:${c.agent.token_id}`} className={cn('flex items-center justify-between gap-3 py-2 text-[13.5px]', best.has(i) && '-mx-2 rounded-[8px] bg-ok-wash/70 px-2')}>
+                      <div key={key(c)} className={cn('flex items-center justify-between gap-3 py-2 text-[13.5px]', best.has(i) && '-mx-2 rounded-[8px] bg-ok-wash/70 px-2')}>
                         <dt className="truncate font-medium">{c.agent.name}</dt>
                         <dd className="shrink-0 text-right text-ink-2">
                           {row.value(c, items)}
@@ -193,8 +214,15 @@ export function CompareView({ items, images }: { items: readonly Comparison[]; i
                 </section>
               );
             })}
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 2)}, minmax(0, 1fr))` }}>
+              {items.map((c) => (
+                <LinkButton key={key(c)} href={`/hire/${c.agent.chain_id}/${c.agent.token_id}`} size="s" intent="secondary" className="min-w-0">
+                  <span className="truncate">Hire {c.agent.name}</span>
+                </LinkButton>
+              ))}
+            </div>
           </div>
           <p className="mt-6 text-[12.5px] text-ink-3">The marker beside a row label means the agents differ on it. <span className="font-medium text-ok">Best</span> marks the leader on that one measure where a fair comparison exists, not an overall winner. Absent data is shown as absent, never as zero.</p>
-    </>
+    </div>
   );
 }

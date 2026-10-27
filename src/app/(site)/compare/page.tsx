@@ -16,7 +16,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   const { items, images } = await loadComparison((await searchParams).agents);
 
   return (
-    <div className="frame pb-24 pt-10 sm:pt-14">
+    /* The agents' row sticks under the site header, which is 56px and a rule once the page has scrolled. */
+    <div className="frame pb-24 pt-10 [--compare-top:57px] sm:pt-14">
       <header className="mb-10 flex max-w-2xl flex-col gap-3">
         <BackLink fallback="/discover" />
         <h1 className="t-h1">Compare agents</h1>
